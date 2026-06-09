@@ -34,6 +34,9 @@ def build(bld):
         platform_includes.extend(['apple', 'glfw'])
     elif target_os == 'win32':
         platform_sources = ['gamepad.cpp'] + glfw_platform_sources + ['win32/gamepad_win32.cpp',
+                                                                       'win32/gamepad_win32_dualsense.cpp',
+                                                                       'win32/gamepad_win32_gameinput.cpp',
+                                                                       'win32/gamepad_win32_xinput.cpp',
                                                                        'win32/gamepad_win32_switch.cpp']
         platform_includes.extend(['glfw', 'win32'])
         winsdk_hid_lib = 'hid.lib'
@@ -43,7 +46,8 @@ def build(bld):
                 winsdk_hid_lib = candidate
         bld.env.append_value('LINKFLAGS', [winsdk_hid_lib, 'setupapi.lib'])
     elif target_os == 'xbone':
-        platform_sources = ['gamepad.cpp'] + null_input_sources + ['win32/gamepad_win32.cpp']
+        platform_sources = ['gamepad.cpp'] + null_input_sources + ['win32/gamepad_win32.cpp',
+                                                                   'win32/gamepad_win32_gameinput.cpp']
         platform_includes.extend(['null', 'win32'])
     elif target_os in ('nx64','ps4','ps5'):
         platform_folder = target_os

@@ -24,17 +24,23 @@
 
 namespace dmHID
 {
-    static void InitializeGamepads(HContext context)
+    static bool InitializeGamepads(HContext context)
     {
         memset(context->m_Gamepads, 0, sizeof(Gamepad) * MAX_GAMEPAD_COUNT);
+
+        if (context->m_IgnoreGamepads)
+        {
+            return true;
+        }
 
         if (!GamepadInitialize(context))
         {
             dmLogError("Unable to initialize gamepad input");
-            return;
+            return false;
         }
 
         GamepadDetectDevices(context);
+        return true;
     }
 
     static void UpdateGamepads(HContext context)
@@ -68,7 +74,14 @@ namespace dmHID
             return false;
         }
 
-        InitializeGamepads(context);
+        if (!InitializeGamepads(context))
+        {
+            TouchFinalize(context);
+            MouseFinalize(context);
+            KeyboardFinalize(context);
+            return false;
+        }
+
         return true;
     }
 

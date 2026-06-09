@@ -22,7 +22,7 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
-#include "gamepad_win32_switch.h"
+#include "gamepad_win32_private.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -43,14 +43,18 @@ namespace dmHID
 {
     static const uint32_t INVALID_INDEX = 0xffffffff;
     static const uint16_t NINTENDO_VENDOR_ID = 0x057e;
+    static const uint16_t SWITCH_JOYCON_LEFT_PRODUCT_ID = 0x2006;
+    static const uint16_t SWITCH_JOYCON_RIGHT_PRODUCT_ID = 0x2007;
     static const uint16_t SWITCH_PRO_PRODUCT_ID = 0x2009;
     static const uint16_t USB_BUS = 0x0003;
+    static const uint16_t BLUETOOTH_BUS = 0x0005;
     static const uint32_t SWITCH_HID_MAX_DEVICES = MAX_GAMEPAD_COUNT;
     static const uint32_t SWITCH_HID_PATH_LENGTH = 512;
     static const uint32_t SWITCH_READ_BUFFER_SIZE = 512;
     static const uint32_t SWITCH_WRITE_BUFFER_SIZE = 128;
     static const uint32_t SWITCH_USB_REPORT_SIZE = 64;
     static const uint32_t SWITCH_BLUETOOTH_REPORT_SIZE = 49;
+    static const uint64_t SWITCH_READ_FAILURE_DISCONNECT_TIMEOUT_MS = 2000;
     static const DWORD SWITCH_COMMAND_TIMEOUT_MS = 100;
 
     enum SwitchInputReportID
@@ -97,7 +101,20 @@ namespace dmHID
         SWITCH_BUTTON_LEFT_STICK,
         SWITCH_BUTTON_RIGHT_STICK,
         SWITCH_BUTTON_CAPTURE,
+        SWITCH_BUTTON_HOME,
+        SWITCH_BUTTON_LEFT_SL,
+        SWITCH_BUTTON_LEFT_SR,
+        SWITCH_BUTTON_RIGHT_SL,
+        SWITCH_BUTTON_RIGHT_SR,
         SWITCH_BUTTON_MAX
+    };
+
+    enum SwitchDeviceType
+    {
+        SWITCH_DEVICE_TYPE_UNKNOWN,
+        SWITCH_DEVICE_TYPE_JOYCON_LEFT,
+        SWITCH_DEVICE_TYPE_JOYCON_RIGHT,
+        SWITCH_DEVICE_TYPE_PRO_CONTROLLER,
     };
 
     struct SwitchStickCalibrationAxis
@@ -111,17 +128,22 @@ namespace dmHID
     {
         wchar_t                   m_Path[SWITCH_HID_PATH_LENGTH];
         HANDLE                    m_Handle;
-        OVERLAPPED                m_ReadOverlapped;
-        uint8_t                   m_ReadBuffer[SWITCH_READ_BUFFER_SIZE];
+        OVERLAPPED*               m_ReadOverlapped;
+        uint8_t*                  m_ReadBuffer;
         uint16_t                  m_InputReportLength;
         uint16_t                  m_OutputReportLength;
         uint16_t                  m_FeatureReportLength;
         uint16_t                  m_UsagePage;
         uint16_t                  m_Usage;
+        uint16_t                  m_ProductID;
+        SwitchDeviceType          m_DeviceType;
         bool                      m_IsBluetooth;
         bool                      m_ReadPending;
         bool                      m_Seen;
         bool                      m_LoggedFirstPacket;
+        uint64_t                  m_LastSeenTick;
+        uint64_t                  m_LastPacketTick;
+        uint64_t                  m_FirstReadFailureTick;
         uint8_t                   m_CommandNumber;
         Gamepad*                  m_Gamepad;
         GamepadGuid               m_Guid;
@@ -145,9 +167,22 @@ namespace dmHID
         uint16_t m_FeatureReportLength;
         uint16_t m_UsagePage;
         uint16_t m_Usage;
+        SwitchDeviceType m_DeviceType;
     };
 
     static SwitchHIDContext* g_SwitchHIDContext = 0;
+
+    struct SwitchWriteOperation
+    {
+        OVERLAPPED m_Overlapped;
+        uint8_t    m_Output[SWITCH_WRITE_BUFFER_SIZE];
+    };
+
+    struct SwitchReadOperation
+    {
+        OVERLAPPED m_Overlapped;
+        uint8_t    m_Report[SWITCH_READ_BUFFER_SIZE];
+    };
 
     static void SetButton(GamepadPacket& packet, uint32_t button, bool pressed)
     {
@@ -217,7 +252,41 @@ namespace dmHID
         return (uint16_t) (((data[1] & 0xf0) >> 4) | (data[2] << 4));
     }
 
-    static void ParseFullStatePacket(SwitchHIDDevice* device, const uint8_t* report, uint32_t report_size)
+    static const char* GetSwitchDeviceName(SwitchDeviceType device_type)
+    {
+        switch (device_type)
+        {
+            case SWITCH_DEVICE_TYPE_JOYCON_LEFT:      return "Nintendo Switch Joy-Con (L)";
+            case SWITCH_DEVICE_TYPE_JOYCON_RIGHT:     return "Nintendo Switch Joy-Con (R)";
+            case SWITCH_DEVICE_TYPE_PRO_CONTROLLER:   return "Nintendo Switch Pro Controller";
+            default:                                  return "Nintendo Switch Controller";
+        }
+    }
+
+    static SwitchDeviceType GetSwitchDeviceType(uint16_t product_id)
+    {
+        switch (product_id)
+        {
+            case SWITCH_JOYCON_LEFT_PRODUCT_ID:   return SWITCH_DEVICE_TYPE_JOYCON_LEFT;
+            case SWITCH_JOYCON_RIGHT_PRODUCT_ID:  return SWITCH_DEVICE_TYPE_JOYCON_RIGHT;
+            case SWITCH_PRO_PRODUCT_ID:           return SWITCH_DEVICE_TYPE_PRO_CONTROLLER;
+            default:                              return SWITCH_DEVICE_TYPE_UNKNOWN;
+        }
+    }
+
+    static bool IsSupportedSwitchDevice(uint16_t vendor_id, uint16_t product_id)
+    {
+        return vendor_id == NINTENDO_VENDOR_ID && GetSwitchDeviceType(product_id) != SWITCH_DEVICE_TYPE_UNKNOWN;
+    }
+
+    static void ClearGamepadPacket(GamepadPacket& packet)
+    {
+        memset(packet.m_Axis, 0, sizeof(packet.m_Axis));
+        memset(packet.m_Buttons, 0, sizeof(packet.m_Buttons));
+        memset(packet.m_Hat, 0, sizeof(packet.m_Hat));
+    }
+
+    static void ParseProFullStatePacket(SwitchHIDDevice* device, const uint8_t* report, uint32_t report_size)
     {
         if (report_size < 13 || device->m_Gamepad == 0)
         {
@@ -227,9 +296,7 @@ namespace dmHID
         Gamepad* gamepad = device->m_Gamepad;
         GamepadPacket& packet = gamepad->m_Packet;
 
-        memset(packet.m_Axis, 0, sizeof(packet.m_Axis));
-        memset(packet.m_Buttons, 0, sizeof(packet.m_Buttons));
-        memset(packet.m_Hat, 0, sizeof(packet.m_Hat));
+        ClearGamepadPacket(packet);
 
         const uint8_t buttons_right = report[3];
         const uint8_t buttons_shared = report[4];
@@ -286,9 +353,123 @@ namespace dmHID
         }
     }
 
+    static void ParseJoyConLeftFullStatePacket(SwitchHIDDevice* device, const uint8_t* report, uint32_t report_size)
+    {
+        if (report_size < 13 || device->m_Gamepad == 0)
+        {
+            return;
+        }
+
+        Gamepad* gamepad = device->m_Gamepad;
+        GamepadPacket& packet = gamepad->m_Packet;
+
+        ClearGamepadPacket(packet);
+
+        const uint8_t buttons_shared = report[4];
+        const uint8_t buttons_left = report[5];
+        const uint8_t* left_stick = &report[6];
+
+        SetButton(packet, SWITCH_BUTTON_MENU, (buttons_shared & 0x01) != 0);
+        SetButton(packet, SWITCH_BUTTON_LEFT_STICK, (buttons_shared & 0x08) != 0);
+        SetButton(packet, SWITCH_BUTTON_CAPTURE, (buttons_shared & 0x20) != 0);
+
+        SetButton(packet, SWITCH_BUTTON_B, (buttons_left & 0x08) != 0);
+        SetButton(packet, SWITCH_BUTTON_A, (buttons_left & 0x01) != 0);
+        SetButton(packet, SWITCH_BUTTON_Y, (buttons_left & 0x02) != 0);
+        SetButton(packet, SWITCH_BUTTON_X, (buttons_left & 0x04) != 0);
+        SetButton(packet, SWITCH_BUTTON_RIGHT_SHOULDER, (buttons_left & 0x10) != 0);
+        SetButton(packet, SWITCH_BUTTON_LEFT_SHOULDER, (buttons_left & 0x20) != 0);
+        SetButton(packet, SWITCH_BUTTON_LEFT_SL, (buttons_left & 0x40) != 0);
+        SetButton(packet, SWITCH_BUTTON_LEFT_SR, (buttons_left & 0x80) != 0);
+
+        packet.m_Axis[0] = -NormalizeStickAxis(device->m_StickCalibration[0][1], ReadSwitchStickAxisY(left_stick));
+        packet.m_Axis[1] = -NormalizeStickAxis(device->m_StickCalibration[0][0], ReadSwitchStickAxisX(left_stick));
+
+        gamepad->m_AxisCount = 2;
+        gamepad->m_ButtonCount = SWITCH_BUTTON_MAX;
+        gamepad->m_HatCount = 0;
+
+        if (!device->m_LoggedFirstPacket)
+        {
+            device->m_LoggedFirstPacket = true;
+            dmLogInfo("Switch Joy-Con (L) HID first state: buttons=%02x/%02x left=%u/%u",
+                buttons_shared,
+                buttons_left,
+                ReadSwitchStickAxisX(left_stick),
+                ReadSwitchStickAxisY(left_stick));
+        }
+    }
+
+    static void ParseJoyConRightFullStatePacket(SwitchHIDDevice* device, const uint8_t* report, uint32_t report_size)
+    {
+        if (report_size < 13 || device->m_Gamepad == 0)
+        {
+            return;
+        }
+
+        Gamepad* gamepad = device->m_Gamepad;
+        GamepadPacket& packet = gamepad->m_Packet;
+
+        ClearGamepadPacket(packet);
+
+        const uint8_t buttons_right = report[3];
+        const uint8_t buttons_shared = report[4];
+        const uint8_t* right_stick = &report[9];
+
+        SetButton(packet, SWITCH_BUTTON_MENU, (buttons_shared & 0x02) != 0);
+        SetButton(packet, SWITCH_BUTTON_LEFT_STICK, (buttons_shared & 0x04) != 0);
+        SetButton(packet, SWITCH_BUTTON_HOME, (buttons_shared & 0x10) != 0);
+
+        SetButton(packet, SWITCH_BUTTON_B, (buttons_right & 0x08) != 0);
+        SetButton(packet, SWITCH_BUTTON_A, (buttons_right & 0x02) != 0);
+        SetButton(packet, SWITCH_BUTTON_Y, (buttons_right & 0x04) != 0);
+        SetButton(packet, SWITCH_BUTTON_X, (buttons_right & 0x01) != 0);
+        SetButton(packet, SWITCH_BUTTON_RIGHT_SHOULDER, (buttons_right & 0x10) != 0);
+        SetButton(packet, SWITCH_BUTTON_LEFT_SHOULDER, (buttons_right & 0x20) != 0);
+        SetButton(packet, SWITCH_BUTTON_RIGHT_SL, (buttons_right & 0x40) != 0);
+        SetButton(packet, SWITCH_BUTTON_RIGHT_SR, (buttons_right & 0x80) != 0);
+
+        packet.m_Axis[0] = NormalizeStickAxis(device->m_StickCalibration[1][1], ReadSwitchStickAxisY(right_stick));
+        packet.m_Axis[1] = NormalizeStickAxis(device->m_StickCalibration[1][0], ReadSwitchStickAxisX(right_stick));
+
+        gamepad->m_AxisCount = 2;
+        gamepad->m_ButtonCount = SWITCH_BUTTON_MAX;
+        gamepad->m_HatCount = 0;
+
+        if (!device->m_LoggedFirstPacket)
+        {
+            device->m_LoggedFirstPacket = true;
+            dmLogInfo("Switch Joy-Con (R) HID first state: buttons=%02x/%02x right=%u/%u",
+                buttons_right,
+                buttons_shared,
+                ReadSwitchStickAxisX(right_stick),
+                ReadSwitchStickAxisY(right_stick));
+        }
+    }
+
+    static void ParseFullStatePacket(SwitchHIDDevice* device, const uint8_t* report, uint32_t report_size)
+    {
+        device->m_LastPacketTick = GetTickCount64();
+        device->m_FirstReadFailureTick = 0;
+
+        switch (device->m_DeviceType)
+        {
+            case SWITCH_DEVICE_TYPE_JOYCON_LEFT:
+                ParseJoyConLeftFullStatePacket(device, report, report_size);
+                break;
+            case SWITCH_DEVICE_TYPE_JOYCON_RIGHT:
+                ParseJoyConRightFullStatePacket(device, report, report_size);
+                break;
+            case SWITCH_DEVICE_TYPE_PRO_CONTROLLER:
+            default:
+                ParseProFullStatePacket(device, report, report_size);
+                break;
+        }
+    }
+
     static uint32_t GetInputReportLength(SwitchHIDDevice* device)
     {
-        if (device->m_InputReportLength > 0 && device->m_InputReportLength <= sizeof(device->m_ReadBuffer))
+        if (device->m_InputReportLength > 0 && device->m_InputReportLength <= SWITCH_READ_BUFFER_SIZE)
         {
             return device->m_InputReportLength;
         }
@@ -298,6 +479,42 @@ namespace dmHID
     static uint32_t GetOutputPacketLength(SwitchHIDDevice* device)
     {
         return device->m_IsBluetooth ? SWITCH_BLUETOOTH_REPORT_SIZE : SWITCH_USB_REPORT_SIZE;
+    }
+
+    static void CancelOverlappedOperation(HANDLE handle, OVERLAPPED* overlapped)
+    {
+        typedef BOOL (WINAPI *CancelIoExFn)(HANDLE, LPOVERLAPPED);
+        HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
+        CancelIoExFn cancel_io_ex = kernel32 != 0 ? (CancelIoExFn) GetProcAddress(kernel32, "CancelIoEx") : 0;
+        if (cancel_io_ex != 0)
+        {
+            cancel_io_ex(handle, overlapped);
+        }
+        else
+        {
+            CancelIo(handle);
+        }
+    }
+
+    static bool CompleteOverlappedOperation(HANDLE handle, OVERLAPPED* overlapped, DWORD timeout_ms, DWORD* bytes_transferred, DWORD* last_error, BOOL* result)
+    {
+        DWORD wait_result = WaitForSingleObject(overlapped->hEvent, timeout_ms);
+        if (wait_result != WAIT_OBJECT_0)
+        {
+            *result = FALSE;
+            *last_error = wait_result == WAIT_TIMEOUT ? ERROR_TIMEOUT : GetLastError();
+            return false;
+        }
+
+        *result = GetOverlappedResult(handle, overlapped, bytes_transferred, FALSE);
+        *last_error = *result ? ERROR_SUCCESS : GetLastError();
+        return *last_error != ERROR_IO_INCOMPLETE;
+    }
+
+    static bool CancelAndCompleteOverlappedOperation(HANDLE handle, OVERLAPPED* overlapped, DWORD timeout_ms, DWORD* bytes_transferred, DWORD* last_error, BOOL* result)
+    {
+        CancelOverlappedOperation(handle, overlapped);
+        return CompleteOverlappedOperation(handle, overlapped, timeout_ms, bytes_transferred, last_error, result);
     }
 
     static bool WriteReport(SwitchHIDDevice* device, const uint8_t* report, uint32_t report_size)
@@ -310,45 +527,51 @@ namespace dmHID
 
         if (write_size > SWITCH_WRITE_BUFFER_SIZE)
         {
-            dmLogWarning("Switch Pro HID write failed: output report too large (%u)", write_size);
+            dmLogWarning("Switch HID write failed: output report too large (%u)", write_size);
             return false;
         }
 
-        uint8_t output[SWITCH_WRITE_BUFFER_SIZE] = {};
-        memcpy(output, report, report_size);
+        SwitchWriteOperation* operation = new SwitchWriteOperation();
+        memset(operation, 0, sizeof(*operation));
+        memcpy(operation->m_Output, report, report_size);
 
         DWORD bytes_written = 0;
-        OVERLAPPED overlapped = {};
-        overlapped.hEvent = CreateEventW(0, TRUE, FALSE, 0);
-        if (overlapped.hEvent == 0)
+        operation->m_Overlapped.hEvent = CreateEventW(0, TRUE, FALSE, 0);
+        if (operation->m_Overlapped.hEvent == 0)
         {
+            delete operation;
             return false;
         }
 
         DWORD last_error = ERROR_SUCCESS;
-        BOOL result = WriteFile(device->m_Handle, output, write_size, &bytes_written, &overlapped);
-        if (!result && GetLastError() == ERROR_IO_PENDING)
-        {
-            if (WaitForSingleObject(overlapped.hEvent, SWITCH_COMMAND_TIMEOUT_MS) == WAIT_OBJECT_0)
-            {
-                result = GetOverlappedResult(device->m_Handle, &overlapped, &bytes_written, FALSE);
-            }
-            else
-            {
-                CancelIo(device->m_Handle);
-                GetOverlappedResult(device->m_Handle, &overlapped, &bytes_written, TRUE);
-                result = FALSE;
-            }
-        }
+        bool completed = true;
+        BOOL result = WriteFile(device->m_Handle, operation->m_Output, write_size, &bytes_written, &operation->m_Overlapped);
         if (!result)
         {
             last_error = GetLastError();
+            if (last_error == ERROR_IO_PENDING)
+            {
+                completed = CompleteOverlappedOperation(device->m_Handle, &operation->m_Overlapped, SWITCH_COMMAND_TIMEOUT_MS, &bytes_written, &last_error, &result);
+                if (!completed)
+                {
+                    completed = CancelAndCompleteOverlappedOperation(device->m_Handle, &operation->m_Overlapped, SWITCH_COMMAND_TIMEOUT_MS, &bytes_written, &last_error, &result);
+                    if (!completed)
+                    {
+                        dmLogWarning("Switch HID write cancellation still pending: report=0x%02x output_report=%u", report[0], device->m_OutputReportLength);
+                    }
+                }
+            }
         }
 
-        CloseHandle(overlapped.hEvent);
+        if (completed)
+        {
+            CloseHandle(operation->m_Overlapped.hEvent);
+            delete operation;
+        }
+
         if (!result || bytes_written != write_size)
         {
-            dmLogWarning("Switch Pro HID write failed: report=0x%02x requested=%u wrote=%u error=%lu output_report=%u",
+            dmLogWarning("Switch HID write failed: report=0x%02x requested=%u wrote=%u error=%lu output_report=%u",
                 report[0],
                 write_size,
                 bytes_written,
@@ -364,30 +587,46 @@ namespace dmHID
     {
         *bytes_read = 0;
 
-        OVERLAPPED overlapped = {};
-        overlapped.hEvent = CreateEventW(0, TRUE, FALSE, 0);
-        if (overlapped.hEvent == 0)
+        SwitchReadOperation* operation = new SwitchReadOperation();
+        memset(operation, 0, sizeof(*operation));
+        operation->m_Overlapped.hEvent = CreateEventW(0, TRUE, FALSE, 0);
+        if (operation->m_Overlapped.hEvent == 0)
         {
+            delete operation;
             return false;
         }
 
-        BOOL result = ReadFile(device->m_Handle, report, report_size, bytes_read, &overlapped);
-        if (!result && GetLastError() == ERROR_IO_PENDING)
+        DWORD last_error = ERROR_SUCCESS;
+        bool completed = true;
+        BOOL result = ReadFile(device->m_Handle, operation->m_Report, report_size, bytes_read, &operation->m_Overlapped);
+        if (!result)
         {
-            DWORD wait_result = WaitForSingleObject(overlapped.hEvent, timeout_ms);
-            if (wait_result == WAIT_OBJECT_0)
+            last_error = GetLastError();
+            if (last_error == ERROR_IO_PENDING)
             {
-                result = GetOverlappedResult(device->m_Handle, &overlapped, bytes_read, FALSE);
-            }
-            else
-            {
-                CancelIo(device->m_Handle);
-                GetOverlappedResult(device->m_Handle, &overlapped, bytes_read, TRUE);
-                result = FALSE;
+                completed = CompleteOverlappedOperation(device->m_Handle, &operation->m_Overlapped, timeout_ms, bytes_read, &last_error, &result);
+                if (!completed)
+                {
+                    completed = CancelAndCompleteOverlappedOperation(device->m_Handle, &operation->m_Overlapped, SWITCH_COMMAND_TIMEOUT_MS, bytes_read, &last_error, &result);
+                    if (!completed)
+                    {
+                        dmLogWarning("Switch HID read cancellation still pending: input_report=%u", report_size);
+                    }
+                }
             }
         }
 
-        CloseHandle(overlapped.hEvent);
+        if (result && *bytes_read > 0)
+        {
+            memcpy(report, operation->m_Report, *bytes_read);
+        }
+
+        if (completed)
+        {
+            CloseHandle(operation->m_Overlapped.hEvent);
+            delete operation;
+        }
+
         return result != FALSE;
     }
 
@@ -443,7 +682,7 @@ namespace dmHID
             }
         }
 
-        dmLogWarning("Switch Pro HID ack timeout: expected_report=0x%02x expected_command=0x%02x reads=%u failures=%u last_report=0x%02x last_command=0x%02x last_size=%lu input_report=%u",
+        dmLogWarning("Switch HID ack timeout: expected_report=0x%02x expected_command=0x%02x reads=%u failures=%u last_report=0x%02x last_command=0x%02x last_size=%lu input_report=%u",
             expected_report,
             expected_command,
             attempts - 1,
@@ -536,7 +775,7 @@ namespace dmHID
             uint8_t input_mode = SWITCH_INPUT_REPORT_FULL_STATE;
             if (!WriteSubcommand(device, SWITCH_SUBCOMMAND_SET_INPUT_REPORT_MODE, &input_mode, sizeof(input_mode)))
             {
-                dmLogWarning("Switch Pro HID init failed: set USB input report mode 0x%02x", input_mode);
+                dmLogWarning("Switch HID init failed: set USB input report mode 0x%02x", input_mode);
                 return false;
             }
 
@@ -546,13 +785,13 @@ namespace dmHID
 
         if (!device->m_IsBluetooth)
         {
-            dmLogInfo("Switch Pro HID USB setup did not respond; trying Bluetooth setup");
+            dmLogInfo("Switch HID USB setup did not respond; trying Bluetooth setup");
             device->m_IsBluetooth = true;
         }
 
         if (!InitializeSwitchBluetoothController(device))
         {
-            dmLogWarning("Switch Pro HID init failed: set Bluetooth input report mode");
+            dmLogWarning("Switch HID init failed: set Bluetooth input report mode");
             return false;
         }
 
@@ -566,9 +805,14 @@ namespace dmHID
             return true;
         }
 
-        ResetEvent(device->m_ReadOverlapped.hEvent);
+        if (device->m_ReadOverlapped == 0 || device->m_ReadOverlapped->hEvent == 0 || device->m_ReadBuffer == 0)
+        {
+            return false;
+        }
+
+        ResetEvent(device->m_ReadOverlapped->hEvent);
         DWORD bytes_read = 0;
-        BOOL result = ReadFile(device->m_Handle, device->m_ReadBuffer, GetInputReportLength(device), &bytes_read, &device->m_ReadOverlapped);
+        BOOL result = ReadFile(device->m_Handle, device->m_ReadBuffer, GetInputReportLength(device), &bytes_read, device->m_ReadOverlapped);
         if (result)
         {
             if (bytes_read > 0)
@@ -596,10 +840,16 @@ namespace dmHID
         }
 
         DWORD bytes_read = 0;
-        if (!GetOverlappedResult(device->m_Handle, &device->m_ReadOverlapped, &bytes_read, FALSE))
+        if (!GetOverlappedResult(device->m_Handle, device->m_ReadOverlapped, &bytes_read, FALSE))
         {
             DWORD error = GetLastError();
-            return error == ERROR_IO_INCOMPLETE;
+            if (error == ERROR_IO_INCOMPLETE)
+            {
+                return true;
+            }
+
+            device->m_ReadPending = false;
+            return BeginAsyncRead(device);
         }
 
         device->m_ReadPending = false;
@@ -613,21 +863,38 @@ namespace dmHID
 
     static void CloseSwitchDevice(SwitchHIDDevice* device, HContext context)
     {
+        OVERLAPPED* read_overlapped = device->m_ReadOverlapped;
+        uint8_t* read_buffer = device->m_ReadBuffer;
+        bool free_read_operation = true;
+
         if (device->m_Handle != INVALID_HANDLE_VALUE && device->m_Handle != 0)
         {
-            if (device->m_ReadPending)
+            if (device->m_ReadPending && read_overlapped != 0)
             {
-                CancelIo(device->m_Handle);
                 DWORD bytes_read = 0;
-                GetOverlappedResult(device->m_Handle, &device->m_ReadOverlapped, &bytes_read, TRUE);
+                DWORD last_error = ERROR_SUCCESS;
+                BOOL result = FALSE;
+                free_read_operation = CancelAndCompleteOverlappedOperation(device->m_Handle, read_overlapped, SWITCH_COMMAND_TIMEOUT_MS, &bytes_read, &last_error, &result);
+                if (!free_read_operation)
+                {
+                    dmLogWarning("Switch HID async read cancellation still pending");
+                }
                 device->m_ReadPending = false;
             }
             CloseHandle(device->m_Handle);
         }
 
-        if (device->m_ReadOverlapped.hEvent != 0)
+        if (free_read_operation)
         {
-            CloseHandle(device->m_ReadOverlapped.hEvent);
+            if (read_overlapped != 0)
+            {
+                if (read_overlapped->hEvent != 0)
+                {
+                    CloseHandle(read_overlapped->hEvent);
+                }
+                delete read_overlapped;
+            }
+            delete[] read_buffer;
         }
 
         if (device->m_Gamepad != 0)
@@ -683,6 +950,12 @@ namespace dmHID
             wcsstr(path, L"BLUETOOTH") != 0;
     }
 
+    static bool IsBluetoothReportShape(const SwitchHIDDeviceInfo& info)
+    {
+        return (info.m_OutputReportLength >= SWITCH_BLUETOOTH_REPORT_SIZE && info.m_OutputReportLength < SWITCH_USB_REPORT_SIZE) ||
+            info.m_InputReportLength > SWITCH_USB_REPORT_SIZE * 2;
+    }
+
     static bool IsFailedPath(SwitchHIDContext* context, const wchar_t* path)
     {
         for (uint32_t i = 0; i < context->m_FailedPathCount; ++i)
@@ -718,6 +991,7 @@ namespace dmHID
 
         info->m_VendorID = attributes.VendorID;
         info->m_ProductID = attributes.ProductID;
+        info->m_DeviceType = GetSwitchDeviceType(attributes.ProductID);
 
         PHIDP_PREPARSED_DATA preparsed_data = 0;
         if (HidD_GetPreparsedData(handle, &preparsed_data))
@@ -737,7 +1011,7 @@ namespace dmHID
         return true;
     }
 
-    static bool IsSwitchProControllerPath(const wchar_t* path, SwitchHIDDeviceInfo* info)
+    static bool IsSwitchControllerPath(const wchar_t* path, SwitchHIDDeviceInfo* info)
     {
         HANDLE handle = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0);
         if (handle == INVALID_HANDLE_VALUE)
@@ -746,8 +1020,7 @@ namespace dmHID
         }
 
         bool result = QuerySwitchHIDDeviceInfo(handle, info) &&
-            info->m_VendorID == NINTENDO_VENDOR_ID &&
-            info->m_ProductID == SWITCH_PRO_PRODUCT_ID;
+            IsSupportedSwitchDevice(info->m_VendorID, info->m_ProductID);
 
         CloseHandle(handle);
         return result;
@@ -775,11 +1048,15 @@ namespace dmHID
         device->m_FeatureReportLength = info.m_FeatureReportLength;
         device->m_UsagePage = info.m_UsagePage;
         device->m_Usage = info.m_Usage;
+        device->m_ProductID = info.m_ProductID;
+        device->m_DeviceType = info.m_DeviceType;
         device->m_IsBluetooth = IsBluetoothPath(path) ||
-            (device->m_OutputReportLength >= SWITCH_BLUETOOTH_REPORT_SIZE && device->m_OutputReportLength < SWITCH_USB_REPORT_SIZE);
+            IsBluetoothReportShape(info);
+        device->m_LastSeenTick = GetTickCount64();
         wcsncpy_s(device->m_Path, SWITCH_HID_PATH_LENGTH, path, _TRUNCATE);
 
-        dmLogInfo("Switch Pro HID candidate: usage=0x%04x/0x%04x reports input=%u output=%u feature=%u bus=%s",
+        dmLogInfo("%s HID candidate: usage=0x%04x/0x%04x reports input=%u output=%u feature=%u bus=%s",
+            GetSwitchDeviceName(device->m_DeviceType),
             device->m_UsagePage,
             device->m_Usage,
             device->m_InputReportLength,
@@ -789,14 +1066,15 @@ namespace dmHID
 
         if (device->m_OutputReportLength != 0 && device->m_OutputReportLength < GetOutputPacketLength(device))
         {
-            dmLogWarning("Skipping Switch Pro HID candidate: output report too small (%u)", device->m_OutputReportLength);
+            dmLogWarning("Skipping %s HID candidate: output report too small (%u)", GetSwitchDeviceName(device->m_DeviceType), device->m_OutputReportLength);
             AddFailedPath(context, path);
             CloseSwitchDevice(device, context->m_HidContext);
             return false;
         }
-        if (device->m_InputReportLength > sizeof(device->m_ReadBuffer) || device->m_OutputReportLength > SWITCH_WRITE_BUFFER_SIZE)
+        if (device->m_InputReportLength > SWITCH_READ_BUFFER_SIZE || device->m_OutputReportLength > SWITCH_WRITE_BUFFER_SIZE)
         {
-            dmLogWarning("Skipping Switch Pro HID candidate: report length unsupported input=%u output=%u",
+            dmLogWarning("Skipping %s HID candidate: report length unsupported input=%u output=%u",
+                GetSwitchDeviceName(device->m_DeviceType),
                 device->m_InputReportLength,
                 device->m_OutputReportLength);
             AddFailedPath(context, path);
@@ -804,10 +1082,13 @@ namespace dmHID
             return false;
         }
 
-        device->m_ReadOverlapped.hEvent = CreateEventW(0, TRUE, FALSE, 0);
-        if (device->m_ReadOverlapped.hEvent == 0)
+        device->m_ReadBuffer = new uint8_t[SWITCH_READ_BUFFER_SIZE];
+        memset(device->m_ReadBuffer, 0, SWITCH_READ_BUFFER_SIZE);
+        device->m_ReadOverlapped = new OVERLAPPED();
+        memset(device->m_ReadOverlapped, 0, sizeof(*device->m_ReadOverlapped));
+        device->m_ReadOverlapped->hEvent = CreateEventW(0, TRUE, FALSE, 0);
+        if (device->m_ReadOverlapped->hEvent == 0)
         {
-            AddFailedPath(context, path);
             CloseSwitchDevice(device, context->m_HidContext);
             return false;
         }
@@ -816,8 +1097,7 @@ namespace dmHID
 
         if (!InitializeSwitchController(device))
         {
-            dmLogWarning("Failed to initialize Nintendo Switch Pro Controller HID fallback");
-            AddFailedPath(context, path);
+            dmLogWarning("Failed to initialize %s HID fallback", GetSwitchDeviceName(device->m_DeviceType));
             CloseSwitchDevice(device, context->m_HidContext);
             return false;
         }
@@ -825,20 +1105,20 @@ namespace dmHID
         device->m_Gamepad = CreateGamepad(context->m_HidContext);
         if (device->m_Gamepad == 0)
         {
-            AddFailedPath(context, path);
             CloseSwitchDevice(device, context->m_HidContext);
             return false;
         }
 
-        device->m_Guid = CreateGUID(USB_BUS, NINTENDO_VENDOR_ID, SWITCH_PRO_PRODUCT_ID, 0, 0, "Nintendo Switch Pro Controller", 0, 0);
-        device->m_Gamepad->m_AxisCount = 6;
+        const char* device_name = GetSwitchDeviceName(device->m_DeviceType);
+        device->m_Guid = CreateGUID(device->m_IsBluetooth ? BLUETOOTH_BUS : USB_BUS, NINTENDO_VENDOR_ID, device->m_ProductID, 0, 0, device_name, 0, 0);
+        device->m_Gamepad->m_AxisCount = device->m_DeviceType == SWITCH_DEVICE_TYPE_PRO_CONTROLLER ? 6 : 2;
         device->m_Gamepad->m_ButtonCount = SWITCH_BUTTON_MAX;
-        device->m_Gamepad->m_HatCount = 1;
+        device->m_Gamepad->m_HatCount = device->m_DeviceType == SWITCH_DEVICE_TYPE_PRO_CONTROLLER ? 1 : 0;
         SetGamepadConnectionStatus(context->m_HidContext, device->m_Gamepad, true);
 
         BeginAsyncRead(device);
 
-        dmLogInfo("Nintendo Switch Pro Controller HID fallback connected");
+        dmLogInfo("%s HID fallback connected bus=%s", device_name, device->m_IsBluetooth ? "bluetooth" : "usb");
         return true;
     }
 
@@ -928,7 +1208,7 @@ namespace dmHID
             }
 
             SwitchHIDDeviceInfo switch_device_info = {};
-            if (!IsSwitchProControllerPath(detail_data->DevicePath, &switch_device_info))
+            if (!IsSwitchControllerPath(detail_data->DevicePath, &switch_device_info))
             {
                 continue;
             }
@@ -937,6 +1217,7 @@ namespace dmHID
             if (existing_index != INVALID_INDEX)
             {
                 switch_context->m_Devices[existing_index].m_Seen = true;
+                switch_context->m_Devices[existing_index].m_LastSeenTick = GetTickCount64();
             }
             else
             {
@@ -945,21 +1226,13 @@ namespace dmHID
                 if (existing_index != INVALID_INDEX)
                 {
                     switch_context->m_Devices[existing_index].m_Seen = true;
+                    switch_context->m_Devices[existing_index].m_LastSeenTick = GetTickCount64();
                 }
             }
         }
 
         SetupDiDestroyDeviceInfoList(device_info);
 
-        for (uint32_t i = 0; i < SWITCH_HID_MAX_DEVICES; ++i)
-        {
-            SwitchHIDDevice* device = &switch_context->m_Devices[i];
-            if (device->m_Handle != 0 && !device->m_Seen)
-            {
-                dmLogInfo("Nintendo Switch Pro Controller HID fallback disconnected");
-                CloseSwitchDevice(device, switch_context->m_HidContext);
-            }
-        }
     }
 
     bool GamepadSwitchUpdate(HContext context, Gamepad* gamepad)
@@ -980,8 +1253,23 @@ namespace dmHID
         SwitchHIDDevice* device = &switch_context->m_Devices[index];
         if (!PollAsyncRead(device))
         {
-            dmLogWarning("Lost Nintendo Switch Pro Controller HID fallback");
-            CloseSwitchDevice(device, switch_context->m_HidContext);
+            uint64_t now = GetTickCount64();
+            uint64_t last_packet_tick = device->m_LastPacketTick != 0 ? device->m_LastPacketTick : device->m_LastSeenTick;
+            if (device->m_FirstReadFailureTick == 0)
+            {
+                device->m_FirstReadFailureTick = now;
+            }
+
+            if (now >= device->m_FirstReadFailureTick + SWITCH_READ_FAILURE_DISCONNECT_TIMEOUT_MS &&
+                now >= last_packet_tick + SWITCH_READ_FAILURE_DISCONNECT_TIMEOUT_MS)
+            {
+                dmLogWarning("Lost %s HID fallback", GetSwitchDeviceName(device->m_DeviceType));
+                CloseSwitchDevice(device, switch_context->m_HidContext);
+            }
+        }
+        else
+        {
+            device->m_FirstReadFailureTick = 0;
         }
 
         return true;
@@ -990,9 +1278,16 @@ namespace dmHID
     bool GamepadSwitchGetDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
         (void) context;
-        if (GamepadSwitchOwnsGamepad(context, gamepad))
+        SwitchHIDContext* switch_context = g_SwitchHIDContext;
+        if (switch_context == 0)
         {
-            dmStrlCpy(name, "Nintendo Switch Pro Controller", MAX_GAMEPAD_NAME_LENGTH);
+            return false;
+        }
+
+        uint32_t index = FindDeviceByGamepad(switch_context, gamepad);
+        if (index != INVALID_INDEX)
+        {
+            dmStrlCpy(name, GetSwitchDeviceName(switch_context->m_Devices[index].m_DeviceType), MAX_GAMEPAD_NAME_LENGTH);
             return true;
         }
         return false;

@@ -58,13 +58,17 @@ elseif(TARGET_PLATFORM MATCHES "x86_64-win32|win32")
         "${HID_SRC_DIR}/gamepad.cpp"
         ${HID_GLFW_PLATFORM_SOURCES}
         "${HID_SRC_DIR}/win32/gamepad_win32.cpp"
+        "${HID_SRC_DIR}/win32/gamepad_win32_dualsense.cpp"
+        "${HID_SRC_DIR}/win32/gamepad_win32_gameinput.cpp"
+        "${HID_SRC_DIR}/win32/gamepad_win32_xinput.cpp"
         "${HID_SRC_DIR}/win32/gamepad_win32_switch.cpp")
     list(APPEND HID_PLATFORM_INCLUDE_DIRS "${HID_SRC_DIR}/glfw" "${HID_SRC_DIR}/win32")
 elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
     list(APPEND hid_SOURCES
         "${HID_SRC_DIR}/gamepad.cpp"
         ${HID_NULL_INPUT_SOURCES}
-        "${HID_SRC_DIR}/win32/gamepad_win32.cpp")
+        "${HID_SRC_DIR}/win32/gamepad_win32.cpp"
+        "${HID_SRC_DIR}/win32/gamepad_win32_gameinput.cpp")
     list(APPEND HID_PLATFORM_INCLUDE_DIRS "${HID_SRC_DIR}/null" "${HID_SRC_DIR}/win32")
 elseif(DEFOLD_IS_PRIVATE_VENDOR)
     if(NOT HID_PRIVATE_SRC_DIR)
