@@ -16,7 +16,6 @@
 #include <dlib/message.h>
 #include <dmsdk/dlib/http.h>
 
-#include "http_internal.h"
 #include "http_service.h"
 
 namespace dmHttpService
@@ -67,29 +66,5 @@ namespace dmHttpService
     void Delete(HHttpService http_service)
     {
         (void) http_service;
-    }
-}
-
-extern "C"
-{
-    HttpResult HttpNewServiceWithCacheInternal(uint32_t max_concurrent_requests, void* http_cache, HttpService** service)
-    {
-        (void) max_concurrent_requests;
-        (void) http_cache;
-        if (service)
-        {
-            *service = 0;
-        }
-        return HTTP_RESULT_INVAL;
-    }
-
-    HttpResult HttpNewServiceInternal(uint32_t max_concurrent_requests, HttpService** service)
-    {
-        return HttpNewServiceWithCacheInternal(max_concurrent_requests, 0, service);
-    }
-
-    void HttpDeleteServiceInternal(HttpService* service)
-    {
-        (void) service;
     }
 }

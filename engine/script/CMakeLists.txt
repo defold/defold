@@ -23,13 +23,11 @@ set(SCRIPT_DEPENDENCIES
 
 set(SCRIPT_PROTO_FILES
   "${SCRIPT_SRC_DIR}/script/ddf_script.proto"
-  "${SCRIPT_SRC_DIR}/script/http_ddf.proto"
   "${SCRIPT_SRC_DIR}/script/lua_source_ddf.proto"
   "${SCRIPT_SRC_DIR}/script/script_doc_ddf.proto"
   "${SCRIPT_SRC_DIR}/script/sys_ddf.proto")
 set(SCRIPT_PUBLIC_HEADERS
-  "${SCRIPT_SRC_DIR}/script.h"
-  "${SCRIPT_SRC_DIR}/http_service.h")
+  "${SCRIPT_SRC_DIR}/script.h")
 file(GLOB_RECURSE SCRIPT_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${SCRIPT_SRC_DIR}/dmsdk/*.h"
   "${SCRIPT_SRC_DIR}/dmsdk/*.hpp")
@@ -150,7 +148,6 @@ add_custom_target(script_sdk_headers
 
 install(FILES
   "${SCRIPT_SRC_DIR}/script.h"
-  "${SCRIPT_SRC_DIR}/http_service.h"
   ${SCRIPT_PROTO_HEADERS}
   DESTINATION include/script)
 install(DIRECTORY "${SCRIPT_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")

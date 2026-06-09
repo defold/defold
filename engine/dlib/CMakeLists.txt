@@ -219,6 +219,7 @@ set(DLIB_MBEDTLS_INCLUDE_DIRS
 
 file(GLOB DLIB_BASE_SOURCES CONFIGURE_DEPENDS
      "${DLIB_CORE_DIR}/*.cpp"
+     "${DLIB_CORE_DIR}/http/*.cpp"
      "${DLIB_SRC_DIR}/zlib/*.c"
      "${DLIB_SRC_DIR}/lz4/*.c")
 
@@ -271,10 +272,11 @@ if(DLIB_TARGET_OS STREQUAL "ios")
   dlib_append_unique(DLIB_SOURCES "${DLIB_CORE_DIR}/log_ios.mm")
 endif()
 if(TARGET_PLATFORM MATCHES "web$")
-  dlib_remove_matching(DLIB_SOURCES "/http_cache\\.cpp$" "/http_cache_verify\\.cpp$" "/configfile_http\\.cpp$")
+  dlib_remove_matching(DLIB_SOURCES "/http_cache\\.cpp$" "/http_cache_verify\\.cpp$" "/configfile_http\\.cpp$" "/http_service\\.cpp$")
   list(APPEND DLIB_SOURCES
     "${DLIB_CORE_DIR}/http_cache_null.cpp"
-    "${DLIB_CORE_DIR}/configfile_http_null.cpp")
+    "${DLIB_CORE_DIR}/configfile_http_null.cpp"
+    "${DLIB_CORE_DIR}/http/http_service_null.cpp")
 endif()
 
 file(GLOB DLIB_ZIP_SOURCES CONFIGURE_DEPENDS "${DLIB_SRC_DIR}/zip/*.c")
@@ -476,10 +478,7 @@ set(DLIB_PUBLIC_HEADERS
   "${DLIB_CORE_DIR}/endian.hpp"
   "${DLIB_CORE_DIR}/hash.h"
   "${DLIB_CORE_DIR}/hashtable.h"
-  "${DLIB_CORE_DIR}/http_cache.h"
   "${DLIB_CORE_DIR}/http_cache_verify.h"
-  "${DLIB_CORE_DIR}/http_client.h"
-  "${DLIB_CORE_DIR}/http_server.h"
   "${DLIB_CORE_DIR}/image.h"
   "${DLIB_CORE_DIR}/index_pool.h"
   "${DLIB_CORE_DIR}/jobsystem.h"
@@ -520,9 +519,20 @@ set(DLIB_PUBLIC_HEADERS
   "${DLIB_CORE_DIR}/zip.h"
   "${DLIB_CORE_DIR}/testutil.h")
 
+set(DLIB_HTTP_PUBLIC_HEADERS
+  "${DLIB_CORE_DIR}/http/http_cache.h"
+  "${DLIB_CORE_DIR}/http/http_client.h"
+  "${DLIB_CORE_DIR}/http/http_service.h"
+  "${DLIB_CORE_DIR}/http/http_server.h")
+
 defold_add_sdk_headers_target(dlib_public_sdk_headers
   DESTINATION include/dlib
   FILES ${DLIB_PUBLIC_HEADERS}
+  DEPENDS dlib)
+
+defold_add_sdk_headers_target(dlib_http_sdk_headers
+  DESTINATION include/dlib/http
+  FILES ${DLIB_HTTP_PUBLIC_HEADERS}
   DEPENDS dlib)
 
 defold_add_sdk_headers_target(dlib_profile_sdk_headers
@@ -532,6 +542,7 @@ defold_add_sdk_headers_target(dlib_profile_sdk_headers
 
 set(DLIB_SDK_HEADER_TARGETS
   dlib_public_sdk_headers
+  dlib_http_sdk_headers
   dlib_profile_sdk_headers
   dlib_dmsdk_sdk_headers)
 defold_add_sdk_headers_target(dlib_dmsdk_sdk_headers
@@ -544,6 +555,7 @@ add_custom_target(dlib_sdk_headers
   DEPENDS ${DLIB_SDK_HEADER_TARGETS})
 
 install(FILES ${DLIB_PUBLIC_HEADERS} DESTINATION include/dlib)
+install(FILES ${DLIB_HTTP_PUBLIC_HEADERS} DESTINATION include/dlib/http)
 
 install(FILES "${DLIB_CORE_DIR}/profile/profile.h" DESTINATION include/dlib/profile)
 install(DIRECTORY "${DLIB_SRC_DIR}/stb/" DESTINATION ext/include/stb FILES_MATCHING PATTERN "*.h")
