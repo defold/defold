@@ -194,12 +194,13 @@
                                      :key {:type :keyword} ;; command
                                      :val {:type :object
                                            :properties {:bindings {:type :array
-                                                                    :item {:type :object
-                                                                           :properties {:button {:type :enum
-                                                                                                 :values [:primary :middle :secondary]}
-                                                                                        :modifiers {:type :array
-                                                                                                    :item {:type :enum
-                                                                                                           :values [:shift :alt :control]}}}}}
+                                                                   :item {:type :object
+                                                                          :properties
+                                                                          {:button {:type :enum
+                                                                                    :values [:primary :middle :secondary]}
+                                                                           :modifiers {:type :array
+                                                                                       :item {:type :enum
+                                                                                              :values [:shift :alt :control]}}}}}
                                                         :sub-commands {:type :object-of
                                                                        :key {:type :keyword}
                                                                        :val {:type :enum

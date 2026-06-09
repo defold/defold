@@ -148,19 +148,3 @@
                       modifiers)]
       (string/join "+" (conj parts (button->label button))))
     "Unassigned"))
-
-(comment
-  @bindings-atom
-  (reset! bindings-atom {:contexts {}})
-  (command-active? :editor.tile-map/tile-map
-                   :scene.tile-map.erase
-                   {:mouse-buttons #{:primary}
-                    :pressed-keys #{}
-                    :modifiers #{:shift :alt}
-                    :cursor-pos [0.0 0.0]
-                    :view-pos [0.0 0.0]
-                    :scroll-delta [0.0 0.0]})
-  (command-for-action :editor.tile-map/tile-map {:button :primary
-                                                 :shift true
-                                                 :alt true})
-  :-)

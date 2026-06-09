@@ -709,6 +709,14 @@ prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)
 prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
 prefs.keymap.warning.duplicate = Binding already exists, will be ignored
+prefs.keymap.mouse-binding.section.button = Mouse Button
+prefs.keymap.mouse-binding.section.modifiers = Modifiers
+prefs.keymap.mouse-binding.button.apply = Apply
+prefs.keymap.context-menu.add-mouse-binding = Add Mouse Binding
+prefs.keymap.context-menu.remove-mouse-binding = Remove {binding}
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = Reset to Defaults
+prefs.keymap.context-menu.edit-modifier = Edit Modifier
+prefs.keymap.inherited-from = Inherited from {context}
 
 # Progress
 

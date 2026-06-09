@@ -701,11 +701,6 @@
         (set-extents fov-x fov-y z-near z-far)
         filter-fn)))
 
-(defn significant-drag?
-  [[^double cx ^double cy] [^double px ^double py]]
-  (< 2.0 (max (Math/abs (- cx px))
-              (Math/abs (- cy py)))))
-
 (defn- lerp [^double a ^double b ^double t]
   (let [d (- b a)]
     (+ a (* t d))))
