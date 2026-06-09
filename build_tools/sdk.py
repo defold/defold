@@ -446,7 +446,7 @@ def _get_local_vswhere_installations():
 def _get_common_visual_studio_roots():
     roots = []
     for base in filter(None, [os.environ.get('ProgramFiles'), os.environ.get('ProgramFiles(x86)')]):
-        for year in ('2026', '2022'):
+        for year in ('18', '2026', '2022'):
             for edition in ('BuildTools', 'Community', 'Professional', 'Enterprise'):
                 installation_root = os.path.join(base, 'Microsoft Visual Studio', year, edition)
                 if os.path.exists(installation_root):
@@ -585,6 +585,32 @@ def _get_windows_llvm_bin_dir(installation_root):
         return os.path.normpath(llvm_bin_dir)
     return None
 
+def _get_windows_visual_studio_year(installation=None, installation_root=None):
+    if installation:
+        for value in (
+            installation.get('displayName', ''),
+            (installation.get('catalog') or {}).get('productLineVersion', ''),
+        ):
+            match = re.search(r'\b(20\d{2})\b', str(value))
+            if match:
+                return match.group(1)
+
+    if installation_root:
+        for part in os.path.normpath(installation_root).split(os.sep):
+            if re.match(r'^20\d{2}$', part):
+                return part
+
+        # Visual Studio 2026 uses the major version in the installation path.
+        major_to_year = {
+            '18': '2026',
+            '17': '2022'
+        }
+        for part in os.path.normpath(installation_root).split(os.sep):
+            if part in major_to_year:
+                return major_to_year[part]
+
+    return None
+
 def _log_windows_detection_trace(verbose):
     global windows_info_trace
 
@@ -611,6 +637,7 @@ def _log_windows_detection_trace(verbose):
         log_verbose(verbose, "  Visual Studio candidate roots: none")
 
     log_verbose(verbose, f"  Selected Visual Studio installation: {trace.get('installation_root')}")
+    log_verbose(verbose, f"  Selected Visual Studio year: {trace.get('vs_year')}")
     log_verbose(verbose, f"  Selected MSVC root: {trace.get('vs_root')}")
     log_verbose(verbose, f"  Selected MSVC version: {trace.get('vs_version')}")
     log_verbose(verbose, f"  Visual Studio LLVM bin dir: {trace.get('llvm_bin_dir')}")
@@ -646,12 +673,14 @@ def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
 
     vswhere_path = _get_local_vswhere_path()
     vswhere_installations = []
+    vswhere_installations_by_root = {}
     installation_roots = []
     for installation in _get_local_vswhere_installations():
         installation_root = installation.get('installationPath')
         if installation_root:
             installation_root = os.path.normpath(installation_root)
             vswhere_installations.append(installation_root)
+            vswhere_installations_by_root[installation_root] = installation
             installation_roots.append(installation_root)
 
     for installation_root in _get_common_visual_studio_roots():
@@ -670,12 +699,14 @@ def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
     sdk_root = _get_windows_sdk_root()
     sdk_version = _get_windows_sdk_version(sdk_root) if sdk_root else None
     llvm_bin_dir = _get_windows_llvm_bin_dir(selected_installation_root) if selected_installation_root else None
+    vs_year = _get_windows_visual_studio_year(vswhere_installations_by_root.get(selected_installation_root), selected_installation_root)
 
     windows_info_trace = {
         'vswhere_path': vswhere_path,
         'vswhere_installations': vswhere_installations,
         'candidate_roots': installation_roots,
         'installation_root': selected_installation_root,
+        'vs_year': vs_year,
         'vs_root': vs_root,
         'vs_version': vs_version,
         'llvm_bin_dir': llvm_bin_dir,
@@ -700,6 +731,7 @@ def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
         return None, windows_info_error
 
     windows_info = get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform, llvm_bin_dir)
+    windows_info['vs_year'] = vs_year
     return windows_info, None
 
 def win_locale_vswhere(platform='x86_64-win32'):
@@ -1061,30 +1093,36 @@ def _get_local_sdk_info(platform, verbose=False):
 
     return info
 
-# ********************************************************************
-# vendor
+class sdk_vendor(object):
+    @classmethod
+    def _module_for_platform(cls, platform):
+        from private_hooks import load_hook_module
+        module = load_hook_module('sdk', platform)
+        if module:
+            module.SDKException = SDKException
+        return module
 
-def dummy_check_vendor_sdk(sdkfolder, platform, verbose):
-    pass
+    @classmethod
+    def _call(cls, platform, name, default, *args):
+        module = cls._module_for_platform(platform)
+        func = getattr(module, name, None) if module else None
+        return func(*args) if func else default
 
-check_vendor_sdk = dummy_check_vendor_sdk
+    @classmethod
+    def supports_platform(cls, platform):
+        return cls._call(platform, 'supports_platform', False, platform)
 
-try:
-    import sdk_vendor
-    sdk_vendor.SDKException = SDKException # give access to the esception
-    check_vendor_sdk = sdk_vendor.check_vendor_sdk
-except ModuleNotFoundError as e:
-    # Currently, the output is parsed by other scripts
-    if "No module named 'sdk_vendor'" in str(e):
-        pass
-    else:
-        raise e
-except Exception as e:
-    print("Failed to import sdk_vendor.py:")
-    raise e
+    @classmethod
+    def get_defold_sdk_folders(cls, platform):
+        return cls._call(platform, 'get_defold_sdk_folders', [], platform)
 
-if 'sdk_vendor' not in sys.modules:
-    sdk_vendor = None
+    @classmethod
+    def get_sdk_info(cls, platform):
+        return cls._call(platform, 'get_sdk_info', None, platform)
+
+
+def check_vendor_sdk(sdkfolder, platform, verbose):
+    return sdk_vendor._call(platform, 'check_vendor_sdk', None, sdkfolder, platform, verbose)
 
 # ********************************************************************
 

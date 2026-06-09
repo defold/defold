@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <script/test_script.h>
+#include <test_script.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 
@@ -48,6 +48,8 @@ TEST_F(ComponentTest, HTTPRequest)
     lua_setglobal(L, DEFAULT_URL);
 
     SetHttpAddress(L);
+
+    ASSERT_NE((void*)0, ContextRegistryGet(m_ContextRegistry, "http_service"));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 

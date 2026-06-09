@@ -91,6 +91,20 @@
               (test-util/with-prop [shape prop value]
                 (is (g/error? (g/node-value node-id :build-targets)))))))))))
 
+(deftest group-property-read-only-for-tilemap
+  (test-util/with-loaded-project
+    (testing "group is editable when collision-shape is nil"
+      (let [node-id (test-util/resource-node project "/collision_object/new.collisionobject")]
+        (is (not (test-util/prop-read-only? node-id :group)))))
+
+    (testing "group is read-only when collision-shape is a tilemap"
+      (let [node-id (test-util/resource-node project "/collision_object/tile_map_collision_shape.collisionobject")]
+        (is (test-util/prop-read-only? node-id :group))))
+
+    (testing "existing group value is preserved under a tilemap collision-shape"
+      (let [node-id (test-util/resource-node project "/collision_object/tile_map_collision_shape.collisionobject")]
+        (is (= "default" (test-util/prop node-id :group)))))))
+
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
     (let [project-graph (g/node-id->graph-id project)

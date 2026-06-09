@@ -1,4 +1,5 @@
-{:hooks {:analyze-call {clojure.core.cache/defcache hooks.clojure-core-cache/defcache
+{:hooks {:analyze-call {clojure.core/map hooks.clojure-core/map
+                        clojure.core.cache/defcache hooks.clojure-core-cache/defcache
                         clojure.test.check.clojure-test/defspec hooks.clojure-test-check-clojure-test/defspec
                         dynamo.graph/deftype hooks.dynamo-graph/deftype
                         dynamo.graph/defnode hooks.dynamo-graph/defnode
@@ -55,4 +56,5 @@
                         util.defonce/record hooks.util-defonce/record
                         util.defonce/type hooks.util-defonce/type
                         util.fn/defamong hooks.util-fn/defamong}}
+ :linters {:refer-all {:exclude [clojure.test]}}
  :config-in-ns {editor.gl.translate-test {:linters {:inline-def {:level :off}}}}}

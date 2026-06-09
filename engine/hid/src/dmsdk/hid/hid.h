@@ -27,6 +27,13 @@
  * @language C++
  */
 
+/*# HID extension context name
+ * Name used when registering the HID context with the engine context registry.
+ * @constant
+ * @name HID_CONTEXT_NAME
+ */
+#define HID_CONTEXT_NAME "hid"
+
 namespace dmHID
 {
     /*# HID context handle

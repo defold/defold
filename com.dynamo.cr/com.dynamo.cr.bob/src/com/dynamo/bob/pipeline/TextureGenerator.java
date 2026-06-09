@@ -400,7 +400,7 @@ public class TextureGenerator {
             }
 
             newWidth = textureCompressor.getAlignedWidth(textureFormat, newWidth);
-            newHeight = textureCompressor.getAlignedWidth(textureFormat, newHeight);
+            newHeight = textureCompressor.getAlignedHeight(textureFormat, newHeight);
 
             // Resize to POT if necessary
             if (width != newWidth || height != newHeight) {

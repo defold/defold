@@ -16,7 +16,16 @@
 
 #include "engine_private.h"
 
+#include <dmsdk/dlib/configfile.h>
+#include <dmsdk/dlib/jobsystem.h>
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/dlib/webserver.h>
+#include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/graphics/graphics.h>
+#include <dmsdk/hid/hid.h>
+#include <dmsdk/render/render.h>
+#include <dmsdk/resource/resource.h>
+#include <dmsdk/script/script.h>
 
 #include <sys/stat.h>
 
@@ -40,6 +49,7 @@
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #include <graphics/graphics.h>
+#include <extension/extension.h>
 #include <extension/extension.hpp>
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
@@ -130,19 +140,38 @@ namespace dmEngine
         }
     }
 
+    static void SetScriptContextInContextRegistry(HContextRegistry context_registry, dmScript::HContext script_context)
+    {
+        ContextRegistrySet(context_registry, SCRIPT_CONTEXT_NAME, script_context);
+        ContextRegistrySet(context_registry, LUA_CONTEXT_NAME, script_context ? dmScript::GetLuaState(script_context) : 0);
+    }
+
+    static void PopulateContextRegistry(HEngine engine, dmScript::HContext script_context)
+    {
+        ContextRegistrySet(engine->m_ContextRegistry, CONFIGFILE_CONTEXT_NAME, engine->m_Config);
+        dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
+        ContextRegistrySet(engine->m_ContextRegistry, WEBSERVER_CONTEXT_NAME, webserver);
+        ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, engine->m_Register);
+        ContextRegistrySet(engine->m_ContextRegistry, HID_CONTEXT_NAME, engine->m_HidContext);
+        ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, engine->m_Factory);
+        ContextRegistrySet(engine->m_ContextRegistry, GRAPHICS_CONTEXT_NAME, engine->m_GraphicsContext);
+        ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, engine->m_RenderContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "http_cache", engine->m_HttpCache);
+        ContextRegistrySet(engine->m_ContextRegistry, JOB_SYSTEM_CONTEXT_NAME, engine->m_JobThreadContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", engine->m_GuiScriptContext);
+        ContextRegistrySet(engine->m_ContextRegistry, "guic", engine->m_GuiContext);
+        SetScriptContextInContextRegistry(engine->m_ContextRegistry, script_context);
+    }
+
     struct ScopedExtensionAppParams
     {
         ExtensionAppParams m_AppParams;
         ScopedExtensionAppParams(HEngine engine)
         {
             ExtensionAppParamsInitialize(&m_AppParams);
+            ExtensionAppParamsSetContextRegistry(&m_AppParams, engine->m_ContextRegistry);
             m_AppParams.m_ConfigFile = engine->m_Config;
             m_AppParams.m_ExitStatus = GetAppExitStatusFromAction(engine->m_RunResult.m_Action);
-            ExtensionAppParamsSetContext(&m_AppParams, "config", engine->m_Config);
-            dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
-            ExtensionAppParamsSetContext(&m_AppParams, "webserver", webserver);
-            ExtensionAppParamsSetContext(&m_AppParams, "register", engine->m_Register);
-            ExtensionAppParamsSetContext(&m_AppParams, "hid", engine->m_HidContext);
         }
         ~ScopedExtensionAppParams()
         {
@@ -157,29 +186,17 @@ namespace dmEngine
 
     struct ScopedExtensionParams
     {
-        HEngine         m_Engine;
         ExtensionParams m_Params;
+        HEngine         m_Engine;
+
         ScopedExtensionParams(HEngine engine)
         : m_Engine(engine)
         {
             ExtensionParamsInitialize(&m_Params);
+            ExtensionParamsSetContextRegistry(&m_Params, engine->m_ContextRegistry);
             m_Params.m_ConfigFile = engine->m_Config;
             m_Params.m_ResourceFactory = engine->m_Factory;
             SetLuaContext(engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
-
-            ExtensionParamsSetContext(&m_Params, "config", engine->m_Config);
-            dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
-            ExtensionParamsSetContext(&m_Params, "webserver", webserver);
-            ExtensionParamsSetContext(&m_Params, "register", engine->m_Register);
-            ExtensionParamsSetContext(&m_Params, "hid", engine->m_HidContext);
-            ExtensionParamsSetContext(&m_Params, "factory", engine->m_Factory);
-            ExtensionParamsSetContext(&m_Params, "graphics", engine->m_GraphicsContext);
-            ExtensionParamsSetContext(&m_Params, "render", engine->m_RenderContext);
-            if (engine->m_HttpCache)
-                ExtensionParamsSetContext(&m_Params, "http_cache", engine->m_HttpCache);
-
-            if (engine->m_JobThreadContext)
-                ExtensionParamsSetContext(&m_Params, "jobs", engine->m_JobThreadContext);
         }
         ~ScopedExtensionParams()
         {
@@ -187,9 +204,8 @@ namespace dmEngine
         }
         void SetLuaContext(dmScript::HContext script_context)
         {
-            m_Params.m_L = dmScript::GetLuaState(script_context);
-            ExtensionParamsSetContext(&m_Params, "script", script_context);
-            ExtensionParamsSetContext(&m_Params, "lua", m_Params.m_L);
+            m_Params.m_L = script_context ? dmScript::GetLuaState(script_context) : 0;
+            SetScriptContextInContextRegistry(m_Engine->m_ContextRegistry, script_context);
         }
 
         operator ExtensionParams* ()
@@ -299,15 +315,17 @@ namespace dmEngine
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
 
-    static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx)
+    static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx, dmGameObject::ComponentTypeCreateCtxImpl& component_create_ctx_impl)
     {
+        component_create_ctx_impl.m_ContextRegistry = engine->m_ContextRegistry;
+        component_create_ctx.m_Impl = &component_create_ctx_impl;
         component_create_ctx.m_Config = engine->m_Config;
         component_create_ctx.m_Script = engine->m_GOScriptContext;
         component_create_ctx.m_Register = engine->m_Register;
         component_create_ctx.m_Factory = engine->m_Factory;
         component_create_ctx.m_Contexts.SetCapacity(3, 8);
-        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
-        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
+        component_create_ctx.m_Contexts.Put(dmHashString64(GRAPHICS_CONTEXT_NAME), engine->m_GraphicsContext);
+        component_create_ctx.m_Contexts.Put(dmHashString64(RENDER_CONTEXT_NAME), engine->m_RenderContext);
         if (engine->m_GuiContext)
         {
             component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
@@ -432,6 +450,8 @@ namespace dmEngine
         m_AccumFrameTime = 0;
         m_PreviousFrameTime = dmTime::GetMonotonicTime();
         m_HttpCache = 0;
+        m_ContextRegistry = ContextRegistryCreate();
+        dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -462,25 +482,35 @@ namespace dmEngine
             dmResource::DeregisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         }
 
+        dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-        SetupComponentCreateContext(engine, component_create_ctx);
+        SetupComponentCreateContext(engine, component_create_ctx, component_create_ctx_impl);
 
         dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
 
         dmGameSystem::ScriptLibContext script_lib_context;
         script_lib_context.m_Factory = engine->m_Factory;
         script_lib_context.m_Register = engine->m_Register;
-        if (engine->m_SharedScriptContext) {
+        if (engine->m_SharedScriptContext)
+        {
             script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_SharedScriptContext);
             dmGameSystem::FinalizeScriptLibs(script_lib_context);
             dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
-        } else {
-            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
-            dmGameSystem::FinalizeScriptLibs(script_lib_context);
-            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
-            script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
-            dmGameSystem::FinalizeScriptLibs(script_lib_context);
-            dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
+        }
+        else
+        {
+            if (engine->m_GOScriptContext)
+            {
+                script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GOScriptContext);
+                dmGameSystem::FinalizeScriptLibs(script_lib_context);
+                dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
+            }
+            if (engine->m_GuiScriptContext)
+            {
+                script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_GuiScriptContext);
+                dmGameSystem::FinalizeScriptLibs(script_lib_context);
+                dmEngine::ScriptSysEngineFinalize(script_lib_context.m_LuaState, engine);
+            }
         }
 
         dmHttpClient::ReopenConnectionPool();
@@ -491,9 +521,11 @@ namespace dmEngine
 
         dmSound::Finalize();
 
-        dmInput::DeleteContext(engine->m_InputContext);
+        if (engine->m_InputContext)
+            dmInput::DeleteContext(engine->m_InputContext);
 
-        dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
+        if (engine->m_RenderContext)
+            dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_RenderScriptContext);
 
         if (engine->m_HidContext)
         {
@@ -568,13 +600,18 @@ namespace dmEngine
         if (engine->m_PhysicsContextBullet3D.m_Context)
             dmPhysics::DeleteContext3D(engine->m_PhysicsContextBullet3D.m_Context);
 
-        ScopedExtensionAppParams app_params(engine);
-        dmExtension::AppFinalize(app_params);
+        {
+            ScopedExtensionAppParams app_params(engine);
+            dmExtension::AppFinalize(app_params);
+        }
 
 #if !defined(DM_NO_HTTP_CACHE)
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
 #endif
+
+        ContextRegistryDestroy(engine->m_ContextRegistry);
+        engine->m_ContextRegistry = 0;
 
         dmBuffer::DeleteContext();
 
@@ -836,7 +873,11 @@ namespace dmEngine
     */
     bool Init(HEngine engine, int argc, char *argv[])
     {
+#if defined(DM_PLATFORM_VENDOR)
+        dmLogInfo("Defold Engine %s (%.7s, %.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1, dmEngineVersion::PRIVATE_VERSION_SHA1);
+#else
         dmLogInfo("Defold Engine %s (%.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1);
+#endif
 
         dmCrash::SetExtraInfoCallback(CrashHandlerCallback, engine);
 
@@ -1012,6 +1053,38 @@ namespace dmEngine
 #endif
         engine->m_HidContext = dmHID::NewContext(new_hid_params);
 
+        engine->m_HttpCache = 0;
+#if !defined(DM_NO_HTTP_CACHE)
+        int http_cache_enabled = dmConfigFile::GetInt(engine->m_Config, "network.http_cache_enabled", 1);
+        if (http_cache_enabled)
+        {
+            char path[1024];
+            dmHttpCache::NewParams cache_params;
+            dmSys::Result sys_result = dmSys::GetApplicationSupportPath(DMSYS_APPLICATION_NAME, path, sizeof(path));
+            if (sys_result == dmSys::RESULT_OK)
+            {
+                dmStrlCat(path, "/http-cache", sizeof(path));
+                cache_params.m_Path = path;
+                dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &engine->m_HttpCache);
+                if (cache_r != dmHttpCache::RESULT_OK)
+                {
+                    dmLogWarning("Unable to open http cache (%d)", cache_r);
+                }
+            }
+            else
+            {
+                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", DMSYS_APPLICATION_NAME, sys_result);
+            }
+        }
+#endif
+
+        JobSystemCreateParams job_thread_create_param;
+        job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
+        job_thread_create_param.m_ThreadCount       = 1;
+        engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
+
+        PopulateContextRegistry(engine, 0);
+
         ScopedExtensionAppParams app_params(engine);
         dmExtension::Result er = dmExtension::AppInitialize(app_params);
         if (er != dmExtension::RESULT_OK) {
@@ -1149,11 +1222,6 @@ namespace dmEngine
             swap_interval = 0;
         }
 
-        JobSystemCreateParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
-        job_thread_create_param.m_ThreadCount       = 1;
-        engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
-
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_DefaultTextureMinFilter = ConvertMinTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_min_filter", "linear"));
         graphics_context_params.m_DefaultTextureMagFilter = ConvertMagTextureFilter(dmConfigFile::GetString(engine->m_Config, "graphics.default_texture_mag_filter", "linear"));
@@ -1198,32 +1266,6 @@ namespace dmEngine
 
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
-        engine->m_HttpCache = 0;
-#if !defined(DM_NO_HTTP_CACHE)
-        int http_cache_enabled = dmConfigFile::GetInt(engine->m_Config, "network.http_cache_enabled", 1);
-        if (http_cache_enabled)
-        {
-            char path[1024];
-            dmHttpCache::NewParams cache_params;
-            dmSys::Result sys_result = dmSys::GetApplicationSupportPath(DMSYS_APPLICATION_NAME, path, sizeof(path));
-            if (sys_result == dmSys::RESULT_OK)
-            {
-                dmStrlCat(path, "/http-cache", sizeof(path));
-                cache_params.m_Path = path;
-                dmHttpCache::Result cache_r = dmHttpCache::Open(&cache_params, &engine->m_HttpCache);
-                if (cache_r != dmHttpCache::RESULT_OK)
-                {
-                    dmLogWarning("Unable to open http cache (%d)", cache_r);
-                }
-            }
-            else
-            {
-                dmLogWarning("Unable to locate application support path for \"%s\": (%d)", DMSYS_APPLICATION_NAME, sys_result);
-            }
-        }
-#endif
-
-
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
         params.m_MaxResources = max_resources;
@@ -1262,6 +1304,7 @@ namespace dmEngine
         script_params.m_ConfigFile      = engine->m_Config;
         script_params.m_GraphicsContext = engine->m_GraphicsContext;
 
+        PopulateContextRegistry(engine, 0);
 
         ScopedExtensionParams extension_params(engine);
 
@@ -1270,6 +1313,7 @@ namespace dmEngine
         {
             engine->m_SharedScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_SharedScriptContext);
+            PopulateContextRegistry(engine, engine->m_SharedScriptContext);
             extension_params.SetLuaContext(engine->m_SharedScriptContext);
             dmExtension::Initialize(extension_params);
 
@@ -1283,16 +1327,19 @@ namespace dmEngine
         {
             engine->m_GOScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_GOScriptContext);
+            PopulateContextRegistry(engine, engine->m_GOScriptContext);
             extension_params.SetLuaContext(engine->m_GOScriptContext);
             dmExtension::Initialize(extension_params);
 
             engine->m_RenderScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_RenderScriptContext);
+            PopulateContextRegistry(engine, engine->m_RenderScriptContext);
             extension_params.SetLuaContext(engine->m_RenderScriptContext);
             dmExtension::Initialize(extension_params);
 
             engine->m_GuiScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_GuiScriptContext);
+            PopulateContextRegistry(engine, engine->m_GuiScriptContext);
             extension_params.SetLuaContext(engine->m_GuiScriptContext);
             dmExtension::Initialize(extension_params);
 
@@ -1301,6 +1348,7 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_RenderScriptContext);
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
+        PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
 
         dmSound::InitializeParams sound_params;
         sound_params.m_OutputDevice = "default";
@@ -1341,6 +1389,7 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+        PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
 
@@ -1406,6 +1455,7 @@ namespace dmEngine
         gui_params.m_Dpi = physical_dpi;
 
         engine->m_GuiContext = dmGui::NewContext(&gui_params);
+        PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
 
         UpdateGuiSafeAreaAdjust(engine, physical_width, physical_height);
 
@@ -1482,8 +1532,6 @@ namespace dmEngine
         engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
         engine->m_ModelContext.m_MaxBoneMatrixTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_width", 1024);
         engine->m_ModelContext.m_MaxBoneMatrixTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_bone_matrix_texture_height", 1024);
-        engine->m_ModelContext.m_MaxMorphTargetTextureWidth  = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_morph_target_texture_width", 1024);
-        engine->m_ModelContext.m_MaxMorphTargetTextureHeight = (uint16_t) dmConfigFile::GetInt(engine->m_Config, "model.max_morph_target_texture_height", 1024);
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
@@ -1511,8 +1559,9 @@ namespace dmEngine
             engine->m_CollectionFactoryContext.m_ScriptContext = engine->m_GOScriptContext;
         }
 
+        dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
         dmGameObject::ComponentTypeCreateCtx component_create_ctx;
-        SetupComponentCreateContext(engine, component_create_ctx);
+        SetupComponentCreateContext(engine, component_create_ctx, component_create_ctx_impl);
 
         dmResource::Result fact_result;
         dmGameSystem::ScriptLibContext script_lib_context;

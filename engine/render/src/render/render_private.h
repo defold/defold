@@ -43,7 +43,6 @@ namespace dmRender
     typedef FontRenderBackend* HFontRenderBackend;
 
 #define DEBUG_3D_NAME "_debug3d"
-#define DEBUG_2D_NAME "_debug2d"
 
     struct Sampler
     {
@@ -109,6 +108,7 @@ namespace dmRender
         uint8_t                                     m_HasSkinnedAttributes : 1;
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
         uint8_t                                     m_HasMorphTargetsSampler : 1;
+        uint8_t                                     m_HasMorphTargetWeightsAttribute : 1;
     };
 
     struct ComputeProgram
@@ -128,8 +128,6 @@ namespace dmRender
     {
         DEBUG_RENDER_TYPE_FACE_3D,
         DEBUG_RENDER_TYPE_LINE_3D,
-        DEBUG_RENDER_TYPE_FACE_2D,
-        DEBUG_RENDER_TYPE_LINE_2D,
         MAX_DEBUG_RENDER_TYPE_COUNT
     };
 
@@ -143,7 +141,6 @@ namespace dmRender
     {
         DebugRenderTypeData             m_TypeData[MAX_DEBUG_RENDER_TYPE_COUNT];
         Predicate                       m_3dPredicate;
-        Predicate                       m_2dPredicate;
         dmRender::HRenderContext        m_RenderContext;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;

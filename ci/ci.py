@@ -564,7 +564,7 @@ def main(argv):
             build_engine(
                 platform,
                 channel,
-                with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ]),
+                with_valgrind = args.with_valgrind,
                 with_asan = args.with_asan,
                 with_ubsan = args.with_ubsan,
                 with_tsan = args.with_tsan,

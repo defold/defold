@@ -152,6 +152,12 @@ namespace dmGraphics
             properties.deviceName);
         dmLogInfo("Device ID: 0x%04x  Type: %s", properties.deviceID, VkPhysicalDeviceTypeToStr(properties.deviceType));
         dmLogInfo("Vendor: %s (0x%04x) driver version: 0x%08x", VkVendorIdToStr(properties.vendorID), properties.vendorID, properties.driverVersion);
+        dmLogInfo("Device extensions (%u):", context->m_PhysicalDevice.m_DeviceExtensionCount);
+        for (uint32_t i = 0; i < context->m_PhysicalDevice.m_DeviceExtensionCount; ++i)
+        {
+            const VkExtensionProperties& extension = context->m_PhysicalDevice.m_DeviceExtensions[i];
+            dmLogInfo("  %s (spec version %u)", extension.extensionName, extension.specVersion);
+        }
     }
 
     VulkanContext::VulkanContext(const ContextParams& params, const VkInstance vk_instance)
@@ -1359,7 +1365,7 @@ namespace dmGraphics
             VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
             VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
 
-        if (supports_present_wait_extensions)
+        if (supports_present_wait_extensions && vkGetPhysicalDeviceFeatures2)
         {
             present_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
             present_features.pNext = &present_id_feature_support;
@@ -4824,7 +4830,7 @@ bail:
         {
             uint32_t tex_data_size;
             if (IsTextureFormatASTC(params.m_Format))
-                tex_data_size = params.m_DataSize;
+                tex_data_size = params.m_DataSize * tex_layer_count;
             else
                 tex_data_size = (int) ceil((float) tex_data_size_bpp / 8.0f);
 
@@ -4981,7 +4987,7 @@ bail:
             uint32_t tex_data_size;
             if (IsTextureFormatASTC(ap.m_Params.m_Format))
             {
-                tex_data_size = ap.m_Params.m_DataSize;
+                tex_data_size = ap.m_Params.m_DataSize * tex_layer_count;
             }
             else
             {

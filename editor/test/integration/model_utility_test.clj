@@ -13,12 +13,19 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.model-utility-test
-  (:require [clojure.set :as set]
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.model-loader :as model-loader]
+            [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.model-loader :as model-loader]
+            [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util])
+  (:import [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.rig.proto Rig$MeshSet]
+           [java.nio.file Files]))
 
 (defn- load-scene [workspace project file-path]
   (let [resource (workspace/file-resource workspace file-path)
@@ -70,3 +77,37 @@
       (is (= 1 (count buffers)))
       (is (= "simpleTriangle.bin" (.uri (first buffers))))
       (is (= 44 (count (.buffer (first buffers))))))))
+
+(deftest morph-target-build-data
+  (test-util/with-loaded-project
+    (let [resource (workspace/file-resource workspace "/mesh/morph_weights_anim.gltf")
+          node-id (project/get-resource-node project resource)
+          {:keys [mesh-set morph-target-textures]} (model-loader/load-scene node-id
+                                                                            resource
+                                                                            (project/settings project))
+          mesh (-> mesh-set :models first :meshes first)]
+      (is (= 2 (:morph-target-count mesh)))
+      (is (= [0.0 0.0] (:morph-base-weights mesh)))
+      (is (= 1 (count morph-target-textures)))
+      (is (string/starts-with? (:morph-target-texture mesh) "__morph_target_texture_"))
+      (is (not (g/error? (g/node-value node-id :build-targets))))
+      (let [mesh-set-build-target (g/node-value node-id :mesh-set-build-target)
+            mesh-set-build-resource (:resource mesh-set-build-target)]
+        (test-util/build-node! node-id {:extra-build-targets [mesh-set-build-target]})
+        (let [built-mesh-set (protobuf/bytes->map-with-defaults
+                              Rig$MeshSet
+                              (Files/readAllBytes (.toPath (io/as-file mesh-set-build-resource))))
+              built-mesh (-> built-mesh-set :models first :meshes first)
+              morph-target-texture (:morph-target-texture built-mesh)
+              texture-file (workspace/build-path workspace morph-target-texture)
+              texture-image (-> (Files/readAllBytes (.toPath texture-file))
+                                TextureUtil/textureResourceBytesToTextureImage
+                                protobuf/pb->map-with-defaults)
+              first-alternative (first (:alternatives texture-image))]
+          (is (string/ends-with? morph-target-texture ".texturec"))
+          (is (false? (string/starts-with? morph-target-texture "__morph_target_texture_")))
+          (is (.exists texture-file))
+          (is (= :type-2d-array (:type texture-image)))
+          (is (= 6 (:count texture-image)))
+          (is (= 1 (:depth first-alternative)))
+          (is (= 1 (:original-depth first-alternative))))))))

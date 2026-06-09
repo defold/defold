@@ -48,6 +48,7 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_BONE_INDICES;
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
     extern const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D;
+    extern const dmhash_t VERTEX_STREAM_MORPH_TARGET_WEIGHTS;
     extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
     extern const dmhash_t SAMPLER_MORPH_TARGETS;
     extern const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS;
@@ -263,7 +264,6 @@ namespace dmRender
 
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
-    Result DrawDebug2d(HRenderContext context);
 
     void SetRenderPause(HRenderContext context, uint8_t is_paused);
     bool IsRenderPaused(HRenderContext context);
@@ -381,6 +381,7 @@ namespace dmRender
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
     bool                            GetMaterialHasMorphTargetsSampler(HMaterial material);
+    bool                            GetMaterialHasMorphTargetWeightsAttribute(HMaterial material);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);

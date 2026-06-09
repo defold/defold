@@ -112,7 +112,8 @@
           :semantic-type-normal-matrix true
           :semantic-type-bone-weights false
           :semantic-type-bone-indices false
-          :semantic-type-texture-transform-2d true}
+          :semantic-type-texture-transform-2d true
+          :semantic-type-morph-target-weights true}
          (into {}
                (map (juxt identity graphics.types/engine-provided-semantic-type?))
                graphics.types/semantic-types))))

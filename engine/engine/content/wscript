@@ -64,7 +64,7 @@ def build(bld):
            excl = ['**/*.ttf', '**/*.texture_profiles', '**/LICENSE', '**/*.vp', '**/*.fp', '**/*.cp']),
        use_compression=True)
 
-    for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts', 'docs', 'ca-certificates']:
+    for d in ['input', 'render', 'materials', 'graphics', 'scripts', 'docs', 'ca-certificates']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, bld.path.ant_glob('builtins/%s/*' % d))
 
     start_dir = bld.path.find_dir('builtins')

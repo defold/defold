@@ -38,8 +38,8 @@ endif()
 # Provide the C++ standard via target-level usage requirements
 target_compile_features(defold_sdk INTERFACE cxx_std_11)
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
@@ -54,6 +54,8 @@ elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
         include(platform_linux)
 elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
         include(platform_windows)
+elseif (TARGET_PLATFORM MATCHES "x86_64-xbone")
+        include(platform_xbone)
 elseif (TARGET_PLATFORM MATCHES "arm64-nx64")
         # Mark this configuration as using a private vendor platform (e.g., Switch)
         set(DEFOLD_IS_PRIVATE_VENDOR ON CACHE BOOL "Building with private vendor platform configuration" FORCE)
@@ -69,6 +71,10 @@ target_compile_definitions(defold_sdk INTERFACE
     DDF_EXPOSE_DESCRIPTORS
     GOOGLE_PROTOBUF_NO_RTTI
     DM_USE_CMAKE)
+
+if(DEFINED ENV{GITHUB_WORKFLOW})
+    target_compile_definitions(defold_sdk INTERFACE GITHUB_CI JC_TEST_USE_COLORS=1)
+endif()
 
 set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE ON)
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|x86_64-ios)$")
@@ -89,19 +95,34 @@ endif()
 # Common flags
 
 if(MSVC_CL)
-    # Disable RTTI; don't force /EH to avoid changing exception model globally
-    target_compile_options(defold_sdk INTERFACE /GR- /W3)
+    # Match Waf: disable RTTI and C++ exception handling for engine code.
+    # CMake's MSVC defaults add /EHsc, which conflicts with SEH __try blocks
+    # that contain C++ objects requiring unwinding.
+    target_compile_options(defold_sdk INTERFACE
+        /GR-
+        /W3
+        $<$<COMPILE_LANGUAGE:CXX>:/EHs->
+        $<$<COMPILE_LANGUAGE:CXX>:/EHa->)
 else()
     # Apply per-language flags via target options
-    target_compile_options(defold_sdk INTERFACE
+    set(_DEFOLD_NON_MSVC_OPTIONS
         -Wall
         -Werror=format
         -Werror=return-type
-        -fPIC
         -fvisibility=hidden
         -fno-exceptions
         $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
         -g)
+    if(NOT DEFINED DEFOLD_PLATFORM_SUPPORTS_FPIC)
+        set(DEFOLD_PLATFORM_SUPPORTS_FPIC ON)
+        if(TARGET_PLATFORM_OS STREQUAL "win32")
+            set(DEFOLD_PLATFORM_SUPPORTS_FPIC OFF)
+        endif()
+    endif()
+    if(DEFOLD_PLATFORM_SUPPORTS_FPIC)
+        list(APPEND _DEFOLD_NON_MSVC_OPTIONS -fPIC)
+    endif()
+    target_compile_options(defold_sdk INTERFACE ${_DEFOLD_NON_MSVC_OPTIONS})
 endif()
 
 

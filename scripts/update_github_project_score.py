@@ -263,7 +263,7 @@ def main() -> int:
         size = number_or_zero(item.get("size"))
         priority = number_or_zero(item.get("priority"))
         current_score = number_or_zero(item.get("score"))
-        score = round(priority / size, 2) if size > 0 else 0
+        score = round((priority * priority) / size, 2) if size > 0 else 0
 
         if current_score == score:
             skipped += 1

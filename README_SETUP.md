@@ -187,9 +187,9 @@ Finally, verify that Java is installed and working:
 > javac -version
 ```
 
-### Required Software - Python 3
+### Required Software - Python 3.12+
 
-You need a 64 bit [Python 3](https://www.python.org/downloads/) version to build the engine and tools. The latest tested on all platforms is Python 3.10+.
+You need a 64 bit [Python 3.12+](https://www.python.org/downloads/) version to build the engine and tools.
 
 <details><summary>macOS...</summary><p>
 
@@ -326,8 +326,8 @@ defold$ ./scripts/build.py check_sdk --verbose
 
 * When installing, in the "Workloads" tab, select the "Desktop Development with C++"
 
-* We also require Clang:
-  * In Visual Studio Installer, under Individual components, select *C++ Clang Compiler for Windows* and *MSBuild support for LLVM (clang-cl) toolset*.
+* We also require Clang and MFC/ATL libraries:
+  * In Visual Studio Installer, under Individual components, select *C++ Clang Compiler for Windows*, *MSBuild support for LLVM (clang-cl) toolset*, *C++ ATL for x64/x86 (MSVC v14.50)* and *C++ MFC for x64/x86 (MSVC v14.50)*.
 
   * Add clang to your PATH. For a default installation, the path to add will likely be C:\Program Files\Microsoft Visual Studio\2026\Community\VC\Tools\Llvm\bin
 

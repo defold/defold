@@ -75,6 +75,20 @@ namespace dmTexc
     #undef CASE_AND_SET
     }
 
+    static uint32_t GetASTCCompressedDataSize(uint32_t width, uint32_t height, uint32_t block_x, uint32_t block_y)
+    {
+        // ASTC byte length follows the Khronos formula, generalized by block size:
+        // floor((width + block_width - 1) / block_width) *
+        // floor((height + block_height - 1) / block_height) * 16.
+        // For ASTC 6x6 this matches:
+        // floor((width + 5) / 6) * floor((height + 5) / 6) * 16.
+        // https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_astc/
+        // https://registry.khronos.org/OpenGL/extensions/KHR/KHR_texture_compression_astc_hdr.txt
+        uint32_t blocks_x = (width + block_x - 1) / block_x;
+        uint32_t blocks_y = (height + block_y - 1) / block_y;
+        return blocks_x * blocks_y * 16;
+    }
+
     // Implementation taken from https://github.com/ARM-software/astc-encoder/blob/main/Utils/Example/astc_api_example.cpp
     bool ASTCEncode(ASTCEncodeSettings* settings, uint8_t** out, uint32_t* out_size)
     {
@@ -121,37 +135,17 @@ namespace dmTexc
             return false;
         }
 
-        int aligned_width = ((settings->m_Width + block_x - 1) / block_x) * block_x;
-        int aligned_height = ((settings->m_Height + block_y - 1) / block_y) * block_y;
-
-        uint8_t* padded_data = settings->m_Data;
-        bool create_padded_data = aligned_width != settings->m_Width || aligned_height != settings->m_Height;
-
-        if (create_padded_data)
-        {
-            padded_data = (unsigned char*) malloc(aligned_width * aligned_height * 4);
-            memset(padded_data, 0, aligned_width * aligned_height * 4);
-
-            // Copy the input image to create a pagged ASTC output
-            for (int y = 0; y < settings->m_Height; ++y) {
-                memcpy(
-                    &padded_data[y * aligned_width * 4],
-                    &settings->m_Data[y * settings->m_Width * 4],
-                    settings->m_Width * 4
-                );
-            }
-        }
-
         // Compress the image
+        uint8_t* image_data  = settings->m_Data;
         astcenc_image image = {};
-        image.dim_x         = aligned_width;
-        image.dim_y         = aligned_height;
+        image.dim_x         = settings->m_Width;
+        image.dim_y         = settings->m_Height;
         image.dim_z         = 1;
         image.data_type     = ASTCENC_TYPE_U8;
-        image.data          = reinterpret_cast<void**>(&padded_data);
+        image.data          = reinterpret_cast<void**>(&image_data);
 
         // Space needed for 16 bytes of output per compressed block
-        uint32_t comp_len   = aligned_width * aligned_height * 16 / (block_x * block_y); // Approximate size
+        uint32_t comp_len   = GetASTCCompressedDataSize(settings->m_Width, settings->m_Height, block_x, block_y);
         uint8_t* comp_data  = (uint8_t*)malloc(comp_len);
 
         if (thread_count == 1)
@@ -200,11 +194,6 @@ namespace dmTexc
                     break;
                 }
             }
-        }
-
-        if (create_padded_data)
-        {
-            free(padded_data);
         }
 
         astcenc_context_free(context);

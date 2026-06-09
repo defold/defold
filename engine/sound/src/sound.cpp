@@ -19,6 +19,7 @@
 #include <dlib/index_pool.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/memory.h>
 #include <dlib/mutex.h>
 #include <dlib/profile.h>
 #include <dlib/thread.h>
@@ -50,6 +51,33 @@ namespace dmSound
     DM_PROPERTY_U32(rmtp_InstanceBufferSize, 0, PROFILE_PROPERTY_NONE, "size of instance frame buffers in bytes", &rmtp_SoundSystem);
 
     static void SoundThread(void* ctx);
+
+    // SSE DSP paths cast these buffers to __m128, which requires 16-byte alignment on 32-bit MSVC.
+    static const uint32_t SOUND_DSP_BUFFER_ALIGNMENT = 16;
+
+    static void* AllocBuffer(uint32_t size)
+    {
+        void* buffer = 0;
+        dmMemory::Result result = dmMemory::AlignedMalloc(&buffer, SOUND_DSP_BUFFER_ALIGNMENT, size);
+        return result == dmMemory::RESULT_OK ? buffer : 0;
+    }
+
+    static void* ReallocBuffer(void* old_buffer, uint32_t old_size, uint32_t new_size)
+    {
+        void* new_buffer = AllocBuffer(new_size);
+        if (!new_buffer)
+        {
+            return 0;
+        }
+
+        if (old_buffer)
+        {
+            memcpy(new_buffer, old_buffer, dmMath::Min(old_size, new_size));
+            dmMemory::AlignedFree(old_buffer);
+        }
+
+        return new_buffer;
+    }
 
     /**
      * Value with memory for "ramping" of values. See also struct Ramp below.
@@ -381,7 +409,7 @@ namespace dmSound
         for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
         {
             size_t mix_buffer_size = sound->m_DeviceFrameCount * sizeof(float);
-            group->m_MixBuffer[c] = (float*) malloc(mix_buffer_size);
+            group->m_MixBuffer[c] = (float*)AllocBuffer((uint32_t)mix_buffer_size);
             memset(group->m_MixBuffer[c], 0, mix_buffer_size);
         }
         sound->m_GroupMap.Put(group_hash, index);
@@ -490,7 +518,7 @@ namespace dmSound
             // memory to keep around history / future sample state
             for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
             {
-                instance->m_Frames[c] = (float*)malloc(initial_instance_frame_capacity * sizeof(float));
+                instance->m_Frames[c] = (float*)AllocBuffer(initial_instance_frame_capacity * sizeof(float));
             }
             instance->m_FrameCapacity = initial_instance_frame_capacity;
             instance->m_FrameCount = 0;
@@ -523,7 +551,7 @@ namespace dmSound
         sound->m_NonInterleavedOutput = device_info.m_UseNonInterleaved;
         sound->m_OutBufferCount = num_outbuffers;
         for (int i = 0; i < num_outbuffers; ++i) {
-            sound->m_OutBuffers[i] = malloc(sound->m_DeviceFrameCount * (sound->m_UseFloatOutput ? sizeof(float) : sizeof(int16_t)) * SOUND_MAX_MIX_CHANNELS);
+            sound->m_OutBuffers[i] = AllocBuffer(sound->m_DeviceFrameCount * (sound->m_UseFloatOutput ? sizeof(float) : sizeof(int16_t)) * SOUND_MAX_MIX_CHANNELS);
         }
         sound->m_NextOutBuffer = 0;
 
@@ -585,26 +613,26 @@ namespace dmSound
                 instance->m_SoundDataIndex = 0xffff;
                 for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
                 {
-                    free(instance->m_Frames[c]);
+                    dmMemory::AlignedFree(instance->m_Frames[c]);
                 }
                 memset(instance, 0, sizeof(*instance));
             }
 
-            free(sound->m_DecoderTempOutput);
+            dmMemory::AlignedFree(sound->m_DecoderTempOutput);
             for (uint32_t i = 0; i < SOUND_MAX_DECODE_CHANNELS; ++i)
             {
-                free(sound->m_DecoderOutput[i]);
+                dmMemory::AlignedFree(sound->m_DecoderOutput[i]);
             }
 
             for (int i = 0; i < sound->m_OutBufferCount; ++i) {
-                free(sound->m_OutBuffers[i]);
+                dmMemory::AlignedFree(sound->m_OutBuffers[i]);
             }
 
             for (uint32_t i = 0; i < MAX_GROUPS; i++) {
                 SoundGroup* g = &sound->m_Groups[i];
                 for(uint32_t c=0; c<SOUND_MAX_MIX_CHANNELS; ++c)
                 {
-                    free((void*) g->m_MixBuffer[c]);
+                    dmMemory::AlignedFree((void*) g->m_MixBuffer[c]);
                 }
             }
 
@@ -697,9 +725,11 @@ namespace dmSound
 
         if (grow_decoder_buffers)
         {
+            const uint32_t old_decoder_output_size = sound->m_DecoderBufferFrameCapacity * sizeof(float);
+            const uint32_t new_decoder_output_size = required_frame_capacity * sizeof(float);
             for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
             {
-                float* new_decoder_output = (float*)realloc(sound->m_DecoderOutput[c], required_frame_capacity * sizeof(float));
+                float* new_decoder_output = (float*)ReallocBuffer(sound->m_DecoderOutput[c], old_decoder_output_size, new_decoder_output_size);
                 if (new_decoder_output == 0)
                 {
                     return RESULT_OUT_OF_MEMORY;
@@ -711,7 +741,7 @@ namespace dmSound
 
         if (grow_temp_buffer)
         {
-            void* new_decoder_temp_output = realloc(sound->m_DecoderTempOutput, (size_t)required_temp_output_capacity);
+            void* new_decoder_temp_output = ReallocBuffer(sound->m_DecoderTempOutput, sound->m_DecoderTempOutputCapacity, (uint32_t)required_temp_output_capacity);
             if (new_decoder_temp_output == 0)
                 return RESULT_OUT_OF_MEMORY;
 
@@ -729,9 +759,11 @@ namespace dmSound
         if (required_frame_capacity <= instance->m_FrameCapacity)
             return RESULT_OK;
 
+        const uint32_t old_frame_size = instance->m_FrameCapacity * sizeof(float);
+        const uint32_t new_frame_size = required_frame_capacity * sizeof(float);
         for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
         {
-            float* new_frame_buffer = (float*)realloc(instance->m_Frames[c], required_frame_capacity * sizeof(float));
+            float* new_frame_buffer = (float*)ReallocBuffer(instance->m_Frames[c], old_frame_size, new_frame_size);
             if (new_frame_buffer == 0)
                 return RESULT_OUT_OF_MEMORY;
 

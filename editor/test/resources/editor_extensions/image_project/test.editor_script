@@ -1,0 +1,48 @@
+local M = {}
+
+local function print_pixel(label, img, x, y)
+    local r, g, b, a = image.pixel(img, x, y)
+    print(("%s: %d,%d,%d,%d"):format(label, r, g, b, a))
+end
+
+local function expect_error(label, f, ...)
+    local success, message = pcall(f, ...)
+    print(("%s: %s"):format(label, success and "unexpected success" or message))
+end
+
+function M.get_commands()
+    return {
+        editor.command({
+            label = "Test",
+            locations = {"Edit"},
+            id = "defold.test",
+            run = function()
+                local img = image.load_file("assets/source.png")
+                local w, h = image.size(img)
+                print(("size image: %d,%d"):format(w, h))
+
+                print_pixel("top-left", img, 1, 1)
+                print_pixel("top-right", img, 32, 1)
+                print_pixel("bottom-left", img, 1, 32)
+                print_pixel("bottom-right", img, 32, 32)
+
+                local count = 0
+                local checksum = 0
+                for x, y, r, g, b, a in image.pixels(img) do
+                    count = count + 1
+                    checksum = checksum + r + g + b + a
+                end
+                print(("pixels: count=%d checksum=%d"):format(count, checksum))
+
+                expect_error("load_file missing", image.load_file, "assets/missing.png")
+                expect_error("load_file unsupported", image.load_file, "assets/not_image.txt")
+                expect_error("pixel x low", image.pixel, img, 0, 1)
+                expect_error("pixel x high", image.pixel, img, 33, 1)
+                expect_error("pixel y low", image.pixel, img, 1, 0)
+                expect_error("pixel y high", image.pixel, img, 1, 33)
+            end
+        })
+    }
+end
+
+return M

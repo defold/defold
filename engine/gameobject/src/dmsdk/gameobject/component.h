@@ -18,6 +18,7 @@
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/dlib/context_registry.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/script/script.h>
@@ -36,6 +37,7 @@ namespace dmGameObject
      */
 
     struct ComponentType;
+    struct ComponentTypeCreateCtxImpl;
 
     /*#
      * Component type handle. It holds the life time functions for a type.
@@ -57,10 +59,10 @@ namespace dmGameObject
      */
     struct ComponentNewWorldParams
     {
-        void* m_Context;
-        uint8_t m_ComponentIndex;
+        void*    m_Context;
+        uint8_t  m_ComponentIndex;
         uint32_t m_MaxInstances;
-        void** m_World;
+        void**   m_World;
         uint32_t m_MaxComponentInstances;
     };
 
@@ -112,16 +114,16 @@ namespace dmGameObject
      */
     struct ComponentCreateParams
     {
-        HInstance           m_Instance;
-        dmVMath::Point3     m_Position;
-        dmVMath::Quat       m_Rotation;
-        dmVMath::Vector3    m_Scale;
-        PropertySet         m_PropertySet;
-        void*               m_Resource;
-        void*               m_World;
-        void*               m_Context;
-        uintptr_t*          m_UserData;
-        uint16_t            m_ComponentIndex;
+        HInstance        m_Instance;
+        dmVMath::Point3  m_Position;
+        dmVMath::Quat    m_Rotation;
+        dmVMath::Vector3 m_Scale;
+        PropertySet      m_PropertySet;
+        void*            m_Resource;
+        void*            m_World;
+        void*            m_Context;
+        uintptr_t*       m_UserData;
+        uint16_t         m_ComponentIndex;
     };
 
     /*#
@@ -147,10 +149,10 @@ namespace dmGameObject
     struct ComponentDestroyParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
-        void* m_World;
-        void* m_Context;
-        uintptr_t* m_UserData;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -175,10 +177,10 @@ namespace dmGameObject
     struct ComponentInitParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
-        void* m_World;
-        void* m_Context;
-        uintptr_t* m_UserData;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -203,10 +205,10 @@ namespace dmGameObject
     struct ComponentFinalParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
-        void* m_World;
-        void* m_Context;
-        uintptr_t* m_UserData;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -760,15 +762,25 @@ namespace dmGameObject
      * @member m_Factory [type: dmResource::HFactory] The resource factory
      * @member m_Register [type: dmGameObject::HRegister] The game object registry
      * @member m_Script [type: dmScript::HContext] The shared script context
-     * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contextx
+     * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contexts
+     * @member m_Impl [type: dmGameObject::ComponentTypeCreateCtxImpl*] Opaque implementation data
      */
     struct ComponentTypeCreateCtx {
-        dmConfigFile::HConfig    m_Config;
-        dmResource::HFactory     m_Factory;
-        dmGameObject::HRegister  m_Register;
-        dmScript::HContext       m_Script;
-        dmHashTable64<void*>     m_Contexts;
+        ComponentTypeCreateCtxImpl* m_Impl;
+        dmConfigFile::HConfig       m_Config; // deprecated
+        dmResource::HFactory        m_Factory; // deprecated
+        dmGameObject::HRegister     m_Register; // deprecated
+        dmScript::HContext          m_Script; // deprecated
+        dmHashTable64<void*>        m_Contexts; // deprecated
     };
+
+    /*# get the context registry from the component type create context
+     * Use the returned registry with ContextRegistryGet and ContextRegistrySet to access named engine contexts.
+     * @name ComponentGetContextRegistry
+     * @param ctx [type: const ComponentTypeCreateCtx*] component type create context
+     * @return registry [type: HContextRegistry] engine context registry
+     */
+    HContextRegistry ComponentGetContextRegistry(const ComponentTypeCreateCtx* ctx);
 
     typedef Result (*ComponentTypeCreateFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);
     typedef Result (*ComponentTypeDestroyFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);

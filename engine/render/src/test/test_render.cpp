@@ -1695,7 +1695,6 @@ TEST_F(dmRenderTest, TestRenderListDebug)
     dmRender::RenderListEnd(m_Context);
 
     dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
-    dmRender::DrawDebug2d(m_Context);
     dmRender::DrawDebug3d(m_Context, 0);
 }
 
