@@ -518,7 +518,7 @@
           {:attribute-index attribute-index
            :element-types element-types})))))
 
-(defn- update-attribute-buffer!
+(defn- update-gl-attribute-buffer!
   [^GL2 gl ^long gl-buffer ^AttributeBufferData attribute-buffer-data]
   (let [gl-usage (gl.types/usage-gl-usage (.-usage attribute-buffer-data))
         buffer-data ^BufferData (.-buffer-data attribute-buffer-data)
@@ -530,21 +530,21 @@
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)
     gl-buffer))
 
-(defn- create-attribute-buffer!
+(defn- create-gl-attribute-buffer!
   [^GL2 gl ^AttributeBufferData attribute-buffer-data]
   (let [gl-buffer (gl/gl-gen-buffer gl)
-        gl-buffer (update-attribute-buffer! gl gl-buffer attribute-buffer-data)]
+        gl-buffer (update-gl-attribute-buffer! gl gl-buffer attribute-buffer-data)]
     gl-buffer))
 
-(defn- destroy-attribute-buffers!
+(defn- destroy-gl-attribute-buffers!
   [^GL2 gl gl-buffers _attribute-buffer-datas]
   (gl/gl-delete-buffers gl gl-buffers))
 
 (scene-cache/register-object-cache!
   ::attribute-buffer
-  create-attribute-buffer!
-  update-attribute-buffer!
-  destroy-attribute-buffers!)
+  create-gl-attribute-buffer!
+  update-gl-attribute-buffer!
+  destroy-gl-attribute-buffers!)
 
 ;; -----------------------------------------------------------------------------
 ;; TransformedAttributeBuffer
@@ -654,7 +654,7 @@
     (assert (buffers/flipped? target))
     target))
 
-(defn- update-transformed-attribute-buffer!
+(defn- update-gl-transformed-attribute-buffer!
   [^GL2 gl [gl-buffer ^FloatBuffer transformed-data] ^TransformedAttributeBufferData transformed-attribute-buffer-data]
   (let [untransformed-buffer-data ^BufferData (.-untransformed-buffer-data transformed-attribute-buffer-data)
         untransformed-data (.data untransformed-buffer-data)
@@ -684,22 +684,22 @@
     (gl/gl-bind-buffer gl GL2/GL_ARRAY_BUFFER 0)
     (pair gl-buffer transformed-data)))
 
-(defn- create-transformed-attribute-buffer!
+(defn- create-gl-transformed-attribute-buffer!
   [^GL2 gl ^TransformedAttributeBufferData transformed-attribute-buffer-data]
   (let [gl-buffer (gl/gl-gen-buffer gl)
-        gl-buffer+transformed-data (update-transformed-attribute-buffer! gl (pair gl-buffer nil) transformed-attribute-buffer-data)]
+        gl-buffer+transformed-data (update-gl-transformed-attribute-buffer! gl (pair gl-buffer nil) transformed-attribute-buffer-data)]
     gl-buffer+transformed-data))
 
-(defn- destroy-transformed-attribute-buffers!
+(defn- destroy-gl-transformed-attribute-buffers!
   [^GL2 gl gl-buffer+transformed-data-pairs _transformed-attribute-buffer-datas]
   (let [gl-buffers (mapv first gl-buffer+transformed-data-pairs)]
     (gl/gl-delete-buffers gl gl-buffers)))
 
 (scene-cache/register-object-cache!
   ::transformed-attribute-buffer
-  create-transformed-attribute-buffer!
-  update-transformed-attribute-buffer!
-  destroy-transformed-attribute-buffers!)
+  create-gl-transformed-attribute-buffer!
+  update-gl-transformed-attribute-buffer!
+  destroy-gl-transformed-attribute-buffers!)
 
 ;; -----------------------------------------------------------------------------
 ;; IndexBuffer
@@ -744,6 +744,22 @@
         index-buffer-data (->IndexBufferData buffer-data usage)]
     (->IndexBufferLifecycle request-id index-buffer-data element-type)))
 
+(defn update-index-buffer
+  "Applies the supplied update-data-fn to the internal java.nio.Buffer of the
+  BufferData inside the IndexBufferLifecycle and returns a new
+  IndexBufferLifecycle that wraps the returned java.nio.Buffer. The
+  update-data-fn may either return a new Buffer instance or the original input
+  Buffer to signal that it was modified in-place. In either case, the returned
+  Buffer must have been flipped. It is the callers responsibility to ensure the
+  internal buffer can safely be modified in-place. Beware that a new
+  IndexBufferLifecycle instance will be returned in either case, and you
+  must always use the returned IndexBufferLifecycle instance to ensure the
+  changes are picked up by the GL objects in the scene-cache."
+  (^IndexBufferLifecycle [^IndexBufferLifecycle index-buffer-lifecycle update-data-fn]
+   (update index-buffer-lifecycle :index-buffer-data update :buffer-data buffers/update-buffer-data update-data-fn))
+  (^IndexBufferLifecycle [^IndexBufferLifecycle index-buffer-lifecycle update-data-fn & args]
+   (apply update index-buffer-lifecycle :index-buffer-data update :buffer-data buffers/update-buffer-data update-data-fn args)))
+
 (defn index-buffer-gl-type
   ^long [index-buffer]
   (-> index-buffer
@@ -751,7 +767,7 @@
       first
       gl.types/element-type-gl-type))
 
-(defn- update-index-buffer!
+(defn- update-gl-index-buffer!
   [^GL2 gl ^long gl-buffer ^IndexBufferData index-buffer-data]
   (let [gl-usage (gl.types/usage-gl-usage (.-usage index-buffer-data))
         buffer-data ^BufferData (.-buffer-data index-buffer-data)
@@ -763,21 +779,21 @@
     (gl/gl-bind-buffer gl GL2/GL_ELEMENT_ARRAY_BUFFER 0)
     gl-buffer))
 
-(defn- create-index-buffer!
+(defn- create-gl-index-buffer!
   [^GL2 gl ^IndexBufferData index-buffer-data]
   (let [gl-buffer (gl/gl-gen-buffer gl)
-        gl-buffer (update-index-buffer! gl gl-buffer index-buffer-data)]
+        gl-buffer (update-gl-index-buffer! gl gl-buffer index-buffer-data)]
     gl-buffer))
 
-(defn- destroy-index-buffers!
+(defn- destroy-gl-index-buffers!
   [^GL2 gl gl-buffers _index-buffer-datas]
   (gl/gl-delete-buffers gl gl-buffers))
 
 (scene-cache/register-object-cache!
   ::index-buffer
-  create-index-buffer!
-  update-index-buffer!
-  destroy-index-buffers!)
+  create-gl-index-buffer!
+  update-gl-index-buffer!
+  destroy-gl-index-buffers!)
 
 ;; -----------------------------------------------------------------------------
 ;; Claiming requests

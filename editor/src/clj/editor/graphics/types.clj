@@ -617,6 +617,9 @@
               (pos? (count attributes))
               (every? attribute-info? attributes)))))
 
+(defn vertex-description-element-types [vertex-description]
+  (mapv attribute-info-element-type (:attributes vertex-description)))
+
 (def renderable-tag? keyword?)
 
 (defn renderable-tags? [value]
