@@ -367,7 +367,7 @@ notification.reload-editor-scripts.action.reload = Reload Editor Scripts
 
 # Reload plugins notification
 
-notification.reload-plugins-failed = Native extension plugins could not be reloaded. Restart Defold to reload them. If this project is open in another Defold editor, close that editor first.\n\nFile: {file}\n\nUnderlying error from the OS:\n{error}
+notification.reload-plugins-failed = Native extension plugins could not be reloaded. Restart Defold to reload them.\n\nFile: {file}\n\nUnderlying error from the OS:\n{error}
 notification.reload-plugins-failed.action.restart = Restart Defold
 
 # Open custom editor notifications
