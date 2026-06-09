@@ -46,8 +46,7 @@ namespace dmGraphics
 
         WGPUBuffer                 m_Buffer = NULL;
 
-
-        size_t                     m_Size = 0;
+        Buffer                     m_Base = {};
         size_t                     m_Used = 0;
         size_t                     m_LastRenderPass = 0;
     };
@@ -230,7 +229,6 @@ namespace dmGraphics
         uint32_t            m_OriginalWidth;
         uint32_t            m_OriginalHeight;
 
-        uint32_t            m_ContextFeatures : 9;
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_InitComplete : 1;
 

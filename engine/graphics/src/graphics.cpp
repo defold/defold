@@ -2080,7 +2080,8 @@ namespace dmGraphics
     }
     uint32_t GetVertexBufferSize(HVertexBuffer buffer)
     {
-        return g_functions.m_GetVertexBufferSize(buffer);
+        Buffer* buffer_ptr = (Buffer*) buffer;
+        return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
     uint32_t GetMaxElementsVertices(HContext context)
     {
@@ -2104,7 +2105,8 @@ namespace dmGraphics
     }
     uint32_t GetIndexBufferSize(HIndexBuffer buffer)
     {
-        return g_functions.m_GetIndexBufferSize(buffer);
+        Buffer* buffer_ptr = (Buffer*) buffer;
+        return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
@@ -2338,7 +2340,10 @@ namespace dmGraphics
     }
     uint32_t GetTextureResourceSize(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureResourceSize(context, texture);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_ResourceSize : 0;
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
@@ -2383,7 +2388,8 @@ namespace dmGraphics
             AdapterFamily family = GetInstalledAdapterFamily();
             return !(family == ADAPTER_FAMILY_NULL || family == ADAPTER_FAMILY_NONE);
         }
-        return g_functions.m_IsContextFeatureSupported(context, feature);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return feature < MAX_CONTEXT_FEATURE_COUNT && (gc->m_ContextFeatureSupport & (1 << feature)) != 0;
     }
     PipelineState GetPipelineState(HContext context)
     {
