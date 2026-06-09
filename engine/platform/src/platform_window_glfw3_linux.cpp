@@ -48,4 +48,36 @@ namespace dmPlatform
     {
         // NOP
     }
+
+    void SetWindowedFullscreenFocusNative(HWindow, bool)
+    {
+        // NOP
+    }
+
+    void SetWindowedSizeFromSettingsNative(HWindow, int32_t, int32_t)
+    {
+        // NOP
+    }
+
+    void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params)
+    {
+        mode_params->m_Width  = mode->width;
+        mode_params->m_Height = mode->height;
+
+        if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+        {
+            glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
+            mode_params->m_Monitor = monitor;
+            return;
+        }
+
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        glfwGetMonitorPos(monitor, &mode_params->m_X, &mode_params->m_Y);
+        mode_params->m_WindowedFullscreen = true;
+    }
+
+    bool CanSetOpenGLCoreProfileHintNative(bool)
+    {
+        return true;
+    }
 }
