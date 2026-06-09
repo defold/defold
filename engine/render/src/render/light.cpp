@@ -15,8 +15,6 @@
 #include "render.h"
 #include "render_private.h"
 
-#include <dlib/log.h>
-
 namespace dmRender
 {
     static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
@@ -153,8 +151,7 @@ namespace dmRender
         CommitLightInstance(render_context, light_instance, dmVMath::Point3(0.0f, 0.0f, 0.0f), GetLightForwardDirection(), 1.0f);
         CommitLightInfo(render_context);
 
-        HLightInstance handle = light_instance->m_Version << 16 | light_buffer_index;
-        return handle;
+        return light_instance->m_Version << 16 | light_buffer_index;
     }
 
     void DeleteLightInstance(HRenderContext render_context, HLightInstance instance)

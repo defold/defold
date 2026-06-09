@@ -125,8 +125,7 @@ namespace dmGameSystem
         LightWorld* world = (LightWorld*) params.m_World;
         LightContext* context = (LightContext*)params.m_Context;
         LightResource* light_resource = (LightResource*) params.m_Resource;
-        dmRender::LightType light_type = LightType(context, light_resource);
-        bool is_ambient = light_type == dmRender::LIGHT_TYPE_AMBIENT;
+        bool is_ambient = LightType(context, light_resource) == dmRender::LIGHT_TYPE_AMBIENT;
 
         if (!EnsureComponentCapacity(world, is_ambient))
         {
