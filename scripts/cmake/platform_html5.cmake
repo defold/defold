@@ -35,6 +35,13 @@ if(_DEFOLD_WITH_PTHREAD)
   target_compile_options(defold_sdk INTERFACE -pthread)
 endif()
 
+target_compile_options(defold_sdk INTERFACE
+  "$<$<CONFIG:Debug>:-gseparate-dwarf>"
+  "$<$<CONFIG:Debug>:-gsource-map>")
+target_link_options(defold_sdk INTERFACE
+  "$<$<CONFIG:Debug>:-gseparate-dwarf>"
+  "$<$<CONFIG:Debug>:-gsource-map>")
+
 # Link options base
 set(_DEFOLD_INITIAL_MEMORY 33554432)
 if(WITH_ASAN AND TARGET_PLATFORM MATCHES "^wasm")
