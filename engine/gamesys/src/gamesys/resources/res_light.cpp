@@ -15,7 +15,6 @@
 #include <dmsdk/gamesys/resources/res_light.h>
 
 #include <ddf/ddf.h>
-#include <dlib/math.h>
 #include <render/render.h>
 
 namespace dmGameSystem

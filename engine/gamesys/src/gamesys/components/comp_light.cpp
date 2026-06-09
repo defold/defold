@@ -15,7 +15,6 @@
 #include <string.h>
 
 #include <dlib/math.h>
-#include <dlib/log.h>
 
 #include <gameobject/component.h>
 
@@ -86,7 +85,8 @@ namespace dmGameSystem
 
     static bool CreateRenderLightInstance(LightContext* context, LightComponent* light)
     {
-        light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, GetLightPrototype(light->m_LightResource));
+        dmRender::HLightPrototype prototype = GetLightPrototype(light->m_LightResource);
+        light->m_LightInstance = dmRender::NewLightInstance(context->m_RenderContext, prototype);
         if (light->m_LightInstance == 0)
         {
             ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, (int) context->m_MaxLightCount);
