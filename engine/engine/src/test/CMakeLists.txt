@@ -62,6 +62,9 @@ set(ENGINE_TEST_CONTENT_SETTINGS
   "text_input.ini")
 
 set(ENGINE_TEST_CLASSPATH "${ENGINE_BOB_ENGINE_JAR}")
+if(ENGINE_BOB_PLUGIN_JARS)
+  list(APPEND ENGINE_TEST_CLASSPATH ${ENGINE_BOB_PLUGIN_JARS})
+endif()
 if(TARGET shaderc_jar)
   set(ENGINE_SHADERC_JAR "${DEFOLD_SHADERC_BINARY_DIR}/shaderc.jar")
 elseif(EXISTS "${DEFOLD_SDK_ROOT}/share/java/shaderc.jar")
@@ -90,7 +93,8 @@ list(FILTER ENGINE_TEST_CONTENT_SOURCES EXCLUDE REGEX "\\.(cpp|h)$")
 
 add_custom_command(
   OUTPUT "${ENGINE_TEST_CONTENT_STAMP}"
-  COMMAND "${Python3_EXECUTABLE}" "${ENGINE_TEST_CONTENT_SCRIPT}"
+  COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+    "${Python3_EXECUTABLE}" "${ENGINE_TEST_CONTENT_SCRIPT}"
     --source-root "${ENGINE_TEST_ROOT}"
     --stage-root "${ENGINE_TEST_RUNTIME_ROOT}"
     --stamp "${ENGINE_TEST_CONTENT_STAMP}"
@@ -103,6 +107,7 @@ add_custom_command(
     "${ENGINE_TEST_CONTENT_SCRIPT}"
     "${ENGINE_BOB_ENGINE_JAR}"
     "${ENGINE_BUILTINS_STAMP}"
+    ${ENGINE_BOB_PLUGIN_JARS}
     ${ENGINE_SHADERC_JAR}
     ${ENGINE_TEST_CONTENT_SOURCES}
   WORKING_DIRECTORY "${ENGINE_TEST_ENGINE_ROOT}"
@@ -128,8 +133,10 @@ defold_add_executable(test_engine
   "${ENGINE_TEST_ROOT}/test_engine.cpp"
   "${ENGINE_TEST_ROOT}/test_engine_service.cpp"
   "${ENGINE_TEST_EXPORTS_CPP}")
+if(NOT DEFOLD_MSVC_IDE_SOLUTION)
+  add_dependencies(test_engine engine_test_content)
+endif()
 add_dependencies(test_engine
-  engine_test_content
   ddf_proto_py
   engine_proto_py
   gameobject_proto_py
@@ -146,3 +153,7 @@ engine_configure_executable(test_engine test engine engine_service null "profile
 defold_register_test_target(test_engine ON "${ENGINE_TEST_ENGINE_ROOT}"
   STAGE_FILES
     "build/src/test" "build/src/test")
+if(DEFOLD_MSVC_IDE_SOLUTION)
+  add_dependencies(build_tests engine_test_content)
+  add_dependencies(run_test_engine engine_test_content)
+endif()

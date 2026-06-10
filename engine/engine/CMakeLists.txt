@@ -64,13 +64,26 @@ if(NOT ENGINE_SHA1)
   set(ENGINE_SHA1 "unknown")
 endif()
 
+set(ENGINE_PRIVATE_SHA1 "")
+if(DEFOLD_PRIVATE_REPO_ROOT)
+  execute_process(
+    COMMAND git -c "safe.directory=${DEFOLD_PRIVATE_REPO_ROOT}" -C "${DEFOLD_PRIVATE_REPO_ROOT}" rev-parse HEAD
+    OUTPUT_VARIABLE ENGINE_PRIVATE_SHA1
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_VARIABLE ENGINE_PRIVATE_SHA1_ERROR
+    RESULT_VARIABLE ENGINE_PRIVATE_SHA1_RESULT)
+  if(NOT ENGINE_PRIVATE_SHA1_RESULT EQUAL 0)
+    message(FATAL_ERROR "Could not resolve private engine sha1 for ${TARGET_PLATFORM}: ${ENGINE_PRIVATE_SHA1_ERROR}")
+  endif()
+endif()
+
 file(READ "${DEFOLD_HOME}/VERSION" ENGINE_VERSION)
 string(STRIP "${ENGINE_VERSION}" ENGINE_VERSION)
 
 set(ENGINE_VERSION_HEADER "${CMAKE_CURRENT_BINARY_DIR}/engine_version.h")
 file(GENERATE
   OUTPUT "${ENGINE_VERSION_HEADER}"
-  CONTENT "namespace dmEngineVersion\n{\n    static const char* PLATFORM = \"${TARGET_PLATFORM}\";\n    static const char* VERSION = \"${ENGINE_VERSION}\";\n    static const char* VERSION_SHA1 = \"${ENGINE_SHA1}\";\n}\n")
+  CONTENT "namespace dmEngineVersion\n{\n    static const char* PLATFORM = \"${TARGET_PLATFORM}\";\n    static const char* VERSION = \"${ENGINE_VERSION}\";\n    static const char* VERSION_SHA1 = \"${ENGINE_SHA1}\";\n    static const char* PRIVATE_VERSION_SHA1 = \"${ENGINE_PRIVATE_SHA1}\";\n}\n")
 
 set(ENGINE_DDF_PROTO "${ENGINE_PROTO_DIR}/engine/engine_ddf.proto")
 set(ENGINE_DDF_CPP "${CMAKE_CURRENT_BINARY_DIR}/engine/engine_ddf.cpp")
@@ -97,6 +110,9 @@ endif()
 
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
+file(GLOB ENGINE_BOB_PLUGIN_JARS CONFIGURE_DEPENDS "${DEFOLD_SDK_ROOT}/share/java/plugins/*.jar")
+set(ENGINE_BOB_CLASSPATH_LIST "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS})
+cmake_path(CONVERT "${ENGINE_BOB_CLASSPATH_LIST}" TO_NATIVE_PATH_LIST ENGINE_BOB_CLASSPATH)
 
 file(GLOB_RECURSE ENGINE_CONTENT_SOURCES CONFIGURE_DEPENDS
   "${ENGINE_CONTENT_DIR}/builtins/*"
@@ -130,16 +146,18 @@ add_custom_command(
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest"
     "${ENGINE_BUILTINS_STAMP}"
-  COMMAND "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
+  COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+    "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
     --source-root "${ENGINE_CONTENT_DIR}"
     --work-root "${ENGINE_BUILTINS_WORK_ROOT}"
     --output-root "${ENGINE_BUILTINS_OUTPUT_DIR}"
     --stamp "${ENGINE_BUILTINS_STAMP}"
     --bob-light "${ENGINE_BOB_LIGHT}"
+    --bob-classpath "${ENGINE_BOB_CLASSPATH}"
     --platform "${TARGET_PLATFORM}"
     ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
-  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_CONTENT_SOURCES}
+  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES}
   COMMENT "Building engine builtin archive"
   VERBATIM)
 add_custom_target(engine_builtins
@@ -155,7 +173,7 @@ set(ENGINE_DEBUG_SPC "${CMAKE_CURRENT_BINARY_DIR}/content/materials/debug.spc")
 add_custom_command(
   OUTPUT "${ENGINE_DEBUG_SPC}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/content/materials"
-  COMMAND "${Java_JAVA_EXECUTABLE}" -cp "${ENGINE_BOB_LIGHT}"
+  COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${ENGINE_BOB_CLASSPATH}"
     com.dynamo.bob.pipeline.ShaderProgramBuilder
     "${ENGINE_CONTENT_DIR}/materials/debug.fp"
     "${ENGINE_CONTENT_DIR}/materials/debug.vp"
@@ -167,6 +185,7 @@ add_custom_command(
     "${ENGINE_CONTENT_DIR}/materials/debug.vp"
     "${ENGINE_CONTENT_DIR}/materials/debug.material"
     "${ENGINE_BOB_LIGHT}"
+    ${ENGINE_BOB_PLUGIN_JARS}
   COMMENT "Building engine debug shader"
   VERBATIM)
 
