@@ -36,6 +36,8 @@ namespace dmDeviceAVAudio
         dmArray<AVAudioPCMBuffer*>  m_FreeBuffers;
         uint32_t                    m_MixRate;
         uint32_t                    m_FramesPerBuffer;
+        uint32_t                    m_BufferCount;
+        uint32_t                    m_MaxBufferCount;
         bool                        m_Started;
         dmMutex::HMutex             m_Mutex;
         id                          m_EngineConfigObserver;
@@ -50,6 +52,8 @@ namespace dmDeviceAVAudio
         , m_Format(nil)
         , m_MixRate(0)
         , m_FramesPerBuffer(0)
+        , m_BufferCount(0)
+        , m_MaxBufferCount(0)
         , m_Started(false)
         , m_Mutex(0)
         , m_EngineConfigObserver(nil)
@@ -60,6 +64,39 @@ namespace dmDeviceAVAudio
 #endif
         }
     };
+
+#if TARGET_OS_IPHONE
+    static const double IOS_MAX_TRANSIENT_IO_BUFFER_DURATION = 0.12;
+#endif
+
+    static uint32_t GetBufferCountForDuration(uint32_t mix_rate, uint32_t frames_per_buffer, double duration)
+    {
+        if (mix_rate == 0 || frames_per_buffer == 0 || duration <= 0.0)
+        {
+            return 0;
+        }
+
+        uint32_t frames = (uint32_t)(duration * (double)mix_rate + 0.5);
+        return (frames + frames_per_buffer - 1) / frames_per_buffer;
+    }
+
+    static uint32_t DeviceAVAudioGetEffectiveBufferCount(AVAudioDevice* device)
+    {
+        uint32_t buffer_count = device->m_BufferCount;
+#if TARGET_OS_IPHONE
+        AVAudioSession* session = [AVAudioSession sharedInstance];
+        uint32_t io_buffer_count = GetBufferCountForDuration(device->m_MixRate, device->m_FramesPerBuffer, session.IOBufferDuration);
+        if (io_buffer_count >= buffer_count)
+        {
+            buffer_count = io_buffer_count + 1;
+        }
+        if (buffer_count > device->m_MaxBufferCount)
+        {
+            buffer_count = device->m_MaxBufferCount;
+        }
+#endif
+        return buffer_count;
+    }
 
     static void DeviceAVAudioScheduleReconfigure(AVAudioDevice* device)
     {
@@ -181,6 +218,19 @@ namespace dmDeviceAVAudio
 
         // Respect engine-provided frame count if set; otherwise use engine default
         device->m_FramesPerBuffer = params->m_FrameCount ? params->m_FrameCount : dmSound::GetDefaultFrameCount(device->m_MixRate);
+        device->m_BufferCount = params->m_BufferCount;
+        device->m_MaxBufferCount = params->m_BufferCount;
+#if TARGET_OS_IPHONE
+        uint32_t transient_buffer_count = GetBufferCountForDuration(device->m_MixRate, device->m_FramesPerBuffer, IOS_MAX_TRANSIENT_IO_BUFFER_DURATION);
+        if (transient_buffer_count > 0)
+        {
+            transient_buffer_count += 1;
+            if (device->m_MaxBufferCount < transient_buffer_count)
+            {
+                device->m_MaxBufferCount = transient_buffer_count;
+            }
+        }
+#endif
 
         device->m_Format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32
                                                          sampleRate:device->m_MixRate
@@ -223,12 +273,12 @@ namespace dmDeviceAVAudio
             }];
 #endif
 
-        device->m_AllBuffers.SetCapacity(params->m_BufferCount);
-        device->m_AllBuffers.SetSize(params->m_BufferCount);
-        device->m_FreeBuffers.SetCapacity(params->m_BufferCount);
+        device->m_AllBuffers.SetCapacity(device->m_MaxBufferCount);
+        device->m_AllBuffers.SetSize(device->m_MaxBufferCount);
+        device->m_FreeBuffers.SetCapacity(device->m_MaxBufferCount);
         device->m_FreeBuffers.SetSize(0);
 
-        for (uint32_t i = 0; i < params->m_BufferCount; ++i)
+        for (uint32_t i = 0; i < device->m_MaxBufferCount; ++i)
         {
             AVAudioPCMBuffer* buf = [[AVAudioPCMBuffer alloc] initWithPCMFormat:device->m_Format
                                                                     frameCapacity:device->m_FramesPerBuffer];
@@ -349,7 +399,16 @@ namespace dmDeviceAVAudio
             return 1;
         }
         DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
-        return device->m_FreeBuffers.Size();
+        uint32_t free_count = device->m_FreeBuffers.Size();
+        uint32_t queued_count = device->m_MaxBufferCount - free_count;
+        uint32_t effective_buffer_count = DeviceAVAudioGetEffectiveBufferCount(device);
+        if (queued_count >= effective_buffer_count)
+        {
+            return 0;
+        }
+
+        uint32_t free_slots = effective_buffer_count - queued_count;
+        return dmMath::Min(free_count, free_slots);
     }
 
 
