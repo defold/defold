@@ -113,23 +113,31 @@
                     (effective-command-bindings state context command bindings)))
           (get-in state [:contexts context]))))
 
+(defn- command-active?* [state context command input-state]
+  (or (boolean
+        (some (fn [mouse-binding]
+                (when-let [binding (:binding mouse-binding)]
+                  (i/mouse-binding-active? binding input-state)))
+              (effective-command-bindings state context command (get-in state [:contexts context command]))))
+      (when-let [fallback (get-in state [:context-meta context :fallback-context])]
+        (command-active?* state fallback command input-state))))
+
 (defn command-active? [context command input-state]
-  (let [state @bindings-atom]
-    (boolean
-      (some (fn [mouse-binding]
-              (when-let [binding (:binding mouse-binding)]
-                (i/mouse-binding-active? binding input-state)))
-            (effective-command-bindings state context command (get-in state [:contexts context command]))))))
+  (boolean (command-active?* @bindings-atom context command input-state)))
+
+(defn- command-for-action* [state context action]
+  (or (some (fn [[command bindings]]
+              (when (some (fn [mouse-binding]
+                            (when-let [binding (:binding mouse-binding)]
+                              (i/mouse-binding-action? binding action)))
+                          (effective-command-bindings state context command bindings))
+                command))
+            (get-in state [:contexts context]))
+      (when-let [fallback (get-in state [:context-meta context :fallback-context])]
+        (command-for-action* state fallback action))))
 
 (defn command-for-action [context action]
-  (let [state @bindings-atom]
-    (some (fn [[command bindings]]
-            (when (some (fn [mouse-binding]
-                          (when-let [binding (:binding mouse-binding)]
-                            (i/mouse-binding-action? binding action)))
-                        (effective-command-bindings state context command bindings))
-              command))
-          (get-in state [:contexts context]))))
+  (command-for-action* @bindings-atom context action))
 
 (defn sub-command-active? [context command sub-cmd input-state]
   (let [state @bindings-atom

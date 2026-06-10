@@ -112,8 +112,8 @@
       (assoc desc :prompt-text unlocalizable-prompt)
       (let [prompt-key (str "prefs.prompt." (coll/join-to-string "." (e/map name path)))]
         (cond-> desc
-          (localization/defines-message-key? localization-state prompt-key)
-          (assoc :prompt-text (localization-state (localization/message prompt-key))))))))
+                (localization/defines-message-key? localization-state prompt-key)
+                (assoc :prompt-text (localization-state (localization/message prompt-key))))))))
 
 (defmethod form-input :string [path schema value on-value-changed localization-state _]
   (text-input path value on-value-changed localization-state (if (:multiline (:ui schema)) fxui/value-area fxui/value-field) (:prompt (:ui schema))))
