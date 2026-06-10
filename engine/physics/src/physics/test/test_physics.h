@@ -47,15 +47,10 @@ protected:
 
     void SetUp() override
     {
-        SetupContextAndWorld(PHYSICS_SCALE);
+        SetupContextAndWorld(PHYSICS_SCALE, false);
     }
 
-    void SetupContextAndWorld(float physics_scale)
-    {
-        SetupContextAndWorld(physics_scale, 0);
-    }
-
-    void SetupContextAndWorld(float physics_scale, uint8_t allow_dynamic_transforms)
+    void SetupContextAndWorld(float physics_scale, bool allow_dynamic_transforms)
     {
         dmPhysics::NewContextParams context_params = dmPhysics::NewContextParams();
         context_params.m_Scale = physics_scale;
@@ -82,7 +77,7 @@ protected:
         m_StepWorldContext.m_Box2DSubStepCount = 10;
     }
 
-    void RecreateContextAndWorld(float physics_scale, uint8_t allow_dynamic_transforms)
+    void RecreateContextAndWorld(float physics_scale, bool allow_dynamic_transforms)
     {
         (*m_Test.m_DeleteWorldFunc)(m_Context, m_World);
         (*m_Test.m_DeleteContextFunc)(m_Context);
@@ -110,7 +105,7 @@ protected:
 
     virtual void SetUp()
     {
-        this->SetupContextAndWorld(PRECISION_ROUNDING_PHYSICS_SCALE);
+        this->SetupContextAndWorld(PRECISION_ROUNDING_PHYSICS_SCALE, false);
     }
 };
 

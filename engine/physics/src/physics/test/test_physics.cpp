@@ -470,7 +470,7 @@ TYPED_TEST(PhysicsTest, DynamicTransformUpdatesBodyPositionAndPreservesVelocity)
      * The body's Box2D transform is updated from the external transform, and
      * both linear and angular velocity remain unchanged.
      */
-    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, 1);
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
     TestFixture::m_StepWorldContext.m_DT = 0.0f;
     const float POSITION_EPSILON = 0.000001f;
     const float VELOCITY_EPSILON = 0.000001f;
@@ -541,7 +541,7 @@ TYPED_TEST(PhysicsTest, DynamicTransformSyncAllowsSleeping)
      * The body reaches a sleeping state within the sleep timeout even though the
      * dynamic-transform sync path updated its Box2D transform every step.
      */
-    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, 1);
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
     (*TestFixture::m_Test.m_SetGravityFunc)(TestFixture::m_World, Vector3(0.0f, 0.0f, 0.0f));
 
     VisualObject vo;
@@ -595,7 +595,7 @@ TYPED_TEST(PhysicsTest, DynamicTransformScaleNoiseDoesNotWakeSleepingBody)
      * The sleeping body remains asleep after the sub-epsilon scale change, and
      * wakes when the scale changes by more than the scale epsilon.
      */
-    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, 1);
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
     (*TestFixture::m_Test.m_SetGravityFunc)(TestFixture::m_World, Vector3(0.0f, 0.0f, 0.0f));
 
     VisualObject vo;
@@ -645,7 +645,7 @@ TYPED_TEST(PhysicsTest, DynamicBodyOnGroundSleepsWithDynamicTransformSync)
      * Expected results:
      * The dynamic body reaches Box2D's sleeping state.
      */
-    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, 1);
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
 
     VisualObject ground_vo;
     ground_vo.m_Position = Point3(0.0f, -1.0f, 0.0f);
