@@ -266,6 +266,9 @@ dialog.quit-defold.header = 存在未保存的更改，您确定要退出吗？
 dialog.quit-defold.button.cancel = 取消并继续工作
 dialog.quit-defold.button.quit = 不保存退出
 
+# Restart Defold dialog
+
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = 无法安全升级文件格式
@@ -343,6 +346,9 @@ notification.fetch-libraries.problem.failed-http-request = 获取 (HTTP\:{status
 notification.fetch-libraries.problem.http-connect-timeout = 获取失败(连接超时)
 
 # Editor scripts notification
+
+
+# Reload plugins notification
 
 
 # Open custom editor notifications
