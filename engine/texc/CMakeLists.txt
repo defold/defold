@@ -92,7 +92,7 @@ if(TEXC_IS_DESKTOP)
       --platform "${TARGET_PLATFORM}"
       --file "$<TARGET_FILE:texc_shared>")
     if(DEFOLD_CODESIGNING_IDENTITY)
-      list(APPEND TEXC_CODESIGN_ARGS --codesigning-identity="${DEFOLD_CODESIGNING_IDENTITY}")
+      list(APPEND TEXC_CODESIGN_ARGS --codesigning-identity=${DEFOLD_CODESIGNING_IDENTITY})
     endif()
     if(DEFOLD_GCLOUD_PROJECTID)
       list(APPEND TEXC_CODESIGN_ARGS --gcloud-projectid "${DEFOLD_GCLOUD_PROJECTID}")
