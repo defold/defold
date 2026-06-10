@@ -15,7 +15,8 @@
 (ns editor.mouse-binding
   (:require [clojure.string :as string]
             [editor.input :as i]
-            [editor.os :as os]))
+            [editor.os :as os]
+            [editor.util :as util]))
 
 (set! *warn-on-reflection* true)
 
@@ -81,8 +82,16 @@
                     {} (or overrides {})))
   nil)
 
-(defn- effective-command-bindings [state context command registered-bindings]
-  (if-let [override-bindings (:bindings (get (:overrides state) [context command]))]
+(defn- state-command-override [state context command]
+  (get (:overrides state) [context command]))
+
+(defn- state-command-bindings-override [state context command]
+  (let [override (state-command-override state context command)]
+    (when (contains? override :bindings)
+      (:bindings override))))
+
+(defn- effective-command-bindings* [state context command registered-bindings]
+  (if-let [override-bindings (state-command-bindings-override state context command)]
     (let [template (dissoc (first registered-bindings) :binding)]
       (mapv #(assoc (get registered-bindings %1 template) :binding %2)
             (range)
@@ -92,12 +101,95 @@
 (defn registered-command-bindings [context command]
   (get-in @bindings-atom [:contexts context command]))
 
+(defn command-bindings-override [overrides context command]
+  (let [override (get-in overrides [context command])]
+    (when (contains? override :bindings)
+      (:bindings override))))
+
+(defn command-bindings-for-edit [overrides context command]
+  (or (command-bindings-override overrides context command)
+      (into [] (keep :binding) (registered-command-bindings context command))))
+
+(defn command-row [overrides context command]
+  (let [binding-override (get-in overrides [context command])
+        override-bindings (command-bindings-override overrides context command)
+        registered (mapv :binding (registered-command-bindings context command))
+        has-direct-binding (or (some :button override-bindings) (some :button registered))
+        fallback-ctx (when-not has-direct-binding
+                       (fallback-context context))
+        fallback-registered (when fallback-ctx
+                              (mapv :binding (registered-command-bindings fallback-ctx command)))
+        fallback-override-bindings (when fallback-ctx
+                                     (command-bindings-override overrides fallback-ctx command))
+        inherited-bindings (when fallback-ctx
+                             (let [bindings (or fallback-override-bindings fallback-registered)]
+                               (when (some :button bindings)
+                                 bindings)))
+        fallback-context-path (when inherited-bindings
+                                (some :context-path (registered-command-bindings fallback-ctx command)))
+        template (some-> (first (registered-command-bindings context command))
+                         (dissoc :binding))]
+    (assoc template
+      :kind :mouse-binding
+      :context context
+      :command command
+      :binding-source (cond
+                        (contains? binding-override :bindings) :custom
+                        inherited-bindings :inherited
+                        :else :default)
+      :fallback-context-path fallback-context-path
+      :bindings (filterv :button (cond
+                                   (contains? binding-override :bindings) override-bindings
+                                   inherited-bindings inherited-bindings
+                                   :else registered)))))
+
+(defn effective-sub-command-modifier [overrides context command sub-cmd]
+  (let [registered-sub-cmds (some :sub-commands (registered-command-bindings context command))
+        default-modifier (some #(when (= (:command %) sub-cmd) (:modifier %)) registered-sub-cmds)]
+    (get-in overrides [context command :sub-commands sub-cmd] default-modifier)))
+
+(defn- assoc-command-override [overrides context command override]
+  (if (and (nil? (:bindings override)) (empty? (:sub-commands override)))
+    (util/dissoc-in overrides [context command])
+    (assoc-in overrides [context command] override)))
+
+(defn update-command-bindings [overrides context command bindings]
+  (let [registered (mapv :binding (registered-command-bindings context command))
+        override (get-in overrides [context command] {})
+        new-override (cond-> override
+                       (= bindings registered) (dissoc :bindings)
+                       (not= bindings registered) (assoc :bindings bindings))]
+    (assoc-command-override overrides context command new-override)))
+
+(defn remove-command-binding [overrides context command binding-index]
+  (let [bindings (command-bindings-for-edit overrides context command)
+        new-bindings (into [] (keep-indexed #(when (not= %1 binding-index) %2)) bindings)]
+    (update-command-bindings overrides context command new-bindings)))
+
+(defn reset-command-bindings [overrides context command]
+  (assoc-command-override overrides context command (dissoc (get-in overrides [context command] {}) :bindings)))
+
+(defn update-sub-command-modifier [overrides context command sub-cmd modifier]
+  (let [registered-sub-cmds (some :sub-commands (registered-command-bindings context command))
+        default-modifier (some #(when (= (:command %) sub-cmd) (:modifier %)) registered-sub-cmds)
+        override (get-in overrides [context command] {})
+        new-override (if (= modifier default-modifier)
+                       (update override :sub-commands dissoc sub-cmd)
+                       (assoc-in override [:sub-commands sub-cmd] modifier))
+        new-override (cond-> new-override
+                       (empty? (:sub-commands new-override)) (dissoc :sub-commands))]
+    (assoc-command-override overrides context command new-override)))
+
+(defn reset-sub-command-modifier [overrides context command sub-cmd]
+  (update-sub-command-modifier overrides context command sub-cmd
+                               (effective-sub-command-modifier {} context command sub-cmd)))
+
 (defn all-bindings []
   (let [state @bindings-atom]
     (into []
           (mapcat (fn [[context command->bindings]]
                     (map (fn [[command bindings]]
-                           (let [effective (effective-command-bindings state context command bindings)
+                           (let [effective (effective-command-bindings* state context command bindings)
                                  template (dissoc (first bindings) :binding)]
                              (assoc template
                                :context context
@@ -110,7 +202,7 @@
   (let [state @bindings-atom]
     (into []
           (mapcat (fn [[command bindings]]
-                    (effective-command-bindings state context command bindings)))
+                    (effective-command-bindings* state context command bindings)))
           (get-in state [:contexts context]))))
 
 (defn- command-active?* [state context command input-state]
@@ -118,7 +210,7 @@
         (some (fn [mouse-binding]
                 (when-let [binding (:binding mouse-binding)]
                   (i/mouse-binding-active? binding input-state)))
-              (effective-command-bindings state context command (get-in state [:contexts context command]))))
+              (effective-command-bindings* state context command (get-in state [:contexts context command]))))
       (when-let [fallback (get-in state [:context-meta context :fallback-context])]
         (command-active?* state fallback command input-state))))
 
@@ -130,7 +222,7 @@
               (when (some (fn [mouse-binding]
                             (when-let [binding (:binding mouse-binding)]
                               (i/mouse-binding-action? binding action)))
-                          (effective-command-bindings state context command bindings))
+                          (effective-command-bindings* state context command bindings))
                 command))
             (get-in state [:contexts context]))
       (when-let [fallback (get-in state [:context-meta context :fallback-context])]
@@ -141,9 +233,8 @@
 
 (defn sub-command-active? [context command sub-cmd input-state]
   (let [state @bindings-atom
-        registered-sub-cmds (some :sub-commands (get-in state [:contexts context command]))
-        default-modifier (some #(when (= (:command %) sub-cmd) (:modifier %)) registered-sub-cmds)
-        effective-modifier (get-in state [:overrides [context command] :sub-commands sub-cmd] default-modifier)]
+        effective-modifier (get-in state [:overrides [context command] :sub-commands sub-cmd]
+                                  (effective-sub-command-modifier {} context command sub-cmd))]
     (boolean (when effective-modifier
                (contains? (:modifiers input-state) effective-modifier)))))
 
@@ -155,4 +246,4 @@
                             (map modifier->label))
                       modifiers)]
       (string/join "+" (conj parts (button->label button))))
-    "Unassigned"))
+    ""))

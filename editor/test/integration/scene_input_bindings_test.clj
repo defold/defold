@@ -371,3 +371,31 @@
 
         (is (not= initial-camera (g/node-value view :camera))
             "Camera should have panned via the overridden binding.")))))
+
+(deftest empty-camera-binding-override-disables-default-pan
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/register!
+        ::camera/scene-camera-orthographic
+        "Scene 2D Camera"
+        [{:command :scene.camera.pan
+          :action "Pan"
+          :binding {:button :primary :modifiers [:shift]}}])
+      (mouse-binding/set-overrides!
+        {::camera/scene-camera-orthographic
+         {:scene.camera.pan
+          {:bindings []}}})
+      (let [[_ view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
+            camera-ctrl (camera-controller view)
+            initial-camera (g/node-value view :camera)
+            input-state (reduce
+                          (partial dispatch-action! view)
+                          (input/make-input-state)
+                          [(action :mouse-moved 64.0 64.0 :primary [:shift])
+                           (action :mouse-pressed 64.0 64.0 :primary [:shift])
+                           (action :drag-detected 64.0 64.0 :primary [:shift])])]
+        (is camera-ctrl)
+        (is (not= :track (:movement (g/user-data camera-ctrl :editor.camera/camera-state))))
+        (dispatch-action! view input-state (action :mouse-released 64.0 64.0 :primary [:shift]))
+        (is (= initial-camera (g/node-value view :camera))
+            "Camera should stay unchanged when the override explicitly clears all pan bindings.")))))
