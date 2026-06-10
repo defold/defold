@@ -1596,6 +1596,24 @@ bail:
 
     #define QUEUE_FAMILY_INVALID 0xffff
 
+    QueueFamily GetGraphicsQueueFamily(PhysicalDevice* device)
+    {
+        QueueFamily qf;
+
+        for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
+        {
+            VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
+            if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                qf.m_GraphicsQueueIx = i;
+                qf.m_PresentQueueIx  = i;
+                break;
+            }
+        }
+
+        return qf;
+    }
+
     // All GPU operations are pushed to various queues. The physical device can have multiple
     // queues with different properties supported, so we need to find a combination of queues
     // that will work for our needs. Note that the present queue might not be the same queue as the
