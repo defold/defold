@@ -269,6 +269,13 @@ dialog.quit-defold.header = Есть несохранённые изменени
 dialog.quit-defold.button.cancel = Отменить и продолжить работу
 dialog.quit-defold.button.quit = Выйти без сохранения
 
+# Restart Defold dialog
+
+dialog.restart-defold.title = Перезапустить Defold?
+dialog.restart-defold.header = Есть несохранённые изменения. Сохранить изменения перед перезапуском Defold?
+dialog.restart-defold.button.cancel = Отмена
+dialog.restart-defold.button.save-and-restart = Сохранить и перезапустить
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = Небезопасно обновлять форматы файлов
@@ -357,6 +364,11 @@ notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
 notification.reload-editor-scripts = Скрипты редактора изменились. Перезагрузить их сейчас?
 notification.reload-editor-scripts.action.reload = Перезагрузить скрипты редактора
+
+# Reload plugins notification
+
+notification.reload-plugins-failed = Не удалось перезагрузить нативные плагины расширений. Перезапустите Defold, чтобы загрузить их заново.\n\nФайл\: {file}\n\nИсходная ошибка от ОС\:\n{error}
+notification.reload-plugins-failed.action.restart = Перезапустить Defold
 
 # Open custom editor notifications
 
@@ -1901,7 +1913,7 @@ form.help.project.display.high_dpi = Включить высокодетализ
 form.label.project.display.samples = Сэмплы
 form.help.project.display.samples = Количество сэмплов для суперсэмплинга антиалиасинга, по умолчанию 0 (выключено)
 form.label.project.display.fullscreen = Полный экран
-form.help.project.display.fullscreen = Запускать приложение в полноэкранном режиме
+form.help.project.display.fullscreen = Запускать приложение в безрамочном полноэкранном режиме на настольных платформах вместо оконного режима
 form.label.project.display.display_profiles = Профили дисплея
 form.help.project.display.display_profiles = Ссылка на файл профилей отображения, используемый приложением
 form.label.project.display.dynamic_orientation = Автоориентация

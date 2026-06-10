@@ -34,16 +34,21 @@ set(GAMESYS_MODEL_DEPENDENCIES
     input
     particle
     render
+    resource
     rig
     script
     $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 set(GAMESYS_MODEL_NULL_DEPENDENCIES
     gameobject
     render
+    resource
     script
     $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
-set(GAMESYS_RIG_DEPENDENCIES rig)
+set(GAMESYS_RIG_DEPENDENCIES
+    resource
+    rig)
 set(GAMESYS_RIG_NULL_DEPENDENCIES
+    resource
     rig
     $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 set(SCRIPT_BOX2D_DEPENDENCIES

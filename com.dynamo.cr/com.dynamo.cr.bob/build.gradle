@@ -224,7 +224,7 @@ privateBobPluginModules.each { module ->
     def pluginClassesDir = file("${project.bobDir}/build/private_plugins/${module.name}")
 
     def compileTask = tasks.create(name: "compilePrivatePlugin_${taskSuffix}", type: JavaCompile) {
-        dependsOn compileSrc
+        dependsOn compileSrc, 'compileBobLight'
         source = fileTree(module.sourceDir)
         destinationDirectory = pluginClassesDir
         include '**/*.java'

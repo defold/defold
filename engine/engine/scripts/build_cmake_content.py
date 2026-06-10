@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,16 @@ RAW_ARCHIVE_FILES = {
 
 def run(args, cwd):
     subprocess.check_call(args, cwd=str(cwd))
+
+
+def java_command(java, main_class, classpath, *args):
+    command = [java]
+    runtime_flags = os.environ.get("DM_JAVA_RUNTIME_FLAGS", "")
+    if runtime_flags:
+        command.extend(shlex.split(runtime_flags))
+    command.extend(["-cp", classpath, main_class])
+    command.extend(args)
+    return command
 
 
 def copytree(src, dst):
@@ -104,21 +115,20 @@ def stage_raw_archive_inputs(stage_root, build_root):
     return raw_paths
 
 
-def rebuild_builtin_fonts(args, stage_root, build_root, bob_light):
+def rebuild_builtin_fonts(args, stage_root, build_root, bob_classpath):
     for source in sorted((stage_root / "builtins").rglob("*.font")):
         rel_path = source.relative_to(stage_root).with_suffix(".fontc")
         output = build_root / rel_path
         output.parent.mkdir(parents=True, exist_ok=True)
-        run([
+        run(java_command(
             args.java,
-            "-cp",
-            str(bob_light),
             "com.dynamo.bob.font.Fontc",
+            bob_classpath,
             str(source),
             str(output),
             str(stage_root),
             "false",
-        ], stage_root)
+        ), stage_root)
 
 
 def remove_root_generated_font_outputs(build_root):
@@ -148,6 +158,7 @@ def build_builtins(args):
     output_root = Path(args.output_root).resolve()
     stamp = Path(args.stamp).resolve()
     bob_light = Path(args.bob_light).resolve()
+    bob_classpath = args.bob_classpath or str(bob_light)
 
     copytree(source_root, work_root)
     output_root.mkdir(parents=True, exist_ok=True)
@@ -155,11 +166,10 @@ def build_builtins(args):
     build_inputs = work_root / "builtins-build.inputs"
     write_build_inputs(work_root, build_inputs)
 
-    java_cmd = [
+    java_cmd = java_command(
         args.java,
-        "-cp",
-        str(bob_light),
         "com.dynamo.bob.Bob",
+        bob_classpath,
         "--root",
         ".",
         "--settings",
@@ -167,8 +177,8 @@ def build_builtins(args):
         "--platform",
         args.platform,
         "--variant=debug",
-        "--use-vanilla-lua",
-    ]
+        "--use-uncompressed-lua-source",
+    )
     for shader_output in args.shader_output:
         java_cmd.append("--debug-output-%s=true" % shader_output)
     java_cmd += [
@@ -180,7 +190,7 @@ def build_builtins(args):
     run(java_cmd, work_root)
 
     build_root = work_root / "build/default"
-    rebuild_builtin_fonts(args, work_root, build_root, bob_light)
+    rebuild_builtin_fonts(args, work_root, build_root, bob_classpath)
     remove_root_generated_font_outputs(build_root)
     stage_raw_archive_inputs(work_root, build_root)
 
@@ -189,16 +199,16 @@ def build_builtins(args):
         raise RuntimeError("No builtin archive inputs were produced")
 
     archive_output = output_root / "builtins"
-    archive_cmd = [
+    archive_cmd = java_command(
         args.java,
-        "-cp",
-        str(bob_light),
         "com.dynamo.bob.archive.ArchiveBuilder",
+        bob_classpath,
         str(build_root),
         str(archive_output),
         "-m",
         "-c",
-    ] + [str(path) for path in archive_inputs]
+        *[str(path) for path in archive_inputs],
+    )
     run(archive_cmd, work_root)
 
     for suffix in (".arci", ".arcd", ".dmanifest"):
@@ -234,6 +244,7 @@ def main():
     builtins.add_argument("--output-root", required=True)
     builtins.add_argument("--stamp", required=True)
     builtins.add_argument("--bob-light", required=True)
+    builtins.add_argument("--bob-classpath")
     builtins.add_argument("--platform", required=True)
     builtins.add_argument("--shader-output", action="append", default=[])
     builtins.add_argument("--java", required=True)
