@@ -30,6 +30,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
+            [editor.doc :as doc]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.server :as ext.server]
             [editor.engine-profiler :as engine-profiler]
@@ -222,6 +223,7 @@
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
                                   (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
+                                  (doc/routes)
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try

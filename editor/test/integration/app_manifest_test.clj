@@ -41,7 +41,32 @@
                (app-manifest/set-toggle-value
                  {:platforms {:common {:context {:libs "not-a-coll"}}}} toggle true)))
         (is (= {:platforms {:common {:context {:libs []}}}}
-               (app-manifest/set-toggle-value {:platforms {:common :invalid}} toggle false))))))
+               (app-manifest/set-toggle-value {:platforms {:common :invalid}} toggle false)))))
+    (testing "windows library toggles read legacy and current names"
+      (let [lib-toggle (first (app-manifest/libs-toggles [:x86_64-win32] ["record_null"]))
+            exclude-lib-toggle (first (app-manifest/exclude-libs-toggles [:x86_64-win32] ["record"]))]
+        (is (true? (app-manifest/get-toggle-value
+                     {:platforms {:x86_64-win32 {:context {:libs ["record_null.lib"]}}}}
+                     lib-toggle)))
+        (is (true? (app-manifest/get-toggle-value
+                     {:platforms {:x86_64-win32 {:context {:libs ["librecord_null.lib"]}}}}
+                     lib-toggle)))
+        (is (= {:platforms {:x86_64-win32 {:context {:libs []}}}}
+               (app-manifest/set-toggle-value
+                 {:platforms {:x86_64-win32 {:context {:libs ["record_null.lib" "librecord_null.lib"]}}}}
+                 lib-toggle
+                 false)))
+        (is (true? (app-manifest/get-toggle-value
+                     {:platforms {:x86_64-win32 {:context {:excludeLibs ["record"]}}}}
+                     exclude-lib-toggle)))
+        (is (true? (app-manifest/get-toggle-value
+                     {:platforms {:x86_64-win32 {:context {:excludeLibs ["librecord"]}}}}
+                     exclude-lib-toggle)))
+        (is (= {:platforms {:x86_64-win32 {:context {:excludeLibs []}}}}
+               (app-manifest/set-toggle-value
+                 {:platforms {:x86_64-win32 {:context {:excludeLibs ["record" "librecord"]}}}}
+                 exclude-lib-toggle
+                 false))))))
   (testing "boolean toggle"
     (testing "get"
       (testing "positive toggle (expects value to be true for toggle to be on)"

@@ -267,11 +267,20 @@ namespace dmGameSystem
         sprite_world->m_AnimationDataCache.m_Cache.SetCapacity(MINIMUM_CACHE_CAPACITY);
         dmDoubleLinkedList::ListInit(&sprite_world->m_AnimationDataCache.m_LRU);
         memset(sprite_world->m_Components.GetRawObjects().Begin(), 0, sizeof(SpriteComponent) * comp_count);
-        sprite_world->m_RenderObjectsInUse = 0;
-        sprite_world->m_VertexBuffer     = 0;
-        sprite_world->m_VertexBufferData = 0;
-        sprite_world->m_IndexBuffer      = 0;
-        sprite_world->m_IndexBufferData  = 0;
+        sprite_world->m_RenderObjectsInUse   = 0;
+        sprite_world->m_VertexBuffer         = 0;
+        sprite_world->m_VertexBufferData     = 0;
+        sprite_world->m_VertexBufferWritePtr = 0;
+        sprite_world->m_IndexBuffer          = 0;
+        sprite_world->m_VerticesWritten      = 0;
+        sprite_world->m_VertexMemorySize     = 0;
+        sprite_world->m_VertexCount          = 0;
+        sprite_world->m_IndexCount           = 0;
+        sprite_world->m_DispatchCount        = 0;
+        sprite_world->m_IndexBufferData      = 0;
+        sprite_world->m_IndexBufferWritePtr  = 0;
+        sprite_world->m_Is16BitIndex         = 0;
+        sprite_world->m_ReallocBuffers       = 1;
 
         InitializeMaterialAttributeInfos(sprite_world->m_DynamicVertexAttributePool, 8);
 
@@ -2105,6 +2114,8 @@ namespace dmGameSystem
             SpriteComponent* component = &components[i];
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
+            if (component->m_VertexCount == 0 || component->m_IndexCount == 0)
+                continue;
             UpdateTransform(component, sub_pixels);
             // Bounding radius: world matrix already contains component scale; incorporate only sprite size
             Vector3 size = component->m_Size;
@@ -2222,7 +2233,7 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < sprite_count; ++i)
         {
             SpriteComponent& component = components[i];
-            if (!component.m_Enabled || !component.m_AddedToUpdate)
+            if (!component.m_Enabled || !component.m_AddedToUpdate || component.m_VertexCount == 0 || component.m_IndexCount == 0)
                 continue;
 
             const Vector3 trans = component.m_World.getCol(3).getXYZ();

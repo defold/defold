@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
+#include <inttypes.h>
 #include <dlib/log.h>
 #include <dlib/dlib.h>
 #include <signal.h>
@@ -71,14 +72,16 @@ namespace dmCrash
                     }
                 }
                 char extra[256];
+                uintptr_t pc_offset = (uintptr_t)pc - (uintptr_t)dl_info.dli_fbase;
+                uintptr_t symbol_offset = dl_info.dli_saddr != NULL ? (uintptr_t)pc - (uintptr_t)dl_info.dli_saddr : 0;
                 snprintf(extra, sizeof(extra),
-                    "#%02d pc %012p %s%s %s+%u",
+                    "#%02d pc %012" PRIxPTR " %s%s %s+%" PRIuPTR,
                     unwindData->stack_index++,
-                    (void*)((uintptr_t)pc - (intptr_t) dl_info.dli_fbase),
+                    pc_offset,
                     proc_path_truncated ? "..." : "",
                     proc_path ? proc_path : "",
                     dl_info.dli_sname ? dl_info.dli_sname : "<unknown>",
-                    dl_info.dli_saddr != NULL ? (void*)((intptr_t) pc - (intptr_t) dl_info.dli_saddr) : 0);
+                    symbol_offset);
                 
                 int extra_len = strlen(extra);
                 if ((unwindData->offset_extra + extra_len) < (dmCrash::AppState::EXTRA_MAX - 1))
@@ -98,12 +101,14 @@ namespace dmCrash
 
     static void Handler(const int signo, siginfo_t* const si, void *const sc)
     {
+        bool first_signal_handler = BeginSignalHandler();
+
         // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
         ResetToDefaultSignalHandler(signo);
 
-        if (g_CrashDumpEnabled)
+        if (g_CrashDumpEnabled && first_signal_handler)
         {
             AppState* state = GetAppState();
 
@@ -129,7 +134,11 @@ namespace dmCrash
             dLib::SetDebugMode(is_debug_mode);
         }
 
-        ChainSignalOrRaiseDefault(signo, si, sc, g_PreviousSignalActions, Handler);
+        if (first_signal_handler)
+        {
+            ChainSignalOrRaiseDefault(signo, si, sc, g_PreviousSignalActions, Handler);
+            EndSignalHandler();
+        }
     }
 
     void WriteDump()

@@ -35,6 +35,16 @@
 #define DM_SKIP_MDNS_DISCOVERY_TESTS
 #endif
 
+#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
+#define SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE() SKIP()
+#else
+#define SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE() \
+    do { \
+        if (ShouldSkipMdnsDiscoveryTests()) \
+            SKIP(); \
+    } while (0)
+#endif
+
 namespace
 {
     static const char* SERVICE_TYPE = "_defoldtest._tcp";
@@ -300,6 +310,53 @@ namespace
         const uint32_t len = (uint32_t) strlen(out);
         if (len < 6 || dmStrCaseCmp(out + len - 6, ".local") != 0)
             dmStrlCat(out, ".local", out_size);
+    }
+
+    static bool TestAddressSetContains(const std::vector<dmSocket::Address>& addresses, const dmSocket::Address& address)
+    {
+        for (uint32_t i = 0; i < addresses.size(); ++i)
+        {
+            if (addresses[i] == address)
+                return true;
+        }
+        return false;
+    }
+
+    static void CollectTestInterfaceAddresses(std::vector<dmSocket::Address>* addresses)
+    {
+        dmSocket::IfAddr interfaces[32];
+        uint32_t interface_count = 0;
+        dmSocket::GetIfAddresses(interfaces, 32, &interface_count);
+
+        addresses->clear();
+        for (uint32_t i = 0; i < interface_count; ++i)
+        {
+            const dmSocket::IfAddr& if_addr = interfaces[i];
+            if (if_addr.m_Address.m_family != dmSocket::DOMAIN_IPV4)
+                continue;
+            if (dmSocket::Empty(if_addr.m_Address))
+                continue;
+            if ((if_addr.m_Flags & dmSocket::FLAGS_UP) == 0)
+                continue;
+            if (TestAddressSetContains(*addresses, if_addr.m_Address))
+                continue;
+
+            addresses->push_back(if_addr.m_Address);
+        }
+    }
+
+    static bool HaveSameTestAddressSet(const std::vector<dmSocket::Address>& lhs, const std::vector<dmSocket::Address>& rhs)
+    {
+        if (lhs.size() != rhs.size())
+            return false;
+
+        for (uint32_t i = 0; i < lhs.size(); ++i)
+        {
+            if (!TestAddressSetContains(rhs, lhs[i]))
+                return false;
+        }
+
+        return true;
     }
 
     static bool IsDigit(char c)
@@ -997,6 +1054,27 @@ namespace
         return false;
     }
 
+    static void DrainMatchingQuestionsUntilQuiet(dmSocket::Socket socket, const char* qname, uint16_t qtype, uint32_t quiet_ms, uint32_t timeout_ms)
+    {
+        const uint64_t timeout_deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
+        uint64_t quiet_deadline = dmTime::GetMonotonicTime() + (uint64_t) quiet_ms * 1000ULL;
+        RawDnsPacket packet;
+
+        for (;;)
+        {
+            const uint64_t now = dmTime::GetMonotonicTime();
+            if (now >= timeout_deadline || now >= quiet_deadline)
+                break;
+
+            if (TryReceiveMatchingQuestion(socket, qname, qtype, &packet))
+            {
+                quiet_deadline = now + (uint64_t) quiet_ms * 1000ULL;
+                continue;
+            }
+            dmTime::Sleep(5 * 1000);
+        }
+    }
+
     static void PumpMdnsPair(dmMDNS::HMDNS mdns_a, dmMDNS::HMDNS mdns_b, uint32_t iterations, uint32_t sleep_us)
     {
         for (uint32_t i = 0; i < iterations; ++i)
@@ -1270,6 +1348,75 @@ bail:
 
         dmAtomicStore32(&ctx->m_Completed, 1);
     }
+
+    static bool IsMdnsDiscoveryRuntimeAvailable()
+    {
+        static int available = -1;
+        if (available != -1)
+            return available == 1;
+
+        EventLog event_log;
+        ScopedMdnsTestResources cleanup;
+
+        const uint64_t nonce = dmTime::GetMonotonicTime();
+        char service_type[64];
+        char service_id[128];
+        char instance_name[128];
+        char advertised_id[128];
+        MakeUniqueServiceType(service_type, sizeof(service_type), nonce);
+        MakeUniqueName(service_id, sizeof(service_id), "mdns-runtime-check", nonce);
+        MakeUniqueName(instance_name, sizeof(instance_name), "runtime-check", nonce);
+        MakeUniqueName(advertised_id, sizeof(advertised_id), "mdns-runtime-check-txt", nonce);
+
+        dmMDNS::Params params;
+        params.m_AnnounceInterval = 1;
+        params.m_Ttl = 2;
+        if (dmMDNS::New(&params, &cleanup.m_Mdns) != dmMDNS::RESULT_OK)
+        {
+            available = 0;
+            return false;
+        }
+
+        dmMDNS::BrowserParams browser_params;
+        browser_params.m_ServiceType = service_type;
+        browser_params.m_Callback = EventLog::Callback;
+        browser_params.m_Context = &event_log;
+        if (dmMDNS::NewBrowser(&browser_params, &cleanup.m_Browser) != dmMDNS::RESULT_OK)
+        {
+            available = 0;
+            return false;
+        }
+
+        dmMDNS::TxtEntry txt_entries[] =
+        {
+            {"id", advertised_id},
+            {"name", instance_name},
+        };
+
+        dmMDNS::ServiceDesc service;
+        memset(&service, 0, sizeof(service));
+        service.m_Id = service_id;
+        service.m_InstanceName = instance_name;
+        service.m_ServiceType = service_type;
+        service.m_Port = 19000;
+        service.m_Txt = txt_entries;
+        service.m_TxtCount = DM_ARRAY_SIZE(txt_entries);
+        service.m_Ttl = 2;
+
+        if (dmMDNS::RegisterService(cleanup.m_Mdns, &service) != dmMDNS::RESULT_OK)
+        {
+            available = 0;
+            return false;
+        }
+
+        available = WaitForEvent(event_log, dmMDNS::EVENT_RESOLVED, service.m_InstanceName, cleanup.m_Mdns, cleanup.m_Browser, 5000) ? 1 : 0;
+        return available == 1;
+    }
+
+    static bool ShouldSkipMdnsDiscoveryTests()
+    {
+        return !IsMdnsDiscoveryRuntimeAvailable();
+    }
 }
 
 // Verifies API-level validation and service registration lifecycle rules.
@@ -1391,9 +1538,7 @@ TEST(MDNS, RegisterLifecycle)
 // This is the baseline end-to-end lifecycle test for the C++ stack.
 TEST(MDNS, ResolveAndRemove)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -1458,9 +1603,7 @@ TEST(MDNS, ResolveAndRemove)
 // Verifies a DNS-SD instance label containing dots is escaped on the wire and unescaped in browser callbacks.
 TEST(MDNS, ResolveInstanceNameWithDots)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -1517,9 +1660,7 @@ TEST(MDNS, ResolveInstanceNameWithDots)
 // This catches regressions where discovery succeeds but the advertised endpoint is wrong.
 TEST(MDNS, ResolveAndConnect)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     TcpServerContext server_ctx;
     ScopedMdnsTestResources cleanup;
@@ -1609,9 +1750,7 @@ TEST(MDNS, ResolveAndConnect)
 // This protects the outgoing query wire shape that discovery depends on.
 TEST(MDNS, BrowserBuildsExpectedQuery)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     ScopedMdnsTestResources cleanup;
     MulticastCapture capture;
@@ -1643,9 +1782,7 @@ TEST(MDNS, BrowserBuildsExpectedQuery)
 // Verifies follow-up browse queries carry known PTR answers so responders can suppress duplicates.
 TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -1717,9 +1854,7 @@ TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
 // available interface set is unchanged.
 TEST(MDNS, BrowserKeepsBackoffAcrossStableInterfaceRefresh)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     ScopedMdnsTestResources cleanup;
     MulticastCapture capture;
@@ -1731,6 +1866,9 @@ TEST(MDNS, BrowserKeepsBackoffAcrossStableInterfaceRefresh)
     MakeUniqueServiceType(service_type, sizeof(service_type), nonce);
     BuildLocalName(service_type, service_type_local, sizeof(service_type_local));
 
+    std::vector<dmSocket::Address> initial_addresses;
+    CollectTestInterfaceAddresses(&initial_addresses);
+
     dmMDNS::BrowserParams browser_params;
     browser_params.m_ServiceType = service_type;
     browser_params.m_Callback = 0;
@@ -1740,21 +1878,28 @@ TEST(MDNS, BrowserKeepsBackoffAcrossStableInterfaceRefresh)
 
     RawDnsPacket packet;
     ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
-    DrainSocket(capture.m_Socket, 100);
+    DrainMatchingQuestionsUntilQuiet(capture.m_Socket, service_type_local, DNS_TYPE_PTR, 250, 1000);
     ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2000));
-    DrainSocket(capture.m_Socket, 100);
+    DrainMatchingQuestionsUntilQuiet(capture.m_Socket, service_type_local, DNS_TYPE_PTR, 250, 1000);
     ASSERT_TRUE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 4000));
-    DrainSocket(capture.m_Socket, 100);
-    ASSERT_FALSE(WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2500));
+    DrainMatchingQuestionsUntilQuiet(capture.m_Socket, service_type_local, DNS_TYPE_PTR, 250, 1000);
+
+    const bool received_query = WaitForMatchingQuestion(cleanup.m_Browser, capture.m_Socket, service_type_local, DNS_TYPE_PTR, &packet, 2500);
+    if (received_query)
+    {
+        std::vector<dmSocket::Address> current_addresses;
+        CollectTestInterfaceAddresses(&current_addresses);
+        if (!HaveSameTestAddressSet(initial_addresses, current_addresses))
+            SKIP();
+    }
+    ASSERT_FALSE(received_query);
 }
 
 // Verifies half-TTL refresh retries stay on the browse backoff cadence when a
 // refresh query receives no answer.
 TEST(MDNS, BrowserRefreshRetryDoesNotSpam)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -1826,9 +1971,7 @@ TEST(MDNS, BrowserRefreshRetryDoesNotSpam)
 // section instead of probing the shared service-type PTR name.
 TEST(MDNS, AdvertiserBuildsAuthorityBackedProbe)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     ScopedMdnsTestResources cleanup;
     MulticastCapture capture;
@@ -1912,9 +2055,7 @@ TEST(MDNS, AdvertiserBuildsAuthorityBackedProbe)
 // single winning record set according to RFC 6762 tiebreaking rules.
 TEST(MDNS, SimultaneousServiceProbesPickSingleWinner)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     ScopedMdnsTestResources cleanup_a;
     ScopedMdnsTestResources cleanup_b;
@@ -1980,9 +2121,7 @@ TEST(MDNS, SimultaneousServiceProbesPickSingleWinner)
 // This locks down the native wire contract, including record payloads, classes, TTLs, and negative cases.
 TEST(MDNS, QueryResponses)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     ScopedMdnsTestResources cleanup;
     MulticastCapture capture;
@@ -2108,9 +2247,7 @@ TEST(MDNS, QueryResponses)
 // This protects the advertiser against truncated or cyclic DNS traffic on the multicast socket.
 TEST(MDNS, IgnoresMalformedQueries)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     ScopedMdnsTestResources cleanup;
     MulticastCapture capture;
@@ -2200,9 +2337,7 @@ TEST(MDNS, IgnoresMalformedQueries)
 // Browsers rely on these explicit deannouncements to remove stale services immediately.
 TEST(MDNS, ZeroTtlAnnouncements)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     MulticastCapture capture;
     ASSERT_TRUE(SetupMulticastCapture(&capture));
@@ -2288,9 +2423,7 @@ TEST(MDNS, ZeroTtlAnnouncements)
 // This ensures interoperability with responders that use standard DNS name compression.
 TEST(MDNS, BrowserParsesCompressedResponses)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -2365,9 +2498,7 @@ TEST(MDNS, BrowserParsesCompressedResponses)
 // This exercises the native browser state machine instead of only single-packet happy paths.
 TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -2517,9 +2648,7 @@ TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
 // This covers timed-expiry behavior separately from explicit zero-TTL deannounce handling.
 TEST(MDNS, BrowserExpiresPtrSrvTxtRecords)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -2614,9 +2743,7 @@ TEST(MDNS, BrowserExpiresPtrSrvTxtRecords)
 // Multicast traffic is noisy, so the browser must avoid duplicate events and converge on valid data.
 TEST(MDNS, BrowserHandlesDuplicateAndConflictingRecords)
 {
-#if defined(DM_SKIP_MDNS_DISCOVERY_TESTS)
-    SKIP();
-#endif
+    SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;

@@ -52,6 +52,17 @@ class waf_dynamo_vendor(object):
     def transform_runnable_path(cls, platform, path):
         return call_hook('waf_dynamo', platform, 'transform_runnable_path', path, platform, path)
 
+def static_libs(conf, uselib, libs, exact_windows_libs = None):
+    # Waf expands STLIB entries to lib%s.lib on Windows. Libraries built outside Waf
+    # may need their exact .lib filename instead, while keeping the usual STLIB path elsewhere.
+    libs = Utils.to_list(libs)
+    exact_windows_libs = set(Utils.to_list(exact_windows_libs or libs))
+    if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
+        conf.env['STLIB_%s' % uselib] = [lib for lib in libs if lib not in exact_windows_libs]
+        conf.env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in libs if lib in exact_windows_libs])
+    else:
+        conf.env['STLIB_%s' % uselib] = libs
+
 
 def is_platform_private(platform):
     return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'] or platform in get_configured_platforms()
@@ -118,6 +129,12 @@ def _has_waf_configure_state(path):
     return False
 
 def _fail_if_unconfigured_cmake_library():
+    # Skip the CMake check when the user explicitly requested a pure‑Waf
+    # build via ``--with-waf``.  The flag is exposed as
+    # ``Options.options.with_waf`` by the command line parser.
+    if getattr(Options.options, 'with_waf', False):
+        return
+
     if not set(Options.commands).intersection(['build', 'clean', 'install', 'uninstall', 'list', 'step']):
         return
 
@@ -132,21 +149,24 @@ def _fail_if_unconfigured_cmake_library():
 This library has CMakeLists.txt and has not been configured by Waf.
 Use CMake/Ninja for this library instead:
 
+  Defaults from ./scripts/build.py shell:
+    CMAKE_GENERATOR=Ninja, TARGET_PLATFORM=%s, CMAKE_BUILD_TYPE=RelWithDebInfo, BUILD_TESTS=ON
+
   Configure with tests:
-    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=ON
+    cmake -S . -B build
 
   Configure without tests:
-    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=OFF
+    cmake -S . -B build -DBUILD_TESTS=OFF
 
   Build after configuring with tests:
-    ninja -C build all build_tests install
+    cmake --build build --target all build_tests install
 
   Build after configuring without tests:
-    ninja -C build all install
+    cmake --build build --target all install
 
   Run tests:
-    ninja -C build run_tests
-''' % (platform, platform))
+    cmake --build build --target run_tests
+''' % platform)
 
 _cmake_library_guard_installed = False
 
@@ -2111,11 +2131,11 @@ def detect(conf):
         use_vanilla = True
 
     if use_vanilla:
-        conf.env['STLIB_LUA'] = 'lua'
+        static_libs(conf, 'LUA', 'lua')
     else:
         conf.env['STLIB_LUA'] = 'luajit-5.1'
 
-    conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
+    static_libs(conf, 'TESTMAIN', ['testmain']) # we'll use this for all internal tests/tools
 
     if target_os != TargetOS.MACOS:
         conf.env['STLIB_UNWIND'] = 'unwind'
@@ -2141,24 +2161,25 @@ def detect(conf):
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
+    static_libs(conf, 'DLIB', ['dlib', 'image', 'zip'])
     if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
-        conf.env['STLIB_DLIB'].append('dmbedtls')
+        conf.env.append_unique('STLIB_DLIB', 'dmbedtls')
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
 
-    conf.env['STLIB_DDF'] = 'ddf'
+    static_libs(conf, 'DDF', ['ddf'])
+    static_libs(conf, 'DDF_NOASAN', ['ddf_noasan'])
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
 
-    conf.env['STLIB_PROFILE'] = ['profile']
-    conf.env['STLIB_PROFILE_NULL'] = ['profile_null']
+    static_libs(conf, 'PROFILE', ['profile'])
+    static_libs(conf, 'PROFILE_NULL', ['profile_null'])
     conf.env['STLIB_PROFILER_BASIC'] = ['profiler_basic']
     conf.env['STLIB_PROFILER_REMOTERY'] = ['profiler_remotery']
     conf.env['STLIB_PROFILER_NULL'] = ['profiler_null']
 
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
+    static_libs(conf, 'PROFILE_NULL_NOASAN', ['profile_null_noasan'])
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'
@@ -2171,18 +2192,20 @@ def detect(conf):
             conf.env['STLIB_RECORD'] = 'record_null'
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STLIB_GRAPHICS']          = ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    static_libs(conf, 'GRAPHICS',          ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_OPENGLES', ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_VULKAN',   ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_DX12',     ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
     if 'wagyu' in Options.options.enable_features:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
     else:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'image', 'graphics_transcoder_null']
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_NULL', ['graphics_null', 'image', 'graphics_transcoder_null'])
+    static_libs(conf, 'GRAPHICS_PROTO', ['graphics_proto'])
+    static_libs(conf, 'GRAPHICS_NULL_NOASAN', ['graphics_null_noasan', 'image_noasan', 'graphics_proto_noasan'])
 
-    conf.env['STLIB_FONT']            = ['font']
-    conf.env['STLIB_FONT_LAYOUT']     = ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi']
+    static_libs(conf, 'FONT', ['font'])
+    static_libs(conf, 'FONT_LAYOUT', ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi'], ['font_skribidi'])
 
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'
@@ -2225,19 +2248,19 @@ def detect(conf):
 
     if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
-        conf.env['LINKFLAGS_DLIB']      = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp
+        conf.env.append_value('LINKFLAGS_DLIB', ['ole32.lib']) # CoTaskMemFree in sys_win32.cpp
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
 
 
     if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
-        conf.env['LINKFLAGS_HID']               = ['hid.lib']
-        conf.env['LINKFLAGS_HID_NULL']          = ['hid_null.lib']
-        conf.env['LINKFLAGS_INPUT']             = ['input.lib']
-        conf.env['LINKFLAGS_PLATFORM']          = ['platform.lib']
-        conf.env['LINKFLAGS_PLATFORM_VULKAN']   = ['platform_vulkan.lib']
-        conf.env['LINKFLAGS_PLATFORM_NULL']     = ['platform_null.lib']
+        static_libs(conf, 'HID', ['hid'])
+        static_libs(conf, 'HID_NULL', ['hid_null'])
+        static_libs(conf, 'INPUT', ['input'])
+        static_libs(conf, 'PLATFORM', ['platform'])
+        static_libs(conf, 'PLATFORM_VULKAN', ['platform_vulkan'])
+        static_libs(conf, 'PLATFORM_NULL', ['platform_null'])
     else:
         conf.env['STLIB_HID']               = ['hid']
         conf.env['STLIB_HID_NULL']          = ['hid_null']
@@ -2249,8 +2272,8 @@ def detect(conf):
     if target_os in [TargetOS.MACOS, TargetOS.IOS]:
         conf.env['FRAMEWORK_HID'] = ['GameController']
 
-    conf.env['STLIB_EXTENSION'] = 'extension'
-    conf.env['STLIB_SCRIPT'] = 'script'
+    static_libs(conf, 'EXTENSION', ['extension'])
+    static_libs(conf, 'SCRIPT', ['script'])
 
     if conf.env.IS_TARGET_DESKTOP:
 
@@ -2305,6 +2328,8 @@ def options(opt):
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
+    # Flag to indicate that the build should use pure Waf (skip CMake checks)
+    opt.add_option('--with-waf', action='store_true', dest='with_waf', help='Build using Waf only (skip CMake checks)')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
     opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
     opt.add_option('--with-msan', action='store_true', default=False, dest='with_msan', help='Enables memory sanitizer')

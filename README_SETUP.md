@@ -187,9 +187,9 @@ Finally, verify that Java is installed and working:
 > javac -version
 ```
 
-### Required Software - Python 3
+### Required Software - Python 3.12+
 
-You need a 64 bit [Python 3](https://www.python.org/downloads/) version to build the engine and tools. The latest tested on all platforms is Python 3.10+.
+You need a 64 bit [Python 3.12+](https://www.python.org/downloads/) version to build the engine and tools.
 
 <details><summary>macOS...</summary><p>
 

@@ -1213,6 +1213,7 @@ property.collision-object.event-contact.tooltip = Если выключено, �
 property.collision-object.event-trigger = События триггера
 property.collision-object.event-trigger.tooltip = Если выключено, фильтрует все события триггера с этим объектом
 property.collision-object.group = Группа
+property.collision-object.group.tilemap.tooltip = Это свойство не используется, если форма столкновений представлена картой тайлов. Группы столкновений определяются в источнике тайлов этой карты.
 property.collision-object.mask = Маска
 property.collision-object.shape.diameter = Диаметр
 property.collision-object.shape.dimensions = Размер
