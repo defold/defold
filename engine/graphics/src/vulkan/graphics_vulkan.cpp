@@ -1245,12 +1245,6 @@ namespace dmGraphics
         return qf;
     }
 
-    static void TransferPhysicalDevice(PhysicalDevice* dst, PhysicalDevice* src)
-    {
-        *dst = *src;
-        memset(src, 0, sizeof(*src));
-    }
-
     static bool HasGetPhysicalDeviceFeatures2()
     {
     #if ANDROID
@@ -1434,7 +1428,8 @@ namespace dmGraphics
                 dmLogInfo("Vulkan device selected: %s", selected_device->m_Properties.deviceName);
             }
 
-            TransferPhysicalDevice(physical_device_out, selected_device);
+            *physical_device_out = *selected_device;
+            memset(selected_device, 0, sizeof(*selected_device));
             *logical_device_out = logical_device;
             *queue_family_out   = selected_queue_family;
 
@@ -1620,12 +1615,21 @@ bail:
     #endif
 
         uint16_t extensionNameCount = 0;
-        const char** extensionNames = 0;
+        const char** extensionNames = GetExtensionNames(&extensionNameCount);
 
     #ifdef DM_VULKAN_VALIDATION
+        dmArray<const char*> support_probe_extension_names;
+        support_probe_extension_names.SetCapacity(extensionNameCount + 1);
+        for (uint16_t i = 0; i < extensionNameCount; ++i)
+        {
+            support_probe_extension_names.Push(extensionNames[i]);
+        }
+
         const char* portabilityExt = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
-        extensionNames             = &portabilityExt;
-        extensionNameCount         = 1;
+        support_probe_extension_names.Push(portabilityExt);
+
+        extensionNames     = support_probe_extension_names.Begin();
+        extensionNameCount = (uint16_t) support_probe_extension_names.Size();
     #endif
 
         uint32_t vk_api_version = VK_MAKE_API_VERSION(0, 1, 0, 0);
