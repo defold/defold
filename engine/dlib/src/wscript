@@ -98,6 +98,7 @@ def build(bld):
     for feature_name in ['dlib/condition_variable',
                          'dlib/crypt',
                          'dlib/file_descriptor',
+                         'dlib/log',
                          'dlib/mutex',
                          'dlib/socket',
                          'dlib/sslsocket',

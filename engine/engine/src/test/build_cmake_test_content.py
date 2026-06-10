@@ -86,7 +86,7 @@ def main():
         "--variant=debug",
     ]
     if args.platform in ("js-web", "wasm-web", "wasm_pthread-web"):
-        bob_flags.append("--use-vanilla-lua")
+        bob_flags.append("--use-uncompressed-lua-source")
 
     print("  Bob root: %s" % bob_workspace_root, flush=True)
 

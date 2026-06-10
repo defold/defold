@@ -2569,6 +2569,10 @@ bail:
 
 void dmEngineInitialize()
 {
+#if defined(_WIN32)
+    dmLog::CloseConsoleWindow();
+#endif
+
 #if DM_RELEASE
     dLib::SetDebugMode(false);
 #endif

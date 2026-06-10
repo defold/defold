@@ -269,6 +269,13 @@ dialog.quit-defold.header = Unsaved changes exist, are you sure you want to quit
 dialog.quit-defold.button.cancel = Cancel and Keep Working
 dialog.quit-defold.button.quit = Quit Without Saving
 
+# Restart Defold dialog
+
+dialog.restart-defold.title = Restart Defold?
+dialog.restart-defold.header = Unsaved changes exist. Save changes before restarting Defold?
+dialog.restart-defold.button.cancel = Cancel
+dialog.restart-defold.button.save-and-restart = Save and Restart
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = Not Safe to Upgrade File Formats
@@ -357,6 +364,11 @@ notification.fetch-libraries.dependency-problem = {uri}: {problem}
 
 notification.reload-editor-scripts = Editor scripts have changed. Do you want to reload them now?
 notification.reload-editor-scripts.action.reload = Reload Editor Scripts
+
+# Reload plugins notification
+
+notification.reload-plugins-failed = Native extension plugins could not be reloaded. Restart Defold to reload them.\n\nFile: {file}\n\nUnderlying error from the OS:\n{error}
+notification.reload-plugins-failed.action.restart = Restart Defold
 
 # Open custom editor notifications
 
@@ -1901,7 +1913,7 @@ form.help.project.display.high_dpi = Enable high DPI backbuffer where available
 form.label.project.display.samples = Samples
 form.help.project.display.samples = How many samples to use for super sampling anti-aliasing, 0 by default, which means it is turned off
 form.label.project.display.fullscreen = Fullscreen
-form.help.project.display.fullscreen = Start the application full screen instead of windowed
+form.help.project.display.fullscreen = Start the application in borderless fullscreen on desktop platforms instead of windowed
 form.label.project.display.display_profiles = Display Profiles
 form.help.project.display.display_profiles = File reference of the display profiles to use for the application
 form.label.project.display.dynamic_orientation = Dynamic Orientation

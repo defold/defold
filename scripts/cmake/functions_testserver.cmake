@@ -70,15 +70,20 @@ function(defold_register_test_with_server target platform)
       COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")
   endif()
 
+  set(_sequential_dep ${target})
   if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android")
     set(_prepare_target "prepare_${_run_target}")
     if(NOT TARGET ${_prepare_target})
       add_custom_target(${_prepare_target} DEPENDS ${target})
     endif()
-    defold_xcode_register_sequential_test_command(${_run_target}
+    set(_sequential_dep ${_prepare_target})
+  endif()
+  if(NOT platform MATCHES "arm64-android|armv7-android")
+    defold_register_sequential_test_command(${_run_target}
       COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_SERVER_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
-      DEPENDS ${_prepare_target})
-  else()
+      DEPENDS ${_sequential_dep})
+  endif()
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
     if(NOT TARGET run_tests)
       add_custom_target(run_tests)
     endif()
@@ -160,12 +165,16 @@ function(defold_register_tests_with_server group platform)
       COMMENT "Running ${group} with shared Defold test server on ${_SERVER_IP}:${DTS_PORT}")
   endif()
 
+  set(_sequential_dep ${DTS_TARGETS})
   if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android")
     set(_prepare_target "prepare_${_run_target}")
     if(NOT TARGET ${_prepare_target})
       add_custom_target(${_prepare_target} DEPENDS ${DTS_TARGETS})
     endif()
-    defold_xcode_register_sequential_test_command(${_run_target}
+    set(_sequential_dep ${_prepare_target})
+  endif()
+  if(NOT platform MATCHES "arm64-android|armv7-android")
+    defold_register_sequential_test_command(${_run_target}
       COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
         --workdir "${_RUN_DIR_ABS}"
         --ip "${_SERVER_IP}"
@@ -173,8 +182,9 @@ function(defold_register_tests_with_server group platform)
         --config "${_CFG_PATH}"
         ${_SERVER_DIR_ARGS}
         -- ${_TEST_EXES}
-      DEPENDS ${_prepare_target})
-  else()
+      DEPENDS ${_sequential_dep})
+  endif()
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
     if(NOT TARGET run_tests)
       add_custom_target(run_tests)
     endif()
