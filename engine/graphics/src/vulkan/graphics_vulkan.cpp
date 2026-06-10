@@ -1227,33 +1227,6 @@ namespace dmGraphics
         return true;
     }
 
-    static QueueFamily GetGraphicsQueueFamily(PhysicalDevice* device)
-    {
-        QueueFamily qf;
-
-        for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
-        {
-            VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
-            if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            {
-                qf.m_GraphicsQueueIx = i;
-                qf.m_PresentQueueIx  = i;
-                break;
-            }
-        }
-
-        return qf;
-    }
-
-    static bool HasGetPhysicalDeviceFeatures2()
-    {
-    #if ANDROID
-        return vkGetPhysicalDeviceFeatures2 != 0x0;
-    #else
-        return true;
-    #endif
-    }
-
     static VkResult CreateVulkanLogicalDevice(VkInstance instance, VkSurfaceKHR surface, bool require_surface, bool enable_runtime_optional_extensions,
         bool use_validation_layers, PhysicalDevice* physical_device_out, LogicalDevice* logical_device_out, QueueFamily* queue_family_out,
         SwapChainCapabilities* swap_chain_capabilities_out, VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT* fragment_shader_interlock_features_out)
@@ -1347,7 +1320,11 @@ namespace dmGraphics
                 IsDeviceExtensionSupported(selected_device, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
                 IsDeviceExtensionSupported(selected_device, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
 
-            if (supports_present_wait_extensions && HasGetPhysicalDeviceFeatures2())
+        #if ANDROID
+            if (supports_present_wait_extensions && vkGetPhysicalDeviceFeatures2 != 0x0)
+        #else
+            if (supports_present_wait_extensions)
+        #endif
             {
                 present_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
                 present_features.pNext = &present_id_feature_support;
