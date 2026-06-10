@@ -92,7 +92,7 @@ if(TEXC_IS_DESKTOP)
       --platform "${TARGET_PLATFORM}"
       --file "$<TARGET_FILE:texc_shared>")
     if(DEFOLD_CODESIGNING_IDENTITY)
-      list(APPEND TEXC_CODESIGN_ARGS --codesigning-identity=${DEFOLD_CODESIGNING_IDENTITY})
+      list(APPEND TEXC_CODESIGN_ARGS --codesigning-identity "${DEFOLD_CODESIGNING_IDENTITY}")
     endif()
     if(DEFOLD_GCLOUD_PROJECTID)
       list(APPEND TEXC_CODESIGN_ARGS --gcloud-projectid "${DEFOLD_GCLOUD_PROJECTID}")
@@ -114,7 +114,8 @@ if(TEXC_IS_DESKTOP)
     endif()
     add_custom_command(TARGET texc_shared POST_BUILD
       COMMAND "${DEFOLD_PYTHON}" "${DEFOLD_HOME}/build_tools/codesigning.py" ${TEXC_CODESIGN_ARGS}
-      COMMENT "Signing texc_shared")
+      COMMENT "Signing texc_shared"
+      VERBATIM)
   endif()
 
   set(TEXC_JAR "${CMAKE_CURRENT_BINARY_DIR}/texturecompiler.jar")
