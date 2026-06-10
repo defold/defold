@@ -178,11 +178,15 @@ def build_builtins(args):
         args.platform,
         "--variant=debug",
         "--use-uncompressed-lua-source",
+    )
+    for shader_output in args.shader_output:
+        java_cmd.append("--debug-output-%s=true" % shader_output)
+    java_cmd += [
         "--build-input-file",
         build_inputs.name,
         "clean",
         "build",
-    )
+    ]
     run(java_cmd, work_root)
 
     build_root = work_root / "build/default"
@@ -242,6 +246,7 @@ def main():
     builtins.add_argument("--bob-light", required=True)
     builtins.add_argument("--bob-classpath")
     builtins.add_argument("--platform", required=True)
+    builtins.add_argument("--shader-output", action="append", default=[])
     builtins.add_argument("--java", required=True)
     builtins.set_defaults(func=build_builtins)
 

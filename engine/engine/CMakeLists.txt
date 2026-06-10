@@ -123,6 +123,23 @@ set(ENGINE_BUILTINS_WORK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/content-work")
 set(ENGINE_BUILTINS_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/content")
 set(ENGINE_BUILTINS_COMPILED_DIR "${ENGINE_BUILTINS_WORK_ROOT}/build/default/builtins")
 set(ENGINE_BUILTINS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/content/builtins.stamp")
+defold_get_graphics_symbols(ENGINE_GRAPHICS_SYMBOLS "${TARGET_PLATFORM}")
+set(ENGINE_SHADER_OUTPUT_ARGS)
+if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS OR "GraphicsAdapterOpenGLES" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+  list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output glsl)
+endif()
+if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+  list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output spirv)
+endif()
+if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+  list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output wgsl)
+endif()
+if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+  list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output hlsl)
+endif()
+if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+  list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output msl)
+endif()
 add_custom_command(
   OUTPUT
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arci"
@@ -138,6 +155,7 @@ add_custom_command(
     --bob-light "${ENGINE_BOB_LIGHT}"
     --bob-classpath "${ENGINE_BOB_CLASSPATH}"
     --platform "${TARGET_PLATFORM}"
+    ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
   DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES}
   COMMENT "Building engine builtin archive"
@@ -358,7 +376,6 @@ endif()
 if(WITH_OPUS)
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderOpus)
 endif()
-defold_get_graphics_symbols(ENGINE_GRAPHICS_SYMBOLS "${TARGET_PLATFORM}")
 list(APPEND ENGINE_EXPORTED_SYMBOLS ${ENGINE_GRAPHICS_SYMBOLS})
 
 set(ENGINE_PROFILE_LIBS profile profilerext)
@@ -411,7 +428,9 @@ function(engine_configure_executable target variant engine_lib engine_service_li
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
     endif()
   else()
-    if(TARGET record)
+    if(variant STREQUAL "release")
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
+    elseif(TARGET record)
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
     else()
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})

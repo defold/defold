@@ -17,7 +17,7 @@ jobs:
   bld-eng-macos-64:
     runs-on: macos-26
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.2.0' } }, # v1.7.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
@@ -52,7 +52,7 @@ jobs:
   bld-eng-linux-x64:
     runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@591817e96fcad43505fb4eae36172462abb3a42e }, # v4.3.2
@@ -90,7 +90,7 @@ jobs:
   bld-eng-linux-arm64:
     runs-on: ubuntu-22.04-arm
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@591817e96fcad43505fb4eae36172462abb3a42e }, # v4.3.2
@@ -164,7 +164,7 @@ jobs:
   bld-eng-win:
     runs-on: windows-2025-vs2026
     steps: [
-      { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@591817e96fcad43505fb4eae36172462abb3a42e }, # v4.3.2

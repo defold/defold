@@ -61,6 +61,26 @@ namespace dmDeviceAVAudio
         }
     };
 
+    static void DeviceAVAudioScheduleReconfigure(AVAudioDevice* device)
+    {
+        DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
+        device->m_PendingReconfigure = true;
+    }
+
+    static bool DeviceAVAudioPlayIfEngineRunning(AVAudioDevice* device, const char* context)
+    {
+        if (![device->m_Engine isRunning])
+        {
+            dmLogWarning("Skipping AVAudioPlayerNode play while AVAudioEngine is stopped (%s).", context);
+            device->m_Started = false;
+            return false;
+        }
+
+        [device->m_Player play];
+        device->m_Started = true;
+        return true;
+    }
+
     static uint32_t GetSystemSampleRate() {
     // It's not used for now because we don't have a way to notify the sound system
     // that the sample rate has changed in the middle of a session (e.g., when headphones are turned off).
@@ -83,7 +103,7 @@ namespace dmDeviceAVAudio
         return (uint32_t)sr;
     }
 
-    static void DeviceAVAudioReconfigureIfNeeded(AVAudioDevice* device)
+    static bool DeviceAVAudioReconfigureIfNeeded(AVAudioDevice* device)
     {
         // Check and clear the pending reconfigure flag under the device mutex
         bool do_reconfigure = false;
@@ -96,7 +116,7 @@ namespace dmDeviceAVAudio
             }
         }
         if (!do_reconfigure)
-            return;
+            return true;
 
         float prevVol = device->m_Engine.mainMixerNode.outputVolume;
         device->m_Engine.mainMixerNode.outputVolume = 0.0f; // avoid pops
@@ -123,11 +143,17 @@ namespace dmDeviceAVAudio
             dmLogError("Failed to restart AVAudioEngine after reconfigure (%ld)", (long)err.code);
             device->m_Started = false;
             device->m_Engine.mainMixerNode.outputVolume = prevVol;
-            return;
+            DeviceAVAudioScheduleReconfigure(device);
+            return false;
         }
-        [device->m_Player play];
+
+        bool player_started = DeviceAVAudioPlayIfEngineRunning(device, "reconfigure");
         device->m_Engine.mainMixerNode.outputVolume = prevVol;
-        device->m_Started = true;
+        if (!player_started)
+        {
+            DeviceAVAudioScheduleReconfigure(device);
+        }
+        return player_started;
     }
 
     static void ReturnBufferToPool(AVAudioDevice* device, AVAudioPCMBuffer* buffer)
@@ -264,7 +290,10 @@ namespace dmDeviceAVAudio
         AVAudioDevice* device = (AVAudioDevice*)_device;
 
         // If a route/config change happened, reconfigure immediately and drop any leftover audio
-        DeviceAVAudioReconfigureIfNeeded(device);
+        if (!DeviceAVAudioReconfigureIfNeeded(device))
+        {
+            return dmSound::RESULT_DEVICE_LOST;
+        }
 
         if (frame_count > device->m_FramesPerBuffer)
         {
@@ -313,7 +342,12 @@ namespace dmDeviceAVAudio
         assert(_device);
         AVAudioDevice* device = (AVAudioDevice*)_device;
         // Apply pending reconfigure here as well, so the engine can resume pushing buffers
-        DeviceAVAudioReconfigureIfNeeded(device);
+        if (!DeviceAVAudioReconfigureIfNeeded(device))
+        {
+            // Surface the failed reconfigure through Queue(), which can return
+            // RESULT_DEVICE_LOST and let the sound system reset the device.
+            return 1;
+        }
         DM_MUTEX_SCOPED_LOCK(device->m_Mutex);
         return device->m_FreeBuffers.Size();
     }
@@ -337,17 +371,23 @@ namespace dmDeviceAVAudio
         assert(_device);
         AVAudioDevice* device = (AVAudioDevice*)_device;
         // Handle any pending route/config change before starting playback
-        DeviceAVAudioReconfigureIfNeeded(device);
+        if (!DeviceAVAudioReconfigureIfNeeded(device))
+        {
+            return;
+        }
         if (!device->m_Started)
         {
             NSError* error = nil;
             if (![device->m_Engine startAndReturnError:&error])
             {
                 dmLogError("Failed to start AVAudioEngine (%ld)", (long)error.code);
+                DeviceAVAudioScheduleReconfigure(device);
                 return;
             }
-            [device->m_Player play];
-            device->m_Started = true;
+            if (!DeviceAVAudioPlayIfEngineRunning(device, "start"))
+            {
+                DeviceAVAudioScheduleReconfigure(device);
+            }
         }
     }
 

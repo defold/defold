@@ -132,8 +132,10 @@ else()
         -Werror=return-type
         -fvisibility=hidden
         -fno-exceptions
-        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
-        -g)
+        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
+    if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+        list(APPEND _DEFOLD_NON_MSVC_OPTIONS -g)
+    endif()
     if(NOT DEFINED DEFOLD_PLATFORM_SUPPORTS_FPIC)
         set(DEFOLD_PLATFORM_SUPPORTS_FPIC ON)
         if(TARGET_PLATFORM_OS STREQUAL "win32")
@@ -166,8 +168,10 @@ else()
         "$<$<CONFIG:Release>:-O2>"
         "$<$<CONFIG:RelWithDebInfo>:${_DEFOLD_RELWITHDEBINFO_OPT}>"
         "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:-O0>")
-    target_compile_options(defold_sdk INTERFACE -g)
-    target_link_options(defold_sdk INTERFACE -g)
+    if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+        target_compile_options(defold_sdk INTERFACE -g)
+        target_link_options(defold_sdk INTERFACE -g)
+    endif()
     if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
         target_link_options(defold_sdk INTERFACE "$<$<CONFIG:RelWithDebInfo>:-O3>")
     endif()
