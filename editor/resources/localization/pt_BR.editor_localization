@@ -1901,7 +1901,6 @@ form.help.project.display.high_dpi = Ativar backbuffer de DPI alto quando dispon
 form.label.project.display.samples = Amostras
 form.help.project.display.samples = Quantas amostras usar para super amostragem anti-aliasing, 0 por padrão, o que significa que está desativado
 form.label.project.display.fullscreen = Tela Cheia
-form.help.project.display.fullscreen = Iniciar a aplicação em tela cheia ao invés de modo janela
 form.label.project.display.display_profiles = Perfis de Exibição
 form.help.project.display.display_profiles = Arquivo de referência dos perfis de exibição que serão utilizados pela aplicação
 form.label.project.display.dynamic_orientation = Orientação Dinâmica

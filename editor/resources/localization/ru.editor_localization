@@ -1913,7 +1913,6 @@ form.help.project.display.high_dpi = Включить высокодетализ
 form.label.project.display.samples = Сэмплы
 form.help.project.display.samples = Количество сэмплов для суперсэмплинга антиалиасинга, по умолчанию 0 (выключено)
 form.label.project.display.fullscreen = Полный экран
-form.help.project.display.fullscreen = Запускать приложение в полноэкранном режиме
 form.label.project.display.display_profiles = Профили дисплея
 form.help.project.display.display_profiles = Ссылка на файл профилей отображения, используемый приложением
 form.label.project.display.dynamic_orientation = Автоориентация
