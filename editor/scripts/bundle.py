@@ -776,6 +776,10 @@ Commands:
                       default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help = 'Codesigning identity for macOS')
 
+    parser.add_option('--codesigning-entitlements', dest='codesigning_entitlements',
+                      default = './scripts/entitlements.plist',
+                      help = 'Codesigning entitlements for macOS')
+
     parser.add_option('--gcloud-projectid', dest='gcloud_projectid',
                       default = None,
                       help = 'Google Cloud project id where key ring is stored')

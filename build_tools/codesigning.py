@@ -95,14 +95,22 @@ def sign_file(platform, options, file):
             log("Codesigning certificate not found for signing identity %s" % codesigning_identity)
             sys.exit(1)
 
-        run.command([
-            'codesign',
-            '--deep',
-            '--force',
-            '--options', 'runtime',
-            '--entitlements', './scripts/entitlements.plist',
-            '-s', certificate,
-            file])
+        if file.endswith(".app"):
+            run.command([
+                'codesign',
+                '--deep',
+                '--force',
+                '--options', 'runtime',
+                '--entitlements', options.codesigning_entitlements,
+                '--sign', certificate,
+                file])
+        else:
+            run.command([
+                'codesign',
+                '--force',
+                '--sign', certificate,
+                file])
+
 
 
 def sign_files_in_zip(platform, options, zip_file):
