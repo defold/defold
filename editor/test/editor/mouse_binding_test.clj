@@ -16,15 +16,13 @@
   (:require [clojure.test :refer [deftest is testing]]
             [editor.mouse-binding :as mouse-binding]))
 
-(defn- with-mouse-bindings* [f]
-  (let [old-bindings @mouse-binding/bindings-atom]
-    (try
-      (f)
-      (finally
-        (reset! mouse-binding/bindings-atom old-bindings)))))
-
 (defmacro with-mouse-bindings [& forms]
-  `(with-mouse-bindings* (fn [] ~@forms)))
+  `(let [old-bindings# @mouse-binding/bindings-atom]
+     (try
+       (reset! mouse-binding/bindings-atom {:contexts {}})
+       ~@forms
+       (finally
+         (reset! mouse-binding/bindings-atom old-bindings#)))))
 
 (deftest default-bound-command-override-workflow
   (with-mouse-bindings

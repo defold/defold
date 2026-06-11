@@ -20,6 +20,7 @@
             [editor.curve-view :as curve-view]
             [editor.input :as input]
             [editor.mouse-binding :as mouse-binding]
+            [editor.mouse-binding-test :refer [with-mouse-bindings]]
             [editor.scene :as scene]
             [editor.tile-map :as tile-map]
             [editor.tile-map-common :as tile-map-common]
@@ -87,17 +88,6 @@
 (defn- cell-at [layer-node [x y]]
   (tile-map-common/cell-at (g/node-value layer-node :cell-map) [x y]))
 
-(defn- with-mouse-bindings* [f]
-  (let [old-bindings @mouse-binding/bindings-atom]
-    (try
-      (reset! mouse-binding/bindings-atom
-              {:contexts {}})
-      (f)
-      (finally
-        (reset! mouse-binding/bindings-atom old-bindings)))))
-
-(defmacro with-mouse-bindings [& forms]
-  `(with-mouse-bindings* (fn [] ~@forms)))
 
 (defn- screen-pos->tile-cell
   [view resource-node screen-x screen-y]

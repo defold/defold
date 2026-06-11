@@ -20,6 +20,7 @@
             [editor.curve-view :as curve-view]
             [editor.handler :as handler]
             [editor.mouse-binding :as mouse-binding]
+            [editor.mouse-binding-test :refer [with-mouse-bindings]]
             [editor.properties :as properties]
             [editor.scene-selection :as selection]
             [editor.types :as types]
@@ -82,15 +83,6 @@
     nil
     (g/sources-of view :input-handlers)))
 
-(defn- with-mouse-bindings* [f]
-  (let [old-bindings @mouse-binding/bindings-atom]
-    (try
-      (f)
-      (finally
-        (reset! mouse-binding/bindings-atom old-bindings)))))
-
-(defmacro with-mouse-bindings [& forms]
-  `(with-mouse-bindings* (fn [] ~@forms)))
 
 (deftest selection
   (test-util/with-loaded-project
@@ -231,6 +223,15 @@
 (deftest add-delete-control-point-persisted-mouse-binding-override
   (test-util/with-loaded-project
     (with-mouse-bindings
+      (mouse-binding/register!
+        ::curve-view/curve-view-camera
+        "Curve Editor"
+        [{:command :curve-view.add-control-point
+          :action "Add Control Point"
+          :binding {:button :primary :modifiers [:shift]}}
+         {:command :curve-view.delete-control-point
+          :action "Delete Control Point"
+          :binding {:button :primary :modifiers [:alt]}}])
       (mouse-binding/set-user-overrides!
         {::curve-view/curve-view-camera
          {:curve-view.add-control-point
