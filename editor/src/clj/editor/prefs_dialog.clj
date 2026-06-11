@@ -442,7 +442,7 @@
               :initial-state (:binding props)
               :key :draft-binding
               :swap-key :swap-draft-binding}]}
-  [{:keys [row binding-index binding current-override
+  [{:keys [row binding-index binding current-user-overrides
            draft-binding swap-draft-binding binding->cmds localization-state
            swap-state update-mouse-bindings]}]
   (let [draft-binding (merge {:modifiers []} binding draft-binding)
@@ -452,7 +452,7 @@
                    (seq (disj (get binding->cmds [context (normalize-binding draft-binding)] #{}) command)))
         duplicate? (when (:button draft-binding)
                      (let [normalized (normalize-binding draft-binding)
-                           existing (mapv normalize-binding (mouse-binding/command-bindings-for-edit current-override context command))]
+                           existing (mapv normalize-binding (mouse-binding/command-bindings-for-edit current-user-overrides context command))]
                        (some #(= normalized %)
                              (if binding-index
                                (keep-indexed #(when (not= %1 binding-index) %2) existing)
@@ -531,7 +531,7 @@
                  {:fx/type fxui/button
                   :text (localization-state (localization/message "prefs.keymap.mouse-binding.button.apply"))
                   :on-action (fn [_]
-                               (let [current (mouse-binding/command-bindings-for-edit current-override context command)
+                               (let [current (mouse-binding/command-bindings-for-edit current-user-overrides context command)
                                      new-bindings (if (nil? binding-index)
                                                     (if (:button draft-binding)
                                                       (let [normalized (normalize-binding draft-binding)]
@@ -805,7 +805,7 @@
                          :row row
                          :binding-index binding-index
                          :binding binding
-                         :current-override mouse-bindings
+                         :current-user-overrides mouse-bindings
                          :binding->cmds binding->cmds
                          :localization-state localization-state
                          :swap-state swap-state

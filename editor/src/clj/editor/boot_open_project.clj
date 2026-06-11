@@ -78,7 +78,7 @@
 (def the-root (atom nil))
 
 (defn initialize-systems! [prefs]
-  (mouse-binding/set-overrides! (prefs/get prefs [:window :mouse-bindings]))
+  (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
   (code-view/initialize! prefs))
 
 (defn initialize-project! [system-config]

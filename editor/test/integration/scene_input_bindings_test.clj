@@ -91,7 +91,7 @@
   (let [old-bindings @mouse-binding/bindings-atom]
     (try
       (reset! mouse-binding/bindings-atom
-              {:contexts {} :context-meta {} :overrides {}})
+              {:contexts {}})
       (f)
       (finally
         (reset! mouse-binding/bindings-atom old-bindings)))))
@@ -299,7 +299,7 @@
           (run-persisted-override-pan-test! view {:button :primary :modifiers [:shift]})))
 
       (testing "single override binding in scene view"
-        (mouse-binding/set-overrides!
+        (mouse-binding/set-user-overrides!
           {::camera/scene-camera-orthographic
            {:scene.camera.pan
             {:bindings [{:button :primary :modifiers [:shift]}]}}})
@@ -307,7 +307,7 @@
           (run-persisted-override-pan-test! view {:button :primary :modifiers [:shift]})))
 
       (testing "appended override binding in scene view"
-        (mouse-binding/set-overrides!
+        (mouse-binding/set-user-overrides!
           {::camera/scene-camera-orthographic
            {:scene.camera.pan
             {:bindings [{:button :primary :modifiers [:shift]}
@@ -316,7 +316,7 @@
           (run-persisted-override-pan-test! view {:button :middle :modifiers [:control]})))
 
       (testing "override binding works in curve view"
-        (mouse-binding/set-overrides!
+        (mouse-binding/set-user-overrides!
           {::camera/scene-camera-orthographic
            {:scene.camera.pan
             {:bindings [{:button :primary :modifiers [:shift]}]}}})
@@ -333,7 +333,7 @@
         [{:command :scene.camera.pan :action "Pan"}])
       ;; Override to something the base binding cannot match:
       ;; secondary button + control modifier.
-      (mouse-binding/set-overrides!
+      (mouse-binding/set-user-overrides!
         {::camera/scene-camera-orthographic
          {:scene.camera.pan
           {:bindings [{:button :secondary :modifiers [:control]}]}}})
@@ -381,7 +381,7 @@
         [{:command :scene.camera.pan
           :action "Pan"
           :binding {:button :primary :modifiers [:shift]}}])
-      (mouse-binding/set-overrides!
+      (mouse-binding/set-user-overrides!
         {::camera/scene-camera-orthographic
          {:scene.camera.pan
           {:bindings []}}})

@@ -231,7 +231,7 @@
 (deftest add-delete-control-point-persisted-mouse-binding-override
   (test-util/with-loaded-project
     (with-mouse-bindings
-      (mouse-binding/set-overrides!
+      (mouse-binding/set-user-overrides!
         {::curve-view/curve-view-camera
          {:curve-view.add-control-point
           {:bindings [{:button :middle :modifiers []}]}
