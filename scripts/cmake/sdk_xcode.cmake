@@ -3,7 +3,7 @@ defold_log("sdk_xcode.cmake:")
 # Disable requirement of having code signed executables when generating solutions
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO")
 
-# Detect packaged or local Xcode toolchain and set compilers (clang/clang++)
+# Detect packaged or local Xcode toolchain and set compilers.
 
 set(_XCODE_TOOLCHAIN "")
 set(_XCODE_CXX "")
@@ -66,8 +66,14 @@ if(_XCODE_TOOLCHAIN AND EXISTS "${_XCODE_CXX}")
     if(NOT CMAKE_CXX_COMPILER)
         set(CMAKE_CXX_COMPILER "${_XCODE_CXX}" CACHE FILEPATH "Xcode clang++" FORCE)
     endif()
+    if(NOT CMAKE_OBJCXX_COMPILER)
+        set(CMAKE_OBJCXX_COMPILER "${_XCODE_CXX}" CACHE FILEPATH "Xcode Objective-C++ compiler" FORCE)
+    endif()
     if(EXISTS "${_XCODE_CC}" AND NOT CMAKE_C_COMPILER)
         set(CMAKE_C_COMPILER "${_XCODE_CC}" CACHE FILEPATH "Xcode clang" FORCE)
+    endif()
+    if(EXISTS "${_XCODE_CC}" AND NOT CMAKE_OBJC_COMPILER)
+        set(CMAKE_OBJC_COMPILER "${_XCODE_CC}" CACHE FILEPATH "Xcode Objective-C compiler" FORCE)
     endif()
     # ------------------------------------------------------------------
     # Discover SDK sysroots (populate variables for later selection)

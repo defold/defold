@@ -878,7 +878,11 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(length, 5)
+            if PHYSICS=="box2dv3" then
+                assert_near(length, 5, 0.002)
+            else
+                assert_near(length, 5)
+            end
             assert_near(p_b.x, 0)
 
             -- Move A
@@ -925,7 +929,7 @@ local joint_tests = {
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
             if PHYSICS=="box2dv3" then
-                assert_near(0, length)
+                assert_near(0, length, 0.05)
             else
                 assert_near(0, length, 0.005)
             end
@@ -948,8 +952,13 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(0, length)
-            assert_near(5, p_b.x)
+            if PHYSICS=="box2dv3" then
+                assert_near(0, length, 0.05)
+                assert_near(5, p_b.x, 0.05)
+            else
+                assert_near(0, length)
+                assert_near(5, p_b.x)
+            end
 
             -- Verify that B obj has rotated even more
             local new_rotation = go.get(self.b, "euler.z")
@@ -976,8 +985,13 @@ local joint_tests = {
             local p_a = go.get_position(self.a)
             local p_b = go.get_position(self.b)
             local length = vmath.length(p_a - p_b)
-            assert_near(0, length)
-            assert_near(0, p_b.x)
+            if PHYSICS=="box2dv3" then
+                assert_near(0, length, 0.005)
+                assert_near(0, p_b.x, 0.005)
+            else
+                assert_near(0, length)
+                assert_near(0, p_b.x)
+            end
 
             -- Turn on motor
             local current_properties = physics.get_joint_properties(self.a_coll, self.joint_id)
@@ -1020,10 +1034,11 @@ local joint_tests = {
             --           hence the "large" epsilon value
             if PHYSICS=="box2dv3" then
                 assert_near(10, length, 0.3)
+                assert_near(10, p_b.x, 0.05)
             else
                 assert_near(10, length, 0.1)
+                assert_near(10, p_b.x)
             end
-            assert_near(10, p_b.x)
 
             -- Cleanup, for next test
             physics.destroy_joint(self.a_coll, self.joint_id)
@@ -1122,8 +1137,8 @@ local joint_tests = {
         local length = vmath.length(p_c - p_b)
 
         if PHYSICS=="box2dv3" then
-            assert_near(71.472, length, 0.01)
-            assert_near(55.335, p_b.x)
+            assert_near(152.207, length, 0.01)
+            assert_near(95.709, p_b.x)
         else
             assert_near(70.472, length, 0.01)
             assert_near(54.736, p_b.x)

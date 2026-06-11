@@ -38,7 +38,6 @@
 
 #include <android/sensor.h>
 
-#include <math.h> // ceil
 #include <stdlib.h>
 #include <string.h>
 
@@ -1087,29 +1086,119 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
     return 0;
 }
 
+static uint32_t getNewInputEventCapacity(uint32_t current_capacity, uint32_t required_capacity)
+{
+    uint32_t new_capacity = current_capacity > 0 ? current_capacity : APP_INPUT_EVENTS_SIZE_INCREASE_STEP;
+
+    while (new_capacity < required_capacity)
+    {
+        uint32_t next_capacity = new_capacity * 2;
+        if (next_capacity < new_capacity)
+        {
+            return required_capacity;
+        }
+        new_capacity = next_capacity;
+    }
+
+    return new_capacity;
+}
+
+static int ensureInputEventCapacity(uint32_t required_capacity)
+{
+    uint32_t current_capacity = 0;
+
+    spinlock_lock(&g_EventLock);
+    current_capacity = (uint32_t) g_MaxAppInputEvents;
+    spinlock_unlock(&g_EventLock);
+
+    if (current_capacity >= required_capacity)
+    {
+        return 1;
+    }
+
+    uint32_t new_capacity = getNewInputEventCapacity(current_capacity, required_capacity);
+    // Allocate outside g_EventLock so heap work does not block event producers or flushes.
+    // The capacity is rechecked under the lock before swapping this buffer in.
+    struct InputEvent* new_input_events = (struct InputEvent*) malloc(sizeof(struct InputEvent) * new_capacity);
+    if (new_input_events == 0)
+    {
+        LOGE("glfwAndroidHandleInput: failed to allocate %u input events", new_capacity);
+        return 0;
+    }
+
+    struct InputEvent* old_input_events = 0;
+
+    spinlock_lock(&g_EventLock);
+
+    required_capacity = (uint32_t) g_NumAppInputEvents > required_capacity ? (uint32_t) g_NumAppInputEvents : required_capacity;
+
+    if ((uint32_t) g_MaxAppInputEvents < required_capacity)
+    {
+        if (new_capacity >= required_capacity)
+        {
+            if (g_AppInputEvents != 0 && g_NumAppInputEvents > 0)
+            {
+                memcpy(new_input_events, g_AppInputEvents, sizeof(struct InputEvent) * g_NumAppInputEvents);
+            }
+
+            old_input_events = g_AppInputEvents;
+            g_AppInputEvents = new_input_events;
+            g_MaxAppInputEvents = (int) new_capacity;
+            new_input_events = 0;
+        }
+    }
+
+    spinlock_unlock(&g_EventLock);
+
+    free(old_input_events);
+    free(new_input_events);
+
+    return 1;
+}
+
 int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
 {
     int ret = 0;
-    spinlock_lock(&g_EventLock);
 
     // We need to make sure we process all events in the queue, otherwise some gestures might end up
     // in a wrong state and get stuck forever.
     uint32_t all_event_count = countInputEvents(app, event);
-    if ((g_NumAppInputEvents + all_event_count) >= g_MaxAppInputEvents)
+    if (all_event_count == 0)
     {
-        uint32_t size_increase = APP_INPUT_EVENTS_SIZE_INCREASE_STEP * (uint32_t) ceil((float) all_event_count / (float) APP_INPUT_EVENTS_SIZE_INCREASE_STEP);
-        g_MaxAppInputEvents += size_increase;
-        g_AppInputEvents = realloc(g_AppInputEvents, sizeof(struct InputEvent) * g_MaxAppInputEvents);
-        memset(g_AppInputEvents + g_NumAppInputEvents, 0, sizeof(struct InputEvent) * size_increase);
+        spinlock_lock(&g_EventLock);
+        int has_input_buffer = g_MaxAppInputEvents > 0;
+        spinlock_unlock(&g_EventLock);
+
+        if (!has_input_buffer)
+        {
+            return 0;
+        }
+
+        struct InputEvent ignored_event;
+        int ignored_event_count = 0;
+        return addInputEvents(app, event, &ignored_event, &ignored_event_count, 1);
     }
 
-    if (g_MaxAppInputEvents > 0)
+    int input_added = 0;
+    while (!input_added)
     {
-        // This will let the engine thread know (engine_main)
-        ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, g_MaxAppInputEvents);
-    }
+        spinlock_lock(&g_EventLock);
 
-    spinlock_unlock(&g_EventLock);
+        uint32_t required_capacity = (uint32_t) g_NumAppInputEvents + all_event_count;
+        if (required_capacity <= (uint32_t) g_MaxAppInputEvents)
+        {
+            // This will let the engine thread know (engine_main)
+            ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, g_MaxAppInputEvents);
+            input_added = 1;
+        }
+
+        spinlock_unlock(&g_EventLock);
+
+        if (!input_added && !ensureInputEventCapacity(required_capacity))
+        {
+            return 0;
+        }
+    }
 
     return ret;
 }

@@ -421,6 +421,11 @@ public class Project {
                     }
                 }
                 TimeProfiler.stop();
+            } catch (ClassNotFoundException e) {
+                TimeProfiler.stop();
+                if (!className.contains("$")) {
+                    throw new RuntimeException(e);
+                }
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

@@ -127,11 +127,13 @@ def apidoc_extract_task(bld, root, paths):
             source = in_f.read()
             lst = re.findall('/(\*[\*#].*?)\*/', source, re.DOTALL)
             default_namespace = None
+            document_found = False
             for comment_str in lst:
                 comment = _parse_comment(comment_str)
                 if comment:
                     namespace = comment.get("namespace")
                     if comment["is_document"]:
+                        document_found = True
                         comment_path = comment.get("path")
                         if not comment_path:
                             print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
@@ -173,18 +175,25 @@ def apidoc_extract_task(bld, root, paths):
                             elements[resource_path] = []
                         elements[resource_path].append('/' + comment_str + '*/')
 
+            # ScriptDoc Document.info has required fields populated from @document.
+            if not document_found:
+                elements = {}
+
         return elements
 
     def extract_docs(root, files):
         docs = defaultdict(list)
+        sources = defaultdict(list)
         # Gather data
         for file in files:
             key = _keyfrompath(file, root)
             elements = _parse_source(file)
+            if elements:
+                sources[key].append(file)
             for k,v in elements.items():
                 docs[key] = docs[key] + v
         all_docs.update(docs)
-        return docs.keys()
+        return sources
 
     def write_doc(task):
         output = task.outputs[0]
@@ -206,12 +215,12 @@ def apidoc_extract_task(bld, root, paths):
                     files.append(file)
                     files_lookup.append(file)
 
-        filename_keys = extract_docs(root, files)
-        for filename_key in filename_keys:
+        sources = extract_docs(root, files)
+        for filename_key, source_files in sources.items():
             apidoc = filename_key + '.apidoc'
             
             # write merged extracted docs to build/foo.apidoc
-            bld(source = [], target = apidoc, rule = write_doc)
+            bld(source = source_files, target = apidoc, rule = write_doc)
             
             # convert .apidoc to target formats and install to dynamo_home
             for target_format in target_formats:

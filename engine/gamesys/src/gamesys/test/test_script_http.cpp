@@ -14,11 +14,12 @@
 
 #include "../scripts/script_http.h" // to set the timeout
 
+#include <test_script.h>
+
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/script/script.h>
 
-#include <script/test_script.h>
 #include <script/script.h>
 #include <testmain/testmain.h>
 #include <dlib/configfile.h>
