@@ -24,6 +24,8 @@
 #include <dlib/hashtable.h>
 #include <dlib/opaque_handle_container.h>
 
+#include "../graphics_private.h"
+
 namespace dmGraphics
 {
     struct MetalContext;
@@ -178,6 +180,8 @@ namespace dmGraphics
         , m_HasPendingClearStencil(0)
         , m_ColorAttachmentCount(0)
         {
+            memset(&m_Base, 0, sizeof(m_Base));
+            m_Base.m_Id = rtId;
             memset(m_ColorBufferLoadOps, 0, sizeof(m_ColorBufferLoadOps));
             memset(m_ColorBufferStoreOps, 0, sizeof(m_ColorBufferStoreOps));
             memset(m_ColorAttachmentClearValue, 0, sizeof(m_ColorAttachmentClearValue));
@@ -189,6 +193,7 @@ namespace dmGraphics
             m_DepthStencilFormat = MTL::PixelFormatInvalid;
         }
 
+        RenderTarget          m_Base;
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorAttachmentClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];

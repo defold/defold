@@ -204,6 +204,58 @@ namespace dmGraphics
         return op == ATTACHMENT_OP_DONT_CARE ? MTL::StoreActionDontCare : MTL::StoreActionStore;
     }
 
+    static void ReleaseMetalPipeline(MetalPipeline* pipeline)
+    {
+        if (pipeline->m_RenderPipelineState)
+        {
+            pipeline->m_RenderPipelineState->release();
+            pipeline->m_RenderPipelineState = 0;
+        }
+        if (pipeline->m_DepthStencilState)
+        {
+            pipeline->m_DepthStencilState->release();
+            pipeline->m_DepthStencilState = 0;
+        }
+        if (pipeline->m_ComputePipelineState)
+        {
+            pipeline->m_ComputePipelineState->release();
+            pipeline->m_ComputePipelineState = 0;
+        }
+    }
+
+    static void ReleaseMetalPipelineCacheCb(MetalContext* context, const uint64_t* key, MetalPipeline* value)
+    {
+        (void) context;
+        (void) key;
+        ReleaseMetalPipeline(value);
+    }
+
+    static void ReleaseMetalDeviceBuffer(MetalDeviceBuffer* device_buffer)
+    {
+        if (device_buffer->m_Buffer)
+        {
+            device_buffer->m_Buffer->release();
+            device_buffer->m_Buffer = 0;
+        }
+        device_buffer->m_Size = 0;
+        device_buffer->m_Destroyed = 0;
+    }
+
+    static void ReleaseMetalTexture(MetalTexture*& texture)
+    {
+        if (!texture)
+        {
+            return;
+        }
+        if (texture->m_Texture)
+        {
+            texture->m_Texture->release();
+            texture->m_Texture = 0;
+        }
+        delete texture;
+        texture = 0;
+    }
+
     static HContext MetalNewContext(const ContextParams& params)
     {
         if (!g_MetalContext)
@@ -238,6 +290,29 @@ namespace dmGraphics
                 }
 
                 FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
+                ReleaseMetalDeviceBuffer(&frame.m_ConstantScratchBuffer.m_DeviceBuffer);
+                for (uint32_t j = 0; j < frame.m_ArgumentBufferPool.m_ScratchBufferPool.Size(); ++j)
+                {
+                    ReleaseMetalDeviceBuffer(&frame.m_ArgumentBufferPool.m_ScratchBufferPool[j].m_DeviceBuffer);
+                }
+
+                if (frame.m_RenderCommandEncoder)
+                {
+                    frame.m_RenderCommandEncoder->release();
+                    frame.m_RenderCommandEncoder = 0;
+                }
+
+                if (frame.m_CommandBuffer)
+                {
+                    frame.m_CommandBuffer->release();
+                    frame.m_CommandBuffer = 0;
+                }
+
+                if (frame.m_Drawable)
+                {
+                    frame.m_Drawable->release();
+                    frame.m_Drawable = 0;
+                }
 
                 if (frame.m_MSAAColorTexture)
                     frame.m_MSAAColorTexture->release();
@@ -258,6 +333,69 @@ namespace dmGraphics
             {
                 MetalPostDeleteTextures(context, true);
                 ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
+            }
+
+            context->m_PipelineCache.Iterate(ReleaseMetalPipelineCacheCb, context);
+            context->m_ClearData.m_PipelineCache.Iterate(ReleaseMetalPipelineCacheCb, context);
+            for (uint32_t i = 0; i < context->m_ClearData.m_ClearShaderPermutations.Size(); ++i)
+            {
+                MetalClearData::ClearShader& shader = context->m_ClearData.m_ClearShaderPermutations[i];
+                if (shader.m_VsFunction)
+                {
+                    shader.m_VsFunction->release();
+                    shader.m_VsFunction = 0;
+                }
+                if (shader.m_FsFunction)
+                {
+                    shader.m_FsFunction->release();
+                    shader.m_FsFunction = 0;
+                }
+            }
+
+            ReleaseMetalTexture(context->m_DefaultTexture2D);
+            ReleaseMetalTexture(context->m_DefaultTexture3D);
+            ReleaseMetalTexture(context->m_DefaultTexture2DArray);
+            ReleaseMetalTexture(context->m_DefaultTextureCubeMap);
+            ReleaseMetalTexture(context->m_DefaultTexture2D32UI);
+            ReleaseMetalTexture(context->m_DefaultStorageImage2D);
+
+            for (uint32_t i = 0; i < context->m_TextureSamplers.Size(); ++i)
+            {
+                if (context->m_TextureSamplers[i].m_Sampler)
+                {
+                    context->m_TextureSamplers[i].m_Sampler->release();
+                    context->m_TextureSamplers[i].m_Sampler = 0;
+                }
+            }
+
+            if (context->m_MainDepthStencilTexture)
+            {
+                context->m_MainDepthStencilTexture->release();
+                context->m_MainDepthStencilTexture = 0;
+            }
+
+            MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+            if (main_rt)
+            {
+                for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+                {
+                    if (main_rt->m_TextureColor[i])
+                    {
+                        MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, main_rt->m_TextureColor[i]);
+                        delete texture;
+                        context->m_BaseContext.m_AssetHandleContainer.Release(main_rt->m_TextureColor[i]);
+                    }
+                }
+                if (main_rt->m_TextureDepthStencil)
+                {
+                    MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, main_rt->m_TextureDepthStencil);
+                    delete texture;
+                    context->m_BaseContext.m_AssetHandleContainer.Release(main_rt->m_TextureDepthStencil);
+                }
+
+                delete main_rt;
+                context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget);
+                context->m_MainRenderTarget = 0;
             }
 
             context->m_Device->release();
@@ -349,6 +487,8 @@ namespace dmGraphics
                         resource_list->Begin()[i].m_DeviceBuffer->release();
                         break;
                     case RESOURCE_TYPE_TEXTURE:
+                        resource_list->Begin()[i].m_Texture->release();
+                        break;
                     case RESOURCE_TYPE_PROGRAM:
                     case RESOURCE_TYPE_RENDER_TARGET:
                         break;
@@ -385,15 +525,17 @@ namespace dmGraphics
         {
             device_buffer->m_Buffer = context->m_Device->newBuffer(size, GetResourceOptions(device_buffer->m_StorageMode));
             device_buffer->m_Size = size;
+            device_buffer->m_Destroyed = 0;
         }
 
+        uint8_t* dst = reinterpret_cast<uint8_t*>(device_buffer->m_Buffer->contents()) + offset;
         if (data == 0)
         {
-            memset(device_buffer->m_Buffer->contents(), 0, (size_t) size);
+            memset(dst, 0, (size_t) size);
         }
         else
         {
-            memcpy(device_buffer->m_Buffer->contents(), data, size);
+            memcpy(dst, data, size);
         }
     }
 
@@ -472,14 +614,19 @@ namespace dmGraphics
             rt                          = new MetalRenderTarget(DM_RENDERTARGET_BACKBUFFER_ID);
             context->m_MainRenderTarget = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
             MetalTexture* color         = new MetalTexture();
+            memset(color, 0, sizeof(MetalTexture));
             rt->m_TextureColor[0]       = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, color, ASSET_TYPE_TEXTURE);
             MetalTexture* depth         = new MetalTexture();
+            memset(depth, 0, sizeof(MetalTexture));
             rt->m_TextureDepthStencil   = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, depth, ASSET_TYPE_TEXTURE);
         }
 
-        rt->m_ColorFormat[0]       = MTL::PixelFormatBGRA8Unorm;
-        rt->m_DepthStencilFormat   = MTL::PixelFormatDepth32Float_Stencil8;
-        rt->m_ColorAttachmentCount = 1;
+        rt->m_Base.m_TextureColor[0]      = rt->m_TextureColor[0];
+        rt->m_Base.m_TextureDepthStencil  = rt->m_TextureDepthStencil;
+        rt->m_Base.m_ColorAttachmentCount = 1;
+        rt->m_ColorFormat[0]              = MTL::PixelFormatBGRA8Unorm;
+        rt->m_DepthStencilFormat          = MTL::PixelFormatDepth32Float_Stencil8;
+        rt->m_ColorAttachmentCount        = 1;
         rt->m_ColorBufferLoadOps[0] = ATTACHMENT_OP_CLEAR;
         rt->m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
         rt->m_ColorAttachmentClearValue[0][0] = 0.0f;
@@ -1344,6 +1491,8 @@ namespace dmGraphics
 
         rt->m_ColorTextureParams[0].m_Width  = frame.m_Drawable->texture()->width();
         rt->m_ColorTextureParams[0].m_Height = frame.m_Drawable->texture()->height();
+        rt->m_Base.m_ColorTextureParams[0].m_Width  = rt->m_ColorTextureParams[0].m_Width;
+        rt->m_Base.m_ColorTextureParams[0].m_Height = rt->m_ColorTextureParams[0].m_Height;
     }
 
     static void MetalCommandBufferCompleted(MetalContext* context, uint32_t frame_index)
@@ -1544,6 +1693,7 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalDeviceBuffer* buffer = new MetalDeviceBuffer();
+        memset(buffer, 0, sizeof(MetalDeviceBuffer));
 
         /*
         switch (buffer_usage)
@@ -1711,6 +1861,7 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalDeviceBuffer* buffer = new MetalDeviceBuffer();
+        memset(buffer, 0, sizeof(MetalDeviceBuffer));
 
         /*
         switch (buffer_usage)
@@ -3404,21 +3555,28 @@ namespace dmGraphics
         memcpy(rt->m_ColorBufferStoreOps, params.m_ColorBufferStoreOps, sizeof(AttachmentOp) * MAX_BUFFER_COLOR_ATTACHMENTS);
         memcpy(rt->m_ColorAttachmentClearValue, params.m_ColorBufferClearValue, sizeof(float) * MAX_BUFFER_COLOR_ATTACHMENTS * 4);
         memcpy(rt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        memcpy(rt->m_Base.m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        rt->m_Base.m_DepthBufferParams   = params.m_DepthBufferParams;
+        rt->m_Base.m_StencilBufferParams = params.m_StencilBufferParams;
         // depth/stencil choice as in Vulkan
         rt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
+        rt->m_Base.m_DepthStencilTextureParams = rt->m_DepthStencilTextureParams;
 
         // We don't want the engine to keep the pointer to raw data in the params stored on the RT,
         // so clear any pointers inside the stored TextureParams (same as Vulkan)
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             ClearTextureParamsData(rt->m_ColorTextureParams[i]);
+            ClearTextureParamsData(rt->m_Base.m_ColorTextureParams[i]);
         }
         ClearTextureParamsData(rt->m_DepthStencilTextureParams);
+        ClearTextureParamsData(rt->m_Base.m_DepthBufferParams);
+        ClearTextureParamsData(rt->m_Base.m_StencilBufferParams);
+        ClearTextureParamsData(rt->m_Base.m_DepthStencilTextureParams);
 
         // local arrays for bookkeeping while creating
-        BufferType buffer_types[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture texture_color[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture texture_depth_stencil = 0;
 
@@ -3448,6 +3606,7 @@ namespace dmGraphics
             {
                 color_buffer_params.m_Format = TEXTURE_FORMAT_RGBA;
             }
+            rt->m_Base.m_ColorTextureParams[i] = color_buffer_params;
 
             // Create engine texture object using your NewTexture helper (keeps bookkeeping consistent)
             // The Vulkan path used params.m_ColorBufferCreationParams[i]; mirror that here.
@@ -3458,7 +3617,6 @@ namespace dmGraphics
             CreateMetalTexture(context, new_texture_color, color_buffer_params, MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
 
             texture_color[color_index] = new_texture_color_handle;
-            buffer_types[color_index] = buffer_type;
             color_index++;
         }
 
@@ -3481,13 +3639,16 @@ namespace dmGraphics
         rt->m_ColorAttachmentCount = color_index;
         for (uint32_t c = 0; c < (uint32_t)color_index; ++c)
         {
-            rt->m_TextureColor[c] = texture_color[c];
-            rt->m_ColorFormat[c]  = GetMetalPixelFormat(rt->m_ColorTextureParams[c].m_Format);
+            rt->m_TextureColor[c]        = texture_color[c];
+            rt->m_Base.m_TextureColor[c] = texture_color[c];
+            rt->m_ColorFormat[c]         = GetMetalPixelFormat(rt->m_ColorTextureParams[c].m_Format);
         }
+        rt->m_Base.m_ColorAttachmentCount = color_index;
         if (texture_depth_stencil)
         {
-            rt->m_TextureDepthStencil = texture_depth_stencil;
-            rt->m_DepthStencilFormat = (has_depth && !has_stencil) ? MTL::PixelFormatDepth32Float : MTL::PixelFormatDepth32Float_Stencil8;
+            rt->m_TextureDepthStencil        = texture_depth_stencil;
+            rt->m_Base.m_TextureDepthStencil = texture_depth_stencil;
+            rt->m_DepthStencilFormat         = (has_depth && !has_stencil) ? MTL::PixelFormatDepth32Float : MTL::PixelFormatDepth32Float_Stencil8;
         }
 
         // store the RT in the asset container and return handle
@@ -3603,6 +3764,8 @@ namespace dmGraphics
         {
             rt->m_ColorTextureParams[i].m_Width  = width;
             rt->m_ColorTextureParams[i].m_Height = height;
+            rt->m_Base.m_ColorTextureParams[i].m_Width  = width;
+            rt->m_Base.m_ColorTextureParams[i].m_Height = height;
 
             if (rt->m_TextureColor[i])
             {
@@ -3616,6 +3779,12 @@ namespace dmGraphics
 
         rt->m_DepthStencilTextureParams.m_Width  = width;
         rt->m_DepthStencilTextureParams.m_Height = height;
+        rt->m_Base.m_DepthStencilTextureParams.m_Width = width;
+        rt->m_Base.m_DepthStencilTextureParams.m_Height = height;
+        rt->m_Base.m_DepthBufferParams.m_Width = width;
+        rt->m_Base.m_DepthBufferParams.m_Height = height;
+        rt->m_Base.m_StencilBufferParams.m_Width = width;
+        rt->m_Base.m_StencilBufferParams.m_Height = height;
 
         if (rt->m_TextureDepthStencil)
         {
@@ -3653,6 +3822,7 @@ namespace dmGraphics
     static MetalTexture* MetalNewTextureInternal(const TextureCreationParams& params)
     {
         MetalTexture* tex = new MetalTexture;
+        memset(tex, 0, sizeof(MetalTexture));
         tex->m_Base.m_Type           = params.m_Type;
         tex->m_Base.m_Format         = TEXTURE_FORMAT_RGBA;
         tex->m_Base.m_Width          = params.m_Width;
@@ -4076,13 +4246,14 @@ namespace dmGraphics
         desc->setStorageMode(MTL::StorageModePrivate);
         desc->setUsage(usage);
 
-        if (texture->m_Texture)
+        if (texture->m_Texture && !texture->m_Destroyed)
         {
-            texture->m_Texture->release();
+            DestroyResourceDeferred(context, texture);
         }
 
         texture->m_Texture = context->m_Device->newTexture(desc);
         desc->release();
+        texture->m_Destroyed = 0;
 
         texture->m_Base.m_Width       = params.m_Width;
         texture->m_Base.m_Height      = params.m_Height;
@@ -4155,12 +4326,13 @@ namespace dmGraphics
         desc->setUsage(usage);
 
         // Create Metal texture
-        if (texture->m_Texture)
+        if (texture->m_Texture && !texture->m_Destroyed)
         {
-            texture->m_Texture->release();
+            DestroyResourceDeferred(context, texture);
         }
         texture->m_Texture = context->m_Device->newTexture(desc);
         desc->release();
+        texture->m_Destroyed = 0;
 
         texture->m_Base.m_Width       = params.m_Width;
         texture->m_Base.m_Height      = params.m_Height;
