@@ -242,33 +242,38 @@
                   :label :_properties,
                   :dependencies
                   [{:node-id n1,
-                    :output-type :dynamic,
-                    :label [:str-prop :str-prop-dynamic],
-                    :dependencies [],
-                    :state :end}
-                   {:node-id n1,
-                    :output-type :property,
-                    :label :str-prop,
+                    :output-type :output,
+                    :label :_declared-properties,
                     :dependencies
-                    [{:node-id tn,
-                      :output-type :output,
-                      :label :custom-val,
+                    [{:node-id n1,
+                      :output-type :dynamic,
+                      :label [:str-prop :str-prop-dynamic],
+                      :dependencies [],
+                      :state :end}
+                     {:node-id n1,
+                      :output-type :property,
+                      :label :str-prop,
                       :dependencies
                       [{:node-id tn,
-                        :output-type :property,
+                        :output-type :output,
                         :label :custom-val,
                         :dependencies
                         [{:node-id tn,
-                          :output-type :raw-property,
-                          :label :val,
-                          :dependencies [],
+                          :output-type :property,
+                          :label :custom-val,
+                          :dependencies
+                          [{:node-id tn,
+                            :output-type :raw-property,
+                            :label :val,
+                            :dependencies [],
+                            :state :end}],
                           :state :end}],
                         :state :end}],
-                      :state :end}],
+                      :state :end}]
                     :state :end}],
                   :state :end}))
 
-          ;; Now, ec :local contains n :custom-val, so trace is slightly shorter.
+          ;; Now, ec :local contains n1 :_declared-properties, so trace is shorter.
           ;; Note that the tree tracer in the ec can be reused.
 
           (g/node-value n1 :_properties ec)
@@ -278,19 +283,9 @@
                   :label :_properties,
                   :dependencies
                   [{:node-id n1,
-                    :output-type :dynamic,
-                    :label [:str-prop :str-prop-dynamic],
+                    :output-type :cache,
+                    :label :_declared-properties,
                     :dependencies [],
-                    :state :end}
-                   {:node-id n1,
-                    :output-type :property,
-                    :label :str-prop,
-                    :dependencies
-                    [{:node-id tn,
-                      :output-type :cache,
-                      :label :custom-val
-                      :dependencies []
-                      :state :end}]
                     :state :end}]
                   :state :end})))
 
@@ -304,29 +299,34 @@
                   :label :_properties,
                   :dependencies
                   [{:node-id n1,
-                    :output-type :dynamic,
-                    :label [:str-prop :str-prop-dynamic],
-                    :dependencies [],
-                    :state :end}
-                   {:node-id n1,
-                    :output-type :property,
-                    :label :str-prop,
+                    :output-type :output,
+                    :label :_declared-properties,
                     :dependencies
-                    [{:node-id tn,
-                      :output-type :output,
-                      :label :custom-val,
+                    [{:node-id n1,
+                      :output-type :dynamic,
+                      :label [:str-prop :str-prop-dynamic],
+                      :dependencies [],
+                      :state :end}
+                     {:node-id n1,
+                      :output-type :property,
+                      :label :str-prop,
                       :dependencies
                       [{:node-id tn,
-                        :output-type :property,
+                        :output-type :output,
                         :label :custom-val,
                         :dependencies
                         [{:node-id tn,
-                          :output-type :raw-property,
-                          :label :val,
-                          :dependencies [],
+                          :output-type :property,
+                          :label :custom-val,
+                          :dependencies
+                          [{:node-id tn,
+                            :output-type :raw-property,
+                            :label :val,
+                            :dependencies [],
+                            :state :end}],
                           :state :end}],
-                        :state :end}],
-                      :state :fail}],
+                        :state :fail}],
+                      :state :fail}]
                     :state :fail}],
                   :state :fail})))
 
@@ -345,29 +345,34 @@
                   :label :_properties,
                   :dependencies
                   [{:node-id 1,
-                    :output-type :dynamic,
-                    :label [:str-prop :str-prop-dynamic],
-                    :dependencies [],
-                    :state :end}
-                   {:node-id 1,
-                    :output-type :property,
-                    :label :str-prop,
+                    :output-type :output,
+                    :label :_declared-properties,
                     :dependencies
-                    [{:node-id 0,
-                      :output-type :output,
-                      :label :custom-val,
+                    [{:node-id 1,
+                      :output-type :dynamic,
+                      :label [:str-prop :str-prop-dynamic],
+                      :dependencies [],
+                      :state :end}
+                     {:node-id 1,
+                      :output-type :property,
+                      :label :str-prop,
                       :dependencies
                       [{:node-id 0,
-                        :output-type :property,
+                        :output-type :output,
                         :label :custom-val,
                         :dependencies
                         [{:node-id 0,
-                          :output-type :raw-property,
-                          :label :val,
-                          :dependencies [],
+                          :output-type :property,
+                          :label :custom-val,
+                          :dependencies
+                          [{:node-id 0,
+                            :output-type :raw-property,
+                            :label :val,
+                            :dependencies [],
+                            :state :end}],
                           :state :end}],
-                        :state :end}],
-                      :state :fail}],
+                        :state :fail}],
+                      :state :fail}]
                     :state :fail}],
                   :state :fail})))))))
 

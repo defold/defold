@@ -20,7 +20,7 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
-            [support.test-support :refer [tx-nodes with-clean-system]])
+            [support.test-support :refer [cached-endpoints tx-nodes with-clean-system]])
   (:import [clojure.lang Compiler$CompilerException]))
 
 (set! *warn-on-reflection* true)
@@ -863,7 +863,12 @@
     (is (not (contains? (-> @InheritAndOverrideProperties :output :_properties :flags) :cached)))))
 
 (deftest declared-properties-is-cached
-  (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties)))
+  (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties))
+  (with-clean-system
+    (let [[node-id] (tx-nodes (g/make-node world CustomPropertiesOutput))
+          endpoint (g/endpoint node-id :_declared-properties)]
+      (g/node-value node-id :_declared-properties)
+      (is (contains? (cached-endpoints) endpoint)))))
 
 (defn- override [node-id]
   (-> (g/override node-id {})

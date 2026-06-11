@@ -1648,14 +1648,18 @@
           evaluation-context-sym 'evaluation-context
           value-map-sym 'value-map
           node-id-sym 'node-id
+          result-sym 'result
           display-order-sym 'display-order]
       `(fn [~node-sym ~label-sym ~evaluation-context-sym]
-         (let [~node-id-sym (gt/node-id ~node-sym)
-               ~display-order-sym (property-display-order (gt/node-type ~node-sym))
-               ~value-map-sym ~(apply merge {}
-                                      (for [[p _] (remove (comp intrinsic-properties key) props)]
-                                        {p (property-value-exprs description p node-sym node-id-sym evaluation-context-sym (get props p))}))]
-           ~(check-dry-run-form evaluation-context-sym (assemble-properties-map-form node-id-sym value-map-sym display-order-sym)))))))
+         (let [~node-id-sym (gt/node-id ~node-sym)]
+           ~(check-caches-form description :_declared-properties node-id-sym label-sym evaluation-context-sym
+              (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :output
+                `(let [~display-order-sym (property-display-order (gt/node-type ~node-sym))
+                       ~value-map-sym ~(apply merge {}
+                                              (for [[p _] (remove (comp intrinsic-properties key) props)]
+                                                {p (property-value-exprs description p node-sym node-id-sym evaluation-context-sym (get props p))}))
+                       ~result-sym ~(check-dry-run-form evaluation-context-sym (assemble-properties-map-form node-id-sym value-map-sym display-order-sym))]
+                   ~(cache-result-form description :_declared-properties node-id-sym label-sym evaluation-context-sym result-sym result-sym)))))))))
 
 (defn- node-input-value-function-form
   [description input]
