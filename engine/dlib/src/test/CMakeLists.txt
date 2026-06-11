@@ -8,8 +8,10 @@ set(DLIB_ROOT "${DLIB_TEST_ROOT}/../..")
 set(DLIB_SRC_DIR "${DLIB_ROOT}/src")
 
 set(DLIB_TEST_PROFILE_LIB profile)
+set(DLIB_TEST_SKIP_PROFILE_RUN OFF)
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   set(DLIB_TEST_PROFILE_LIB profile_null)
+  set(DLIB_TEST_SKIP_PROFILE_RUN ON)
 endif()
 
 set(DLIB_TEST_SKIP_THREADS OFF)
@@ -108,7 +110,11 @@ if(NOT DLIB_TEST_SKIP_THREADS)
   dlib_add_test(test_mutex)
 endif()
 
-dlib_add_test(test_profile SOURCES "${DLIB_TEST_ROOT}/test_profiler_dummy.cpp")
+if(DLIB_TEST_SKIP_PROFILE_RUN)
+  dlib_add_test(test_profile SOURCES "${DLIB_TEST_ROOT}/test_profiler_dummy.cpp" SKIP_RUN)
+else()
+  dlib_add_test(test_profile SOURCES "${DLIB_TEST_ROOT}/test_profiler_dummy.cpp")
+endif()
 dlib_add_test(test_profile
   TARGET_NAME test_profile_null
   SOURCES "${DLIB_TEST_ROOT}/test_profiler_dummy.cpp"

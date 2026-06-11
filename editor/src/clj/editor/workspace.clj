@@ -44,7 +44,7 @@ ordinary paths."
            [com.dynamo.bob Platform]
            [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [editor.resource FileResource]
-           [java.io File FileNotFoundException IOException PushbackReader]
+           [java.io File FileNotFoundException PushbackReader]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -110,12 +110,12 @@ ordinary paths."
 
 (defrecord BuildResource [resource prefix]
   resource/Resource
-  (children [this] nil)
+  (children [_] nil)
   (ext [this] (:build-ext (resource/resource-type this) "unknown"))
-  (resource-type [this] (resource/resource-type resource))
-  (source-type [this] (resource/source-type resource))
-  (read-only? [this] false)
-  (symlink? [this] false)
+  (resource-type [_] (resource/resource-type resource))
+  (source-type [_] (resource/source-type resource))
+  (read-only? [_] false)
+  (symlink? [_] false)
   (path [this] (let [ext (resource/ext this)
                      ext (if (not-empty ext) (str "." ext) "")]
                  (if-let [path (resource/path resource)]
@@ -124,12 +124,12 @@ ordinary paths."
                      (str prefix "_generated_" suffix ext)))))
   (abs-path [this] (.getAbsolutePath (io/file (build-path (resource/workspace this)) (resource/path this))))
   (proj-path [this] (str "/" (resource/path this)))
-  (resource-name [this] (resource/resource-name resource))
-  (workspace [this] (resource/workspace resource))
-  (resource-hash [this] (resource/resource-hash resource))
-  (openable? [this] false)
-  (editable? [this] false)
-  (loaded? [this] false)
+  (resource-name [_] (resource/resource-name resource))
+  (workspace [_] (resource/workspace resource))
+  (resource-hash [_] (resource/resource-hash resource))
+  (openable? [_] false)
+  (editable? [_] false)
+  (loaded? [_] false)
 
   io/IOFactory
   (make-input-stream [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
@@ -684,9 +684,9 @@ ordinary paths."
   ([workspace resource]
    (unpack-resource! workspace nil resource))
   ([workspace infix-path resource]
-   (try
-     (let [resource-path (str infix-path (resource/proj-path resource))
-           target-file (plugin-path workspace resource-path)]
+   (let [resource-path (str infix-path (resource/proj-path resource))
+         target-file (plugin-path workspace resource-path)]
+     (try
        (fs/create-parent-directories! target-file)
        (with-open [is (io/input-stream resource)]
          (io/copy is target-file))
@@ -695,9 +695,23 @@ ordinary paths."
        (when (jar-file? resource)
          (register-jar-file! target-file))
        (when (shared-library? resource)
-         (register-shared-library-file! target-file)))
-     (catch FileNotFoundException e
-       (throw (IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!" e))))))
+         (register-shared-library-file! target-file))
+       true
+       (catch FileNotFoundException e
+         (notifications/show!
+           (notifications workspace)
+           {:id ::reload-plugins-failed
+            :type :warning
+            :message (localization/message
+                       "notification.reload-plugins-failed"
+                       {"file" (str target-file)
+                        "error" (.getMessage e)})
+            :actions [{:message (localization/message "notification.reload-plugins-failed.action.restart")
+                       :on-action #(ui/execute-command
+                                     (ui/contexts (ui/main-scene) true)
+                                     :app.restart
+                                     nil)}]})
+         false)))))
 
 (defn- delete-directory-recursive [^File file]
   ;; Recursively delete a directory. // https://gist.github.com/olieidel/c551a911a4798312e4ef42a584677397
@@ -716,7 +730,7 @@ ordinary paths."
 (defn clean-editor-plugins! [workspace]
   ; At startup, we want to remove the plugins in order to avoid having issues copying the .dll on Windows
   (let [dir (plugin-path workspace)]
-    (if (.exists dir)
+    (when (.exists dir)
       (delete-directory-recursive dir))))
 
 (def ^:private plugin-zip-names
@@ -734,15 +748,15 @@ ordinary paths."
 
 (defn- unpack-plugin-zip! [workspace resource]
   {:pre [(string/ends-with? (resource/proj-path resource) ".zip")]}
-  (unpack-resource! workspace resource)
-  (let [proj-path (resource/proj-path resource)
-        plugin-file (plugin-path workspace proj-path)
-        infix-path (resource/parent-proj-path proj-path)]
-    (run! #(unpack-resource! workspace infix-path %)
-          (eduction
-            (mapcat resource/resource-seq)
-            (filter #(= :file (resource/source-type %)))
-            (:tree (resource/load-zip-resources workspace plugin-file))))))
+  (when (unpack-resource! workspace resource)
+    (let [proj-path (resource/proj-path resource)
+          plugin-file (plugin-path workspace proj-path)
+          infix-path (resource/parent-proj-path proj-path)]
+      (run! #(unpack-resource! workspace infix-path %)
+            (eduction
+              (mapcat resource/resource-seq)
+              (filter #(= :file (resource/source-type %)))
+              (:tree (resource/load-zip-resources workspace plugin-file)))))))
 
 (defn unpack-editor-plugins! [basis workspace changed]
   ;; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll).

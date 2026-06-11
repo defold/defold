@@ -38,3 +38,7 @@ url.go
 url.script
 url_nil_id.go
 url_nil_id.script
+world_to_local_pos.go
+world_to_local_pos.script
+world_to_local_transform.go
+world_to_local_transform.script

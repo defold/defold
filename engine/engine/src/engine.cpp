@@ -37,7 +37,7 @@
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/http_client.h>
+#include <dlib/http/http_client.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memprofile.h>
@@ -2569,6 +2569,10 @@ bail:
 
 void dmEngineInitialize()
 {
+#if defined(_WIN32)
+    dmLog::CloseConsoleWindow();
+#endif
+
 #if DM_RELEASE
     dLib::SetDebugMode(false);
 #endif
