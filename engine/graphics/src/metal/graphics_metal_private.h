@@ -201,6 +201,7 @@ namespace dmGraphics
         uint32_t              m_StencilClearValue;
         TextureParams         m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthStencilTextureParams;
+        MTL::ScissorRect      m_Scissor;
 
         HTexture              m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture              m_TextureDepthStencil;

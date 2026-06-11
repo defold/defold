@@ -2224,10 +2224,7 @@ def detect(conf):
 
     # ***********************************************************
     # Metal
-    # ***********************************************************
-    # Vulkan
     if TargetOS.MACOS == target_os:
-        #conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_METAL']  = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
     elif TargetOS.IOS == target_os:

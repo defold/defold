@@ -1001,6 +1001,8 @@ namespace dmGraphics
         uint32_t window_height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
 
         context->m_MainScissor = {0, 0, window_width, window_height};
+        MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        main_rt->m_Scissor = {0, 0, window_width, window_height};
         context->m_ScissorChanged = true;
         context->m_PolygonOffsetFactor = 0.0f;
         context->m_PolygonOffsetUnits  = 0.0f;
@@ -1425,8 +1427,8 @@ namespace dmGraphics
         MTL::Viewport viewport = {0.0, 0.0, (double)width, (double)height, 0.0, 1.0};
         encoder->setViewport(viewport);
 
-        MTL::ScissorRect scissor = {0, 0, width, height};
-        encoder->setScissorRect(scissor);
+        rt->m_Scissor = {0, 0, width, height};
+        encoder->setScissorRect(rt->m_Scissor);
 
         // Track the active encoder
         frame.m_RenderCommandEncoder = encoder;
@@ -2230,6 +2232,23 @@ namespace dmGraphics
         return MTL::BlendOperationAdd;
     }
 
+    static inline bool MetalFormatSupportsBlending(MTL::PixelFormat format)
+    {
+        switch (format)
+        {
+            case MTL::PixelFormatR32Float:
+            case MTL::PixelFormatRG32Float:
+            case MTL::PixelFormatRGBA32Float:
+            case MTL::PixelFormatR32Uint:
+            case MTL::PixelFormatRGBA32Uint:
+                return false;
+            default:
+                break;
+        }
+
+        return true;
+    }
+
     static inline MTL::ColorWriteMask GetMetalColorWriteMask(uint8_t write_mask)
     {
         MTL::ColorWriteMask metal_write_mask = MTL::ColorWriteMaskNone;
@@ -2303,9 +2322,10 @@ namespace dmGraphics
             MTL::RenderPipelineColorAttachmentDescriptor* colorAttachment = pipeline_desc->colorAttachments()->object(i);
             colorAttachment->setPixelFormat(rt->m_ColorFormat[i]);
             colorAttachment->setWriteMask(GetMetalColorWriteMask(pipeline_state.m_WriteColorMask));
-            colorAttachment->setBlendingEnabled(pipeline_state.m_BlendEnabled);
+            const bool blend_enabled = pipeline_state.m_BlendEnabled && MetalFormatSupportsBlending(rt->m_ColorFormat[i]);
+            colorAttachment->setBlendingEnabled(blend_enabled);
 
-            if (pipeline_state.m_BlendEnabled)
+            if (blend_enabled)
             {
                 colorAttachment->setSourceRGBBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendSrcFactor));
                 colorAttachment->setDestinationRGBBlendFactor(GetMetalBlendFactor((BlendFactor) pipeline_state.m_BlendDstFactor));
@@ -2793,7 +2813,7 @@ namespace dmGraphics
 
         if (context->m_ScissorChanged)
         {
-            MTL::ScissorRect scissor = context->m_MainScissor;
+            MTL::ScissorRect scissor = current_rt->m_Scissor;
             if (current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
             {
                 const uint32_t rt_height = current_rt->m_ColorTextureParams[0].m_Height;
@@ -3066,12 +3086,18 @@ namespace dmGraphics
         program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
         memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
 
-        program->m_UniformDataSizeAligned   = binding_info.m_UniformDataSizeAligned;
-        program->m_UniformBufferCount       = binding_info.m_UniformBufferCount;
-        program->m_StorageBufferCount       = binding_info.m_StorageBufferCount;
-        program->m_TextureSamplerCount      = binding_info.m_TextureCount;
-        program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
-        program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
+        uint32_t texture_count = 0;
+
+        for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Textures.Size(); ++i)
+        {
+            const ShaderResourceBinding& shader_res = program->m_BaseProgram.m_ShaderMeta.m_Textures[i];
+            ProgramResourceBinding& shader_pgm_res = program->m_BaseProgram.m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
+
+            if (shader_res.m_Type.m_ShaderType != ShaderDesc::SHADER_TYPE_SAMPLER)
+            {
+                shader_pgm_res.m_TextureUnit = texture_count++;
+            }
+        }
 
         for (int i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Textures.Size(); ++i)
         {
@@ -3085,6 +3111,13 @@ namespace dmGraphics
                 shader_pgm_res.m_TextureUnit                    = texture_pgm_res.m_TextureUnit;
             }
         }
+
+        program->m_UniformDataSizeAligned   = binding_info.m_UniformDataSizeAligned;
+        program->m_UniformBufferCount       = binding_info.m_UniformBufferCount;
+        program->m_StorageBufferCount       = binding_info.m_StorageBufferCount;
+        program->m_TextureSamplerCount      = texture_count;
+        program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+        program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
 
         BuildUniforms(&program->m_BaseProgram);
     }
@@ -3450,11 +3483,13 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*)_context;
         assert(context);
-        context->m_MainScissor.x      = (NS::UInteger) dmMath::Max(0, x);
-        context->m_MainScissor.y      = (NS::UInteger) dmMath::Max(0, y);
-        context->m_MainScissor.width  = (NS::UInteger) dmMath::Max(0, width);
-        context->m_MainScissor.height = (NS::UInteger) dmMath::Max(0, height);
-        context->m_ScissorChanged     = true;
+        MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        assert(current_rt);
+        current_rt->m_Scissor.x      = (NS::UInteger) dmMath::Max(0, x);
+        current_rt->m_Scissor.y      = (NS::UInteger) dmMath::Max(0, y);
+        current_rt->m_Scissor.width  = (NS::UInteger) dmMath::Max(0, width);
+        current_rt->m_Scissor.height = (NS::UInteger) dmMath::Max(0, height);
+        context->m_ScissorChanged    = true;
     }
 
     static void MetalSetStencilMask(HContext _context, uint32_t mask)
@@ -3563,6 +3598,14 @@ namespace dmGraphics
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = rt->m_DepthStencilTextureParams;
+        uint32_t scissor_width  = rt->m_DepthStencilTextureParams.m_Width;
+        uint32_t scissor_height = rt->m_DepthStencilTextureParams.m_Height;
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS && scissor_width == 0 && scissor_height == 0; ++i)
+        {
+            scissor_width  = rt->m_ColorTextureParams[i].m_Width;
+            scissor_height = rt->m_ColorTextureParams[i].m_Height;
+        }
+        rt->m_Scissor = {0, 0, scissor_width, scissor_height};
 
         // We don't want the engine to keep the pointer to raw data in the params stored on the RT,
         // so clear any pointers inside the stored TextureParams (same as Vulkan)
@@ -3697,6 +3740,7 @@ namespace dmGraphics
 
         context->m_CurrentRenderTarget = new_rt;
         context->m_ViewportChanged = 1;
+        context->m_ScissorChanged = 1;
     }
 
     static HTexture MetalGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)
@@ -3796,6 +3840,8 @@ namespace dmGraphics
         }
 
         context->m_ViewportChanged = 1;
+        rt->m_Scissor = {0, 0, width, height};
+        context->m_ScissorChanged = 1;
     }
 
     static bool MetalIsTextureFormatSupported(HContext _context, TextureFormat format)
