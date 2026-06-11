@@ -2228,17 +2228,18 @@ bail:
         DeviceBufferUploadHelper(context, data, size, offset, buffer);
     }
 
-    static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer VulkanNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         VulkanContext* context      = (VulkanContext*) _context;
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
         ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
         VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-            layout.m_Size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
+            size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
         CHECK_VK_ERROR(res);
 
         return (HUniformBuffer) ubo;
@@ -2248,7 +2249,7 @@ bail:
     {
         VulkanContext* context   = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
         DeviceBufferUploadHelper(context, data, size, offset, &ubo->m_DeviceBuffer);
     }
 
@@ -2809,12 +2810,12 @@ bail:
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, res->m_BindingInfo.m_BlockSize))
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                bound_ubo->m_BaseUniformBuffer.m_Layout,
                                 res->m_Name,
-                                pgm_layout->m_Hash);
+                                *pgm_layout);
 
                             // Fallback to the scratch buffer uniform setup
                             bound_ubo = 0;
@@ -2833,7 +2834,7 @@ bail:
                             vk_write_buffer_descriptors[buffer_to_write_index++],
                             vk_write_desc_info,
                             0,
-                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+                            bound_ubo->m_BaseUniformBuffer.m_Size);
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
 
                         dynamic_offsets[dynamic_offset_index] = 0;
@@ -2938,7 +2939,7 @@ bail:
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash == pgm_layout->m_Hash)
+                        if (IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, block_size))
                         {
                             vk_buffer = bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer;
                         }

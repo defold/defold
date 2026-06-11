@@ -493,15 +493,18 @@ ordinary paths."
 (def ^:private default-user-resource-path "/templates/default.")
 (def ^:private java-resource-path "templates/template.")
 
-(defn- get-template-resource [basis workspace resource-type]
+(defn template-resource [basis workspace resource-type consider-user-resource]
   (when resource-type
     (let [resource-path (:template resource-type)
           ext (:ext resource-type)]
       (or
         ;; default user resource
-        (find-resource basis workspace (str default-user-resource-path ext))
+        (when consider-user-resource
+          (find-resource basis workspace (str default-user-resource-path ext)))
+
         ;; editor resource provided from extensions
         (when resource-path (find-resource basis workspace resource-path))
+
         ;; java resource
         (io/resource (str java-resource-path ext))))))
 
@@ -509,13 +512,13 @@ ordinary paths."
   ([workspace resource-type]
    (has-template? (g/now) workspace resource-type))
   ([basis workspace resource-type]
-   (some? (get-template-resource basis workspace resource-type))))
+   (some? (template-resource basis workspace resource-type true))))
 
 (defn template
   ([workspace resource-type]
    (template (g/now) workspace resource-type))
   ([basis workspace resource-type]
-   (when-let [resource (get-template-resource basis workspace resource-type)]
+   (when-let [resource (template-resource basis workspace resource-type true)]
      (let [{:keys [read-fn write-fn]} resource-type]
        (if (and read-fn write-fn)
          ;; Sanitize the template.

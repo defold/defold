@@ -227,6 +227,7 @@ namespace dmGraphics
     struct UniformBuffer
     {
         UniformBufferLayout m_Layout;
+        uint32_t            m_Size;
         uint8_t             m_BoundBinding;
         uint8_t             m_BoundSet;
     };

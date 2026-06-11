@@ -241,6 +241,13 @@ namespace dmShaderc
             resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
             resource.m_StageFlags       = (int) stage;
 
+            resource.m_Type.m_ArraySize = 1;
+            unsigned num_array_dimensions = spvc_type_get_num_array_dimensions(type);
+            if (num_array_dimensions > 0)
+            {
+                resource.m_Type.m_ArraySize = spvc_type_get_array_dimension(type, 0);
+            }
+
             if (base_type == SPVC_BASETYPE_STRUCT)
             {
                 size_t size = 0;

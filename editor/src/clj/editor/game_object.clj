@@ -43,6 +43,7 @@
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [internal.util :as util]
+            [util.coll :as coll]
             [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
@@ -243,6 +244,29 @@
   (output ddf-message g/Any (g/fnk [id position rotation scale source-resource source-save-value]
                               (gen-embed-ddf id position rotation scale source-resource source-save-value)))
   (output build-targets g/Any produce-embedded-component-build-targets))
+
+(defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
+  (g/with-auto-evaluation-context evaluation-context
+    (if-some [embedded-resource-id (g/node-value node-id :embedded-resource-id evaluation-context)]
+      (scene-tools/manip-scalable? embedded-resource-id)
+      (contains? (g/node-value node-id :transform-properties evaluation-context) :scale))))
+
+(defmethod scene-tools/manip-scale-manips ::EmbeddedComponent [node-id]
+  (if-some [embedded-resource-id (g/node-value node-id :embedded-resource-id)]
+    (scene-tools/manip-scale-manips embedded-resource-id)
+    scene-tools/default-manip-scale-manips))
+
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id initial-evaluation-context)]
+    (cond
+      (some-> embedded-resource-id scene-tools/manip-scalable?)
+      (scene-tools/manip-scale embedded-resource-id delta manip-phase initial-evaluation-context)
+
+      (contains? (g/node-value node-id :transform-properties initial-evaluation-context) :scale)
+      (scene/manip-scale-scene-node node-id delta manip-phase initial-evaluation-context)
+
+      :else
+      nil)))
 
 (defn- get-all-comp-exts [workspace]
   (keep (fn [[ext {:keys [tags :as _resource-type]}]]
@@ -577,13 +601,36 @@
 
 (defn- add-embedded-component-options [basis self workspace user-data]
   (when (not user-data)
-    (->> (embeddable-component-resource-types basis workspace)
-         (mapv (fn [res-type]
-                 {:label (or (:label res-type) (:ext res-type))
-                  :icon (:icon res-type)
-                  :command :edit.add-embedded-component
-                  :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
-         (localization/annotate-as-sorted localization/natural-sort-by-label))))
+    (let [general-category (localization/message "resource.category.components")
+          separate-categories [(localization/message "resource.category.lights")]
+
+          all-items
+          (mapv (fn [{:keys [category] :as resource-type}]
+                  (let [assigned-category
+                        (if (= -1 (coll/index-of separate-categories category))
+                          general-category
+                          category)]
+                    {:label (or (:label resource-type) (:ext resource-type))
+                     :icon (:icon resource-type)
+                     :category assigned-category
+                     :style (resource/type-style-classes resource-type)
+                     :command :edit.add-embedded-component
+                     :user-data {:_node-id self
+                                 :resource-type resource-type
+                                 :workspace workspace}}))
+                (embeddable-component-resource-types basis workspace))
+
+          category-has-items? (into #{} (map :category) all-items)
+
+          populated-categories
+          (filterv category-has-items?
+                   (cons general-category
+                         separate-categories))]
+
+      (-> (localization/annotate-as-sorted localization/natural-sort-by-label all-items)
+          (vary-meta assoc
+                     :layout :grid
+                     :columns [populated-categories])))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (label [user-data]
@@ -745,7 +792,7 @@
       :allow-unloaded-use true
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
       :sanitize-fn (partial sanitize-game-object workspace)
-      :string-encode-fn (partial string-encode-game-object workspace)
+      :pb-encode-fn (partial string-encode-game-object workspace)
       :icon game-object-common/game-object-icon
       :icon-class :design
       :category (localization/message "resource.category.objects")

@@ -142,7 +142,7 @@ namespace dmGraphics
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
     typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
     typedef void (*GetViewportFn)(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height);
-    typedef HUniformBuffer (*NewUniformBufferFn)(HContext context, const UniformBufferLayout& layout);
+    typedef HUniformBuffer (*NewUniformBufferFn)(HContext context, UniformBufferLayout layout, uint32_t size);
     typedef void (*DeleteUniformBufferFn)(HContext, HUniformBuffer uniform_buffer);
     typedef void (*SetUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
     typedef void (*EnableUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);

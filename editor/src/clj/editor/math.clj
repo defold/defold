@@ -189,7 +189,10 @@
         c (Math/cos ha)]
     (Quat4d. 0.0 0.0 s c)))
 
-(defn- near-zero? [^double value]
+(defn near? [^double v1 ^double v2]
+  (<= (Math/abs (- v1 v2)) epsilon))
+
+(defn near-zero? [^double value]
   (<= (Math/abs value) epsilon))
 
 (defn- normalize-euler-angle
