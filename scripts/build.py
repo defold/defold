@@ -61,6 +61,7 @@ _CMAKE_FEATURE_FLAG_MAP = {
     '--with-vulkan': 'WITH_VULKAN',
     '--with-vulkan-validation': 'WITH_VULKAN_VALIDATION',
     '--with-dx12': 'WITH_DX12',
+    '--with-metal': 'WITH_METAL',
     '--with-opus': 'WITH_OPUS',
     '--with-webgpu': 'WITH_WEBGPU'
 }

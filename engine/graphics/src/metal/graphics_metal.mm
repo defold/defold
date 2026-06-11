@@ -2104,10 +2104,15 @@ namespace dmGraphics
         return compare_funcs[(int)func];
     }
 
+    static inline uint32_t GetVertexBufferStartIndex(const MetalProgram* program)
+    {
+        return dmMath::Max((uint32_t) program->m_BaseProgram.m_MaxBinding, (uint32_t) program->m_BaseProgram.m_MaxSet);
+    }
+
     static bool CreatePipeline(MetalContext* context, MetalRenderTarget* rt, const PipelineState pipeline_state,  MetalProgram* program, VertexDeclaration** vertexDeclaration, uint32_t vertexDeclarationCount, MetalPipeline* pipeline)
     {
         MTL::VertexDescriptor* vertex_desc = MTL::VertexDescriptor::alloc()->init();
-        uint32_t vx_buffer_start_ix = program->m_BaseProgram.m_MaxBinding;
+        uint32_t vx_buffer_start_ix = GetVertexBufferStartIndex(program);
 
         uint32_t sample_count = rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID ? context->m_MSAASampleCount : 1;
 
@@ -2512,7 +2517,8 @@ namespace dmGraphics
                 {
                     // SPIRV-Cross can emit argument-buffer parameters for either render
                     // stage, so bind each descriptor set to both stages. Vertex attributes
-                    // use slots above m_MaxBinding and do not overlap these set indices.
+                    // use slots above the descriptor set/binding namespace and must not
+                    // overlap these set indices.
                     UseResourceCached(context, renc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
 
                     if (context->m_CurrentVertexArgumentBuffer[set] != arg_binding.m_Buffer)
@@ -2566,7 +2572,7 @@ namespace dmGraphics
 
         VertexDeclaration* vx_declarations[MAX_VERTEX_BUFFERS] = {};
         uint32_t num_vx_buffers = 0;
-        uint32_t vx_buffer_start_ix = context->m_CurrentProgram->m_BaseProgram.m_MaxBinding;
+        uint32_t vx_buffer_start_ix = GetVertexBufferStartIndex(context->m_CurrentProgram);
 
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {

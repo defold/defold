@@ -69,6 +69,9 @@ if(SHADERC_IS_DESKTOP)
     COMMAND "${CMAKE_COMMAND}" -E env
             "DEFOLD_HOME=${DEFOLD_HOME}"
             "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+            "CLANG=${CMAKE_C_COMPILER}"
+            "CLANGPP=${CMAKE_CXX_COMPILER}"
+            "SDKROOT=${CMAKE_OSX_SYSROOT}"
             "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
             --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
             --header "${SHADERC_SRC_DIR}/shaderc.h"
@@ -122,10 +125,16 @@ if(SHADERC_IS_DESKTOP)
             "${SHADERC_GENERATED_JAVA}"
             "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
     COMMAND "${Java_JAR_EXECUTABLE}" cf "${SHADERC_JAR}" -C "${SHADERC_CLASSES_DIR}" .
-    DEPENDS shaderc_bindings "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
+    DEPENDS
+      shaderc_bindings
+      "${SHADERC_GENERATED_JAVA}"
+      "${SHADERC_GENERATED_CPP}"
+      "${SHADERC_GENERATED_H}"
+      "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
     COMMENT "Packaging shaderc.jar")
   add_custom_target(shaderc_jar ALL DEPENDS "${SHADERC_JAR}")
   add_dependencies(shaderc_jar shaderc_bindings)
+  install(FILES "${SHADERC_JAR}" DESTINATION share/java)
 
   add_subdirectory(src/standalone)
 

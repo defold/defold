@@ -13,6 +13,9 @@ add_custom_command(
   COMMAND "${CMAKE_COMMAND}" -E env
           "DEFOLD_HOME=${DEFOLD_HOME}"
           "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+          "CLANG=${CMAKE_C_COMPILER}"
+          "CLANGPP=${CMAKE_CXX_COMPILER}"
+          "SDKROOT=${CMAKE_OSX_SYSROOT}"
           "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
           --gen-java "${JNI_ROOT}/scripts/gen_java.py"
           --header "${JNI_TEST_DIR}/testapi.h"
