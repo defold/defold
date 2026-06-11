@@ -131,7 +131,10 @@ namespace dmInput
     struct GamepadConfig
     {
         uint32_t m_DeviceId;
+        dmInputDDF::GamepadGuid m_Guid;
+        const char* m_DeviceName;
         float m_DeadZone;
+        uint8_t m_Legacy : 1;
         GamepadInput m_Inputs[dmInputDDF::MAX_GAMEPAD_COUNT];
     };
 
@@ -145,6 +148,7 @@ namespace dmInput
         float                           m_RepeatDelay;
         float                           m_RepeatInterval;
         float                           m_PressedThreshold;
+        float                           m_GamepadDeadZone;
     };
 }
 

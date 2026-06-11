@@ -22,66 +22,79 @@
 # https://googleapis.dev/python/protobuf/latest/google/protobuf/message.html
 
 import os, sys
+import importlib
 
-try:
-    from google.protobuf import text_format
-except:
-    dynamo_home = os.environ.get('DYNAMO_HOME')
-    sys.path.append(os.path.join(dynamo_home, "lib", "python"))
-    sys.path.append(os.path.join(dynamo_home, "ext", "lib", "python"))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+
+def prepend_python_paths(paths):
+    for path in reversed(paths):
+        if path is not None and os.path.isdir(path) and path not in sys.path:
+            sys.path.insert(0, path)
+
+dynamo_home = os.environ.get('DYNAMO_HOME')
+if dynamo_home is None:
+    default_dynamo_home = os.path.join(REPO_ROOT, "tmp", "dynamo_home")
+    if os.path.isdir(default_dynamo_home):
+        dynamo_home = default_dynamo_home
+
+python_paths = []
+if dynamo_home is not None:
+    python_paths.extend([
+        os.path.join(dynamo_home, "lib", "python"),
+        os.path.join(dynamo_home, "ext", "lib", "python"),
+    ])
+
+python_paths.extend([
+    os.path.join(REPO_ROOT, "engine", "ddf", "build", "src"),
+    os.path.join(REPO_ROOT, "engine", "input", "build", "python"),
+    os.path.join(REPO_ROOT, "engine", "gamesys", "build", "proto"),
+    os.path.join(REPO_ROOT, "engine", "render", "build", "proto"),
+    os.path.join(REPO_ROOT, "engine", "rig", "build", "proto"),
+    os.path.join(REPO_ROOT, "engine", "resource", "build", "proto"),
+    os.path.join(REPO_ROOT, "engine", "graphics", "build", "proto"),
+    os.path.join(REPO_ROOT, "engine", "gameobject", "build", "proto"),
+    os.path.join(REPO_ROOT, "engine", "engine", "build", "proto"),
+    os.path.join(REPO_ROOT, "engine", "particle", "build", "proto"),
+])
+prepend_python_paths(python_paths)
 
 from google.protobuf import text_format
 import google.protobuf.message
 
-import lz4.block
 import binascii
 
-import gameobject.gameobject_ddf_pb2
-import gameobject.lua_ddf_pb2
-import input.input_ddf_pb2
-import gamesys.model_ddf_pb2
-import gamesys.texture_set_ddf_pb2
-import graphics.graphics_ddf_pb2
-import resource.liveupdate_ddf_pb2
-import rig.rig_ddf_pb2
-import render.material_ddf_pb2
-import render.font_ddf_pb2
-import render.render_ddf_pb2
-import render.compute_ddf_pb2
-import particle.particle_ddf_pb2
-import gamesys.sprite_ddf_pb2
-import gamesys.physics_ddf_pb2
-import gamesys.gui_ddf_pb2
-import gamesys.label_ddf_pb2
-import gamesys.camera_ddf_pb2
+def load_type(module_name, type_name):
+    module = importlib.import_module(module_name)
+    return getattr(module, type_name)
 
 BUILDERS = {}
-BUILDERS['.animationsetc']  = rig.rig_ddf_pb2.AnimationSet
-BUILDERS['.collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
-BUILDERS['.collisionobjectc'] = gamesys.physics_ddf_pb2.CollisionObjectDesc
-BUILDERS['.computec']         = render.compute_ddf_pb2.ComputeDesc
-BUILDERS['.convexshapec']   = gamesys.physics_ddf_pb2.ConvexShape
-BUILDERS['.dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
-BUILDERS['.fontc']          = render.font_ddf_pb2.FontMap
-BUILDERS['.gamepadsc']      = input.input_ddf_pb2.GamepadMaps
-BUILDERS['.glyph_bankc']    = render.font_ddf_pb2.GlyphBank
-BUILDERS['.goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
-BUILDERS['.guic']           = gamesys.gui_ddf_pb2.SceneDesc
-BUILDERS['.input_bindingc'] = input.input_ddf_pb2.InputBinding
-BUILDERS['.luac']           = gameobject.lua_ddf_pb2.LuaModule
-BUILDERS['.labelc']         = gamesys.label_ddf_pb2.LabelDesc
-BUILDERS['.materialc']      = render.material_ddf_pb2.MaterialDesc
-BUILDERS['.meshsetc']       = rig.rig_ddf_pb2.MeshSet
-BUILDERS['.modelc']         = gamesys.model_ddf_pb2.Model
-BUILDERS['.particlefxc']    = particle.particle_ddf_pb2.ParticleFX
-BUILDERS['.renderc']        = render.render_ddf_pb2.RenderPrototypeDesc
-BUILDERS['.rigscenec']      = rig.rig_ddf_pb2.RigScene
-BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
-BUILDERS['.spc']            = graphics.graphics_ddf_pb2.ShaderDesc
-BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
-BUILDERS['.texturec']       = graphics.graphics_ddf_pb2.TextureImage
-BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
-BUILDERS['.camerac']        = gamesys.camera_ddf_pb2.CameraDesc
+BUILDERS['.animationsetc']    = ('rig.rig_ddf_pb2', 'AnimationSet')
+BUILDERS['.collectionc']      = ('gameobject.gameobject_ddf_pb2', 'CollectionDesc')
+BUILDERS['.collisionobjectc'] = ('gamesys.physics_ddf_pb2', 'CollisionObjectDesc')
+BUILDERS['.computec']         = ('render.compute_ddf_pb2', 'ComputeDesc')
+BUILDERS['.convexshapec']     = ('gamesys.physics_ddf_pb2', 'ConvexShape')
+BUILDERS['.dmanifest']        = ('resource.liveupdate_ddf_pb2', 'ManifestFile')
+BUILDERS['.fontc']            = ('render.font_ddf_pb2', 'FontMap')
+BUILDERS['.gamepadsc']        = ('input.input_ddf_pb2', 'GamepadMaps')
+BUILDERS['.glyph_bankc']      = ('render.font_ddf_pb2', 'GlyphBank')
+BUILDERS['.goc']              = ('gameobject.gameobject_ddf_pb2', 'PrototypeDesc')
+BUILDERS['.guic']             = ('gamesys.gui_ddf_pb2', 'SceneDesc')
+BUILDERS['.input_bindingc']   = ('input.input_ddf_pb2', 'InputBinding')
+BUILDERS['.luac']             = ('gameobject.lua_ddf_pb2', 'LuaModule')
+BUILDERS['.labelc']           = ('gamesys.label_ddf_pb2', 'LabelDesc')
+BUILDERS['.materialc']        = ('render.material_ddf_pb2', 'MaterialDesc')
+BUILDERS['.meshsetc']         = ('rig.rig_ddf_pb2', 'MeshSet')
+BUILDERS['.modelc']           = ('gamesys.model_ddf_pb2', 'Model')
+BUILDERS['.particlefxc']      = ('particle.particle_ddf_pb2', 'ParticleFX')
+BUILDERS['.renderc']          = ('render.render_ddf_pb2', 'RenderPrototypeDesc')
+BUILDERS['.rigscenec']        = ('rig.rig_ddf_pb2', 'RigScene')
+BUILDERS['.skeletonc']        = ('rig.rig_ddf_pb2', 'Skeleton')
+BUILDERS['.spc']              = ('graphics.graphics_ddf_pb2', 'ShaderDesc')
+BUILDERS['.spritec']          = ('gamesys.sprite_ddf_pb2', 'SpriteDesc')
+BUILDERS['.texturec']         = ('graphics.graphics_ddf_pb2', 'TextureImage')
+BUILDERS['.texturesetc']      = ('gamesys.texture_set_ddf_pb2', 'TextureSet')
+BUILDERS['.camerac']          = ('gamesys.camera_ddf_pb2', 'CameraDesc')
 
 proto_type_to_string_map = {}
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'
@@ -104,7 +117,7 @@ proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_UINT32]
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_UINT64]  = 'TYPE_UINT64'
 
 TYPE_CONVERTERS = {}
-TYPE_CONVERTERS["dmLiveUpdateDDF.ManifestFile.data"] = resource.liveupdate_ddf_pb2.ManifestData
+TYPE_CONVERTERS["dmLiveUpdateDDF.ManifestFile.data"] = ('resource.liveupdate_ddf_pb2', 'ManifestData')
 
 def get_field_type(field):
     if field.message_type is not None:
@@ -203,8 +216,9 @@ def print_object(printer, msg):
             if not msg.HasField(descriptor.name):
                 continue
 
-        cls = TYPE_CONVERTERS.get(descriptor.full_name, None)
-        if cls is not None:
+        cls_info = TYPE_CONVERTERS.get(descriptor.full_name, None)
+        if cls_info is not None:
+            cls = load_type(*cls_info)
             newvalue = cls()
             newvalue.MergeFromString(value)
             printer.Print(descriptor.name, ": {")
@@ -278,6 +292,8 @@ if __name__ == "__main__":
         content = f.read()
         base, ext = os.path.splitext(path)
         if ext == ".lz4":
+            import lz4.block
+
             base, ext = os.path.splitext(base)
             decompressed_size = len(content) * 2
             while True:
@@ -286,8 +302,8 @@ if __name__ == "__main__":
                     break
                 except lz4.block.LZ4BlockError:
                     decompressed_size *= 2
-        builder = BUILDERS.get(ext, None)
-        if builder is None:
+        builder_info = BUILDERS.get(ext, None)
+        if builder_info is None:
             print("No builder registered for filetype %s" %ext)
             try:
                 utf8 = content.decode("utf-8")
@@ -295,6 +311,7 @@ if __name__ == "__main__":
             except:
                 print(hexdump(content))
         else:
+            builder = load_type(*builder_info)
             obj = builder()
             obj.ParseFromString(content)
 

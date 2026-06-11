@@ -1405,6 +1405,7 @@ namespace dmEngine
         input_params.m_HidContext = engine->m_HidContext;
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
         input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
+        input_params.m_GamepadDeadZone = dmConfigFile::GetFloat(engine->m_Config, "input.gamepad_deadzone", 0.2f);
         engine->m_InputContext = dmInput::NewContext(input_params);
 
         dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);

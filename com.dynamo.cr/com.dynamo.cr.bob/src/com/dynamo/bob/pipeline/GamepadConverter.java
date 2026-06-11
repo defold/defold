@@ -167,7 +167,6 @@ public final class GamepadConverter {
             sb.append("{\n");
             sb.append("    device: \"").append(escapeDefoldString(mapping.name)).append("\"\n");
             sb.append("    platform: \"").append(escapeDefoldString(defoldPlatform)).append("\"\n");
-            sb.append("    dead_zone: 0.2\n");
             GamepadGuidFields guid = parseGuidFields(mapping.guid);
             if (guid != null) {
                 sb.append("    guid { bus_crc: ").append(guid.busCrc)
@@ -265,11 +264,9 @@ public final class GamepadConverter {
         switch (normalized) {
             case "windows":
             case "win32":
-            case "win64":
                 return "windows";
             case "mac os x":
             case "osx":
-            case "mac":
             case "macos":
                 return "macos";
             case "linux":
@@ -279,13 +276,16 @@ public final class GamepadConverter {
             case "android":
                 return "android";
             case "web":
-            case "html5":
                 return "web";
+            case "switch":
+                return "switch";
+            case "playstation":
+                return "playstation";
             default:
-                if (normalized.endsWith("-win32") || normalized.endsWith("-win64") || normalized.endsWith("-windows")) {
+                if (normalized.endsWith("-win32")) {
                     return "windows";
                 }
-                if (normalized.endsWith("-macos") || normalized.endsWith("-osx")) {
+                if (normalized.endsWith("-macos")) {
                     return "macos";
                 }
                 if (normalized.endsWith("-linux")) {
@@ -297,7 +297,7 @@ public final class GamepadConverter {
                 if (normalized.endsWith("-android")) {
                     return "android";
                 }
-                if (normalized.endsWith("-web") || normalized.endsWith("-html5") || normalized.endsWith("-js-web") || normalized.endsWith("-wasm-web")) {
+                if (normalized.endsWith("-web")) {
                     return "web";
                 }
                 if (normalized.endsWith("-nx64")) {

@@ -83,6 +83,7 @@ namespace dmInput
         dmHID::HContext m_HidContext;
         float m_RepeatDelay;
         float m_RepeatInterval;
+        float m_GamepadDeadZone;
     };
 
     HContext NewContext(const NewContextParams& params);

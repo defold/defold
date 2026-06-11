@@ -347,6 +347,13 @@ namespace dmHID
         return prev_state_hash != context->m_StateHash;
     }
 
+    static void GetGamepadDeviceNameRaw(HContext context, NativeContextUserData* user_data, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
+    {
+        assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
+        GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
+        driver->m_GetGamepadDeviceName(context, driver, gamepad, name);
+    }
+
     void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
         NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
@@ -357,15 +364,20 @@ namespace dmHID
             return;
         }
 
+        GetGamepadDeviceNameRaw(context, user_data, gamepad, name);
         if (!gamepad->m_LayoutLegacy)
         {
-            dmHID::GetGamepadDeviceNameSDL(context, gamepad, name);
-            return;
-        }
+            GamepadGuid guid = {};
+            if (GetGamepadDeviceGuid(context, gamepad, &guid))
+            {
+                GamepadIdentity identity = {};
+                identity.m_Vendor = guid.m_Vendor;
+                identity.m_Product = guid.m_Product;
 
-        assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
-        GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
-        driver->m_GetGamepadDeviceName(context, driver, gamepad, name);
+                const char* sdl_name = GetGamepadIdentityName(identity, name);
+                dmStrlCpy(name, sdl_name, MAX_GAMEPAD_NAME_LENGTH);
+            }
+        }
     }
 
     bool GetGamepadDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid)

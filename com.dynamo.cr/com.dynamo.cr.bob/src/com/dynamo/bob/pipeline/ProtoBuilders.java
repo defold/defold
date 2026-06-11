@@ -169,6 +169,8 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = InputBinding.class, messageClass = InputBinding.class)
     @BuilderParams(name="InputBinding", inExts=".input_binding", outExt=".input_bindingc")
     public static class InputBindingBuilder extends ProtoBuilder<InputBinding.Builder> {}
+
+    @ProtoParams(srcClass = RenderTargetDesc.class, messageClass = RenderTargetDesc.class)
     @BuilderParams(name="RenderTarget", inExts=".render_target", outExt=".render_targetc")
     public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {}
 

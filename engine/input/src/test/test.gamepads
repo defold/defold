@@ -29,7 +29,7 @@ driver
 driver
 {
     device: "null_device"
-    platform: "osx"
+    platform: "macos"
     dead_zone: 0.1
     map { input: GAMEPAD_LSTICK_UP   type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_CLAMP } }
     map { input: GAMEPAD_LSTICK_DOWN   type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }

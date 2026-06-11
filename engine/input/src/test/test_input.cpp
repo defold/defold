@@ -20,6 +20,7 @@
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/platform.h>
 #include <dlib/dstrings.h>
 #include <dlib/testutil.h>
 
@@ -45,6 +46,7 @@ protected:
         params.m_HidContext = m_HidContext;
         params.m_RepeatDelay = 0.5f;
         params.m_RepeatInterval = 0.2f;
+        params.m_GamepadDeadZone = 0.2f;
         m_Context = dmInput::NewContext(params);
         dmInputDDF::GamepadMaps* gamepad_maps;
 
@@ -105,6 +107,40 @@ TEST_F(InputTest, CreateContext)
     dmInput::SetBinding(binding, m_TestDDF);
     ASSERT_NE(dmInput::INVALID_BINDING, binding);
     dmInput::DeleteBinding(binding);
+}
+
+TEST_F(InputTest, GuidGamepadMapsAreNotRegisteredAsLegacyNames)
+{
+    dmInput::NewContextParams params;
+    params.m_HidContext = m_HidContext;
+    params.m_RepeatDelay = 0.5f;
+    params.m_RepeatInterval = 0.2f;
+    params.m_GamepadDeadZone = 0.2f;
+    dmInput::HContext context = dmInput::NewContext(params);
+
+    dmInputDDF::GamepadMaps gamepad_maps;
+    dmInputDDF::GamepadMap drivers[2];
+    memset(&gamepad_maps, 0, sizeof(gamepad_maps));
+    memset(drivers, 0, sizeof(drivers));
+
+    gamepad_maps.m_Driver.m_Data = drivers;
+    gamepad_maps.m_Driver.m_Count = 2;
+
+    for (uint32_t i = 0; i < gamepad_maps.m_Driver.m_Count; ++i)
+    {
+        drivers[i].m_Device = "duplicate_guid_device";
+        drivers[i].m_Platform = DM_PLATFORM;
+        drivers[i].m_Guid.m_BusCrc = i + 1;
+        drivers[i].m_Guid.m_VendorProduct = i + 2;
+        drivers[i].m_Guid.m_VersionDriversignatureDriverdata = i + 3;
+    }
+
+    dmInput::RegisterGamepads(context, &gamepad_maps);
+
+    ASSERT_EQ(3U, context->m_GamepadMaps.Size());
+    ASSERT_EQ((void*)0x0, (void*)context->m_GamepadMaps.Get(dmHashString32("duplicate_guid_device")));
+
+    dmInput::DeleteContext(context);
 }
 
 void TextInputCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
@@ -465,6 +501,7 @@ TEST_F(InputTest, Touch)
     input_params.m_HidContext = hid_context;
     input_params.m_RepeatDelay = 0.5f;
     input_params.m_RepeatInterval = 0.2f;
+    input_params.m_GamepadDeadZone = 0.2f;
     dmInput::HContext context = dmInput::NewContext(input_params);
 
     dmHID::HTouchDevice device = dmHID::GetTouchDevice(hid_context, 0);
@@ -576,6 +613,7 @@ TEST_F(InputTest, TouchPhases)
     input_params.m_HidContext = hid_context;
     input_params.m_RepeatDelay = 0.5f;
     input_params.m_RepeatInterval = 0.2f;
+    input_params.m_GamepadDeadZone = 0.2f;
     dmInput::HContext context = dmInput::NewContext(input_params);
 
     dmHID::HTouchDevice device = dmHID::GetTouchDevice(hid_context, 0);

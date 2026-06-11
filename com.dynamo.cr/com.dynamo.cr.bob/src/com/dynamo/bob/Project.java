@@ -524,8 +524,13 @@ public class Project {
     }
 
     public Task createGamepadTask(IResource gamepadDbInput, IResource gamepadsInput) throws CompileExceptionError {
+        if (gamepadDbInput == null && gamepadsInput == null) {
+            throw new CompileExceptionError("Gamepad task requires a .gamepads file or a gamecontrollerdb.txt file.");
+        }
+
         String gamepadDbPath = gamepadDbInput != null ? gamepadDbInput.getPath() : "";
-        String key = gamepadDbPath + " " + gamepadsInput.getPath() + " " + GamepadBuilder.class;
+        String gamepadsPath = gamepadsInput != null ? gamepadsInput.getPath() : "";
+        String key = gamepadDbPath + " " + gamepadsPath + " " + GamepadBuilder.class;
         if (!circularDependencyChecker.add(key)) {
             throw new CompileExceptionError(generateCircularDependencyErrorMessage(key), null);
         }
@@ -547,9 +552,12 @@ public class Project {
             if (gamepadDbInput != null) {
                 taskBuilder.addInput(gamepadDbInput);
             }
+            if (gamepadsInput != null) {
+                taskBuilder.addInput(gamepadsInput);
+            }
+            IResource outputAnchor = gamepadsInput != null ? gamepadsInput : gamepadDbInput;
             task = taskBuilder
-                    .addInput(gamepadsInput)
-                    .addOutput(gamepadsInput.changeExt(builder.getParams().outExt()))
+                    .addOutput(outputAnchor.changeExt(builder.getParams().outExt()))
                     .build();
             if (task != null) {
                 TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));

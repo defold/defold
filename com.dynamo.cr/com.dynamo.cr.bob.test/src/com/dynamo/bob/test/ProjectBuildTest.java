@@ -145,6 +145,34 @@ public class ProjectBuildTest {
     }
 
     @Test
+    public void testBuildInputFileGamepadsWithoutGameProject() throws Exception {
+        Files.delete(new File(contentRoot, "game.project").toPath());
+        createFile(contentRoot, "input/valid.gamepads", ""
+                + "driver {\n"
+                + "  device: \"Direct Pad\"\n"
+                + "  platform: \"macos\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n");
+        createFile(contentRoot, "build.inputs", "# direct test data roots\n/input/valid.gamepads\n\n");
+
+        Bob.InvocationResult result = Bob.invoke(null, Progress.discarding(), null, new String[]{
+                "--root", contentRoot,
+                "--build-input-file", "build.inputs",
+                "--platform", "x86_64-macos",
+                "build"
+        });
+
+        assertTrue(result.success);
+        File output = new File(contentRoot, "build/default/input/valid.gamepadsc");
+        assertTrue(output.exists());
+        GamepadMaps maps = GamepadMaps.parseFrom(FileUtils.readFileToByteArray(output));
+        assertEquals(1, maps.getDriverCount());
+        assertEquals("Direct Pad", maps.getDriver(0).getDevice());
+        assertEquals(0.2f, maps.getDriver(0).getDeadZone(), 0.0f);
+    }
+
+    @Test
     public void testBuild() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createDefaultFiles();
         build();
@@ -159,7 +187,8 @@ public class ProjectBuildTest {
                 + "height=480\n"
                 + "[input]\n"
                 + "gamepads=/input/custom.gamepadsc\n"
-                + "gamepad_database=/input/gamecontrollerdb.txt\n");
+                + "gamepad_database=/input/gamecontrollerdb.txt\n"
+                + "gamepad_deadzone=0.35\n");
         createFile(contentRoot, "input/custom.gamepads", ""
                 + "driver {\n"
                 + "  device: \"Manual Project Pad\"\n"
@@ -196,6 +225,8 @@ public class ProjectBuildTest {
         assertEquals("SDL Project Pad", maps.getDriver(0).getDevice());
         assertEquals("Manual Project Pad", maps.getDriver(1).getDevice());
         assertEquals(maps.getDriver(0).getPlatform(), maps.getDriver(1).getPlatform());
+        assertFalse(maps.getDriver(0).hasDeadZone());
+        assertEquals(0.2f, maps.getDriver(1).getDeadZone(), 0.0f);
     }
 
     static private void checkProjectSetting(BobProjectProperties properties, String category, String key, String expectedValue)

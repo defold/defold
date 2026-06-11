@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -43,6 +44,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         GamepadMap driver = maps.getDriver(0);
         assertEquals("Test Pad", driver.getDevice());
         assertEquals("macos", driver.getPlatform());
+        assertFalse(driver.hasDeadZone());
         assertTrue(driver.hasGuid());
         assertEquals(3L, Integer.toUnsignedLong(driver.getGuid().getBusCrc()));
         assertEquals(0L, Integer.toUnsignedLong(driver.getGuid().getVendorProduct()));
@@ -98,7 +100,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         String gamepads = ""
                 + "driver {\n"
                 + "  device: \"Manual Pad\"\n"
-                + "  platform: \"macos\"\n"
+                + "  platform: \"osx\"\n"
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n"
@@ -117,6 +119,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         getProject().setOption("platform", "x86_64-macos");
 
         Project project = getProject();
+        project.getProjectProperties().putStringValue("input", "gamepad_deadzone", "0.35");
         Task task = project.createGamepadTask(getFileSystem().get("/gamecontrollerdb.txt"), getFileSystem().get("/pad.gamepads"));
         assertEquals(2, task.getInputs().size());
         assertEquals("gamecontrollerdb.txt", task.input(0).getPath());
@@ -131,6 +134,68 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         assertEquals("macos", maps.getDriver(0).getPlatform());
         assertEquals("macos", maps.getDriver(1).getPlatform());
         assertEquals(1, find(maps.getDriver(0), Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertFalse(maps.getDriver(0).hasDeadZone());
+        assertEquals(0.2f, maps.getDriver(1).getDeadZone(), 0.0f);
+    }
+
+    @Test
+    public void testGamepadBuilderWithOnlyGamepadDb() throws Exception {
+        String gamepadDb = ""
+                + "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
+                + "03000000000000000000000000000002,Ignored SDL Pad,a:b2,platform:Linux,\n";
+
+        addFile("/gamecontrollerdb.txt", gamepadDb);
+        getProject().setOption("platform", "x86_64-macos");
+
+        Project project = getProject();
+        Task task = project.createGamepadTask(getFileSystem().get("/gamecontrollerdb.txt"), null);
+        assertEquals(1, task.getInputs().size());
+        assertEquals("gamecontrollerdb.txt", task.input(0).getPath());
+        assertEquals("build/gamecontrollerdb.gamepadsc", task.output(0).getPath());
+
+        task.getBuilder().build(task);
+        GamepadMaps maps = GamepadMaps.parseFrom(task.output(0).getContent());
+
+        assertEquals(1, maps.getDriverCount());
+        assertEquals("SDL Pad", maps.getDriver(0).getDevice());
+        assertEquals("macos", maps.getDriver(0).getPlatform());
+        assertEquals(1, find(maps.getDriver(0), Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertFalse(maps.getDriver(0).hasDeadZone());
+    }
+
+    @Test
+    public void testGamepadBuilderWithOnlyGamepads() throws Exception {
+        String gamepads = ""
+                + "driver {\n"
+                + "  device: \"Manual Pad\"\n"
+                + "  platform: \"osx\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Ignored Manual Pad\"\n"
+                + "  platform: \"windows\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n";
+
+        addFile("/pad.gamepads", gamepads);
+        getProject().setOption("platform", "x86_64-macos");
+
+        Project project = getProject();
+        Task task = project.createGamepadTask(null, getFileSystem().get("/pad.gamepads"));
+        assertEquals(1, task.getInputs().size());
+        assertEquals("pad.gamepads", task.input(0).getPath());
+        assertEquals("build/pad.gamepadsc", task.output(0).getPath());
+
+        task.getBuilder().build(task);
+        GamepadMaps maps = GamepadMaps.parseFrom(task.output(0).getContent());
+
+        assertEquals(1, maps.getDriverCount());
+        assertEquals("Manual Pad", maps.getDriver(0).getDevice());
+        assertEquals("macos", maps.getDriver(0).getPlatform());
+        assertEquals(0, find(maps.getDriver(0), Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertEquals(0.2f, maps.getDriver(0).getDeadZone(), 0.0f);
     }
 
     private static GamepadMaps parse(String textFormat) throws Exception {
