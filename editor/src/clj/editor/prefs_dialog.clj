@@ -599,7 +599,7 @@
                                  #(mouse-binding/update-sub-command-modifier % context command sub-cmd draft-modifier))
                                (swap-state dissoc :mouse-sub-binding-popup))}]}))}))
 
-(defn- popup-center-coords [^Window window popup-width popup-height]
+(defn- popup-center-coords [^Window window ^double popup-width ^double popup-height]
   (let [root (.getRoot (.getScene window))
         screen-bounds (.localToScreen root (.getBoundsInLocal root))
         x (- (.getCenterX screen-bounds) (* 0.5 popup-width))
