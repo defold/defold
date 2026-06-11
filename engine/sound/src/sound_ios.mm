@@ -26,22 +26,57 @@
 // ---------------------------------------------------------------------------
 namespace {
 
+    const uint32_t IOS_AUDIO_SESSION_MIX_RATE = 48000;
+
     bool g_audioInterrupted = false;
     bool g_isSessionRouteChangeReasonCategoryChange = false;
     bool g_ignoreRouteChange = false;
+    double g_preferredIOBufferDuration = 0.0;
 
     id<UIApplicationDelegate> g_soundApplicationDelegate;
+
+    void configurePreferredIOBufferDuration(dmConfigFile::HConfig config, const dmSound::InitializeParams* params) {
+        uint32_t frame_count = params->m_FrameCount;
+        if (config)
+        {
+            frame_count = (uint32_t) dmConfigFile::GetInt(config, "sound.sample_frame_count", (int32_t) frame_count);
+        }
+        if (frame_count == 0)
+        {
+            frame_count = dmSound::GetDefaultFrameCount(IOS_AUDIO_SESSION_MIX_RATE);
+        }
+        g_preferredIOBufferDuration = (double)frame_count / (double)IOS_AUDIO_SESSION_MIX_RATE;
+    }
+
+    void applyPreferredIOBufferDuration(AVAudioSession* session) {
+        if (g_preferredIOBufferDuration <= 0.0)
+        {
+            return;
+        }
+
+        NSError* error = nil;
+        BOOL success = [session setPreferredIOBufferDuration:g_preferredIOBufferDuration error:&error];
+        if (!success)
+        {
+            dmLogWarning("Failed to set preferred AudioSession IO buffer duration (%ld)", error ? (long)error.code : 0L);
+        }
+    }
 
     void activateAudioSession() {
         g_ignoreRouteChange = false;
         g_isSessionRouteChangeReasonCategoryChange = false;
-        NSError *error = nil;
-        [[AVAudioSession sharedInstance] setActive:YES error:&error];
-        g_audioInterrupted = false;
-        if(error != nil){
-            dmLogError("Failed to activate AudioSession (%ld)", error.code);
+        AVAudioSession* session = [AVAudioSession sharedInstance];
+        applyPreferredIOBufferDuration(session);
+
+        NSError* error = nil;
+        BOOL success = [session setActive:YES error:&error];
+        if (!success)
+        {
+            dmLogError("Failed to activate AudioSession (%ld)", error ? (long)error.code : 0L);
             return;
         }
+        applyPreferredIOBufferDuration(session);
+        g_audioInterrupted = false;
     }
 };
 
@@ -167,6 +202,8 @@ namespace dmSound
 {
     Result PlatformInitialize(dmConfigFile::HConfig config, const InitializeParams* params)
     {
+        ::configurePreferredIOBufferDuration(config, params);
+
         ::g_soundApplicationDelegate = [[SoundApplicationDelegate alloc] init];
         glfwRegisterUIApplicationDelegate(::g_soundApplicationDelegate);
 
@@ -183,12 +220,14 @@ namespace dmSound
                                               name:AVAudioSessionRouteChangeNotification
                                               object:[AVAudioSession sharedInstance]];
 
-        NSError *error = nil;
-        BOOL success = [[AVAudioSession sharedInstance] setCategory: AVAudioSessionCategoryAmbient error: &error];
+        AVAudioSession* session = [AVAudioSession sharedInstance];
+        NSError* error = nil;
+        BOOL success = [session setCategory: AVAudioSessionCategoryAmbient error: &error];
         if (!success)
         {
-            dmLogError("Failed to initialize AudioSession (%d)", (int)error.code);
+            dmLogError("Failed to initialize AudioSession (%d)", error ? (int)error.code : 0);
         }
+        ::applyPreferredIOBufferDuration(session);
 
         return RESULT_OK;
     }
@@ -220,4 +259,3 @@ namespace dmSound
     }
 
 }
-
