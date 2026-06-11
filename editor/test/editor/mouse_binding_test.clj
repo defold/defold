@@ -28,7 +28,7 @@
   (with-mouse-bindings
     (mouse-binding/register! ::camera "Scene 2D Camera"
                              [{:command :scene.camera.pan
-                               :action "Pan"
+                               :action ["Pan"]
                                :binding {:button :primary :modifiers [:shift]}}])
     (testing "registered default is active"
       (is (= :scene.camera.pan
@@ -40,7 +40,7 @@
       (is (= {:kind :mouse-binding
               :context ::camera
               :command :scene.camera.pan
-              :action "Pan"
+              :action ["Pan"]
               :context-path "Scene 2D Camera"
               :binding-source :default
               :fallback-context-path nil
@@ -64,7 +64,7 @@
         (is (= {:kind :mouse-binding
                 :context ::camera
                 :command :scene.camera.pan
-                :action "Pan"
+                :action ["Pan"]
                 :context-path "Scene 2D Camera"
                 :binding-source :custom
                 :fallback-context-path nil
@@ -81,7 +81,7 @@
           (is (= :scene.camera.pan
                  (mouse-binding/command-for-action ::camera {:button :middle :alt true})))
           (is (= [{:command :scene.camera.pan
-                   :action "Pan"
+                   :action ["Pan"]
                    :context ::camera
                    :context-path "Scene 2D Camera"
                    :bindings [{:button :secondary :modifiers [:control]}
@@ -113,14 +113,14 @@
               (is (= {:kind :mouse-binding
                       :context ::camera
                       :command :scene.camera.pan
-                      :action "Pan"
+                      :action ["Pan"]
                       :context-path "Scene 2D Camera"
                       :binding-source :custom
                       :fallback-context-path nil
                       :bindings []}
                      (mouse-binding/command-row overrides-4 ::camera :scene.camera.pan)))
               (is (= [{:command :scene.camera.pan
-                       :action "Pan"
+                       :action ["Pan"]
                        :context ::camera
                        :context-path "Scene 2D Camera"
                        :bindings []}]
@@ -134,7 +134,7 @@
                 (is (= {:kind :mouse-binding
                         :context ::camera
                         :command :scene.camera.pan
-                        :action "Pan"
+                        :action ["Pan"]
                         :context-path "Scene 2D Camera"
                         :binding-source :default
                         :fallback-context-path nil
@@ -145,11 +145,11 @@
   (with-mouse-bindings
     (mouse-binding/register! ::base "Scene 2D Camera"
                              [{:command :scene.camera.pan
-                               :action "Pan"
+                               :action ["Pan"]
                                :binding {:button :primary :modifiers [:shift]}}])
     (mouse-binding/register! ::derived "Tile Map Editor"
                              [{:command :scene.camera.pan
-                               :action "Pan"}]
+                               :action ["Pan"]}]
                              {:fallback-context ::base})
     (testing "derived context inherits from its fallback"
       (is (= ::base (mouse-binding/fallback-context ::derived)))
@@ -162,7 +162,7 @@
       (is (= {:kind :mouse-binding
               :context ::derived
               :command :scene.camera.pan
-              :action "Pan"
+              :action ["Pan"]
               :context-path "Tile Map Editor"
               :binding-source :inherited
               :fallback-context-path "Scene 2D Camera"
@@ -180,7 +180,7 @@
         (is (= {:kind :mouse-binding
                 :context ::derived
                 :command :scene.camera.pan
-                :action "Pan"
+                :action ["Pan"]
                 :context-path "Tile Map Editor"
                 :binding-source :custom
                 :fallback-context-path nil
@@ -195,115 +195,84 @@
           (is (= {:kind :mouse-binding
                   :context ::derived
                   :command :scene.camera.pan
-                  :action "Pan"
+                  :action ["Pan"]
                   :context-path "Tile Map Editor"
                   :binding-source :inherited
                   :fallback-context-path "Scene 2D Camera"
                   :bindings [{:button :primary :modifiers [:shift]}]}
                  (mouse-binding/command-row overrides-2 ::derived :scene.camera.pan))))))))
 
-(deftest sub-command-modifier-workflow
+(deftest modifier-command-workflow
   (with-mouse-bindings
     (mouse-binding/register! ::camera "Scene 3D Camera"
                              [{:command :scene.camera.free-look
-                               :action "Free Look"
-                               :binding {:button :secondary :modifiers []}
-                               :sub-commands [{:command :speed-boost :label "Speed Boost" :modifier :shift}
-                                              {:command :speed-precision :label "Speed Precision" :modifier :alt}]}])
-    (testing "registered sub-command modifiers are active by default"
-      (is (= :shift
-             (mouse-binding/effective-sub-command-modifier
-               {}
-               ::camera
-               :scene.camera.free-look
-               :speed-boost)))
-      (is (mouse-binding/sub-command-active?
+                               :action ["Free Look"]
+                               :binding {:button :secondary :modifiers []}}
+                              {:command :scene.camera.free-look.speed-boost
+                               :action ["Free Look" "Speed Boost"]
+                               :modifier :shift}
+                              {:command :scene.camera.free-look.speed-precision
+                               :action ["Free Look" "Speed Precision"]
+                               :modifier :alt}])
+    (testing "registered modifier commands are active by default"
+      (is (mouse-binding/command-active?
             ::camera
-            :scene.camera.free-look
-            :speed-boost
+            :scene.camera.free-look.speed-boost
             {:modifiers #{:shift}}))
       (is (not
-            (mouse-binding/sub-command-active?
+            (mouse-binding/command-active?
               ::camera
-              :scene.camera.free-look
-              :speed-boost
-              {:modifiers #{:control}}))))
-    (let [overrides-1 (mouse-binding/update-sub-command-modifier
+              :scene.camera.free-look.speed-boost
+              {:modifiers #{:control}})))
+      (is (= {:kind :mouse-modifier
+              :context ::camera
+              :command :scene.camera.free-look.speed-boost
+              :action ["Free Look" "Speed Boost"]
+              :context-path "Scene 3D Camera"
+              :modifier :shift
+              :default-modifier :shift}
+             (mouse-binding/command-row {} ::camera :scene.camera.free-look.speed-boost))))
+    (let [overrides-1 (mouse-binding/update-modifier-command
                         {}
                         ::camera
-                        :scene.camera.free-look
-                        :speed-boost
+                        :scene.camera.free-look.speed-boost
                         :control)]
-      (testing "sub-command modifier overrides coexist with binding overrides"
+      (testing "modifier override is applied"
         (is (= {::camera
-                {:scene.camera.free-look
-                 {:sub-commands {:speed-boost :control}}}}
+                {:scene.camera.free-look.speed-boost
+                 {:modifier :control}}}
                overrides-1))
-        (let [overrides-2 (mouse-binding/update-command-bindings
-                            overrides-1
-                            ::camera
-                            :scene.camera.free-look
-                            [{:button :middle :modifiers []}])]
-          (is (= :control
-                 (get-in overrides-2 [::camera :scene.camera.free-look :sub-commands :speed-boost])))
-          (mouse-binding/set-user-overrides! overrides-2)
-          (is (= :control
-                 (mouse-binding/effective-sub-command-modifier
-                   overrides-2
-                   ::camera
-                   :scene.camera.free-look
-                   :speed-boost)))
-          (is (= :scene.camera.free-look
-                 (mouse-binding/command-for-action ::camera {:button :middle})))
-          (is (nil?
-                (mouse-binding/command-for-action ::camera {:button :secondary})))
-          (is (mouse-binding/sub-command-active?
+        (mouse-binding/set-user-overrides! overrides-1)
+        (is (mouse-binding/command-active?
+              ::camera
+              :scene.camera.free-look.speed-boost
+              {:modifiers #{:control}}))
+        (is (not
+              (mouse-binding/command-active?
                 ::camera
-                :scene.camera.free-look
-                :speed-boost
-                {:modifiers #{:control}}))
-          (is (not
-                (mouse-binding/sub-command-active?
-                  ::camera
-                  :scene.camera.free-look
-                  :speed-boost
-                  {:modifiers #{:shift}})))
-          (let [overrides-3 (mouse-binding/reset-command-bindings overrides-2 ::camera :scene.camera.free-look)]
-            (testing "resetting bindings preserves modifier overrides"
-              (is (= {::camera
-                      {:scene.camera.free-look
-                       {:sub-commands {:speed-boost :control}}}}
-                     overrides-3))
-              (mouse-binding/set-user-overrides! overrides-3)
-              (is (= :scene.camera.free-look
-                     (mouse-binding/command-for-action ::camera {:button :secondary})))
-              (is (mouse-binding/sub-command-active?
-                    ::camera
-                    :scene.camera.free-look
-                    :speed-boost
-                    {:modifiers #{:control}}))
-              (let [overrides-4 (mouse-binding/reset-sub-command-modifier
-                                  overrides-3
-                                  ::camera
-                                  :scene.camera.free-look
-                                  :speed-boost)]
-                (testing "resetting the modifier removes the last override entry"
-                  (is (= {} overrides-4))
-                  (mouse-binding/set-user-overrides! overrides-4)
-                  (is (= :shift
-                         (mouse-binding/effective-sub-command-modifier
-                           overrides-4
-                           ::camera
-                           :scene.camera.free-look
-                           :speed-boost)))
-                  (is (mouse-binding/sub-command-active?
-                        ::camera
-                        :scene.camera.free-look
-                        :speed-boost
-                        {:modifiers #{:shift}}))
-                  (is (not
-                        (mouse-binding/sub-command-active?
+                :scene.camera.free-look.speed-boost
+                {:modifiers #{:shift}})))
+        (is (= {:kind :mouse-modifier
+                :context ::camera
+                :command :scene.camera.free-look.speed-boost
+                :action ["Free Look" "Speed Boost"]
+                :context-path "Scene 3D Camera"
+                :modifier :control
+                :default-modifier :shift}
+               (mouse-binding/command-row overrides-1 ::camera :scene.camera.free-look.speed-boost))))
+      (let [overrides-2 (mouse-binding/reset-modifier-command
+                          overrides-1
                           ::camera
-                          :scene.camera.free-look
-                          :speed-boost
-                          {:modifiers #{:control}}))))))))))))
+                          :scene.camera.free-look.speed-boost)]
+        (testing "reset restores the default modifier"
+          (is (= {} overrides-2))
+          (mouse-binding/set-user-overrides! overrides-2)
+          (is (mouse-binding/command-active?
+                ::camera
+                :scene.camera.free-look.speed-boost
+                {:modifiers #{:shift}}))
+          (is (not
+                (mouse-binding/command-active?
+                  ::camera
+                  :scene.camera.free-look.speed-boost
+                  {:modifiers #{:control}}))))))))

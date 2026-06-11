@@ -1593,23 +1593,23 @@
   ::tile-map-editor
   "Tile Map Editor"
   [{:command :scene.tile-map.paint
-    :action "Paint"
+    :action ["Paint"]
     :binding {:button :primary :modifiers []}}
    {:command :scene.tile-map.select-brush
-    :action "Select Brush"
+    :action ["Select Brush"]
     :binding {:button :primary :modifiers [:shift]}}
    {:command :scene.tile-map.erase
-    :action "Erase"
+    :action ["Erase"]
     :binding {:button :secondary :modifiers []}}
    {:command :scene.tile-map.cut
-    :action "Cut"
+    :action ["Cut"]
     :binding {:button :middle :modifiers [:shift :control]}}
    {:command :scene.camera.orbit
-    :action "Orbit"}
+    :action ["Orbit"]}
    {:command :scene.camera.pan
-    :action "Pan"}
+    :action ["Pan"]}
    {:command :scene.camera.zoom
-    :action "Zoom"}])
+    :action ["Zoom"]}])
 
 (g/defnode TileMapGrid
   (inherits grid/Grid)

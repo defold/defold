@@ -57,14 +57,14 @@
   ::curve-view-camera
   "Curve Editor"
   [{:command :scene.camera.pan
-    :action "Pan"}
+    :action ["Pan"]}
    {:command :scene.camera.zoom
-    :action "Zoom"}
+    :action ["Zoom"]}
    {:command :curve-view.add-control-point
-    :action "Add Control Point"
+    :action ["Add Control Point"]
     :binding {:modifiers []}}
    {:command :curve-view.delete-control-point
-    :action "Delete Control Point"
+    :action ["Delete Control Point"]
     :binding {:modifiers []}}]
   {:fallback-context :editor.camera/scene-camera-orthographic})
 

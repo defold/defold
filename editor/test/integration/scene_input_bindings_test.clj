@@ -116,10 +116,10 @@
         ::tile-map/tile-map-editor
         "Tile Map Editor"
         [{:command :scene.tile-map.paint
-          :action "Paint"
+          :action ["Paint"]
           :binding {:button :primary :modifiers []}}
          {:command :scene.tile-map.erase
-          :action "Erase"
+          :action ["Erase"]
           :binding {:button :primary :modifiers [:shift]}}])
       (is (= :scene.tile-map.erase
              (mouse-binding/command-for-action
@@ -169,7 +169,7 @@
         ::camera/scene-camera-orthographic
         "Scene 2D Camera"
         [{:command :scene.camera.pan
-          :action "Pan"
+          :action ["Pan"]
           :binding {:button :primary :modifiers [:shift]}}])
       (let [[_collection-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
             camera-controller (camera-controller view)
@@ -195,13 +195,13 @@
         ::camera/scene-camera-orthographic
         "Scene 2D Camera"
         [{:command :scene.camera.pan
-          :action "Pan"
+          :action ["Pan"]
           :binding {:button :primary :modifiers [:shift]}}])
       (mouse-binding/register!
         ::tile-map/tile-map-editor
         "Tile Map Editor"
         [{:command :scene.tile-map.erase
-          :action "Erase"
+          :action ["Erase"]
           :binding {:button :primary :modifiers [:shift]}}])
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
@@ -230,13 +230,13 @@
         ::camera/scene-camera-orthographic
         "Scene 2D Camera"
         [{:command :scene.camera.pan
-          :action "Pan"
+          :action ["Pan"]
           :binding {:button :primary :modifiers [:shift]}}])
       (mouse-binding/register!
         ::tile-map/tile-map-editor
         "Tile Map Editor"
         [{:command :scene.camera.pan
-          :action "Pan"}]
+          :action ["Pan"]}]
         {:fallback-context ::camera/scene-camera-orthographic})
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
@@ -281,7 +281,7 @@
         ::camera/scene-camera-orthographic
         "Scene 2D Camera"
         [{:command :scene.camera.pan
-          :action "Pan"
+          :action ["Pan"]
           :binding {:button :primary :modifiers [:shift]}}])
 
       (testing "registered binding works without overrides"
@@ -320,7 +320,7 @@
       (mouse-binding/register!
         ::camera/scene-camera-orthographic
         "Scene 2D Camera"
-        [{:command :scene.camera.pan :action "Pan"}])
+        [{:command :scene.camera.pan :action ["Pan"]}])
       ;; Override to something the base binding cannot match:
       ;; secondary button + control modifier.
       (mouse-binding/set-user-overrides!
@@ -369,7 +369,7 @@
         ::camera/scene-camera-orthographic
         "Scene 2D Camera"
         [{:command :scene.camera.pan
-          :action "Pan"
+          :action ["Pan"]
           :binding {:button :primary :modifiers [:shift]}}])
       (mouse-binding/set-user-overrides!
         {::camera/scene-camera-orthographic

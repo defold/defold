@@ -179,10 +179,10 @@
         ::curve-view/curve-view-camera
         "Curve Editor"
         [{:command :curve-view.add-control-point
-          :action "Add Control Point"
+          :action ["Add Control Point"]
           :binding {:button :middle :modifiers []}}
          {:command :curve-view.delete-control-point
-          :action "Delete Control Point"
+          :action ["Delete Control Point"]
           :binding {:button :secondary :modifiers []}}])
       (let [view (make-curve-view! app-view 800 400)
             node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
@@ -227,10 +227,10 @@
         ::curve-view/curve-view-camera
         "Curve Editor"
         [{:command :curve-view.add-control-point
-          :action "Add Control Point"
+          :action ["Add Control Point"]
           :binding {:button :primary :modifiers [:shift]}}
          {:command :curve-view.delete-control-point
-          :action "Delete Control Point"
+          :action ["Delete Control Point"]
           :binding {:button :primary :modifiers [:alt]}}])
       (mouse-binding/set-user-overrides!
         {::curve-view/curve-view-camera

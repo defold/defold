@@ -159,49 +159,33 @@
     mouse-binding-rows))
 
 
-(defn- mouse-sub-binding->cmds
-  "Returns {[context command modifier] -> #{sub-cmd-label ...}}"
+(defn- mouse-modifier->cmds
+  "Returns {[context modifier] -> #{action-display-str ...}}"
   [mouse-binding-rows]
   (reduce
-    (fn [acc {:keys [context command sub-cmd-label modifier kind]}]
-      (if (and (= :mouse-sub-binding kind) modifier)
-        (update acc [context command modifier] (fnil conj #{}) sub-cmd-label)
+    (fn [acc {:keys [context modifier action kind]}]
+      (if (and (= :mouse-modifier kind) modifier)
+        (update acc [context modifier] (fnil conj #{}) (coll/join-to-string " → " action))
         acc))
     {}
     mouse-binding-rows))
 
-(defn- mouse-sub-binding-row [mb sc mouse-bindings]
-  (let [{:keys [context command context-path action]} mb
-        default-modifier (:modifier sc)
-        effective-modifier (mouse-binding/effective-sub-command-modifier mouse-bindings context command (:command sc))]
-    {:kind :mouse-sub-binding
-     :context context
-     :command command
-     :sub-cmd (:command sc)
-     :sub-cmd-label (:label sc)
-     :context-path context-path
-     :action action
-     :modifier effective-modifier
-     :default-modifier default-modifier}))
-
 (defn- row-display-label [row]
   (case (:kind row)
-    :mouse-binding (coll/join-to-string " → " [(:context-path row) (:action row)])
-    :mouse-sub-binding (coll/join-to-string " → " [(:context-path row) (:action row) (:sub-cmd-label row)])
+    (:mouse-binding :mouse-modifier) (coll/join-to-string " → " (into [(:context-path row)] (:action row)))
     :keyboard (command-label (:command row))))
 
 (defn- describe-command-cell [keymap localization-state row]
   (if-let [command (:command row)]
     (let [kind (:kind row)
-          badge? (or (= kind :mouse-binding) (= kind :mouse-sub-binding))
+          badge? (or (= kind :mouse-binding) (= kind :mouse-modifier))
           changed (case kind
                     :mouse-binding (= :custom (:binding-source row))
-                    :mouse-sub-binding (not= (:modifier row) (:default-modifier row))
+                    :mouse-modifier (not= (:modifier row) (:default-modifier row))
                     (not= (keymap/shortcuts keymap command)
                           (keymap/shortcuts (keymap/default) command)))
           parts (case kind
-                  :mouse-binding [(:context-path row) (:action row)]
-                  :mouse-sub-binding [(:context-path row) (:action row) (:sub-cmd-label row)]
+                  (:mouse-binding :mouse-modifier) (into [(:context-path row)] (:action row))
                   :keyboard (string/split (name command) #"\."))]
       {:graphic {:fx/type fxui/horizontal
                  :style-class "keymap-command"
@@ -219,12 +203,12 @@
                              (into [{:fx/type fx.region/lifecycle
                                      :h-box/hgrow :always}
                                     {:fx/type fxui/label
-                                     :style-class (if (= kind :mouse-sub-binding)
+                                     :style-class (if (= kind :mouse-modifier)
                                                     ["keymap-mouse-binding-badge" "keymap-mouse-modifier-badge"]
                                                     "keymap-mouse-binding-badge")
-                                     :text (if (= kind :mouse-sub-binding) "MM" "MB")
+                                     :text (if (= kind :mouse-modifier) "MM" "MB")
                                      :tooltip (localization-state (localization/message
-                                                                    (if (= kind :mouse-sub-binding)
+                                                                    (if (= kind :mouse-modifier)
                                                                       "prefs.keymap.badge.mouse-modifier"
                                                                       "prefs.keymap.badge.mouse-binding")))}]))}})
     {}))
@@ -251,7 +235,7 @@
         :spacing :small
         :style-class "keymap-shortcuts"
         :children (case kind
-                    :mouse-sub-binding
+                    :mouse-modifier
                     (let [warnings (:binding-warnings row)]
                       [(cond-> {:fx/type fxui/label
                                 :style-class "keymap-shortcut"
@@ -308,15 +292,13 @@
 (defn- filtered-row? [row shortcuts filter-text]
   (case (:kind row)
     :mouse-binding (text-util/includes-ignore-case?
-                     (coll/join-to-string " " (into [(:context-path row) (:action row)]
+                     (coll/join-to-string " " (into (into [(:context-path row)] (:action row))
                                                     (map mouse-binding/binding-display-text (:bindings row))))
                      filter-text)
-    :mouse-sub-binding (text-util/includes-ignore-case?
-                         (coll/join-to-string " " [(:context-path row)
-                                                   (:action row)
-                                                   (:sub-cmd-label row)
-                                                   (mouse-binding/modifier->label (:modifier row))])
-                         filter-text)
+    :mouse-modifier (text-util/includes-ignore-case?
+                      (coll/join-to-string " " (conj (into [(:context-path row)] (:action row))
+                                                     (mouse-binding/modifier->label (:modifier row))))
+                      filter-text)
     :keyboard (or (text-util/includes-ignore-case? (filterable-command-label (:command row)) filter-text)
                   (coll/some #(text-util/includes-ignore-case? (keymap/shortcut-filterable-text %) filter-text) shortcuts))))
 
@@ -353,8 +335,8 @@
 (def ^:private ^:const new-shortcut-popup-height 200)
 (def ^:private ^:const mouse-binding-popup-width 400)
 (def ^:private ^:const mouse-binding-popup-height 260)
-(def ^:private ^:const mouse-sub-binding-popup-width 360)
-(def ^:private ^:const mouse-sub-binding-popup-height 180)
+(def ^:private ^:const mouse-modifier-popup-width 360)
+(def ^:private ^:const mouse-modifier-popup-height 180)
 (def ^:private enter-shortcut (KeyCombination/valueOf "Enter"))
 (def ^:private escape-shortcut (KeyCombination/valueOf "Esc"))
 
@@ -546,22 +528,23 @@
                                    #(mouse-binding/update-command-bindings % context command new-bindings)))
                                (swap-state dissoc :mouse-binding-popup))}]}))}))
 
-(fxui/defc mouse-sub-binding-modifier-view
+(fxui/defc mouse-modifier-view
   {:compose [{:fx/type fx/ext-state
               :initial-state (:modifier (:row props))
               :key :draft-modifier
               :swap-key :swap-draft-modifier}]}
-  [{:keys [row draft-modifier swap-draft-modifier sub-binding->cmds localization-state swap-state update-mouse-bindings]}]
-  (let [{:keys [context command sub-cmd context-path action sub-cmd-label]} row
+  [{:keys [row draft-modifier swap-draft-modifier modifier->cmds localization-state swap-state update-mouse-bindings]}]
+  (let [{:keys [context command action]} row
+        action-str (coll/join-to-string " → " action)
         warnings (when draft-modifier
-                   (seq (disj (get sub-binding->cmds [context command draft-modifier] #{}) sub-cmd-label)))]
+                   (seq (disj (get modifier->cmds [context draft-modifier] #{}) action-str)))]
     {:fx/type fxui/vertical
      :padding :medium
      :spacing :medium
      :children
      (-> [{:fx/type fxui/label
            :alignment :center
-           :text (coll/join-to-string " → " [context-path action sub-cmd-label])}
+           :text (row-display-label row)}
           {:fx/type fx/ext-let-refs
            :refs {::modifier-toggle-group {:fx/type fx.toggle-group/lifecycle}}
            :desc
@@ -591,13 +574,13 @@
                 :children
                 [{:fx/type fxui/button
                   :text (localization-state (localization/message "dialog.button.cancel"))
-                  :on-action (fn [_] (swap-state dissoc :mouse-sub-binding-popup))}
+                  :on-action (fn [_] (swap-state dissoc :mouse-modifier-popup))}
                  {:fx/type fxui/button
                   :text (localization-state (localization/message "prefs.keymap.mouse-binding.button.apply"))
                   :on-action (fn [_]
                                (update-mouse-bindings
-                                 #(mouse-binding/update-sub-command-modifier % context command sub-cmd draft-modifier))
-                               (swap-state dissoc :mouse-sub-binding-popup))}]}))}))
+                                 #(mouse-binding/update-modifier-command % context command draft-modifier))
+                               (swap-state dissoc :mouse-modifier-popup))}]}))}))
 
 (defn- popup-center-coords [^Window window ^double popup-width ^double popup-height]
   (let [root (.getRoot (.getScene window))
@@ -612,9 +595,9 @@
     (let [[x y] (popup-center-coords window mouse-binding-popup-width mouse-binding-popup-height)]
       (swap-state assoc :mouse-binding-popup {:row row :binding-index nil :x x :y y}))
 
-    :mouse-sub-binding
-    (let [[x y] (popup-center-coords window mouse-sub-binding-popup-width mouse-sub-binding-popup-height)]
-      (swap-state assoc :mouse-sub-binding-popup {:row row :x x :y y}))
+    :mouse-modifier
+    (let [[x y] (popup-center-coords window mouse-modifier-popup-width mouse-modifier-popup-height)]
+      (swap-state assoc :mouse-modifier-popup {:row row :x x :y y}))
 
     :keyboard
     (let [[x y] (popup-center-coords window new-shortcut-popup-width new-shortcut-popup-height)]
@@ -694,8 +677,8 @@
           :text (localization-state (localization/message "prefs.keymap.context-menu.reset-mouse-bindings-to-defaults"))
           :on-action (fn [_] (update-mouse-bindings #(mouse-binding/reset-command-bindings % context command)))}]))))
 
-(defn- mouse-sub-binding-context-menu-items [localization-state swap-state update-mouse-bindings row]
-  (let [{:keys [context command sub-cmd]} row]
+(defn- mouse-modifier-context-menu-items [localization-state swap-state update-mouse-bindings row]
+  (let [{:keys [context command]} row]
     [{:fx/type fx.menu-item/lifecycle
       :text (localization-state (localization/message "prefs.keymap.context-menu.edit-modifier"))
       :on-action (fn [^ActionEvent e]
@@ -704,7 +687,7 @@
       :text (localization-state (localization/message "prefs.keymap.context-menu.reset-to-default"))
       :on-action (fn [_]
                    (update-mouse-bindings
-                     #(mouse-binding/reset-sub-command-modifier % context command sub-cmd)))}]))
+                     #(mouse-binding/reset-modifier-command % context command)))}]))
 
 (fxui/defc keymap-view
   {:compose [{:fx/type fx/ext-watcher
@@ -716,23 +699,19 @@
              {:fx/type fx/ext-state
               :initial-state {:filter-text ""}}]}
   [{:keys [update-keymap update-mouse-bindings state swap-state keymap handler-state localization-state mouse-bindings]}]
-  (let [{:keys [filter-text context-menu new-shortcut-popup mouse-binding-popup mouse-sub-binding-popup]} state
+  (let [{:keys [filter-text context-menu new-shortcut-popup mouse-binding-popup mouse-modifier-popup]} state
         keyboard-rows (->> (handler/public-commands handler-state)
                            (into (keymap/commands keymap))
                            (e/map (fn [command]
                                     {:kind :keyboard
                                      :command command})))
-        mouse-binding-rows (into []
-                                 (mapcat (fn [mb]
-                                           (let [row (mouse-binding/command-row mouse-bindings (:context mb) (:command mb))]
-                                             (if-let [sub-cmds (:sub-commands mb)]
-                                               (into [row] (map #(mouse-sub-binding-row mb % mouse-bindings)) sub-cmds)
-                                               [row]))))
+        mouse-binding-rows (mapv (fn [{:keys [context command]}]
+                                   (mouse-binding/command-row mouse-bindings context command))
                                  (mouse-binding/all-bindings))
         binding->cmds (mouse-binding->cmds mouse-binding-rows)
         conflicts (coll/into-> binding->cmds {} (filter #(> (count (val %)) 1)))
-        sub-binding->cmds (mouse-sub-binding->cmds mouse-binding-rows)
-        sub-binding-conflicts (coll/into-> sub-binding->cmds {} (filter #(> (count (val %)) 1)))
+        modifier->cmds (mouse-modifier->cmds mouse-binding-rows)
+        modifier-conflicts (coll/into-> modifier->cmds {} (filter #(> (count (val %)) 1)))
         mouse-binding-rows (mapv (fn [{:keys [context command bindings modifier] :as row}]
                                    (case (:kind row)
                                      :mouse-binding
@@ -742,8 +721,8 @@
                                                       (when-let [conflicting (seq (disj (get conflicts [context (normalize-binding b)] #{}) command))]
                                                         (mapv #(hash-map :type :conflict :command %) conflicting))))
                                                   bindings))
-                                     :mouse-sub-binding
-                                     (if-let [conflicting (seq (disj (get sub-binding-conflicts [context command modifier] #{}) (:sub-cmd-label row)))]
+                                     :mouse-modifier
+                                     (if-let [conflicting (seq (disj (get modifier-conflicts [context modifier] #{}) (coll/join-to-string " → " (:action row))))]
                                        (assoc row :binding-warnings conflicting)
                                        row)
                                      row))
@@ -811,23 +790,23 @@
                          :swap-state swap-state
                          :update-mouse-bindings update-mouse-bindings}]}]})
 
-         mouse-sub-binding-popup
-         (let [{:keys [row x y]} mouse-sub-binding-popup]
+         mouse-modifier-popup
+         (let [{:keys [row x y]} mouse-modifier-popup]
            {:fx/type fx.popup/lifecycle
             :on-window true
             :showing true
             :anchor-x x
             :anchor-y y
             :auto-hide true
-            :on-hiding (fn [_] (swap-state dissoc :mouse-sub-binding-popup))
+            :on-hiding (fn [_] (swap-state dissoc :mouse-modifier-popup))
             :content [{:fx/type fx.stack-pane/lifecycle
-                       :pref-width mouse-sub-binding-popup-width
+                       :pref-width mouse-modifier-popup-width
                        :children
                        [{:fx/type fx.region/lifecycle
                          :style-class "keymap-new-shortcut-background"}
-                        {:fx/type mouse-sub-binding-modifier-view
+                        {:fx/type mouse-modifier-view
                          :row row
-                         :sub-binding->cmds sub-binding->cmds
+                         :modifier->cmds modifier->cmds
                          :localization-state localization-state
                          :swap-state swap-state
                          :update-mouse-bindings update-mouse-bindings}]}]})
@@ -837,7 +816,7 @@
                command (:command row)
                items (case (:kind row)
                        :mouse-binding (mouse-binding-context-menu-items localization-state swap-state update-mouse-bindings row)
-                       :mouse-sub-binding (mouse-sub-binding-context-menu-items localization-state swap-state update-mouse-bindings row)
+                       :mouse-modifier (mouse-modifier-context-menu-items localization-state swap-state update-mouse-bindings row)
                        :keyboard (keyboard-context-menu-items localization-state update-keymap swap-state keymap command))]
            {:fx/type fx.context-menu/lifecycle
             :on-window true

@@ -1117,9 +1117,9 @@
               prefs (g/node-value self :prefs evaluation-context)
               {:keys [pressed-keys]} input-state
               speed (* ^double camera-speed
-                       (double (cond (mouse-binding/sub-command-active? ::scene-camera-perspective :scene.camera.free-look :speed-boost input-state)
+                       (double (cond (mouse-binding/command-active? ::scene-camera-perspective :scene.camera.free-look.speed-boost input-state)
                                      camera-speed-boost
-                                     (mouse-binding/sub-command-active? ::scene-camera-perspective :scene.camera.free-look :speed-precision input-state)
+                                     (mouse-binding/command-active? ::scene-camera-perspective :scene.camera.free-look.speed-precision input-state)
                                      camera-speed-precision
                                      :else 1.0))
                        (double (prefs/get prefs prefs-key-move-speed)))
@@ -1235,40 +1235,44 @@
   ::scene-camera-orthographic
   "Scene 2D Camera"
   [{:command :scene.camera.orbit
-    :action "Orbit"
+    :action ["Orbit"]
     :binding {:button :primary :modifiers [:control]}}
    {:command :scene.camera.pan
-    :action "Pan"
+    :action ["Pan"]
     :binding {:button :primary :modifiers [:alt]}}
    {:command :scene.camera.pan
-    :action "Pan"
+    :action ["Pan"]
     :binding {:button :middle :modifiers []}}
    {:command :scene.camera.pan
-    :action "Pan"
+    :action ["Pan"]
     :binding {:button :secondary :modifiers []}}
    {:command :scene.camera.zoom
-    :action "Zoom"
+    :action ["Zoom"]
     :binding {:button :primary :modifiers [:control :alt]}}])
 
 (mouse-binding/register!
   ::scene-camera-perspective
   "Scene 3D Camera"
   [{:command :scene.camera.free-look
-    :action "Free Look"
-    :binding {:button :secondary :modifiers []}
-    :sub-commands [{:command :speed-boost :label "Speed Boost" :modifier :shift}
-                   {:command :speed-precision :label "Speed Precision" :modifier :alt}]}
+    :action ["Free Look"]
+    :binding {:button :secondary :modifiers []}}
+   {:command :scene.camera.free-look.speed-boost
+    :action ["Free Look" "Speed Boost"]
+    :modifier :shift}
+   {:command :scene.camera.free-look.speed-precision
+    :action ["Free Look" "Speed Precision"]
+    :modifier :alt}
    {:command :scene.camera.orbit
-    :action "Orbit"
+    :action ["Orbit"]
     :binding {:button :primary :modifiers [:control]}}
    {:command :scene.camera.pan
-    :action "Pan"
+    :action ["Pan"]
     :binding {:button :primary :modifiers [:alt]}}
    {:command :scene.camera.pan
-    :action "Pan"
+    :action ["Pan"]
     :binding {:button :middle :modifiers []}}
    {:command :scene.camera.zoom
-    :action "Zoom"
+    :action ["Zoom"]
     :binding {:button :primary :modifiers [:control :alt]}}])
 
 (defn show-settings! [camera-node ^Parent owner prefs keymap localization]

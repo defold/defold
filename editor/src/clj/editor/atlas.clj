@@ -80,11 +80,11 @@
   ::atlas-tool
   "Atlas Editor"
   [{:command :scene.camera.orbit
-    :action "Orbit"}
+    :action ["Orbit"]}
    {:command :scene.camera.pan
-    :action "Pan"}
+    :action ["Pan"]}
    {:command :scene.camera.zoom
-    :action "Zoom"}]
+    :action ["Zoom"]}]
   {:fallback-context :editor.camera/scene-camera-orthographic})
 
 (g/deftype ^:private NameCounts {s/Str s/Int})
