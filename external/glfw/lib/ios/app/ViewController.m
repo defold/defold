@@ -167,15 +167,6 @@ static int g_view_type = GLFW_NO_API;
     [super viewDidUnload];
 }
 
-#pragma mark UIContentContainer
-
-- (void)accelerometer:(UIAccelerometer *)accelerometer didAccelerate:(UIAcceleration *)acceleration
-{
-    _glfwInput.AccX = acceleration.x;
-    _glfwInput.AccY = acceleration.y;
-    _glfwInput.AccZ = acceleration.z;
-}
-
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
     return UIRectEdgeAll;
 }
