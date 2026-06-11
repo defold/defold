@@ -51,7 +51,6 @@
    :boolean false
    :integer 0
    :number 0.0
-   :vec3 (vector-of :double 0.0 0.0 0.0)
    :vec4 (vector-of :double 0.0 0.0 0.0 0.0)
    :mat4 (vector-of :double
            1.0 0.0 0.0 0.0

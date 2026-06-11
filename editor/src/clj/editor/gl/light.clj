@@ -133,12 +133,6 @@
                (* (double (nth light-color 1 1.0)) light-intensity)
                (* (double (nth light-color 2 1.0)) light-intensity))))
 
-(defn- add-ambient-light
-  [^Vector3d a ^Vector3d b]
-  (Vector3d. (+ (.x a) (.x b))
-             (+ (.y a) (.y b))
-             (+ (.z a) (.z b))))
-
 (defn preview-light-data-from-renderables
   "Prepares the camera-independent parts of scene preview light packing."
   [renderables]
@@ -160,7 +154,7 @@
 
             ambient-light
             (transduce (map preview-light-entry->ambient-light)
-                       (completing add-ambient-light)
+                       (completing math/add-vector)
                        math/zero-v3
                        ambient-light-entries)
 

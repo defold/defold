@@ -686,7 +686,11 @@
 
 (deftest build-light-resource-types
   (let [light-resource-type-cases
-        [{:ext "point_light"
+        [{:ext "ambient_light"
+          :label "Ambient Light"
+          :data {"color" [0.1 0.2 0.3]
+                 "intensity" 2.0}}
+         {:ext "point_light"
           :label "Point Light"
           :data {"color" [1.0 1.0 1.0]
                  "intensity" 1.0

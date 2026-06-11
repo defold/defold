@@ -17,7 +17,6 @@
             [dynamo.graph :as g]
             [editor.attachment :as attachment]
             [editor.build-target :as bt]
-            [editor.core :as core]
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]

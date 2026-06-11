@@ -278,7 +278,8 @@
             view-depth (math/dot (camera/camera-forward-vector camera) to-point)]
         (not= 0.0 view-depth))))
 
-(defn- light-gizmo-scale-factor [camera viewport ^Tuple3d reference-point]
+(defn- light-gizmo-scale-factor
+  ^double [camera viewport ^Tuple3d reference-point]
   ;; camera-project asserts when a perspective-projected point ends up with
   ;; w == 0. That happens for points on the camera plane, so skip those gizmos
   ;; for this pass instead of letting a light icon take down scene rendering.
@@ -298,7 +299,7 @@
     (reduce (fn [vbuf renderable]
               (let [^Vector3d world-translation (:world-translation renderable)
                     sf (light-gizmo-scale-factor camera viewport world-translation)
-                    h (* 2.0 (double sf) (double light-icon-pixels))]
+                    h (* 2.0 sf light-icon-pixels)]
                 (if (and (finite-positive? sf)
                          (finite-positive? h))
                   (if-some [axes (billboard-axes world-translation camera)]
@@ -389,7 +390,7 @@
                         ^Vector3d p (:world-translation renderable)
                         d (world-dir-from-light renderable)
                         sf (light-gizmo-scale-factor camera viewport p)
-                        total-len (* (double sf) gizmo-target-pixels)]
+                        total-len (* sf gizmo-target-pixels)]
                     (when (finite-positive? total-len)
                       (vbuf-push-directional-arrow! vbuf arrow-mode p d cr cg cb total-len 1.0))
                     vbuf)
