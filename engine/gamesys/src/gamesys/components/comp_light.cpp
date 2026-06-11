@@ -52,16 +52,12 @@ namespace dmGameSystem
     struct LightWorld
     {
         dmArray<LightComponent*> m_Components;
-        uint32_t                 m_MaxComponentInstances;
     };
 
     static dmGameObject::CreateResult CompLightNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        LightContext* context = (LightContext*) params.m_Context;
         LightWorld* world = new LightWorld;
-        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxLightCount);
-        world->m_Components.SetCapacity(comp_count);
-        world->m_MaxComponentInstances = params.m_MaxComponentInstances;
+        world->m_Components.SetCapacity(params.m_MaxComponentInstances);
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -80,7 +76,7 @@ namespace dmGameSystem
         }
 
         dmVMath::Vector4 color = dmRender::GetLightColor(context->m_RenderContext, prototype);
-        return dmVMath::Vector3(color.getX(), color.getY(), color.getZ()) * dmRender::GetLightIntensity(context->m_RenderContext, prototype);
+        return dmVMath::Vector3(color.getXYZ()) * dmRender::GetLightIntensity(context->m_RenderContext, prototype);
     }
 
     static bool CreateRenderLightInstance(LightContext* context, LightComponent* light)
@@ -92,25 +88,6 @@ namespace dmGameSystem
             ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, (int) context->m_MaxLightCount);
             return false;
         }
-        return true;
-    }
-
-    static bool EnsureComponentCapacity(LightWorld* world, bool is_ambient)
-    {
-        if (!world->m_Components.Full())
-        {
-            return true;
-        }
-
-        if (!is_ambient || world->m_Components.Capacity() >= world->m_MaxComponentInstances)
-        {
-            return false;
-        }
-
-        // Ambient lights can grow the component array up to the normal max
-        // component instance limit because they do not consume render light slots.
-        uint32_t remaining = world->m_MaxComponentInstances - world->m_Components.Capacity();
-        world->m_Components.OffsetCapacity((int32_t) dmMath::Min(16U, remaining));
         return true;
     }
 
@@ -127,16 +104,9 @@ namespace dmGameSystem
         LightResource* light_resource = (LightResource*) params.m_Resource;
         bool is_ambient = LightType(context, light_resource) == dmRender::LIGHT_TYPE_AMBIENT;
 
-        if (!EnsureComponentCapacity(world, is_ambient))
+        if (world->m_Components.Full())
         {
-            if (is_ambient)
-            {
-                ShowFullBufferError("Light", world->m_Components.Capacity());
-            }
-            else
-            {
-                ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, (int) context->m_MaxLightCount);
-            }
+            ShowFullBufferError("Light", world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
