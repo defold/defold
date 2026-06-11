@@ -9,10 +9,36 @@ project(defold_platform LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
 # Sources
 set(PLAT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
+set(PLATFORM_DEPENDENCIES dlib)
+
+file(GLOB _DEFOLD_PLATFORM_HEADERS "${PLAT_SRC_DIR}/platform_*.h")
+list(APPEND _DEFOLD_PLATFORM_HEADERS
+    "${PLAT_SRC_DIR}/window.h"
+    "${PLAT_SRC_DIR}/window.hpp")
 
 # Select platform sources (centralized)
 set(PLATFORM_USE_GLFW3 OFF)
-if(DEFOLD_IS_PRIVATE_VENDOR)
+if(DEFOLD_PLATFORM_WINDOW_SOURCES)
+    set(_platform_private_extra_sources)
+    if(DEFOLD_PLATFORM_WINDOW_JOYSTICK_GUID_STUB)
+        set(_platform_private_compat_source "${CMAKE_CURRENT_BINARY_DIR}/platform_window_private_compat.cpp")
+        file(WRITE "${_platform_private_compat_source}"
+            "#include <stdint.h>\n"
+            "#include \"window.h\"\n"
+            "namespace dmPlatform\n"
+            "{\n"
+            "    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)\n"
+            "    {\n"
+            "        return 0;\n"
+            "    }\n"
+            "}\n")
+        list(APPEND _platform_private_extra_sources "${_platform_private_compat_source}")
+    endif()
+    set(_platform_glfw_sources
+        "${PLAT_SRC_DIR}/window.cpp"
+        ${DEFOLD_PLATFORM_WINDOW_SOURCES}
+        ${_platform_private_extra_sources})
+elseif(DEFOLD_IS_PRIVATE_VENDOR)
     # Private vendor (e.g., Switch): only include native window integration
     set(_platform_glfw_sources
         "${PLAT_SRC_DIR}/window.cpp"
@@ -46,7 +72,8 @@ endif()
 # platform
 defold_add_library(platform STATIC ${_platform_glfw_sources})
 target_include_directories(platform PUBLIC "${PLAT_SRC_DIR}")
-target_compile_definitions(platform PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+target_compile_definitions(platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+defold_target_link_libraries(platform "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
 
 if (PLATFORM_USE_GLFW3)
     target_compile_definitions(platform PUBLIC DM_INPUT_USE_GLFW3)
@@ -57,7 +84,9 @@ defold_add_library(platform_null STATIC
     "${PLAT_SRC_DIR}/window.cpp"
     "${PLAT_SRC_DIR}/platform_window_null.cpp")
 target_include_directories(platform_null PUBLIC "${PLAT_SRC_DIR}")
-target_compile_definitions(platform_null PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+target_compile_definitions(platform_null PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+defold_target_link_libraries(platform_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
+set_target_properties(platform_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk_headers)
 
 # platform_vulkan (adds Vulkan-capable window integration on top of GLFW3)
 if (PLATFORM_USE_GLFW3)
@@ -65,33 +94,41 @@ if (PLATFORM_USE_GLFW3)
     list(REMOVE_DUPLICATES _platform_vulkan_sources)
     defold_add_library(platform_vulkan STATIC ${_platform_vulkan_sources})
     target_include_directories(platform_vulkan PUBLIC "${PLAT_SRC_DIR}")
-    target_compile_definitions(platform_vulkan PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+    target_compile_definitions(platform_vulkan PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+    defold_target_link_libraries(platform_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
+    set_target_properties(platform_vulkan PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk_headers)
 endif()
+
 
 # ********************* Install *********************
 
-install(TARGETS platform platform_null
+defold_install_targets(TARGETS platform platform_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 if (PLATFORM_USE_GLFW3)
-    install(TARGETS platform_vulkan
+    defold_install_targets(TARGETS platform_vulkan
             ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
             LIBRARY DESTINATION lib/${TARGET_PLATFORM}
             RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 endif()
 
 # Install public platform headers (platform_*.h) into include/platform
-file(GLOB _DEFOLD_PLATFORM_HEADERS "${PLAT_SRC_DIR}/platform_*.h")
-if(_DEFOLD_PLATFORM_HEADERS)
-    install(FILES ${_DEFOLD_PLATFORM_HEADERS} DESTINATION include/platform)
-endif()
+defold_add_sdk_headers_target(platform_public_sdk_headers
+    DESTINATION include/platform
+    SOURCE_ROOT "${PLAT_SRC_DIR}"
+    FILES ${_DEFOLD_PLATFORM_HEADERS}
+    DEPENDS platform)
+install(FILES ${_DEFOLD_PLATFORM_HEADERS} DESTINATION include/platform)
 
-install(FILES
-    "${PLAT_SRC_DIR}/window.h"
-    "${PLAT_SRC_DIR}/window.hpp"
-    DESTINATION include/platform)
+defold_add_sdk_headers_target(platform_dmsdk_sdk_headers
+    DESTINATION sdk/include/dmsdk
+    SOURCE_ROOT "${PLAT_SRC_DIR}/dmsdk"
+    FILES "${PLAT_SRC_DIR}/dmsdk/platform/window.h"
+    DEPENDS platform)
+add_custom_target(platform_sdk_headers
+    DEPENDS platform_public_sdk_headers platform_dmsdk_sdk_headers)
 
 install(FILES
     "${PLAT_SRC_DIR}/dmsdk/platform/window.h"

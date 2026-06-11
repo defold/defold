@@ -269,6 +269,13 @@ dialog.quit-defold.header = Есть несохранённые изменени
 dialog.quit-defold.button.cancel = Отменить и продолжить работу
 dialog.quit-defold.button.quit = Выйти без сохранения
 
+# Restart Defold dialog
+
+dialog.restart-defold.title = Перезапустить Defold?
+dialog.restart-defold.header = Есть несохранённые изменения. Сохранить изменения перед перезапуском Defold?
+dialog.restart-defold.button.cancel = Отмена
+dialog.restart-defold.button.save-and-restart = Сохранить и перезапустить
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = Небезопасно обновлять форматы файлов
@@ -352,6 +359,16 @@ notification.fetch-libraries.problem.defold-min-version = требует Defold 
 notification.fetch-libraries.problem.install-failed = не удалось установить
 notification.fetch-libraries.problem.unknown = неизвестная проблема — {problem}
 notification.fetch-libraries.dependency-problem = {uri}\: {problem}
+
+# Editor scripts notification
+
+notification.reload-editor-scripts = Скрипты редактора изменились. Перезагрузить их сейчас?
+notification.reload-editor-scripts.action.reload = Перезагрузить скрипты редактора
+
+# Reload plugins notification
+
+notification.reload-plugins-failed = Не удалось перезагрузить нативные плагины расширений. Перезапустите Defold, чтобы загрузить их заново.\n\nФайл\: {file}\n\nИсходная ошибка от ОС\:\n{error}
+notification.reload-plugins-failed.action.restart = Перезапустить Defold
 
 # Open custom editor notifications
 
@@ -728,6 +745,7 @@ progress.updating-dependencies = Обновление зависимостей�
 progress.syncing-resources = Синхронизация ресурсов…
 progress.loading-project = Загрузка проекта…
 progress.loading-external-changes = Загрузка внешних изменений…
+progress.editor-scripts-reloaded = Скрипты редактора перезагружены в {time}
 progress.writing-files = Запись файлов…
 progress.caching-save-results = Кэширование результатов сохранения…
 progress.reading-timestamps = Чтение меток времени…
@@ -1070,9 +1088,27 @@ scene-popup.grid.plane = Плоскость
 scene-popup.grid.color = Цвет
 scene-popup.grid.opacity = Прозрачность
 scene-popup.camera.move-speed = Скорость движения
-scene-popup.camera.look-sensitivity = Чувствительность камеры
+scene-popup.camera.look-sensitivity = Скорость движения
+scene-popup.camera.fov = Поле зрения
 scene-popup.camera.invert-y = Инвертировать Y
 scene-popup.camera.walking-mode = Режим ходьбы
+scene-popup.scene-visibility.visibility-filters = Фильтры видимости
+scene-popup.scene-visibility.collision-shapes = Формы столкновения
+scene-popup.scene-visibility.camera = Камера
+scene-popup.scene-visibility.gui-bounds = GUI границы
+scene-popup.scene-visibility.gui-shapes = GUI формы
+scene-popup.scene-visibility.gui-particle-effects = GUI эффекты частиц
+scene-popup.scene-visibility.gui-spine-scenes = GUI Spine-сцены
+scene-popup.scene-visibility.gui-text = GUI текст
+scene-popup.scene-visibility.models = Модели
+scene-popup.scene-visibility.particle-effects = Эффекты частиц
+scene-popup.scene-visibility.skeletons = Скелеты
+scene-popup.scene-visibility.spine-scenes = Spine-сцены
+scene-popup.scene-visibility.sprites = Спрайты
+scene-popup.scene-visibility.text = Текст
+scene-popup.scene-visibility.tile-maps = Карты тайлов
+scene-popup.scene-visibility.component-guides = Направляющие компонентов
+scene-popup.scene-visibility.scene-visibility-bounds = Границы видимости сцены
 
 # Properties
 
@@ -1119,6 +1155,8 @@ property.appmanifest.graphics = Графика
 property.appmanifest.graphics.tooltip = Vulkan поддерживается только на настольных и мобильных платформах
 property.appmanifest.graphics-osx = Графика (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan является рендерером по умолчанию для macOS
+property.appmanifest.graphics-android = Графика (Android)
+property.appmanifest.graphics-android.tooltip = OpenGL+Vulkan используется по умолчанию на Android
 property.appmanifest.graphics-web = Графика (HTML5)
 property.appmanifest.graphics-web.tooltip = Поддержка WebGPU находится в бета-версии (веб-платформы)
 property.appmanifest.use-font-layout = Полная система текста
@@ -1187,6 +1225,7 @@ property.collision-object.event-contact.tooltip = Если выключено, �
 property.collision-object.event-trigger = События триггера
 property.collision-object.event-trigger.tooltip = Если выключено, фильтрует все события триггера с этим объектом
 property.collision-object.group = Группа
+property.collision-object.group.tilemap.tooltip = Это свойство не используется, если форма столкновений представлена картой тайлов. Группы столкновений определяются в источнике тайлов этой карты.
 property.collision-object.mask = Маска
 property.collision-object.shape.diameter = Диаметр
 property.collision-object.shape.dimensions = Размер
@@ -1874,7 +1913,7 @@ form.help.project.display.high_dpi = Включить высокодетализ
 form.label.project.display.samples = Сэмплы
 form.help.project.display.samples = Количество сэмплов для суперсэмплинга антиалиасинга, по умолчанию 0 (выключено)
 form.label.project.display.fullscreen = Полный экран
-form.help.project.display.fullscreen = Запускать приложение в полноэкранном режиме
+form.help.project.display.fullscreen = Запускать приложение в безрамочном полноэкранном режиме на настольных платформах вместо оконного режима
 form.label.project.display.display_profiles = Профили дисплея
 form.help.project.display.display_profiles = Ссылка на файл профилей отображения, используемый приложением
 form.label.project.display.dynamic_orientation = Автоориентация
@@ -2004,6 +2043,8 @@ form.label.project.profiler = Профайлер
 form.help.project.profiler = Настройки встроенного профайлера
 form.label.project.profiler.track_cpu = CPU в релизе
 form.help.project.profiler.track_cpu = Включить сбор CPU-профиля в релизной сборке
+form.label.project.profiler.track_detailed_memory = Подробная память
+form.help.project.profiler.track_detailed_memory = Включить подробное профилирование памяти. Может заметно снижать производительность на HTML5.
 form.label.project.profiler.enabled = Включено
 form.help.project.profiler.enabled = Включить профайлер в игре; для активации из кода вызовите profiler.enable()
 form.label.project.profiler.sleep_between_server_updates = Пауза сервера

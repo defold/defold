@@ -9,6 +9,7 @@ endif()
 
 # Defines
 target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_LINUX)
+target_compile_definitions(defold_sdk INTERFACE DM_HOSTFS=\"\")
 
 # Compile options
 target_compile_options(defold_sdk INTERFACE --target=${_DEFOLD_CLANG_TRIPLE})

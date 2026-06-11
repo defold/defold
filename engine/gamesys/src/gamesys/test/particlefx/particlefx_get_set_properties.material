@@ -1,6 +1,6 @@
 name: "get_set_properties"
-vertex_program: "/vertex_program/valid.vp"
-fragment_program: "/fragment_program/valid.fp"
+vertex_program: "/particlefx/vertex_program_valid.vp"
+fragment_program: "/particlefx/fragment_program_valid.fp"
 fragment_constants {
   name: "user_var1"
   type: CONSTANT_TYPE_USER

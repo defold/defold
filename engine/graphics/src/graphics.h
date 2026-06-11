@@ -26,7 +26,7 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#include <platform/window.h>
+#include <dmsdk/platform/window.h>
 
 namespace dmGraphics
 {
@@ -200,6 +200,7 @@ namespace dmGraphics
         uint32_t m_HasAttributeNormalMatrix       : 1;
         uint32_t m_HasAttributeNone               : 1;
         uint32_t m_HasAttributeTextureTransform2D : 1;
+        uint32_t m_HasAttributeMorphTargetWeights : 1;
     };
 
     struct WriteAttributeStreamDesc
@@ -230,6 +231,7 @@ namespace dmGraphics
         WriteAttributeStreamDesc    m_TexCoords;
         WriteAttributeStreamDesc    m_PageIndices;
         WriteAttributeStreamDesc    m_TextureTransform2D;
+        WriteAttributeStreamDesc    m_MorphTargetWeights;
         VertexStepFunction          m_StepFunction;
     };
 
@@ -583,6 +585,9 @@ namespace dmGraphics
             break;
         case VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D:
             metadata.m_HasAttributeTextureTransform2D = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS:
+            metadata.m_HasAttributeMorphTargetWeights = true;
             break;
         default:
             break;

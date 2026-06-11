@@ -41,6 +41,7 @@ namespace dmGraphics
         uint8_t m_ChannelIndexTexCoords;
         uint8_t m_ChannelIndexPageIndices;
         uint8_t m_ChannelIndexTextureTransform2D;
+        uint8_t m_ChannelIndexMorphTargetWeights;
     };
 
     struct UnpackAttributeData
@@ -425,6 +426,11 @@ namespace dmGraphics
             case VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D:
                 stream_desc = &params.m_TextureTransform2D;
                 channel_index = unpack_state.m_ChannelIndexTextureTransform2D++;
+                break;
+
+            case VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS:
+                stream_desc = &params.m_MorphTargetWeights;
+                channel_index = unpack_state.m_ChannelIndexMorphTargetWeights++;
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_NONE:

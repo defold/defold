@@ -910,15 +910,7 @@ namespace dmGameSystem
     {
         TileGridComponent* component = (TileGridComponent*) *params.m_UserData;
 
-        if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash)
-        {
-            dmGameSystemDDF::SetConstantTileMap* ddf = (dmGameSystemDDF::SetConstantTileMap*)params.m_Message->m_Data;
-            if (!component->m_RenderConstants)
-                component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-            dmGameSystem::SetRenderConstant(component->m_RenderConstants, GetMaterial(component), ddf->m_NameHash, 0, 0, ddf->m_Value);
-            ReHash(component);
-        }
-        else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
+        if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash)
         {
             dmGameSystemDDF::ResetConstantTileMap* ddf = (dmGameSystemDDF::ResetConstantTileMap*)params.m_Message->m_Data;
             if (component->m_RenderConstants) {

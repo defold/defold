@@ -6,8 +6,11 @@ include(defold)
 
 #******************************* Test Data *******************************
 
+set(INPUT_TEST_RUNTIME_DIR "${CMAKE_CURRENT_LIST_DIR}/../..")
+set(INPUT_TEST_BUILD_DIR "${INPUT_TEST_RUNTIME_DIR}/build/src/test/build")
+
 defold_protoc_encode(
-  "${CMAKE_CURRENT_BINARY_DIR}/build/test.input_bindingc"           # OUT_FILE
+  "${INPUT_TEST_BUILD_DIR}/test.input_bindingc"                    # OUT_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/test.input_binding"                  # SRC_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/input/input_ddf.proto"   # SCHEMA_PROTO
   "dmInputDDF.InputBinding"                                         # MESSAGE_NAME
@@ -15,7 +18,7 @@ defold_protoc_encode(
 )
 
 defold_protoc_encode(
-  "${CMAKE_CURRENT_BINARY_DIR}/build/test2.input_bindingc"          # OUT_FILE
+  "${INPUT_TEST_BUILD_DIR}/test2.input_bindingc"                   # OUT_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/test2.input_binding"                 # SRC_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/input/input_ddf.proto"   # SCHEMA_PROTO
   "dmInputDDF.InputBinding"                                         # MESSAGE_NAME
@@ -23,7 +26,7 @@ defold_protoc_encode(
 )
 
 defold_protoc_encode(
-  "${CMAKE_CURRENT_BINARY_DIR}/build/test_text.input_bindingc"      # OUT_FILE
+  "${INPUT_TEST_BUILD_DIR}/test_text.input_bindingc"               # OUT_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/test_text.input_binding"             # SRC_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/input/input_ddf.proto"   # SCHEMA_PROTO
   "dmInputDDF.InputBinding"                                         # MESSAGE_NAME
@@ -31,7 +34,7 @@ defold_protoc_encode(
 )
 
 defold_protoc_encode(
-  "${CMAKE_CURRENT_BINARY_DIR}/build/combinations.input_bindingc"   # OUT_FILE
+  "${INPUT_TEST_BUILD_DIR}/combinations.input_bindingc"            # OUT_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/combinations.input_binding"          # SRC_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/input/input_ddf.proto"   # SCHEMA_PROTO
   "dmInputDDF.InputBinding"                                         # MESSAGE_NAME
@@ -39,7 +42,7 @@ defold_protoc_encode(
 )
 
 defold_protoc_encode(
-  "${CMAKE_CURRENT_BINARY_DIR}/build/test.gamepadsc"                # OUT_FILE
+  "${INPUT_TEST_BUILD_DIR}/test.gamepadsc"                         # OUT_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/test.gamepads"                       # SRC_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/input/input_ddf.proto"   # SCHEMA_PROTO
   "dmInputDDF.GamepadMaps"                                          # MESSAGE_NAME
@@ -53,12 +56,12 @@ defold_add_executable(test_input "${CMAKE_CURRENT_LIST_DIR}/test_input.cpp")
 
 # make sure the test data is built
 add_custom_target(input_test_data DEPENDS
-    "${CMAKE_CURRENT_BINARY_DIR}/build/test.input_bindingc"
-    "${CMAKE_CURRENT_BINARY_DIR}/build/test2.input_bindingc"
-    "${CMAKE_CURRENT_BINARY_DIR}/build/test_text.input_bindingc"
-    "${CMAKE_CURRENT_BINARY_DIR}/build/combinations.input_bindingc"
-    "${CMAKE_CURRENT_BINARY_DIR}/build/test.gamepadsc")
-add_dependencies(input input_test_data)
+    "${INPUT_TEST_BUILD_DIR}/test.input_bindingc"
+    "${INPUT_TEST_BUILD_DIR}/test2.input_bindingc"
+    "${INPUT_TEST_BUILD_DIR}/test_text.input_bindingc"
+    "${INPUT_TEST_BUILD_DIR}/combinations.input_bindingc"
+    "${INPUT_TEST_BUILD_DIR}/test.gamepadsc")
+add_dependencies(test_input input_test_data)
 
 
 # Include parent binary dir for generated headers (e.g. input/input_ddf.h)
@@ -99,7 +102,7 @@ defold_target_link_graphics(test_input "${TARGET_PLATFORM}" PRIVATE)
 defold_target_link_platform(test_input "${TARGET_PLATFORM}" PRIVATE)
 
 # Register into global build_tests and run_tests with working directory set to engine/input
-defold_register_test_target(test_input ON "${CMAKE_CURRENT_LIST_DIR}/../.."
+defold_register_test_target(test_input ON "${INPUT_TEST_RUNTIME_DIR}"
     STAGE_FILES
         "build/src/test/build" "build/src/test/build"
 )

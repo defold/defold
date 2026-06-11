@@ -45,6 +45,7 @@ namespace dmGameSystem
 
         dmGraphics::HProgram m_Program;
         TextureResource*     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t             m_TextureResourcePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t             m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
@@ -66,6 +67,8 @@ namespace dmGameSystem
             resources->m_Program = 0;
         }
 
+        memset(resources->m_TextureResourcePaths, 0, sizeof(resources->m_TextureResourcePaths));
+
         ReleaseTextures(factory, resources->m_Textures);
     }
 
@@ -73,6 +76,7 @@ namespace dmGameSystem
     {
         memset(resources->m_Textures, 0, sizeof(resources->m_Textures));
         memset(resources->m_SamplerNames, 0, sizeof(resources->m_SamplerNames));
+        memset(resources->m_TextureResourcePaths, 0, sizeof(resources->m_TextureResourcePaths));
 
         dmResource::Result factory_e = dmResource::Get(factory, ddf->m_Program, (void**) &resources->m_Program);
         if ( factory_e != dmResource::RESULT_OK)
@@ -92,6 +96,8 @@ namespace dmGameSystem
             if (*texture_path != 0)
             {
                 factory_e = dmResource::Get(factory, texture_path, (void**)&resources->m_Textures[i]);
+                resources->m_TextureResourcePaths[i] = dmHashString64(texture_path);
+
                 if ( factory_e != dmResource::RESULT_OK)
                 {
                     ReleaseResources(factory, resources);
@@ -225,6 +231,7 @@ namespace dmGameSystem
                 continue;
             }
             resource->m_Textures[unit] = resources->m_Textures[i];
+            resource->m_TextureResourcePaths[unit] = resources->m_TextureResourcePaths[i];
             resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
             resource->m_NumTextures++;
         }

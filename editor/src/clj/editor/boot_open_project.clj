@@ -30,6 +30,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
+            [editor.doc :as doc]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.server :as ext.server]
             [editor.engine-profiler :as engine-profiler]
@@ -108,12 +109,6 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
 
-(defn- persist-window-state!
-  [^Stage stage ^Scene scene prefs]
-  (app-view/store-window-dimensions stage prefs)
-  (app-view/store-split-positions! scene prefs)
-  (app-view/store-hidden-panes! scene prefs))
-
 (defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
@@ -175,8 +170,8 @@
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
-          scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           [app-view ui-timer]  (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split right-split tool-tabs prefs localization)
+          scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph* app-view)
           outline-view         (outline-view/make-outline-view *view-graph* project app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
@@ -222,6 +217,7 @@
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
                                   (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
+                                  (doc/routes)
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
@@ -316,7 +312,7 @@
                                         (fn [successful?]
                                           (if successful?
                                             (do
-                                              (persist-window-state! stage scene prefs)
+                                              (app-view/store-window-state! stage prefs)
                                               (ui/close! stage))
                                             (ui/enable-ui!)))))
                                     false)
@@ -335,7 +331,7 @@
                                                                  :variant :danger
                                                                  :result true}]}))]
                                     (when result
-                                      (persist-window-state! stage scene prefs))
+                                      (app-view/store-window-state! stage prefs))
                                     result)))))
 
       (ui/on-closed! stage (fn [_]

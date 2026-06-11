@@ -57,22 +57,208 @@
     :wasm-web :wasm_pthread-web})
 
 (def custom-lib-names
-  {:x86-win32 {"hid" "hid"
+  {:x86-win32 {"basis_encoder" "basis_encoder"
+               "basis_encoder_noasan" "basis_encoder_noasan"
+               "basis_transcoder" "basis_transcoder"
+               "crashext" "crashext"
+               "crashext_null" "crashext_null"
+               "decoder_ogg" "decoder_ogg"
+               "decoder_opus" "decoder_opus"
+               "decoder_wav" "decoder_wav"
+               "ddf" "ddf"
+               "ddf_noasan" "ddf_noasan"
+               "dlib" "dlib"
+               "dlib_noasan" "dlib_noasan"
+               "engine" "engine"
+               "engine_release" "engine_release"
+               "engine_service" "engine_service"
+               "engine_service_null" "engine_service_null"
+               "extension" "extension"
+               "font" "font"
+               "font_skribidi" "font_skribidi"
+               "gamesys" "gamesys"
+               "gamesys_model" "gamesys_model"
+               "gamesys_model_null" "gamesys_model_null"
+               "gamesys_rig" "gamesys_rig"
+               "gamesys_rig_null" "gamesys_rig_null"
+               "graphics" "graphics"
+               "graphics_dx12" "graphics_dx12"
+               "graphics_null" "graphics_null"
+               "graphics_null_noasan" "graphics_null_noasan"
+               "graphics_opengles" "graphics_opengles"
+               "graphics_proto" "graphics_proto"
+               "graphics_proto_noasan" "graphics_proto_noasan"
+               "graphics_transcoder_basisu" "graphics_transcoder_basisu"
+               "graphics_transcoder_null" "graphics_transcoder_null"
+               "graphics_vulkan" "graphics_vulkan"
+               "graphics_webgpu" "graphics_webgpu"
+               "graphics_webgpu_wagyu" "graphics_webgpu_wagyu"
+               "hid" "hid"
+               "hid_null" "hid_null"
+               "image" "image"
+               "image_noasan" "image_noasan"
+               "image_null" "image_null"
+               "image_null_noasan" "image_null_noasan"
+               "input" "input"
+               "launcherutil" "launcherutil"
+               "liveupdate" "liveupdate"
+               "liveupdate_null" "liveupdate_null"
+               "lua" "lua"
+               "mbedtls" "mbedtls"
+               "mbedtls_noasan" "mbedtls_noasan"
+               "model" "model"
+               "particle" "particle"
+               "physics" "physics"
+               "physics_2d" "physics_2d"
+               "physics_2d_defold" "physics_2d_defold"
+               "physics_3d" "physics_3d"
+               "physics_null" "physics_null"
+               "platform" "platform"
+               "platform_null" "platform_null"
+               "platform_vulkan" "platform_vulkan"
+               "profile" "profile"
+               "profile_noasan" "profile_noasan"
+               "profile_null" "profile_null"
+               "profile_null_noasan" "profile_null_noasan"
+               "profiler_js" "profiler_js"
+               "profiler_remotery" "profiler_remotery"
+               "profilerext" "profilerext"
+               "profilerext_null" "profilerext_null"
+               "record" "record"
+               "record_null" "record_null"
+               "render" "render"
+               "render_font_default" "render_font_default"
+               "resource" "resource"
+               "rig" "rig"
+               "rig_null" "rig_null"
+               "script" "script"
+               "script_box2d" "script_box2d"
+               "script_box2d_defold" "script_box2d_defold"
+               "sound" "sound"
+               "sound_nosimd" "sound_nosimd"
+               "sound_null" "sound_null"
+               "sound_openal" "sound_openal"
+               "vpx" "vpx"
+               "vulkan" "vulkan-1"
+               "zip" "zip"
+               "zip_noasan" "zip_noasan"}
+   :x86_64-win32 {"basis_encoder" "basis_encoder"
+                  "basis_encoder_noasan" "basis_encoder_noasan"
+                  "basis_transcoder" "basis_transcoder"
+                  "crashext" "crashext"
+                  "crashext_null" "crashext_null"
+                  "decoder_ogg" "decoder_ogg"
+                  "decoder_opus" "decoder_opus"
+                  "decoder_wav" "decoder_wav"
+                  "ddf" "ddf"
+                  "ddf_noasan" "ddf_noasan"
+                  "dlib" "dlib"
+                  "dlib_noasan" "dlib_noasan"
+                  "engine" "engine"
+                  "engine_release" "engine_release"
+                  "engine_service" "engine_service"
+                  "engine_service_null" "engine_service_null"
+                  "extension" "extension"
+                  "font" "font"
+                  "font_skribidi" "font_skribidi"
+                  "gamesys" "gamesys"
+                  "gamesys_model" "gamesys_model"
+                  "gamesys_model_null" "gamesys_model_null"
+                  "gamesys_rig" "gamesys_rig"
+                  "gamesys_rig_null" "gamesys_rig_null"
+                  "graphics" "graphics"
+                  "graphics_dx12" "graphics_dx12"
+                  "graphics_null" "graphics_null"
+                  "graphics_null_noasan" "graphics_null_noasan"
+                  "graphics_opengles" "graphics_opengles"
+                  "graphics_proto" "graphics_proto"
+                  "graphics_proto_noasan" "graphics_proto_noasan"
+                  "graphics_transcoder_basisu" "graphics_transcoder_basisu"
+                  "graphics_transcoder_null" "graphics_transcoder_null"
+                  "graphics_vulkan" "graphics_vulkan"
+                  "graphics_webgpu" "graphics_webgpu"
+                  "graphics_webgpu_wagyu" "graphics_webgpu_wagyu"
+                  "hid" "hid"
+                  "hid_null" "hid_null"
+                  "image" "image"
+                  "image_noasan" "image_noasan"
+                  "image_null" "image_null"
+                  "image_null_noasan" "image_null_noasan"
+                  "input" "input"
+                  "launcherutil" "launcherutil"
+                  "liveupdate" "liveupdate"
+                  "liveupdate_null" "liveupdate_null"
+                  "lua" "lua"
+                  "mbedtls" "mbedtls"
+                  "mbedtls_noasan" "mbedtls_noasan"
+                  "model" "model"
+                  "particle" "particle"
+                  "physics" "physics"
+                  "physics_2d" "physics_2d"
+                  "physics_2d_defold" "physics_2d_defold"
+                  "physics_3d" "physics_3d"
+                  "physics_null" "physics_null"
+                  "platform" "platform"
+                  "platform_null" "platform_null"
+                  "platform_vulkan" "platform_vulkan"
+                  "profile" "profile"
+                  "profile_noasan" "profile_noasan"
+                  "profile_null" "profile_null"
+                  "profile_null_noasan" "profile_null_noasan"
+                  "profiler_js" "profiler_js"
+                  "profiler_remotery" "profiler_remotery"
+                  "profilerext" "profilerext"
+                  "profilerext_null" "profilerext_null"
+                  "record" "record"
+                  "record_null" "record_null"
+                  "render" "render"
+                  "render_font_default" "render_font_default"
+                  "resource" "resource"
+                  "rig" "rig"
+                  "rig_null" "rig_null"
+                  "script" "script"
+                  "script_box2d" "script_box2d"
+                  "script_box2d_defold" "script_box2d_defold"
+                  "sound" "sound"
+                  "sound_nosimd" "sound_nosimd"
+                  "sound_null" "sound_null"
+                  "sound_openal" "sound_openal"
+                  "vpx" "vpx"
+                  "vulkan" "vulkan-1"
+                  "zip" "zip"
+                  "zip_noasan" "zip_noasan"}})
+
+(def legacy-windows-lib-names
+  ;; App manifests authored before the CMake migration may still use Waf's
+  ;; Windows library filenames. Keep reading them, but write current names.
+  {:x86-win32 {"gamesys" "gamesys"
+               "gamesys_model" "gamesys_model"
+               "gamesys_model_null" "gamesys_model_null"
+               "gamesys_rig" "gamesys_rig"
+               "gamesys_rig_null" "gamesys_rig_null"
+               "hid" "hid"
                "hid_null" "hid_null"
                "input" "input"
                "platform" "platform"
                "platform_null" "platform_null"
                "platform_vulkan" "platform_vulkan"
                "vpx" "vpx"
-               "vulkan" "vulkan-1"}
-   :x86_64-win32 {"hid" "hid"
+               "vulkan" "vulkan-1"
+               "script_box2d_defold" "script_box2d_defold"}
+   :x86_64-win32 {"gamesys" "gamesys"
+                  "gamesys_model" "gamesys_model"
+                  "gamesys_model_null" "gamesys_model_null"
+                  "gamesys_rig" "gamesys_rig"
+                  "gamesys_rig_null" "gamesys_rig_null"
+                  "hid" "hid"
                   "hid_null" "hid_null"
                   "input" "input"
                   "platform" "platform"
                   "platform_null" "platform_null"
                   "platform_vulkan" "platform_vulkan"
                   "vpx" "vpx"
-                  "vulkan" "vulkan-1"}})
+                  "vulkan" "vulkan-1"
+                  "script_box2d_defold" "script_box2d_defold"}})
 
 (defn platformify-excluded-lib [platform lib]
   (or (-> custom-lib-names platform (get lib))
@@ -84,10 +270,23 @@
       (and (contains? windows platform) (str "lib" lib ".lib"))
       lib))
 
+(defn legacy-platformify-excluded-lib [platform lib]
+  (or (-> legacy-windows-lib-names platform (get lib))
+      (and (contains? windows platform) (str "lib" lib))
+      lib))
+
+(defn legacy-platformify-lib [platform lib]
+  (or (some-> legacy-windows-lib-names platform (get lib) (str ".lib"))
+      (and (contains? windows platform) (str "lib" lib ".lib"))
+      lib))
+
 ;; region toggles
 
-(defn contains-toggle [platform key value]
-  {:toggle :contains :platform platform :key key :value value})
+(defn contains-toggle
+  ([platform key value]
+   (contains-toggle platform key value [value]))
+  ([platform key value values]
+   {:toggle :contains :platform platform :key key :value value :values (vec (distinct values))}))
 
 (defn boolean-toggle [platform key value]
   {:toggle :boolean :platform platform :key key :value value})
@@ -95,12 +294,16 @@
 (defn exclude-libs-toggles [platforms libs]
   (for [p platforms
         l libs]
-    (contains-toggle p :excludeLibs (platformify-excluded-lib p l))))
+    (contains-toggle p :excludeLibs (platformify-excluded-lib p l)
+                     [(platformify-excluded-lib p l)
+                      (legacy-platformify-excluded-lib p l)])))
 
 (defn libs-toggles [platforms libs]
   (for [p platforms
         l libs]
-    (contains-toggle p :libs (platformify-lib p l))))
+    (contains-toggle p :libs (platformify-lib p l)
+                     [(platformify-lib p l)
+                      (legacy-platformify-lib p l)])))
 
 (defn generic-contains-toggles [platforms key values]
   (for [p platforms
@@ -187,12 +390,13 @@
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
     :contains (let [{:keys [platform key value]} toggle]
-                (boolean (some #(= value %) (get-in-guarded manifest
-                                                            :platforms map?
-                                                            platform map?
-                                                            :context map?
-                                                            key vector?
-                                                            []))))
+                (boolean (some (set (or (:values toggle) [value]))
+                               (get-in-guarded manifest
+                                               :platforms map?
+                                               platform map?
+                                               :context map?
+                                               key vector?
+                                               []))))
     :boolean (let [{:keys [platform key value]} toggle
                    default-value (not value)]
                (= value (get-in-guarded manifest
@@ -205,7 +409,8 @@
 (defn set-toggle-value [manifest toggle value]
   (case (:toggle toggle)
     :contains (let [enabled value
-                    {:keys [platform key value]} toggle]
+                    {:keys [platform key value]} toggle
+                    accepted-values (set (or (:values toggle) [value]))]
                 (update-in-fixing
                   manifest map? {}
                   :platforms map? {}
@@ -215,8 +420,8 @@
                   (if enabled
                     (fn [values]
                       (into [] (distinct) (conj values value)))
-                    (fn [values]
-                      (filterv #(not= value %) values)))))
+                    (fn [current-values]
+                      (filterv #(not (contains? accepted-values %)) current-values)))))
 
     :boolean (let [enabled value
                    {:keys [platform key value]} toggle]

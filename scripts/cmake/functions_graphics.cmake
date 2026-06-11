@@ -13,6 +13,11 @@ defold_log("functions_graphics.cmake:")
 #   # _SYMS now contains a semicolon-separated list, e.g. "GraphicsAdapterOpenGL;GraphicsAdapterVulkan"
 
 function(defold_get_graphics_symbols OUT_VAR PLATFORM)
+    if(DEFINED DEFOLD_PLATFORM_GRAPHICS_SYMBOLS)
+        set(${OUT_VAR} "${DEFOLD_PLATFORM_GRAPHICS_SYMBOLS}" PARENT_SCOPE)
+        return()
+    endif()
+
     # Read feature toggles with default OFF if not defined
     set(_WITH_OPENGL  OFF)
     set(_WITH_VULKAN  OFF)
@@ -86,7 +91,6 @@ function(defold_get_graphics_symbols OUT_VAR PLATFORM)
     set(${OUT_VAR} "${_SYMS}" PARENT_SCOPE)
 endfunction()
 
-
 function(defold_target_link_graphics target platform)
     set(options)
     set(oneValueArgs SCOPE)
@@ -100,15 +104,20 @@ function(defold_target_link_graphics target platform)
         message(FATAL_ERROR "functions_graphics: platform argument is required")
     endif()
 
+    if(DEFINED DEFOLD_PLATFORM_GRAPHICS_LIBS)
+        target_link_libraries(${target} ${DGL_SCOPE} ${DEFOLD_PLATFORM_GRAPHICS_LIBS})
+        if(DEFINED DEFOLD_PLATFORM_GRAPHICS_LINK_OPTIONS)
+            target_link_options(${target} ${DGL_SCOPE} ${DEFOLD_PLATFORM_GRAPHICS_LINK_OPTIONS})
+        endif()
+        return()
+    endif()
+
     # Compute Waf-like mapping variables (STLIB_* + GL/Vulkan lists)
     string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")
 
     # Optional feature toggles affecting mappings
-    set(_WITH_WAGYU OFF)
+    defold_feature_enabled(wagyu _WITH_WAGYU)
     set(_WITH_VULKAN_VALIDATION OFF)
-    if(DEFINED WITH_WAGYU AND WITH_WAGYU)
-        set(_WITH_WAGYU ON)
-    endif()
     if(DEFINED WITH_VULKAN_VALIDATION AND WITH_VULKAN_VALIDATION)
         set(_WITH_VULKAN_VALIDATION ON)
     endif()
@@ -132,22 +141,6 @@ function(defold_target_link_graphics target platform)
         set(_STLIB_DMGLFW dmglfw)
     endif()
     set(_STLIB_DMGLFW_VULKAN dmglfw_vulkan)
-
-    # On Windows, our prebuilt static libs use a "lib" prefix (lib*.lib).
-    # Prefix our own graphics library names accordingly to match filenames.
-    if(_PLAT_OS STREQUAL "win32")
-        foreach(_grp IN ITEMS _STLIB_GRAPHICS _STLIB_GRAPHICS_OPENGLES _STLIB_GRAPHICS_VULKAN _STLIB_GRAPHICS_DX12 _STLIB_GRAPHICS_WEBGPU _STLIB_GRAPHICS_NULL _STLIB_DMGLFW _STLIB_DMGLFW_VULKAN)
-            set(_tmp_list)
-            foreach(_name ${${_grp}})
-                if(_name AND NOT _name MATCHES "^lib")
-                    list(APPEND _tmp_list "lib${_name}")
-                else()
-                    list(APPEND _tmp_list "${_name}")
-                endif()
-            endforeach()
-            set(${_grp} ${_tmp_list})
-        endforeach()
-    endif()
 
     # GL/GLES
     unset(OPENGL)
@@ -321,8 +314,15 @@ function(defold_target_link_graphics target platform)
         endif()
     endforeach()
 
+    if(_DEFOLD_GRAPHICS_LIBS)
+        target_include_directories(${target} ${DGL_SCOPE} "${DEFOLD_GRAPHICS_BINARY_DIR}")
+        if(TARGET graphics_proto_header)
+            add_dependencies(${target} graphics_proto_header)
+        endif()
+    endif()
+
     if(_link_libs)
-        target_link_libraries(${target} ${DGL_SCOPE} ${_link_libs})
+        defold_target_link_libraries(${target} "${platform}" SCOPE ${DGL_SCOPE} ${_link_libs})
     endif()
     if(_link_opts)
         target_link_options(${target} ${DGL_SCOPE} ${_link_opts})

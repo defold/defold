@@ -269,6 +269,13 @@ dialog.quit-defold.header = Unsaved changes exist, are you sure you want to quit
 dialog.quit-defold.button.cancel = Cancel and Keep Working
 dialog.quit-defold.button.quit = Quit Without Saving
 
+# Restart Defold dialog
+
+dialog.restart-defold.title = Restart Defold?
+dialog.restart-defold.header = Unsaved changes exist. Save changes before restarting Defold?
+dialog.restart-defold.button.cancel = Cancel
+dialog.restart-defold.button.save-and-restart = Save and Restart
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = Not Safe to Upgrade File Formats
@@ -352,6 +359,16 @@ notification.fetch-libraries.problem.defold-min-version = requires Defold {requi
 notification.fetch-libraries.problem.install-failed = failed to install
 notification.fetch-libraries.problem.unknown = unknown problem — {problem}
 notification.fetch-libraries.dependency-problem = {uri}: {problem}
+
+# Editor scripts notification
+
+notification.reload-editor-scripts = Editor scripts have changed. Do you want to reload them now?
+notification.reload-editor-scripts.action.reload = Reload Editor Scripts
+
+# Reload plugins notification
+
+notification.reload-plugins-failed = Native extension plugins could not be reloaded. Restart Defold to reload them.\n\nFile: {file}\n\nUnderlying error from the OS:\n{error}
+notification.reload-plugins-failed.action.restart = Restart Defold
 
 # Open custom editor notifications
 
@@ -728,6 +745,7 @@ progress.updating-dependencies = Updating dependencies…
 progress.syncing-resources = Syncing resources…
 progress.loading-project = Loading project…
 progress.loading-external-changes = Loading external changes…
+progress.editor-scripts-reloaded = Reloaded editor scripts at {time}
 progress.writing-files = Writing files…
 progress.caching-save-results = Caching save results…
 progress.reading-timestamps = Reading timestamps…
@@ -1070,9 +1088,27 @@ scene-popup.grid.plane = Plane
 scene-popup.grid.color = Color
 scene-popup.grid.opacity = Opacity
 scene-popup.camera.move-speed = Move Speed
-scene-popup.camera.look-sensitivity = Look Sensitivity
+scene-popup.camera.look-sensitivity = Look Speed
+scene-popup.camera.fov = FOV
 scene-popup.camera.invert-y = Invert Y
 scene-popup.camera.walking-mode = Walking Mode
+scene-popup.scene-visibility.visibility-filters = Visibility Filters
+scene-popup.scene-visibility.collision-shapes = Collision Shapes
+scene-popup.scene-visibility.camera = Camera
+scene-popup.scene-visibility.gui-bounds = GUI Bounds
+scene-popup.scene-visibility.gui-shapes = GUI Shapes
+scene-popup.scene-visibility.gui-particle-effects = GUI Particle Effects
+scene-popup.scene-visibility.gui-spine-scenes = GUI Spine Scenes
+scene-popup.scene-visibility.gui-text = GUI Text
+scene-popup.scene-visibility.models = Models
+scene-popup.scene-visibility.particle-effects = Particle Effects
+scene-popup.scene-visibility.skeletons = Skeletons
+scene-popup.scene-visibility.spine-scenes = Spine Scenes
+scene-popup.scene-visibility.sprites = Sprites
+scene-popup.scene-visibility.text = Text
+scene-popup.scene-visibility.tile-maps = Tile Maps
+scene-popup.scene-visibility.component-guides = Component Guides
+scene-popup.scene-visibility.scene-visibility-bounds = Scene Visibility Bounds
 
 # Properties
 
@@ -1189,6 +1225,7 @@ property.collision-object.event-contact.tooltip = If disabled, filters out any c
 property.collision-object.event-trigger = Generate Trigger Events
 property.collision-object.event-trigger.tooltip = If disabled, filters out any trigger events involving this collision object
 property.collision-object.group = Group
+property.collision-object.group.tilemap.tooltip = This property is not used when Collision Shape is a tilemap. Collision groups are defined in the tilemap's tile source.
 property.collision-object.mask = Mask
 property.collision-object.shape.diameter = Diameter
 property.collision-object.shape.dimensions = Dimensions
@@ -1876,7 +1913,7 @@ form.help.project.display.high_dpi = Enable high DPI backbuffer where available
 form.label.project.display.samples = Samples
 form.help.project.display.samples = How many samples to use for super sampling anti-aliasing, 0 by default, which means it is turned off
 form.label.project.display.fullscreen = Fullscreen
-form.help.project.display.fullscreen = Start the application full screen instead of windowed
+form.help.project.display.fullscreen = Start the application in borderless fullscreen on desktop platforms instead of windowed
 form.label.project.display.display_profiles = Display Profiles
 form.help.project.display.display_profiles = File reference of the display profiles to use for the application
 form.label.project.display.dynamic_orientation = Dynamic Orientation
@@ -2006,6 +2043,8 @@ form.label.project.profiler = Profiler
 form.help.project.profiler = Settings related to the runtime profiler
 form.label.project.profiler.track_cpu = Track CPU
 form.help.project.profiler.track_cpu = Enable CPU usage sampling in release builds
+form.label.project.profiler.track_detailed_memory = Detailed Memory
+form.help.project.profiler.track_detailed_memory = Enable detailed memory sampling in the profiler. This may be expensive on HTML5.
 form.label.project.profiler.enabled = Enabled
 form.help.project.profiler.enabled = Enable the in-game profiler; call profiler.enable() at runtime to enable programmatically
 form.label.project.profiler.sleep_between_server_updates = Server Sleep (ms)

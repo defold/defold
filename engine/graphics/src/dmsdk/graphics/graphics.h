@@ -33,6 +33,13 @@
  * @language C++
  */
 
+/*# Graphics extension context name
+ * Name used when registering the graphics context with the engine context registry.
+ * @constant
+ * @name GRAPHICS_CONTEXT_NAME
+ */
+#define GRAPHICS_CONTEXT_NAME "graphics"
+
 namespace dmGraphics
 {
     /*#

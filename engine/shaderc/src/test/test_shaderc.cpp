@@ -26,11 +26,27 @@
 #if defined(_WIN32)
 #include <d3d12.h>
 #include <d3d12shader.h>
+#include <d3dcompiler.h>
+#endif
+
+#ifndef DM_SHADERC_TEST_DATA_DIR
+#define DM_SHADERC_TEST_DATA_DIR "./build/src/test/data"
 #endif
 
 static void* ReadFile(const char* path, uint32_t* file_size)
 {
     FILE* file = fopen(path, "rb");
+    char resolved_path[512];
+    resolved_path[0] = 0;
+    if (!file)
+    {
+        const char* filename = strrchr(path, '/');
+        if (filename)
+        {
+            dmSnPrintf(resolved_path, sizeof(resolved_path), "%s/%s", DM_SHADERC_TEST_DATA_DIR, filename + 1);
+            file = fopen(resolved_path, "rb");
+        }
+    }
     if (!file)
     {
         printf("Failed to load %s\n", path);
@@ -662,8 +678,15 @@ TEST(Shaderc, HLSLMergeRootSignatures)
     ASSERT_GT(fs_res->m_HLSLRootSignature.Size(), 0u);
 
     dmShaderc::ShaderCompileResult arr[2];
-    arr[0] = *vs_res;
-    arr[1] = *fs_res;
+    uint32_t vs_root_signature_size = vs_res->m_HLSLRootSignature.Size();
+    arr[0].m_HLSLRootSignature.SetCapacity(vs_root_signature_size);
+    arr[0].m_HLSLRootSignature.SetSize(vs_root_signature_size);
+    memcpy(arr[0].m_HLSLRootSignature.Begin(), vs_res->m_HLSLRootSignature.Begin(), vs_root_signature_size);
+
+    uint32_t fs_root_signature_size = fs_res->m_HLSLRootSignature.Size();
+    arr[1].m_HLSLRootSignature.SetCapacity(fs_root_signature_size);
+    arr[1].m_HLSLRootSignature.SetSize(fs_root_signature_size);
+    memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_res->m_HLSLRootSignature.Begin(), fs_root_signature_size);
 
     dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
     ASSERT_NE((void*)0, merged);
@@ -687,6 +710,84 @@ TEST(Shaderc, HLSLMergeRootSignatures)
     dmShaderc::DeleteShaderCompiler(fs_comp);
     dmShaderc::DeleteShaderContext(vs_ctx);
     dmShaderc::DeleteShaderContext(fs_ctx);
+#endif
+}
+
+TEST(Shaderc, HLSLMergeRootSignaturesStageVisibleSamplerOverlap)
+{
+#if !defined(DM_BINARY_HLSL_SUPPORTED)
+    ASSERT_TRUE(true);
+    return;
+#else
+    D3D12_DESCRIPTOR_RANGE vs_range = {};
+    vs_range.RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+    vs_range.NumDescriptors                    = 1;
+    vs_range.BaseShaderRegister                = 0;
+    vs_range.RegisterSpace                     = 0;
+    vs_range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER vs_param = {};
+    vs_param.ParameterType                       = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    vs_param.DescriptorTable.NumDescriptorRanges = 1;
+    vs_param.DescriptorTable.pDescriptorRanges   = &vs_range;
+    vs_param.ShaderVisibility                    = D3D12_SHADER_VISIBILITY_VERTEX;
+
+    D3D12_ROOT_SIGNATURE_DESC vs_desc = {};
+    vs_desc.NumParameters = 1;
+    vs_desc.pParameters   = &vs_param;
+    vs_desc.Flags         = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    D3D12_DESCRIPTOR_RANGE fs_range = vs_range;
+
+    D3D12_ROOT_PARAMETER fs_param = vs_param;
+    fs_param.DescriptorTable.pDescriptorRanges = &fs_range;
+    fs_param.ShaderVisibility                  = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_ROOT_SIGNATURE_DESC fs_desc = {};
+    fs_desc.NumParameters = 1;
+    fs_desc.pParameters   = &fs_param;
+    fs_desc.Flags         = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+    ID3DBlob* vs_blob = 0;
+    ID3DBlob* fs_blob = 0;
+    ID3DBlob* error_blob = 0;
+    ASSERT_EQ(S_OK, D3D12SerializeRootSignature(&vs_desc, D3D_ROOT_SIGNATURE_VERSION_1, &vs_blob, &error_blob));
+    if (error_blob)
+        error_blob->Release();
+    error_blob = 0;
+
+    ASSERT_EQ(S_OK, D3D12SerializeRootSignature(&fs_desc, D3D_ROOT_SIGNATURE_VERSION_1, &fs_blob, &error_blob));
+    if (error_blob)
+        error_blob->Release();
+
+    dmShaderc::ShaderCompileResult arr[2];
+    arr[0].m_HLSLRootSignature.SetCapacity((uint32_t) vs_blob->GetBufferSize());
+    arr[0].m_HLSLRootSignature.SetSize((uint32_t) vs_blob->GetBufferSize());
+    memcpy(arr[0].m_HLSLRootSignature.Begin(), vs_blob->GetBufferPointer(), vs_blob->GetBufferSize());
+
+    arr[1].m_HLSLRootSignature.SetCapacity((uint32_t) fs_blob->GetBufferSize());
+    arr[1].m_HLSLRootSignature.SetSize((uint32_t) fs_blob->GetBufferSize());
+    memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_blob->GetBufferPointer(), fs_blob->GetBufferSize());
+
+    dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
+    ASSERT_NE((void*)0, merged);
+    ASSERT_EQ(0, strcmp("", merged->m_LastError));
+    ASSERT_GT(merged->m_HLSLRootSignature.Size(), 0u);
+
+    ID3D12RootSignatureDeserializer* deser = 0;
+    HRESULT hr = D3D12CreateRootSignatureDeserializer(
+        merged->m_HLSLRootSignature.Begin(),
+        merged->m_HLSLRootSignature.Size(),
+        IID_PPV_ARGS(&deser));
+    ASSERT_EQ(S_OK, hr);
+    const D3D12_ROOT_SIGNATURE_DESC* merged_desc = deser->GetRootSignatureDesc();
+    ASSERT_EQ(2u, merged_desc->NumParameters);
+    ASSERT_EQ(D3D12_SHADER_VISIBILITY_VERTEX, merged_desc->pParameters[0].ShaderVisibility);
+    ASSERT_EQ(D3D12_SHADER_VISIBILITY_PIXEL, merged_desc->pParameters[1].ShaderVisibility);
+
+    deser->Release();
+    vs_blob->Release();
+    fs_blob->Release();
 #endif
 }
 

@@ -18,12 +18,14 @@
             [editor.build-errors-view :as build-errors-view]
             [editor.disk :as disk]
             [editor.future :as future]
+            [editor.library :as library]
             [editor.lsp.server :as lsp.server]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [service.log :as log]
             [util.coll :as coll]
-            [util.http-server :as http-server]))
+            [util.http-server :as http-server])
+  (:import [com.dynamo.bob.util Library$Result]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,6 +47,25 @@
                                       maybe-resource (assoc :resource (resource/proj-path maybe-resource))
                                       cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
         (http-server/json-response {:success (not error) :issues issues} (if error 422 200))))))
+
+(defn- fetch-libraries-response [result localization-state]
+  (future/then
+    result
+    (fn [[lib-results reload-succeeded]]
+      (let [success (and reload-succeeded (coll/not-any? Library$Result/.problem lib-results))]
+        (http-server/json-response
+          {:success success
+           :libraries (coll/into-> lib-results []
+                        (map (fn [^Library$Result result]
+                               (let [problem (.problem result)]
+                                 (cond-> {:uri (str (.uri result))
+                                          :success (not problem)}
+                                   problem
+                                   (assoc :message (localization-state (library/result-message result))))))))}
+          (cond
+            (not reload-succeeded) 500
+            success 200
+            :else 422))))))
 
 (def ^:private supported-commands
   ;; Notable exclusions:
@@ -120,7 +141,8 @@
    :fetch-libraries
    {:ui-handler :project.fetch-libraries
     :help "Download the latest version of the project library dependencies."
-    :resource-sync true}
+    :resource-sync true
+    :response-fn fetch-libraries-response}
 
    :hot-reload
    {:ui-handler :run.hot-reload

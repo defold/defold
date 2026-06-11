@@ -40,6 +40,8 @@ public class ShaderCompilePipeline {
     public static class Options {
         public boolean splitTextureSamplers;
         public ArrayList<String> defines = new ArrayList<>();
+        public String externalToolPath;
+        public String externalToolArgs;
         public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
     }
@@ -500,10 +502,34 @@ public class ShaderCompilePipeline {
         throw new CompileExceptionError("Cannot crosscompile to shader language: " + shaderLanguage);
     }
 
-    public Shaderc.HLSLRootSignature createRootSignature(ShaderDesc.Language shaderLanguage, List<Shaderc.ShaderCompileResult> shaders) {
+    private String getShaderModulePaths() {
+        StringBuilder builder = new StringBuilder();
+        for (ShaderModule module : shaderModules) {
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            if (module.desc.resourcePath != null) {
+                builder.append(module.desc.resourcePath);
+            } else {
+                builder.append("<unknown>");
+            }
+            builder.append(" (");
+            builder.append(module.desc.type);
+            builder.append(")");
+        }
+        return builder.toString();
+    }
+
+    public Shaderc.HLSLRootSignature createRootSignature(ShaderDesc.Language shaderLanguage, List<Shaderc.ShaderCompileResult> shaders) throws CompileExceptionError {
         assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
         Shaderc.ShaderCompileResult[] shaders_array = shaders.toArray(new Shaderc.ShaderCompileResult[0]);
         Shaderc.HLSLRootSignature result = ShadercJni.HLSLMergeRootSignatures(shaders_array);
+        if (result == null) {
+            throw new CompileExceptionError("Failed to create HLSL root signature for " + this.pipelineName + " from shader module(s): " + getShaderModulePaths());
+        }
+        if (result.lastError != null && !result.lastError.isEmpty()) {
+            throw new CompileExceptionError("Failed to create HLSL root signature for " + this.pipelineName + " from shader module(s): " + getShaderModulePaths() + ". " + result.lastError);
+        }
         return result;
     }
 

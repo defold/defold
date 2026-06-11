@@ -23,6 +23,7 @@
 #include <gamesys/gamesys_private.h>
 
 #include <dmsdk/gamesys/resources/res_light.h>
+#include <dmsdk/render/render.h>
 #include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
@@ -157,8 +158,9 @@ namespace dmGameSystem
     static dmGameObject::Result CompLightTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
     {
         LightContext* light_context = new LightContext;
+        HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
         light_context->m_Factory = ctx->m_Factory;
-        light_context->m_RenderContext = *(dmRender::HRenderContext*) ctx->m_Contexts.Get(dmHashString64("render"));
+        light_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
         light_context->m_MaxLightCount = (uint32_t) dmMath::Max(0, dmConfigFile::GetInt(ctx->m_Config, LIGHT_MAX_COUNT_KEY, 64));
 
         dmRender::SetLightBufferCount(light_context->m_RenderContext, light_context->m_MaxLightCount);

@@ -16,7 +16,6 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -26,109 +25,150 @@ import java.util.Set;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
-import com.google.protobuf.ByteString;
 
 public class ShaderCompilers {
+    public static final String SHADER_ADAPTERS_OPTION = "shader-adapters";
+    public static final String SHADER_ADAPTER_OPENGL = "opengl";
+    public static final String SHADER_ADAPTER_OPENGLES = "opengles";
+    public static final String SHADER_ADAPTER_VULKAN = "vulkan";
+    public static final String SHADER_ADAPTER_METAL = "metal";
+    public static final String SHADER_ADAPTER_WEBGPU = "webgpu";
+    public static final String SHADER_ADAPTER_DX12 = "dx12";
+
+    // Console platforms use registered/plugin shader compilers instead of the common shader compiler,
+    // so console-specific adapters do not need to be represented here.
+    private enum GraphicsAdapter {
+        OPENGL(SHADER_ADAPTER_OPENGL),
+        OPENGLES(SHADER_ADAPTER_OPENGLES),
+        VULKAN(SHADER_ADAPTER_VULKAN),
+        METAL(SHADER_ADAPTER_METAL),
+        WEBGPU(SHADER_ADAPTER_WEBGPU),
+        DX12(SHADER_ADAPTER_DX12);
+
+        private final String optionName;
+
+        GraphicsAdapter(String optionName) {
+            this.optionName = optionName;
+        }
+
+        static GraphicsAdapter fromOptionName(String optionName) {
+            for (GraphicsAdapter adapter : values()) {
+                if (adapter.optionName.equals(optionName)) {
+                    return adapter;
+                }
+            }
+            return null;
+        }
+    }
+
+    private static boolean usesGlesShaderLanguages(Platform platform) {
+        return platform.matchesOS(OS.OS_ID_ANDROID) ||
+               platform.matchesOS(OS.OS_ID_WEB) ||
+               platform.matchesOS(OS.OS_ID_IOS) ||
+               (platform.isLinux() && platform.getArch().equals("arm64"));
+    }
+
+    private static boolean isDesktopOpenGLPlatform(Platform platform) {
+        return platform.isWindows() ||
+               platform.isMacOS() ||
+               (platform.isLinux() && !usesGlesShaderLanguages(platform));
+    }
+
+    private static LinkedHashSet<GraphicsAdapter> getDefaultShaderAdapters(Platform platform) {
+        LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
+        if (platform.isMacOS()) {
+            adapters.add(GraphicsAdapter.VULKAN);
+        } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
+            adapters.add(GraphicsAdapter.VULKAN);
+            adapters.add(GraphicsAdapter.OPENGLES);
+        } else if (platform.matchesOS(OS.OS_ID_SWITCH)) {
+            adapters.add(GraphicsAdapter.VULKAN);
+        } else if (platform.matchesOS(OS.OS_ID_XBOX)) {
+            adapters.add(GraphicsAdapter.DX12);
+        } else if (usesGlesShaderLanguages(platform)) {
+            adapters.add(GraphicsAdapter.OPENGLES);
+        } else if (isDesktopOpenGLPlatform(platform)) {
+            adapters.add(GraphicsAdapter.OPENGL);
+        }
+        return adapters;
+    }
+
+    private static Set<GraphicsAdapter> getShaderAdaptersFromOptions(Platform platform, IShaderCompiler.CompileOptions compileOptions) {
+        LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
+        if (compileOptions.shaderAdapters == null) {
+            return getDefaultShaderAdapters(platform);
+        }
+        for (String adapterName : compileOptions.shaderAdapters.split(",")) {
+            GraphicsAdapter adapter = GraphicsAdapter.fromOptionName(adapterName);
+            if (adapter != null) {
+                adapters.add(adapter);
+            }
+        }
+        return adapters;
+    }
 
     public static class CommonShaderCompiler implements IShaderCompiler {
         private final Platform platform;
+        private final ShaderCompilePipeline.Options baseOptions;
 
         public CommonShaderCompiler(Platform platform) {
-            this.platform = platform;
+            this(platform, null);
         }
 
-        private Set<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, boolean outputSpirv, boolean outputWGLS, boolean outputHLSL, boolean outputGLSL, boolean outputMsl, CompileOptions compileOptions) {
+        public CommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
+            this.platform = platform;
+            this.baseOptions = baseOptions;
+        }
+
+        private void addGlslLanguages(Set<ShaderDesc.Language> shaderLanguages, boolean isComputeType) {
+            if (isComputeType) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            } else {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+            }
+        }
+
+        private void addGlesLanguages(Set<ShaderDesc.Language> shaderLanguages, boolean isComputeType, CompileOptions compileOptions) {
+            if (isComputeType) {
+                return;
+            }
+            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+            if (!compileOptions.excludeGlesSm100) {
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            }
+        }
+
+        private Set<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, CompileOptions compileOptions) {
             Set<ShaderDesc.Language> shaderLanguages = new LinkedHashSet<>();
-
-            boolean spirvSupported = true;
-            boolean hlslSupported = platform == Platform.X86_64Win32;
-
-            if (platform == Platform.Arm64MacOS ||
-                platform == Platform.X86_64MacOS) {
-
-                boolean hasExplicitOutput = outputSpirv || outputGLSL || outputMsl;
-                if (!isComputeType && (outputGLSL || !hasExplicitOutput)) {
-                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-                } else if (outputMsl) {
-                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
-                }
-            }
-            else
-            if (platform == Platform.X86Win32 ||
-                platform == Platform.X86_64Win32 ||
-                platform == Platform.X86_64Linux) {
-                    if (isComputeType) {
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
-                    } else {
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-                    }
-            }
-            else
-            if (platform == Platform.Arm64Linux) {
-                if (!isComputeType) {
-                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-                    if (!compileOptions.excludeGlesSm100) {
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-                    }
-                }
-            }
-            else
-            if (platform == Platform.Arm64Ios ||
-                platform == Platform.X86_64Ios) {
-                if (!isComputeType) {
-                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-                }
-                if (outputMsl) {
-                    shaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
-                }
-            }
-            else
-            if (platform == Platform.Armv7Android ||
-                platform == Platform.Arm64Android) {
-                    boolean hasExplicitOutput = outputSpirv || outputGLSL;
-                    if (!isComputeType && (outputGLSL || !hasExplicitOutput)) {
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-                        if (!compileOptions.excludeGlesSm100) {
-                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            for (GraphicsAdapter adapter : getShaderAdaptersFromOptions(platform, compileOptions)) {
+                switch (adapter) {
+                    case OPENGL -> {
+                        if (usesGlesShaderLanguages(platform)) {
+                            addGlesLanguages(shaderLanguages, isComputeType, compileOptions);
+                        } else {
+                            addGlslLanguages(shaderLanguages, isComputeType);
                         }
                     }
-                    if (!hasExplicitOutput) {
-                        outputSpirv = true;
-                    }
-            }
-            else
-            if (platform == Platform.WasmWeb ||
-                platform == Platform.WasmPthreadWeb) {
-                    if (!isComputeType) {
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-                        if (!compileOptions.excludeGlesSm100) {
-                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                    case OPENGLES -> addGlesLanguages(shaderLanguages, isComputeType, compileOptions);
+                    case VULKAN -> {
+                        if (!platform.matchesOS(OS.OS_ID_WEB)) {
+                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
                         }
                     }
-                    if (outputWGLS)
-                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
-                    spirvSupported = false;
-            }
-            else
-            if (platform == Platform.Arm64NX64) {
-                outputSpirv = true;
-            }
-            else
-            if (platform == Platform.X86_64XBone) {
-                hlslSupported = true;
-                outputHLSL = true;
-            }
-            else {
-                return null;
-            }
-
-            if (spirvSupported && outputSpirv) {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
-            }
-
-            if (hlslSupported && outputHLSL) {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
+                    case METAL -> {
+                        if (platform.isMacOS() || platform.matchesOS(OS.OS_ID_IOS)) {
+                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
+                        }
+                    }
+                    case WEBGPU -> shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+                    case DX12 -> {
+                        if (platform.isWindows() || platform.matchesOS(OS.OS_ID_XBOX)) {
+                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
+                        }
+                    }
+                }
             }
 
             return shaderLanguages;
@@ -151,48 +191,40 @@ public class ShaderCompilers {
                 throw new CompileExceptionError("Can't match compute with graphics modules");
         }
 
+        private static boolean shaderLanguageRequiresSplitTextureSamplers(ShaderDesc.Language shaderLanguage) {
+            return shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
+        }
+
         public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions compileOptions) throws IOException, CompileExceptionError {
 
             // We need this for e.g. Win32 when creating the root signature bindings, to get a deterministic order.
             shaderModules.sort(Comparator.comparingInt(m -> m.type.getNumber()));
-
-            boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
-            boolean outputSpirv = false;
-            boolean outputHLSL = false;
-            boolean outputWGSL = false;
-            boolean outputGlsl = false;
-            boolean outputMsl = false;
-
-            ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
-            opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
-            opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
-            opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
-
-            for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
-                boolean isHLSL = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
-
-                opts.splitTextureSamplers |= isHLSL || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
-                outputSpirv |= shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV;
-                outputHLSL |= isHLSL;
-                outputWGSL |= shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
-                outputGlsl |= shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
-                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
-                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
-                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
-                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430;
-                outputMsl |= shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22;
-            }
-
-            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
-            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
-
             validateModules(shaderModules);
 
-            Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL, outputHLSL, outputGlsl, outputMsl, compileOptions);
+            boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+            Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, compileOptions);
             assert shaderLanguages != null;
 
             // Used for tests, merge in potentially unsupported languages here.
             shaderLanguages.addAll(compileOptions.forceIncludeShaderLanguages);
+
+            ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
+            if (this.baseOptions != null) {
+                opts.externalToolPath = this.baseOptions.externalToolPath;
+                opts.externalToolArgs = this.baseOptions.externalToolArgs;
+            }
+            opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
+            opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
+            opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                opts.splitTextureSamplers |= shaderLanguageRequiresSplitTextureSamplers(shaderLanguage);
+            }
+
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
 
             HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
             Shaderc.HLSLRootSignature hlslRootSignature = null;
@@ -252,7 +284,16 @@ public class ShaderCompilers {
     }
 
     public static IShaderCompiler GetCommonShaderCompiler(Platform platform) {
+        if (platform == Platform.X86_64PS4 ||
+            platform == Platform.X86_64PS5 ||
+            platform == Platform.X86_64XBone) {
+            return null;
+        }
         return new CommonShaderCompiler(platform);
+    }
+
+    public static IShaderCompiler GetCommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
+        return new CommonShaderCompiler(platform, baseOptions);
     }
 
     public static ArrayList<ShaderDesc.Language> GetSupportedOpenGLVersionsForPlatform(Platform platform) {

@@ -71,18 +71,14 @@ namespace dmGraphics
 
     struct OpenGLRenderTargetAttachment
     {
-        TextureParams m_Params;
-        union
-        {
-            HTexture  m_Texture;
-            HOpenglID m_Buffer;
-        };
+        HOpenglID      m_Buffer;
         AttachmentType m_Type;
         bool           m_Attached;
     };
 
     struct OpenGLRenderTarget
     {
+        RenderTarget                 m_Base;
         OpenGLRenderTargetAttachment m_ColorAttachments[MAX_BUFFER_COLOR_ATTACHMENTS];
         OpenGLRenderTargetAttachment m_DepthAttachment;
         OpenGLRenderTargetAttachment m_StencilAttachment;

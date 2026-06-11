@@ -43,8 +43,8 @@ on:
             { "name": "x86_64-ios", "runner": "macOS-26", "target": "macos" },
             { "name": "wasm-web", "runner": "ubuntu-22.04", "target": "web" },
             { "name": "wasm_pthread-web", "runner": "ubuntu-22.04", "target": "web" },
-            { "name": "win32", "runner": "windows-2025", "target": "windows" },
-            { "name": "x86_64-win32", "runner": "windows-2025", "target": "windows" },
+            { "name": "win32", "runner": "windows-2025-vs2026", "target": "windows" },
+            { "name": "x86_64-win32", "runner": "windows-2025-vs2026", "target": "windows" },
             { "name": "arm64-android", "runner": "ubuntu-22.04", "target": "android" },
             { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" }
           ]
@@ -96,7 +96,7 @@ jobs:
     runs-on: ${{ matrix.platforms.runner }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
 
@@ -233,7 +233,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
           fetch-depth: 0

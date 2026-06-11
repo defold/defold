@@ -38,6 +38,14 @@ DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dyna
 SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 
 ## **********************************************************************************************
+# Editor
+
+# If you update editor JDK version, don't forget to update it here too:
+# - /editor/bundle-resources/config at "launcher.jdk" key
+# - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
+VERSION_EDITOR_JDK="25+36"
+
+## **********************************************************************************************
 # Darwin
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
@@ -75,10 +83,11 @@ ANDROID_64_NDK_API_VERSION='21' # Android 5.0
 # Win32
 
 # The version we have prepackaged
-VERSION_WINDOWS_SDK_10="10.0.26100.0"
-VERSION_WINDOWS_MSVC_2022="14.44.35207"
-PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-2022-{VERSION_WINDOWS_MSVC_2022}"
-PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
+VERSION_WINDOWS_SDK="10.0.28000.0"
+VISUAL_STUDIO_VERSION="2026"
+VERSION_WINDOWS_MSVC="14.51.36231"
+PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-{VISUAL_STUDIO_VERSION}-{VERSION_WINDOWS_MSVC}"
+PACKAGES_WIN32_SDK=f"WindowsKits-{VERSION_WINDOWS_SDK}"
 
 ## **********************************************************************************************
 # Emscripten
@@ -112,13 +121,13 @@ defold_info['x86_64-macos']['pattern'] = PACKAGES_MACOS_SDK
 defold_info['arm64-macos']['version'] = VERSION_MACOSX
 defold_info['arm64-macos']['pattern'] = PACKAGES_MACOS_SDK
 
-defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK_10
+defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK
 defold_info['x86_64-win32']['pattern'] = "Win32/%s" % PACKAGES_WIN32_TOOLCHAIN
 defold_info['win32']['version'] = defold_info['x86_64-win32']['version']
 defold_info['win32']['pattern'] = defold_info['x86_64-win32']['pattern']
 
-defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK_10
-defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK_10
+defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK
+defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK
 
 defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
 defold_info['x86_64-linux']['pattern'] = 'x86_64-linux/clang-%s' % VERSION_LINUX_CLANG
@@ -437,7 +446,7 @@ def _get_local_vswhere_installations():
 def _get_common_visual_studio_roots():
     roots = []
     for base in filter(None, [os.environ.get('ProgramFiles'), os.environ.get('ProgramFiles(x86)')]):
-        for year in ('2022', '2019', '2017'):
+        for year in ('18', '2026', '2022'):
             for edition in ('BuildTools', 'Community', 'Professional', 'Enterprise'):
                 installation_root = os.path.join(base, 'Microsoft Visual Studio', year, edition)
                 if os.path.exists(installation_root):
@@ -576,6 +585,32 @@ def _get_windows_llvm_bin_dir(installation_root):
         return os.path.normpath(llvm_bin_dir)
     return None
 
+def _get_windows_visual_studio_year(installation=None, installation_root=None):
+    if installation:
+        for value in (
+            installation.get('displayName', ''),
+            (installation.get('catalog') or {}).get('productLineVersion', ''),
+        ):
+            match = re.search(r'\b(20\d{2})\b', str(value))
+            if match:
+                return match.group(1)
+
+    if installation_root:
+        for part in os.path.normpath(installation_root).split(os.sep):
+            if re.match(r'^20\d{2}$', part):
+                return part
+
+        # Visual Studio 2026 uses the major version in the installation path.
+        major_to_year = {
+            '18': '2026',
+            '17': '2022'
+        }
+        for part in os.path.normpath(installation_root).split(os.sep):
+            if part in major_to_year:
+                return major_to_year[part]
+
+    return None
+
 def _log_windows_detection_trace(verbose):
     global windows_info_trace
 
@@ -602,6 +637,7 @@ def _log_windows_detection_trace(verbose):
         log_verbose(verbose, "  Visual Studio candidate roots: none")
 
     log_verbose(verbose, f"  Selected Visual Studio installation: {trace.get('installation_root')}")
+    log_verbose(verbose, f"  Selected Visual Studio year: {trace.get('vs_year')}")
     log_verbose(verbose, f"  Selected MSVC root: {trace.get('vs_root')}")
     log_verbose(verbose, f"  Selected MSVC version: {trace.get('vs_version')}")
     log_verbose(verbose, f"  Visual Studio LLVM bin dir: {trace.get('llvm_bin_dir')}")
@@ -637,12 +673,14 @@ def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
 
     vswhere_path = _get_local_vswhere_path()
     vswhere_installations = []
+    vswhere_installations_by_root = {}
     installation_roots = []
     for installation in _get_local_vswhere_installations():
         installation_root = installation.get('installationPath')
         if installation_root:
             installation_root = os.path.normpath(installation_root)
             vswhere_installations.append(installation_root)
+            vswhere_installations_by_root[installation_root] = installation
             installation_roots.append(installation_root)
 
     for installation_root in _get_common_visual_studio_roots():
@@ -661,12 +699,14 @@ def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
     sdk_root = _get_windows_sdk_root()
     sdk_version = _get_windows_sdk_version(sdk_root) if sdk_root else None
     llvm_bin_dir = _get_windows_llvm_bin_dir(selected_installation_root) if selected_installation_root else None
+    vs_year = _get_windows_visual_studio_year(vswhere_installations_by_root.get(selected_installation_root), selected_installation_root)
 
     windows_info_trace = {
         'vswhere_path': vswhere_path,
         'vswhere_installations': vswhere_installations,
         'candidate_roots': installation_roots,
         'installation_root': selected_installation_root,
+        'vs_year': vs_year,
         'vs_root': vs_root,
         'vs_version': vs_version,
         'llvm_bin_dir': llvm_bin_dir,
@@ -691,6 +731,7 @@ def _detect_windows_local_sdk(platform='x86_64-win32', verbose=False):
         return None, windows_info_error
 
     windows_info = get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform, llvm_bin_dir)
+    windows_info['vs_year'] = vs_year
     return windows_info, None
 
 def win_locale_vswhere(platform='x86_64-win32'):
@@ -1052,30 +1093,36 @@ def _get_local_sdk_info(platform, verbose=False):
 
     return info
 
-# ********************************************************************
-# vendor
+class sdk_vendor(object):
+    @classmethod
+    def _module_for_platform(cls, platform):
+        from private_hooks import load_hook_module
+        module = load_hook_module('sdk', platform)
+        if module:
+            module.SDKException = SDKException
+        return module
 
-def dummy_check_vendor_sdk(sdkfolder, platform, verbose):
-    pass
+    @classmethod
+    def _call(cls, platform, name, default, *args):
+        module = cls._module_for_platform(platform)
+        func = getattr(module, name, None) if module else None
+        return func(*args) if func else default
 
-check_vendor_sdk = dummy_check_vendor_sdk
+    @classmethod
+    def supports_platform(cls, platform):
+        return cls._call(platform, 'supports_platform', False, platform)
 
-try:
-    import sdk_vendor
-    sdk_vendor.SDKException = SDKException # give access to the esception
-    check_vendor_sdk = sdk_vendor.check_vendor_sdk
-except ModuleNotFoundError as e:
-    # Currently, the output is parsed by other scripts
-    if "No module named 'sdk_vendor'" in str(e):
-        pass
-    else:
-        raise e
-except Exception as e:
-    print("Failed to import sdk_vendor.py:")
-    raise e
+    @classmethod
+    def get_defold_sdk_folders(cls, platform):
+        return cls._call(platform, 'get_defold_sdk_folders', [], platform)
 
-if 'sdk_vendor' not in sys.modules:
-    sdk_vendor = None
+    @classmethod
+    def get_sdk_info(cls, platform):
+        return cls._call(platform, 'get_sdk_info', None, platform)
+
+
+def check_vendor_sdk(sdkfolder, platform, verbose):
+    return sdk_vendor._call(platform, 'check_vendor_sdk', None, sdkfolder, platform, verbose)
 
 # ********************************************************************
 

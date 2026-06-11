@@ -336,7 +336,14 @@ dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}
 
 # Fetch libraries notification
 
+notification.fetch-libraries.changed = 项目依赖项已更改。您想现在获取库吗？
+notification.fetch-libraries.action.fetch = 获取库
+notification.fetch-libraries.action.open-game-project = 打开 game.project
+notification.fetch-libraries.problem.failed-http-request = 获取 (HTTP\:{status}) 失败
 notification.fetch-libraries.problem.http-connect-timeout = 获取失败(连接超时)
+
+# Editor scripts notification
+
 
 # Open custom editor notifications
 
@@ -1832,7 +1839,6 @@ form.help.project.display.high_dpi = 在支持时启用高 DPI 后备缓冲区
 form.label.project.display.samples = 采样
 form.help.project.display.samples = 超采样抗锯齿使用的采样数，默认为 0 ，即关闭
 form.label.project.display.fullscreen = 全屏
-form.help.project.display.fullscreen = 以全屏模式启动应用程序而非窗口模式
 form.label.project.display.display_profiles = 显示配置文件
 form.help.project.display.display_profiles = 应用程序使用的显示配置文件的文件引用
 form.label.project.display.dynamic_orientation = 动态方向

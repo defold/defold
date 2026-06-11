@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         ref: '${{env.BUILD_BRANCH}}'
     - name: Install Python
@@ -61,7 +61,7 @@ jobs:
     steps:
         
     - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         ref: '${{env.BUILD_BRANCH}}'
     - name: Install Python
@@ -107,7 +107,7 @@ jobs:
     runs-on: macOS-14
     steps:
     - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         ref: '${{env.BUILD_BRANCH}}'
     - name: Install Python
@@ -138,10 +138,10 @@ jobs:
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     steps:
     - name: Checkout repo
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       with:
         ref: '${{env.BUILD_BRANCH}}'
     - name: Install Python

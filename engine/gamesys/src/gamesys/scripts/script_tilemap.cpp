@@ -84,52 +84,6 @@ namespace dmGameSystem
      * ```
      */
 
-    /** DEPRECATED! set a shader constant for a tile map
-     * Sets a shader constant for a tile map component.
-     * The constant must be defined in the material assigned to the tile map.
-     * Setting a constant through this function will override the value set for that constant in the material.
-     * The value will be overridden until tilemap.reset_constant is called.
-     * Which tile map to set a constant for is identified by the URL.
-     *
-     * @name tilemap.set_constant
-     * @param url [type:string|hash|url] the tile map that should have a constant set
-     * @param constant [type:string|hash] name of the constant
-     * @param value [type:vector4] value of the constant
-     * @examples
-     *
-     * The following examples assumes that the tile map has id "tile map" and that the default-material in builtins is used, which defines the constant "tint".
-     * If you assign a custom material to the tile map, you can set the constants defined there in the same manner.
-     *
-     * How to tint a tile map to red:
-     *
-     * ```lua
-     * function init(self)
-     *     tilemap.set_constant("#tilemap", "tint", vmath.vector4(1, 0, 0, 1))
-     * end
-     * ```
-     */
-    static int TileMap_SetConstant(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
-        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-
-        dmGameSystemDDF::SetConstantTileMap msg;
-        msg.m_NameHash = name_hash;
-        msg.m_Value = *value;
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
-        return 0;
-    }
-
     /** DEPRECATED! reset a shader constant for a tile map
      * Resets a shader constant for a tile map component.
      * The constant must be defined in the material assigned to the tile map.
@@ -636,7 +590,6 @@ namespace dmGameSystem
 
     static const luaL_reg TILEMAP_FUNCTIONS[] =
     {
-        {"set_constant",    TileMap_SetConstant},
         {"reset_constant",  TileMap_ResetConstant},
         {"set_tile",        TileMap_SetTile},
         {"get_tile",        TileMap_GetTile},

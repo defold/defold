@@ -2911,8 +2911,11 @@ namespace dmGameSystem
             gui_input_action.m_GamepadUnknown = params.m_InputAction->m_GamepadUnknown;
             gui_input_action.m_GamepadDisconnected = params.m_InputAction->m_GamepadDisconnected;
             gui_input_action.m_GamepadConnected = params.m_InputAction->m_GamepadConnected;
-            gui_input_action.m_GamepadPacket = params.m_InputAction->m_GamepadPacket;
             gui_input_action.m_HasGamepadPacket = params.m_InputAction->m_HasGamepadPacket;
+            if (gui_input_action.m_HasGamepadPacket)
+            {
+                gui_input_action.m_GamepadPacket = params.m_InputAction->m_GamepadPacket;
+            }
             gui_input_action.m_AccX = params.m_InputAction->m_AccX;
             gui_input_action.m_AccY = params.m_InputAction->m_AccY;
             gui_input_action.m_AccZ = params.m_InputAction->m_AccZ;
@@ -3440,10 +3443,11 @@ namespace dmGameSystem
         g_CompGuiPropertyGetters.SetCapacity(4, 8);
 
         CompGuiContext* gui_context = new CompGuiContext;
+        HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
         gui_context->m_Factory = ctx->m_Factory;
-        gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
-        gui_context->m_GuiContext = *(dmGui::HContext*)ctx->m_Contexts.Get(dmHashString64("guic"));
-        gui_context->m_ScriptContext = *(dmScript::HContext*)ctx->m_Contexts.Get(dmHashString64("gui_scriptc"));
+        gui_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
+        gui_context->m_GuiContext = (dmGui::HContext) ContextRegistryGet(context_registry, "guic");
+        gui_context->m_ScriptContext = (dmScript::HContext) ContextRegistryGet(context_registry, "gui_scriptc");
 
         gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);

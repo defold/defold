@@ -1304,7 +1304,7 @@
   (let [w4 (c/camera-unproject camera viewport screen-pos)]
     (Vector3d. (.x w4) (.y w4) (.z w4))))
 
-(defn- view->camera
+(defn view->camera
   ([view]
    (view->camera (g/now) view))
   ([basis view]
@@ -1378,7 +1378,7 @@
           (g/set-property node-id :camera-inset-drawable nil))
         (g/set-property node-id :async-copy-state nil)))))
 
-(defn- active-scene-view
+(defn active-scene-view
   ([app-view]
    (g/with-auto-evaluation-context evaluation-context
      (active-scene-view app-view evaluation-context)))
@@ -1569,7 +1569,7 @@
         (let [camera (view->camera (:basis evaluation-context) scene-view)
               image-view (g/node-value scene-view :image-view evaluation-context)]
           (when (and camera image-view)
-            (c/start-free-cam-mode! image-view camera (i/get-cursor-pos))))))))
+            (c/start-free-cam-mode! image-view camera)))))))
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))

@@ -19,17 +19,21 @@
 #include <dlib/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dlib/profile.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
+#include "../engine_private.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 extern "C" void dmExportedSymbols();
 
+#ifndef CONTENT_ROOT
 #define CONTENT_ROOT "src/test/build/default"
+#endif
 #define MAKE_PATH(_VAR, _NAME)  dmTestUtil::MakeHostPathf(_VAR, sizeof(_VAR), "%s%s", CONTENT_ROOT, _NAME)
 
 typedef void (*PreRun)(dmEngine::HEngine engine, void* context);
@@ -109,12 +113,25 @@ static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void
     return dmEngine::RunLoop(&params);
 }
 
+static void PreRunTextInput(dmEngine::HEngine engine, void* context)
+{
+    (void) context;
+    dmHID::AddKeyboardChar(engine->m_HidContext, 'A');
+}
+
 
 
 /*
  * TODO:
  * We should add watchdog support that exists the application after N frames or similar.
  */
+
+TEST_F(EngineTest, TextInputActionFromHid)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/text_input/text_input.collectionc", "--config=input.game_binding=/text_input/text_input.input_bindingc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunTextInput, 0, 0));
+}
 
 TEST_F(EngineTest, ProjectFail)
 {
@@ -313,7 +330,10 @@ TEST_F(EngineTest, HttpPost)
 TEST_F(EngineTest, Reboot)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    char project_config[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    dmSnPrintf(project_config, sizeof(project_config), "--config=test.project=%s", project_path);
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", "--config=dmengine.unload_builtins=0", project_config, project_path};
     ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
@@ -582,6 +602,9 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
 
 int main(int argc, char **argv)
 {
+#if defined(_WIN32)
+    dmLog::CloseConsoleWindow();
+#endif
     dmExportedSymbols();
     TestMainPlatformInit();
 
