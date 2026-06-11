@@ -48,9 +48,6 @@ if(TEXC_IS_DESKTOP)
     COMMAND "${CMAKE_COMMAND}" -E env
             "DEFOLD_HOME=${DEFOLD_HOME}"
             "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
-            "CLANG=${CMAKE_C_COMPILER}"
-            "CLANGPP=${CMAKE_CXX_COMPILER}"
-            "SDKROOT=${CMAKE_OSX_SYSROOT}"
             "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
             --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
             --header "${TEXC_SRC_DIR}/texc.h"
@@ -111,7 +108,6 @@ if(TEXC_IS_DESKTOP)
     COMMENT "Packaging texturecompiler.jar")
   add_custom_target(texturecompiler_jar ALL DEPENDS "${TEXC_JAR}")
   add_dependencies(texturecompiler_jar texc_generated_bindings texc_bindings)
-  install(FILES "${TEXC_JAR}" DESTINATION share/java)
 
   defold_install_targets(TARGETS texc texc_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
