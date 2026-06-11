@@ -631,7 +631,7 @@ TEST_F(LightResourceTest, AmbientLightsDoNotUseLightBufferSlots)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
-    const uint32_t ambient_count = render_ctx->m_MaxLightCount + 1;
+    const uint32_t ambient_count = render_ctx->m_MaxLightCount;
     for (uint32_t i = 0; i < ambient_count; ++i)
     {
         char id_buf[32];

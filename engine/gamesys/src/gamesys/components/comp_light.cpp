@@ -56,8 +56,10 @@ namespace dmGameSystem
 
     static dmGameObject::CreateResult CompLightNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
+        LightContext* context = (LightContext*) params.m_Context;
         LightWorld* world = new LightWorld;
-        world->m_Components.SetCapacity(params.m_MaxComponentInstances);
+        uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxLightCount);
+        world->m_Components.SetCapacity(comp_count);
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -106,7 +108,7 @@ namespace dmGameSystem
 
         if (world->m_Components.Full())
         {
-            ShowFullBufferError("Light", world->m_Components.Capacity());
+            ShowFullBufferError("Light", LIGHT_MAX_COUNT_KEY, world->m_Components.Capacity());
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
