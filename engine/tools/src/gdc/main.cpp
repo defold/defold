@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <stdlib.h>
 
 #include <dlib/platform.h>
 
@@ -36,6 +37,7 @@
 extern "C" void dmExportedSymbols();
 
 static const uint16_t USB_VENDOR_NINTENDO = 0x057e;
+static const float AXIS_DETECT_THRESHOLD = 0.25f;
 
 enum State
 {
@@ -61,7 +63,7 @@ struct Driver
     Trigger m_Triggers[dmInputDDF::MAX_GAMEPAD_COUNT];
 };
 
-void GetDelta(dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
+void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
 void DumpDriver(FILE* out, Driver* driver);
 void DumpSDLEntry(FILE* out, Driver* driver);
 
@@ -229,6 +231,101 @@ dmHID::HContext g_HidContext = 0;
 
 static volatile bool g_SkipTrigger = false;
 
+static void UpdateHID(HWindow window)
+{
+    dmHID::Update(g_HidContext);
+    dmPlatform::PollEvents(window);
+}
+
+static void PrintGamepadPacketDebug(dmHID::HGamepad gamepad, dmHID::GamepadPacket* packet)
+{
+    printf("\tdebug packet:");
+
+    printf(" axis");
+    uint32_t axis_count = dmHID::GetGamepadAxisCount(gamepad);
+    if (axis_count == 0)
+    {
+        printf("=<none>");
+    }
+    else
+    {
+        printf("=");
+        for (uint32_t a = 0; a < axis_count; ++a)
+        {
+            printf("%s%.3f", a == 0 ? "" : ",", packet->m_Axis[a]);
+        }
+    }
+
+    printf(" buttons");
+    uint32_t button_count = dmHID::GetGamepadButtonCount(gamepad);
+    if (button_count == 0)
+    {
+        printf("=<none>");
+    }
+    else
+    {
+        printf("=");
+        for (uint32_t b = 0; b < button_count; ++b)
+        {
+            printf("%c", dmHID::GetGamepadButton(packet, b) ? '*' : '_');
+        }
+    }
+
+    printf(" hats");
+    uint32_t hat_count = dmHID::GetGamepadHatCount(gamepad);
+    if (hat_count == 0)
+    {
+        printf("=<none>");
+    }
+    else
+    {
+        printf("=");
+        for (uint32_t h = 0; h < hat_count; ++h)
+        {
+            printf("%s%d", h == 0 ? "" : ",", packet->m_Hat[h]);
+        }
+    }
+
+    printf("\n");
+    fflush(stdout);
+}
+
+static bool HasGamepadInputs(dmHID::HGamepad gamepad)
+{
+    return dmHID::GetGamepadAxisCount(gamepad) != 0 || dmHID::GetGamepadButtonCount(gamepad) != 0 || dmHID::GetGamepadHatCount(gamepad) != 0;
+}
+
+static bool WaitForGamepadReady(HWindow window, dmHID::HGamepad gamepad, dmHID::GamepadPacket* packet, bool debug_input)
+{
+    const uint32_t wait_steps = 300;
+    for (uint32_t step = 0; step < wait_steps; ++step)
+    {
+        UpdateHID(window);
+        if (!dmHID::GetGamepadPacket(gamepad, packet))
+        {
+            return false;
+        }
+
+        if (HasGamepadInputs(gamepad))
+        {
+            if (debug_input)
+            {
+                PrintGamepadPacketDebug(gamepad, packet);
+            }
+            return true;
+        }
+
+        if (debug_input && (step == 0 || (step % 60) == 0))
+        {
+            PrintGamepadPacketDebug(gamepad, packet);
+        }
+
+        dmTime::Sleep(16667);
+    }
+
+    return false;
+}
+
 static void sig_handler(int _)
 {
     (void)_;
@@ -269,7 +366,6 @@ int main(int argc, char *argv[])
     dmHID::HGamepad gamepads[dmHID::MAX_GAMEPAD_COUNT];
 
     float wait_delay = 1.0f;
-    float read_delay = 0.5f;
     float timer = 0.0f;
     float dt = 0.016667f;
     bool settled = false;
@@ -280,7 +376,9 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+    const bool debug_input = getenv("GDC_DEBUG") != 0x0;
+
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL);
 
     WindowCreateParams window_params;
     WindowCreateParamsInitialize(&window_params);
@@ -289,19 +387,17 @@ int main(int argc, char *argv[])
     window_params.m_Title = "gdc";
     window_params.m_PrintDeviceInfo = false;
     window_params.m_OpenGLVersionHint = 33;
-    if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
-    {
-        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
-    }
-    else
-    {
-        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
-    }
+    window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
     window_params.m_ContextAlphabits = 8;
     window_params.m_Hidden = 1;
 
     HWindow window = dmPlatform::NewWindow();
-    dmPlatform::OpenWindow(window, window_params);
+    WindowResult window_result = dmPlatform::OpenWindow(window, window_params);
+    if (window_result != WINDOW_RESULT_OK)
+    {
+        dmLogFatal("Unable to open window: %d.", window_result);
+        return 1;
+    }
 
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
@@ -315,13 +411,21 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+    new_hid_params.m_IgnoreAcceleration = 1;
+
+    g_HidContext = dmHID::NewContext(new_hid_params);
     dmHID::SetWindow(g_HidContext, window);
     dmHID::SetGamepadConnectivityCallback(g_HidContext, GamepadConnectivityCallback, 0);
-    dmHID::Init(g_HidContext);
+    bool hid_result = dmHID::Init(g_HidContext);
+    if (!hid_result)
+    {
+        dmLogFatal("Unable to initialize HID.");
+        return 1;
+    }
 
-    const int settle_wait_count = (int)(wait_delay / dt) + 1;
-    int wait_count = settle_wait_count;
+    const int settle_timeout_count = (int)(5.0f / dt) + 1;
+    int wait_count = settle_timeout_count;
 
 retry:
 
@@ -331,7 +435,7 @@ retry:
     const uint32_t wait_steps = 180;
     for (uint32_t step = 0; step < wait_steps && gamepad_count == 0; ++step)
     {
-        dmHID::Update(g_HidContext);
+        UpdateHID(window);
 
         gamepad_count = 0;
         for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_COUNT; ++i)
@@ -410,7 +514,16 @@ retry:
 
     dmHID::GamepadPacket prev_packet;
     dmHID::GamepadPacket packet;
-    dmHID::GetGamepadPacket(gamepad, &packet);
+    if (debug_input)
+    {
+        printf("* GDC_DEBUG=1 HID input dump is enabled.\n");
+    }
+
+    if (!WaitForGamepadReady(window, gamepad, &packet, debug_input))
+    {
+        printf("* The selected gamepad is connected, but it reports no axes, buttons or hats.\n");
+        goto bail;
+    }
     prev_packet = packet;
 
     dmInputDDF::GamepadType gamepad_type;
@@ -423,17 +536,22 @@ retry:
 
     printf("* Waiting for the gamepad values to settle. Don't press anything on the gamepad...\n");
     settled = false;
-    wait_count = settle_wait_count;
+    wait_count = settle_timeout_count;
     timer = wait_delay;
     for (int w = wait_count; w > 0; --w, --wait_count)
     {
-        dmHID::Update(g_HidContext);
+        UpdateHID(window);
         if (!dmHID::GetGamepadPacket(gamepad, &packet))
         {
             printf("%d: Failed to get gamepad packet\n", __LINE__);
             break;
         }
-        GetDelta(&prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+        GetDelta(gamepad, &prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+        if (debug_input && dmMath::Abs(delta) >= 0.01f)
+        {
+            printf("\tdebug settle: type=%d index=%u value=%.3f delta=%.3f\n", gamepad_type, index, value, delta);
+            PrintGamepadPacketDebug(gamepad, &packet);
+        }
         if (dmMath::Abs(delta) < 0.01f)
         {
             timer -= dt;
@@ -469,6 +587,8 @@ retry:
         State state = STATE_WAITING;
         timer = wait_delay;
         bool run = true;
+        uint32_t debug_sample_count = 0;
+        dmHID::GamepadPacket debug_prev_packet = prev_packet;
         while (run && wait_count>0)
         {
             if (g_SkipTrigger) {
@@ -478,9 +598,27 @@ retry:
                 break;
             }
 
-            dmHID::Update(g_HidContext);
-            dmHID::GetGamepadPacket(gamepad, &packet);
-            GetDelta(&prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+            UpdateHID(window);
+            if (!dmHID::GetGamepadPacket(gamepad, &packet))
+            {
+                printf("%d: Failed to get gamepad packet\n", __LINE__);
+                goto bail;
+            }
+            if (debug_input)
+            {
+                bool packet_changed = memcmp(&debug_prev_packet, &packet, sizeof(dmHID::GamepadPacket)) != 0;
+                if (packet_changed || debug_sample_count == 0 || (debug_sample_count % 30) == 0)
+                {
+                    PrintGamepadPacketDebug(gamepad, &packet);
+                    debug_prev_packet = packet;
+                }
+                ++debug_sample_count;
+            }
+            GetDelta(gamepad, &prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+            if (debug_input && gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS && dmMath::Abs(delta) > 0.05f)
+            {
+                printf("\tdebug axis: index=%u value=%.3f delta=%.3f\n", index, value, delta);
+            }
 
             switch (state)
             {
@@ -489,7 +627,6 @@ retry:
                 {
                     state = STATE_READING;
                     printf("* Press %s...\n", dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name);
-                    timer = read_delay;
                     wait_count = 100;
                 }
                 else
@@ -510,32 +647,24 @@ retry:
                     printf("\ttype: %s, index: %d, value: %.2f\n", gamepad_types[gamepad_type], index, value);
                     run = false;
                 }
-                else if (dmMath::Abs(delta) > 0.7f)
+                else if (dmMath::Abs(delta) > AXIS_DETECT_THRESHOLD)
                 {
-                    timer -= dt;
-                    if (timer < 0.0f)
-                    {
-                        driver.m_Triggers[i].m_Type = gamepad_type;
-                        driver.m_Triggers[i].m_Index = index;
-                        if (dmMath::Abs(delta) > 1.5f)
-                            driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] = true;
-                        else if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS)
-                            driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] = true;
-                        if (delta < 0.0f)
-                            driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE] = true;
+                    driver.m_Triggers[i].m_Type = gamepad_type;
+                    driver.m_Triggers[i].m_Index = index;
+                    if (dmMath::Abs(delta) > 1.5f)
+                        driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] = true;
+                    else if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS)
+                        driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] = true;
+                    if (delta < 0.0f)
+                        driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE] = true;
 
-                        if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_HAT) {
-                            driver.m_Triggers[i].m_HatMask = (uint32_t)value;
-                        }
-
-                        static const char* gamepad_types[] = {"axis", "button", "hat"};
-                        printf("\ttype: %s, index: %d, value: %.2f\n", gamepad_types[gamepad_type], index, value);
-                        run = false;
+                    if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_HAT) {
+                        driver.m_Triggers[i].m_HatMask = (uint32_t)value;
                     }
-                }
-                else
-                {
-                    timer = read_delay;
+
+                    static const char* gamepad_types[] = {"axis", "button", "hat"};
+                    printf("\ttype: %s, index: %d, value: %.2f\n", gamepad_types[gamepad_type], index, value);
+                    run = false;
                 }
                 break;
             }
@@ -574,14 +703,26 @@ bail:
     return result;
 }
 
-void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta)
+void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta)
 {
-    float max_delta = -1.0f;
-    for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_AXIS_COUNT; ++i)
+    if (gamepad_type != 0x0)
+        *gamepad_type = dmInputDDF::GAMEPAD_TYPE_AXIS;
+    if (index != 0x0)
+        *index = 0;
+    if (value != 0x0)
+        *value = packet->m_Axis[0];
+    if (delta != 0x0)
+        *delta = 0.0f;
+
+    float max_delta = 0.0f;
+    uint32_t axis_count = dmHID::GetGamepadAxisCount(gamepad);
+    for (uint32_t i = 0; i < axis_count; ++i)
     {
-        if (dmMath::Abs(packet->m_Axis[i] - prev_packet->m_Axis[i]) > max_delta)
+        float axis_delta = packet->m_Axis[i] - prev_packet->m_Axis[i];
+        float abs_axis_delta = dmMath::Abs(axis_delta);
+        if (abs_axis_delta > max_delta)
         {
-            max_delta = dmMath::Abs(packet->m_Axis[i] - prev_packet->m_Axis[i]);
+            max_delta = abs_axis_delta;
             if (gamepad_type != 0x0)
                 *gamepad_type = dmInputDDF::GAMEPAD_TYPE_AXIS;
             if (index != 0x0)
@@ -590,11 +731,12 @@ void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, d
                 *value = packet->m_Axis[i];
             if (delta != 0x0)
             {
-                *delta = packet->m_Axis[i] - prev_packet->m_Axis[i];
+                *delta = axis_delta;
             }
         }
     }
-    for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_HAT_COUNT; ++i)
+    uint32_t hat_count = dmHID::GetGamepadHatCount(gamepad);
+    for (uint32_t i = 0; i < hat_count; ++i)
     {
         if (prev_packet->m_Hat[i] != packet->m_Hat[i]) {
             if (gamepad_type != 0x0)
@@ -609,9 +751,12 @@ void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, d
             }
         }
     }
-    for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_BUTTON_COUNT; ++i)
+    uint32_t button_count = dmHID::GetGamepadButtonCount(gamepad);
+    for (uint32_t i = 0; i < button_count; ++i)
     {
-        if (dmHID::GetGamepadButton(packet, i))
+        bool was_down = dmHID::GetGamepadButton(prev_packet, i);
+        bool is_down = dmHID::GetGamepadButton(packet, i);
+        if (!was_down && is_down)
         {
             if (gamepad_type != 0x0)
                 *gamepad_type = dmInputDDF::GAMEPAD_TYPE_BUTTON;

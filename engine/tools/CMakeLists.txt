@@ -34,31 +34,34 @@ endif()
 
 if(TOOLS_IS_DESKTOP)
   if(NOT WITH_VULKAN)
-    defold_get_graphics_symbols(TOOLS_GDC_EXPORTS "${TARGET_PLATFORM}")
-    set(TOOLS_GDC_EXPORT_FILE "${CMAKE_CURRENT_BINARY_DIR}/gdc_exported_symbols.cpp")
-    defold_create_exported_symbols_file("${TOOLS_GDC_EXPORT_FILE}" "${TOOLS_GDC_EXPORTS}")
-    defold_add_executable(gdc
-      "${TOOLS_SRC_DIR}/gdc/main.cpp"
-      "${TOOLS_GDC_EXPORT_FILE}")
-    defold_target_link_libraries(gdc "${TARGET_PLATFORM}"
-      hid
-      input
-      ddf
-      dlib
-      zip
-      mbedtls
-      profile_null)
-    defold_target_link_platform(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
-    defold_target_link_app(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
-    defold_target_link_graphics(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
-    defold_target_link_socket(gdc "${TARGET_PLATFORM}" PRIVATE)
-    if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos)$")
-      target_link_libraries(gdc PRIVATE "-framework Metal" "-framework Foundation" "-framework IOSurface" "-framework GameController")
-    elseif(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
-      find_package(Threads REQUIRED)
-      target_link_libraries(gdc PRIVATE Threads::Threads dl)
-    endif()
-    defold_install_targets(TARGETS gdc RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+    block()
+      set(WITH_OPENGL ON)
+      defold_get_graphics_symbols(TOOLS_GDC_EXPORTS "${TARGET_PLATFORM}")
+      set(TOOLS_GDC_EXPORT_FILE "${CMAKE_CURRENT_BINARY_DIR}/gdc_exported_symbols.cpp")
+      defold_create_exported_symbols_file("${TOOLS_GDC_EXPORT_FILE}" "${TOOLS_GDC_EXPORTS}")
+      defold_add_executable(gdc
+        "${TOOLS_SRC_DIR}/gdc/main.cpp"
+        "${TOOLS_GDC_EXPORT_FILE}")
+      defold_target_link_libraries(gdc "${TARGET_PLATFORM}"
+        hid
+        input
+        ddf
+        dlib
+        zip
+        mbedtls
+        profile_null)
+      defold_target_link_platform(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
+      defold_target_link_app(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
+      defold_target_link_graphics(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
+      defold_target_link_socket(gdc "${TARGET_PLATFORM}" PRIVATE)
+      if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos)$")
+        target_link_libraries(gdc PRIVATE "-framework Metal" "-framework Foundation" "-framework IOSurface" "-framework GameController")
+      elseif(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+        find_package(Threads REQUIRED)
+        target_link_libraries(gdc PRIVATE Threads::Threads dl)
+      endif()
+      defold_install_targets(TARGETS gdc RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+    endblock()
   endif()
 
   set(TOOLS_LAUNCHER_SOURCES
