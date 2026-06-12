@@ -58,13 +58,14 @@
     `:binding` - map with `:button` and `:modifiers` keys; mutually exclusive with `:modifier`
     `:modifier` - modifier keyword for modifier-only commands; mutually exclusive with `:binding`
   `opts` - optional map with:
-    `:fallback-context` - context to fall back to when no binding is found"
+    `:fallback-context` - context to fall back to when no binding is found."
   ([context context-path bindings]
    (register! context context-path bindings nil))
   ([context context-path bindings opts]
    (swap! bindings-atom
           (fn [state]
-            (cond-> (assoc-in state [:contexts context :bindings]
+            (cond-> (assoc-in (update-in state [:contexts context] dissoc :fallback-context)
+                              [:contexts context :bindings]
                               (group-by :command
                                         (mapv #(assoc % :context-path context-path) bindings)))
               (:fallback-context opts)

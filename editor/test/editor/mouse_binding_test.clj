@@ -200,7 +200,26 @@
                   :binding-source :inherited
                   :fallback-context-path "Scene 2D Camera"
                   :bindings [{:button :primary :modifiers [:shift]}]}
-                 (mouse-binding/command-row overrides-2 ::derived :scene.camera.pan))))))))
+                 (mouse-binding/command-row overrides-2 ::derived :scene.camera.pan)))))
+      (mouse-binding/register! ::derived "Tile Map Editor"
+                               [{:command :scene.camera.pan
+                                 :action ["Pan"]}])
+      (testing "re-registering without fallback clears inherited behavior"
+        (is (nil? (mouse-binding/fallback-context ::derived)))
+        (is (nil? (mouse-binding/command-for-action ::derived {:button :primary :shift true})))
+        (is (not (mouse-binding/command-active?
+                   ::derived
+                   :scene.camera.pan
+                   {:mouse-buttons #{:primary} :modifiers #{:shift}})))
+        (is (= {:kind :mouse-binding
+                :context ::derived
+                :command :scene.camera.pan
+                :action ["Pan"]
+                :context-path "Tile Map Editor"
+                :binding-source :default
+                :fallback-context-path nil
+                :bindings [nil]}
+               (mouse-binding/command-row {} ::derived :scene.camera.pan)))))))
 
 (deftest modifier-command-workflow
   (with-mouse-bindings
