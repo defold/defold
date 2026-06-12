@@ -83,6 +83,32 @@ public final class GamepadConverter {
         SDL_HAT_TO_INPUT.put("h1.8", "GAMEPAD_RPAD_LEFT");
     }
 
+    private static final Map<String, String> CANONICAL_SDL_PACKET_BINDINGS = new HashMap<>();
+    static {
+        CANONICAL_SDL_PACKET_BINDINGS.put("a", "b0");
+        CANONICAL_SDL_PACKET_BINDINGS.put("b", "b1");
+        CANONICAL_SDL_PACKET_BINDINGS.put("x", "b2");
+        CANONICAL_SDL_PACKET_BINDINGS.put("y", "b3");
+        CANONICAL_SDL_PACKET_BINDINGS.put("dpup", "h0.1");
+        CANONICAL_SDL_PACKET_BINDINGS.put("dpright", "h0.2");
+        CANONICAL_SDL_PACKET_BINDINGS.put("dpdown", "h0.4");
+        CANONICAL_SDL_PACKET_BINDINGS.put("dpleft", "h0.8");
+        CANONICAL_SDL_PACKET_BINDINGS.put("leftx", "a0");
+        CANONICAL_SDL_PACKET_BINDINGS.put("+leftx", "+a0");
+        CANONICAL_SDL_PACKET_BINDINGS.put("-leftx", "-a0");
+        CANONICAL_SDL_PACKET_BINDINGS.put("lefty", "a1");
+        CANONICAL_SDL_PACKET_BINDINGS.put("+lefty", "+a1");
+        CANONICAL_SDL_PACKET_BINDINGS.put("-lefty", "-a1");
+        CANONICAL_SDL_PACKET_BINDINGS.put("rightx", "a2");
+        CANONICAL_SDL_PACKET_BINDINGS.put("+rightx", "+a2");
+        CANONICAL_SDL_PACKET_BINDINGS.put("-rightx", "-a2");
+        CANONICAL_SDL_PACKET_BINDINGS.put("righty", "a3");
+        CANONICAL_SDL_PACKET_BINDINGS.put("+righty", "+a3");
+        CANONICAL_SDL_PACKET_BINDINGS.put("-righty", "-a3");
+        CANONICAL_SDL_PACKET_BINDINGS.put("lefttrigger", "a4");
+        CANONICAL_SDL_PACKET_BINDINGS.put("righttrigger", "a5");
+    }
+
     private static final String HEX_GUID_PATTERN = "^[0-9a-fA-F]{32}";
 
     private GamepadConverter() {}
@@ -175,7 +201,7 @@ public final class GamepadConverter {
                         .append(" }\n");
             }
 
-            List<String> mapEntries = convertSdlMappingToDefoldMap(mapping.mappings);
+            List<String> mapEntries = convertSdlMappingToDefoldMap(mapping, defoldPlatform);
             for (String mapEntry : mapEntries) {
                 sb.append("    ").append(mapEntry).append("\n");
             }
@@ -347,7 +373,21 @@ public final class GamepadConverter {
         return (bytes[offset] & 0xffL) | ((bytes[offset + 1] & 0xffL) << 8);
     }
 
-    private static List<String> convertSdlMappingToDefoldMap(String sdlMappings) {
+    private static List<String> convertSdlMappingToDefoldMap(SdlMapping mapping, String platform) {
+        return convertSdlMappingToDefoldMap(mapping.mappings, usesCanonicalSdlPacketLayout(platform));
+    }
+
+    // Darwin HID emits SDL logical packet order for GUID mappings; the upstream
+    // SDL row still identifies the device and logical controls, but not our packet indices.
+    private static boolean usesCanonicalSdlPacketLayout(String platform) {
+        return platform.equals("macos") || platform.equals("ios");
+    }
+
+    private static List<String> convertSdlMappingToDefoldMap(String sdlMappings, boolean canonicalSdlPacketLayout) {
+        if (canonicalSdlPacketLayout) {
+            return convertSdlMappingToCanonicalPacketDefoldMap(sdlMappings);
+        }
+
         List<String> result = new ArrayList<>();
 
         String[] parts = sdlMappings.split(",");
@@ -365,6 +405,95 @@ public final class GamepadConverter {
         }
 
         return result;
+    }
+
+    private static List<String> convertSdlMappingToCanonicalPacketDefoldMap(String sdlMappings) {
+        List<String> result = new ArrayList<>();
+        List<String> entries = new ArrayList<>();
+
+        // Step 1: keep only SDL logical-to-physical mapping entries. Metadata such as
+        // platform is already handled before conversion.
+        String[] parts = sdlMappings.split(",");
+        for (String part : parts) {
+            part = part.trim();
+            if (part.isEmpty() || part.startsWith("platform:")) {
+                continue;
+            }
+            entries.add(part);
+        }
+
+        // Step 2: build the packet bindings used by Darwin HID when runtime selects
+        // the non-legacy SDL layout for GUID mappings.
+        Map<String, String> canonicalBindings = createCanonicalSdlPacketBindings(entries);
+
+        // Step 3: preserve the SDL logical control names from the upstream row, but
+        // replace physical indices with our canonical packet indices before reusing
+        // the normal SDL-to-Defold map conversion.
+        for (String entry : entries) {
+            result.addAll(convertSdlMappingEntriesToCanonicalPacket(entry, canonicalBindings));
+        }
+
+        return result;
+    }
+
+    private static Map<String, String> createCanonicalSdlPacketBindings(List<String> sdlEntries) {
+        Map<String, String> bindings = new HashMap<>(CANONICAL_SDL_PACKET_BINDINGS);
+
+        // Face buttons, axes and dpad have fixed positions. Optional buttons are
+        // appended in the same order as AppleGamepadDriverUpdateSDL writes them,
+        // so missing controls do not shift shoulders/guide incorrectly.
+        int buttonIndex = 4;
+        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "back", buttonIndex);
+        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "start", buttonIndex);
+        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "leftstick", buttonIndex);
+        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "rightstick", buttonIndex);
+        bindings.put("leftshoulder", "b" + buttonIndex++);
+        bindings.put("rightshoulder", "b" + buttonIndex++);
+        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "guide", buttonIndex);
+        addOptionalCanonicalButton(bindings, sdlEntries, "misc1", buttonIndex);
+
+        return bindings;
+    }
+
+    private static int addOptionalCanonicalButton(Map<String, String> bindings, List<String> sdlEntries, String logical, int buttonIndex) {
+        if (hasSdlLogicalControl(sdlEntries, logical)) {
+            bindings.put(logical, "b" + buttonIndex++);
+        }
+        return buttonIndex;
+    }
+
+    private static boolean hasSdlLogicalControl(List<String> sdlEntries, String logical) {
+        for (String entry : sdlEntries) {
+            if (logical.equals(getSdlLogicalName(entry))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<String> convertSdlMappingEntriesToCanonicalPacket(String sdlEntry, Map<String, String> canonicalBindings) {
+        List<String> result = new ArrayList<>();
+        String logical = getSdlLogicalName(sdlEntry);
+        if (logical == null || logical.isEmpty()) {
+            return result;
+        }
+
+        String binding = canonicalBindings.get(logical);
+        if (binding == null) {
+            return result;
+        }
+
+        return convertSdlMappingEntries(logical + ":" + binding);
+    }
+
+    private static String getSdlLogicalName(String sdlEntry) {
+        int colonIdx = sdlEntry.indexOf(':');
+        if (colonIdx == -1) {
+            return null;
+        }
+
+        String logical = sdlEntry.substring(0, colonIdx).trim().toLowerCase();
+        return logical;
     }
 
     private static List<String> convertSdlMappingEntries(String sdlEntry) {
