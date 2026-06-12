@@ -6,7 +6,8 @@ defold_log("functions_testserver.cmake:")
 #
 # Public API:
 #   defold_register_test_with_server(<target> <platform>
-#     [PORT <port>] [WORKDIR <dir>] [CONFIG_NAME <name.cfg>])
+#     [PORT <port>] [WORKDIR <dir>] [CONFIG_NAME <name.cfg>]
+#     [STAGE_FILES <source> <target> ...])
 #
 # Effect:
 #   - Creates a run target named run_<target>_server that:
@@ -24,7 +25,7 @@ function(defold_register_test_with_server target platform)
 
   set(options)
   set(oneValueArgs PORT WORKDIR CONFIG_NAME)
-  set(multiValueArgs)
+  set(multiValueArgs STAGE_FILES)
   cmake_parse_arguments(DTS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   if(NOT DTS_PORT)
@@ -57,16 +58,50 @@ function(defold_register_test_with_server target platform)
     list(APPEND _SERVER_DIRS "${CMAKE_CURRENT_SOURCE_DIR}")
   endif()
   list(REMOVE_DUPLICATES _SERVER_DIRS)
+
+  set(_SERVER_DIR_ARGS)
+  foreach(_SERVER_DIR IN LISTS _SERVER_DIRS)
+    list(APPEND _SERVER_DIR_ARGS --server-dir "${_SERVER_DIR}")
+  endforeach()
+
   set(_CFG_PATH "${CMAKE_CURRENT_BINARY_DIR}/${DTS_CONFIG_NAME}")
   set(_WRAP "${DEFOLD_CMAKE_DIR}/testserver.py")
   set(_SERVER_IP "localhost")
+  set(_ANDROID_ARGS)
+  if(platform MATCHES "arm64-android|armv7-android")
+    list(APPEND _ANDROID_ARGS
+      --android-runner "${DEFOLD_HOME}/build_tools/build_android.py"
+      --android-cwd "${_RUN_DIR_ABS}")
+    set(_STAGE_FILES ${DTS_STAGE_FILES})
+    list(LENGTH _STAGE_FILES _STAGE_LEN)
+    math(EXPR _STAGE_REMAINDER "${_STAGE_LEN} % 2")
+    if(NOT _STAGE_REMAINDER EQUAL 0)
+      message(FATAL_ERROR "defold_register_test_with_server: STAGE_FILES requires SOURCE TARGET pairs")
+    endif()
+    set(_STAGE_IDX 0)
+    while(_STAGE_IDX LESS _STAGE_LEN)
+      list(GET _STAGE_FILES ${_STAGE_IDX} _STAGE_SOURCE)
+      math(EXPR _STAGE_TARGET_IDX "${_STAGE_IDX} + 1")
+      list(GET _STAGE_FILES ${_STAGE_TARGET_IDX} _STAGE_TARGET)
+      list(APPEND _ANDROID_ARGS --android-stage "${_STAGE_SOURCE}" "${_STAGE_TARGET}")
+      math(EXPR _STAGE_IDX "${_STAGE_IDX} + 2")
+    endwhile()
+  endif()
 
   set(_run_target "run_${target}_server")
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
-      COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_SERVER_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
+      COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
+        --workdir "${_RUN_DIR_ABS}"
+        --ip "${_SERVER_IP}"
+        --port "${DTS_PORT}"
+        --config "${_CFG_PATH}"
+        ${_ANDROID_ARGS}
+        ${_SERVER_DIR_ARGS}
+        -- $<TARGET_FILE:${target}>
       DEPENDS ${target}
       USES_TERMINAL
+      COMMAND_EXPAND_LISTS
       COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")
   endif()
 
@@ -94,7 +129,7 @@ endfunction()
 function(defold_register_tests_with_server group platform)
   set(options)
   set(oneValueArgs PORT WORKDIR CONFIG_NAME)
-  set(multiValueArgs TARGETS)
+  set(multiValueArgs TARGETS STAGE_FILES)
   cmake_parse_arguments(DTS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   if(NOT DTS_TARGETS)
@@ -148,6 +183,26 @@ function(defold_register_tests_with_server group platform)
   set(_CFG_PATH "${CMAKE_CURRENT_BINARY_DIR}/${DTS_CONFIG_NAME}")
   set(_WRAP "${DEFOLD_CMAKE_DIR}/testserver.py")
   set(_SERVER_IP "localhost")
+  set(_ANDROID_ARGS)
+  if(platform MATCHES "arm64-android|armv7-android")
+    list(APPEND _ANDROID_ARGS
+      --android-runner "${DEFOLD_HOME}/build_tools/build_android.py"
+      --android-cwd "${_RUN_DIR_ABS}")
+    set(_STAGE_FILES ${DTS_STAGE_FILES})
+    list(LENGTH _STAGE_FILES _STAGE_LEN)
+    math(EXPR _STAGE_REMAINDER "${_STAGE_LEN} % 2")
+    if(NOT _STAGE_REMAINDER EQUAL 0)
+      message(FATAL_ERROR "defold_register_tests_with_server: STAGE_FILES requires SOURCE TARGET pairs")
+    endif()
+    set(_STAGE_IDX 0)
+    while(_STAGE_IDX LESS _STAGE_LEN)
+      list(GET _STAGE_FILES ${_STAGE_IDX} _STAGE_SOURCE)
+      math(EXPR _STAGE_TARGET_IDX "${_STAGE_IDX} + 1")
+      list(GET _STAGE_FILES ${_STAGE_TARGET_IDX} _STAGE_TARGET)
+      list(APPEND _ANDROID_ARGS --android-stage "${_STAGE_SOURCE}" "${_STAGE_TARGET}")
+      math(EXPR _STAGE_IDX "${_STAGE_IDX} + 2")
+    endwhile()
+  endif()
   set(_run_target "run_${group}_server")
 
   if(NOT TARGET ${_run_target})
@@ -157,6 +212,7 @@ function(defold_register_tests_with_server group platform)
         --ip "${_SERVER_IP}"
         --port "${DTS_PORT}"
         --config "${_CFG_PATH}"
+        ${_ANDROID_ARGS}
         ${_SERVER_DIR_ARGS}
         -- ${_TEST_EXES}
       DEPENDS ${DTS_TARGETS}
