@@ -425,7 +425,8 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
       ${ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES})
     if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
+      defold_target_link_glfw(${target} "${TARGET_PLATFORM}")
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" EGL GLESv1_CM GLESv2)
     endif()
   else()
     if(variant STREQUAL "release")
@@ -458,6 +459,16 @@ if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
   list(APPEND ENGINE_MAIN_SOURCES "${ENGINE_SRC_DIR}/common/android_main.cpp")
 endif()
 
+function(engine_add_binary target)
+  if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+    # NativeActivity loads Android engines with dlopen/dlsym, so these must be
+    # true shared libraries rather than PIE executables renamed to .so files.
+    defold_add_library(${target} SHARED ${ARGN})
+  else()
+    defold_add_executable(${target} ${ARGN})
+  endif()
+endfunction()
+
 set(ENGINE_DMENGINE_SYMBOLS
   ${ENGINE_EXPORTED_SYMBOLS}
   ${ENGINE_PROFILE_SYMBOLS}
@@ -466,7 +477,7 @@ set(ENGINE_DMENGINE_SYMBOLS
   ${ENGINE_COMPONENT_SYMBOLS})
 set(ENGINE_DMENGINE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmengine.cpp")
 defold_create_exported_symbols_file("${ENGINE_DMENGINE_EXPORTS}" "${ENGINE_DMENGINE_SYMBOLS}")
-defold_add_executable(dmengine ${ENGINE_MAIN_SOURCES} "${ENGINE_DMENGINE_EXPORTS}")
+engine_add_binary(dmengine ${ENGINE_MAIN_SOURCES} "${ENGINE_DMENGINE_EXPORTS}")
 engine_configure_executable(dmengine debug engine engine_service graphics "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
 
 set(ENGINE_RELEASE_SYMBOLS
@@ -476,7 +487,7 @@ set(ENGINE_RELEASE_SYMBOLS
   ${ENGINE_COMPONENT_SYMBOLS})
 set(ENGINE_RELEASE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmengine_release.cpp")
 defold_create_exported_symbols_file("${ENGINE_RELEASE_EXPORTS}" "${ENGINE_RELEASE_SYMBOLS}")
-defold_add_executable(dmengine_release ${ENGINE_MAIN_SOURCES} "${ENGINE_RELEASE_EXPORTS}")
+engine_add_binary(dmengine_release ${ENGINE_MAIN_SOURCES} "${ENGINE_RELEASE_EXPORTS}")
 engine_configure_executable(dmengine_release release engine_release engine_service_null graphics "profile_null;profilerext_null" "ProfilerExt")
 
 set(ENGINE_HEADLESS_SYMBOLS
@@ -488,7 +499,7 @@ set(ENGINE_HEADLESS_SYMBOLS
   ${ENGINE_COMPONENT_SYMBOLS})
 set(ENGINE_HEADLESS_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmengine_headless.cpp")
 defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADLESS_SYMBOLS}")
-defold_add_executable(dmengine_headless ${ENGINE_MAIN_SOURCES} "${ENGINE_HEADLESS_EXPORTS}")
+engine_add_binary(dmengine_headless ${ENGINE_MAIN_SOURCES} "${ENGINE_HEADLESS_EXPORTS}")
 engine_configure_executable(dmengine_headless headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
 
 if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
@@ -526,6 +537,7 @@ defold_install_targets(TARGETS engine engine_release engine_service engine_servi
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 defold_install_targets(TARGETS dmengine dmengine_release dmengine_headless
+  LIBRARY DESTINATION bin/${TARGET_PLATFORM}
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 if(TARGET_PLATFORM MATCHES "win32")
