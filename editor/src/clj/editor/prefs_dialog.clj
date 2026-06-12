@@ -43,11 +43,11 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [javafx.event ActionEvent]
+  (:import [javafx.event ActionEvent EventHandler]
            [javafx.scene Scene]
            [javafx.scene.control MenuItem TableView]
            [javafx.scene.input ContextMenuEvent KeyCode KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent MouseEvent]
-           [javafx.stage Window]))
+           [javafx.stage PopupWindow Window WindowEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -230,7 +230,12 @@
 (def ^:private enter-shortcut (KeyCombination/valueOf "Enter"))
 (def ^:private escape-shortcut (KeyCombination/valueOf "Esc"))
 
-(defn- filter-new-shortcut-text-field-events [command displayed-shortcut swap-shortcut swap-state update-keymap e]
+(defn- set-recorded-shortcut [state shortcut]
+  (cond-> state
+          (:new-shortcut-popup state)
+          (assoc-in [:new-shortcut-popup :shortcut] shortcut)))
+
+(defn- filter-new-shortcut-popup-events [command displayed-shortcut swap-state update-keymap e]
   (condp instance? e
     KeyEvent
     (let [^KeyEvent e e]
@@ -259,7 +264,21 @@
                                                   (update :remove (fnil disj #{}) shortcut-str)
                                                   (update :add (fnil conj #{}) shortcut-str)))))
             :else
-            (swap-shortcut (constantly shortcut))))))
+            (swap-state set-recorded-shortcut shortcut)))))
+
+    MouseEvent
+    (let [^MouseEvent e e
+          event-type (.getEventType e)]
+      (cond
+        (= MouseEvent/MOUSE_PRESSED event-type)
+        (when-let [shortcut (keymap/mouse-shortcut-from-event e)]
+          (.consume e)
+          (swap-state set-recorded-shortcut shortcut))
+
+        (or (= MouseEvent/MOUSE_RELEASED event-type)
+            (= MouseEvent/MOUSE_CLICKED event-type))
+        (when (keymap/mouse-shortcut-from-event e)
+          (.consume e))))
 
     ContextMenuEvent
     (let [^ContextMenuEvent e e]
@@ -267,12 +286,57 @@
 
     nil))
 
-(fxui/defc new-shortcut-view
-  {:compose [{:fx/type fx/ext-state
-              :initial-state nil
-              :key :shortcut
-              :swap-key :swap-shortcut}]}
-  [{:keys [keymap command shortcut swap-shortcut swap-state update-keymap localization-state]}]
+(defn- handle-owner-scene-mouse-event-while-recording
+  "Replaces popup auto-hide while the new shortcut popup is open
+
+  Mouse thumb button presses are recorded as the new shortcut no matter where
+  the cursor is, while other mouse button presses close the popup like
+  auto-hide would. Since consuming a press does not stop JavaFX from
+  delivering the released and clicked events of the same gesture, the rest of
+  a recorded thumb button gesture is consumed as well."
+  [recorded-button swap-state ^MouseEvent e]
+  (let [event-type (.getEventType e)
+        button (.getButton e)]
+    (cond
+      (= MouseEvent/MOUSE_PRESSED event-type)
+      (do (.consume e)
+          (if-let [shortcut (keymap/mouse-shortcut-from-event e)]
+            (do (vreset! recorded-button button)
+                (swap-state set-recorded-shortcut shortcut))
+            (swap-state dissoc :new-shortcut-popup)))
+
+      (or (= MouseEvent/MOUSE_RELEASED event-type)
+          (= MouseEvent/MOUSE_CLICKED event-type))
+      (when (= @recorded-button button)
+        (.consume e)
+        (when (= MouseEvent/MOUSE_CLICKED event-type)
+          (vreset! recorded-button nil))))))
+
+(defn- remove-recording-mouse-filter! [^Scene scene]
+  (when scene
+    (when-let [handler (.remove (.getProperties scene) ::recording-mouse-filter)]
+      (.removeEventFilter scene MouseEvent/MOUSE_PRESSED ^EventHandler handler)
+      (.removeEventFilter scene MouseEvent/MOUSE_RELEASED ^EventHandler handler)
+      (.removeEventFilter scene MouseEvent/MOUSE_CLICKED ^EventHandler handler))))
+
+(defn- install-recording-mouse-filter! [^Scene scene swap-state]
+  (remove-recording-mouse-filter! scene)
+  (let [recorded-button (volatile! nil)
+        handler (reify EventHandler
+                  (handle [_ event]
+                    (handle-owner-scene-mouse-event-while-recording recorded-button swap-state event)))]
+    (.put (.getProperties scene) ::recording-mouse-filter handler)
+    (.addEventFilter scene MouseEvent/MOUSE_PRESSED handler)
+    (.addEventFilter scene MouseEvent/MOUSE_RELEASED handler)
+    (.addEventFilter scene MouseEvent/MOUSE_CLICKED handler)))
+
+(defn- on-new-shortcut-popup-hiding [swap-state ^WindowEvent e]
+  (let [^PopupWindow popup (.getSource e)]
+    (remove-recording-mouse-filter! (some-> (.getOwnerWindow popup) .getScene)))
+  (swap-state dissoc :new-shortcut-popup))
+
+(defn- new-shortcut-view
+  [{:keys [keymap command shortcut localization-state]}]
   (let [warnings (when shortcut
                    (keymap/warnings (keymap/from keymap {command {:add #{(str shortcut)}}}) command shortcut))]
     {:fx/type fxui/vertical
@@ -283,10 +347,10 @@
        [{:fx/type fxui/label
          :alignment :center
          :text (localization-state (localization/message "prefs.keymap.new-shortcut" {"shortcut" (command-label command)}))}
-        {:fx/type fxui/text-field
-         :event-filter #(filter-new-shortcut-text-field-events command shortcut swap-shortcut swap-state update-keymap %)
-         :alignment :center
-         :text (some-> shortcut keymap/shortcut-distinct-display-text)}
+        {:fx/type fxui/ext-focused-by-default
+         :desc {:fx/type fxui/text-field
+                :alignment :center
+                :text (some-> shortcut keymap/shortcut-distinct-display-text)}}
         {:fx/type fxui/label
          :alignment :center
          :text-alignment :center
@@ -309,10 +373,12 @@
                                          (coll/join-to-string ""))}))}))}))
 
 (defn- show-new-shortcut-dialog! [swap-state command ^Window window]
-  (let [root (.getRoot (.getScene window))
+  (let [scene (.getScene window)
+        root (.getRoot scene)
         screen-bounds (.localToScreen root (.getBoundsInLocal root))
         x (- (.getCenterX screen-bounds) (* 0.5 new-shortcut-popup-width))
         y (- (.getCenterY screen-bounds) (* 0.5 new-shortcut-popup-height))]
+    (install-recording-mouse-filter! scene swap-state)
     (swap-state assoc :new-shortcut-popup {:command command :x x :y y})))
 
 (defn- handle-new-shortcut-action [swap-state command ^ActionEvent e]
@@ -357,16 +423,24 @@
        :popup
        (cond
          new-shortcut-popup
-         (let [{:keys [command x y]} new-shortcut-popup]
+         (let [{:keys [command x y shortcut]} new-shortcut-popup]
+           ;; Auto-hide is intentionally not used here: it would hide the popup
+           ;; on mouse thumb button presses outside the popup, which should be
+           ;; recorded as the new shortcut instead. A mouse-pressed filter on
+           ;; the owner window scene replicates auto-hide for other mouse
+           ;; buttons while the popup is showing.
            {:fx/type fx.popup/lifecycle
             :on-window true
             :showing true
             :anchor-x x
             :anchor-y y
-            :auto-hide true
-            :on-hiding (fn [_] (swap-state dissoc :new-shortcut-popup))
+            :on-hiding #(on-new-shortcut-popup-hiding swap-state %)
+            ;; The event filter is on the popup content root so that key and
+            ;; mouse events are captured no matter which popup node they
+            ;; target.
             :content [{:fx/type fx.stack-pane/lifecycle
                        :pref-width new-shortcut-popup-width
+                       :event-filter #(filter-new-shortcut-popup-events command shortcut swap-state update-keymap %)
                        :children
                        [{:fx/type fx.region/lifecycle
                          :style-class "keymap-new-shortcut-background"}
@@ -374,8 +448,7 @@
                          :localization-state localization-state
                          :keymap keymap
                          :command command
-                         :swap-state swap-state
-                         :update-keymap update-keymap}]}]})
+                         :shortcut shortcut}]}]})
 
          context-menu
          (let [{:keys [command x y]} context-menu

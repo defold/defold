@@ -1721,7 +1721,10 @@
         ;; NOTE: This label is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
         (let [label (or (handler/label handler-ctx evaluation-context) label)
               enabled? (handler/enabled? handler-ctx evaluation-context)
-              key-combo (first (keymap/shortcuts keymap command))
+              ;; Only KeyCombination shortcuts can be used as menu item
+              ;; accelerators; mouse shortcuts are dispatched by the keymap
+              ;; event filter (see keymap/install!).
+              key-combo (first (filter #(instance? KeyCombination %) (keymap/shortcuts keymap command)))
               options (when (not (false? (:expand item)))
                         (handler/options handler-ctx evaluation-context))]
           (if (or (nil? options)

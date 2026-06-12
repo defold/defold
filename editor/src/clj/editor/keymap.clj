@@ -15,6 +15,7 @@
 (ns editor.keymap
   (:refer-clojure :exclude [empty])
   (:require [clojure.edn :as edn]
+            [clojure.string :as string]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [internal.util :as util]
@@ -24,7 +25,7 @@
             [util.fn :as fn])
   (:import [javafx.event EventHandler]
            [javafx.scene Scene]
-           [javafx.scene.input KeyCharacterCombination KeyCode KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent]))
+           [javafx.scene.input KeyCharacterCombination KeyCode KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent MouseButton MouseEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -436,6 +437,146 @@
            ["Y" :scene.flip-brush-vertically]
            ["Z" :scene.rotate-brush-90-degrees]]})
 
+;; In addition to KeyCombination shortcuts, the keymap supports binding the
+;; mouse thumb (back/forward) buttons, optionally combined with modifier keys,
+;; e.g. "MouseBack" or "Ctrl+MouseForward". Other mouse buttons are
+;; deliberately not bindable since they are needed for interacting with the
+;; editor UI. Mouse shortcuts are represented as MouseButtonCombination
+;; instead of KeyCombination, and are matched against MOUSE_PRESSED events
+;; using an event filter (see [[install!]]) since some views (e.g. the code
+;; editor) consume all mouse presses during the bubbling phase.
+
+(def ^:private mouse-button-keyword->name
+  {:back "MouseBack"
+   :forward "MouseForward"})
+
+(def ^:private mouse-button-keyword->display-text
+  {:back "Mouse Back"
+   :forward "Mouse Forward"})
+
+(def ^:private lower-case-name->mouse-button-keyword
+  (into {}
+        (map (fn [[button n]]
+               (coll/pair (string/lower-case n) button)))
+        mouse-button-keyword->name))
+
+(def ^:private jfx-mouse-button->keyword
+  {MouseButton/BACK :back
+   MouseButton/FORWARD :forward})
+
+(def ^:private lower-case-name->mouse-modifier-keyword
+  {"shift" :shift
+   "ctrl" :control
+   "alt" :alt
+   "meta" :meta})
+
+(defn- mouse-shortcut-name
+  ^String [button modifiers]
+  (let [sb (StringBuilder.)]
+    (cond-> sb
+            (contains? modifiers :shift) (.append "Shift+")
+            (contains? modifiers :control) (.append "Ctrl+")
+            (contains? modifiers :alt) (.append "Alt+")
+            (contains? modifiers :meta) (.append "Meta+"))
+    (.append sb ^String (mouse-button-keyword->name button))
+    (.toString sb)))
+
+(defrecord MouseButtonCombination [button modifiers]
+  Object
+  (toString [_] (mouse-shortcut-name button modifiers)))
+
+(defn mouse-shortcut?
+  "Returns true if shortcut is a mouse button shortcut"
+  [shortcut]
+  (instance? MouseButtonCombination shortcut))
+
+(defn shortcut?
+  "Returns true if x is a parsed shortcut (KeyCombination or mouse shortcut)"
+  [x]
+  (or (instance? KeyCombination x) (mouse-shortcut? x)))
+
+(defn- parse-mouse-shortcut
+  "Returns a MouseButtonCombination if s is a mouse shortcut string, nil otherwise"
+  [s]
+  (let [tokens (string/split s #"\+")]
+    (when-let [button (lower-case-name->mouse-button-keyword (string/lower-case (peek tokens)))]
+      (let [modifier-tokens (pop tokens)
+            modifiers (into #{}
+                            (keep #(lower-case-name->mouse-modifier-keyword (string/lower-case %)))
+                            modifier-tokens)]
+        (when (= (count modifier-tokens) (count modifiers))
+          (->MouseButtonCombination button modifiers))))))
+
+(defn parse-shortcut
+  "Parses a shortcut string into a KeyCombination or a MouseButtonCombination
+
+  Throws IllegalArgumentException on invalid shortcut strings"
+  [s]
+  (or (parse-mouse-shortcut s)
+      (KeyCombination/valueOf s)))
+
+(defn- shortcut-canonical-name
+  ^String [shortcut]
+  (if (instance? KeyCombination shortcut)
+    (.getName ^KeyCombination shortcut)
+    (str shortcut)))
+
+(defn- mouse-event-modifiers [^MouseEvent e]
+  (cond-> #{}
+          (.isShiftDown e) (conj :shift)
+          (.isControlDown e) (conj :control)
+          (.isAltDown e) (conj :alt)
+          (.isMetaDown e) (conj :meta)))
+
+(defn mouse-shortcut-from-event
+  "Returns a MouseButtonCombination for a bindable mouse button event, or nil
+
+  Only the mouse thumb (back/forward) buttons are bindable as shortcuts"
+  [^MouseEvent e]
+  (when-let [button (jfx-mouse-button->keyword (.getButton e))]
+    (->MouseButtonCombination button (mouse-event-modifiers e))))
+
+(defn- mouse-shortcut-display-text
+  ^String [^MouseButtonCombination shortcut os]
+  (let [sb (StringBuilder.)
+        modifiers (:modifiers shortcut)
+        control (contains? modifiers :control)
+        alt (contains? modifiers :alt)
+        shift (contains? modifiers :shift)
+        meta (contains? modifiers :meta)]
+    (if (= os :macos)
+      (cond-> sb
+              control (.append "⌃")
+              alt (.append "⌥")
+              shift (.append "⇧")
+              meta (.append "⌘"))
+      (cond-> sb
+              control (.append "Ctrl+")
+              alt (.append "Alt+")
+              shift (.append "Shift+")
+              meta (.append "Meta+")))
+    (.append sb ^String (mouse-button-keyword->display-text (:button shortcut)))
+    (.toString sb)))
+
+(defn- mouse-shortcut-filterable-text
+  ^String [^MouseButtonCombination shortcut os]
+  (let [sb (StringBuilder.)
+        modifiers (:modifiers shortcut)
+        control (contains? modifiers :control)
+        alt (contains? modifiers :alt)
+        shift (contains? modifiers :shift)
+        meta (contains? modifiers :meta)]
+    (cond-> sb
+            control (.append "Ctrl+")
+            alt (.append "Alt+")
+            shift (.append "Shift+")
+            meta (.append ^String (case os
+                                    :macos "Cmd+"
+                                    :win32 "Win+"
+                                    :linux "Meta+")))
+    (.append sb ^String (mouse-button-keyword->display-text (:button shortcut)))
+    (.toString sb)))
+
 (def ^:private typable-truth-table
   "Only act on key pressed events that look like textual input, and
   skip what is likely shortcut combinations.
@@ -555,13 +696,16 @@
   "Returns true if the input is typable (on a specific OS)
 
   Args:
-    key    either KeyCombination or KeyEvent
+    key    either KeyCombination, MouseButtonCombination or KeyEvent
     os     target os keyword (:linux, :macos or :win32), defaults to host os"
   ([key-data-source]
    (typable? key-data-source (os/os)))
   ([key os]
    (let [mac (= os :macos)]
      (condp instance? key
+       MouseButtonCombination
+       false
+
        KeyCombination
        (let [^KeyCombination key key]
          (and (typable-truth-table
@@ -588,11 +732,11 @@
             (.isMetaDown key)]))))))
 
 (def empty
-  {;; KeyCombination->#{command}
+  {;; shortcut (KeyCombination or MouseButtonCombination)->#{command}
    :shortcut->commands {}
-   ;; command->#{KeyCombination}
+   ;; command->#{shortcut}
    :command->shortcuts {}
-   ;; command->KeyCombination->{:type ...}
+   ;; command->shortcut->{:type ...}
    :command->shortcut->warnings {}})
 
 (def ^:private set-conj (fnil conj #{}))
@@ -626,7 +770,7 @@
          (fn [acc command {:keys [add remove]}]
            (let [acc (reduce
                        (fn [acc s]
-                         (let [shortcut (KeyCombination/valueOf s)]
+                         (let [shortcut (parse-shortcut s)]
                            (if (-> acc :shortcut->commands (get shortcut) (contains? command))
                              (-> acc
                                  (update :shortcut->commands update-removing-empty shortcut disj command)
@@ -648,15 +792,16 @@
                        remove)
                  acc (reduce
                        (fn [acc s]
-                         (let [shortcut (KeyCombination/valueOf s)]
+                         (let [shortcut (parse-shortcut s)]
                            (-> acc
                                (update-in [:shortcut->commands shortcut] set-conj command)
                                (update-in [:command->shortcuts command] set-conj shortcut)
                                (cond->
-                                 (= KeyCombination$ModifierValue/DOWN (.getShortcut shortcut))
+                                 (and (instance? KeyCombination shortcut)
+                                      (= KeyCombination$ModifierValue/DOWN (.getShortcut ^KeyCombination shortcut)))
                                  (update-in [:command->shortcut->warnings command shortcut] set-conj {:type :shortcut-modifier})
 
-                                 (not= s (.getName shortcut))
+                                 (not= s (shortcut-canonical-name shortcut))
                                  (update-in [:command->shortcut->warnings command shortcut] set-conj {:type :non-canonical-name})
 
                                  (typable? shortcut os)
@@ -708,12 +853,14 @@
   ([keymap command]
    (get (warnings keymap) command))
   ([keymap command shortcut]
-   {:pre [(or (string? shortcut) (instance? KeyCombination shortcut))]}
-   (let [shortcut (if (string? shortcut) (KeyCombination/valueOf shortcut) shortcut)]
+   {:pre [(or (string? shortcut) (shortcut? shortcut))]}
+   (let [shortcut (if (string? shortcut) (parse-shortcut shortcut) shortcut)]
      (get (warnings keymap command) shortcut))))
 
 (defn shortcuts
-  "Returns a non-empty set of KeyCombination shortcuts for a command (or nil)"
+  "Returns a non-empty set of shortcuts for a command (or nil)
+
+  A shortcut is either a KeyCombination or a MouseButtonCombination"
   [keymap command]
   (get (:command->shortcuts keymap) command))
 
@@ -724,50 +871,100 @@
   ([keymap]
    (coll/not-empty (into #{} (keys (:command->shortcuts keymap)))))
   ([keymap shortcut]
-   {:pre [(or (string? shortcut) (instance? KeyCombination shortcut))]}
-   (let [shortcut (if (string? shortcut) (KeyCombination/valueOf shortcut) shortcut)]
+   {:pre [(or (string? shortcut) (shortcut? shortcut))]}
+   (let [shortcut (if (string? shortcut) (parse-shortcut shortcut) shortcut)]
      (get (:shortcut->commands keymap) shortcut))))
 
 (defn display-text
-  "Return a display text string for one of its shortcuts (or not-found value)"
+  "Return a display text string for one of its shortcuts (or not-found value)
+
+  Prefers key combinations over mouse shortcuts when both are bound"
   [keymap command not-found]
   (if-let [s (shortcuts keymap command)]
-    (.getDisplayText ^KeyCombination (first s))
+    (let [shortcut (or (first (filter #(instance? KeyCombination %) s))
+                       (first s))]
+      (if (mouse-shortcut? shortcut)
+        (mouse-shortcut-display-text shortcut (os/os))
+        (.getDisplayText ^KeyCombination shortcut)))
     not-found))
 
 (defn install!
   "Install a keymap on a scene, replacing any predefined accelerators"
   [keymap ^Scene scene execute-fn]
-  (when-let [old-handler (.get (.getProperties scene) ::keymap)]
-    (.removeEventHandler scene KeyEvent/KEY_PRESSED old-handler))
-  (let [{:keys [shortcut->commands]} keymap
-        new-handler (reify EventHandler
-                      (handle [_ e]
-                        (reduce-kv
-                          (fn [_ ^KeyCombination shortcut commands]
-                            (when (.match shortcut e)
-                              (.consume e)
-                              (reduced (execute-fn commands))))
-                          nil
-                          shortcut->commands)))]
-    (.put (.getProperties scene) ::keymap new-handler)
-    (.addEventHandler scene KeyEvent/KEY_PRESSED new-handler))
+  (let [props (.getProperties scene)]
+    (when-let [old-handler (.get props ::keymap)]
+      (.removeEventHandler scene KeyEvent/KEY_PRESSED old-handler))
+    (when-let [old-filter (.get props ::mouse-keymap)]
+      (.removeEventFilter scene MouseEvent/MOUSE_PRESSED old-filter)
+      (.removeEventFilter scene MouseEvent/MOUSE_RELEASED old-filter)
+      (.removeEventFilter scene MouseEvent/MOUSE_CLICKED old-filter)
+      (.remove props ::mouse-keymap))
+    (let [{:keys [shortcut->commands]} keymap
+          key-shortcut->commands (into {} (filter #(instance? KeyCombination (key %))) shortcut->commands)
+          mouse-shortcut->commands (into {} (filter #(mouse-shortcut? (key %))) shortcut->commands)
+          new-handler (reify EventHandler
+                        (handle [_ e]
+                          (reduce-kv
+                            (fn [_ ^KeyCombination shortcut commands]
+                              (when (.match shortcut e)
+                                (.consume e)
+                                (reduced (execute-fn commands))))
+                            nil
+                            key-shortcut->commands)))]
+      (.put props ::keymap new-handler)
+      (.addEventHandler scene KeyEvent/KEY_PRESSED new-handler)
+      ;; Mouse shortcuts are matched in an event filter instead of an event
+      ;; handler since some views (e.g. the code editor) consume all mouse
+      ;; presses during the bubbling phase. Consuming a press does not stop
+      ;; JavaFX from delivering the released and clicked events of the same
+      ;; gesture, so on a matched press we remember the button and consume
+      ;; the rest of its gesture as well.
+      (when (pos? (count mouse-shortcut->commands))
+        (let [matched-button (volatile! nil)
+              new-filter (reify EventHandler
+                           (handle [_ e]
+                             (let [^MouseEvent e e
+                                   event-type (.getEventType e)
+                                   button (.getButton e)]
+                               (cond
+                                 (= MouseEvent/MOUSE_PRESSED event-type)
+                                 (if-let [commands (-> e mouse-shortcut-from-event mouse-shortcut->commands)]
+                                   (do (vreset! matched-button button)
+                                       (.consume e)
+                                       (execute-fn commands))
+                                   (when (= @matched-button button)
+                                     (vreset! matched-button nil)))
+
+                                 (or (= MouseEvent/MOUSE_RELEASED event-type)
+                                     (= MouseEvent/MOUSE_CLICKED event-type))
+                                 (when (= @matched-button button)
+                                   (.consume e)
+                                   (when (= MouseEvent/MOUSE_CLICKED event-type)
+                                     (vreset! matched-button nil)))))))]
+          (.put props ::mouse-keymap new-filter)
+          (.addEventFilter scene MouseEvent/MOUSE_PRESSED new-filter)
+          (.addEventFilter scene MouseEvent/MOUSE_RELEASED new-filter)
+          (.addEventFilter scene MouseEvent/MOUSE_CLICKED new-filter)))))
   nil)
 
 (defn shortcut-display-text
   "Default display text of a shortcut"
-  [^KeyCombination shortcut]
-  (.getDisplayText shortcut))
+  [shortcut]
+  (if (mouse-shortcut? shortcut)
+    (mouse-shortcut-display-text shortcut (os/os))
+    (.getDisplayText ^KeyCombination shortcut)))
 
 (defn shortcut-distinct-display-text
   "Display text for a shortcut that takes shortcut type into account"
   ([shortcut]
    (shortcut-distinct-display-text shortcut (os/os)))
-  ([^KeyCombination shortcut os]
+  ([shortcut os]
    (condp instance? shortcut
-     KeyCodeCombination (.getDisplayText shortcut)
+     MouseButtonCombination (mouse-shortcut-display-text shortcut os)
+     KeyCodeCombination (.getDisplayText ^KeyCombination shortcut)
      KeyCharacterCombination
-     (let [sb (StringBuilder.)
+     (let [^KeyCombination shortcut shortcut
+           sb (StringBuilder.)
            control (= KeyCombination$ModifierValue/DOWN (.getControl shortcut))
            alt (= KeyCombination$ModifierValue/DOWN (.getAlt shortcut))
            shift (= KeyCombination$ModifierValue/DOWN (.getShift shortcut))
@@ -790,44 +987,50 @@
            (.append sb (str "'" char-str "'"))))
        (.toString sb)))))
 
+(defn- shortcut-filterable-key-combination-text
+  ^String [^KeyCombination shortcut os]
+  (let [sb (StringBuilder.)
+        control (= KeyCombination$ModifierValue/DOWN (.getControl shortcut))
+        alt (= KeyCombination$ModifierValue/DOWN (.getAlt shortcut))
+        shift (= KeyCombination$ModifierValue/DOWN (.getShift shortcut))
+        meta (= KeyCombination$ModifierValue/DOWN (.getMeta shortcut))
+        shortcut-modifier (= KeyCombination$ModifierValue/DOWN (.getShortcut shortcut))]
+    ;; See https://github.com/microsoft/vscode/blob/7ec68793e7d971def8c2ea3f669b8f85ebc726a4/src/vs/base/common/keybindingLabels.ts#L130-L152
+    (case os
+      :macos (cond-> sb
+                     control (.append "Ctrl+")
+                     alt (.append "Alt+")
+                     shift (.append "Shift+")
+                     (or meta shortcut-modifier) (.append "Cmd+"))
+      :win32 (cond-> sb
+                     (or control shortcut-modifier) (.append "Ctrl+")
+                     alt (.append "Alt+")
+                     shift (.append "Shift+")
+                     meta (.append "Win+"))
+      :linux (cond-> sb
+                     (or control shortcut-modifier) (.append "Ctrl+")
+                     alt (.append "Alt+")
+                     shift (.append "Shift+")
+                     meta (.append "Meta+")))
+    (condp instance? shortcut
+      KeyCharacterCombination
+      (.append sb (.getCharacter ^KeyCharacterCombination shortcut))
+
+      KeyCodeCombination
+      (let [code (.getCode ^KeyCodeCombination shortcut)]
+        (.append sb (or (when (= KeyCode/SPACE code) (.getName code))
+                        (key-code->typable-char-strings code)
+                        (.getName code)))))
+    (.toString sb)))
+
 (defn shortcut-filterable-text
   "User-typable shortcut text, uses Cmd/Win instead of Meta depending on the os"
-  ([^KeyCombination shortcut]
+  ([shortcut]
    (shortcut-filterable-text shortcut (os/os)))
-  ([^KeyCombination shortcut os]
-   (let [sb (StringBuilder.)
-         control (= KeyCombination$ModifierValue/DOWN (.getControl shortcut))
-         alt (= KeyCombination$ModifierValue/DOWN (.getAlt shortcut))
-         shift (= KeyCombination$ModifierValue/DOWN (.getShift shortcut))
-         meta (= KeyCombination$ModifierValue/DOWN (.getMeta shortcut))
-         shortcut-modifier (= KeyCombination$ModifierValue/DOWN (.getShortcut shortcut))]
-     ;; See https://github.com/microsoft/vscode/blob/7ec68793e7d971def8c2ea3f669b8f85ebc726a4/src/vs/base/common/keybindingLabels.ts#L130-L152
-     (case os
-       :macos (cond-> sb
-                      control (.append "Ctrl+")
-                      alt (.append "Alt+")
-                      shift (.append "Shift+")
-                      (or meta shortcut-modifier) (.append "Cmd+"))
-       :win32 (cond-> sb
-                      (or control shortcut-modifier) (.append "Ctrl+")
-                      alt (.append "Alt+")
-                      shift (.append "Shift+")
-                      meta (.append "Win+"))
-       :linux (cond-> sb
-                      (or control shortcut-modifier) (.append "Ctrl+")
-                      alt (.append "Alt+")
-                      shift (.append "Shift+")
-                      meta (.append "Meta+")))
-     (condp instance? shortcut
-       KeyCharacterCombination
-       (.append sb (.getCharacter ^KeyCharacterCombination shortcut))
-
-       KeyCodeCombination
-       (let [code (.getCode ^KeyCodeCombination shortcut)]
-         (.append sb (or (when (= KeyCode/SPACE code) (.getName code))
-                         (key-code->typable-char-strings code)
-                         (.getName code)))))
-     (.toString sb))))
+  ([shortcut os]
+   (if (mouse-shortcut? shortcut)
+     (mouse-shortcut-filterable-text shortcut os)
+     (shortcut-filterable-key-combination-text shortcut os))))
 
 (defn shortcut-key-codes
   "Returns a set of KeyCodes for a command's shortcuts, ignoring modifiers"
