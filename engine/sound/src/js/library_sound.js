@@ -44,6 +44,7 @@ var LibrarySoundDevice =
                 sampleRate: shared.audioCtx.sampleRate,
                 bufferedTo: 0,
                 bufferDuration: 0,
+                effectiveBufferCount: bufferCount,
                 bufferCache: {},
                 arrayCache: {},
                 creatingTime: Date.now() / 1000,
@@ -66,6 +67,18 @@ var LibrarySoundDevice =
                     var len = frame_count / this.sampleRate;
                     // use real buffer length next time.
                     this.bufferDuration = len;
+
+                    var outputLatency = shared.audioCtx.outputLatency || 0;
+                    var baseQueueSeconds = bufferCount * this.bufferDuration;
+                    var latencyQueueSeconds = outputLatency > 0 ? outputLatency * 0.25 : 0;
+                    var targetQueueSeconds = Math.max(baseQueueSeconds, latencyQueueSeconds);
+
+                    targetQueueSeconds = Math.min(targetQueueSeconds, 0.120);
+                    this.effectiveBufferCount = Math.min(
+                        Math.max(bufferCount, Math.ceil(targetQueueSeconds / this.bufferDuration)),
+                        6
+                    );
+
                     // only append overall length of audio buffer in suspended stay
                     // it helps prevent sound instance consume on the engine side
                     // because from engine point of view - sound plays.
@@ -89,17 +102,19 @@ var LibrarySoundDevice =
                     source.connect(shared.audioCtx.destination);
 
                     var t = shared.audioCtx.currentTime;
+                    var startTime;
                     // Underrun or first buffer?
                     if (this.bufferedTo / this.sampleRate <= t || lastBufferDuration == 0.0) {
                         // Yes, restart buffering - offset is always computed based on queue length...
-                        var off = (bufferCount - 1) * this.bufferDuration;
-                        this.bufferedTo = (t + off) * this.sampleRate + frame_count;
-                        source.start(t + off);
+                        var off = (this.effectiveBufferCount - 1) * this.bufferDuration;
+                        startTime = t + off;
+                        this.bufferedTo = startTime * this.sampleRate;
                     } else {
                         // No, normal delivery...
-                        source.start(this.bufferedTo / this.sampleRate);
+                        startTime = this.bufferedTo / this.sampleRate;
                     }
-                    this.bufferedTo = this.bufferedTo + frame_count;
+                    source.start(startTime);
+                    this.bufferedTo += frame_count;
                 },
                 _freeBufferSlots: function() {
                     var ahead = 0;
@@ -119,7 +134,7 @@ var LibrarySoundDevice =
                     if (inqueue < 0) {
                         inqueue = 0;
                     }
-                    var left = bufferCount - inqueue;
+                    var left = this.effectiveBufferCount - inqueue;
                     if (left < 0) {
                         return 0;
                     }
