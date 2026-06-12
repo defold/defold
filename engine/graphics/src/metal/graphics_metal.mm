@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -55,15 +55,6 @@ namespace dmGraphics
 
     static MetalTexture* MetalNewTextureInternal(const TextureCreationParams& params);
     static void          MetalSetTextureInternal(MetalContext* context, MetalTexture* texture, const TextureParams& params);
-    static void          CreateMetalTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage);
-    static void          CreateMetalDepthStencilTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::PixelFormat format, MTL::TextureUsage usage);
-    static int16_t       CreateTextureSampler(MetalContext* context, TextureFilter minFilter, TextureFilter magFilter, TextureWrap uWrap, TextureWrap vWrap, uint8_t maxLod, float maxAnisotropy);
-    static void          FlushResourcesToDestroy(MetalContext* context, ResourcesToDestroyList* resource_list);
-    static void          BeginRenderPass(MetalContext* context, HRenderTarget render_target);
-    static bool          MetalPrepareTextureForUploading(MetalContext* context, MetalTexture* texture, const TextureParams& params);
-    static void          MetalUploadTextureData(MetalContext* context, MetalTexture* texture, const TextureParams& params);
-    static void          MetalDeleteTextureAsync(MetalContext* context, HTexture texture);
-    static void          MetalPostDeleteTextures(MetalContext* context, bool force_delete);
 
     struct ClearParams
     {
@@ -199,11 +190,6 @@ namespace dmGraphics
         }
     }
 
-    static inline MTL::StoreAction MetalStoreAction(AttachmentOp op)
-    {
-        return op == ATTACHMENT_OP_DONT_CARE ? MTL::StoreActionDontCare : MTL::StoreActionStore;
-    }
-
     static void ReleaseMetalPipeline(MetalPipeline* pipeline)
     {
         if (pipeline->m_RenderPipelineState)
@@ -221,13 +207,6 @@ namespace dmGraphics
             pipeline->m_ComputePipelineState->release();
             pipeline->m_ComputePipelineState = 0;
         }
-    }
-
-    static void ReleaseMetalPipelineCacheCb(MetalContext* context, const uint64_t* key, MetalPipeline* value)
-    {
-        (void) context;
-        (void) key;
-        ReleaseMetalPipeline(value);
     }
 
     static void ReleaseMetalDeviceBuffer(MetalDeviceBuffer* device_buffer)
@@ -270,146 +249,6 @@ namespace dmGraphics
             DeleteContext((HContext) g_MetalContext);
         }
         return 0x0;
-    }
-
-    static void MetalDeleteContext(HContext _context)
-    {
-        assert(_context);
-        if (g_MetalContext)
-        {
-            MetalContext* context = (MetalContext*) _context;
-            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
-
-            for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
-            {
-                MetalFrameResource& frame = context->m_FrameResources[i];
-
-                if (frame.m_CommandBuffer && frame.m_InFlight)
-                {
-                    frame.m_CommandBuffer->waitUntilCompleted();
-                }
-
-                FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
-                ReleaseMetalDeviceBuffer(&frame.m_ConstantScratchBuffer.m_DeviceBuffer);
-                for (uint32_t j = 0; j < frame.m_ArgumentBufferPool.m_ScratchBufferPool.Size(); ++j)
-                {
-                    ReleaseMetalDeviceBuffer(&frame.m_ArgumentBufferPool.m_ScratchBufferPool[j].m_DeviceBuffer);
-                }
-
-                if (frame.m_RenderCommandEncoder)
-                {
-                    frame.m_RenderCommandEncoder->release();
-                    frame.m_RenderCommandEncoder = 0;
-                }
-
-                if (frame.m_CommandBuffer)
-                {
-                    frame.m_CommandBuffer->release();
-                    frame.m_CommandBuffer = 0;
-                }
-
-                if (frame.m_Drawable)
-                {
-                    frame.m_Drawable->release();
-                    frame.m_Drawable = 0;
-                }
-
-                if (frame.m_MSAAColorTexture)
-                    frame.m_MSAAColorTexture->release();
-                if (frame.m_MSAADepthTexture)
-                    frame.m_MSAADepthTexture->release();
-
-                delete frame.m_ResourcesToDestroy;
-                frame.m_ResourcesToDestroy = 0;
-
-                if (frame.m_AutoReleasePool)
-                {
-                    frame.m_AutoReleasePool->release();
-                    frame.m_AutoReleasePool = 0;
-                }
-            }
-
-            if (context->m_AsyncProcessingSupport)
-            {
-                MetalPostDeleteTextures(context, true);
-                ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
-            }
-
-            context->m_PipelineCache.Iterate(ReleaseMetalPipelineCacheCb, context);
-            context->m_ClearData.m_PipelineCache.Iterate(ReleaseMetalPipelineCacheCb, context);
-            for (uint32_t i = 0; i < context->m_ClearData.m_ClearShaderPermutations.Size(); ++i)
-            {
-                MetalClearData::ClearShader& shader = context->m_ClearData.m_ClearShaderPermutations[i];
-                if (shader.m_VsFunction)
-                {
-                    shader.m_VsFunction->release();
-                    shader.m_VsFunction = 0;
-                }
-                if (shader.m_FsFunction)
-                {
-                    shader.m_FsFunction->release();
-                    shader.m_FsFunction = 0;
-                }
-            }
-
-            ReleaseMetalTexture(context->m_DefaultTexture2D);
-            ReleaseMetalTexture(context->m_DefaultTexture3D);
-            ReleaseMetalTexture(context->m_DefaultTexture2DArray);
-            ReleaseMetalTexture(context->m_DefaultTextureCubeMap);
-            ReleaseMetalTexture(context->m_DefaultTexture2D32UI);
-            ReleaseMetalTexture(context->m_DefaultStorageImage2D);
-
-            for (uint32_t i = 0; i < context->m_TextureSamplers.Size(); ++i)
-            {
-                if (context->m_TextureSamplers[i].m_Sampler)
-                {
-                    context->m_TextureSamplers[i].m_Sampler->release();
-                    context->m_TextureSamplers[i].m_Sampler = 0;
-                }
-            }
-
-            if (context->m_MainDepthStencilTexture)
-            {
-                context->m_MainDepthStencilTexture->release();
-                context->m_MainDepthStencilTexture = 0;
-            }
-
-            MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
-            if (main_rt)
-            {
-                for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-                {
-                    if (main_rt->m_TextureColor[i])
-                    {
-                        MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, main_rt->m_TextureColor[i]);
-                        delete texture;
-                        context->m_BaseContext.m_AssetHandleContainer.Release(main_rt->m_TextureColor[i]);
-                    }
-                }
-                if (main_rt->m_TextureDepthStencil)
-                {
-                    MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, main_rt->m_TextureDepthStencil);
-                    delete texture;
-                    context->m_BaseContext.m_AssetHandleContainer.Release(main_rt->m_TextureDepthStencil);
-                }
-
-                delete main_rt;
-                context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget);
-                context->m_MainRenderTarget = 0;
-            }
-
-            context->m_Device->release();
-            context->m_CommandQueue->release();
-
-            if (context->m_BaseContext.m_AssetHandleContainerMutex)
-            {
-                dmMutex::Delete(context->m_BaseContext.m_AssetHandleContainerMutex);
-                context->m_BaseContext.m_AssetHandleContainerMutex = 0;
-            }
-
-            delete (MetalContext*) context;
-            g_MetalContext = 0x0;
-        }
     }
 
     static HContext MetalGetContext()
@@ -502,6 +341,196 @@ namespace dmGraphics
         }
     }
 
+    static void MetalDeleteTextureInternal(MetalContext* context, MetalTexture* texture)
+    {
+        if (!texture)
+        {
+            return;
+        }
+        DestroyResourceDeferred(context, texture);
+        delete texture;
+    }
+
+    static void MetalDeleteTextureAsync(MetalContext* context, HTexture texture)
+    {
+        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+        MetalDeleteTextureInternal(context, GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture));
+        context->m_BaseContext.m_AssetHandleContainer.Release(texture);
+    }
+
+    static void MetalPostDeleteTextures(MetalContext* context, bool force_delete)
+    {
+        if (force_delete)
+        {
+            uint32_t size = context->m_SetTextureAsyncState.m_PostDeleteTextures.Size();
+            for (uint32_t i = 0; i < size; ++i)
+            {
+                MetalDeleteTextureAsync(context, context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
+            }
+            context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
+            return;
+        }
+
+        uint32_t i = 0;
+        while (i < context->m_SetTextureAsyncState.m_PostDeleteTextures.Size())
+        {
+            HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
+            if (!(dmGraphics::GetTextureStatusFlags((HContext) context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
+            {
+                MetalDeleteTextureAsync(context, texture);
+                context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
+    }
+
+    static void MetalDeleteContext(HContext _context)
+    {
+        assert(_context);
+        if (g_MetalContext)
+        {
+            MetalContext* context = (MetalContext*) _context;
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+
+            for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
+            {
+                MetalFrameResource& frame = context->m_FrameResources[i];
+
+                if (frame.m_CommandBuffer && frame.m_InFlight)
+                {
+                    frame.m_CommandBuffer->waitUntilCompleted();
+                }
+
+                FlushResourcesToDestroy(context, frame.m_ResourcesToDestroy);
+                ReleaseMetalDeviceBuffer(&frame.m_ConstantScratchBuffer.m_DeviceBuffer);
+                for (uint32_t j = 0; j < frame.m_ArgumentBufferPool.m_ScratchBufferPool.Size(); ++j)
+                {
+                    ReleaseMetalDeviceBuffer(&frame.m_ArgumentBufferPool.m_ScratchBufferPool[j].m_DeviceBuffer);
+                }
+
+                if (frame.m_RenderCommandEncoder)
+                {
+                    frame.m_RenderCommandEncoder->release();
+                    frame.m_RenderCommandEncoder = 0;
+                }
+
+                if (frame.m_CommandBuffer)
+                {
+                    frame.m_CommandBuffer->release();
+                    frame.m_CommandBuffer = 0;
+                }
+
+                if (frame.m_Drawable)
+                {
+                    frame.m_Drawable->release();
+                    frame.m_Drawable = 0;
+                }
+
+                if (frame.m_MSAAColorTexture)
+                    frame.m_MSAAColorTexture->release();
+                if (frame.m_MSAADepthTexture)
+                    frame.m_MSAADepthTexture->release();
+
+                delete frame.m_ResourcesToDestroy;
+                frame.m_ResourcesToDestroy = 0;
+
+                if (frame.m_AutoReleasePool)
+                {
+                    frame.m_AutoReleasePool->release();
+                    frame.m_AutoReleasePool = 0;
+                }
+            }
+
+            if (context->m_AsyncProcessingSupport)
+            {
+                MetalPostDeleteTextures(context, true);
+                ResetSetTextureAsyncState(context->m_SetTextureAsyncState);
+            }
+
+            context->m_PipelineCache.Iterate(static_cast<void (*)(MetalContext*, const unsigned long long*, MetalPipeline*)>([](MetalContext*, const unsigned long long*, MetalPipeline* value) {
+                ReleaseMetalPipeline(value);
+            }), context);
+            context->m_ClearData.m_PipelineCache.Iterate(static_cast<void (*)(MetalContext*, const unsigned long long*, MetalPipeline*)>([](MetalContext*, const unsigned long long*, MetalPipeline* value) {
+                ReleaseMetalPipeline(value);
+            }), context);
+            for (uint32_t i = 0; i < context->m_ClearData.m_ClearShaderPermutations.Size(); ++i)
+            {
+                MetalClearData::ClearShader& shader = context->m_ClearData.m_ClearShaderPermutations[i];
+                if (shader.m_VsFunction)
+                {
+                    shader.m_VsFunction->release();
+                    shader.m_VsFunction = 0;
+                }
+                if (shader.m_FsFunction)
+                {
+                    shader.m_FsFunction->release();
+                    shader.m_FsFunction = 0;
+                }
+            }
+
+            ReleaseMetalTexture(context->m_DefaultTexture2D);
+            ReleaseMetalTexture(context->m_DefaultTexture3D);
+            ReleaseMetalTexture(context->m_DefaultTexture2DArray);
+            ReleaseMetalTexture(context->m_DefaultTextureCubeMap);
+            ReleaseMetalTexture(context->m_DefaultTexture2D32UI);
+            ReleaseMetalTexture(context->m_DefaultStorageImage2D);
+
+            for (uint32_t i = 0; i < context->m_TextureSamplers.Size(); ++i)
+            {
+                if (context->m_TextureSamplers[i].m_Sampler)
+                {
+                    context->m_TextureSamplers[i].m_Sampler->release();
+                    context->m_TextureSamplers[i].m_Sampler = 0;
+                }
+            }
+
+            if (context->m_MainDepthStencilTexture)
+            {
+                context->m_MainDepthStencilTexture->release();
+                context->m_MainDepthStencilTexture = 0;
+            }
+
+            MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+            if (main_rt)
+            {
+                for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+                {
+                    if (main_rt->m_TextureColor[i])
+                    {
+                        MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, main_rt->m_TextureColor[i]);
+                        delete texture;
+                        context->m_BaseContext.m_AssetHandleContainer.Release(main_rt->m_TextureColor[i]);
+                    }
+                }
+                if (main_rt->m_TextureDepthStencil)
+                {
+                    MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, main_rt->m_TextureDepthStencil);
+                    delete texture;
+                    context->m_BaseContext.m_AssetHandleContainer.Release(main_rt->m_TextureDepthStencil);
+                }
+
+                delete main_rt;
+                context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget);
+                context->m_MainRenderTarget = 0;
+            }
+
+            context->m_Device->release();
+            context->m_CommandQueue->release();
+
+            if (context->m_BaseContext.m_AssetHandleContainerMutex)
+            {
+                dmMutex::Delete(context->m_BaseContext.m_AssetHandleContainerMutex);
+                context->m_BaseContext.m_AssetHandleContainerMutex = 0;
+            }
+
+            delete (MetalContext*) context;
+            g_MetalContext = 0x0;
+        }
+    }
+
     static inline MTL::ResourceOptions GetResourceOptions(MTL::StorageMode storageMode)
     {
         switch (storageMode)
@@ -543,9 +572,11 @@ namespace dmGraphics
     {
         if (!CanAllocate(size))
         {
-            const uint32_t SIZE_INCREASE = 1024 * 8;
+            const uint32_t current_size = m_DeviceBuffer.m_Size;
+            const uint32_t needed_size  = m_MappedDataCursor + size;
+            const uint32_t new_size     = dmMath::Max(current_size ? current_size * 2 : needed_size, needed_size);
             DestroyResourceDeferred((MetalContext*) context, &m_DeviceBuffer);
-            DeviceBufferUploadHelper((MetalContext*) context, 0, m_DeviceBuffer.m_Size + SIZE_INCREASE, 0, &m_DeviceBuffer);
+            DeviceBufferUploadHelper((MetalContext*) context, 0, new_size, 0, &m_DeviceBuffer);
             Rewind();
         }
     }
@@ -757,6 +788,12 @@ namespace dmGraphics
         return 1;
     }
 
+    // Clears requested after a render pass has started cannot use Metal load actions, so we
+    // draw a fullscreen triangle that writes the requested clear values. The fragment output
+    // interface is part of the Metal shader at compile time: depth/stencil/color outputs must
+    // only exist for the clear operation that needs them. We therefore compile and cache the
+    // small set of output permutations here, while GetOrCreateClearPipeline handles the larger
+    // set of render-target-dependent pipeline variants such as formats, sample count and masks.
     static const MetalClearData::ClearShader* GetOrCreateClearShader(MetalContext* context, bool clear_color, bool clear_depth, bool clear_stencil)
     {
         for (int i = 0; i < context->m_ClearData.m_ClearShaderPermutations.Size(); ++i)
@@ -976,6 +1013,146 @@ namespace dmGraphics
         return context->m_ClearData.m_PipelineCache.Get(hash);
     }
 
+    static inline MTL::SamplerAddressMode GetMetalSamplerAddressMode(TextureWrap wrap)
+    {
+        switch (wrap)
+        {
+            case TEXTURE_WRAP_REPEAT:          return MTL::SamplerAddressModeRepeat;
+            case TEXTURE_WRAP_MIRRORED_REPEAT: return MTL::SamplerAddressModeMirrorRepeat;
+            case TEXTURE_WRAP_CLAMP_TO_EDGE:   return MTL::SamplerAddressModeClampToEdge;
+            default:                           return MTL::SamplerAddressModeClampToEdge;
+        }
+    }
+
+    static inline void GetMetalFilters(TextureFilter filter, MTL::SamplerMinMagFilter& outMin, MTL::SamplerMipFilter& outMip)
+    {
+        switch (filter)
+        {
+            case TEXTURE_FILTER_NEAREST:
+                outMin = MTL::SamplerMinMagFilterNearest;
+                outMip = MTL::SamplerMipFilterNotMipmapped;
+                break;
+
+            case TEXTURE_FILTER_LINEAR:
+                outMin = MTL::SamplerMinMagFilterLinear;
+                outMip = MTL::SamplerMipFilterNotMipmapped;
+                break;
+
+            case TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+                outMin = MTL::SamplerMinMagFilterNearest;
+                outMip = MTL::SamplerMipFilterNearest;
+                break;
+
+            case TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
+                outMin = MTL::SamplerMinMagFilterNearest;
+                outMip = MTL::SamplerMipFilterLinear;
+                break;
+
+            case TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
+                outMin = MTL::SamplerMinMagFilterLinear;
+                outMip = MTL::SamplerMipFilterNearest;
+                break;
+
+            case TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
+                outMin = MTL::SamplerMinMagFilterLinear;
+                outMip = MTL::SamplerMipFilterLinear;
+                break;
+
+            default:
+                outMin = MTL::SamplerMinMagFilterNearest;
+                outMip = MTL::SamplerMipFilterNotMipmapped;
+                break;
+        }
+    }
+
+    static MTL::SamplerState* CreateMetalTextureSampler(
+        MTL::Device* device,
+        MTL::SamplerMinMagFilter minFilter,
+        MTL::SamplerMinMagFilter magFilter,
+        MTL::SamplerMipFilter mipFilter,
+        MTL::SamplerAddressMode wrapU,
+        MTL::SamplerAddressMode wrapV,
+        float minLod,
+        float maxLod,
+        float maxAnisotropy)
+    {
+        using namespace MTL;
+
+        SamplerDescriptor* desc = SamplerDescriptor::alloc()->init();
+        desc->setMinFilter(minFilter);
+        desc->setMagFilter(magFilter);
+        desc->setMipFilter(mipFilter);
+        desc->setSAddressMode(wrapU);
+        desc->setTAddressMode(wrapV);
+        desc->setRAddressMode(wrapU);
+        desc->setLodMinClamp(minLod);
+        desc->setLodMaxClamp(maxLod);
+        desc->setSupportArgumentBuffers(true);
+
+        if (maxAnisotropy > 1.0f)
+            desc->setMaxAnisotropy(maxAnisotropy);
+
+        SamplerState* sampler = device->newSamplerState(desc);
+        desc->release();
+
+        return sampler;
+    }
+
+    static int16_t CreateTextureSampler(
+        MetalContext* context,
+        TextureFilter minFilter,
+        TextureFilter magFilter,
+        TextureWrap uWrap,
+        TextureWrap vWrap,
+        uint8_t maxLod,
+        float maxAnisotropy)
+    {
+        if (magFilter == TEXTURE_FILTER_DEFAULT)
+            magFilter = context->m_BaseContext.m_DefaultTextureMagFilter;
+
+        if (minFilter == TEXTURE_FILTER_DEFAULT)
+            minFilter = context->m_BaseContext.m_DefaultTextureMinFilter;
+
+        MTL::SamplerMinMagFilter metalMinFilter;
+        MTL::SamplerMipFilter metalMipFilter;
+        GetMetalFilters(minFilter, metalMinFilter, metalMipFilter);
+
+        MTL::SamplerMinMagFilter metalMagFilter =
+            (magFilter == TEXTURE_FILTER_LINEAR)
+                ? MTL::SamplerMinMagFilterLinear
+                : MTL::SamplerMinMagFilterNearest;
+
+        MTL::SamplerAddressMode wrapU = GetMetalSamplerAddressMode(uWrap);
+        MTL::SamplerAddressMode wrapV = GetMetalSamplerAddressMode(vWrap);
+
+        MetalTextureSampler newSampler = {};
+        newSampler.m_MinFilter = minFilter;
+        newSampler.m_MagFilter = magFilter;
+        newSampler.m_AddressModeU = uWrap;
+        newSampler.m_AddressModeV = vWrap;
+        newSampler.m_MaxLod = maxLod;
+        newSampler.m_MaxAnisotropy = maxAnisotropy;
+
+        uint32_t samplerIndex = context->m_TextureSamplers.Size();
+        if (context->m_TextureSamplers.Full())
+            context->m_TextureSamplers.OffsetCapacity(1);
+
+        newSampler.m_Sampler = CreateMetalTextureSampler(
+            context->m_Device,
+            metalMinFilter,
+            metalMagFilter,
+            metalMipFilter,
+            wrapU,
+            wrapV,
+            0.0f,
+            static_cast<float>(maxLod),
+            maxAnisotropy
+        );
+
+        context->m_TextureSamplers.Push(newSampler);
+        return (int16_t) samplerIndex;
+    }
+
     static bool MetalInitialize(MetalContext* context)
     {
         context->m_Device            = MTL::CreateSystemDefaultDevice();
@@ -1021,6 +1198,7 @@ namespace dmGraphics
             context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES;
         }
 
+        // TODO: Make the requested Metal adapter version configurable from game.project.
         context->m_BaseContext.m_AdapterVersionMajor = 2;
         context->m_BaseContext.m_AdapterVersionMinor = 2;
 
@@ -1065,10 +1243,8 @@ namespace dmGraphics
                 context->m_FrameResources[i].m_MSAADepthTexture = CreateMSAATexture(context, window_width, window_height, MTL::PixelFormatDepth32Float_Stencil8, context->m_MSAASampleCount);
             }
 
-            // This is just the starting point size for the constant scratch buffer,
-            // the buffers can grow as needed.
-
-            // Something is wrong here, I can't make larger buffer here?
+            // This is just the starting point size for the constant scratch buffer;
+            // the buffer can grow as needed.
             const uint32_t constant_buffer_size = 1024 * 8;
             context->m_FrameResources[i].m_ConstantScratchBuffer.m_DeviceBuffer.m_StorageMode = MTL::StorageModeShared;
             DeviceBufferUploadHelper(context, 0, constant_buffer_size, 0, &context->m_FrameResources[i].m_ConstantScratchBuffer.m_DeviceBuffer);
@@ -1176,10 +1352,43 @@ namespace dmGraphics
 
     static void MetalCloseWindow(HContext _context)
     {
+        assert(_context);
         MetalContext* context = (MetalContext*) _context;
 
         if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
+            for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
+            {
+                MetalFrameResource& frame = context->m_FrameResources[i];
+                if (frame.m_CommandBuffer && frame.m_InFlight)
+                {
+                    frame.m_CommandBuffer->waitUntilCompleted();
+                }
+            }
+
+            if (context->m_Layer)
+            {
+#if defined(DM_PLATFORM_IOS)
+                [context->m_Layer removeFromSuperlayer];
+#else
+                NSView* native_view = (NSView*) context->m_View;
+                if (native_view && [native_view layer] == context->m_Layer)
+                {
+                    [native_view setLayer:nil];
+                    [native_view setWantsLayer:NO];
+                }
+                else
+                {
+                    [context->m_Layer removeFromSuperlayer];
+                }
+#endif
+                context->m_Layer = 0;
+                context->m_View  = 0;
+            }
+
+            context->m_BaseContext.m_Width  = 0;
+            context->m_BaseContext.m_Height = 0;
+            dmPlatform::CloseWindow(context->m_BaseContext.m_Window);
         }
     }
 
@@ -1260,27 +1469,6 @@ namespace dmGraphics
         ResetRenderEncoderStateCache(context);
     }
 
-    static void FlushPendingRenderTargetClear(MetalContext* context, HRenderTarget render_target)
-    {
-        if (render_target == 0x0 || context->m_RenderTargetBound)
-        {
-            return;
-        }
-
-        bool has_pending_clear = false;
-        {
-            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-            MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-            has_pending_clear = rt && (rt->m_HasPendingClearColor || rt->m_HasPendingClearDepth || rt->m_HasPendingClearStencil);
-        }
-
-        if (has_pending_clear)
-        {
-            BeginRenderPass(context, render_target);
-            EndRenderPass(context);
-        }
-    }
-
     static void BeginRenderPass(MetalContext* context, HRenderTarget render_target)
     {
         if (context->m_CurrentRenderTarget == render_target && context->m_RenderTargetBound)
@@ -1352,7 +1540,7 @@ namespace dmGraphics
             else
             {
                 colorAttachment->setTexture(tex->m_Texture);
-                colorAttachment->setStoreAction(MetalStoreAction(rt->m_ColorBufferStoreOps[i]));
+                colorAttachment->setStoreAction(rt->m_ColorBufferStoreOps[i] == ATTACHMENT_OP_DONT_CARE ? MTL::StoreActionDontCare : MTL::StoreActionStore);
             }
         }
 
@@ -1449,6 +1637,27 @@ namespace dmGraphics
         rt->m_IsBound = 1;
 
         rpDesc->release();
+    }
+
+    static void FlushPendingRenderTargetClear(MetalContext* context, HRenderTarget render_target)
+    {
+        if (render_target == 0x0 || context->m_RenderTargetBound)
+        {
+            return;
+        }
+
+        bool has_pending_clear = false;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+            has_pending_clear = rt && (rt->m_HasPendingClearColor || rt->m_HasPendingClearDepth || rt->m_HasPendingClearStencil);
+        }
+
+        if (has_pending_clear)
+        {
+            BeginRenderPass(context, render_target);
+            EndRenderPass(context);
+        }
     }
 
     static void MetalBeginFrame(HContext _context)
@@ -3578,6 +3787,110 @@ namespace dmGraphics
         context->m_PolygonOffsetChanged = true;
     }
 
+    static void CreateMetalDepthStencilTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::PixelFormat format, MTL::TextureUsage usage)
+    {
+        MTL::TextureDescriptor* desc = MTL::TextureDescriptor::texture2DDescriptor(
+            format,
+            params.m_Width,
+            params.m_Height,
+            false
+        );
+
+        desc->setStorageMode(MTL::StorageModePrivate);
+        desc->setUsage(usage);
+
+        if (texture->m_Texture && !texture->m_Destroyed)
+        {
+            DestroyResourceDeferred(context, texture);
+        }
+
+        texture->m_Texture = context->m_Device->newTexture(desc);
+        desc->release();
+        texture->m_Destroyed = 0;
+
+        texture->m_Base.m_Width       = params.m_Width;
+        texture->m_Base.m_Height      = params.m_Height;
+        texture->m_Base.m_Format      = params.m_Format;
+        texture->m_Base.m_Depth       = 1;
+        texture->m_Base.m_MipMapCount = 1;
+        texture->m_LayerCount  = 1; // TODO: Move to base texture
+    }
+
+    static void CreateMetalTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage)
+    {
+        uint8_t tex_layer_count  = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+        uint8_t tex_array_length = tex_layer_count;
+        uint16_t tex_depth       = dmMath::Max(texture->m_Base.m_Depth, params.m_Depth);
+        uint8_t tex_mip_count    = 1;
+
+        // Note:
+        // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
+        // For vulkan this means that we can't cap a texture to a specific mipmap count since the engine expects
+        // that setting texture data works like the OpenGL backend where we set the mipmap count to zero and then
+        // update the mipmap count based on the params. If we recreate the texture when that is detected (i.e we have too few mipmaps in the texture)
+        // we will lose all the data that was previously uploaded. We could copy that data, but for now this is the easiest way of dealing with this..
+
+        if (texture->m_Base.m_MipMapCount > 1)
+        {
+            tex_mip_count = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Base.m_Width, texture->m_Base.m_Height));
+        }
+
+        MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
+
+        switch(texture->m_Base.m_Type)
+        {
+            case TEXTURE_TYPE_2D:
+            case TEXTURE_TYPE_IMAGE_2D:
+            case TEXTURE_TYPE_TEXTURE_2D:
+                desc->setTextureType(MTL::TextureType2D);
+                tex_depth = 1;
+                break;
+            case TEXTURE_TYPE_2D_ARRAY:
+            case TEXTURE_TYPE_TEXTURE_2D_ARRAY:
+                desc->setTextureType(MTL::TextureType2DArray);
+                tex_depth = 1;
+                break;
+            case TEXTURE_TYPE_3D:
+            case TEXTURE_TYPE_IMAGE_3D:
+            case TEXTURE_TYPE_TEXTURE_3D:
+                desc->setTextureType(MTL::TextureType3D);
+                break;
+            case TEXTURE_TYPE_CUBE_MAP:
+            case TEXTURE_TYPE_TEXTURE_CUBE:
+                desc->setTextureType(MTL::TextureTypeCube);
+                tex_depth = 1;
+                tex_array_length = 1;
+                break;
+            default:
+                assert(0);
+        }
+
+        desc->setPixelFormat(GetMetalPixelFormat(params.m_Format));
+        desc->setWidth(params.m_Width);
+        desc->setHeight(params.m_Height);
+        desc->setDepth(tex_depth);
+        desc->setArrayLength(tex_array_length);
+        desc->setMipmapLevelCount(tex_mip_count);
+        desc->setSampleCount(1);
+        desc->setStorageMode(MTL::StorageModePrivate);
+        desc->setUsage(usage);
+
+        if (texture->m_Texture && !texture->m_Destroyed)
+        {
+            DestroyResourceDeferred(context, texture);
+        }
+        texture->m_Texture = context->m_Device->newTexture(desc);
+        desc->release();
+        texture->m_Destroyed = 0;
+
+        texture->m_Base.m_Width       = params.m_Width;
+        texture->m_Base.m_Height      = params.m_Height;
+        texture->m_Base.m_Depth       = tex_depth;
+        texture->m_Base.m_Format      = params.m_Format;
+        texture->m_Base.m_MipMapCount = tex_mip_count;
+        texture->m_LayerCount         = tex_layer_count;
+    }
+
     static HRenderTarget MetalNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         MetalContext* context = (MetalContext*)_context;
@@ -3908,52 +4221,6 @@ namespace dmGraphics
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, texture, ASSET_TYPE_TEXTURE);
     }
 
-    static void MetalDeleteTextureInternal(MetalContext* context, MetalTexture* texture)
-    {
-        if (!texture)
-        {
-            return;
-        }
-        DestroyResourceDeferred(context, texture);
-        delete texture;
-    }
-
-    static void MetalDeleteTextureAsync(MetalContext* context, HTexture texture)
-    {
-        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        MetalDeleteTextureInternal(context, GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture));
-        context->m_BaseContext.m_AssetHandleContainer.Release(texture);
-    }
-
-    static void MetalPostDeleteTextures(MetalContext* context, bool force_delete)
-    {
-        if (force_delete)
-        {
-            uint32_t size = context->m_SetTextureAsyncState.m_PostDeleteTextures.Size();
-            for (uint32_t i = 0; i < size; ++i)
-            {
-                MetalDeleteTextureAsync(context, context->m_SetTextureAsyncState.m_PostDeleteTextures[i]);
-            }
-            context->m_SetTextureAsyncState.m_PostDeleteTextures.SetSize(0);
-            return;
-        }
-
-        uint32_t i = 0;
-        while (i < context->m_SetTextureAsyncState.m_PostDeleteTextures.Size())
-        {
-            HTexture texture = context->m_SetTextureAsyncState.m_PostDeleteTextures[i];
-            if (!(dmGraphics::GetTextureStatusFlags((HContext) context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING))
-            {
-                MetalDeleteTextureAsync(context, texture);
-                context->m_SetTextureAsyncState.m_PostDeleteTextures.EraseSwap(i);
-            }
-            else
-            {
-                ++i;
-            }
-        }
-    }
-
     static void MetalDeleteTexture(HContext _context, HTexture texture)
     {
         MetalContext* context = (MetalContext*)_context;
@@ -4280,114 +4547,6 @@ namespace dmGraphics
         uploadBuffer->release();
     }
 
-    static void CreateMetalDepthStencilTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::PixelFormat format, MTL::TextureUsage usage)
-    {
-        MTL::TextureDescriptor* desc = MTL::TextureDescriptor::texture2DDescriptor(
-            format,
-            params.m_Width,
-            params.m_Height,
-            false
-        );
-
-        desc->setStorageMode(MTL::StorageModePrivate);
-        desc->setUsage(usage);
-
-        if (texture->m_Texture && !texture->m_Destroyed)
-        {
-            DestroyResourceDeferred(context, texture);
-        }
-
-        texture->m_Texture = context->m_Device->newTexture(desc);
-        desc->release();
-        texture->m_Destroyed = 0;
-
-        texture->m_Base.m_Width       = params.m_Width;
-        texture->m_Base.m_Height      = params.m_Height;
-        texture->m_Base.m_Format      = params.m_Format;
-        texture->m_Base.m_Depth       = 1;
-        texture->m_Base.m_MipMapCount = 1;
-        texture->m_LayerCount  = 1; // TODO: Move to base texture
-    }
-
-    static void CreateMetalTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage)
-    {
-        uint8_t tex_layer_count  = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
-        uint8_t tex_array_length = tex_layer_count;
-        uint16_t tex_depth       = dmMath::Max(texture->m_Base.m_Depth, params.m_Depth);
-        uint8_t tex_mip_count    = 1;
-
-        // Note:
-        // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
-        // For vulkan this means that we can't cap a texture to a specific mipmap count since the engine expects
-        // that setting texture data works like the OpenGL backend where we set the mipmap count to zero and then
-        // update the mipmap count based on the params. If we recreate the texture when that is detected (i.e we have too few mipmaps in the texture)
-        // we will lose all the data that was previously uploaded. We could copy that data, but for now this is the easiest way of dealing with this..
-
-        if (texture->m_Base.m_MipMapCount > 1)
-        {
-            tex_mip_count = (uint16_t) GetMipmapCount(dmMath::Max(texture->m_Base.m_Width, texture->m_Base.m_Height));
-        }
-
-        MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
-
-        switch(texture->m_Base.m_Type)
-        {
-            case TEXTURE_TYPE_2D:
-            case TEXTURE_TYPE_IMAGE_2D:
-            case TEXTURE_TYPE_TEXTURE_2D:
-                desc->setTextureType(MTL::TextureType2D);
-                tex_depth = 1;
-                break;
-            case TEXTURE_TYPE_2D_ARRAY:
-            case TEXTURE_TYPE_TEXTURE_2D_ARRAY:
-                desc->setTextureType(MTL::TextureType2DArray);
-                tex_depth = 1;
-                break;
-            case TEXTURE_TYPE_3D:
-            case TEXTURE_TYPE_IMAGE_3D:
-            case TEXTURE_TYPE_TEXTURE_3D:
-                desc->setTextureType(MTL::TextureType3D);
-                break;
-            case TEXTURE_TYPE_CUBE_MAP:
-            case TEXTURE_TYPE_TEXTURE_CUBE:
-                desc->setTextureType(MTL::TextureTypeCube);
-                tex_depth = 1;
-                tex_array_length = 1;
-                break;
-            default:
-                assert(0);
-        }
-
-        // Set pixel format
-        desc->setPixelFormat(GetMetalPixelFormat(params.m_Format));
-
-        // Set dimensions
-        desc->setWidth(params.m_Width);
-        desc->setHeight(params.m_Height);
-        desc->setDepth(tex_depth);
-        desc->setArrayLength(tex_array_length);
-        desc->setMipmapLevelCount(tex_mip_count);
-        desc->setSampleCount(1);
-        desc->setStorageMode(MTL::StorageModePrivate);
-        desc->setUsage(usage);
-
-        // Create Metal texture
-        if (texture->m_Texture && !texture->m_Destroyed)
-        {
-            DestroyResourceDeferred(context, texture);
-        }
-        texture->m_Texture = context->m_Device->newTexture(desc);
-        desc->release();
-        texture->m_Destroyed = 0;
-
-        texture->m_Base.m_Width       = params.m_Width;
-        texture->m_Base.m_Height      = params.m_Height;
-        texture->m_Base.m_Depth       = tex_depth;
-        texture->m_Base.m_Format      = params.m_Format;
-        texture->m_Base.m_MipMapCount = tex_mip_count;
-        texture->m_LayerCount         = tex_layer_count;
-    }
-
     static bool MetalPrepareTextureForUploading(MetalContext* context, MetalTexture* texture, const TextureParams& params)
     {
         if (!texture)
@@ -4514,164 +4673,6 @@ namespace dmGraphics
         const float MAX_SUPPORTED_ANISOTROPY = 16.0f;
         return (requested < MAX_SUPPORTED_ANISOTROPY) ? requested : MAX_SUPPORTED_ANISOTROPY;
     }
-
-    static inline MTL::SamplerAddressMode GetMetalSamplerAddressMode(TextureWrap wrap)
-    {
-        switch (wrap)
-        {
-            case TEXTURE_WRAP_REPEAT:          return MTL::SamplerAddressModeRepeat;
-            case TEXTURE_WRAP_MIRRORED_REPEAT: return MTL::SamplerAddressModeMirrorRepeat;
-            case TEXTURE_WRAP_CLAMP_TO_EDGE:   return MTL::SamplerAddressModeClampToEdge;
-            default:                           return MTL::SamplerAddressModeClampToEdge;
-        }
-    }
-
-    static inline void GetMetalFilters(TextureFilter filter, MTL::SamplerMinMagFilter& outMin, MTL::SamplerMipFilter& outMip)
-    {
-        switch (filter)
-        {
-            case TEXTURE_FILTER_NEAREST:
-                outMin = MTL::SamplerMinMagFilterNearest;
-                outMip = MTL::SamplerMipFilterNotMipmapped;
-                break;
-
-            case TEXTURE_FILTER_LINEAR:
-                outMin = MTL::SamplerMinMagFilterLinear;
-                outMip = MTL::SamplerMipFilterNotMipmapped;
-                break;
-
-            case TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
-                outMin = MTL::SamplerMinMagFilterNearest;
-                outMip = MTL::SamplerMipFilterNearest;
-                break;
-
-            case TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
-                outMin = MTL::SamplerMinMagFilterNearest;
-                outMip = MTL::SamplerMipFilterLinear;
-                break;
-
-            case TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
-                outMin = MTL::SamplerMinMagFilterLinear;
-                outMip = MTL::SamplerMipFilterNearest;
-                break;
-
-            case TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
-                outMin = MTL::SamplerMinMagFilterLinear;
-                outMip = MTL::SamplerMipFilterLinear;
-                break;
-
-            default:
-                outMin = MTL::SamplerMinMagFilterNearest;
-                outMip = MTL::SamplerMipFilterNotMipmapped;
-                break;
-        }
-    }
-
-    static MTL::SamplerState* CreateMetalTextureSampler(
-        MTL::Device* device,
-        MTL::SamplerMinMagFilter minFilter,
-        MTL::SamplerMinMagFilter magFilter,
-        MTL::SamplerMipFilter mipFilter,
-        MTL::SamplerAddressMode wrapU,
-        MTL::SamplerAddressMode wrapV,
-        float minLod,
-        float maxLod,
-        float maxAnisotropy)
-    {
-        using namespace MTL;
-
-        // Create and configure the sampler descriptor
-        SamplerDescriptor* desc = SamplerDescriptor::alloc()->init();
-        desc->setMinFilter(minFilter);
-        desc->setMagFilter(magFilter);
-        desc->setMipFilter(mipFilter);
-
-        desc->setSAddressMode(wrapU);
-        desc->setTAddressMode(wrapV);
-        desc->setRAddressMode(wrapU); // Metal allows 3D address mode too
-
-        desc->setLodMinClamp(minLod);
-        desc->setLodMaxClamp(maxLod);
-        desc->setSupportArgumentBuffers(true);
-
-        if (maxAnisotropy > 1.0f)
-            desc->setMaxAnisotropy(maxAnisotropy);
-
-        // Metal always normalizes texture coordinates
-        // (no unnormalizedCoordinates option like Vulkan)
-
-        // Metal doesn't support border color — it clamps or repeats instead
-        // so you must pick the appropriate address mode for that
-
-        // Create the sampler state
-        SamplerState* sampler = device->newSamplerState(desc);
-        desc->release();
-
-        return sampler;
-    }
-
-    static int16_t CreateTextureSampler(
-            MetalContext* context,
-            TextureFilter minFilter,
-            TextureFilter magFilter,
-            TextureWrap uWrap,
-            TextureWrap vWrap,
-            uint8_t maxLod,
-            float maxAnisotropy)
-        {
-            // Resolve defaults
-            if (magFilter == TEXTURE_FILTER_DEFAULT)
-                magFilter = context->m_BaseContext.m_DefaultTextureMagFilter;
-
-            if (minFilter == TEXTURE_FILTER_DEFAULT)
-                minFilter = context->m_BaseContext.m_DefaultTextureMinFilter;
-
-            // Determine Metal min/mip filters (based on minFilter)
-            MTL::SamplerMinMagFilter metalMinFilter;
-            MTL::SamplerMipFilter metalMipFilter;
-            GetMetalFilters(minFilter, metalMinFilter, metalMipFilter);
-
-            // Magnification filter ignores the mip component completely
-            MTL::SamplerMinMagFilter metalMagFilter =
-                (magFilter == TEXTURE_FILTER_LINEAR)
-                    ? MTL::SamplerMinMagFilterLinear
-                    : MTL::SamplerMinMagFilterNearest;
-
-            float maxLodFloat = static_cast<float>(maxLod);
-
-            // Wrap modes
-            MTL::SamplerAddressMode wrapU = GetMetalSamplerAddressMode(uWrap);
-            MTL::SamplerAddressMode wrapV = GetMetalSamplerAddressMode(vWrap);
-
-            // Build sampler data
-            MetalTextureSampler newSampler = {};
-            newSampler.m_MinFilter = minFilter;
-            newSampler.m_MagFilter = magFilter;
-            newSampler.m_AddressModeU = uWrap;
-            newSampler.m_AddressModeV = vWrap;
-            newSampler.m_MaxLod = maxLod;
-            newSampler.m_MaxAnisotropy = maxAnisotropy;
-
-            uint32_t samplerIndex = context->m_TextureSamplers.Size();
-            if (context->m_TextureSamplers.Full())
-                context->m_TextureSamplers.OffsetCapacity(1);
-
-            // Create Metal sampler state object
-            newSampler.m_Sampler = CreateMetalTextureSampler(
-                context->m_Device,
-                metalMinFilter,
-                metalMagFilter,
-                metalMipFilter,
-                wrapU,
-                wrapV,
-                0.0f,
-                maxLodFloat,
-                maxAnisotropy
-            );
-
-            context->m_TextureSamplers.Push(newSampler);
-            return (int16_t)samplerIndex;
-        }
 
     static void MetalSetTextureParamsInternal(MetalContext* context, MetalTexture* texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
     {
