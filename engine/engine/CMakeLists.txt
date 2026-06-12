@@ -425,8 +425,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
       ${ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES})
     if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
-      defold_target_link_glfw(${target} "${TARGET_PLATFORM}")
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" EGL GLESv1_CM GLESv2)
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
     endif()
   else()
     if(variant STREQUAL "release")
