@@ -1721,14 +1721,15 @@
         ;; NOTE: This label is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
         (let [label (or (handler/label handler-ctx evaluation-context) label)
               enabled? (handler/enabled? handler-ctx evaluation-context)
+              shortcuts (keymap/shortcuts keymap command)
               ;; Only KeyCombination shortcuts can be used as menu item
               ;; accelerators; mouse shortcuts are dispatched by the keymap
               ;; event filter (see keymap/install!).
-              key-combo (first (filter #(instance? KeyCombination %) (keymap/shortcuts keymap command)))
+              key-combo (first (filter #(instance? KeyCombination %) shortcuts))
               options (when (not (false? (:expand item)))
                         (handler/options handler-ctx evaluation-context))]
           (if (or (nil? options)
-                  (and key-combo (not (:expand item))))
+                  (and (seq shortcuts) (not (:expand item))))
             (make-menu-command scene id label localization icon style key-combo user-data command enabled? check)
             (if (some-> options meta :layout (= :grid))
               (let [grid-menu (make-grid-menu scene localization options command-contexts evaluation-context)]
