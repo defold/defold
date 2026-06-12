@@ -30,6 +30,14 @@ def build(bld):
         source = proto_sources,
         target = 'gamesys_proto')
 
+    http_proto_source = bld.path.parent.parent.parent.find_resource('dlib/proto/dlib/http_ddf.proto')
+    bld.stlib(features = 'cxx ddf',
+        includes = '. .. ../../src ../../../dlib/proto',
+        proto_gen_py = True,
+        protoc_includes = '../../../dlib/proto',
+        source = http_proto_source,
+        target = 'gamesys_http_proto')
+
     sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp'])
     sources = remove_from_node_list(sources, 'comp_model.cpp')
     sources = remove_from_node_list(sources, 'comp_model_null.cpp')
@@ -42,7 +50,7 @@ def build(bld):
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
-        use = 'gamesys_proto',
+        use = 'gamesys_proto gamesys_http_proto',
         uselib = 'LUA',
         source = sources,
         target = 'gamesys')

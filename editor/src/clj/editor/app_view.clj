@@ -103,6 +103,7 @@
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
+           [java.lang.management ManagementFactory]
            [java.net SocketTimeoutException URL]
            [java.time LocalTime]
            [java.time.format DateTimeFormatter]
@@ -627,6 +628,23 @@
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
 
+(defn- start-launcher! []
+  (if (system/defold-dev?)
+    (apply process/start!
+           {:dir (System/getProperty "user.dir")
+            :out :inherit
+            :err :inherit}
+           (str (io/file (System/getProperty "java.home") "bin" (if (os/is-win32?) "java.exe" "java")))
+           (into (vec (.getInputArguments (ManagementFactory/getRuntimeMXBean)))
+                 ["-cp" (System/getProperty "java.class.path") "com.defold.editor.Main"]))
+    (let [resources-path (system/defold-resourcespath)]
+      (process/start!
+        {:dir (.getCanonicalFile
+                (case (.getOs (Platform/getHostPlatform))
+                  "macos" (io/file resources-path "../../")
+                  ("linux" "win32") (io/file resources-path)))}
+        (system/defold-launcherpath)))))
+
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x           (.getX stage)
                  :y           (.getY stage)
@@ -700,6 +718,12 @@
                            (remove (partial pane-visible? scene))
                            (keys split-info-by-pane-kw))]
     (prefs/set! prefs prefs-hidden-panes hidden-panes)))
+
+(defn store-window-state! [^Stage stage prefs]
+  (let [scene (.getScene stage)]
+    (store-window-dimensions stage prefs)
+    (store-split-positions! scene prefs)
+    (store-hidden-panes! scene prefs)))
 
 (defn restore-hidden-panes! [^Scene scene prefs]
   (let [hidden-panes (stored-hidden-panes prefs)]
@@ -1872,13 +1896,7 @@
   (run [] (ui/reload-root-styles!)))
 
 (handler/defhandler :file.open-project :global
-  (active? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
-  (run [] (let [resources-path (system/defold-resourcespath)
-                install-dir (.getCanonicalFile
-                              (case (.getOs (Platform/getHostPlatform))
-                                "macos" (io/file resources-path "../../")
-                                ("linux" "win32") (io/file resources-path)))]
-            (process/start! {:dir install-dir} (system/defold-launcherpath)))))
+  (run [] (start-launcher!)))
 
 (handler/register-menu! ::menubar
   [{:label (localization/message "menu.file")
@@ -2724,6 +2742,34 @@
                            (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true))
                          (when callback!
                            (callback! successful? render-reload-progress! render-save-progress!)))))))
+
+(defn- restart-defold! [^Stage stage prefs]
+  (store-window-state! stage prefs)
+  (ui/close! stage)
+  (start-launcher!))
+
+(handler/defhandler :app.restart :global
+  (run [app-view changes-view project prefs localization]
+    (let [^Stage stage (ui/main-stage)
+          dirty-save-data (project/dirty-save-data project)]
+      (if (coll/empty? dirty-save-data)
+        (restart-defold! stage prefs)
+        (when (dialogs/make-confirmation-dialog
+                localization
+                {:title (localization/message "dialog.restart-defold.title")
+                 :icon :icon/circle-question
+                 :size :large
+                 :header (localization/message "dialog.restart-defold.header")
+                 :buttons [{:text (localization/message "dialog.restart-defold.button.cancel")
+                            :cancel-button true
+                            :result false}
+                           {:text (localization/message "dialog.restart-defold.button.save-and-restart")
+                            :default-button true
+                            :result true}]})
+          (async-save! app-view changes-view project project/dirty-save-data
+                       (fn [successful? _render-reload-progress! _render-save-progress!]
+                         (when successful?
+                           (restart-defold! stage prefs)))))))))
 
 (defn- make-version-control-info-dialog-content
   ([localization]

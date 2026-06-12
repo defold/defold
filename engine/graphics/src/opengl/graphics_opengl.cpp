@@ -315,6 +315,78 @@ static void OpenGLClearGLError()
     }
 }
 
+#if defined(ANDROID)
+static bool OpenGLValidateASTCSupport()
+{
+    // One opaque white ASTC 4x4 block.
+    static const unsigned char astc_texture_data[] = {
+        0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+    };
+
+    GLint previous_texture_binding = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous_texture_binding);
+    OpenGLClearGLError();
+
+    dmLogInfo("Checking ASTC support. May produce GL error.");
+    GLuint texture = 0;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glCompressedTexImage2D(GL_TEXTURE_2D, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR,
+        4, 4, 0, (GLsizei) sizeof(astc_texture_data), astc_texture_data);
+
+    GLint err = glGetError();
+
+    glBindTexture(GL_TEXTURE_2D, (GLuint) previous_texture_binding);
+    glDeleteTextures(1, &texture);
+    OpenGLClearGLError();
+
+    if (err != 0)
+    {
+        dmLogWarning("ASTC texture support reported by driver, but a 4x4 ASTC texture upload failed with %s. Disabling ASTC texture support.",
+            GetGLErrorLiteral(err));
+        return false;
+    }
+
+    return true;
+}
+#endif
+
+#if defined(__EMSCRIPTEN__)
+static bool OpenGLValidateASTCArraySupport()
+{
+    // Two opaque white ASTC 4x4 blocks, one per array layer.
+    static const unsigned char astc_texture_data[] = {
+        0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+
+        0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+
+    };
+
+    dmLogInfo("Checking ASTC Array support. May produce GL error.");
+
+    GLint previous_texture_binding = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &previous_texture_binding);
+    OpenGLClearGLError();
+
+    GLuint texture = 0;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+    DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR,
+        4, 4, 2, 0, (GLsizei) sizeof(astc_texture_data), astc_texture_data);
+
+    GLint err = glGetError();
+
+    glBindTexture(GL_TEXTURE_2D_ARRAY, (GLuint) previous_texture_binding);
+    glDeleteTextures(1, &texture);
+    OpenGLClearGLError();
+
+    return err == 0;
+}
+#endif
+
 #define CLEAR_GL_ERROR { if(g_Context->m_BaseContext.m_VerifyGraphicsCalls) OpenGLClearGLError(); }
 
 static void LogFrameBufferError(GLenum status)
@@ -1627,14 +1699,11 @@ static void LogFrameBufferError(GLenum status)
         }
 
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (OpenGLIsExtensionSupported(_context, "GL_KHR_texture_compression_astc_ldr") ||
-            OpenGLIsExtensionSupported(_context, "GL_OES_texture_compression_astc") ||
-            OpenGLIsExtensionSupported(_context, "OES_texture_compression_astc") ||
-            OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_astc"))
-        {
-            context->m_ASTCSupport = 1;
-            context->m_ASTCArrayTextureSupport = 1;
-        }
+        bool astc_supported = OpenGLIsExtensionSupported(_context, "GL_KHR_texture_compression_astc_ldr") ||
+                              OpenGLIsExtensionSupported(_context, "GL_OES_texture_compression_astc") ||
+                              OpenGLIsExtensionSupported(_context, "OES_texture_compression_astc") ||
+                              OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_astc");
+        bool astc_array_textures_supported = true;
 
         // Check if we're using a recent enough OpenGL version
         if (context->m_IsGles3Version)
@@ -1686,42 +1755,12 @@ static void LogFrameBufferError(GLenum status)
         {
             GLint *pCompressedFormats = new GLint[iNumCompressedFormats];
             glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, pCompressedFormats);
-            bool isPagedASTCSupported = true;
-            #if defined (__EMSCRIPTEN__)
-            // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
-            // see https://github.com/defold/defold/issues/8030
-            // and https://github.com/defold/defold/issues/11009
-            if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(_context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
-                unsigned char fakeZeroBuffer[] = {
-                    0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-
-                    0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
-
-                };
-                GLuint texture;
-                glGenTextures(1, &texture);
-                glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
-                DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, 4, 4, 2, 0, 32, &fakeZeroBuffer);
-                GLint err = glGetError();
-                if (err != 0)
-                {
-                    // Only disable ASTC for array textures; keep 2D ASTC enabled
-                    context->m_ASTCArrayTextureSupport = 0;
-                    isPagedASTCSupported = false;
-                }
-                glDeleteTextures(1, &texture);
-            }
-            #endif
             for (int i = 0; i < iNumCompressedFormats; i++)
             {
                 // If 4x4 is supported, all ASTC formats should be supported.
                 if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
                 {
-                    context->m_ASTCSupport = 1;
-                    if (isPagedASTCSupported)
-                        context->m_ASTCArrayTextureSupport = 1;
+                    astc_supported = true;
                 }
                 else
                 {
@@ -1736,9 +1775,33 @@ static void LogFrameBufferError(GLenum status)
                     }
                 }
             }
+            #if defined (__EMSCRIPTEN__)
+            // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
+            // see https://github.com/defold/defold/issues/8030
+            // and https://github.com/defold/defold/issues/11009
+            if (context->m_IsGles3Version && astc_supported)
+            {
+                astc_array_textures_supported = OpenGLValidateASTCArraySupport();
+            }
+            #endif
             delete[] pCompressedFormats;
         }
 
+    #if defined(ANDROID)
+        if (astc_supported)
+        {
+            // The issue is that the Android Emulator may report support, but not actually support it
+            // So we do a quick verification
+            // (https://github.com/defold/defold/issues/12511)
+            astc_supported = OpenGLValidateASTCSupport();
+        }
+    #endif
+
+        if (astc_supported)
+        {
+            context->m_ASTCSupport = 1;
+            context->m_ASTCArrayTextureSupport = astc_array_textures_supported;
+        }
 
 #if defined (__EMSCRIPTEN__)
         // webgl GL_DEPTH_STENCIL_ATTACHMENT for stenciling and GL_DEPTH_COMPONENT16 for depth only by specifications, even though it reports 24-bit depth and no packed depth stencil extensions.
@@ -2183,7 +2246,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
 
@@ -2195,6 +2258,7 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLUniformBuffer* ubo = new OpenGLUniformBuffer();
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
@@ -2204,7 +2268,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 
         // Clear out UBO first
-        SetUniformBuffer(_context, (HUniformBuffer) ubo, 0, layout.m_Size, 0);
+        SetUniformBuffer(_context, (HUniformBuffer) ubo, 0, size, 0);
 
         return (HUniformBuffer) ubo;
     }
@@ -2213,12 +2277,12 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*)_context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
 
         GLuint handle = GetGLHandle(context, ubo->m_Id);
 
         glBindBuffer(GL_UNIFORM_BUFFER, handle);
-        if (size < ubo->m_BaseUniformBuffer.m_Layout.m_Size)
+        if (size < ubo->m_BaseUniformBuffer.m_Size)
         {
             glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
             CHECK_GL_ERROR;
@@ -2915,12 +2979,12 @@ static void LogFrameBufferError(GLenum status)
                     ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[ubo.m_ResourceSet][ubo.m_ResourceBinding];
                     UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
 
-                    if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                    if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, pgm_res.m_Res->m_BindingInfo.m_BlockSize))
                     {
                         dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                            bound_ubo->m_BaseUniformBuffer.m_Layout,
                             pgm_res.m_Res->m_Name,
-                            pgm_layout->m_Hash);
+                            *pgm_layout);
 
                         // Fallback to the scratch buffer uniform setup
                         bound_ubo = 0;

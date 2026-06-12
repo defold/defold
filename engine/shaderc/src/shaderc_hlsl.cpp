@@ -215,10 +215,22 @@ namespace dmShaderc
         }
     }
 
-    static void GenerateRootSignatureFromReflection(ID3D12ShaderReflection* reflection, const D3D12_SHADER_DESC* shader_desc, dmArray<char>& buffer)
+    static const char* ShaderStageToRootSignatureVisibility(ShaderStage stage)
+    {
+        switch (stage)
+        {
+        case SHADER_STAGE_VERTEX:   return "SHADER_VISIBILITY_VERTEX";
+        case SHADER_STAGE_FRAGMENT: return "SHADER_VISIBILITY_PIXEL";
+        case SHADER_STAGE_COMPUTE:  return "SHADER_VISIBILITY_ALL";
+        }
+        return "SHADER_VISIBILITY_ALL";
+    }
+
+    static void GenerateRootSignatureFromReflection(ID3D12ShaderReflection* reflection, const D3D12_SHADER_DESC* shader_desc, ShaderStage stage, dmArray<char>& buffer)
     {
         DM_TRACE_LINE();
         const int BUFFER_SIZE = 1024 * 4;
+        const char* visibility = ShaderStageToRootSignatureVisibility(stage);
 
         buffer.SetCapacity(BUFFER_SIZE);
         buffer.SetSize(BUFFER_SIZE);
@@ -246,16 +258,16 @@ namespace dmShaderc
             switch (bind_desc.Type)
             {
             case D3D_SIT_CBUFFER:
-                write_str += dmSnPrintf(write_str, left, "CBV(b%u,space=%u)", bind_desc.BindPoint, bind_desc.Space);
+                write_str += dmSnPrintf(write_str, left, "CBV(b%u,space=%u,visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
                 break;
             case D3D_SIT_TEXTURE:
-                write_str += dmSnPrintf(write_str, left, "DescriptorTable(SRV(t%u,space=%u))", bind_desc.BindPoint, bind_desc.Space);
+                write_str += dmSnPrintf(write_str, left, "DescriptorTable(SRV(t%u,space=%u),visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
                 break;
             case D3D_SIT_SAMPLER:
-                write_str += dmSnPrintf(write_str, left, "DescriptorTable(Sampler(s%u,space=%u))", bind_desc.BindPoint, bind_desc.Space);
+                write_str += dmSnPrintf(write_str, left, "DescriptorTable(Sampler(s%u,space=%u),visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
                 break;
             case D3D_SIT_UAV_RWTYPED:
-                write_str += dmSnPrintf(write_str, left, "DescriptorTable(UAV(u%u,space=%u))", bind_desc.BindPoint, bind_desc.Space);
+                write_str += dmSnPrintf(write_str, left, "DescriptorTable(UAV(u%u,space=%u),visibility=%s)", bind_desc.BindPoint, bind_desc.Space, visibility);
                 break;
             default: break;
             }
@@ -386,7 +398,7 @@ namespace dmShaderc
         if (version > 50)
         {
             dmArray<char> root_signature_buffer;
-            GenerateRootSignatureFromReflection(reflection, &shaderDesc, root_signature_buffer);
+            GenerateRootSignatureFromReflection(reflection, &shaderDesc, context->m_Stage, root_signature_buffer);
 
             dmArray<char> injected_source_buffer;
             InjectRootSignatureIntoSource((const char*) src_data, root_signature_buffer.Begin(), injected_source_buffer);

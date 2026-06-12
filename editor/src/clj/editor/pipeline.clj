@@ -191,10 +191,7 @@
   (contains? #{"fontc"} (resource/ext (:resource build-target))))
 
 (defn- batched-pmap [f batches]
-  (->> batches
-       (pmap (fn [batch] (doall (map f batch))))
-       (reduce concat)
-       doall))
+  (into [] cat (coll/pmapv #(mapv f %) batches)))
 
 (def ^:private cheap-batch-size 500)
 (def ^:private expensive-batch-size 5)
