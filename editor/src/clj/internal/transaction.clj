@@ -31,7 +31,7 @@
 (defonce/interface TransactionStep
   (step_type []) ; Returns a keyword uniquely identifying the type of transaction step.
   (metrics_key []) ; Returns a key which identifies the subject of the transaction step in metrics reports.
-  (perform [ctx])) ; Returns a new ctx with changes applied.
+  (perform_step [ctx])) ; Returns a new ctx with changes applied.
 
 ;; ---------------------------------------------------------------------------
 ;; Internal state
@@ -243,7 +243,7 @@
   (metrics-key [_this]
     root-id)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-add-override ctx override-id root-id traverse-fn init-props-fn)))
 
 (defn- new-override
@@ -258,7 +258,7 @@
   (metrics-key [_this]
     original-node-id)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-override-node ctx original-node-id override-node-id)))
 
 (defn- override-node
@@ -740,7 +740,7 @@
   (metrics-key [_this]
     (gt/node-id added-node))
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-add-node ctx added-node)))
 
 (defn new-node
@@ -757,7 +757,7 @@
   (metrics-key [_this]
     node-id)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-delete-node ctx node-id)))
 
 (defn delete-node
@@ -773,7 +773,7 @@
   (metrics-key [_this]
     root-id)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-override ctx root-id traverse-fn init-props-fn init-fn properties-by-node-id)))
 
 (defn override
@@ -793,7 +793,7 @@
     (when (= 1 (count from-id->to-id))
       (second (first from-id->to-id))))
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-transfer-overrides ctx from-id->to-id)))
 
 (defn transfer-overrides [from-id->to-id]
@@ -807,7 +807,7 @@
   (metrics-key [_this]
     (pair node-id property-label))
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-set-property ctx node-id property-label new-value)))
 
 (defn set-property
@@ -825,7 +825,7 @@
   (metrics-key [_this]
     (pair node-id property-label))
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-update-property ctx node-id property-label fn args opts)))
 
 (defn update-property
@@ -850,7 +850,7 @@
   (metrics-key [_this]
     (pair node-id property-label))
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-clear-property ctx node-id property-label)))
 
 (defn clear-property
@@ -866,7 +866,7 @@
   (metrics-key [_this]
     graph-id)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-update-graph-value ctx graph-id fn args)))
 
 (defn update-graph-value
@@ -885,7 +885,7 @@
   (metrics-key [_this]
     nil)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-callback ctx callback-fn args opts)))
 
 (defn callback
@@ -904,7 +904,7 @@
   (metrics-key [_this]
     [source-id source-label target-id target-label])
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-connect ctx source-id source-label target-id target-label)))
 
 (defn connect
@@ -921,7 +921,7 @@
   (metrics-key [_this]
     nil)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-expand ctx tx-steps-fn args opts)))
 
 (defn expand
@@ -941,7 +941,7 @@
   (metrics-key [_this]
     [source-id source-label target-id target-label])
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-disconnect ctx source-id source-label target-id target-label)))
 
 (defn disconnect
@@ -963,7 +963,7 @@
   (metrics-key [_this]
     nil)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-label ctx label)))
 
 (defn label
@@ -978,7 +978,7 @@
   (metrics-key [_this]
     nil)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-sequence-label ctx sequence-label)))
 
 (defn sequence-label
@@ -993,7 +993,7 @@
   (metrics-key [_this]
     node-id)
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-invalidate ctx node-id)))
 
 (defn invalidate
@@ -1008,7 +1008,7 @@
   (metrics-key [_this]
     (pair node-id output-label))
 
-  (perform [_this ctx]
+  (perform_step [_this ctx]
     (ctx-invalidate-output ctx node-id output-label)))
 
 (defn invalidate-output
@@ -1056,7 +1056,7 @@
         :else
         (-> (try
               (du/measuring (:metrics ctx) (.step-type action) (.metrics-key action)
-                (.perform action ctx))
+                (.perform_step action ctx))
               (catch Exception e
                 (when *tx-debug*
                   (println (txerrstr ctx "Transaction failed on " action)))
