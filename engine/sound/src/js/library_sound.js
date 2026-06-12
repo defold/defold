@@ -44,6 +44,14 @@ var LibrarySoundDevice =
                 sampleRate: shared.audioCtx.sampleRate,
                 bufferedTo: 0,
                 bufferDuration: 0,
+                effectiveBufferCount: bufferCount,
+                baseQueueSeconds: 0,
+                adaptiveQueueSeconds: 0,
+                outputLatency: 0,
+                baseLatency: 0,
+                lastAheadSeconds: 0,
+                underrunCount: 0,
+                ignoreNextUnderrun: false,
                 bufferCache: {},
                 arrayCache: {},
                 creatingTime: Date.now() / 1000,
@@ -61,16 +69,60 @@ var LibrarySoundDevice =
                     }
                     return 0;
                 },
+                _updateEffectiveBufferCount: function() {
+                    if (this.bufferDuration <= 0) {
+                        this.effectiveBufferCount = bufferCount;
+                        return;
+                    }
+
+                    this.adaptiveQueueSeconds = Math.min(this.adaptiveQueueSeconds, 0.250);
+                    this.effectiveBufferCount = Math.max(
+                        bufferCount,
+                        Math.ceil(this.adaptiveQueueSeconds / this.bufferDuration)
+                    );
+                },
+                _updateQueueTarget: function() {
+                    var audioCtx = shared.audioCtx;
+                    this.outputLatency = audioCtx.outputLatency || 0;
+                    this.baseLatency = audioCtx.baseLatency || 0;
+
+                    this.baseQueueSeconds = bufferCount * this.bufferDuration;
+
+                    var reportedLatency = Math.max(this.outputLatency, this.baseLatency);
+                    var latencyQueueSeconds = reportedLatency > 0 ? reportedLatency * 0.25 : 0;
+                    var targetQueueSeconds = Math.max(this.baseQueueSeconds, latencyQueueSeconds);
+
+                    this.adaptiveQueueSeconds = Math.max(
+                        this.adaptiveQueueSeconds,
+                        Math.min(targetQueueSeconds, 0.120)
+                    );
+                    this._updateEffectiveBufferCount();
+                },
+                _growQueueAfterUnderrun: function() {
+                    this.underrunCount++;
+                    this.adaptiveQueueSeconds = Math.min(
+                        0.250,
+                        Math.max(
+                            this.adaptiveQueueSeconds * 1.5,
+                            this.adaptiveQueueSeconds + this.bufferDuration
+                        )
+                    );
+                    this._updateEffectiveBufferCount();
+                },
                 _queue: function(samples, frame_count) {
                     var lastBufferDuration = this.bufferDuration;
                     var len = frame_count / this.sampleRate;
                     // use real buffer length next time.
                     this.bufferDuration = len;
+
+                    this._updateQueueTarget();
+
                     // only append overall length of audio buffer in suspended stay
                     // it helps prevent sound instance consume on the engine side
                     // because from engine point of view - sound plays.
                     if (!this._isContextRunning()) {
                         this.suspendedBufferedTo += len;
+                        this.ignoreNextUnderrun = true;
                         return;
                     }
 
@@ -89,17 +141,36 @@ var LibrarySoundDevice =
                     source.connect(shared.audioCtx.destination);
 
                     var t = shared.audioCtx.currentTime;
+                    var startTime;
+                    var firstBuffer = lastBufferDuration == 0.0;
+                    var bufferedToSeconds = this.bufferedTo / this.sampleRate;
+                    var underrun = !firstBuffer && bufferedToSeconds <= t;
+                    this.lastAheadSeconds = bufferedToSeconds - t;
+
+                    if (underrun) {
+                        // Suppress expected gaps after suspend/resume. Other underruns are
+                        // active-playback starvation and should grow the adaptive queue.
+                        if (this.ignoreNextUnderrun) {
+                            this.ignoreNextUnderrun = false;
+                        } else {
+                            this._growQueueAfterUnderrun();
+                        }
+                    } else {
+                        this.ignoreNextUnderrun = false;
+                    }
+
                     // Underrun or first buffer?
-                    if (this.bufferedTo / this.sampleRate <= t || lastBufferDuration == 0.0) {
+                    if (underrun || firstBuffer) {
                         // Yes, restart buffering - offset is always computed based on queue length...
-                        var off = (bufferCount - 1) * this.bufferDuration;
-                        this.bufferedTo = (t + off) * this.sampleRate + frame_count;
-                        source.start(t + off);
+                        var off = (this.effectiveBufferCount - 1) * this.bufferDuration;
+                        startTime = t + off;
+                        this.bufferedTo = startTime * this.sampleRate;
                     } else {
                         // No, normal delivery...
-                        source.start(this.bufferedTo / this.sampleRate);
+                        startTime = this.bufferedTo / this.sampleRate;
                     }
-                    this.bufferedTo = this.bufferedTo + frame_count;
+                    source.start(startTime);
+                    this.bufferedTo += frame_count;
                 },
                 _freeBufferSlots: function() {
                     var ahead = 0;
@@ -115,11 +186,12 @@ var LibrarySoundDevice =
                         // and start using audioCtx.currentTime
                         ahead = this.suspendedBufferedTo - this._getCurrentSuspendedTime();
                     }
+                    this.lastAheadSeconds = ahead;
                     var inqueue = Math.ceil(ahead / this.bufferDuration);
                     if (inqueue < 0) {
                         inqueue = 0;
                     }
-                    var left = bufferCount - inqueue;
+                    var left = this.effectiveBufferCount - inqueue;
                     if (left < 0) {
                         return 0;
                     }
@@ -132,11 +204,13 @@ var LibrarySoundDevice =
             shared.audioCtx.onstatechange = function() {
                 if (device._isContextRunning()) {
                     device.timeInSuspendedState = Date.now() / 1000;
+                    device.ignoreNextUnderrun = true;
                 } else {
                     // reset all counters for suspended or closed state
                     device.creatingTime = Date.now() / 1000;
                     device.lastTimeInSuspendedState = Date.now() / 1000;
                     device.suspendedBufferedTo = 0;
+                    device.ignoreNextUnderrun = true;
                 }
             };
             shared.devices[id] = device;
