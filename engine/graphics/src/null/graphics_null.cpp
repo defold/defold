@@ -416,21 +416,22 @@ namespace dmGraphics
 
     #undef NATIVE_HANDLE_IMPL
 
-    static HUniformBuffer NullNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer NullNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         NullUniformBuffer* ubo                  = new NullUniformBuffer();
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
-        ubo->m_Buffer                           = new uint8_t[layout.m_Size];
-        ubo->m_BufferSize                       = layout.m_Size;
+        ubo->m_Buffer                           = new uint8_t[size];
+        ubo->m_BufferSize                       = size;
         return (HUniformBuffer) ubo;
     }
 
     static void NullSetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
     {
         NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
         memcpy(ubo->m_Buffer + offset, data, size);
     }
 
@@ -538,7 +539,8 @@ namespace dmGraphics
         ib->m_Buffer = new char[size];
         ib->m_Copy = 0x0;
         ib->m_Size = size;
-        memcpy(ib->m_Buffer, data, size);
+        if (size > 0 && data != 0x0)
+            memcpy(ib->m_Buffer, data, size);
         return (uintptr_t)ib;
     }
 
@@ -554,6 +556,8 @@ namespace dmGraphics
 
     static void NullSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        if (!buffer)
+            return;
         IndexBuffer* ib = (IndexBuffer*)buffer;
         assert(ib->m_Copy == 0x0);
         delete [] ib->m_Buffer;
@@ -810,12 +814,12 @@ namespace dmGraphics
             if (bound_ubo)
             {
                 UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-                if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, pgm_res.m_Res->m_BindingInfo.m_BlockSize))
                 {
                     dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                        bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                        bound_ubo->m_BaseUniformBuffer.m_Layout,
                         pgm_res.m_Res->m_Name,
-                        pgm_layout->m_Hash);
+                        *pgm_layout);
 
                     // Fallback to the scratch buffer uniform setup
                     bound_ubo = 0;

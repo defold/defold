@@ -56,50 +56,153 @@
     ;; web
     :wasm-web :wasm_pthread-web})
 
-(def custom-lib-names
-  {:x86-win32 {"gamesys" "gamesys"
-               "gamesys_model" "gamesys_model"
-               "gamesys_model_null" "gamesys_model_null"
-               "gamesys_rig" "gamesys_rig"
-               "gamesys_rig_null" "gamesys_rig_null"
-               "hid" "hid"
-               "hid_null" "hid_null"
-               "input" "input"
-               "platform" "platform"
-               "platform_null" "platform_null"
-               "platform_vulkan" "platform_vulkan"
-               "vpx" "vpx"
-               "vulkan" "vulkan-1"
-               "script_box2d_defold" "script_box2d_defold"}
-   :x86_64-win32 {"gamesys" "gamesys"
-                  "gamesys_model" "gamesys_model"
-                  "gamesys_model_null" "gamesys_model_null"
-                  "gamesys_rig" "gamesys_rig"
-                  "gamesys_rig_null" "gamesys_rig_null"
-                  "hid" "hid"
-                  "hid_null" "hid_null"
-                  "input" "input"
-                  "platform" "platform"
-                  "platform_null" "platform_null"
-                  "platform_vulkan" "platform_vulkan"
-                  "vpx" "vpx"
-                  "vulkan" "vulkan-1"
-                  "script_box2d_defold" "script_box2d_defold"}})
+(def defold-windows-lib-names
+  #{"basis_encoder"
+    "basis_encoder_noasan"
+    "basis_transcoder"
+    "crashext"
+    "crashext_null"
+    "decoder_ogg"
+    "decoder_opus"
+    "decoder_wav"
+    "ddf"
+    "ddf_noasan"
+    "dlib"
+    "dlib_noasan"
+    "engine"
+    "engine_release"
+    "engine_service"
+    "engine_service_null"
+    "extension"
+    "font"
+    "font_skribidi"
+    "gamesys"
+    "gamesys_model"
+    "gamesys_model_null"
+    "gamesys_rig"
+    "gamesys_rig_null"
+    "graphics"
+    "graphics_dx12"
+    "graphics_null"
+    "graphics_null_noasan"
+    "graphics_opengles"
+    "graphics_proto"
+    "graphics_proto_noasan"
+    "graphics_transcoder_basisu"
+    "graphics_transcoder_null"
+    "graphics_vulkan"
+    "graphics_webgpu"
+    "graphics_webgpu_wagyu"
+    "hid"
+    "hid_null"
+    "image"
+    "image_noasan"
+    "image_null"
+    "image_null_noasan"
+    "input"
+    "launcherutil"
+    "liveupdate"
+    "liveupdate_null"
+    "lua"
+    "mbedtls"
+    "mbedtls_noasan"
+    "model"
+    "particle"
+    "physics"
+    "physics_2d"
+    "physics_2d_defold"
+    "physics_3d"
+    "physics_null"
+    "platform"
+    "platform_null"
+    "platform_vulkan"
+    "profile"
+    "profile_noasan"
+    "profile_null"
+    "profile_null_noasan"
+    "profiler_js"
+    "profiler_remotery"
+    "profilerext"
+    "profilerext_null"
+    "record"
+    "record_null"
+    "render"
+    "render_font_default"
+    "resource"
+    "rig"
+    "rig_null"
+    "script"
+    "script_box2d"
+    "script_box2d_defold"
+    "sound"
+    "sound_nosimd"
+    "sound_null"
+    "sound_openal"
+    "zip"
+    "zip_noasan"})
+
+(def windows-lib-name-overrides
+  {"vpx" "vpx"
+   "vulkan" "vulkan-1"})
+
+(def legacy-windows-unprefixed-lib-names
+  ;; App manifests authored before the CMake migration may still use Waf's
+  ;; Windows library names. Keep reading them, but write current names.
+  #{"gamesys"
+    "gamesys_model"
+    "gamesys_model_null"
+    "gamesys_rig"
+    "gamesys_rig_null"
+    "hid"
+    "hid_null"
+    "input"
+    "platform"
+    "platform_null"
+    "platform_vulkan"
+    "script_box2d_defold"
+    "vpx"})
+
+(defn- windows-lib-name [lib]
+  (or (windows-lib-name-overrides lib)
+      (and (contains? defold-windows-lib-names lib) lib)
+      (str "lib" lib)))
+
+(defn- legacy-windows-lib-name [lib]
+  (or (windows-lib-name-overrides lib)
+      (and (contains? legacy-windows-unprefixed-lib-names lib) lib)
+      (str "lib" lib)))
 
 (defn platformify-excluded-lib [platform lib]
-  (or (-> custom-lib-names platform (get lib))
-      (and (contains? windows platform) (str "lib" lib))
-      lib))
+  (if (contains? windows platform)
+    (windows-lib-name lib)
+    lib))
 
 (defn platformify-lib [platform lib]
-  (or (some-> custom-lib-names platform (get lib) (str ".lib"))
-      (and (contains? windows platform) (str "lib" lib ".lib"))
-      lib))
+  (platformify-excluded-lib platform lib))
+
+(defn platformify-lib-filename [platform lib]
+  (let [platform-lib (platformify-lib platform lib)]
+    (if (contains? windows platform)
+      (str platform-lib ".lib")
+      platform-lib)))
+
+(defn legacy-platformify-excluded-lib [platform lib]
+  (if (contains? windows platform)
+    (legacy-windows-lib-name lib)
+    lib))
+
+(defn legacy-platformify-lib [platform lib]
+  (if (contains? windows platform)
+    (str (legacy-platformify-excluded-lib platform lib) ".lib")
+    lib))
 
 ;; region toggles
 
-(defn contains-toggle [platform key value]
-  {:toggle :contains :platform platform :key key :value value})
+(defn contains-toggle
+  ([platform key value]
+   (contains-toggle platform key value [value]))
+  ([platform key value values]
+   {:toggle :contains :platform platform :key key :value value :values (vec (distinct values))}))
 
 (defn boolean-toggle [platform key value]
   {:toggle :boolean :platform platform :key key :value value})
@@ -107,12 +210,17 @@
 (defn exclude-libs-toggles [platforms libs]
   (for [p platforms
         l libs]
-    (contains-toggle p :excludeLibs (platformify-excluded-lib p l))))
+    (contains-toggle p :excludeLibs (platformify-excluded-lib p l)
+                     [(platformify-excluded-lib p l)
+                      (legacy-platformify-excluded-lib p l)])))
 
 (defn libs-toggles [platforms libs]
   (for [p platforms
         l libs]
-    (contains-toggle p :libs (platformify-lib p l))))
+    (contains-toggle p :libs (platformify-lib p l)
+                     [(platformify-lib p l)
+                      (platformify-lib-filename p l)
+                      (legacy-platformify-lib p l)])))
 
 (defn generic-contains-toggles [platforms key values]
   (for [p platforms
@@ -199,12 +307,13 @@
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
     :contains (let [{:keys [platform key value]} toggle]
-                (boolean (some #(= value %) (get-in-guarded manifest
-                                                            :platforms map?
-                                                            platform map?
-                                                            :context map?
-                                                            key vector?
-                                                            []))))
+                (boolean (some (set (or (:values toggle) [value]))
+                               (get-in-guarded manifest
+                                               :platforms map?
+                                               platform map?
+                                               :context map?
+                                               key vector?
+                                               []))))
     :boolean (let [{:keys [platform key value]} toggle
                    default-value (not value)]
                (= value (get-in-guarded manifest
@@ -217,7 +326,8 @@
 (defn set-toggle-value [manifest toggle value]
   (case (:toggle toggle)
     :contains (let [enabled value
-                    {:keys [platform key value]} toggle]
+                    {:keys [platform key value]} toggle
+                    accepted-values (set (or (:values toggle) [value]))]
                 (update-in-fixing
                   manifest map? {}
                   :platforms map? {}
@@ -227,8 +337,8 @@
                   (if enabled
                     (fn [values]
                       (into [] (distinct) (conj values value)))
-                    (fn [values]
-                      (filterv #(not= value %) values)))))
+                    (fn [current-values]
+                      (filterv #(not (contains? accepted-values %)) current-values)))))
 
     :boolean (let [enabled value
                    {:keys [platform key value]} toggle]

@@ -337,59 +337,20 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
     };
 }
 
-static size_t WebGPUCompressedBlockWidth(TextureFormat format)
+static void WebGPUGetTextureStorageDimensions(TextureFormat format, uint32_t width, uint32_t height, uint32_t* out_width, uint32_t* out_height)
 {
-    assert(format <= TEXTURE_FORMAT_COUNT);
-    switch (format)
-    {
-    case TEXTURE_FORMAT_RGB_ETC1:           return 4;
-    case TEXTURE_FORMAT_RGBA_ETC2:          return 4;
-    case TEXTURE_FORMAT_RGBA_ASTC_4X4:      return 4;
-    case TEXTURE_FORMAT_RGBA_ASTC_5X4:      return 5;
-    case TEXTURE_FORMAT_RGBA_ASTC_5X5:      return 5;
-    case TEXTURE_FORMAT_RGBA_ASTC_6X5:      return 6;
-    case TEXTURE_FORMAT_RGBA_ASTC_6X6:      return 6;
-    case TEXTURE_FORMAT_RGBA_ASTC_8X5:      return 8;
-    case TEXTURE_FORMAT_RGBA_ASTC_8X6:      return 8;
-    case TEXTURE_FORMAT_RGBA_ASTC_8X8:      return 8;
-    case TEXTURE_FORMAT_RGBA_ASTC_10X5:     return 10;
-    case TEXTURE_FORMAT_RGBA_ASTC_10X6:     return 10;
-    case TEXTURE_FORMAT_RGBA_ASTC_10X8:     return 10;
-    case TEXTURE_FORMAT_RGBA_ASTC_10X10:    return 10;
-    case TEXTURE_FORMAT_RGBA_ASTC_12X10:    return 12;
-    case TEXTURE_FORMAT_RGBA_ASTC_12X12:    return 12;
-    case TEXTURE_FORMAT_RGB_BC1:            return 4;
-    case TEXTURE_FORMAT_RGBA_BC3:           return 4;
-    case TEXTURE_FORMAT_RGBA_BC7:           return 4;
-    default:                                return 0;
-    };
-}
+    width  = dmMath::Max(1u, width);
+    height = dmMath::Max(1u, height);
 
-static size_t WebGPUCompressedBlockByteSize(TextureFormat format)
-{
-    assert(format <= TEXTURE_FORMAT_COUNT);
-    switch (format)
+    TextureFormatCompressedBlockSize block_size;
+    if (GetTextureFormatCompressedBlockSize(format, &block_size))
     {
-    case TEXTURE_FORMAT_RGB_ETC1:           return 8;
-    case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
-    case TEXTURE_FORMAT_RGBA_ASTC_4X4:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_5X4:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_5X5:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_6X5:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_6X6:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_8X5:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_8X6:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_8X8:      return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_10X5:     return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_10X6:     return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_10X8:     return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_10X10:    return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_12X10:    return 16;
-    case TEXTURE_FORMAT_RGBA_ASTC_12X12:    return 16;
-    case TEXTURE_FORMAT_RGBA_BC3:           return 16;
-    case TEXTURE_FORMAT_RGBA_BC7:           return 16;
-    default:                                return 0;
-    };
+        width  = ((width + block_size.m_Width - 1) / block_size.m_Width) * block_size.m_Width;
+        height = ((height + block_size.m_Height - 1) / block_size.m_Height) * block_size.m_Height;
+    }
+
+    *out_width  = width;
+    *out_height = height;
 }
 
 static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat format, uint8_t depth, uint32_t sampleCount, WGPUTextureUsage usage)
@@ -406,9 +367,15 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
 #else
         WGPUTextureDescriptor desc = {};
 #endif
+        uint32_t storage_width;
+        uint32_t storage_height;
+        WebGPUGetTextureStorageDimensions(texture->m_Base.m_Format, texture->m_Base.m_Width, texture->m_Base.m_Height, &storage_width, &storage_height);
+
         desc.usage                 = texture->m_UsageFlags | usage;
-        // NOTE: Due to some issue with our webgpu texture handling, we cannot use a width/height of 0 when creating a new texture.
-        desc.size                  = { dmMath::Max(1u, (uint32_t)texture->m_Base.m_Width), dmMath::Max(1u, (uint32_t)texture->m_Base.m_Height), dmMath::Max(1u, (uint32_t)depth) };
+        // Defold texture metadata keeps logical dimensions. WebGPU compressed
+        // texture descriptors must be block-aligned, so realize with the
+        // physical storage dimensions for these formats.
+        desc.size                  = { storage_width, storage_height, dmMath::Max(1u, (uint32_t)depth) };
         desc.sampleCount           = sampleCount;
         desc.format                = texture->m_Format;
         desc.mipLevelCount         = texture->m_Base.m_MipMapCount;
@@ -490,19 +457,49 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             break;
     }
 
+    TextureFormatCompressedBlockSize block_size;
+    const bool is_compressed = IsTextureFormatCompressed(params.m_Format);
+    if (is_compressed && !GetTextureFormatCompressedBlockSize(params.m_Format, &block_size))
+    {
+        dmLogError("Unable to upload texture data, unsupported compressed format (%s).", GetTextureFormatLiteral(params.m_Format));
+        return;
+    }
+
 #if defined(DM_GRAPHICS_WEBGPU2)
-    assert(params.m_Width <= g_WebGPUContext->m_DeviceLimits.maxTextureDimension2D);
-    assert(params.m_Height <= g_WebGPUContext->m_DeviceLimits.maxTextureDimension2D);
+    const uint32_t max_texture_dimension_2d = g_WebGPUContext->m_DeviceLimits.maxTextureDimension2D;
 #else
-    assert(params.m_Width <= g_WebGPUContext->m_DeviceLimits.limits.maxTextureDimension2D);
-    assert(params.m_Height <= g_WebGPUContext->m_DeviceLimits.limits.maxTextureDimension2D);
+    const uint32_t max_texture_dimension_2d = g_WebGPUContext->m_DeviceLimits.limits.maxTextureDimension2D;
 #endif
 
     if (texture->m_Base.m_MipMapCount == 1 && params.m_MipMap > 0)
         return;
 
-    if (texture->m_Texture && (texture->m_Base.m_Format != params.m_Format ||
-                               (!params.m_SubUpdate && texture->m_Base.m_Depth != params.m_Depth)))
+    const uint16_t texture_depth = dmMath::Max((uint16_t)1, params.m_Depth);
+    uint32_t current_storage_width;
+    uint32_t current_storage_height;
+    uint32_t new_storage_width;
+    uint32_t new_storage_height;
+    const uint32_t new_texture_width  = params.m_MipMap == 0 ? params.m_Width  : texture->m_Base.m_Width;
+    const uint32_t new_texture_height = params.m_MipMap == 0 ? params.m_Height : texture->m_Base.m_Height;
+
+    WebGPUGetTextureStorageDimensions(texture->m_Base.m_Format, texture->m_Base.m_Width, texture->m_Base.m_Height, &current_storage_width, &current_storage_height);
+    WebGPUGetTextureStorageDimensions(params.m_Format, new_texture_width, new_texture_height, &new_storage_width, &new_storage_height);
+
+    if (new_storage_width > max_texture_dimension_2d || new_storage_height > max_texture_dimension_2d)
+    {
+        dmLogError("Unable to upload texture data, texture size %ux%u (%ux%u block-aligned) exceeds maximum supported texture size (%ux%u).",
+            new_texture_width, new_texture_height, new_storage_width, new_storage_height, max_texture_dimension_2d, max_texture_dimension_2d);
+        return;
+    }
+
+    assert(new_storage_width <= max_texture_dimension_2d);
+    assert(new_storage_height <= max_texture_dimension_2d);
+
+    const bool texture_dimensions_changed = !params.m_SubUpdate &&
+        (texture->m_Base.m_Depth != texture_depth ||
+         (params.m_MipMap == 0 && (current_storage_width != new_storage_width || current_storage_height != new_storage_height)));
+
+    if (texture->m_Texture && (texture->m_Base.m_Format != params.m_Format || texture_dimensions_changed))
     { //must recreate texture
         if (params.m_SubUpdate)
         {
@@ -516,6 +513,12 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             wgpuTextureViewRelease(texture->m_TextureView);
             texture->m_TextureView = NULL;
         }
+    }
+    if (!params.m_SubUpdate && params.m_MipMap == 0)
+    {
+        texture->m_Base.m_Width  = params.m_Width;
+        texture->m_Base.m_Height = params.m_Height;
+        texture->m_Base.m_Depth  = texture_depth;
     }
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -549,9 +552,9 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             if (!texture->m_Texture)
             {
                 assert(!params.m_SubUpdate);
+                texture->m_Base.m_Format = TEXTURE_FORMAT_RGBA;
                 WebGPURealizeTexture(texture, WGPUTextureFormat_RGBA8Unorm, params.m_Depth, 1, WGPUTextureUsage_CopyDst);
                 assert(texture->m_Texture && texture->m_TextureView);
-                texture->m_Base.m_Format = TEXTURE_FORMAT_RGBA;
             }
             const uint8_t repackBPP     = 4;
             const uint32_t repackPixels = params.m_Width * params.m_Height * depth;
@@ -570,20 +573,36 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             if (!texture->m_Texture)
             {
                 assert(!params.m_SubUpdate);
+                texture->m_Base.m_Format = params.m_Format;
                 WebGPURealizeTexture(texture, WebGPUFormatFromTextureFormat(params.m_Format), params.m_Depth, 1, WGPUTextureUsage_CopyDst);
                 assert(texture->m_Texture && texture->m_TextureView);
-                texture->m_Base.m_Format = params.m_Format;
             }
 
             dest.texture = texture->m_Texture;
             layout.bytesPerRow = extent.width;
-            if (IsTextureFormatCompressed(params.m_Format))
+            if (is_compressed)
             {
-                layout.bytesPerRow = ceil(float(layout.bytesPerRow) / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
+                uint32_t copy_width  = params.m_Width;
+                uint32_t copy_height = params.m_Height;
+                copy_width           = ((copy_width + block_size.m_Width - 1) / block_size.m_Width) * block_size.m_Width;
+                copy_height          = ((copy_height + block_size.m_Height - 1) / block_size.m_Height) * block_size.m_Height;
+
+                const uint32_t block_columns = copy_width / block_size.m_Width;
+                const uint32_t block_rows    = copy_height / block_size.m_Height;
+
+                // WebGPU compressed texture copies operate on whole texel blocks,
+                // matching the block-rounded storage dimensions used when the
+                // texture was realized.
+                // https://gpuweb.github.io/gpuweb/#abstract-opdef-physical-miplevel-specific-texture-extent
+                extent.width        = copy_width;
+                extent.height       = copy_height;
+                layout.bytesPerRow  = block_columns * block_size.m_ByteSize;
+                layout.rowsPerImage = block_rows;
             }
             else
             {
                 layout.bytesPerRow *= ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
+                layout.rowsPerImage = extent.height;
             }
             extent.depthOrArrayLayers = depth;
             if (const size_t dataSize = params.m_DataSize ? params.m_DataSize : layout.bytesPerRow * layout.rowsPerImage * depth)
@@ -1972,12 +1991,13 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
     wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
 }
 
-static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
 {
     WebGPUContext* context = (WebGPUContext*)_context;
 
     WebGPUUniformBuffer* ubo = new WebGPUUniformBuffer();
     ubo->m_BaseUniformBuffer.m_Layout = layout;
+    ubo->m_BaseUniformBuffer.m_Size = size;
     ubo->m_BaseUniformBuffer.m_BoundSet = UNUSED_BINDING_OR_SET;
     ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
@@ -1987,7 +2007,7 @@ static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, const UniformBuf
     WGPUBufferDescriptor desc = {};
 #endif
 
-    desc.size  = layout.m_Size;
+    desc.size  = size;
     desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
 
     ubo->m_Buffer = wgpuDeviceCreateBuffer(context->m_Device, &desc);
@@ -1999,7 +2019,7 @@ static void WebGPUSetUniformBuffer(HContext _context, HUniformBuffer uniform_buf
 {
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
-    assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+    assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
     wgpuQueueWriteBuffer(context->m_Queue, ubo->m_Buffer, offset, data, size);
 }
 
@@ -2439,12 +2459,12 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, pgm_res.m_Res->m_BindingInfo.m_BlockSize))
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                bound_ubo->m_BaseUniformBuffer.m_Layout,
                                 pgm_res.m_Res->m_Name,
-                                pgm_layout->m_Hash);
+                                *pgm_layout);
 
                             // Fallback to the scratch buffer uniform setup
                             bound_ubo = 0;
@@ -2455,7 +2475,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     {
                         entries[desc.entryCount].buffer = bound_ubo->m_Buffer;
                         entries[desc.entryCount].offset = 0;
-                        entries[desc.entryCount].size   = bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size;
+                        entries[desc.entryCount].size   = bound_ubo->m_BaseUniformBuffer.m_Size;
                     }
                     else
                     {

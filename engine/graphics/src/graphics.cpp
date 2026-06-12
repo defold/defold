@@ -816,6 +816,38 @@ namespace dmGraphics
         return 0;
     }
 
+    bool GetTextureFormatCompressedBlockSize(TextureFormat format, TextureFormatCompressedBlockSize* out)
+    {
+        assert(format <= TEXTURE_FORMAT_COUNT);
+        assert(out);
+
+        switch (format)
+        {
+            case TEXTURE_FORMAT_RGB_ETC1:        *out = { 4, 4,  8 }; return true;
+            case TEXTURE_FORMAT_RGBA_ETC2:       *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGB_BC1:         *out = { 4, 4,  8 }; return true;
+            case TEXTURE_FORMAT_R_BC4:           *out = { 4, 4,  8 }; return true;
+            case TEXTURE_FORMAT_RGBA_BC3:        *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RG_BC5:          *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_BC7:        *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:   *out = { 4, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_5X4:   *out = { 5, 4, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_5X5:   *out = { 5, 5, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_6X5:   *out = { 6, 5, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_6X6:   *out = { 6, 6, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X5:   *out = { 8, 5, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X6:   *out = { 8, 6, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_8X8:   *out = { 8, 8, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X5:  *out = { 10,  5, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X6:  *out = { 10,  6, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X8:  *out = { 10,  8, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_10X10: *out = { 10, 10, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_12X10: *out = { 12, 10, 16 }; return true;
+            case TEXTURE_FORMAT_RGBA_ASTC_12X12: *out = { 12, 12, 16 }; return true;
+            default:                             *out = { 0, 0,  0 }; return false;
+        }
+    }
+
     Type GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type)
     {
         switch(shader_type)
@@ -1374,8 +1406,8 @@ namespace dmGraphics
                 continue;
             }
 
-            const ShaderResourceTypeInfo* root_type = &type_infos[root_type_index];
-            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, root_type, user_data);
+            UniformBufferLayout* layout = (UniformBufferLayout*) binding->m_BindingUserData;
+            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, type_infos.Begin(), type_infos.Size(), root_type_index, layout, user_data);
         }
     }
 
@@ -1423,8 +1455,7 @@ namespace dmGraphics
     UniformBufferLayout* AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
     {
         // Create a uniform buffer layout that can be used to check uniform buffer compatability
-        UniformBufferLayout ubo_layout;
-        GetUniformBufferLayout(res->m_Type.m_TypeIndex, type_infos, num_type_infos, &ubo_layout);
+        UniformBufferLayout ubo_layout = GetUniformBufferLayout(res->m_Type.m_TypeIndex, type_infos, num_type_infos);
 
         uint32_t layout_offset = program->m_UniformBufferLayouts.Size();
         program->m_UniformBufferLayouts.Push(ubo_layout);
@@ -1594,7 +1625,7 @@ namespace dmGraphics
         return DM_ALIGN(offset, max_alignment);
     }
 
-    static uint32_t CalculateShaderTypesSize(uint32_t root_type_index, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    uint32_t GetUniformBufferTypeSize(uint32_t root_type_index, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
     {
         assert(root_type_index < num_type_infos);
         uint32_t size = CalculateStd140StructSize(type_infos, root_type_index, false);
@@ -1825,7 +1856,7 @@ namespace dmGraphics
     }
     // This function expects that the offsets are already calculated! I.e, if the types are created manually
     // you can use the UpdateShaderTypesOffsets function (graphics_private.h) first.
-    void GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc)
+    UniformBufferLayout GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types)
     {
         HashState32 hash_state;
         dmHashInit32(&hash_state, false);
@@ -1836,8 +1867,12 @@ namespace dmGraphics
 
         HashTypeRecursive(root_type_index, types, num_types, &hash_state, visited);
 
-        layout_desc->m_Hash = dmHashFinal32(&hash_state);
-        layout_desc->m_Size = CalculateShaderTypesSize(root_type_index, types, num_types);
+        return dmHashFinal32(&hash_state);
+    }
+
+    bool IsUniformBufferLayoutCompatible(UniformBufferLayout bound_layout, uint32_t bound_size, UniformBufferLayout program_layout, uint32_t program_size)
+    {
+        return bound_layout == program_layout && bound_size >= program_size;
     }
     void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits)
     {
@@ -2368,9 +2403,9 @@ namespace dmGraphics
     {
         g_functions.m_GetViewport(context, x, y, width, height);
     }
-    HUniformBuffer NewUniformBuffer(HContext context, const UniformBufferLayout& layout)
+    HUniformBuffer NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size)
     {
-        return g_functions.m_NewUniformBuffer(context, layout);
+        return g_functions.m_NewUniformBuffer(context, layout, size);
     }
     void DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer)
     {

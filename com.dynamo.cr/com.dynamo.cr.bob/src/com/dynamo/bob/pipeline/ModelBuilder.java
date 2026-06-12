@@ -123,7 +123,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         // Model
         IResource resource = task.firstInput();
         Model.Builder model = Model.newBuilder();
-        model.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
+        model.setRigScene(BuilderUtil.getRelativePath(this.project, task.output(1)));
 
         if (modelDescBuilder.getMaterialsCount() > 0)
         {

@@ -26,7 +26,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
-#include "../proto/gameobject/gameobject_ddf.h"
+#include <gameobject/gameobject_ddf.h>
 
 #define EPSILON 0.000001f
 

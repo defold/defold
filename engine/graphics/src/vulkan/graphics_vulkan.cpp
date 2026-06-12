@@ -1201,6 +1201,276 @@ namespace dmGraphics
         }
     }
 
+    static void AddRequiredDeviceExtensions(dmArray<const char*>& device_extensions)
+    {
+        device_extensions.SetCapacity(2);
+        device_extensions.Push(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+        // From spec:
+        // "Allow negative height to be specified in the VkViewport::height field to
+        // perform y-inversion of the clip-space to framebuffer-space transform.
+        // This allows apps to avoid having to use gl_Position.y = -gl_Position.y
+        // in shaders also targeting other APIs."
+        device_extensions.Push(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+    }
+
+    static bool HasRequiredDeviceExtensions(PhysicalDevice* device, const dmArray<const char*>& device_extensions, uint32_t device_index, uint32_t device_count)
+    {
+        for (uint32_t ext_i = 0; ext_i < device_extensions.Size(); ++ext_i)
+        {
+            if (!IsDeviceExtensionSupported(device, device_extensions[ext_i]))
+            {
+                dmLogError("Required device extension '%s' is missing for device %s (%d/%d).", device_extensions[ext_i], device->m_Properties.deviceName, device_index, device_count);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    static VkResult CreateVulkanLogicalDevice(VkInstance instance, VkSurfaceKHR surface, bool require_surface, bool enable_runtime_optional_extensions,
+        bool use_validation_layers, PhysicalDevice* physical_device_out, LogicalDevice* logical_device_out, QueueFamily* queue_family_out,
+        SwapChainCapabilities* swap_chain_capabilities_out, VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT* fragment_shader_interlock_features_out)
+    {
+        uint32_t device_count = GetPhysicalDeviceCount(instance);
+
+        if (device_count == 0)
+        {
+            dmLogError("Could not get any Vulkan devices.");
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        PhysicalDevice* device_list = new PhysicalDevice[device_count];
+        memset(device_list, 0, sizeof(PhysicalDevice) * device_count);
+        GetPhysicalDevices(instance, &device_list, device_count, NULL);
+
+        dmArray<const char*> required_device_extensions;
+        AddRequiredDeviceExtensions(required_device_extensions);
+
+        PhysicalDevice* selected_device = 0x0;
+        QueueFamily selected_queue_family;
+        SwapChainCapabilities selected_swap_chain_capabilities;
+
+        for (uint32_t i = 0; i < device_count; ++i)
+        {
+            PhysicalDevice* device = &device_list[i];
+
+            QueueFamily queue_family = require_surface ? GetQueueFamily(device, surface) : GetGraphicsQueueFamily(device);
+            if (!queue_family.IsValid())
+            {
+                dmLogError("Device selection failed for device %s (%d/%d): Could not get a valid queue family.", device->m_Properties.deviceName, i, device_count);
+                continue;
+            }
+
+            if (!HasRequiredDeviceExtensions(device, required_device_extensions, i, device_count))
+            {
+                dmLogError("Device selection failed for device %s: Could not find all required device extensions.", device->m_Properties.deviceName);
+                continue;
+            }
+
+            if (require_surface)
+            {
+                SwapChainCapabilities swap_chain_capabilities;
+                GetSwapChainCapabilities(device->m_Device, surface, swap_chain_capabilities);
+
+                if (swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
+                    swap_chain_capabilities.m_PresentModes.Size() == 0)
+                {
+                    dmLogError("Device selection failed for device %s: Could not find a valid swap chain.", device->m_Properties.deviceName);
+                    swap_chain_capabilities.m_SurfaceFormats.SetCapacity(0);
+                    swap_chain_capabilities.m_PresentModes.SetCapacity(0);
+                    continue;
+                }
+
+                selected_swap_chain_capabilities.Swap(swap_chain_capabilities);
+            }
+
+            selected_device       = device;
+            selected_queue_family = queue_family;
+            break;
+        }
+
+        if (selected_device == 0x0)
+        {
+            dmLogError("Could not select a suitable Vulkan device.");
+            for (uint32_t i = 0; i < device_count; ++i)
+            {
+                DestroyPhysicalDevice(&device_list[i]);
+            }
+            delete[] device_list;
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        dmArray<const char*> device_extensions;
+        AddRequiredDeviceExtensions(device_extensions);
+
+        void* device_pNext_chain = 0;
+        VkPhysicalDevicePresentIdFeaturesKHR present_id_feature_support = {};
+        VkPhysicalDevicePresentWaitFeaturesKHR present_wait_feature_support = {};
+        VkPhysicalDevicePresentIdFeaturesKHR device_present_id_features = {};
+        VkPhysicalDevicePresentWaitFeaturesKHR device_present_wait_features = {};
+        VkPhysicalDeviceFeatures2 present_features = {};
+
+        if (enable_runtime_optional_extensions)
+        {
+            present_id_feature_support.sType   = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+            present_wait_feature_support.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+            present_id_feature_support.pNext   = &present_wait_feature_support;
+
+            const bool supports_present_wait_extensions =
+                IsDeviceExtensionSupported(selected_device, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
+                IsDeviceExtensionSupported(selected_device, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+
+        #if ANDROID
+            if (supports_present_wait_extensions && vkGetPhysicalDeviceFeatures2 != 0x0)
+        #else
+            if (supports_present_wait_extensions)
+        #endif
+            {
+                present_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+                present_features.pNext = &present_id_feature_support;
+                vkGetPhysicalDeviceFeatures2(selected_device->m_Device, &present_features);
+            }
+
+            if (supports_present_wait_extensions &&
+                present_id_feature_support.presentId &&
+                present_wait_feature_support.presentWait)
+            {
+                device_extensions.OffsetCapacity(2);
+                device_extensions.Push(VK_KHR_PRESENT_ID_EXTENSION_NAME);
+                device_extensions.Push(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
+
+                device_present_wait_features.sType       = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
+                device_present_wait_features.pNext       = device_pNext_chain;
+                device_present_wait_features.presentWait = VK_TRUE;
+
+                device_present_id_features.sType     = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+                device_present_id_features.pNext     = &device_present_wait_features;
+                device_present_id_features.presentId = VK_TRUE;
+
+                device_pNext_chain = &device_present_id_features;
+            }
+
+    #if defined(__MACH__)
+            // Check for optional extensions so that we can enable them if they exist
+            if (IsDeviceExtensionSupported(selected_device, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
+            {
+                device_extensions.OffsetCapacity(1);
+                device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
+            }
+
+            if (IsDeviceExtensionSupported(selected_device, VK_EXT_METAL_OBJECTS_EXTENSION_NAME))
+            {
+                device_extensions.OffsetCapacity(1);
+                device_extensions.Push(VK_EXT_METAL_OBJECTS_EXTENSION_NAME);
+            }
+    #endif
+
+    #if defined(__MACH__) && defined(DM_VULKAN_VALIDATION)
+            if (use_validation_layers)
+            {
+                device_extensions.OffsetCapacity(1);
+                device_extensions.Push("VK_KHR_portability_subset");
+            }
+    #endif
+
+            if (fragment_shader_interlock_features_out && IsDeviceExtensionSupported(selected_device, VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME))
+            {
+                memset(fragment_shader_interlock_features_out, 0, sizeof(*fragment_shader_interlock_features_out));
+                fragment_shader_interlock_features_out->sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
+                fragment_shader_interlock_features_out->pNext = device_pNext_chain;
+
+                device_extensions.OffsetCapacity(1);
+                device_extensions.Push(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME);
+                device_pNext_chain = fragment_shader_interlock_features_out;
+            }
+        }
+
+        uint16_t validation_layers_count;
+        const char** validation_layers = GetValidationLayers(&validation_layers_count, use_validation_layers);
+
+        LogicalDevice logical_device;
+        memset(&logical_device, 0, sizeof(logical_device));
+
+        VkResult res = CreateLogicalDevice(selected_device, surface, selected_queue_family,
+            device_extensions.Begin(), (uint8_t)device_extensions.Size(),
+            validation_layers, (uint8_t)validation_layers_count, device_pNext_chain, &logical_device);
+        if (res != VK_SUCCESS)
+        {
+            dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
+        }
+        else
+        {
+            if (require_surface)
+            {
+                dmLogInfo("Vulkan device selected: %s", selected_device->m_Properties.deviceName);
+            }
+
+            *physical_device_out = *selected_device;
+            memset(selected_device, 0, sizeof(*selected_device));
+            *logical_device_out = logical_device;
+            *queue_family_out   = selected_queue_family;
+
+            if (swap_chain_capabilities_out)
+            {
+                swap_chain_capabilities_out->Swap(selected_swap_chain_capabilities);
+            }
+        }
+
+        if (res != VK_SUCCESS)
+        {
+            selected_swap_chain_capabilities.m_SurfaceFormats.SetCapacity(0);
+            selected_swap_chain_capabilities.m_PresentModes.SetCapacity(0);
+        }
+
+        for (uint32_t i = 0; i < device_count; ++i)
+        {
+            DestroyPhysicalDevice(&device_list[i]);
+        }
+        delete[] device_list;
+
+        return res;
+    }
+
+    static void SetupVulkanAdapterInfo(VulkanContext* context)
+    {
+        const VkPhysicalDeviceLimits& vk_limits = context->m_PhysicalDevice.m_Properties.limits;
+        GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
+
+        limits.m_MaxTextureSize2D               = vk_limits.maxImageDimension2D;
+        limits.m_MaxTextureSize3D               = vk_limits.maxImageDimension3D;
+        limits.m_MaxTextureSizeCube             = vk_limits.maxImageDimensionCube;
+        limits.m_MaxTextureArrayLayers          = vk_limits.maxImageArrayLayers;
+
+        limits.m_MaxFramebufferWidth            = vk_limits.maxFramebufferWidth;
+        limits.m_MaxFramebufferHeight           = vk_limits.maxFramebufferHeight;
+        limits.m_MaxColorAttachments            = vk_limits.maxColorAttachments;
+
+        limits.m_MaxSamplersPerStage            = vk_limits.maxPerStageDescriptorSamplers;
+        limits.m_MaxTexturesPerStage            = vk_limits.maxPerStageDescriptorSampledImages;
+        limits.m_MaxVertexAttributes            = vk_limits.maxVertexInputAttributes;
+        limits.m_MaxVertexBuffers               = vk_limits.maxVertexInputBindings;
+
+        limits.m_MaxComputeWorkgroupSizeX       = vk_limits.maxComputeWorkGroupSize[0];
+        limits.m_MaxComputeWorkgroupSizeY       = vk_limits.maxComputeWorkGroupSize[1];
+        limits.m_MaxComputeWorkgroupSizeZ       = vk_limits.maxComputeWorkGroupSize[2];
+        limits.m_MaxComputeWorkgroupInvocations = vk_limits.maxComputeWorkGroupInvocations;
+        limits.m_MaxComputeSharedMemorySize     = vk_limits.maxComputeSharedMemorySize;
+
+        limits.m_MaxUniformBufferRange          = vk_limits.maxUniformBufferRange;
+        limits.m_MaxStorageBufferRange          = vk_limits.maxStorageBufferRange;
+
+        uint32_t api = context->m_PhysicalDevice.m_Properties.apiVersion;
+        context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) VK_VERSION_MAJOR(api);
+        context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) VK_VERSION_MINOR(api);
+
+        if (context->m_BaseContext.m_PrintDeviceInfo)
+        {
+            VulkanPrintDeviceInfo((HContext) context);
+        }
+
+        SetupSupportedTextureFormats(context);
+    }
+
     bool InitializeVulkan(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -1211,235 +1481,27 @@ namespace dmGraphics
             return false;
         }
 
-        uint32_t device_count = GetPhysicalDeviceCount(context->m_Instance);
-
-        if (device_count == 0)
-        {
-            dmLogError("Could not get any Vulkan devices.");
-            return false;
-        }
-
-        PhysicalDevice* device_list     = new PhysicalDevice[device_count];
-        PhysicalDevice* selected_device = NULL;
-        GetPhysicalDevices(context->m_Instance, &device_list, device_count, NULL);
-
-        // Required device extensions. These must be present for anything to work.
-        dmArray<const char*> device_extensions;
-        device_extensions.SetCapacity(2);
-        device_extensions.Push(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-        // From spec:
-        // "Allow negative height to be specified in the VkViewport::height field to
-        // perform y-inversion of the clip-space to framebuffer-space transform.
-        // This allows apps to avoid having to use gl_Position.y = -gl_Position.y
-        // in shaders also targeting other APIs."
-        device_extensions.Push(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
-
         QueueFamily selected_queue_family;
-        SwapChainCapabilities selected_swap_chain_capabilities;
-        for (uint32_t i = 0; i < device_count; ++i)
-        {
-            #define DESTROY_AND_CONTINUE(d) \
-                DestroyPhysicalDevice(d); \
-                continue;
-
-            PhysicalDevice* device = &device_list[i];
-
-            // Make sure we have a graphics and present queue available
-            QueueFamily queue_family = GetQueueFamily(device, context->m_WindowSurface);
-            if (!queue_family.IsValid())
-            {
-                dmLogError("Device selection failed for device %s (%d/%d): Could not get a valid queue family.", device->m_Properties.deviceName, i, device_count);
-                DESTROY_AND_CONTINUE(device)
-            }
-
-            // Make sure all device extensions are supported
-            bool all_extensions_found = true;
-            for (uint32_t ext_i = 0; ext_i < device_extensions.Size(); ++ext_i)
-            {
-                if (!IsDeviceExtensionSupported(device, device_extensions[ext_i]))
-                {
-                    dmLogError("Required device extension '%s' is missing for device %s (%d/%d).", device_extensions[ext_i], device->m_Properties.deviceName, i, device_count);
-                    all_extensions_found = false;
-                    break;
-                }
-            }
-
-            if (!all_extensions_found)
-            {
-                dmLogError("Device selection failed for device %s: Could not find all required device extensions.", device->m_Properties.deviceName);
-                DESTROY_AND_CONTINUE(device)
-            }
-
-            // Make sure device has swap chain support
-            GetSwapChainCapabilities(device->m_Device, context->m_WindowSurface, selected_swap_chain_capabilities);
-
-            if (selected_swap_chain_capabilities.m_SurfaceFormats.Size() == 0 ||
-                selected_swap_chain_capabilities.m_PresentModes.Size() == 0)
-            {
-                dmLogError("Device selection failed for device %s: Could not find a valid swap chain.", device->m_Properties.deviceName);
-                DESTROY_AND_CONTINUE(device)
-            }
-
-            dmLogInfo("Vulkan device selected: %s", device->m_Properties.deviceName);
-
-            selected_device = device;
-            selected_queue_family = queue_family;
-            break;
-
-            #undef DESTROY_AND_CONTINUE
-        }
-
         LogicalDevice logical_device;
         uint32_t created_width  = context->m_BaseContext.m_Width;
         uint32_t created_height = context->m_BaseContext.m_Height;
         const bool want_vsync   = context->m_SwapInterval != 0;
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
-        void* device_pNext_chain = 0;
-        VkPhysicalDevicePresentIdFeaturesKHR present_id_feature_support = {};
-        VkPhysicalDevicePresentWaitFeaturesKHR present_wait_feature_support = {};
-        VkPhysicalDevicePresentIdFeaturesKHR device_present_id_features = {};
-        VkPhysicalDevicePresentWaitFeaturesKHR device_present_wait_features = {};
-        VkPhysicalDeviceFeatures2 present_features = {};
-        bool supports_present_wait_extensions = false;
-
-        uint16_t validation_layers_count;
-        const char** validation_layers = GetValidationLayers(&validation_layers_count, context->m_UseValidationLayers);
-
-        if (selected_device == NULL)
-        {
-            dmLogError("Could not select a suitable Vulkan device.");
-            goto bail;
-        }
-
-        context->m_PhysicalDevice = *selected_device;
-
-        // Populate the shared GraphicsContextLimits from VkPhysicalDeviceLimits.
-        {
-            const VkPhysicalDeviceLimits& vk_limits = context->m_PhysicalDevice.m_Properties.limits;
-            GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
-
-            limits.m_MaxTextureSize2D                = vk_limits.maxImageDimension2D;
-            limits.m_MaxTextureSize3D                = vk_limits.maxImageDimension3D;
-            limits.m_MaxTextureSizeCube              = vk_limits.maxImageDimensionCube;
-            limits.m_MaxTextureArrayLayers           = vk_limits.maxImageArrayLayers;
-
-            limits.m_MaxFramebufferWidth             = vk_limits.maxFramebufferWidth;
-            limits.m_MaxFramebufferHeight            = vk_limits.maxFramebufferHeight;
-            limits.m_MaxColorAttachments             = vk_limits.maxColorAttachments;
-
-            limits.m_MaxSamplersPerStage             = vk_limits.maxPerStageDescriptorSamplers;
-            limits.m_MaxTexturesPerStage             = vk_limits.maxPerStageDescriptorSampledImages;
-            limits.m_MaxVertexAttributes             = vk_limits.maxVertexInputAttributes;
-            limits.m_MaxVertexBuffers                = vk_limits.maxVertexInputBindings;
-
-            limits.m_MaxComputeWorkgroupSizeX        = vk_limits.maxComputeWorkGroupSize[0];
-            limits.m_MaxComputeWorkgroupSizeY        = vk_limits.maxComputeWorkGroupSize[1];
-            limits.m_MaxComputeWorkgroupSizeZ        = vk_limits.maxComputeWorkGroupSize[2];
-            limits.m_MaxComputeWorkgroupInvocations  = vk_limits.maxComputeWorkGroupInvocations;
-            limits.m_MaxComputeSharedMemorySize      = vk_limits.maxComputeSharedMemorySize;
-
-            limits.m_MaxUniformBufferRange           = vk_limits.maxUniformBufferRange;
-            limits.m_MaxStorageBufferRange           = vk_limits.maxStorageBufferRange;
-        }
-
-        // Adapter API version
-        {
-            uint32_t api = context->m_PhysicalDevice.m_Properties.apiVersion;
-            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) VK_VERSION_MAJOR(api);
-            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) VK_VERSION_MINOR(api);
-        }
-
-        if (context->m_BaseContext.m_PrintDeviceInfo)
-        {
-            VulkanPrintDeviceInfo(_context);
-        }
-
-        SetupSupportedTextureFormats(context);
-
-        present_id_feature_support.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
-        present_wait_feature_support.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
-        present_id_feature_support.pNext = &present_wait_feature_support;
-
-        supports_present_wait_extensions =
-            VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
-            VulkanIsExtensionSupported((HContext) context, VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
-
-        if (supports_present_wait_extensions && vkGetPhysicalDeviceFeatures2)
-        {
-            present_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-            present_features.pNext = &present_id_feature_support;
-            vkGetPhysicalDeviceFeatures2(context->m_PhysicalDevice.m_Device, &present_features);
-        }
-
-        if (supports_present_wait_extensions &&
-            present_id_feature_support.presentId &&
-            present_wait_feature_support.presentWait)
-        {
-            device_extensions.OffsetCapacity(2);
-            device_extensions.Push(VK_KHR_PRESENT_ID_EXTENSION_NAME);
-            device_extensions.Push(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
-
-            device_present_wait_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR;
-            device_present_wait_features.pNext = device_pNext_chain;
-            device_present_wait_features.presentWait = VK_TRUE;
-
-            device_present_id_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
-            device_present_id_features.pNext = &device_present_wait_features;
-            device_present_id_features.presentId = VK_TRUE;
-
-            device_pNext_chain = &device_present_id_features;
-        }
-
-#if defined(__MACH__)
-        // Check for optional extensions so that we can enable them if they exist
-        if (VulkanIsExtensionSupported((HContext) context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
-        {
-            device_extensions.OffsetCapacity(1);
-            device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
-        }
-
-        if (VulkanIsExtensionSupported((HContext) context, VK_EXT_METAL_OBJECTS_EXTENSION_NAME))
-        {
-            device_extensions.OffsetCapacity(1);
-            device_extensions.Push(VK_EXT_METAL_OBJECTS_EXTENSION_NAME);
-        }
-#endif
-
-#if defined(__MACH__) && defined(DM_VULKAN_VALIDATION)
-        if (context->m_UseValidationLayers)
-        {
-            device_extensions.OffsetCapacity(1);
-            device_extensions.Push("VK_KHR_portability_subset");
-        }
-#endif
-
-        if (VulkanIsExtensionSupported((HContext) context, VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME))
-        {
-            context->m_FragmentShaderInterlockFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
-            context->m_FragmentShaderInterlockFeatures.pNext = device_pNext_chain;
-
-            device_extensions.OffsetCapacity(1);
-            device_extensions.Push(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME);
-            device_pNext_chain = &context->m_FragmentShaderInterlockFeatures;
-        }
-
-        res = CreateLogicalDevice(selected_device, context->m_WindowSurface, selected_queue_family,
-            device_extensions.Begin(), (uint8_t)device_extensions.Size(),
-            validation_layers, (uint8_t)validation_layers_count, device_pNext_chain, &logical_device);
+        res = CreateVulkanLogicalDevice(context->m_Instance, context->m_WindowSurface, true, true, context->m_UseValidationLayers,
+            &context->m_PhysicalDevice, &logical_device, &selected_queue_family, &context->m_SwapChainCapabilities, &context->m_FragmentShaderInterlockFeatures);
         if (res != VK_SUCCESS)
         {
-            dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
             goto bail;
         }
 
         context->m_LogicalDevice    = logical_device;
         context->m_WaitForPresent   = (PFN_vkWaitForPresentKHR) vkGetDeviceProcAddr(logical_device.m_Device, "vkWaitForPresentKHR");
-        vk_closest_multisample_flag = GetClosestSampleCountFlag(selected_device, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
+        SetupVulkanAdapterInfo(context);
+        vk_closest_multisample_flag = GetClosestSampleCountFlag(&context->m_PhysicalDevice, BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         // Create swap chain
         InitializeVulkanTexture(&context->m_ResolveTexture);
-        context->m_SwapChainCapabilities.Swap(selected_swap_chain_capabilities);
         context->m_SwapChain = new SwapChain(context->m_WindowSurface, vk_closest_multisample_flag, context->m_SwapChainCapabilities, selected_queue_family, &context->m_ResolveTexture, context->m_WaitForPresent);
 
         res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, &created_width, &created_height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
@@ -1448,8 +1510,6 @@ namespace dmGraphics
             dmLogError("Could not create a swap chain for Vulkan, reason: %s", VkResultToStr(res));
             goto bail;
         }
-
-        delete[] device_list;
 
         // GLFW3 handles window size changes differently, so we need to cater for that.
     #ifndef __MACH__
@@ -1502,8 +1562,6 @@ namespace dmGraphics
 bail:
         if (context->m_SwapChain)
             delete context->m_SwapChain;
-        if (device_list)
-            delete[] device_list;
         return false;
     }
 
@@ -1534,12 +1592,21 @@ bail:
     #endif
 
         uint16_t extensionNameCount = 0;
-        const char** extensionNames = 0;
+        const char** extensionNames = GetExtensionNames(&extensionNameCount);
 
     #ifdef DM_VULKAN_VALIDATION
+        dmArray<const char*> support_probe_extension_names;
+        support_probe_extension_names.SetCapacity(extensionNameCount + 1);
+        for (uint16_t i = 0; i < extensionNameCount; ++i)
+        {
+            support_probe_extension_names.Push(extensionNames[i]);
+        }
+
         const char* portabilityExt = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
-        extensionNames             = &portabilityExt;
-        extensionNameCount         = 1;
+        support_probe_extension_names.Push(portabilityExt);
+
+        extensionNames     = support_probe_extension_names.Begin();
+        extensionNameCount = (uint16_t) support_probe_extension_names.Size();
     #endif
 
         uint32_t vk_api_version = VK_MAKE_API_VERSION(0, 1, 0, 0);
@@ -1552,6 +1619,21 @@ bail:
         #if ANDROID
             LoadVulkanFunctions(inst);
         #endif
+            PhysicalDevice physical_device;
+            LogicalDevice logical_device;
+            QueueFamily queue_family;
+            memset(&physical_device, 0, sizeof(physical_device));
+            memset(&logical_device, 0, sizeof(logical_device));
+
+            res = CreateVulkanLogicalDevice(inst, VK_NULL_HANDLE, false, false, false,
+                &physical_device, &logical_device, &queue_family, 0x0, 0x0);
+
+            if (res == VK_SUCCESS)
+            {
+                DestroyLogicalDevice(&logical_device);
+                DestroyPhysicalDevice(&physical_device);
+            }
+
             DestroyInstance(&inst);
         }
 
@@ -2146,17 +2228,18 @@ bail:
         DeviceBufferUploadHelper(context, data, size, offset, buffer);
     }
 
-    static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer VulkanNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         VulkanContext* context      = (VulkanContext*) _context;
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
         ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
         VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-            layout.m_Size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
+            size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
         CHECK_VK_ERROR(res);
 
         return (HUniformBuffer) ubo;
@@ -2166,7 +2249,7 @@ bail:
     {
         VulkanContext* context   = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
         DeviceBufferUploadHelper(context, data, size, offset, &ubo->m_DeviceBuffer);
     }
 
@@ -2727,12 +2810,12 @@ bail:
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, res->m_BindingInfo.m_BlockSize))
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                bound_ubo->m_BaseUniformBuffer.m_Layout,
                                 res->m_Name,
-                                pgm_layout->m_Hash);
+                                *pgm_layout);
 
                             // Fallback to the scratch buffer uniform setup
                             bound_ubo = 0;
@@ -2751,7 +2834,7 @@ bail:
                             vk_write_buffer_descriptors[buffer_to_write_index++],
                             vk_write_desc_info,
                             0,
-                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+                            bound_ubo->m_BaseUniformBuffer.m_Size);
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
 
                         dynamic_offsets[dynamic_offset_index] = 0;
@@ -2856,7 +2939,7 @@ bail:
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash == pgm_layout->m_Hash)
+                        if (IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, block_size))
                         {
                             vk_buffer = bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer;
                         }

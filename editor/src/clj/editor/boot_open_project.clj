@@ -30,6 +30,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
+            [editor.doc :as doc]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.server :as ext.server]
             [editor.engine-profiler :as engine-profiler]
@@ -107,12 +108,6 @@
   (ui/user-data! app-scene ::ui/refresh-requested? true)
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
-
-(defn- persist-window-state!
-  [^Stage stage ^Scene scene prefs]
-  (app-view/store-window-dimensions stage prefs)
-  (app-view/store-split-positions! scene prefs)
-  (app-view/store-hidden-panes! scene prefs))
 
 (defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
@@ -222,6 +217,7 @@
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
                                   (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
+                                  (doc/routes)
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
@@ -316,7 +312,7 @@
                                         (fn [successful?]
                                           (if successful?
                                             (do
-                                              (persist-window-state! stage scene prefs)
+                                              (app-view/store-window-state! stage prefs)
                                               (ui/close! stage))
                                             (ui/enable-ui!)))))
                                     false)
@@ -335,7 +331,7 @@
                                                                  :variant :danger
                                                                  :result true}]}))]
                                     (when result
-                                      (persist-window-state! stage scene prefs))
+                                      (app-view/store-window-state! stage prefs))
                                     result)))))
 
       (ui/on-closed! stage (fn [_]

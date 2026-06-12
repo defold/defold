@@ -1,0 +1,113 @@
+cmake_minimum_required(VERSION 4.0)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
+include(defold)
+
+project(defold_particle LANGUAGES ${DEFOLD_LANGUAGE_LIST})
+
+add_compile_definitions(DLIB_LOG_DOMAIN="PARTICLE")
+
+set(PARTICLE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
+set(PARTICLE_SRC_DIR "${PARTICLE_ROOT}/src")
+set(PARTICLE_PROTO_ROOT "${PARTICLE_ROOT}/proto")
+set(PARTICLE_PROTO "${PARTICLE_PROTO_ROOT}/particle/particle_ddf.proto")
+set(PARTICLE_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/particle")
+set(PARTICLE_PROTO_CC "${PARTICLE_GEN_DIR}/particle_ddf.cpp")
+set(PARTICLE_PROTO_H "${PARTICLE_GEN_DIR}/particle_ddf.h")
+set(PARTICLE_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/particle")
+set(PARTICLE_PROTO_PY "${PARTICLE_PROTO_PY_DIR}/particle_ddf_pb2.py")
+set(PARTICLE_PROTO_PY_INIT "${PARTICLE_PROTO_PY_DIR}/__init__.py")
+set(PARTICLE_BPROTO "${PARTICLE_GEN_DIR}/particle_ddf.bproto")
+set(PARTICLE_DEPENDENCIES
+  ddf
+  dlib
+  graphics
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+set(PARTICLE_SHARED_DEPENDENCIES
+  ddf_noasan
+  dlib_noasan
+  profile_null_noasan
+  platform_null
+  graphics_null_noasan
+  image_noasan
+  graphics_proto_noasan)
+
+defold_protoc_gen_cpp("${PARTICLE_PROTO_CC}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
+defold_protoc_gen_py("${PARTICLE_PROTO_PY}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
+defold_protoc_gen_bproto("${PARTICLE_BPROTO}" "${PARTICLE_PROTO}" INCLUDES "${PARTICLE_PROTO_ROOT}")
+add_custom_target(particle_proto_headers DEPENDS "${PARTICLE_PROTO_CC}" "${PARTICLE_PROTO_H}")
+add_custom_target(particle_proto_py DEPENDS "${PARTICLE_PROTO_PY}" "${PARTICLE_PROTO_PY_INIT}")
+add_custom_target(particle_bproto DEPENDS "${PARTICLE_BPROTO}")
+
+defold_add_library(particle STATIC
+  "${PARTICLE_SRC_DIR}/particle.cpp"
+  "${PARTICLE_PROTO_CC}")
+target_include_directories(particle PUBLIC
+  "${PARTICLE_SRC_DIR}"
+  "${PARTICLE_PROTO_ROOT}"
+  "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_definitions(particle PRIVATE "DLIB_LOG_DOMAIN=\"PARTICLE\"")
+add_dependencies(particle particle_proto_headers particle_proto_py particle_bproto)
+if(TARGET graphics_proto)
+  add_dependencies(particle graphics_proto_header)
+endif()
+defold_target_link_libraries(particle "${TARGET_PLATFORM}" SCOPE PUBLIC ${PARTICLE_DEPENDENCIES})
+
+if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
+  defold_add_library(particle_shared SHARED
+    "${PARTICLE_SRC_DIR}/particle.cpp"
+    "${PARTICLE_PROTO_CC}")
+  defold_target_skip_sanitizer(particle_shared)
+  target_include_directories(particle_shared PUBLIC
+    "${PARTICLE_SRC_DIR}"
+    "${PARTICLE_PROTO_ROOT}"
+    "${CMAKE_CURRENT_BINARY_DIR}")
+  target_compile_definitions(particle_shared PRIVATE "DLIB_LOG_DOMAIN=\"PARTICLE\"")
+  add_dependencies(particle_shared particle_proto_headers particle_proto_py particle_bproto)
+  defold_target_link_libraries(particle_shared "${TARGET_PLATFORM}"
+    ${PARTICLE_SHARED_DEPENDENCIES})
+  set_target_properties(particle_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET particle_sdk_headers)
+endif()
+
+defold_install_targets(TARGETS particle
+        ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
+        LIBRARY DESTINATION lib/${TARGET_PLATFORM}
+        RUNTIME DESTINATION bin/${TARGET_PLATFORM})
+
+if(TARGET particle_shared)
+  defold_install_targets(TARGETS particle_shared
+          ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
+          LIBRARY DESTINATION lib/${TARGET_PLATFORM}
+          RUNTIME DESTINATION lib/${TARGET_PLATFORM})
+endif()
+
+defold_add_sdk_headers_target(particle_public_sdk_headers
+  DESTINATION include/particle
+  SOURCE_ROOT "${PARTICLE_SRC_DIR}"
+  FILES "${PARTICLE_SRC_DIR}/particle.h"
+  DEPENDS particle)
+defold_add_sdk_headers_target(particle_generated_sdk_headers
+  DESTINATION include/particle
+  SOURCE_ROOT "${PARTICLE_GEN_DIR}"
+  FILES "${PARTICLE_PROTO_H}"
+  DEPENDS particle)
+set(PARTICLE_SDK_HEADER_TARGETS particle_public_sdk_headers particle_generated_sdk_headers)
+list(APPEND PARTICLE_SDK_HEADER_TARGETS
+  ddf_sdk_headers
+  dlib_sdk_headers
+  graphics_sdk_headers
+  lua_sdk_headers)
+add_custom_target(particle_sdk_headers
+  DEPENDS ${PARTICLE_SDK_HEADER_TARGETS})
+
+install(FILES
+  "${PARTICLE_SRC_DIR}/particle.h"
+  "${PARTICLE_PROTO_H}"
+  DESTINATION include/particle)
+install(FILES "${PARTICLE_PROTO}" DESTINATION share/proto)
+install(FILES "${PARTICLE_BPROTO}" DESTINATION share/proto/particle)
+install(FILES "${PARTICLE_PROTO_PY_INIT}" "${PARTICLE_PROTO_PY}" DESTINATION lib/python/particle)
+
+if(BUILD_TESTS)
+  add_subdirectory(src/test)
+endif()

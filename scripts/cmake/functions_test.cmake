@@ -123,6 +123,118 @@ function(_defold_find_python out_var)
   set(${out_var} "${_python}" PARENT_SCOPE)
 endfunction()
 
+function(_defold_cmake_quote out_var value)
+  string(REPLACE "\\" "\\\\" _quoted "${value}")
+  string(REPLACE "\"" "\\\"" _quoted "${_quoted}")
+  set(${out_var} "\"${_quoted}\"" PARENT_SCOPE)
+endfunction()
+
+function(_defold_xcode_quote_args out_var)
+  set(_quoted_args)
+  foreach(_arg IN LISTS ARGN)
+    _defold_cmake_quote(_quoted_arg "${_arg}")
+    string(APPEND _quoted_args " ${_quoted_arg}")
+  endforeach()
+  set(${out_var} "${_quoted_args}" PARENT_SCOPE)
+endfunction()
+
+function(defold_register_sequential_test_command command_name)
+  set(options)
+  set(oneValueArgs)
+  set(multiValueArgs COMMAND DEPENDS)
+  cmake_parse_arguments(DXRT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  if(NOT DXRT_COMMAND)
+    message(FATAL_ERROR "defold_register_sequential_test_command: COMMAND is required")
+  endif()
+
+  _defold_cmake_quote(_quoted_name "${command_name}")
+  _defold_xcode_quote_args(_quoted_command ${DXRT_COMMAND})
+  set_property(GLOBAL APPEND_STRING PROPERTY DEFOLD_RUN_TESTS_SEQUENTIAL_SCRIPT_CONTENT
+    "_defold_run_test(${_quoted_name}${_quoted_command})\n")
+  if(DXRT_DEPENDS)
+    set_property(GLOBAL APPEND PROPERTY DEFOLD_RUN_TESTS_SEQUENTIAL_TARGETS ${DXRT_DEPENDS})
+  endif()
+endfunction()
+
+function(defold_xcode_register_sequential_test_command command_name)
+  defold_register_sequential_test_command(${command_name} ${ARGN})
+endfunction()
+
+function(_defold_xcode_register_sequential_run_test target_name run_dir run_exe)
+  set(_run_args ${ARGN})
+  set(_command_args
+    "${CMAKE_COMMAND}" "-E" "env"
+    "DEFOLD_HOME=${DEFOLD_HOME}"
+    "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+    "PYTHONPATH=${_test_pythonpath_env}")
+  if(run_dir)
+    list(APPEND _command_args "${CMAKE_COMMAND}" "-E" "chdir" "${run_dir}" "${run_exe}")
+  else()
+    list(APPEND _command_args "${run_exe}")
+  endif()
+  list(APPEND _command_args ${_run_args})
+
+  defold_register_sequential_test_command(${target_name}
+    COMMAND ${_command_args}
+    DEPENDS prepare_${target_name})
+endfunction()
+
+function(defold_finalize_sequential_run_tests)
+  if(TARGET run_tests_sequential)
+    return()
+  endif()
+
+  if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-xbone")
+    return()
+  endif()
+
+  get_property(_run_test_targets GLOBAL PROPERTY DEFOLD_RUN_TESTS_SEQUENTIAL_TARGETS)
+  if(NOT _run_test_targets)
+    return()
+  endif()
+  list(REMOVE_DUPLICATES _run_test_targets)
+  list(SORT _run_test_targets)
+
+  _defold_find_python(_python)
+  _defold_cmake_quote(_quoted_python "${_python}")
+  _defold_cmake_quote(_quoted_interactive_runner "${DEFOLD_HOME}/scripts/cmake/run_interactive.py")
+
+  get_property(_run_test_script_content GLOBAL PROPERTY DEFOLD_RUN_TESTS_SEQUENTIAL_SCRIPT_CONTENT)
+  set(_run_test_script_preamble [=[
+function(_defold_run_test test_name)
+  message(STATUS "Running ${test_name}")
+  execute_process(
+    COMMAND @DEFOLD_SEQUENTIAL_TEST_PYTHON@ @DEFOLD_SEQUENTIAL_TEST_RUNNER@ ${ARGN}
+    RESULT_VARIABLE _result)
+  if(NOT _result EQUAL 0)
+    message(FATAL_ERROR "${test_name} failed with exit code ${_result}")
+  endif()
+endfunction()
+
+]=])
+  string(REPLACE "@DEFOLD_SEQUENTIAL_TEST_PYTHON@" "${_quoted_python}" _run_test_script_preamble "${_run_test_script_preamble}")
+  string(REPLACE "@DEFOLD_SEQUENTIAL_TEST_RUNNER@" "${_quoted_interactive_runner}" _run_test_script_preamble "${_run_test_script_preamble}")
+  set(_run_test_script "${CMAKE_BINARY_DIR}/defold_run_tests_sequential_$<CONFIG>.cmake")
+  file(GENERATE OUTPUT "${_run_test_script}" CONTENT "${_run_test_script_preamble}${_run_test_script_content}")
+
+  add_custom_target(run_tests_sequential
+    COMMAND "${CMAKE_COMMAND}" -P "${_run_test_script}"
+    DEPENDS ${_run_test_targets}
+    USES_TERMINAL
+    COMMENT "Running Defold tests sequentially")
+endfunction()
+
+function(defold_finalize_xcode_run_tests)
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+    return()
+  endif()
+
+  defold_finalize_sequential_run_tests()
+  if(TARGET run_tests_sequential AND NOT TARGET run_tests)
+    add_custom_target(run_tests DEPENDS run_tests_sequential)
+  endif()
+endfunction()
+
 function(_defold_build_stage_file_args out_var)
   set(_stage_args "")
   set(_stage_list ${ARGN})
@@ -207,10 +319,6 @@ function(defold_register_test_target target_name)
   # or when directly requested. This mirrors typical Waf behavior.
   set_target_properties(${target_name} PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
-  # Ensure global aggregator exists
-  if(NOT TARGET build_tests)
-    add_custom_target(build_tests)
-  endif()
   add_dependencies(build_tests ${target_name})
 
   set(_known_keywords CONFIGFILE STAGE_FILES)
@@ -262,6 +370,16 @@ function(defold_register_test_target target_name)
     get_filename_component(_RUN_DIR_NORM "${_RUN_DIR_NORM}" REALPATH)
   endif()
 
+  if(CMAKE_GENERATOR STREQUAL "Xcode")
+    set(_xcode_test_metadata "${CMAKE_BINARY_DIR}/defold_xcode_test_schemes.tsv")
+    get_property(_xcode_test_metadata_initialized GLOBAL PROPERTY DEFOLD_XCODE_TEST_METADATA_INITIALIZED)
+    if(NOT _xcode_test_metadata_initialized)
+      file(WRITE "${_xcode_test_metadata}" "")
+      set_property(GLOBAL PROPERTY DEFOLD_XCODE_TEST_METADATA_INITIALIZED TRUE)
+    endif()
+    file(APPEND "${_xcode_test_metadata}" "${target_name}\t${_RUN_DIR_NORM}\n")
+  endif()
+
   if(_RUN_TEST)
     set(_run_target "run_${target_name}")
     if(NOT TARGET ${_run_target})
@@ -281,6 +399,35 @@ function(defold_register_test_target target_name)
       endif()
       set(_run_exe "$<TARGET_FILE:${target_name}>")
       set(_run_args "")
+      if(NOT DEFINED DEFOLD_HOME)
+        get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+      endif()
+      set(_test_pythonpath_entries
+        "${DEFOLD_SDK_ROOT}/lib/python"
+        "${DEFOLD_HOME}/build_tools"
+        "${DEFOLD_SDK_ROOT}/ext/lib/python")
+      if(DEFINED ENV{PYTHONPATH} AND NOT "$ENV{PYTHONPATH}" STREQUAL "")
+        file(TO_CMAKE_PATH "$ENV{PYTHONPATH}" _test_existing_pythonpath)
+        list(APPEND _test_pythonpath_entries ${_test_existing_pythonpath})
+      endif()
+      cmake_path(CONVERT "${_test_pythonpath_entries}" TO_NATIVE_PATH_LIST _test_pythonpath)
+      string(REPLACE ";" "$<SEMICOLON>" _test_pythonpath_env "${_test_pythonpath}")
+      set(_run_env
+        "${CMAKE_COMMAND}" "-E" "env"
+        "DEFOLD_HOME=${DEFOLD_HOME}"
+        "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+        "PYTHONPATH=${_test_pythonpath_env}")
+      if(DEFOLD_MSVC_IDE_SOLUTION AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|wasm-web|wasm_pthread-web")
+        set(_vs_debugger_working_directory "$<TARGET_FILE_DIR:${target_name}>")
+        if(_RUN_DIR_NORM)
+          set(_vs_debugger_working_directory "${_RUN_DIR_NORM}")
+        endif()
+        set(_vs_debugger_environment
+          "DEFOLD_HOME=${DEFOLD_HOME}\nDYNAMO_HOME=${DEFOLD_SDK_ROOT}\nPYTHONPATH=${_test_pythonpath_env}")
+        set_target_properties(${target_name} PROPERTIES
+          VS_DEBUGGER_WORKING_DIRECTORY "${_vs_debugger_working_directory}"
+          VS_DEBUGGER_ENVIRONMENT "${_vs_debugger_environment}")
+      endif()
       if(TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
         _defold_find_wasm_runner(_wasm_runner)
         if(NOT _wasm_runner)
@@ -311,28 +458,87 @@ function(defold_register_test_target target_name)
           USES_TERMINAL
           COMMAND_EXPAND_LISTS
           COMMENT "Running ${target_name} on Android device")
+      elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
+        _defold_find_python(_python)
+        set(_runner "")
+        if(DEFOLD_XBONE_PRIVATE_REPO_ROOT)
+          set(_runner_candidate "${DEFOLD_XBONE_PRIVATE_REPO_ROOT}/scripts/build_xbone.py")
+          if(EXISTS "${_runner_candidate}")
+            set(_runner "${_runner_candidate}")
+          endif()
+        endif()
+        set(_run_dir "${_RUN_DIR_NORM}")
+        if(NOT _run_dir)
+          set(_run_dir "${CMAKE_CURRENT_BINARY_DIR}")
+        endif()
+        set(_config_args "")
+        if(_TEST_CONFIGFILE)
+          list(APPEND _config_args --config "${_TEST_CONFIGFILE}")
+        endif()
+        if(_runner)
+          add_custom_target(${_run_target}
+            COMMAND "${_python}" "${_runner}" run-test
+              --cwd "${_run_dir}"
+              --program "$<TARGET_FILE:${target_name}>"
+              --private-repo-root "${DEFOLD_XBONE_PRIVATE_REPO_ROOT}"
+              ${_config_args}
+            DEPENDS ${target_name}
+            USES_TERMINAL
+            COMMAND_EXPAND_LISTS
+            COMMENT "Running ${target_name} on Xbox console")
+        else()
+          message(WARNING "defold_register_test_target: Xbox test runner not found for '${target_name}'. The run target will fail until the private Xbox build_xbone.py hook is available.")
+          add_custom_target(${_run_target}
+            COMMAND ${CMAKE_COMMAND} -E false
+            DEPENDS ${target_name}
+            USES_TERMINAL
+            COMMENT "Xbox test runner missing for ${target_name}")
+        endif()
       elseif(_RUN_DIR_NORM)
         add_custom_target(${_run_target}
-          COMMAND ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
+          COMMAND ${_run_env} ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
           USES_TERMINAL
           COMMENT "Running ${target_name} in ${_RUN_DIR_NORM}")
       else()
         add_custom_target(${_run_target}
-          COMMAND ${_run_exe} ${_run_args}
+          COMMAND ${_run_env} ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
           USES_TERMINAL
           COMMENT "Running ${target_name}")
       endif()
     endif()
+    set(_sequential_dep ${target_name})
+    if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-xbone")
+      set(_prepare_target "prepare_${target_name}")
+      if(NOT TARGET ${_prepare_target})
+        add_custom_target(${_prepare_target} DEPENDS ${target_name})
+      endif()
+      set(_sequential_dep ${_prepare_target})
+    endif()
 
-    if(NOT TARGET run_tests)
-      add_custom_target(run_tests)
+    if(NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-xbone")
+      set(_sequential_command ${_run_env})
+      if(_RUN_DIR_NORM)
+        list(APPEND _sequential_command ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe})
+      else()
+        list(APPEND _sequential_command ${_run_exe})
+      endif()
+      list(APPEND _sequential_command ${_run_args})
+      defold_register_sequential_test_command(${target_name}
+        COMMAND ${_sequential_command}
+        DEPENDS ${_sequential_dep})
+    endif()
+
+    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+      if(NOT TARGET run_tests)
+        add_custom_target(run_tests)
+      endif()
     endif()
     if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
       _defold_register_android_batch_target(_android_stop_target ${target_name} "${_RUN_DIR_NORM}" "${_TEST_CONFIGFILE}" ${DEFOLD_TEST_STAGE_FILES})
       add_dependencies(run_tests ${_android_stop_target})
-    else()
+    elseif(NOT CMAKE_GENERATOR STREQUAL "Xcode")
       add_dependencies(run_tests ${_run_target})
     endif()
   endif()

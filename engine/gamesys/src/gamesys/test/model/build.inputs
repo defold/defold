@@ -2,6 +2,8 @@
 /model/dynamic_vertex_attributes.go
 /model/empty_texture.model
 /model/invalid_material.model
+/model/morph_instanced_attr.go
+/model/morph_instanced_legacy.go
 /model/one_mesh_two_materials.go
 /model/pbr_properties.go
 /model/script_model.go

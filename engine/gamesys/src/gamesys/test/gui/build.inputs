@@ -31,3 +31,5 @@
 /gui/texture_setter_override.go
 /gui/valid_png.raw
 /gui/valid_gui.go
+/font/valid_font.font
+/font/glyph_bank_test_1.font

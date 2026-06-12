@@ -19,7 +19,7 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
-#include <dlib/http_cache.h>
+#include <dlib/http/http_cache.h>
 #include <dlib/jobsystem.h>
 #include <dlib/mutex.h>
 

@@ -14,10 +14,17 @@ add_compile_definitions(DLIB_LOG_DOMAIN="HID")
 
 # Sources
 set(HID_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
-set(HID_PRIVATE_SRC_DIR "")
-if(DEFINED DEFOLD_PLATFORM_HID_SOURCE_DIR AND EXISTS "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
-    set(HID_PRIVATE_SRC_DIR "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
-endif()
+set(HID_DEPENDENCIES
+    dlib
+    platform)
+set(HID_NULL_DEPENDENCIES
+    dlib
+    platform_null)
+set(HID_PRIVATE_SRC_DIR "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
+file(GLOB_RECURSE HID_DMSDK_HEADERS CONFIGURE_DEPENDS
+    "${HID_SRC_DIR}/dmsdk/*.h"
+    "${HID_SRC_DIR}/dmsdk/*.hpp")
+set(HID_PRIVATE_DMSDK_HEADERS)
 
 # hid (native backend)
 set(hid_SOURCES
@@ -50,7 +57,11 @@ else()
 endif()
 
 defold_add_library(hid STATIC ${hid_SOURCES})
-target_compile_definitions(hid PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
+target_compile_definitions(hid PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
+if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
+    target_link_libraries(hid PUBLIC "-framework GameController")
+endif()
+defold_target_link_libraries(hid "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_DEPENDENCIES})
 
 target_include_directories(hid PUBLIC
     "${HID_SRC_DIR}"
@@ -60,6 +71,17 @@ target_include_directories(hid PUBLIC
 ) # match Waf include layout for hid sources
 
 if(HID_PRIVATE_SRC_DIR)
+    target_compile_definitions(hid PUBLIC DM_HID_USE_VENDOR_NATIVE_DEFINES)
+    file(GLOB HID_PRIVATE_DMSDK_HEADERS CONFIGURE_DEPENDS
+        "${HID_PRIVATE_SRC_DIR}/dmsdk/hid/hid_native_defines_vendor.h")
+
+    foreach(_hid_private_dmsdk_dir IN LISTS DEFOLD_PLATFORM_HID_DMSDK_DIRS)
+        file(GLOB_RECURSE _hid_private_platform_headers CONFIGURE_DEPENDS
+            "${_hid_private_dmsdk_dir}/*.h"
+            "${_hid_private_dmsdk_dir}/*.hpp")
+        list(APPEND HID_PRIVATE_DMSDK_HEADERS ${_hid_private_platform_headers})
+    endforeach()
+
     target_include_directories(hid PUBLIC
         "${HID_PRIVATE_SRC_DIR}"
         "${HID_PRIVATE_SRC_DIR}/native"
@@ -80,9 +102,12 @@ target_include_directories(hid_null PUBLIC
     "${HID_SRC_DIR}/external"
     "${HID_SRC_DIR}/default/src"
 )
-target_compile_definitions(hid_null PUBLIC "DLIB_LOG_DOMAIN=\"HID\"")
+target_compile_definitions(hid_null PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
+defold_target_link_libraries(hid_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_NULL_DEPENDENCIES})
+set_target_properties(hid_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET hid_sdk_headers)
 
 if(HID_PRIVATE_SRC_DIR)
+    target_compile_definitions(hid_null PUBLIC DM_HID_USE_VENDOR_NATIVE_DEFINES)
     target_include_directories(hid_null PUBLIC
         "${HID_PRIVATE_SRC_DIR}"
         "${HID_PRIVATE_SRC_DIR}/native"
@@ -175,13 +200,35 @@ endif()
 # ===================== Install =====================
 
 # Install static libraries to lib/<target-platform>
-install(TARGETS hid hid_null
+defold_install_targets(TARGETS hid hid_null
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM}
 )
 
 # Install public headers
+defold_add_sdk_headers_target(hid_public_sdk_headers
+    DESTINATION include/hid
+    SOURCE_ROOT "${HID_SRC_DIR}"
+    FILES "${HID_SRC_DIR}/hid.h"
+    DEPENDS hid)
+defold_add_sdk_headers_target(hid_dmsdk_sdk_headers
+    DESTINATION sdk/include/dmsdk
+    SOURCE_ROOT "${HID_SRC_DIR}/dmsdk"
+    FILES ${HID_DMSDK_HEADERS}
+    DEPENDS hid)
+set(HID_SDK_HEADER_TARGETS hid_public_sdk_headers hid_dmsdk_sdk_headers)
+if(HID_PRIVATE_DMSDK_HEADERS)
+    defold_add_sdk_headers_target(hid_private_dmsdk_sdk_headers
+        DESTINATION sdk/include/dmsdk/hid
+        SOURCE_ROOT "${HID_PRIVATE_SRC_DIR}/dmsdk/hid"
+        FILES ${HID_PRIVATE_DMSDK_HEADERS}
+        DEPENDS hid)
+    list(APPEND HID_SDK_HEADER_TARGETS hid_private_dmsdk_sdk_headers)
+endif()
+add_custom_target(hid_sdk_headers
+    DEPENDS ${HID_SDK_HEADER_TARGETS})
+
 install(FILES "${HID_SRC_DIR}/hid.h" DESTINATION include/hid)
 
 # Install dmsdk headers for HID with folder structure preserved
@@ -191,19 +238,10 @@ install(DIRECTORY "${HID_SRC_DIR}/dmsdk/"
                 PATTERN "*.h"
                 PATTERN "*.hpp")
 
-if(HID_PRIVATE_SRC_DIR)
-    set(_hid_private_vendor_header "${HID_PRIVATE_SRC_DIR}/dmsdk/hid/hid_native_defines_vendor.h")
-    if(EXISTS "${_hid_private_vendor_header}")
-        install(FILES "${_hid_private_vendor_header}" DESTINATION sdk/include/dmsdk/hid)
-    endif()
-
-    foreach(_hid_private_dmsdk_dir IN LISTS DEFOLD_PLATFORM_HID_DMSDK_DIRS)
-        if(EXISTS "${_hid_private_dmsdk_dir}")
-            install(DIRECTORY "${_hid_private_dmsdk_dir}"
-                    DESTINATION sdk/include/dmsdk/hid
-                    FILES_MATCHING
-                    PATTERN "*.h"
-                    PATTERN "*.hpp")
-        endif()
-    endforeach()
+if(HID_PRIVATE_DMSDK_HEADERS)
+    install(DIRECTORY "${HID_PRIVATE_SRC_DIR}/dmsdk/hid/"
+            DESTINATION sdk/include/dmsdk/hid
+            FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp")
 endif()
