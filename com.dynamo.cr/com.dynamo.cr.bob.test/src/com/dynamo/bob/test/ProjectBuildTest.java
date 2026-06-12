@@ -229,6 +229,63 @@ public class ProjectBuildTest {
         assertEquals(0.2f, maps.getDriver(1).getDeadZone(), 0.0f);
     }
 
+    @Test
+    public void testDefaultGamepadDatabaseCreatesCombinedGamepadTask() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        createDefaultFiles();
+        createFile(contentRoot, "builtins/input/default.gamepads", ""
+                + "driver {\n"
+                + "  device: \"Default Manual Pad\"\n"
+                + "  platform: \"macos\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n");
+        createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", ""
+                + "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n");
+
+        build();
+
+        File output = new File(contentRoot, "build/builtins/input/default.gamepadsc");
+        assertTrue(output.exists());
+        GamepadMaps maps = GamepadMaps.parseFrom(FileUtils.readFileToByteArray(output));
+        assertEquals(2, maps.getDriverCount());
+        assertEquals("Xbox 360 Controller", maps.getDriver(0).getDevice());
+        assertEquals("Default Manual Pad", maps.getDriver(1).getDevice());
+        assertEquals("macos", maps.getDriver(0).getPlatform());
+        assertEquals("macos", maps.getDriver(1).getPlatform());
+        assertFalse(maps.getDriver(0).hasDeadZone());
+        assertEquals(0.2f, maps.getDriver(1).getDeadZone(), 0.0f);
+    }
+
+    @Test
+    public void testEmptyGamepadDatabaseDisablesDefaultDatabase() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        createDefaultFiles();
+        createFile(contentRoot, "game.project", ""
+                + "[display]\n"
+                + "width=640\n"
+                + "height=480\n"
+                + "[input]\n"
+                + "gamepad_database=\n");
+        createFile(contentRoot, "builtins/input/default.gamepads", ""
+                + "driver {\n"
+                + "  device: \"Default Manual Pad\"\n"
+                + "  platform: \"macos\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n");
+        createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", ""
+                + "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n");
+
+        build();
+
+        File output = new File(contentRoot, "build/builtins/input/default.gamepadsc");
+        assertTrue(output.exists());
+        GamepadMaps maps = GamepadMaps.parseFrom(FileUtils.readFileToByteArray(output));
+        assertEquals(1, maps.getDriverCount());
+        assertEquals("Default Manual Pad", maps.getDriver(0).getDevice());
+        assertEquals("macos", maps.getDriver(0).getPlatform());
+        assertEquals(0.2f, maps.getDriver(0).getDeadZone(), 0.0f);
+    }
+
     static private void checkProjectSetting(BobProjectProperties properties, String category, String key, String expectedValue)
     {
         assertEquals(expectedValue, properties.getStringValue(category, key));

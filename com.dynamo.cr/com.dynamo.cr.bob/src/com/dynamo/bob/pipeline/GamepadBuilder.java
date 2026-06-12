@@ -28,7 +28,7 @@ import com.dynamo.input.proto.Input.GamepadMaps;
 /**
  * Builder that combines Defold .gamepads and an optional SDL gamecontrollerdb.txt into binary .gamepadsc.
  */
-@BuilderParams(name = "Gamepad", inExts = {}, outExt = ".gamepadsc", paramsForSignature = {"platform"})
+@BuilderParams(name = "Gamepad", inExts = {".gamepads"}, outExt = ".gamepadsc", paramsForSignature = {"platform"})
 public class GamepadBuilder extends Builder {
 
     private static final String EXT_SDL = ".txt";

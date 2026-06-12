@@ -188,10 +188,8 @@ static void DumpSDLDeviceName(FILE* out, const char* device_name)
     }
 }
 
-static void DumpSDLBinding(FILE* out, const char* input_name, const Trigger* trigger)
+static void DumpSDLBindingValue(FILE* out, const Trigger* trigger)
 {
-    fprintf(out, ",%s:", input_name);
-
     switch (trigger->m_Type)
     {
     case dmInputDDF::GAMEPAD_TYPE_BUTTON:
@@ -215,6 +213,73 @@ static void DumpSDLBinding(FILE* out, const char* input_name, const Trigger* tri
     }
 }
 
+static void DumpSDLBinding(FILE* out, const char* input_name, const Trigger* trigger)
+{
+    fprintf(out, ",%s:", input_name);
+    DumpSDLBindingValue(out, trigger);
+}
+
+static void DumpSDLDirectionalBinding(FILE* out, const char* input_name, char logical_direction, const Trigger* trigger)
+{
+    fprintf(out, ",%c%s:", logical_direction, input_name);
+    DumpSDLBindingValue(out, trigger);
+}
+
+static bool IsFullAxisPair(const Trigger* negative_trigger, const Trigger* positive_trigger, bool* inverted)
+{
+    if (negative_trigger->m_Type != dmInputDDF::GAMEPAD_TYPE_AXIS ||
+        positive_trigger->m_Type != dmInputDDF::GAMEPAD_TYPE_AXIS ||
+        negative_trigger->m_Index != positive_trigger->m_Index ||
+        !negative_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] ||
+        !positive_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] ||
+        negative_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] ||
+        positive_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE])
+    {
+        return false;
+    }
+
+    const bool negative_negate = negative_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE];
+    const bool positive_negate = positive_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE];
+    if (negative_negate == positive_negate)
+    {
+        return false;
+    }
+
+    *inverted = !negative_negate && positive_negate;
+    return true;
+}
+
+static void DumpSDLStickAxis(FILE* out, Driver* driver, const char* input_name, uint32_t negative_trigger_id, uint32_t positive_trigger_id, bool written_triggers[dmInputDDF::MAX_GAMEPAD_COUNT])
+{
+    const Trigger* negative_trigger = &driver->m_Triggers[negative_trigger_id];
+    const Trigger* positive_trigger = &driver->m_Triggers[positive_trigger_id];
+    const bool has_negative = !negative_trigger->m_Skip;
+    const bool has_positive = !positive_trigger->m_Skip;
+
+    if (has_negative && has_positive)
+    {
+        bool inverted = false;
+        if (IsFullAxisPair(negative_trigger, positive_trigger, &inverted))
+        {
+            fprintf(out, ",%s:a%d%s", input_name, negative_trigger->m_Index, inverted ? "~" : "");
+            written_triggers[negative_trigger_id] = true;
+            written_triggers[positive_trigger_id] = true;
+            return;
+        }
+    }
+
+    if (has_negative)
+    {
+        DumpSDLDirectionalBinding(out, input_name, '-', negative_trigger);
+        written_triggers[negative_trigger_id] = true;
+    }
+    if (has_positive)
+    {
+        DumpSDLDirectionalBinding(out, input_name, '+', positive_trigger);
+        written_triggers[positive_trigger_id] = true;
+    }
+}
+
 bool IsIgnoredID(uint32_t trigger_id) {
     // Ignore connected/disconnected triggers.
     if (trigger_id == dmInputDDF::GAMEPAD_CONNECTED ||
@@ -225,6 +290,17 @@ bool IsIgnoredID(uint32_t trigger_id) {
     }
 
     return false;
+}
+
+static bool IsTriggerID(uint32_t trigger_id)
+{
+    return trigger_id == dmInputDDF::GAMEPAD_LTRIGGER || trigger_id == dmInputDDF::GAMEPAD_RTRIGGER;
+}
+
+static bool IsFullRangeTriggerAxis(dmHID::GamepadPacket* zero_packet, uint32_t index, float delta)
+{
+    const float zero_value = zero_packet->m_Axis[index];
+    return (zero_value <= -0.5f && delta > 0.0f) || (zero_value >= 0.5f && delta < 0.0f);
 }
 
 dmHID::HContext g_HidContext = 0;
@@ -495,6 +571,8 @@ retry:
         gamepad = gamepads[0];
     }
 
+    dmHID::SetGamepadLayoutLegacy(gamepad, false);
+
     char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
     dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name);
 
@@ -518,6 +596,7 @@ retry:
     {
         printf("* GDC_DEBUG=1 HID input dump is enabled.\n");
     }
+    printf("* Using SDL gamepad packet layout.\n");
 
     if (!WaitForGamepadReady(window, gamepad, &packet, debug_input))
     {
@@ -651,7 +730,9 @@ retry:
                 {
                     driver.m_Triggers[i].m_Type = gamepad_type;
                     driver.m_Triggers[i].m_Index = index;
-                    if (dmMath::Abs(delta) > 1.5f)
+                    if (IsTriggerID(i) && gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS && IsFullRangeTriggerAxis(&prev_packet, index, delta))
+                        driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] = true;
+                    else if (dmMath::Abs(delta) > 1.5f)
                         driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] = true;
                     else if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS)
                         driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] = true;
@@ -837,17 +918,39 @@ void DumpSDLEntry(FILE* out, Driver* driver)
     fprintf(out, "%s,", driver->m_Guid);
     DumpSDLDeviceName(out, driver->m_Device);
 
+    bool written_triggers[dmInputDDF::MAX_GAMEPAD_COUNT];
+    memset(written_triggers, 0, sizeof(written_triggers));
+
     for (uint32_t i = 0; i < sizeof(binding_order) / sizeof(binding_order[0]); ++i)
     {
         const uint32_t trigger_id = binding_order[i];
-        if (driver->m_Triggers[trigger_id].m_Skip)
+        if (written_triggers[trigger_id] || driver->m_Triggers[trigger_id].m_Skip)
             continue;
 
         const char* input_name = GetSDLInputName(driver, trigger_id);
         if (input_name == 0x0)
             continue;
 
+        switch (trigger_id)
+        {
+        case dmInputDDF::GAMEPAD_LSTICK_LEFT:
+            DumpSDLStickAxis(out, driver, input_name, dmInputDDF::GAMEPAD_LSTICK_LEFT, dmInputDDF::GAMEPAD_LSTICK_RIGHT, written_triggers);
+            continue;
+        case dmInputDDF::GAMEPAD_LSTICK_UP:
+            DumpSDLStickAxis(out, driver, input_name, dmInputDDF::GAMEPAD_LSTICK_UP, dmInputDDF::GAMEPAD_LSTICK_DOWN, written_triggers);
+            continue;
+        case dmInputDDF::GAMEPAD_RSTICK_LEFT:
+            DumpSDLStickAxis(out, driver, input_name, dmInputDDF::GAMEPAD_RSTICK_LEFT, dmInputDDF::GAMEPAD_RSTICK_RIGHT, written_triggers);
+            continue;
+        case dmInputDDF::GAMEPAD_RSTICK_UP:
+            DumpSDLStickAxis(out, driver, input_name, dmInputDDF::GAMEPAD_RSTICK_UP, dmInputDDF::GAMEPAD_RSTICK_DOWN, written_triggers);
+            continue;
+        default:
+            break;
+        }
+
         DumpSDLBinding(out, input_name, &driver->m_Triggers[trigger_id]);
+        written_triggers[trigger_id] = true;
     }
 
     fprintf(out, ",platform:%s,\n", GetSDLPlatformName(driver->m_Platform));

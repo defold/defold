@@ -132,7 +132,7 @@ namespace dmInput
     {
         uint32_t m_DeviceId;
         dmInputDDF::GamepadGuid m_Guid;
-        const char* m_DeviceName;
+        char m_DeviceName[dmHID::MAX_GAMEPAD_NAME_LENGTH];
         float m_DeadZone;
         uint8_t m_Legacy : 1;
         GamepadInput m_Inputs[dmInputDDF::MAX_GAMEPAD_COUNT];

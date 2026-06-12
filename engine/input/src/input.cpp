@@ -215,15 +215,6 @@ namespace dmInput
         }
     }
 
-    static bool ShouldSkipDarwinGuidGamepadConfig(const dmHID::GamepadGuid& guid)
-    {
-#if defined(DM_PLATFORM_MACOS)
-        return guid.m_Vendor == GAMEPAD_GUID_VENDOR_MICROSOFT && !IsDarwinSyntheticGamepadGuid(guid);
-#else
-        return false;
-#endif
-    }
-
     static const char* GetPreferredDarwinMicrosoftLegacyName(const dmHID::GamepadGuid& guid)
     {
 #if defined(DM_PLATFORM_MACOS)
@@ -326,14 +317,18 @@ namespace dmInput
 
         const bool is_legacy = config->m_Legacy != 0;
         const char* mapping_name = matched_legacy_name && matched_legacy_name[0] ? matched_legacy_name : config->m_DeviceName;
+        if (mapping_name[0] == 0)
+        {
+            mapping_name = "<unnamed>";
+        }
 
         if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
         {
-            dmLogInfo("Gamepad %d device '%s' device_guid=%s using raw fallback (legacy=%s).", gamepad_index, device_name, device_guid_string, is_legacy ? "true" : "false");
+            dmLogInfo("Gamepad %d '%s' guid=%s using raw fallback (legacy=%s).", gamepad_index, device_name, device_guid_string, is_legacy ? "true" : "false");
         }
         else if (is_legacy)
         {
-            dmLogInfo("Gamepad %d device '%s' device_guid=%s using legacy mapping '%s'.", gamepad_index, device_name, device_guid_string, mapping_name);
+            dmLogInfo("Gamepad %d '%s' guid=%s using legacy mapping '%s'.", gamepad_index, device_name, device_guid_string, mapping_name);
         }
         else
         {
@@ -347,7 +342,14 @@ namespace dmInput
             {
                 dmStrlCpy(mapping_guid_string, "<none>", dmHID::MAX_GAMEPAD_GUID_LENGTH + 1);
             }
-            dmLogInfo("Gamepad %d device '%s' device_guid=%s using GUID mapping '%s' mapping_guid=%s.", gamepad_index, device_name, device_guid_string, config->m_DeviceName, mapping_guid_string);
+            if (strcmp(device_guid_string, mapping_guid_string) == 0)
+            {
+                dmLogInfo("Gamepad %d '%s' guid=%s", gamepad_index, device_name, device_guid_string);
+            }
+            else
+            {
+                dmLogInfo("Gamepad %d '%s' guid=%s using GUID mapping '%s' (mapping_guid=%s).", gamepad_index, device_name, device_guid_string, mapping_name, mapping_guid_string);
+            }
         }
     }
 
@@ -371,7 +373,7 @@ namespace dmInput
 
         dmHID::GamepadGuid guid = {};
         bool has_guid = dmHID::GetGamepadDeviceGuid(binding->m_Context->m_HidContext, gamepad, &guid);
-        if (has_guid && !ShouldSkipDarwinGuidGamepadConfig(guid))
+        if (has_guid)
         {
             GamepadConfig* config = GetGamepadConfigFromGuid(binding, guid);
             if (config)
@@ -738,7 +740,7 @@ namespace dmInput
         GamepadConfig unknownGamepadConfig = {};
         unknownGamepadConfig.m_DeadZone = 0.0f;
         unknownGamepadConfig.m_DeviceId = UNKNOWN_GAMEPAD_CONFIG_ID;
-        unknownGamepadConfig.m_DeviceName = "<unknown>";
+        dmStrlCpy(unknownGamepadConfig.m_DeviceName, "<unknown>", sizeof(unknownGamepadConfig.m_DeviceName));
         unknownGamepadConfig.m_Legacy = 1;
         memset(unknownGamepadConfig.m_Inputs, 0, sizeof(unknownGamepadConfig.m_Inputs));
         for (uint32_t j = 0; j < (sizeof(unknownGamepadConfig.m_Inputs) / sizeof(struct GamepadInput)); ++j)
@@ -762,7 +764,7 @@ namespace dmInput
                 const bool use_runtime_dead_zone = HasGamepadGuid(gamepad_map.m_Guid) && gamepad_map.m_DeadZone == 0.0f;
                 config.m_DeadZone = use_runtime_dead_zone ? context->m_GamepadDeadZone : gamepad_map.m_DeadZone;
                 config.m_Guid = gamepad_map.m_Guid;
-                config.m_DeviceName = gamepad_map.m_Device;
+                dmStrlCpy(config.m_DeviceName, gamepad_map.m_Device, sizeof(config.m_DeviceName));
                 memset(config.m_Inputs, 0, sizeof(config.m_Inputs));
                 for (uint32_t j = 0; j < (sizeof(config.m_Inputs) / sizeof(struct GamepadInput)); ++j)
                 {

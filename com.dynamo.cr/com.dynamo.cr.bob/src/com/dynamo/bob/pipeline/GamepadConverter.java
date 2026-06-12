@@ -387,6 +387,11 @@ public final class GamepadConverter {
         }
 
         if (isBidirectionalAxis(logical)) {
+            if (hasExplicitAxisDirection(binding, parsedBinding)) {
+                result.add(formatMapEntry(SDL_AXIS_TO_INPUT.get((parsedBinding.negative ? "-" : "+") + logical), parsedBinding, parsedBinding.negative, false));
+                return result;
+            }
+
             result.add(formatMapEntry(SDL_AXIS_TO_INPUT.get("-" + logical), parsedBinding, !parsedBinding.negative, false));
             result.add(formatMapEntry(SDL_AXIS_TO_INPUT.get("+" + logical), parsedBinding, parsedBinding.negative, false));
             return result;
@@ -438,6 +443,18 @@ public final class GamepadConverter {
 
     private static boolean isTrigger(String logical) {
         return logical.equals("lefttrigger") || logical.equals("righttrigger");
+    }
+
+    private static boolean hasExplicitAxisDirection(String binding, Binding parsedBinding) {
+        if (!parsedBinding.type.equals(SDL_TYPE_AXIS)) {
+            return false;
+        }
+
+        String trimmed = binding.trim();
+        if (trimmed.endsWith("~")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed.startsWith("+") || trimmed.startsWith("-");
     }
 
     private static Binding parseBinding(String binding) {
