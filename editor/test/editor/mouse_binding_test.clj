@@ -45,8 +45,8 @@
               :binding-source :default
               :fallback-context-path nil
               :bindings [{:button :primary :modifiers [:shift]}]}
-             (mouse-binding/command-row {} ::camera :scene.camera.pan))))
-    (let [overrides-1 (mouse-binding/update-command-bindings
+             (mouse-binding/resolve-command-binding {} ::camera :scene.camera.pan))))
+    (let [overrides-1 (mouse-binding/update-command
                         {}
                         ::camera
                         :scene.camera.pan
@@ -69,8 +69,8 @@
                 :binding-source :custom
                 :fallback-context-path nil
                 :bindings [{:button :secondary :modifiers [:control]}]}
-               (mouse-binding/command-row overrides-1 ::camera :scene.camera.pan))))
-      (let [overrides-2 (mouse-binding/update-command-bindings
+               (mouse-binding/resolve-command-binding overrides-1 ::camera :scene.camera.pan))))
+      (let [overrides-2 (mouse-binding/update-command
                           overrides-1
                           ::camera
                           :scene.camera.pan
@@ -118,14 +118,14 @@
                       :binding-source :custom
                       :fallback-context-path nil
                       :bindings []}
-                     (mouse-binding/command-row overrides-4 ::camera :scene.camera.pan)))
+                     (mouse-binding/resolve-command-binding overrides-4 ::camera :scene.camera.pan)))
               (is (= [{:command :scene.camera.pan
                        :action ["Pan"]
                        :context ::camera
                        :context-path "Scene 2D Camera"
                        :bindings []}]
                      (mouse-binding/all-bindings))))
-            (let [overrides-5 (mouse-binding/reset-command-bindings overrides-4 ::camera :scene.camera.pan)]
+            (let [overrides-5 (mouse-binding/reset-command overrides-4 ::camera :scene.camera.pan)]
               (testing "reset removes the override and restores defaults"
                 (is (= {} overrides-5))
                 (mouse-binding/set-user-overrides! overrides-5)
@@ -139,7 +139,7 @@
                         :binding-source :default
                         :fallback-context-path nil
                         :bindings [{:button :primary :modifiers [:shift]}]}
-                       (mouse-binding/command-row overrides-5 ::camera :scene.camera.pan)))))))))))
+                       (mouse-binding/resolve-command-binding overrides-5 ::camera :scene.camera.pan)))))))))))
 
 (deftest fallback-context-workflow
   (with-mouse-bindings
@@ -167,8 +167,8 @@
               :binding-source :inherited
               :fallback-context-path "Scene 2D Camera"
               :bindings [{:button :primary :modifiers [:shift]}]}
-             (mouse-binding/command-row {} ::derived :scene.camera.pan))))
-    (let [overrides-1 (mouse-binding/update-command-bindings
+             (mouse-binding/resolve-command-binding {} ::derived :scene.camera.pan))))
+    (let [overrides-1 (mouse-binding/update-command
                         {}
                         ::derived
                         :scene.camera.pan
@@ -185,8 +185,8 @@
                 :binding-source :custom
                 :fallback-context-path nil
                 :bindings [{:button :secondary :modifiers []}]}
-               (mouse-binding/command-row overrides-1 ::derived :scene.camera.pan))))
-      (let [overrides-2 (mouse-binding/reset-command-bindings overrides-1 ::derived :scene.camera.pan)]
+               (mouse-binding/resolve-command-binding overrides-1 ::derived :scene.camera.pan))))
+      (let [overrides-2 (mouse-binding/reset-command overrides-1 ::derived :scene.camera.pan)]
         (testing "reset returns the row to inherited fallback behavior"
           (is (= {} overrides-2))
           (mouse-binding/set-user-overrides! overrides-2)
@@ -200,7 +200,7 @@
                   :binding-source :inherited
                   :fallback-context-path "Scene 2D Camera"
                   :bindings [{:button :primary :modifiers [:shift]}]}
-                 (mouse-binding/command-row overrides-2 ::derived :scene.camera.pan)))))
+                 (mouse-binding/resolve-command-binding overrides-2 ::derived :scene.camera.pan)))))
       (mouse-binding/register! ::derived "Tile Map Editor"
                                [{:command :scene.camera.pan
                                  :action ["Pan"]}])
@@ -219,7 +219,7 @@
                 :binding-source :default
                 :fallback-context-path nil
                 :bindings [nil]}
-               (mouse-binding/command-row {} ::derived :scene.camera.pan)))))))
+               (mouse-binding/resolve-command-binding {} ::derived :scene.camera.pan)))))))
 
 (deftest modifier-command-workflow
   (with-mouse-bindings
@@ -250,8 +250,8 @@
               :context-path "Scene 3D Camera"
               :modifier :shift
               :default-modifier :shift}
-             (mouse-binding/command-row {} ::camera :scene.camera.free-look.speed-boost))))
-    (let [overrides-1 (mouse-binding/update-modifier-command
+             (mouse-binding/resolve-command-binding {} ::camera :scene.camera.free-look.speed-boost))))
+    (let [overrides-1 (mouse-binding/update-command
                         {}
                         ::camera
                         :scene.camera.free-look.speed-boost
@@ -278,8 +278,8 @@
                 :context-path "Scene 3D Camera"
                 :modifier :control
                 :default-modifier :shift}
-               (mouse-binding/command-row overrides-1 ::camera :scene.camera.free-look.speed-boost))))
-      (let [overrides-2 (mouse-binding/reset-modifier-command
+               (mouse-binding/resolve-command-binding overrides-1 ::camera :scene.camera.free-look.speed-boost))))
+      (let [overrides-2 (mouse-binding/reset-command
                           overrides-1
                           ::camera
                           :scene.camera.free-look.speed-boost)]
@@ -295,3 +295,41 @@
                   ::camera
                   :scene.camera.free-look.speed-boost
                   {:modifiers #{:control}}))))))))
+
+(deftest binding-edit-workflow
+  (with-mouse-bindings
+    (mouse-binding/register! ::camera "Scene 2D Camera"
+                             [{:command :scene.camera.pan
+                               :action ["Pan"]
+                               :binding {:button :primary :modifiers [:shift]}}])
+    (testing "adding a binding through the edit workflow appends to editable bindings"
+      (is (= {::camera
+              {:scene.camera.pan
+               {:bindings [{:button :primary :modifiers [:shift]}
+                           {:button :secondary :modifiers [:control]}]}}}
+             (mouse-binding/update-command-binding
+               {}
+               ::camera
+               :scene.camera.pan
+               nil
+               {:button :secondary :modifiers [:control]}))))
+    (testing "duplicate binding edits are ignored"
+      (is (= {}
+             (mouse-binding/update-command-binding
+               {}
+               ::camera
+               :scene.camera.pan
+               nil
+               {:button :primary :modifiers [:shift]}))))
+    (testing "editing a binding can remove it by clearing the button"
+      (is (= {::camera
+              {:scene.camera.pan
+               {:bindings []}}}
+             (mouse-binding/update-command-binding
+               {::camera
+                {:scene.camera.pan
+                 {:bindings [{:button :primary :modifiers [:shift]}]}}}
+               ::camera
+               :scene.camera.pan
+               0
+               {:modifiers [:shift]}))))))

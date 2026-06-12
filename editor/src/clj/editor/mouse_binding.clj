@@ -121,20 +121,37 @@
     (when (contains? command-user-overrides :bindings)
       (:bindings command-user-overrides))))
 
-(defn command-bindings-for-edit
-  "Returns the flat binding vector the edit UI works with: user overrides if
-  present, otherwise the registered defaults stripped to raw `{:button :modifiers}`
-  maps. Does not apply fallback-context inheritance."
-  [user-overrides context command]
-  (or (user-command-bindings user-overrides context command)
-      (into [] (keep :binding) (default-command-bindings context command))))
+(defn- editable-command-value*
+  "Returns the editable user-facing value for a command.
 
-(defn command-row
-  "Builds a prefs-UI row descriptor for a command. For regular commands returns a
-  map with `:kind :mouse-binding`, `:binding-source` (:custom/:inherited/:default),
-  `:fallback-context-path`, and `:bindings`. For modifier-only commands returns a
-  map with `:kind :mouse-modifier`, `:modifier`, and `:default-modifier`. Both
-  include template keys from the registered binding (`:context-path`, `:action`, etc.)."
+  For regular mouse-binding commands this is the flat binding vector the edit UI
+  works with: user overrides if present, otherwise the registered defaults
+  stripped to raw `{:button :modifiers}` maps. Does not apply fallback-context
+  inheritance.
+
+  For modifier-only commands this is the effective modifier keyword."
+  [user-overrides context command]
+  (let [default-bindings-data (default-command-bindings context command)]
+    (if-let [default-modifier (some :modifier default-bindings-data)]
+      (get-in user-overrides [context command :modifier] default-modifier)
+      (or (user-command-bindings user-overrides context command)
+          (into [] (keep :binding) default-bindings-data)))))
+
+(defn resolve-command-binding
+  "Resolves the effective binding state for a command, accounting for user
+  overrides, registered defaults, and fallback-context inheritance.
+
+  For modifier-only commands returns a map with `:kind :mouse-modifier`,
+  `:modifier` (the effective modifier), and `:default-modifier`.
+
+  For regular commands returns a map with `:kind :mouse-binding`, `:bindings`
+  (the effective binding vector), `:binding-source` (`:custom` when the user
+  overrode the defaults, `:inherited` when the bindings come from the
+  fallback context, `:default` otherwise), and `:fallback-context-path` (the
+  source context's display path when inherited, else nil).
+
+  Both include the template keys from the registered binding (`:context-path`,
+  `:action`, etc.), plus `:context` and `:command`."
   [user-overrides context command]
   (let [default-bindings-data (default-command-bindings context command)
         template (-> (first default-bindings-data)
@@ -167,12 +184,7 @@
           :fallback-context-path (when inherited? (some :context-path fallback-data))
           :bindings bindings)))))
 
-(defn- assoc-command-user-overrides [user-overrides context command command-user-overrides]
-  (if (empty? command-user-overrides)
-    (util/dissoc-in user-overrides [context command])
-    (assoc-in user-overrides [context command] command-user-overrides)))
-
-(defn update-command-bindings
+(defn- update-command-bindings*
   "Sets the binding list for a command in user-overrides. If the new bindings
   equal the registered defaults the override entry is removed, keeping
   user-overrides sparse."
@@ -182,19 +194,11 @@
         new-command-user-overrides (cond-> command-user-overrides
                                      (= bindings default-bindings) (dissoc :bindings)
                                      (not= bindings default-bindings) (assoc :bindings bindings))]
-    (assoc-command-user-overrides user-overrides context command new-command-user-overrides)))
+    (if (empty? new-command-user-overrides)
+      (util/dissoc-in user-overrides [context command])
+      (assoc-in user-overrides [context command] new-command-user-overrides))))
 
-(defn remove-command-binding [user-overrides context command binding-index]
-  (let [bindings (command-bindings-for-edit user-overrides context command)
-        new-bindings (into [] (keep-indexed #(when (not= %1 binding-index) %2)) bindings)]
-    (update-command-bindings user-overrides context command new-bindings)))
-
-(defn reset-command-bindings
-  "Clears the binding override for a command, restoring default binding behavior."
-  [user-overrides context command]
-  (util/dissoc-in user-overrides [context command]))
-
-(defn update-modifier-command
+(defn- update-command-modifier*
   "Sets the modifier override for a modifier-only command. If the new modifier
   equals the registered default, the override entry is removed."
   [user-overrides context command modifier]
@@ -203,8 +207,57 @@
       (util/dissoc-in user-overrides [context command])
       (assoc-in user-overrides [context command :modifier] modifier))))
 
-(defn reset-modifier-command
-  "Clears the modifier override for a modifier-only command."
+(defn update-command
+  "Sets the user override for a command in user-overrides.
+
+  For regular mouse-binding commands, `value` must be the new binding vector.
+  For modifier-only commands, `value` must be the new modifier keyword."
+  [user-overrides context command value]
+  (if (some :modifier (default-command-bindings context command))
+    (update-command-modifier* user-overrides context command value)
+    (update-command-bindings* user-overrides context command value)))
+
+(defn- normalize-binding [binding]
+  (update binding :modifiers #(vec (sort %))))
+
+(defn command-binding-duplicate?
+  "Returns true if `binding` duplicates another editable binding for the command.
+  `binding-index` should be the index being edited, or nil when adding."
+  [user-overrides context command binding-index binding]
+  (let [normalized (normalize-binding binding)
+        existing (mapv normalize-binding (editable-command-value* user-overrides context command))]
+    (boolean
+      (some #(= normalized %)
+            (if (some? binding-index)
+              (keep-indexed #(when (not= %1 binding-index) %2) existing)
+              existing)))))
+
+(defn update-command-binding
+  "Applies a regular mouse-binding edit to a command.
+  `binding-index` should be the index being edited, or nil when adding.
+  If `binding` has no `:button`, editing an existing binding removes it while
+  adding becomes a no-op. Duplicate additions/edits are ignored."
+  [user-overrides context command binding-index binding]
+  (let [current (editable-command-value* user-overrides context command)]
+    (if (and (:button binding)
+             (command-binding-duplicate? user-overrides context command binding-index binding))
+      user-overrides
+      (let [new-bindings (if (nil? binding-index)
+                           (if (:button binding)
+                             (conj current binding)
+                             current)
+                           (if (:button binding)
+                             (assoc current binding-index binding)
+                             (into [] (keep-indexed #(when (not= %1 binding-index) %2)) current)))]
+        (update-command user-overrides context command new-bindings)))))
+
+(defn remove-command-binding [user-overrides context command binding-index]
+  (let [bindings (editable-command-value* user-overrides context command)
+        new-bindings (into [] (keep-indexed #(when (not= %1 binding-index) %2)) bindings)]
+    (update-command user-overrides context command new-bindings)))
+
+(defn reset-command
+  "Clears the user override for a command, restoring default binding behavior."
   [user-overrides context command]
   (util/dissoc-in user-overrides [context command]))
 

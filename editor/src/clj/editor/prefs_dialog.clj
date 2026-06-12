@@ -433,12 +433,7 @@
         warnings (when (:button draft-binding)
                    (seq (disj (get binding->cmds [context (normalize-binding draft-binding)] #{}) command)))
         duplicate? (when (:button draft-binding)
-                     (let [normalized (normalize-binding draft-binding)
-                           existing (mapv normalize-binding (mouse-binding/command-bindings-for-edit current-user-overrides context command))]
-                       (some #(= normalized %)
-                             (if binding-index
-                               (keep-indexed #(when (not= %1 binding-index) %2) existing)
-                               existing))))]
+                     (mouse-binding/command-binding-duplicate? current-user-overrides context command binding-index draft-binding))]
     {:fx/type fxui/vertical
      :padding :medium
      :spacing :medium
@@ -513,19 +508,8 @@
                  {:fx/type fxui/button
                   :text (localization-state (localization/message "prefs.keymap.mouse-binding.button.apply"))
                   :on-action (fn [_]
-                               (let [current (mouse-binding/command-bindings-for-edit current-user-overrides context command)
-                                     new-bindings (if (nil? binding-index)
-                                                    (if (:button draft-binding)
-                                                      (let [normalized (normalize-binding draft-binding)]
-                                                        (if (some #(= normalized (normalize-binding %)) current)
-                                                          current
-                                                          (conj current draft-binding)))
-                                                      current)
-                                                    (if (:button draft-binding)
-                                                      (assoc current binding-index draft-binding)
-                                                      (into [] (keep-indexed #(when (not= %1 binding-index) %2)) current)))]
-                                 (update-mouse-bindings
-                                   #(mouse-binding/update-command-bindings % context command new-bindings)))
+                               (update-mouse-bindings
+                                 #(mouse-binding/update-command-binding % context command binding-index draft-binding))
                                (swap-state dissoc :mouse-binding-popup))}]}))}))
 
 (fxui/defc mouse-modifier-view
@@ -579,7 +563,7 @@
                   :text (localization-state (localization/message "prefs.keymap.mouse-binding.button.apply"))
                   :on-action (fn [_]
                                (update-mouse-bindings
-                                 #(mouse-binding/update-modifier-command % context command draft-modifier))
+                                 #(mouse-binding/update-command % context command draft-modifier))
                                (swap-state dissoc :mouse-modifier-popup))}]}))}))
 
 (defn- popup-center-coords [^Window window ^double popup-width ^double popup-height]
@@ -675,7 +659,7 @@
         remove-items
         [{:fx/type fx.menu-item/lifecycle
           :text (localization-state (localization/message "prefs.keymap.context-menu.reset-mouse-bindings-to-defaults"))
-          :on-action (fn [_] (update-mouse-bindings #(mouse-binding/reset-command-bindings % context command)))}]))))
+          :on-action (fn [_] (update-mouse-bindings #(mouse-binding/reset-command % context command)))}]))))
 
 (defn- mouse-modifier-context-menu-items [localization-state swap-state update-mouse-bindings row]
   (let [{:keys [context command]} row]
@@ -687,7 +671,7 @@
       :text (localization-state (localization/message "prefs.keymap.context-menu.reset-to-default"))
       :on-action (fn [_]
                    (update-mouse-bindings
-                     #(mouse-binding/reset-modifier-command % context command)))}]))
+                     #(mouse-binding/reset-command % context command)))}]))
 
 (fxui/defc keymap-view
   {:compose [{:fx/type fx/ext-watcher
@@ -706,7 +690,7 @@
                                     {:kind :keyboard
                                      :command command})))
         mouse-binding-rows (mapv (fn [{:keys [context command]}]
-                                   (mouse-binding/command-row mouse-bindings context command))
+                                   (mouse-binding/resolve-command-binding mouse-bindings context command))
                                  (mouse-binding/all-bindings))
         binding->cmds (mouse-binding->cmds mouse-binding-rows)
         conflicts (coll/into-> binding->cmds {} (filter #(> (count (val %)) 1)))
