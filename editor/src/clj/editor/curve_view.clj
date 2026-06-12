@@ -316,8 +316,8 @@
                                                       id (iv/iv-added-id (:points new-curve))
                                                       select-fn (g/node-value self :select-fn)]
                                                   (select-fn [[nid property id]] op-seq)
-                                                  (g/set-property nid property new-curve)))))
-                                          (reset-controller! self op-seq)
+                                                  [(g/set-property nid property new-curve)
+                                                   (g/set-property self :handle :curve-click)]))))
                                           true)
                                         (when (or (= handle :control-point) (= handle :tangent))
                                           (let [op-seq (gensym)
