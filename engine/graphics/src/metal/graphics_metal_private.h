@@ -258,7 +258,6 @@ namespace dmGraphics
         MTL::CommandBuffer*        m_CommandBuffer;
         CA::MetalDrawable*         m_Drawable;
         NS::AutoreleasePool*       m_AutoReleasePool;
-        MTL::RenderPassDescriptor* m_RenderPassDescriptor;
         MTL::RenderCommandEncoder* m_RenderCommandEncoder;
         MTL::Texture*              m_MSAAColorTexture;
         MTL::Texture*              m_MSAADepthTexture;

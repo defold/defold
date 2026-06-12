@@ -1233,7 +1233,6 @@ namespace dmGraphics
             context->m_FrameResources[i].m_CommandBuffer = 0;
             context->m_FrameResources[i].m_Drawable = 0;
             context->m_FrameResources[i].m_AutoReleasePool = 0;
-            context->m_FrameResources[i].m_RenderPassDescriptor = 0;
             context->m_FrameResources[i].m_RenderCommandEncoder = 0;
             context->m_FrameResources[i].m_InFlight = 0;
 
@@ -1311,6 +1310,7 @@ namespace dmGraphics
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_CUBE_MAP;
         default_texture_creation_params.m_Depth         = 1;
         default_texture_creation_params.m_LayerCount    = 6;
+        default_texture_params.m_LayerCount             = 6;
         context->m_DefaultTextureCubeMap = MetalNewTextureInternal(default_texture_creation_params);
         MetalSetTextureInternal(context, context->m_DefaultTextureCubeMap, default_texture_params);
 
@@ -1357,38 +1357,9 @@ namespace dmGraphics
 
         if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
-            {
-                MetalFrameResource& frame = context->m_FrameResources[i];
-                if (frame.m_CommandBuffer && frame.m_InFlight)
-                {
-                    frame.m_CommandBuffer->waitUntilCompleted();
-                }
-            }
-
-            if (context->m_Layer)
-            {
-#if defined(DM_PLATFORM_IOS)
-                [context->m_Layer removeFromSuperlayer];
-#else
-                NSView* native_view = (NSView*) context->m_View;
-                if (native_view && [native_view layer] == context->m_Layer)
-                {
-                    [native_view setLayer:nil];
-                    [native_view setWantsLayer:NO];
-                }
-                else
-                {
-                    [context->m_Layer removeFromSuperlayer];
-                }
-#endif
-                context->m_Layer = 0;
-                context->m_View  = 0;
-            }
-
+            MetalPostDeleteTextures(context, true);
             context->m_BaseContext.m_Width  = 0;
             context->m_BaseContext.m_Height = 0;
-            dmPlatform::CloseWindow(context->m_BaseContext.m_Window);
         }
     }
 
@@ -1690,7 +1661,6 @@ namespace dmGraphics
         ResetRenderEncoderStateCache(context);
 
         // Setup the initial render pass state
-        frame.m_RenderPassDescriptor = 0;
         frame.m_RenderCommandEncoder = 0;
 
         MetalRenderTarget* rt   = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
@@ -1724,7 +1694,6 @@ namespace dmGraphics
 
         frame.m_CommandBuffer = 0;
         frame.m_Drawable = 0;
-        frame.m_RenderPassDescriptor = 0;
         frame.m_RenderCommandEncoder = 0;
         frame.m_InFlight = 0;
 
@@ -2865,7 +2834,7 @@ namespace dmGraphics
                 } break;
 
                 case BINDING_FAMILY_STORAGE_BUFFER:
-                    // TODO
+                    // Metal storage buffers are not exposed through the public graphics API yet.
                     break;
                 case BINDING_FAMILY_GENERIC:
                     break;
@@ -2875,7 +2844,8 @@ namespace dmGraphics
             }
         }
 
-        // Maybe move this call to a "prepare scratch buffer" function or something?
+        // Uniform data placed in the scratch buffer is referenced indirectly through
+        // the argument buffer, so tell Metal the encoder will read from it.
         if (is_compute)
             UseResourceCached(context, cenc, scratch_buffer->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
         else
@@ -4056,47 +4026,6 @@ namespace dmGraphics
         context->m_ScissorChanged = 1;
     }
 
-    static HTexture MetalGetRenderTargetTexture(HContext _context, HRenderTarget render_target, BufferType buffer_type)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-
-        if (IsColorBufferType(buffer_type))
-        {
-            return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            return rt->m_TextureDepthStencil;
-        }
-        return 0;
-    }
-
-    static void MetalGetRenderTargetSize(HContext _context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-        TextureParams* params = 0;
-
-        if (IsColorBufferType(buffer_type))
-        {
-            uint32_t i = GetBufferTypeIndex(buffer_type);
-            assert(i < MAX_BUFFER_COLOR_ATTACHMENTS);
-            params = &rt->m_ColorTextureParams[i];
-        }
-        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT || buffer_type == BUFFER_TYPE_STENCIL_BIT)
-        {
-            params = &rt->m_DepthStencilTextureParams;
-        }
-        else
-        {
-            assert(0);
-        }
-
-        width  = params->m_Width;
-        height = params->m_Height;
-    }
-
     static void MetalSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         MetalContext* context = (MetalContext*)_context;
@@ -4194,8 +4123,6 @@ namespace dmGraphics
         tex->m_Base.m_NumTextureIds  = 1;
         tex->m_LayerCount            = dmMath::Max((uint8_t)1, params.m_LayerCount);
 
-        // TODO
-        // tex->m_PendingUpload  = INVALID_OPAQUE_HANDLE;
         tex->m_Usage = GetMetalUsageFromHints(params.m_UsageHintBits);
 
         if (params.m_OriginalWidth == 0)
@@ -4368,6 +4295,19 @@ namespace dmGraphics
         uint64_t offset;          // offset inside contiguous upload buffer (computed later)
     };
 
+    static uint32_t GetMetalTextureUploadLayerCount(const MetalTexture* texture, const TextureParams& params)
+    {
+        if (IsTextureType3D(texture->m_Base.m_Type))
+        {
+            return 1;
+        }
+        if (params.m_LayerCount != 0)
+        {
+            return params.m_LayerCount;
+        }
+        return dmMath::Max(1U, (uint32_t) texture->m_LayerCount);
+    }
+
     static void MetalCopyToTexture(MetalContext* context,
                                    MetalTexture* texture,
                                    TextureFormat format_src,
@@ -4380,7 +4320,14 @@ namespace dmGraphics
 
         const uint32_t target_mip = params.m_MipMap;
         const bool is_3d_texture = IsTextureType3D(texture->m_Base.m_Type);
-        const uint32_t layerCount = is_3d_texture ? 1 : dmMath::Max((uint32_t)texture->m_LayerCount, (uint32_t)params.m_LayerCount);
+        const uint32_t layerCount = GetMetalTextureUploadLayerCount(texture, params);
+
+        if (!is_3d_texture && params.m_Slice + layerCount > texture->m_LayerCount)
+        {
+            dmLogError("MetalCopyToTexture: upload range [%u, %u) exceeds texture layer count %u",
+                params.m_Slice, params.m_Slice + layerCount, texture->m_LayerCount);
+            return;
+        }
 
         // Base dims (full-size level 0)
         const uint32_t baseWidth  = texture->m_Base.m_Width;
@@ -4463,9 +4410,9 @@ namespace dmGraphics
         uint8_t* dstBase = reinterpret_cast<uint8_t*>(uploadBuffer->contents());
         const uint8_t* srcBase = pixels;
 
-        // Source layout assumption: pixels holds `layerCount` slices contiguous for this mip,
-        // each slice being exactly (copyWidth * copyHeight * bytesPerTexel) bytes (unpadded).
-        const uint64_t srcSliceStride = params.m_DataSize && layerCount > 0 ? params.m_DataSize / layerCount : unpaddedSliceSize * copyDepth;
+        // Source layout assumption: pixels holds `layerCount` slices contiguous for this mip.
+        // When m_DataSize is supplied it is the stride for one uploaded slice/cube face.
+        const uint64_t srcSliceStride = params.m_DataSize ? params.m_DataSize : unpaddedSliceSize * copyDepth;
 
         for (uint32_t slice = 0; slice < layerCount; ++slice)
         {
@@ -4602,14 +4549,14 @@ namespace dmGraphics
 
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
-            uint32_t tex_layer_count = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+            uint32_t upload_layer_count = GetMetalTextureUploadLayerCount(texture, params);
             uint32_t tex_depth = IsTextureType3D(texture->m_Base.m_Type) ? dmMath::Max(1U, (uint32_t)params.m_Depth) : 1;
-            uint32_t pixel_count = params.m_Width * params.m_Height * tex_depth * tex_layer_count;
+            uint32_t pixel_count = params.m_Width * params.m_Height * tex_depth * upload_layer_count;
             data_new = new uint8_t[pixel_count * 4];
             RepackRGBToRGBA(pixel_count, (uint8_t*) tex_data_ptr, data_new);
             tex_data_ptr = data_new;
             format_upload = TEXTURE_FORMAT_RGBA;
-            upload_params.m_DataSize = pixel_count * 4;
+            upload_params.m_DataSize = params.m_Width * params.m_Height * tex_depth * 4;
         }
 
         // Font glyph subupdates omit m_DataSize; MetalCopyToTexture infers row
@@ -4842,12 +4789,7 @@ namespace dmGraphics
     static uint32_t MetalGetMaxTextureSize(HContext _context)
     {
         MetalContext* context = (MetalContext*)_context;
-        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple5) ||
-            context->m_Device->supportsFamily(MTL::GPUFamilyMac1))
-        {
-            return 16384;
-        }
-        return 8192;
+        return context->m_BaseContext.m_Limits.m_MaxTextureSize2D;
     }
 
     static void MetalReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)

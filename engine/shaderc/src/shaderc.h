@@ -240,6 +240,9 @@ namespace dmShaderc
         dmArray<uint8_t> m_Data;
         const char*      m_LastError;
 
+        // SPIRV-Cross assigns Metal argument-buffer resource indices independently
+        // of the original shader set/binding pairs. The Metal backend needs this
+        // mapping to encode each reflected Defold resource at the correct MSL index.
         dmArray<MSLResourceMapping> m_MSLResourceMappings;
 
         // In case of compiling HLSL, we generate a separate reflection structure

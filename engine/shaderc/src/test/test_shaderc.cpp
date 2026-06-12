@@ -529,16 +529,6 @@ TEST(Shaderc, TestMetal)
 
     dmShaderc::DebugPrintReflection(reflection);
 
-#if 0
-    for (int i = 0; i < dst->m_MSLResourceMappings.Size(); ++i)
-    {
-        dmLogInfo("res[%d] - Name: %s", i, dst->m_MSLResourceMappings[i].m_Name);
-        dmLogInfo("res[%d] - MetalResourceIndex: %d", i, dst->m_MSLResourceMappings[i].m_MetalResourceIndex);
-        dmLogInfo("res[%d] - ShaderResourceSet: %d", i, dst->m_MSLResourceMappings[i].m_ShaderResourceSet);
-        dmLogInfo("res[%d] - ShaderResourceBinding: %d", i, dst->m_MSLResourceMappings[i].m_ShaderResourceBinding);
-    }
-#endif
-
     dmShaderc::FreeShaderCompileResult(dst);
 
     dmShaderc::DeleteShaderCompiler(compiler);
@@ -565,16 +555,6 @@ TEST(Shaderc, TestMetalCompute)
     ASSERT_EQ(2, dst->m_WorkGroupSizeX);
     ASSERT_EQ(4, dst->m_WorkGroupSizeY);
     ASSERT_EQ(8, dst->m_WorkGroupSizeZ);
-
-#if 0
-    for (int i = 0; i < dst->m_MSLResourceMappings.Size(); ++i)
-    {
-        dmLogInfo("res[%d] - Name: %s", i, dst->m_MSLResourceMappings[i].m_Name);
-        dmLogInfo("res[%d] - MetalResourceIndex: %d", i, dst->m_MSLResourceMappings[i].m_MetalResourceIndex);
-        dmLogInfo("res[%d] - ShaderResourceSet: %d", i, dst->m_MSLResourceMappings[i].m_ShaderResourceSet);
-        dmLogInfo("res[%d] - ShaderResourceBinding: %d", i, dst->m_MSLResourceMappings[i].m_ShaderResourceBinding);
-    }
-#endif
 
     dmShaderc::FreeShaderCompileResult(dst);
 
