@@ -175,6 +175,7 @@
                            toggle? (true? (some true? (map #(% action) toggle-modifiers)))
                            mode :single]
                        (g/transact
+                         {:undoable false}
                          (concat
                            (g/set-property self :op-seq op-seq)
                            (g/set-property self :start cursor-pos)
@@ -187,6 +188,7 @@
       :mouse-released (do
                         (when start (select self op-seq mode toggle?))
                         (g/transact
+                          {:undoable false}
                           (concat
                             (g/set-property self :start nil)
                             (g/set-property self :current nil)
@@ -204,9 +206,10 @@
       :mouse-moved (if start
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
                                       :multi
-                                      mode)]
+                                     mode)]
                        (when-not (g/node-value self :contextual?)
                          (g/transact
+                           {:undoable false}
                            (concat
                              (when (not= new-mode mode) (g/set-property self :mode new-mode))
                              (g/set-property self :current cursor-pos)))

@@ -571,7 +571,9 @@ ordinary paths."
                                             :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :file.open "/game.project")}))})))))
 
 (defn set-project-dependencies! [workspace lib-results]
-  (g/set-property! workspace :dependencies lib-results)
+  (g/transact
+    {:undoable false}
+    (g/set-property workspace :dependencies lib-results))
   (update-dependency-notifications! workspace lib-results)
   lib-results)
 
@@ -587,7 +589,9 @@ ordinary paths."
     (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
 
 (defn update-snapshot-cache! [workspace snapshot-cache]
-  (g/set-property! workspace :snapshot-cache snapshot-cache))
+  (g/transact
+    {:undoable false}
+    (g/set-property workspace :snapshot-cache snapshot-cache)))
 
 (defn snapshot-cache [workspace]
   (g/node-value workspace :snapshot-cache))
@@ -835,7 +839,9 @@ ordinary paths."
          changes (resource-watch/diff old-snapshot new-snapshot)]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
-       (g/set-property! workspace :resource-snapshot new-snapshot)
+       (g/transact
+         {:undoable false}
+         (g/set-property workspace :resource-snapshot new-snapshot))
        (let [changes (coll/update-vals changes coll/filterv-> #(= :file (resource/source-type %)))
              move-source-paths (map first moved-proj-paths)
              move-target-paths (map second moved-proj-paths)
@@ -984,7 +990,9 @@ ordinary paths."
 
 (defn update-build-settings!
   [workspace prefs]
-  (g/set-property! workspace :build-settings (make-build-settings prefs)))
+  (g/transact
+    {:undoable false}
+    (g/set-property workspace :build-settings (make-build-settings prefs))))
 
 (defn artifact-map [workspace]
   (g/user-data workspace ::artifact-map))
@@ -1077,6 +1085,7 @@ ordinary paths."
     (first
       (g/tx-nodes-added
         (g/transact
+          {:undoable false}
           (g/make-nodes graph
             [workspace [Workspace
                         :root (.getPath project-directory)

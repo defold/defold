@@ -1503,6 +1503,7 @@
   differs from the currently installed dependencies in the workspace."
   [project]
   (g/transact
+    {:undoable false}
     (g/with-auto-evaluation-context evaluation-context
       (update-fetch-libraries-notification project evaluation-context)))
   nil)
@@ -1791,6 +1792,7 @@
         (first
           (g/tx-nodes-added
             (g/transact
+              {:undoable false}
               (g/make-nodes plugin-graph [code-transpilers code.transpilers/CodeTranspilersNode]
                 (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)))))
         project-id

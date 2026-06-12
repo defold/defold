@@ -1174,6 +1174,7 @@
     :mouse-pressed (if (first (get selection-data self))
                      (do
                        (g/transact
+                         {:undoable false}
                          (concat
                            (g/set-property self :start-action action)
                            (g/set-property self :action action)
@@ -1195,12 +1196,14 @@
                             (g/operation-sequence op-seq)
                             (g/set-property (:node-id reference-renderable) :pivot pivot)))
                         (g/transact
+                          {:undoable false}
                           (g/set-property self :start-action nil))
                         nil)
                       action)
     :mouse-moved (if (g/node-value self :start-action)
                    (do
                      (g/transact
+                       {:undoable false}
                        (g/set-property self :action action))
                      nil)
                    action)

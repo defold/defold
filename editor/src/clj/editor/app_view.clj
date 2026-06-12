@@ -498,7 +498,9 @@
                      (disconnect-sources basis app-view :active-scene)))))]
 
     (when (coll/not-empty tx-data)
-      (g/transact tx-data)
+      (g/transact
+        {:undoable false}
+        tx-data)
       (ui/user-data! app-scene ::ui/refresh-requested? true))
 
     ;; The remaining steps should always be performed, even if we didn't end up
@@ -510,15 +512,24 @@
         (apply-tab-pane-active-style! tab-pane (= active-tab-pane tab-pane))))))
 
 (handler/defhandler :scene.select-move-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :move)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :move)))
 
 (handler/defhandler :scene.select-scale-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :scale)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :scale)))
 
 (handler/defhandler :scene.select-rotate-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :rotate)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
@@ -735,7 +746,9 @@
     (workspace/update-build-settings! workspace prefs)
     (let [new-keymap (keymap/from-prefs prefs)]
       (when-not (= new-keymap (g/raw-property-value (g/now) app-view :keymap))
-        (g/set-property! app-view :keymap new-keymap)))
+        (g/transact
+          {:undoable false}
+          (g/set-property app-view :keymap new-keymap))))
     (ui/invalidate-menubar-item! ::file)))
 
 (defn- collect-resources [{:keys [children] :as resource}]
@@ -2127,6 +2140,7 @@
           (let [notifications (workspace/notifications workspace evaluation-context)
                 notification-id ::editor-scripts-changed]
             (g/transact
+              {:undoable false}
               (if reload-needed
                 (notifications/show
                   notifications
@@ -2246,16 +2260,18 @@
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
     (let [keymap (keymap/from-prefs prefs)
-          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
-                                                                     :stage stage
-                                                                     :scene app-scene
-                                                                     :editor-tabs-split editor-tabs-split
-                                                                     :right-split right-split
-                                                                     :tool-tab-pane tool-tab-pane
-                                                                     :active-tool :move
-                                                                     :manip-space :world
-                                                                     :keymap keymap
-                                                                     :localization localization))))]
+          app-view (first (g/tx-nodes-added (g/transact
+                                               {:undoable false}
+                                               (g/make-node view-graph AppView
+                                                            :stage stage
+                                                            :scene app-scene
+                                                            :editor-tabs-split editor-tabs-split
+                                                            :right-split right-split
+                                                            :tool-tab-pane tool-tab-pane
+                                                            :active-tool :move
+                                                            :manip-space :world
+                                                            :keymap keymap
+                                                            :localization localization))))]
       (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)
@@ -2343,6 +2359,7 @@
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs resource view-type)
     (g/transact
+      {:undoable false}
       (concat
         (view/connect-resource-node view resource-node)
         (g/connect app-view :selected-node-properties view :selected-node-properties)

@@ -805,6 +805,7 @@
   (first
     (g/tx-nodes-added
       (g/transact
+        {:undoable false}
         (g/make-nodes view-graph [view [PropertiesView :prefs prefs]]
           (g/connect workspace :_node-id view :workspace)
           (g/connect workspace :localization view :localization)

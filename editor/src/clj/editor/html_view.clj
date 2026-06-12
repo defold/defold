@@ -52,6 +52,7 @@
   (let [view-node (first
                     (g/tx-nodes-added
                       (g/transact
+                        {:undoable false}
                         (g/make-nodes graph [view [HtmlViewNode :parent parent]]
                           (g/connect html-node :html view :html)
                           (g/connect html-node :resource view :resource)

@@ -888,56 +888,60 @@
       {pass/outline render-data
        pass/transparent render-data})))
 
-(defmulti begin-op (fn [op node action] op))
-(defmulti update-op (fn [op node action] op))
+(defmulti begin-op (fn [op _node _action] op))
+(defmulti update-op (fn [op _node _action] op))
 
 (defmethod update-op nil
-  [_ node action])
+  [_op _node _action])
 
 (defmethod begin-op :assign
-  [_ node action]
+  [_op node _action]
   (when-let [active-tile-idx (g/node-value node :active-tile-idx)]
     (let [tile-source-node (g/node-value node :tile-source-node)
           collision-group-node (g/node-value node :selected-collision-group-node)
           op-seq (gensym)]
-      [(g/operation-sequence op-seq)
-       (g/set-property node :op-data {:op-seq op-seq
-                                      :collision-group-node collision-group-node})
-       (g/update-property tile-source-node :tile->collision-group-node assign-collision-group active-tile-idx collision-group-node)])))
+      {:undoable [(g/operation-sequence op-seq)
+                  (g/update-property tile-source-node :tile->collision-group-node assign-collision-group active-tile-idx collision-group-node)]
+       :non-undoable [(g/set-property node :op-data {:op-seq op-seq
+                                                     :collision-group-node collision-group-node})]})))
 
 (defmethod update-op :assign
-  [_ node action]
+  [_op node _action]
   (when-let [active-tile-idx (g/node-value node :active-tile-idx)]
     (let [{:keys [op-seq collision-group-node]} (g/node-value node :op-data)
-          tile-source-node (g/node-value node :tile-source-node)
-          active-tile-idx (g/node-value node :active-tile-idx)]
-      [(g/operation-sequence op-seq)
-       (g/update-property tile-source-node :tile->collision-group-node assign-collision-group active-tile-idx collision-group-node)])))
+          tile-source-node (g/node-value node :tile-source-node)]
+      {:undoable [(g/operation-sequence op-seq)
+                  (g/update-property tile-source-node :tile->collision-group-node assign-collision-group active-tile-idx collision-group-node)]})))
 
 (defn input-txs
-  [self action tool-user-data]
+  [self action _tool-user-data]
   (let [op (g/node-value self :op)]
     (case (:type action)
       :mouse-pressed  (when-not (some? op)
                         (let [op :assign]
                           (when-let [op-txs (begin-op op self action)]
-                            (concat
-                             (g/set-property self :op op)
-                             op-txs))))
-      :mouse-moved    (concat
-                       (g/set-property self :cursor-world-pos (:world-pos action))
-                       (update-op op self action))
+                            (assoc op-txs
+                              :non-undoable (into [(g/set-property self :op op)]
+                                                  (:non-undoable op-txs))))))
+      :mouse-moved    (update (or (update-op op self action) {})
+                              :non-undoable
+                              into
+                              [(g/set-property self :cursor-world-pos (:world-pos action))])
       :mouse-released (when (some? op)
-                        (concat
-                         (g/set-property self :op nil)
-                         (g/set-property self :op-data nil)))
+                        {:non-undoable [(g/set-property self :op nil)
+                                        (g/set-property self :op-data nil)]})
 
       nil)))
 
 (defn handle-input [self _input-action action tool-user-data]
-  (let [txs (input-txs self action tool-user-data)]
-    (when (seq txs)
-      (g/transact txs)
+  (let [{:keys [undoable non-undoable]} (input-txs self action tool-user-data)]
+    (when (or (seq undoable) (seq non-undoable))
+      (when (seq non-undoable)
+        (g/transact
+          {:undoable false}
+          non-undoable))
+      (when (seq undoable)
+        (g/transact undoable))
       true)))
 
 (g/defnk produce-selected-collision-group-node

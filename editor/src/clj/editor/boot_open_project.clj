@@ -90,6 +90,7 @@
 (defn- setup-workspace! [project-path build-settings workspace-config localization]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config localization)]
     (g/transact
+      {:undoable false}
       (concat
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
@@ -366,6 +367,7 @@
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
+        {:undoable false}
         (concat
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label))

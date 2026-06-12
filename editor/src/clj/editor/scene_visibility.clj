@@ -174,7 +174,11 @@
                                                                                 scene-hide-history-datas)))))
 
 (defn make-scene-visibility-node! [view-graph app-view]
-  (g/make-node! view-graph SceneVisibilityNode :app-view app-view))
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node view-graph SceneVisibilityNode :app-view app-view)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Per-Object Visibility
@@ -201,16 +205,20 @@
     ;; Remove the now-visible nodes from the hide history. This ensures the Show
     ;; Last Hidden Objects command works as expected if the user manually shows
     ;; nodes she has previously hidden.
-    (g/update-property! scene-hide-history-node :hide-history
-                        (fn [hide-history]
-                          (into []
-                                (keep (fn [hidden-outline-name-paths]
-                                        (not-empty (set/difference hidden-outline-name-paths outline-name-paths))))
-                                hide-history)))
+    (g/transact
+      {:undoable false}
+      (g/update-property scene-hide-history-node :hide-history
+                         (fn [hide-history]
+                           (into []
+                                 (keep (fn [hidden-outline-name-paths]
+                                         (not-empty (set/difference hidden-outline-name-paths outline-name-paths))))
+                                 hide-history))))
 
     ;; Remove the SceneHideHistoryNode if its history is now empty.
     (when (empty? (g/node-value scene-hide-history-node :hide-history))
-      (g/delete-node! scene-hide-history-node))))
+      (g/transact
+        {:undoable false}
+        (g/delete-node scene-hide-history-node)))))
 
 (defn- hide-outline-name-paths! [scene-visibility outline-name-paths]
   (assert (set? (not-empty outline-name-paths)))
@@ -218,8 +226,11 @@
   (let [scene-resource-node (g/node-value scene-visibility :active-scene-resource-node)
         scene-hide-history-node (find-scene-hide-history-node scene-visibility scene-resource-node)]
     (if (some? scene-hide-history-node)
-      (g/update-property! scene-hide-history-node :hide-history conj outline-name-paths)
       (g/transact
+        {:undoable false}
+        (g/update-property scene-hide-history-node :hide-history conj outline-name-paths))
+      (g/transact
+        {:undoable false}
         (g/make-nodes (g/node-id->graph-id scene-visibility)
                       [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
                       (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
@@ -282,7 +293,9 @@
 
 (defn- toggle-tag-visibility-fn [scene-visibility tag]
   (fn [v]
-    (g/update-property! scene-visibility :filtered-renderable-tags (if v disj conj) tag)
+    (g/transact
+      {:undoable false}
+      (g/update-property scene-visibility :filtered-renderable-tags (if v disj conj) tag))
     (sync-popup-state! scene-visibility)))
 
 (defn renderable-tag-descriptors [scene-visibility]
@@ -298,7 +311,9 @@
     (cond-> [{:key :visibility-filters :type :toggle :label "scene-popup.scene-visibility.visibility-filters"
               :value filters-enabled?
               :on-value-changed (fn [v]
-                                  (g/set-property! scene-visibility :visibility-filters-enabled? v)
+                                  (g/transact
+                                    {:undoable false}
+                                    (g/set-property scene-visibility :visibility-filters-enabled? v))
                                   (sync-popup-state! scene-visibility))
               :command :scene.visibility.toggle-filters}
              {:type :space}
@@ -365,24 +380,32 @@
                                 keys)))
         advance! (settings-popup/show! owner keymap localization (compute-state) 230 setting-descriptors
                                        (fn []
-                                         (g/set-property! scene-visibility :popup-advance-fn nil)
+                                         (g/transact
+                                           {:undoable false}
+                                           (g/set-property scene-visibility :popup-advance-fn nil))
                                          (sync-popup-state! scene-visibility)))
         advance-with-state! #(advance! (compute-state))]
     (when advance!
-      (g/set-property! scene-visibility :popup-advance-fn advance-with-state!))))
+      (g/transact
+        {:undoable false}
+        (g/set-property scene-visibility :popup-advance-fn advance-with-state!)))))
 
 (defn toggle-tag-visibility! [scene-visibility tag]
-  (g/update-property! scene-visibility :filtered-renderable-tags
-                      (fn [tags]
-                        (if (contains? tags tag)
-                          (disj tags tag)
-                          (conj tags tag)))))
+  (g/transact
+    {:undoable false}
+    (g/update-property scene-visibility :filtered-renderable-tags
+                       (fn [tags]
+                         (if (contains? tags tag)
+                           (disj tags tag)
+                           (conj tags tag))))))
 
 (handler/defhandler :scene.visibility.toggle-filters :workbench
   (active? [scene-visibility evaluation-context]
     (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility]
-    (g/update-property! scene-visibility :visibility-filters-enabled? not)))
+    (g/transact
+      {:undoable false}
+      (g/update-property scene-visibility :visibility-filters-enabled? not))))
 
 (handler/defhandler :scene.visibility.toggle-component-guides :workbench
   (active? [scene-visibility evaluation-context]

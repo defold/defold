@@ -967,6 +967,7 @@
   (let [asset-browser (first
                         (g/tx-nodes-added
                           (g/transact
+                            {:undoable false}
                             (g/make-nodes graph
                                           [asset-browser [AssetBrowser :raw-tree-view tree-view :prefs prefs]]
                                           (g/connect workspace :resource-tree asset-browser :resource-tree)))))]

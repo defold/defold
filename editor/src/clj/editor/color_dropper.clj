@@ -52,7 +52,9 @@
   (let [graphics-context ^GraphicsContext (.getGraphicsContext2D canvas)]
     (.clearRect graphics-context 0 0 (.getWidth canvas) (.getHeight canvas))
     (ui/refresh (ui/main-scene))
-    (g/set-property! view-node :image (.snapshot (ui/main-root) nil nil))))
+    (g/transact
+      {:undoable false}
+      (g/set-property view-node :image (.snapshot (ui/main-root) nil nil)))))
 
 (defn- in-bounds?
   [^WritableImage image x y]
@@ -73,7 +75,9 @@
             mouse-x (.getSceneX e)
             mouse-y (.getSceneY e)]
         (when (in-bounds? image mouse-x mouse-y)
-          (g/set-property! view-node :color (.getColor pixel-reader mouse-x mouse-y)))
+          (g/transact
+            {:undoable false}
+            (g/set-property view-node :color (.getColor pixel-reader mouse-x mouse-y))))
         (.clearRect graphics-context (- mouse-x radius) (- mouse-y radius) diameter diameter)
         (.setClip canvas (create-mask! mouse-x mouse-y radius))
         (.setStroke graphics-context Color/GRAY)
@@ -98,8 +102,11 @@
         main-view ^StackPane (ui/main-root)]
     (.removeListener (.widthProperty main-view) size-listener)
     (.removeListener (.heightProperty main-view) size-listener)
-    (g/set-property! view-node :dropper-area nil)
-    (g/set-property! view-node :size-listener nil)
+    (g/transact
+      {:undoable false}
+      (g/set-properties view-node
+        :dropper-area nil
+        :size-listener nil))
     (-> (.getChildren main-view)
         (.remove dropper-area))))
 
@@ -116,7 +123,11 @@
     nil))
 
 (defn make-color-dropper! [graph]
-  (g/make-node! graph ColorDropper))
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node graph ColorDropper)))))
 
 (defn activate!
   [view-node pick-fn ^MouseEvent event]
@@ -130,8 +141,11 @@
                        (ui/add-child! canvas)
                        (.setStyle "-fx-background-color: transparent;"))]
     (ui/add-child! main-view dropper-area)
-    (g/set-property! view-node :dropper-area dropper-area)
-    (g/set-property! view-node :size-listener size-listener)
+    (g/transact
+      {:undoable false}
+      (g/set-properties view-node
+        :dropper-area dropper-area
+        :size-listener size-listener))
 
     (.bind (.widthProperty canvas) (.widthProperty dropper-area))
     (.bind (.heightProperty canvas) (.heightProperty dropper-area))

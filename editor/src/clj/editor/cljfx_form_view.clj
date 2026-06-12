@@ -1750,8 +1750,10 @@
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
                                (when (form/can-clear? ops)
                                  (g/transact (form/clear-value ops path)))))
-                    :set-ui-state (fn [ui-state _]
-                                    (g/set-property! view-id :ui-state ui-state))
+                    :set-ui-state (fn [ui-state _event]
+                                    (g/transact
+                                      {:undoable false}
+                                      (g/set-property view-id :ui-state ui-state)))
                     :cancel-edit (fn [x _]
                                    (cond
                                      (instance? Cell x)

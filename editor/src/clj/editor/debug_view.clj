@@ -297,6 +297,7 @@
     (.consume e)
     (switch-text! text-field "")
     (g/transact
+      {:undoable false}
       [(g/set-property debug-view :evaluation-history-index nil)
        (g/set-property debug-view :evaluation-stashed-entry-text nil)
        (g/update-property debug-view :evaluation-history conj-history-entry text)])
@@ -316,6 +317,7 @@
           (.consume e)
           (switch-text! text-field (history index))
           (g/transact
+            {:undoable false}
             [(g/set-property debug-view :evaluation-stashed-entry-text text)
              (g/set-property debug-view :evaluation-history-index index)]))
 
@@ -327,6 +329,7 @@
           (.consume e)
           (switch-text! text-field (history index))
           (g/transact
+            {:undoable false}
             (g/set-property debug-view :evaluation-history-index index)))))))
 
 (defn- next-history-entry! [^TextField text-field debug-view ^KeyEvent e]
@@ -343,6 +346,7 @@
           (.consume e)
           (switch-text! text-field stashed-entry-text)
           (g/transact
+            {:undoable false}
             [(g/set-property debug-view :evaluation-history-index nil)
              (g/set-property debug-view :evaluation-stashed-entry-text nil)]))
 
@@ -351,6 +355,7 @@
           (.consume e)
           (switch-text! text-field (history index))
           (g/transact
+            {:undoable false}
             (g/set-property debug-view :evaluation-history-index index)))))))
 
 (defn setup-prompt-field! [debug-view ^TextField text-field]
@@ -386,10 +391,12 @@
                                                        (:upvalues selected-frame))))))
 
   ;; expose to view node
-  (g/set-properties! debug-view
-                     :console-grid-pane console-grid-pane
-                     :call-stack-view call-stack-view
-                     :variables-view variables-view)
+  (g/transact
+    {:undoable false}
+    (g/set-properties debug-view
+      :console-grid-pane console-grid-pane
+      :call-stack-view call-stack-view
+      :variables-view variables-view))
   nil)
 
 (defn- file-or-module->resource
@@ -449,6 +456,7 @@
 
 (defn- setup-view! [debug-view app-view]
   (g/transact
+    {:undoable false}
     [(g/connect debug-view :execution-locations app-view :debugger-execution-locations)
      (g/connect debug-view :debugger-sidebar-panes app-view :debugger-sidebar-panes)])
   debug-view)
@@ -462,10 +470,14 @@
                          (.setId "debugger-variables")
                          (ui/customize-tree-view! {:double-click-expand true})
                          (.setShowRoot false))
-        view-id (setup-view! (g/make-node! view-graph DebugView
-                                           :localization localization
-                                           :open-resource-fn (make-open-resource-fn project open-resource-fn)
-                                           :state-changed-fn state-changed-fn)
+        view-id (setup-view! (first
+                               (g/tx-nodes-added
+                                 (g/transact
+                                   {:undoable false}
+                                   (g/make-node view-graph DebugView
+                                                :localization localization
+                                                :open-resource-fn (make-open-resource-fn project open-resource-fn)
+                                                :state-changed-fn state-changed-fn))))
                              app-view)
         timer (make-update-timer project view-id)]
     (setup-controls! view-id console-grid-pane call-stack-view variables-view localization)
@@ -479,8 +491,9 @@
 (defn- update-suspension-state!
   [debug-view debug-session]
   (let [stack (mobdebug/stack debug-session)]
-    (g/set-property! debug-view
-                     :suspension-state {:stack (:stack stack)})))
+    (g/transact
+      {:undoable false}
+      (g/set-property debug-view :suspension-state {:stack (:stack stack)}))))
 
 (defn- make-debugger-callbacks
   [debug-view]
@@ -490,7 +503,9 @@
                      (state-changed! debug-view true)))
    :on-resumed   (fn [_debug-session]
                    (ui/run-later
-                     (g/set-property! debug-view :suspension-state nil)
+                     (g/transact
+                       {:undoable false}
+                       (g/set-property debug-view :suspension-state nil))
                      (state-changed! debug-view false)))})
 
 (def ^:private mobdebug-port 8172)
@@ -512,19 +527,23 @@
     (mobdebug/connect! target-address debugger-port
                        (fn [debug-session]
                          (ui/run-now
-                           (g/update-property! debug-view :debug-session
-                                               (fn [old new]
-                                                 (when old (mobdebug/close! old))
-                                                 new)
-                                               debug-session)
+                           (g/transact
+                             {:undoable false}
+                             (g/update-property debug-view :debug-session
+                                                (fn [old new]
+                                                  (when old (mobdebug/close! old))
+                                                  new)
+                                                debug-session))
                            (update-breakpoints! debug-session (collect-enabled-breakpoints project))
                            (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
                            (state-changed! debug-view true)))
                        (fn [_debug-session]
                          (ui/run-now
-                           (g/set-properties! debug-view
-                             :debug-session nil
-                             :suspension-state nil)
+                           (g/transact
+                             {:undoable false}
+                             (g/set-properties debug-view
+                               :debug-session nil
+                               :suspension-state nil))
                            (state-changed! debug-view false)))
                        (fn [exception]
                          (show-connect-failed-info! exception (project/workspace project))))))
