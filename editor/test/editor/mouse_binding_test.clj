@@ -201,6 +201,48 @@
                   :fallback-context-path "Scene 2D Camera"
                   :bindings [{:button :primary :modifiers [:shift]}]}
                  (mouse-binding/resolve-command-binding overrides-2 ::derived :scene.camera.pan)))))
+      (let [overrides-3 (mouse-binding/update-command
+                          {}
+                          ::base
+                          :scene.camera.pan
+                          [])]
+        (testing "fallback rows resolve to an empty binding list when fallback bindings are explicitly cleared"
+          (is (= {:kind :mouse-binding
+                  :context ::derived
+                  :command :scene.camera.pan
+                  :action ["Pan"]
+                  :context-path "Tile Map Editor"
+                  :binding-source :default
+                  :fallback-context-path nil
+                  :bindings []}
+                 (mouse-binding/resolve-command-binding overrides-3 ::derived :scene.camera.pan)))))
+      (let [overrides-4 (mouse-binding/update-command-binding
+                          {}
+                          ::derived
+                          :scene.camera.pan
+                          nil
+                          {:button :secondary :modifiers []})
+            overrides-5 (mouse-binding/update-command-binding
+                          overrides-4
+                          ::derived
+                          :scene.camera.pan
+                          0
+                          {:modifiers []})]
+        (testing "clearing the last custom binding on a fallback-only row resets to inherited/default behavior"
+          (is (= {::derived
+                  {:scene.camera.pan
+                   {:bindings [{:button :secondary :modifiers []}]}}}
+                 overrides-4))
+          (is (= {} overrides-5))
+          (is (= {:kind :mouse-binding
+                  :context ::derived
+                  :command :scene.camera.pan
+                  :action ["Pan"]
+                  :context-path "Tile Map Editor"
+                  :binding-source :inherited
+                  :fallback-context-path "Scene 2D Camera"
+                  :bindings [{:button :primary :modifiers [:shift]}]}
+                 (mouse-binding/resolve-command-binding overrides-5 ::derived :scene.camera.pan)))))
       (mouse-binding/register! ::derived "Tile Map Editor"
                                [{:command :scene.camera.pan
                                  :action ["Pan"]}])
@@ -218,7 +260,7 @@
                 :context-path "Tile Map Editor"
                 :binding-source :default
                 :fallback-context-path nil
-                :bindings [nil]}
+                :bindings []}
                (mouse-binding/resolve-command-binding {} ::derived :scene.camera.pan)))))))
 
 (deftest modifier-command-workflow

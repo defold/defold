@@ -165,13 +165,13 @@
           :default-modifier default-modifier))
       (let [overrides (get-in user-overrides [context command])
             custom? (contains? overrides :bindings)
-            defaults (mapv :binding default-bindings-data)
+            defaults (into [] (keep :binding) default-bindings-data)
             fallback-ctx (when (and (not custom?) (empty? (filter some? defaults)))
                            (fallback-context context))
             fallback-data (when fallback-ctx (default-command-bindings fallback-ctx command))
             fallback-bindings (when fallback-ctx
                                 (or (user-command-bindings user-overrides fallback-ctx command)
-                                    (mapv :binding fallback-data)))
+                                    (into [] (keep :binding) fallback-data)))
             inherited? (boolean (seq fallback-bindings))
             bindings (cond custom?    (:bindings overrides)
                            inherited? fallback-bindings
@@ -189,7 +189,7 @@
   equal the registered defaults the override entry is removed, keeping
   user-overrides sparse."
   [user-overrides context command bindings]
-  (let [default-bindings (mapv :binding (default-command-bindings context command))
+  (let [default-bindings (into [] (keep :binding) (default-command-bindings context command))
         command-user-overrides (get-in user-overrides [context command] {})
         new-command-user-overrides (cond-> command-user-overrides
                                      (= bindings default-bindings) (dissoc :bindings)

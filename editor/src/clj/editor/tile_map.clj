@@ -1602,16 +1602,17 @@
     :binding {:button :primary :modifiers [:shift]}}
    {:command :scene.tile-map.erase
     :action ["Erase"]
-    :binding {:button :secondary :modifiers []}}
+    :binding {:button :primary :modifiers [:shift :alt]}}
    {:command :scene.tile-map.cut
     :action ["Cut"]
-    :binding {:button :middle :modifiers [:shift :control]}}
+    :binding {:button :primary :modifiers [:shift :control]}}
    {:command :scene.camera.orbit
     :action ["Orbit"]}
    {:command :scene.camera.pan
     :action ["Pan"]}
    {:command :scene.camera.zoom
-    :action ["Zoom"]}])
+    :action ["Zoom"]}]
+  {:fallback-context :editor.camera/scene-camera-orthographic})
 
 (g/defnode TileMapGrid
   (inherits grid/Grid)

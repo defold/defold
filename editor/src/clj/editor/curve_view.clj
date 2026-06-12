@@ -61,11 +61,9 @@
    {:command :scene.camera.zoom
     :action ["Zoom"]}
    {:command :curve-view.add-control-point
-    :action ["Add Control Point"]
-    :binding {:modifiers []}}
+    :action ["Add Control Point"]}
    {:command :curve-view.delete-control-point
-    :action ["Delete Control Point"]
-    :binding {:modifiers []}}]
+    :action ["Delete Control Point"]}]
   {:fallback-context :editor.camera/scene-camera-orthographic})
 
 ; Line shader
