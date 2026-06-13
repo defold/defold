@@ -139,14 +139,9 @@ namespace dmInput
         }
     }
 
-    static uint32_t GamepadGuidHash32(const uint8_t* guid)
+    static uint32_t GamepadGuidHash32(const void* guid)
     {
         return dmHashBuffer32(guid, GAMEPAD_GUID_SIZE);
-    }
-
-    static void GamepadGuidToBytes(const dmHID::GamepadGuid& guid, uint8_t out[GAMEPAD_GUID_SIZE])
-    {
-        memcpy(out, &guid, GAMEPAD_GUID_SIZE);
     }
 
     static dmHID::GamepadGuid GamepadGuidBytesToHID(const uint8_t guid[GAMEPAD_GUID_SIZE])
@@ -156,31 +151,14 @@ namespace dmInput
         return hid_guid;
     }
 
-    static bool HasGamepadGuid(const GamepadConfig* config)
-    {
-        return config->m_Legacy == 0;
-    }
-
     static GamepadConfig* GetGamepadConfigFromId(HBinding binding, const uint32_t config_id)
     {
         return binding->m_Context->m_GamepadMaps.Get(config_id);
     }
 
-    static GamepadConfig* GetGamepadConfigFromGuidBytes(HContext context, const uint8_t guid[GAMEPAD_GUID_SIZE])
-    {
-        GamepadConfig* config = context->m_GamepadMaps.Get(GamepadGuidHash32(guid));
-        if (config && HasGamepadGuid(config) && memcmp(&config->m_Guid, guid, GAMEPAD_GUID_SIZE) == 0)
-        {
-            return config;
-        }
-        return 0x0;
-    }
-
     static GamepadConfig* GetGamepadConfigFromGuid(HBinding binding, const dmHID::GamepadGuid& guid)
     {
-        uint8_t guid_bytes[GAMEPAD_GUID_SIZE];
-        GamepadGuidToBytes(guid, guid_bytes);
-        return GetGamepadConfigFromGuidBytes(binding->m_Context, guid_bytes);
+        return GetGamepadConfigFromId(binding, GamepadGuidHash32(&guid));
     }
 
     static void GetGamepadGuidString(HBinding binding, dmHID::HGamepad gamepad, char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1])
@@ -225,7 +203,7 @@ namespace dmInput
         else
         {
             char mapping_guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1];
-            if (HasGamepadGuid(config))
+            if (config->m_Legacy == 0)
             {
                 dmHID::FormatGamepadGuid(&config->m_Guid, mapping_guid_string);
             }
