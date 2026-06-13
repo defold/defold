@@ -239,9 +239,23 @@ public class ProjectBuildTest {
                 + "  platform: \"macos\"\n"
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Default Manual Pad\"\n"
+                + "  platform: \"linux\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Default Manual Pad\"\n"
+                + "  platform: \"windows\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n");
         createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", ""
-                + "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n");
+                + "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n"
+                + "030000005e0400008e02000014010001,Xbox 360 Controller,a:b1,platform:Linux,\n"
+                + "030000005e0400008e02000014010002,Xbox 360 Controller,a:b1,platform:Windows,\n");
 
         build();
 
@@ -272,9 +286,23 @@ public class ProjectBuildTest {
                 + "  platform: \"macos\"\n"
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Default Manual Pad\"\n"
+                + "  platform: \"linux\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Default Manual Pad\"\n"
+                + "  platform: \"windows\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n");
         createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", ""
-                + "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n");
+                + "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n"
+                + "030000005e0400008e02000014010001,Xbox 360 Controller,a:b1,platform:Linux,\n"
+                + "030000005e0400008e02000014010002,Xbox 360 Controller,a:b1,platform:Windows,\n");
 
         build();
 
