@@ -1871,11 +1871,6 @@ bail:
             memcpy(&input_action.m_GamepadGuid, &action->m_GamepadGuid, sizeof(input_action.m_GamepadGuid));
         }
 
-        if (input_action.m_GamepadConnected)
-        {
-            memcpy(&input_action.m_GamepadGuid, &action->m_GamepadGuid, sizeof(input_action.m_GamepadGuid));
-        }
-
         input_action.m_UserID = action->m_UserID;
 
         input_buffer->Push(input_action);
