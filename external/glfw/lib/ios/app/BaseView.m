@@ -581,7 +581,7 @@ void _glfwResetKeyboard( void )
 int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 {
     if (g_AccelerometerEnabled) {
-        CMAccelerometerData* data = s_MotionManager.accelerometerData;
+        CMAccelerometerData* data = g_MotionManager.accelerometerData;
         if (data) {
             _glfwInput.AccX = data.acceleration.x;
             _glfwInput.AccY = data.acceleration.y;
@@ -596,12 +596,12 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 
 GLFWAPI void glfwAccelerometerEnable()
 {
-    if (!s_MotionManager)
-        s_MotionManager = [[CMMotionManager alloc] init];
+    if (!g_MotionManager)
+        g_MotionManager = [[CMMotionManager alloc] init];
 
-    if (s_MotionManager.accelerometerAvailable) {
-        s_MotionManager.accelerometerUpdateInterval = g_AccelerometerFrequency;
-        [s_MotionManager startAccelerometerUpdates];
+    if (g_MotionManager.accelerometerAvailable) {
+        g_MotionManager.accelerometerUpdateInterval = g_AccelerometerFrequency;
+        [g_MotionManager startAccelerometerUpdates];
     }
     g_AccelerometerEnabled = 1;
 }
