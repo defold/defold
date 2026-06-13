@@ -25,7 +25,7 @@
 
 static int                  g_AccelerometerEnabled = 0;
 static double               g_AccelerometerFrequency = 1.0 / 60.0;
-static CMMotionManager*     s_MotionManager = nil;
+static CMMotionManager*     g_MotionManager = nil;
 
 // AppDelegate.m
 extern UIWindow*            g_ApplicationWindow;
