@@ -414,6 +414,15 @@ BOB_TOOL_PLATFORMS = [
     'x86_64-win32'
 ]
 
+# SDKs that include host-side protoc/native-extension pipeline tools.
+SDK_PIPELINE_TOOL_PLATFORMS = (
+    'x86_64-macos',
+    'arm64-macos',
+    'x86_64-linux',
+    'arm64-linux',
+    'x86_64-win32'
+)
+
 BOB_TOOL_PACKAGE_PREFIXES = (
     'aapt2-',
     'apkc-',
@@ -1343,15 +1352,23 @@ class Configuration(object):
         zip.close()
         return outfile.name
 
-    def _add_files_to_zip(self, zip, paths, basedir=None, topfolder=None):
+    def _add_files_to_zip(self, zip, paths, basedir=None, topfolder=None, path_filter=None, path_mapper=None):
         for p in paths:
             if not os.path.isfile(p):
                 continue
             an = p
             if basedir:
                 an = os.path.relpath(p, basedir)
+            an = an.replace('\\', '/')
+            if path_filter and not path_filter(an):
+                continue
+            if path_mapper:
+                an = path_mapper(an)
             if topfolder:
                 an = os.path.join(topfolder, an)
+            an = an.replace('\\', '/')
+            if an in zip.NameToInfo:
+                continue
             zip.write(p, an)
 
     def _add_file_to_zip(self, zip, src, dst):
@@ -1409,7 +1426,8 @@ class Configuration(object):
 
     # package the native SDK, return the path to the zip file
     # and path to zip sha256 signature file
-    def _package_platform_sdk(self, platform):
+    def _package_platform_sdk(self, platform=None):
+        platform = platform or self.target_platform
         sdk_archive_path = join(self.dynamo_home, 'defoldsdk.zip')
         with open(sdk_archive_path, 'wb') as outfile:
             zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
@@ -1485,18 +1503,34 @@ class Configuration(object):
                             paths.append(os.path.join(root, f))
                 return paths
 
+            def _sdk_lib_path_filter(path):
+                basename = os.path.basename(path)
+                root, _ = os.path.splitext(basename)
+                shared_name = root[3:] if root.startswith('lib') else root
+                if shared_name.endswith('_shared') and not (shared_name == 'dlib_shared' and platform in SDK_PIPELINE_TOOL_PLATFORMS):
+                    return False
+                return True
+
+            def _sdk_lib_path_mapper(path):
+                # We currently still use the old "win32" folder for our x86 files
+                if path.startswith('lib/x86-win32/'):
+                    path = 'lib/win32/' + path[len('lib/x86-win32/'):]
+                elif path.startswith('ext/lib/x86-win32/'):
+                    path = 'ext/lib/win32/' + path[len('ext/lib/x86-win32/'):]
+                return path
+
             # Dynamo libs
             libdirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
             if platform == 'win32':
                 libdirs.append(os.path.join(self.dynamo_home, 'lib/x86-win32'))
             paths = _findlibs(libdirs)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
             # External libs
             libdirs = [os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)]
             if platform == 'win32':
                 libdirs.append(os.path.join(self.dynamo_home, 'ext/lib/x86-win32'))
             paths = _findlibs(libdirs)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
 
             if platform in ['armv7-android', 'arm64-android']:
                 # Android Jars (Dynamo)
@@ -1512,9 +1546,16 @@ class Configuration(object):
 
             # Win32 resource files
             if platform in ['win32', 'x86_64-win32']:
-                engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
-                defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
-                self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
+                resource_dirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
+                if platform == 'win32':
+                    resource_dirs.append(os.path.join(self.dynamo_home, 'lib/x86-win32'))
+                paths = []
+                for resource_dir in resource_dirs:
+                    paths.extend([
+                        os.path.join(resource_dir, 'defold.ico'),
+                        os.path.join(resource_dir, 'engine.rc')
+                    ])
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, path_mapper=_sdk_lib_path_mapper)
 
             # the port scripts contain the necessary files, only need to include them once
             if platform in ['wasm-web']:
@@ -1566,7 +1607,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # pipeline tools
-            if platform in ('x86_64-macos','arm64-macos','x86_64-linux','arm64-linux','x86_64-win32'): # needed for the linux build server
+            if platform in SDK_PIPELINE_TOOL_PLATFORMS:
                 # protoc
                 protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
                 ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')

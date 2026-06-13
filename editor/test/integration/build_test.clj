@@ -31,6 +31,7 @@
             [editor.workspace :as workspace]
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
@@ -69,8 +70,8 @@
     (protobuf/bytes->map-with-defaults pb-class (get targets path))))
 
 (defn- approx? [as bs]
-  (every? #(< % 0.00001)
-          (map #(Math/abs (- %1 %2))
+  (every? true?
+          (map #(math/near? %1 %2)
                as bs)))
 
 (def pb-cases {"/game.project"
@@ -506,8 +507,8 @@
                                "test_empty_list" {:list {}}
                                "test_empty_struct" {:struct {}}
                                "test_mixed_list" {:list {:values [{:number 1.0}
-                                                                   {:string "a"}
-                                                                   {:bool true}]}}}}}}]
+                                                                  {:string "a"}
+                                                                  {:bool true}]}}}}}}]
         (is (= expected desc))))))
 
 (deftest build-atlas
@@ -682,6 +683,59 @@
       (let [fonts (zipmap (map :name (:fonts desc)) (map :font (:fonts desc)))]
         (is (= "/builtins/fonts/default.fontc" (get fonts "default_font")))
         (is (= "/fonts/big_score.fontc" (get fonts "sub_font")))))))
+
+(deftest build-light-resource-types
+  (let [light-resource-type-cases
+        [{:ext "ambient_light"
+          :label "Ambient Light"
+          :data {"color" [0.1 0.2 0.3]
+                 "intensity" 2.0}}
+         {:ext "point_light"
+          :label "Point Light"
+          :data {"color" [1.0 1.0 1.0]
+                 "intensity" 1.0
+                 "range" 10.0}}
+         {:ext "directional_light"
+          :label "Directional Light"
+          :data {"color" [0.25 0.5 0.75]
+                 "intensity" 2.0}}
+         (let [spot-light-data
+               {"color" [1.0 0.75 0.5]
+                "intensity" 3.0
+                "range" 20.0
+                "inner_cone_angle" 15.0
+                "outer_cone_angle" 30.0}]
+           {:ext "spot_light"
+            :label "Spot Light"
+            :data spot-light-data
+            :rt-data (-> spot-light-data
+                         (update "inner_cone_angle" Math/toRadians)
+                         (update "outer_cone_angle" Math/toRadians))})]]
+    (test-util/with-scratch-project "test/resources/empty_project"
+      (doseq [{:keys [ext data]} light-resource-type-cases]
+        (let [proj-path (str "/checked." ext)
+              save-value {:data data}]
+          (test-util/write-file-resource! workspace proj-path save-value)))
+      (workspace/resource-sync! workspace)
+      (doseq [{:keys [ext label data rt-data]} light-resource-type-cases]
+        (testing ext
+          (let [proj-path (str "/checked." ext)
+                build-ext (str ext ".lightc")
+                build-output-path (str "/checked." build-ext)
+                rt-tags ["light" ext]
+                rt-data (protobuf/clj-value->ddf-struct-value (or rt-data data))
+                resource-type (workspace/get-resource-type workspace ext)
+                resource-node (test-util/resource-node project proj-path)]
+            (is (= build-ext (:build-ext resource-type)))
+            (is (= label (test-util/localization (:label resource-type))))
+            (with-open [_ (test-util/build! resource-node)]
+              (is (= {build-output-path
+                      {:dep-paths #{}
+                       :pb-class DataProto$Data
+                       :pb-map {:tags rt-tags
+                                :data rt-data}}}
+                     (-> (test-util/make-build-output-infos-by-path workspace build-output-path)
+                         (coll/update-vals select-keys [:pb-class :pb-map :dep-paths])))))))))))
 
 (deftest build-game-project
   (with-build-results "/game.project"

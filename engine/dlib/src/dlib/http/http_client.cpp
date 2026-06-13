@@ -18,18 +18,19 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "math.h"
 #include "http_client.h"
-#include "log.h"
-#include "sys.h"
-#include "dstrings.h"
-#include "uri.h"
-#include "path.h"
-#include "time.h"
-#include "connection_pool.h"
+
+#include <dlib/connection_pool.h>
+#include <dlib/dstrings.h>
+#include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/mutex.h>
+#include <dlib/path.h>
 #include <dlib/socket.h>
 #include <dlib/sslsocket.h>
+#include <dlib/sys.h>
+#include <dlib/time.h>
+#include <dlib/uri.h>
 
 namespace dmHttpClient
 {
@@ -233,7 +234,7 @@ namespace dmHttpClient
         {
             return RESULT_SOCKET_ERROR;
         }
-        
+
         dmConnectionPool::Result r = dmConnectionPool::CreateSSLSocket(m_Pool, m_Connection, host, timeout, &m_Client->m_SocketResult);
         if (r == dmConnectionPool::RESULT_OK)
         {

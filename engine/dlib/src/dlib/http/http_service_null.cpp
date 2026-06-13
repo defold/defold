@@ -14,8 +14,8 @@
 
 #include <dlib/log.h>
 #include <dlib/message.h>
+#include <dmsdk/dlib/http.h>
 
-#include "http_ddf.h"
 #include "http_service.h"
 
 namespace dmHttpService
@@ -31,6 +31,36 @@ namespace dmHttpService
     {
         (void) http_service;
         return 0;
+    }
+
+    HttpResult PushRequest(HHttpService http_service, Request* request)
+    {
+        (void) http_service;
+        (void) request;
+        return HTTP_RESULT_INVAL;
+    }
+
+    HttpResult PushRequest(HHttpService http_service, HttpRequest* request, HttpRequestHandle* request_handle)
+    {
+        (void) http_service;
+        (void) request;
+        if (request_handle)
+        {
+            *request_handle = HTTP_REQUEST_HANDLE_INVALID;
+        }
+        return HTTP_RESULT_INVAL;
+    }
+
+    HttpResult CancelRequest(HHttpService http_service, HttpRequestHandle request_handle)
+    {
+        (void) http_service;
+        (void) request_handle;
+        return HTTP_RESULT_INVAL;
+    }
+
+    void UnregisterRequest(HttpRequest* request)
+    {
+        (void) request;
     }
 
     void Delete(HHttpService http_service)

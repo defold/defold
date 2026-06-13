@@ -27,7 +27,7 @@
 #include "dlib/sys.h"
 #include "dlib/socket.h"
 #include "dlib/sslsocket.h"
-#include "dlib/http_client.h"
+#include "dlib/http/http_client.h"
 #include "dlib/http_cache_verify.h"
 #include "dlib/testutil.h"
 

@@ -1022,7 +1022,7 @@
       :allow-unloaded-use true
       :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
       :sanitize-fn (partial sanitize-collection workspace)
-      :string-encode-fn (partial string-encode-collection workspace)
+      :pb-encode-fn (partial string-encode-collection workspace)
       :icon collection-common/collection-icon
       :icon-class :design
       :category (localization/message "resource.category.objects")

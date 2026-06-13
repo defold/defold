@@ -6,41 +6,6 @@ import "ddf/ddf_extensions.proto";
 option java_package = "com.dynamo.http";
 option java_outer_classname = "HttpProto";
 
-message StopHttp
-{
-}
-
-message HttpRequest
-{
-    required string method  = 1;
-    required string url     = 2;
-
-    // pointer to headers in the format
-    // ATTRIBUTE:VALUE\n
-    // ...
-    // the receiver is responsible for deallocating the memory
-    required uint64 headers = 3;
-    required uint64 headers_length = 4;
-
-    // pointer to data
-    required uint64 request        = 5;
-    required uint32 request_length = 6;
-
-    optional uint64 timeout        = 7;
-    optional string path           = 8;
-
-    // Explicitly ignore the http cache.
-    // It's for 304 requests where we just want to confirm the 304 (e.g. for liveupdate).
-    optional bool   ignore_cache   = 9;
-
-    // Use chunked transfer encoding
-    optional bool   chunked_transfer   = 10 [default=true];
-
-    optional bool report_progress = 11;
-
-    optional string proxy = 12;
-}
-
 message HttpRequestProgress
 {
     required uint32 bytes_sent     = 1;

@@ -1,5 +1,3 @@
-tags: "light"
-tags: "directional_light"
 data {
   struct {
     fields {
@@ -9,13 +7,12 @@ data {
           values { number: 1.0 }
           values { number: 1.0 }
           values { number: 1.0 }
-          values { number: 1.0 }
         }
       }
     }
     fields {
       key: "intensity"
-      value { number: 2.5 }
+      value { number: 1.0 }
     }
   }
 }

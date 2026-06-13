@@ -137,6 +137,7 @@ set(DLIB_MBEDTLS_INCLUDE_DIRS
 
 file(GLOB DLIB_BASE_SOURCES CONFIGURE_DEPENDS
      "${DLIB_CORE_DIR}/*.cpp"
+     "${DLIB_CORE_DIR}/http/*.cpp"
      "${DLIB_SRC_DIR}/zlib/*.c"
      "${DLIB_SRC_DIR}/lz4/*.c")
 
@@ -187,10 +188,11 @@ dlib_append_unique(DLIB_SOURCES ${DLIB_FEATURE_SOURCES})
 dlib_remove_matching(DLIB_SOURCES "/image\\.cpp$" "/image_null\\.cpp$")
 dlib_remove_matching(DLIB_SOURCES "_null\\.cpp$")
 if(TARGET_PLATFORM MATCHES "web$")
-  dlib_remove_matching(DLIB_SOURCES "/http_cache\\.cpp$" "/http_cache_verify\\.cpp$" "/configfile_http\\.cpp$")
+  dlib_remove_matching(DLIB_SOURCES "/http_cache\\.cpp$" "/http_cache_verify\\.cpp$" "/configfile_http\\.cpp$" "/http_service\\.cpp$")
   list(APPEND DLIB_SOURCES
     "${DLIB_CORE_DIR}/http_cache_null.cpp"
-    "${DLIB_CORE_DIR}/configfile_http_null.cpp")
+    "${DLIB_CORE_DIR}/configfile_http_null.cpp"
+    "${DLIB_CORE_DIR}/http/http_service_null.cpp")
 endif()
 
 file(GLOB DLIB_ZIP_SOURCES CONFIGURE_DEPENDS "${DLIB_SRC_DIR}/zip/*.c")
@@ -232,9 +234,6 @@ defold_add_library(mbedtls_noasan STATIC ${DLIB_MBEDTLS_SOURCES})
 set_target_properties(mbedtls_noasan PROPERTIES OUTPUT_NAME dmbedtls_noasan)
 target_include_directories(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
 target_compile_definitions(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_DEFINES})
-if(TARGET_PLATFORM MATCHES "win32$")
-  set_target_properties(mbedtls mbedtls_noasan PROPERTIES PREFIX "lib")
-endif()
 
 defold_add_library(dlib STATIC ${DLIB_SOURCES})
 target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
@@ -392,10 +391,7 @@ set(DLIB_PUBLIC_HEADERS
   "${DLIB_CORE_DIR}/endian.hpp"
   "${DLIB_CORE_DIR}/hash.h"
   "${DLIB_CORE_DIR}/hashtable.h"
-  "${DLIB_CORE_DIR}/http_cache.h"
   "${DLIB_CORE_DIR}/http_cache_verify.h"
-  "${DLIB_CORE_DIR}/http_client.h"
-  "${DLIB_CORE_DIR}/http_server.h"
   "${DLIB_CORE_DIR}/image.h"
   "${DLIB_CORE_DIR}/index_pool.h"
   "${DLIB_CORE_DIR}/jobsystem.h"
@@ -436,9 +432,20 @@ set(DLIB_PUBLIC_HEADERS
   "${DLIB_CORE_DIR}/zip.h"
   "${DLIB_CORE_DIR}/testutil.h")
 
+set(DLIB_HTTP_PUBLIC_HEADERS
+  "${DLIB_CORE_DIR}/http/http_cache.h"
+  "${DLIB_CORE_DIR}/http/http_client.h"
+  "${DLIB_CORE_DIR}/http/http_service.h"
+  "${DLIB_CORE_DIR}/http/http_server.h")
+
 defold_add_sdk_headers_target(dlib_public_sdk_headers
   DESTINATION include/dlib
   FILES ${DLIB_PUBLIC_HEADERS}
+  DEPENDS dlib)
+
+defold_add_sdk_headers_target(dlib_http_sdk_headers
+  DESTINATION include/dlib/http
+  FILES ${DLIB_HTTP_PUBLIC_HEADERS}
   DEPENDS dlib)
 
 defold_add_sdk_headers_target(dlib_profile_sdk_headers
@@ -448,6 +455,7 @@ defold_add_sdk_headers_target(dlib_profile_sdk_headers
 
 set(DLIB_SDK_HEADER_TARGETS
   dlib_public_sdk_headers
+  dlib_http_sdk_headers
   dlib_profile_sdk_headers
   dlib_dmsdk_sdk_headers)
 defold_add_sdk_headers_target(dlib_dmsdk_sdk_headers
@@ -460,6 +468,7 @@ add_custom_target(dlib_sdk_headers
   DEPENDS ${DLIB_SDK_HEADER_TARGETS})
 
 install(FILES ${DLIB_PUBLIC_HEADERS} DESTINATION include/dlib)
+install(FILES ${DLIB_HTTP_PUBLIC_HEADERS} DESTINATION include/dlib/http)
 
 install(FILES "${DLIB_CORE_DIR}/profile/profile.h" DESTINATION include/dlib/profile)
 install(DIRECTORY "${DLIB_SRC_DIR}/stb/" DESTINATION ext/include/stb FILES_MATCHING PATTERN "*.h")
@@ -469,6 +478,7 @@ install(DIRECTORY "${DLIB_SRC_DIR}/basis/transcoder/" DESTINATION ext/include/ba
 install(FILES "${DLIB_SRC_DIR}/python/dlib/__init__.py" DESTINATION lib/python/dlib)
 install(FILES "${DLIB_CORE_DIR}/memprofile.py" DESTINATION lib/python)
 install(PROGRAMS "${DLIB_ROOT}/bin/memprofile.sh" DESTINATION bin)
+install(DIRECTORY "${DLIB_SRC_DIR}/cs/dmsdk/" DESTINATION sdk/cs/dmsdk FILES_MATCHING PATTERN "*.cs")
 if(TARGET_PLATFORM MATCHES "web$")
   defold_install_js_library("${DLIB_CORE_DIR}/js/library_sys.js")
 endif()

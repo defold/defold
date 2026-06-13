@@ -17,6 +17,10 @@
 
 #include "mbedtls_rename.h"
 
+#if defined(__ANDROID__) && !defined(MBEDTLS_PLATFORM_DEV_RANDOM)
+#define MBEDTLS_PLATFORM_DEV_RANDOM "/dev/urandom"
+#endif
+
 /* Defold does not call the mbedTLS self-test APIs at runtime. Leaving them
  * enabled adds global counters to ECC operations, which race during concurrent
  * TLS handshakes.
