@@ -64,7 +64,6 @@ struct Driver
 };
 
 void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
-void DumpDriver(FILE* out, Driver* driver);
 void DumpSDLEntry(FILE* out, Driver* driver);
 
 static const char* GetSDLPlatformName(const char* platform)
@@ -762,16 +761,9 @@ retry:
     out = fopen(filename, "w");
     if (out != 0x0)
     {
-        DumpDriver(out, &driver);
-        printf("Wrote '%s'\n", filename);
+        DumpSDLEntry(out, &driver);
+        printf("Wrote entry to '%s'\n", filename);
     }
-    else
-    {
-        printf("Could not open %s to write to, dumping to stdout instead.\n\n", filename);
-        DumpDriver(stdout, &driver);
-    }
-
-    DumpSDLEntry(stdout, &driver);
 
     printf("Bye!\n");
 
