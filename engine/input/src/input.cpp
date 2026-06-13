@@ -31,12 +31,6 @@ namespace dmInput
     const uint32_t UNKNOWN_GAMEPAD_CONFIG_ID = dmHashString32("UNKNOWN_GAMEPAD_CONFIG_ID");
     static const uint16_t INVALID_INDEX = 0xFFFF;
     static const uint16_t GAMEPAD_GUID_BUS_USB = 0x0003;
-    static const uint16_t GAMEPAD_GUID_VENDOR_MICROSOFT = 0x045e;
-    static const uint16_t GAMEPAD_GUID_PRODUCT_XBOX360_XUSB_CONTROLLER = 0x02a1;
-    static const uint16_t GAMEPAD_GUID_PRODUCT_XBOX360_WIRED_CONTROLLER = 0x028e;
-    static const uint16_t GAMEPAD_GUID_PRODUCT_XBOX360_WIRELESS_RECEIVER = 0x0719;
-    static const uint16_t GAMEPAD_GUID_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY1 = 0x02a9;
-    static const uint16_t GAMEPAD_GUID_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY2 = 0x0291;
 
     DM_STATIC_ASSERT(sizeof(dmHID::GamepadGuid) == 16, Invalid_Struct_Size);
     DM_STATIC_ASSERT(sizeof(Action) == 464, Invalid_Struct_Size); // Make sure we don't accidentally grow the struct
@@ -197,39 +191,6 @@ namespace dmInput
 #endif
     }
 
-    static bool IsMicrosoftXbox360GamepadGuid(const dmHID::GamepadGuid& guid)
-    {
-        if (guid.m_Vendor != GAMEPAD_GUID_VENDOR_MICROSOFT)
-            return false;
-
-        switch (guid.m_Product)
-        {
-        case GAMEPAD_GUID_PRODUCT_XBOX360_XUSB_CONTROLLER:
-        case GAMEPAD_GUID_PRODUCT_XBOX360_WIRED_CONTROLLER:
-        case GAMEPAD_GUID_PRODUCT_XBOX360_WIRELESS_RECEIVER:
-        case GAMEPAD_GUID_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY1:
-        case GAMEPAD_GUID_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY2:
-            return true;
-        default:
-            return false;
-        }
-    }
-
-    static const char* GetPreferredDarwinMicrosoftLegacyName(const dmHID::GamepadGuid& guid)
-    {
-#if defined(DM_PLATFORM_MACOS)
-        if (guid.m_Vendor != GAMEPAD_GUID_VENDOR_MICROSOFT)
-            return 0;
-
-        if (IsMicrosoftXbox360GamepadGuid(guid))
-            return "Xbox 360 Wired Controller";
-
-        return "Controller";
-#else
-        return 0;
-#endif
-    }
-
     static GamepadConfig* GetGamepadConfigFromId(HBinding binding, const uint32_t config_id)
     {
         return binding->m_Context->m_GamepadMaps.Get(config_id);
@@ -316,7 +277,7 @@ namespace dmInput
         GetGamepadGuidString(binding, gamepad, device_guid_string);
 
         const bool is_legacy = config->m_Legacy != 0;
-        const char* mapping_name = matched_legacy_name && matched_legacy_name[0] ? matched_legacy_name : config->m_DeviceName;
+        const char* mapping_name = config->m_DeviceName;
         if (mapping_name[0] == 0)
         {
             mapping_name = "<unnamed>";
@@ -328,6 +289,10 @@ namespace dmInput
         }
         else if (is_legacy)
         {
+            if (matched_legacy_name && matched_legacy_name[0])
+            {
+                mapping_name = matched_legacy_name;
+            }
             dmLogInfo("Gamepad %d '%s' guid=%s using legacy mapping '%s'.", gamepad_index, device_name, device_guid_string, mapping_name);
         }
         else
@@ -355,9 +320,6 @@ namespace dmInput
 
     static GamepadConfig* GetGamepadConfig(HBinding binding, dmHID::HGamepad gamepad, char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH])
     {
-        char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
-
         /*
          * NOTE: We used to log a warning here but the warning is removed for the following reasons:
          *  - The input-binding file covers several platforms and certain platforms
@@ -368,9 +330,6 @@ namespace dmInput
          *  - We should also have support dynamic pad-connections. Whether a pad is connected
          *    or not should be up to the game-ui.
          */
-        if (device_name[0] == 0)
-            return 0x0;
-
         dmHID::GamepadGuid guid = {};
         bool has_guid = dmHID::GetGamepadDeviceGuid(binding->m_Context->m_HidContext, gamepad, &guid);
         if (has_guid)
@@ -378,33 +337,31 @@ namespace dmInput
             GamepadConfig* config = GetGamepadConfigFromGuid(binding, guid);
             if (config)
             {
-                dmStrlCpy(device_name_out, config->m_DeviceName, dmHID::MAX_GAMEPAD_NAME_LENGTH);
+                dmHID::SetGamepadLayoutLegacy(gamepad, false);
+                dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name_out);
+                if (device_name_out[0] == 0)
+                {
+                    dmStrlCpy(device_name_out, config->m_DeviceName, dmHID::MAX_GAMEPAD_NAME_LENGTH);
+                }
                 return config;
             }
         }
+
+        dmHID::SetGamepadLayoutLegacy(gamepad, true); // by setting legacy mode, we'll get a different device name
+
+        char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+
+        if (device_name[0] == 0)
+            return 0x0;
 
         GamepadConfig* best_config = 0x0;
         uint32_t best_config_name_index = 0;
 
         uint32_t num_names = 0;
-        const char* device_names[4];
-
-        const char* preferred_legacy_name = has_guid ? GetPreferredDarwinMicrosoftLegacyName(guid) : 0;
-        if (preferred_legacy_name)
-        {
-            device_names[num_names++] = preferred_legacy_name;
-            if (strcmp(preferred_legacy_name, "Controller") != 0)
-            {
-                device_names[num_names++] = "Controller";
-            }
-        }
+        const char* device_names[1];
 
         device_names[num_names++] = device_name;
-
-    #ifdef _WIN32
-        // for backwards compatability with GLFW 2.7
-        device_names[num_names++] = "XBox 360 Controller";
-    #endif
 
         for (uint32_t i = 0; i < num_names; ++i)
         {
