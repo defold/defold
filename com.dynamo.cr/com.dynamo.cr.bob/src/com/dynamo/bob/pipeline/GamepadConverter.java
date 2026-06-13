@@ -23,9 +23,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Shared utility for converting SDL gamecontrollerdb.txt format to Defold's .gamepads TextFormat.
+ * Shared utility for converting SDL gamecontrollerdb.txt format to Defold gamepad TextFormat.
  */
 public final class GamepadConverter {
+
+    private static final int GUID_SIZE = 16;
 
     private static final String SDL_TYPE_AXIS = "a";
     private static final String SDL_TYPE_BUTTON = "b";
@@ -127,18 +129,6 @@ public final class GamepadConverter {
         }
     }
 
-    private static final class GamepadGuidFields {
-        final long busCrc;
-        final long vendorProduct;
-        final long versionDriverSignatureDriverData;
-
-        GamepadGuidFields(long busCrc, long vendorProduct, long versionDriverSignatureDriverData) {
-            this.busCrc = busCrc;
-            this.vendorProduct = vendorProduct;
-            this.versionDriverSignatureDriverData = versionDriverSignatureDriverData;
-        }
-    }
-
     /**
      * Get the SDL axis type identifier.
      */
@@ -181,7 +171,7 @@ public final class GamepadConverter {
     }
 
     /**
-     * Convert SDL gamecontrollerdb.txt content to Defold's .gamepads TextFormat.
+     * Convert SDL gamecontrollerdb.txt content to Defold's editor .gamepads TextFormat.
      */
     public static String convertToDefoldFormat(String sdlContent, String platform) {
         String defoldPlatform = normalizePlatform(platform);
@@ -193,12 +183,33 @@ public final class GamepadConverter {
             sb.append("{\n");
             sb.append("    device: \"").append(escapeDefoldString(mapping.name)).append("\"\n");
             sb.append("    platform: \"").append(escapeDefoldString(defoldPlatform)).append("\"\n");
-            GamepadGuidFields guid = parseGuidFields(mapping.guid);
+            sb.append("    dead_zone: 0\n");
+            List<String> mapEntries = convertSdlMappingToDefoldMap(mapping, defoldPlatform);
+            for (String mapEntry : mapEntries) {
+                sb.append("    ").append(mapEntry).append("\n");
+            }
+
+            sb.append("}\n\n");
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Convert SDL gamecontrollerdb.txt content to Defold's runtime .gamepadsc TextFormat.
+     */
+    public static String convertToRuntimeFormat(String sdlContent, String platform) {
+        String defoldPlatform = normalizePlatform(platform);
+        List<SdlMapping> mappings = parseSdlMappings(sdlContent, defoldPlatform);
+
+        StringBuilder sb = new StringBuilder();
+        for (SdlMapping mapping : mappings) {
+            sb.append("mappings\n");
+            sb.append("{\n");
+            sb.append("    device: \"").append(escapeDefoldString(mapping.name)).append("\"\n");
+            byte[] guid = parseGuidBytes(mapping.guid);
             if (guid != null) {
-                sb.append("    guid { bus_crc: ").append(guid.busCrc)
-                        .append(" vendor_product: ").append(guid.vendorProduct)
-                        .append(" version_driversignature_driverdata: ").append(guid.versionDriverSignatureDriverData)
-                        .append(" }\n");
+                sb.append("    guid: \"").append(escapeBytes(guid)).append("\"\n");
             }
 
             List<String> mapEntries = convertSdlMappingToDefoldMap(mapping, defoldPlatform);
@@ -340,12 +351,12 @@ public final class GamepadConverter {
         return guid != null && guid.matches("[0-9a-fA-F]{32}");
     }
 
-    private static GamepadGuidFields parseGuidFields(String guid) {
+    private static byte[] parseGuidBytes(String guid) {
         if (!isValidGuid(guid)) {
             return null;
         }
 
-        byte[] bytes = new byte[16];
+        byte[] bytes = new byte[GUID_SIZE];
         for (int i = 0; i < bytes.length; ++i) {
             int hi = Character.digit(guid.charAt(i * 2), 16);
             int lo = Character.digit(guid.charAt(i * 2 + 1), 16);
@@ -355,22 +366,7 @@ public final class GamepadConverter {
             bytes[i] = (byte)((hi << 4) | lo);
         }
 
-        long bus = readUint16LE(bytes, 0);
-        long crc = readUint16LE(bytes, 2);
-        long vendor = readUint16LE(bytes, 4);
-        long product = readUint16LE(bytes, 8);
-        long version = readUint16LE(bytes, 12);
-        long driverSignature = bytes[14] & 0xffL;
-        long driverData = bytes[15] & 0xffL;
-
-        return new GamepadGuidFields(
-                bus | (crc << 16),
-                vendor | (product << 16),
-                version | (driverSignature << 16) | (driverData << 24));
-    }
-
-    private static long readUint16LE(byte[] bytes, int offset) {
-        return (bytes[offset] & 0xffL) | ((bytes[offset + 1] & 0xffL) << 8);
+        return bytes;
     }
 
     private static List<String> convertSdlMappingToDefoldMap(SdlMapping mapping, String platform) {
@@ -679,5 +675,13 @@ public final class GamepadConverter {
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
+    }
+
+    private static String escapeBytes(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 4);
+        for (byte b : bytes) {
+            sb.append(String.format("\\%03o", b & 0xff));
+        }
+        return sb.toString();
     }
 }

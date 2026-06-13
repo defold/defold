@@ -2519,7 +2519,7 @@ bail:
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", 0);
         if (gamepads)
         {
-            dmInputDDF::GamepadMaps* gamepad_maps_ddf;
+            dmInputDDF::GamepadMapsRuntime* gamepad_maps_ddf;
             fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
             if (fact_error != dmResource::RESULT_OK)
                 return false;

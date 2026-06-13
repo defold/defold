@@ -214,26 +214,30 @@ message GamepadMapEntry
     optional uint32 hat_mask = 5;
 }
 
-message GamepadGuid
-{
-    // See dmHID::GamepadGuid in hid.h
-    optional uint32 bus_crc = 1 [default = 0];                            // u16 + u16
-    optional uint32 vendor_product = 2 [default = 0];                     // u16 + u16
-    optional uint32 version_driversignature_driverdata = 3 [default = 0]; // u16 + u8 + u8
-};
-
 message GamepadMap
 {
     required string device = 1;
     required string platform = 2;
-    optional float dead_zone = 3;
+    required float dead_zone = 3;
     repeated GamepadMapEntry map = 4;
-    optional GamepadGuid guid = 5;
+}
+
+message GamepadMapRuntime
+{
+    required string device = 1;         // The name of the mapping, found in the .gamepads or gamecontrollerdb.txt
+    optional float dead_zone = 2;       // for the legacy mappings only
+    repeated GamepadMapEntry map = 3;
+    optional bytes guid = 4;            // Single 16-byte SDL GUID. If set, it's an SDL mapping
 }
 
 message GamepadMaps
 {
     repeated GamepadMap driver = 1;
+}
+
+message GamepadMapsRuntime
+{
+    repeated GamepadMapRuntime mappings = 1;
 }
 
 enum Touch

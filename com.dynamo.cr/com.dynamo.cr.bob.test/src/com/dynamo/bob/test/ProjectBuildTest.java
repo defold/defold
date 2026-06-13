@@ -51,7 +51,7 @@ import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.input.proto.Input.GamepadMaps;
+import com.dynamo.input.proto.Input.GamepadMapsRuntime;
 import com.dynamo.liveupdate.proto.Manifest;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
@@ -166,10 +166,10 @@ public class ProjectBuildTest {
         assertTrue(result.success);
         File output = new File(contentRoot, "build/default/input/valid.gamepadsc");
         assertTrue(output.exists());
-        GamepadMaps maps = GamepadMaps.parseFrom(FileUtils.readFileToByteArray(output));
-        assertEquals(1, maps.getDriverCount());
-        assertEquals("Direct Pad", maps.getDriver(0).getDevice());
-        assertEquals(0.2f, maps.getDriver(0).getDeadZone(), 0.0f);
+        GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(FileUtils.readFileToByteArray(output));
+        assertEquals(1, maps.getMappingsCount());
+        assertEquals("Direct Pad", maps.getMappings(0).getDevice());
+        assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
     }
 
     @Test
@@ -220,13 +220,14 @@ public class ProjectBuildTest {
 
         File output = new File(contentRoot, "build/input/custom.gamepadsc");
         assertTrue(output.exists());
-        GamepadMaps maps = GamepadMaps.parseFrom(FileUtils.readFileToByteArray(output));
-        assertEquals(2, maps.getDriverCount());
-        assertEquals("SDL Project Pad", maps.getDriver(0).getDevice());
-        assertEquals("Manual Project Pad", maps.getDriver(1).getDevice());
-        assertEquals(maps.getDriver(0).getPlatform(), maps.getDriver(1).getPlatform());
-        assertFalse(maps.getDriver(0).hasDeadZone());
-        assertEquals(0.2f, maps.getDriver(1).getDeadZone(), 0.0f);
+        GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(FileUtils.readFileToByteArray(output));
+        assertEquals(2, maps.getMappingsCount());
+        assertEquals("SDL Project Pad", maps.getMappings(0).getDevice());
+        assertEquals("Manual Project Pad", maps.getMappings(1).getDevice());
+        assertFalse(maps.getMappings(0).hasDeadZone());
+        assertTrue(maps.getMappings(0).hasGuid());
+        assertFalse(maps.getMappings(1).hasGuid());
+        assertEquals(0.2f, maps.getMappings(1).getDeadZone(), 0.0f);
     }
 
     @Test
@@ -246,14 +247,14 @@ public class ProjectBuildTest {
 
         File output = new File(contentRoot, "build/builtins/input/default.gamepadsc");
         assertTrue(output.exists());
-        GamepadMaps maps = GamepadMaps.parseFrom(FileUtils.readFileToByteArray(output));
-        assertEquals(2, maps.getDriverCount());
-        assertEquals("Xbox 360 Controller", maps.getDriver(0).getDevice());
-        assertEquals("Default Manual Pad", maps.getDriver(1).getDevice());
-        assertEquals("macos", maps.getDriver(0).getPlatform());
-        assertEquals("macos", maps.getDriver(1).getPlatform());
-        assertFalse(maps.getDriver(0).hasDeadZone());
-        assertEquals(0.2f, maps.getDriver(1).getDeadZone(), 0.0f);
+        GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(FileUtils.readFileToByteArray(output));
+        assertEquals(2, maps.getMappingsCount());
+        assertEquals("Xbox 360 Controller", maps.getMappings(0).getDevice());
+        assertEquals("Default Manual Pad", maps.getMappings(1).getDevice());
+        assertFalse(maps.getMappings(0).hasDeadZone());
+        assertTrue(maps.getMappings(0).hasGuid());
+        assertFalse(maps.getMappings(1).hasGuid());
+        assertEquals(0.2f, maps.getMappings(1).getDeadZone(), 0.0f);
     }
 
     @Test
@@ -279,11 +280,11 @@ public class ProjectBuildTest {
 
         File output = new File(contentRoot, "build/builtins/input/default.gamepadsc");
         assertTrue(output.exists());
-        GamepadMaps maps = GamepadMaps.parseFrom(FileUtils.readFileToByteArray(output));
-        assertEquals(1, maps.getDriverCount());
-        assertEquals("Default Manual Pad", maps.getDriver(0).getDevice());
-        assertEquals("macos", maps.getDriver(0).getPlatform());
-        assertEquals(0.2f, maps.getDriver(0).getDeadZone(), 0.0f);
+        GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(FileUtils.readFileToByteArray(output));
+        assertEquals(1, maps.getMappingsCount());
+        assertEquals("Default Manual Pad", maps.getMappings(0).getDevice());
+        assertFalse(maps.getMappings(0).hasGuid());
+        assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
     }
 
     static private void checkProjectSetting(BobProjectProperties properties, String category, String key, String expectedValue)

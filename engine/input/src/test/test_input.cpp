@@ -20,7 +20,6 @@
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
-#include <dlib/platform.h>
 #include <dlib/dstrings.h>
 #include <dlib/testutil.h>
 
@@ -48,7 +47,7 @@ protected:
         params.m_RepeatInterval = 0.2f;
         params.m_GamepadDeadZone = 0.2f;
         m_Context = dmInput::NewContext(params);
-        dmInputDDF::GamepadMaps* gamepad_maps;
+        dmInputDDF::GamepadMapsRuntime* gamepad_maps;
 
         char buffer[128];
         #define HOSTPATH(_PATH) dmTestUtil::MakeHostPath(buffer, sizeof(buffer), _PATH)
@@ -59,7 +58,7 @@ protected:
             #define BUILD_DIR "build/src/test"
         #endif
 
-        dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.gamepadsc"), dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
+        dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.gamepadsc"), dmInputDDF::GamepadMapsRuntime::m_DDFDescriptor, (void**)&gamepad_maps);
 
         ASSERT_EQ(dmDDF::RESULT_OK, result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
@@ -118,21 +117,23 @@ TEST_F(InputTest, GuidGamepadMapsAreNotRegisteredAsLegacyNames)
     params.m_GamepadDeadZone = 0.2f;
     dmInput::HContext context = dmInput::NewContext(params);
 
-    dmInputDDF::GamepadMaps gamepad_maps;
-    dmInputDDF::GamepadMap drivers[2];
+    dmInputDDF::GamepadMapsRuntime gamepad_maps;
+    dmInputDDF::GamepadMapRuntime drivers[2];
+    uint8_t guid_data[2][sizeof(dmHID::GamepadGuid)] = {};
     memset(&gamepad_maps, 0, sizeof(gamepad_maps));
     memset(drivers, 0, sizeof(drivers));
 
-    gamepad_maps.m_Driver.m_Data = drivers;
-    gamepad_maps.m_Driver.m_Count = 2;
+    gamepad_maps.m_Mappings.m_Data = drivers;
+    gamepad_maps.m_Mappings.m_Count = 2;
 
-    for (uint32_t i = 0; i < gamepad_maps.m_Driver.m_Count; ++i)
+    for (uint32_t i = 0; i < gamepad_maps.m_Mappings.m_Count; ++i)
     {
         drivers[i].m_Device = "duplicate_guid_device";
-        drivers[i].m_Platform = DM_PLATFORM;
-        drivers[i].m_Guid.m_BusCrc = i + 1;
-        drivers[i].m_Guid.m_VendorProduct = i + 2;
-        drivers[i].m_Guid.m_VersionDriversignatureDriverdata = i + 3;
+        guid_data[i][0] = (uint8_t)(i + 1);
+        guid_data[i][4] = (uint8_t)(i + 2);
+        guid_data[i][8] = (uint8_t)(i + 3);
+        drivers[i].m_Guid.m_Data = guid_data[i];
+        drivers[i].m_Guid.m_Count = sizeof(guid_data[i]);
     }
 
     dmInput::RegisterGamepads(context, &gamepad_maps);

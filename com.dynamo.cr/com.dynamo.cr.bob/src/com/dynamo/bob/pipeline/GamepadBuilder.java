@@ -23,7 +23,9 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.input.proto.Input.GamepadMap;
+import com.dynamo.input.proto.Input.GamepadMapRuntime;
 import com.dynamo.input.proto.Input.GamepadMaps;
+import com.dynamo.input.proto.Input.GamepadMapsRuntime;
 
 /**
  * Builder that combines Defold .gamepads and an optional SDL gamecontrollerdb.txt into binary .gamepadsc.
@@ -49,19 +51,22 @@ public class GamepadBuilder extends Builder {
 
         String platform = project.getPlatform().getPair();
 
-        GamepadMaps.Builder gamepadMapsBuilder = GamepadMaps.newBuilder();
+        GamepadMapsRuntime.Builder gamepadMapsBuilder = GamepadMapsRuntime.newBuilder();
 
         for (IResource input : task.getInputs()) {
             String content = new String(input.getContent(), java.nio.charset.StandardCharsets.UTF_8);
             if (input.getPath().endsWith(EXT_SDL)) {
-                String defoldTextFormat = GamepadConverter.convertToDefoldFormat(content, platform);
-                parseAsGamepadMaps(input, defoldTextFormat, gamepadMapsBuilder);
+                String runtimeTextFormat = GamepadConverter.convertToRuntimeFormat(content, platform);
+                parseAsGamepadMapsRuntime(input, runtimeTextFormat, gamepadMapsBuilder);
             } else if (input.getPath().endsWith(EXT_GAMEPADS)) {
-                parseAsGamepadMaps(input, content, gamepadMapsBuilder);
+                GamepadMaps.Builder editorGamepadMapsBuilder = GamepadMaps.newBuilder();
+                parseAsGamepadMaps(input, content, editorGamepadMapsBuilder);
+                GamepadMaps filteredGamepadMaps = filterPlatform(editorGamepadMapsBuilder.buildPartial(), platform);
+                gamepadMapsBuilder.addAllMappings(toRuntime(filteredGamepadMaps).getMappingsList());
             }
         }
 
-        GamepadMaps gamepadMaps = filterPlatform(gamepadMapsBuilder.buildPartial(), platform);
+        GamepadMapsRuntime gamepadMaps = gamepadMapsBuilder.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);
         gamepadMaps.writeTo(out);
         out.close();
@@ -81,6 +86,20 @@ public class GamepadBuilder extends Builder {
         return filtered.build();
     }
 
+    private GamepadMapsRuntime toRuntime(GamepadMaps gamepadMaps) {
+        GamepadMapsRuntime.Builder runtime = GamepadMapsRuntime.newBuilder();
+        for (GamepadMap driver : gamepadMaps.getDriverList()) {
+            GamepadMapRuntime.Builder mapping = GamepadMapRuntime.newBuilder()
+                    .setDevice(driver.getDevice())
+                    .addAllMap(driver.getMapList());
+            if (driver.hasDeadZone()) {
+                mapping.setDeadZone(driver.getDeadZone());
+            }
+            runtime.addMappings(mapping);
+        }
+        return runtime.build();
+    }
+
     /**
      * Parse Defold TextFormat string into a GamepadMaps protobuf message.
      */
@@ -89,6 +108,17 @@ public class GamepadBuilder extends Builder {
             com.google.protobuf.TextFormat.merge(textFormat, builder);
         } catch (com.google.protobuf.TextFormat.ParseException e) {
             throw new CompileExceptionError(input, 0, "Failed to parse .gamepads: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Parse Defold runtime TextFormat string into a GamepadMapsRuntime protobuf message.
+     */
+    private void parseAsGamepadMapsRuntime(IResource input, String textFormat, GamepadMapsRuntime.Builder builder) throws IOException, CompileExceptionError {
+        try {
+            com.google.protobuf.TextFormat.merge(textFormat, builder);
+        } catch (com.google.protobuf.TextFormat.ParseException e) {
+            throw new CompileExceptionError(input, 0, "Failed to parse gamecontrollerdb.txt: " + e.getMessage(), e);
         }
     }
 }

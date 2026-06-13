@@ -21,11 +21,18 @@
 # API:
 # https://googleapis.dev/python/protobuf/latest/google/protobuf/message.html
 
+import glob
 import os, sys
 import importlib
+import subprocess
+import tempfile
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+
+GENERATED_PROTO_MODULES = {
+    'input.input_ddf_pb2': (os.path.join(REPO_ROOT, "engine", "input", "proto"), "input/input_ddf.proto"),
+}
 
 def prepend_python_paths(paths):
     for path in reversed(paths):
@@ -64,7 +71,54 @@ import google.protobuf.message
 
 import binascii
 
+def find_protoc():
+    if dynamo_home is None:
+        return None
+
+    patterns = [
+        os.path.join(dynamo_home, "ext", "bin", "*", "protoc"),
+        os.path.join(dynamo_home, "ext", "bin", "*", "protoc.exe"),
+    ]
+    for pattern in patterns:
+        for path in glob.glob(pattern):
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                return path
+    return None
+
+def ensure_generated_module(module_name):
+    proto_info = GENERATED_PROTO_MODULES.get(module_name)
+    if proto_info is None:
+        return
+
+    proto_dir, proto_file = proto_info
+    proto_path = os.path.join(proto_dir, proto_file)
+    if not os.path.isfile(proto_path):
+        return
+
+    out_dir = os.path.join(tempfile.gettempdir(), "defold_unpack_ddf_proto")
+    module_path = os.path.join(out_dir, *module_name.split('.')) + ".py"
+    if os.path.isfile(module_path) and os.path.getmtime(module_path) >= os.path.getmtime(proto_path):
+        prepend_python_paths([out_dir])
+        return
+
+    protoc = find_protoc()
+    if protoc is None:
+        return
+
+    os.makedirs(out_dir, exist_ok=True)
+    try:
+        subprocess.check_call([protoc, "--python_out=%s" % out_dir, "-I%s" % proto_dir, proto_path], stdout=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+        return
+
+    package_dir = os.path.dirname(module_path)
+    os.makedirs(package_dir, exist_ok=True)
+    with open(os.path.join(package_dir, "__init__.py"), "a"):
+        pass
+    prepend_python_paths([out_dir])
+
 def load_type(module_name, type_name):
+    ensure_generated_module(module_name)
     module = importlib.import_module(module_name)
     return getattr(module, type_name)
 
@@ -76,7 +130,7 @@ BUILDERS['.computec']         = ('render.compute_ddf_pb2', 'ComputeDesc')
 BUILDERS['.convexshapec']     = ('gamesys.physics_ddf_pb2', 'ConvexShape')
 BUILDERS['.dmanifest']        = ('resource.liveupdate_ddf_pb2', 'ManifestFile')
 BUILDERS['.fontc']            = ('render.font_ddf_pb2', 'FontMap')
-BUILDERS['.gamepadsc']        = ('input.input_ddf_pb2', 'GamepadMaps')
+BUILDERS['.gamepadsc']        = ('input.input_ddf_pb2', 'GamepadMapsRuntime')
 BUILDERS['.glyph_bankc']      = ('render.font_ddf_pb2', 'GlyphBank')
 BUILDERS['.goc']              = ('gameobject.gameobject_ddf_pb2', 'PrototypeDesc')
 BUILDERS['.guic']             = ('gamesys.gui_ddf_pb2', 'SceneDesc')

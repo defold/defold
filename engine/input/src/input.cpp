@@ -29,7 +29,7 @@ namespace dmInput
 {
     const uint32_t UNKNOWN_GAMEPAD_CONFIG_ID = dmHashString32("UNKNOWN_GAMEPAD_CONFIG_ID");
     static const uint16_t INVALID_INDEX = 0xFFFF;
-    static const uint16_t GAMEPAD_GUID_BUS_USB = 0x0003;
+    static const uint32_t GAMEPAD_GUID_SIZE = sizeof(dmHID::GamepadGuid);
 
     DM_STATIC_ASSERT(sizeof(dmHID::GamepadGuid) == 16, Invalid_Struct_Size);
     DM_STATIC_ASSERT(sizeof(Action) == 464, Invalid_Struct_Size); // Make sure we don't accidentally grow the struct
@@ -139,46 +139,26 @@ namespace dmInput
         }
     }
 
-    static uint32_t GamepadGuidToConfigId(const uint32_t bus_crc, const uint32_t vendor_product, const uint32_t version_driversignature_driverdata)
+    static uint32_t GamepadGuidHash32(const uint8_t* guid)
     {
-        const uint32_t packed_guid[] = {
-            dmHashString32("GAMEPAD_GUID"),
-            bus_crc,
-            vendor_product,
-            version_driversignature_driverdata
-        };
-        return dmHashBuffer32(packed_guid, sizeof(packed_guid));
+        return dmHashBuffer32(guid, GAMEPAD_GUID_SIZE);
     }
 
-    static uint32_t GamepadGuidToConfigId(const dmInputDDF::GamepadGuid& guid)
+    static void GamepadGuidToBytes(const dmHID::GamepadGuid& guid, uint8_t out[GAMEPAD_GUID_SIZE])
     {
-        return GamepadGuidToConfigId(guid.m_BusCrc, guid.m_VendorProduct, guid.m_VersionDriversignatureDriverdata);
+        memcpy(out, &guid, GAMEPAD_GUID_SIZE);
     }
 
-    static uint32_t GamepadGuidToConfigId(const dmHID::GamepadGuid& guid)
-    {
-        const uint32_t bus_crc = (uint32_t)guid.m_Bus | ((uint32_t)guid.m_CRC16 << 16);
-        const uint32_t vendor_product = (uint32_t)guid.m_Vendor | ((uint32_t)guid.m_Product << 16);
-        const uint32_t version_driversignature_driverdata = (uint32_t)guid.m_Version | ((uint32_t)guid.m_DriverSignature << 16) | ((uint32_t)guid.m_DriverData << 24);
-        return GamepadGuidToConfigId(bus_crc, vendor_product, version_driversignature_driverdata);
-    }
-
-    static dmHID::GamepadGuid GamepadGuidDDFToHID(const dmInputDDF::GamepadGuid& guid)
+    static dmHID::GamepadGuid GamepadGuidBytesToHID(const uint8_t guid[GAMEPAD_GUID_SIZE])
     {
         dmHID::GamepadGuid hid_guid = {};
-        hid_guid.m_Bus = (uint16_t)(guid.m_BusCrc & 0xffff);
-        hid_guid.m_CRC16 = (uint16_t)(guid.m_BusCrc >> 16);
-        hid_guid.m_Vendor = (uint16_t)(guid.m_VendorProduct & 0xffff);
-        hid_guid.m_Product = (uint16_t)(guid.m_VendorProduct >> 16);
-        hid_guid.m_Version = (uint16_t)(guid.m_VersionDriversignatureDriverdata & 0xffff);
-        hid_guid.m_DriverSignature = (uint8_t)(guid.m_VersionDriversignatureDriverdata >> 16);
-        hid_guid.m_DriverData = (uint8_t)(guid.m_VersionDriversignatureDriverdata >> 24);
+        memcpy(&hid_guid, guid, GAMEPAD_GUID_SIZE);
         return hid_guid;
     }
 
-    static bool HasGamepadGuid(const dmInputDDF::GamepadGuid& guid)
+    static bool HasGamepadGuid(const GamepadConfig* config)
     {
-        return guid.m_BusCrc != 0 || guid.m_VendorProduct != 0 || guid.m_VersionDriversignatureDriverdata != 0;
+        return config->m_Legacy == 0;
     }
 
     static GamepadConfig* GetGamepadConfigFromId(HBinding binding, const uint32_t config_id)
@@ -186,59 +166,21 @@ namespace dmInput
         return binding->m_Context->m_GamepadMaps.Get(config_id);
     }
 
+    static GamepadConfig* GetGamepadConfigFromGuidBytes(HContext context, const uint8_t guid[GAMEPAD_GUID_SIZE])
+    {
+        GamepadConfig* config = context->m_GamepadMaps.Get(GamepadGuidHash32(guid));
+        if (config && HasGamepadGuid(config) && memcmp(&config->m_Guid, guid, GAMEPAD_GUID_SIZE) == 0)
+        {
+            return config;
+        }
+        return 0x0;
+    }
+
     static GamepadConfig* GetGamepadConfigFromGuid(HBinding binding, const dmHID::GamepadGuid& guid)
     {
-        GamepadConfig* config = GetGamepadConfigFromId(binding, GamepadGuidToConfigId(guid));
-        if (config)
-        {
-            return config;
-        }
-
-        if (guid.m_Vendor == 0 || guid.m_Product == 0)
-        {
-            return 0x0;
-        }
-
-        dmHID::GamepadGuid variant = guid;
-        variant.m_CRC16 = 0;
-        variant.m_DriverSignature = 0;
-        variant.m_DriverData = 0;
-
-        config = GetGamepadConfigFromId(binding, GamepadGuidToConfigId(variant));
-        if (config)
-        {
-            return config;
-        }
-
-        variant.m_Version = 0;
-        config = GetGamepadConfigFromId(binding, GamepadGuidToConfigId(variant));
-        if (config)
-        {
-            return config;
-        }
-
-        if (guid.m_Bus != GAMEPAD_GUID_BUS_USB)
-        {
-            variant.m_Bus = GAMEPAD_GUID_BUS_USB;
-            variant.m_CRC16 = 0;
-            variant.m_Version = guid.m_Version;
-            variant.m_DriverSignature = 0;
-            variant.m_DriverData = 0;
-            config = GetGamepadConfigFromId(binding, GamepadGuidToConfigId(variant));
-            if (config)
-            {
-                return config;
-            }
-
-            variant.m_Version = 0;
-            config = GetGamepadConfigFromId(binding, GamepadGuidToConfigId(variant));
-            if (config)
-            {
-                return config;
-            }
-        }
-
-        return 0x0;
+        uint8_t guid_bytes[GAMEPAD_GUID_SIZE];
+        GamepadGuidToBytes(guid, guid_bytes);
+        return GetGamepadConfigFromGuidBytes(binding->m_Context, guid_bytes);
     }
 
     static void GetGamepadGuidString(HBinding binding, dmHID::HGamepad gamepad, char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1])
@@ -283,10 +225,9 @@ namespace dmInput
         else
         {
             char mapping_guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1];
-            if (HasGamepadGuid(config->m_Guid))
+            if (HasGamepadGuid(config))
             {
-                dmHID::GamepadGuid mapping_guid = GamepadGuidDDFToHID(config->m_Guid);
-                dmHID::FormatGamepadGuid(&mapping_guid, mapping_guid_string);
+                dmHID::FormatGamepadGuid(&config->m_Guid, mapping_guid_string);
             }
             else
             {
@@ -653,11 +594,10 @@ namespace dmInput
         delete binding;
     }
 
-    void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf)
+    void RegisterGamepads(HContext context, const dmInputDDF::GamepadMapsRuntime* ddf)
     {
-        const int count = ddf->m_Driver.m_Count + 1;
-
-        context->m_GamepadMaps.SetCapacity(dmMath::Max(1, count / 3), count);
+        const uint32_t count = ddf->m_Mappings.m_Count + 1;
+        context->m_GamepadMaps.SetCapacity(count);
 
         // Add a gamepad config that will be used when an unidentified gamepad
         // is connected. This will allow developers to at least read raw button,
@@ -674,13 +614,13 @@ namespace dmInput
         }
         context->m_GamepadMaps.Put(UNKNOWN_GAMEPAD_CONFIG_ID, unknownGamepadConfig);
 
-        for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
+        for (uint32_t i = 0; i < ddf->m_Mappings.m_Count; ++i)
         {
-            const dmInputDDF::GamepadMap& gamepad_map = ddf->m_Driver[i];
+            const dmInputDDF::GamepadMapRuntime& gamepad_map = ddf->m_Mappings[i];
             GamepadConfig config = {};
-            const bool use_runtime_dead_zone = HasGamepadGuid(gamepad_map.m_Guid) && gamepad_map.m_DeadZone == 0.0f;
+            const bool has_guid = gamepad_map.m_Guid.m_Count > 0;
+            const bool use_runtime_dead_zone = has_guid && gamepad_map.m_DeadZone == 0.0f;
             config.m_DeadZone = use_runtime_dead_zone ? context->m_GamepadDeadZone : gamepad_map.m_DeadZone;
-            config.m_Guid = gamepad_map.m_Guid;
             dmStrlCpy(config.m_DeviceName, gamepad_map.m_Device, sizeof(config.m_DeviceName));
             memset(config.m_Inputs, 0, sizeof(config.m_Inputs));
             for (uint32_t j = 0; j < (sizeof(config.m_Inputs) / sizeof(struct GamepadInput)); ++j)
@@ -717,35 +657,21 @@ namespace dmInput
                 }
             }
 
-            const bool has_guid = HasGamepadGuid(gamepad_map.m_Guid);
+            GamepadConfig gamepad_config = config;
+            gamepad_config.m_Legacy = has_guid ? 0 : 1;
+            gamepad_config.m_DeviceId = has_guid ? GamepadGuidHash32(gamepad_map.m_Guid.m_Data) : dmHashString32(gamepad_map.m_Device);
+
             if (has_guid)
             {
-                GamepadConfig guid_config = config;
-                guid_config.m_DeviceId = GamepadGuidToConfigId(gamepad_map.m_Guid);
-                guid_config.m_Legacy = 0;
-                if (context->m_GamepadMaps.Get(guid_config.m_DeviceId) == 0x0)
-                {
-                    context->m_GamepadMaps.Put(guid_config.m_DeviceId, guid_config);
-                }
-                else
-                {
-                    dmLogWarning("Gamepad GUID map for device '%s' already registered.", ddf->m_Driver[i].m_Device);
-                }
+                gamepad_config.m_Guid = GamepadGuidBytesToHID(gamepad_map.m_Guid.m_Data);
             }
-            else
+
+            if (context->m_GamepadMaps.Get(gamepad_config.m_DeviceId) != 0x0)
             {
-                GamepadConfig legacy_config = config;
-                legacy_config.m_DeviceId = dmHashString32(gamepad_map.m_Device);
-                legacy_config.m_Legacy = 1;
-                if (context->m_GamepadMaps.Get(legacy_config.m_DeviceId) == 0x0)
-                {
-                    context->m_GamepadMaps.Put(legacy_config.m_DeviceId, legacy_config);
-                }
-                else
-                {
-                    dmLogWarning("Gamepad legacy map for device '%s' already registered.", ddf->m_Driver[i].m_Device);
-                }
+                dmLogWarning("Gamepad map for device '%s' already registered.", gamepad_map.m_Device);
+                continue;
             }
+            context->m_GamepadMaps.Put(gamepad_config.m_DeviceId, gamepad_config);
         }
     }
 

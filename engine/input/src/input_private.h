@@ -131,7 +131,7 @@ namespace dmInput
     struct GamepadConfig
     {
         uint32_t m_DeviceId;
-        dmInputDDF::GamepadGuid m_Guid;
+        dmHID::GamepadGuid m_Guid;
         char m_DeviceName[dmHID::MAX_GAMEPAD_NAME_LENGTH];
         float m_DeadZone;
         uint8_t m_Legacy : 1;

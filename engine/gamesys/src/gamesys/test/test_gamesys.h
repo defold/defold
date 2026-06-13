@@ -173,7 +173,7 @@ protected:
     dmGui::HContext m_GuiContext;
     dmHID::HContext m_HidContext;
     dmInput::HContext m_InputContext;
-    dmInputDDF::GamepadMaps* m_GamepadMapsDDF;
+    dmInputDDF::GamepadMapsRuntime* m_GamepadMapsDDF;
     dmGameSystem::SpriteContext m_SpriteContext;
     dmGameSystem::CollectionProxyContext m_CollectionProxyContext;
     dmGameSystem::FactoryContext m_FactoryContext;
