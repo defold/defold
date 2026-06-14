@@ -149,52 +149,63 @@ local function find_existing_path(paths)
     return nil
 end
 
-local function get_ios_deploy_command()
+local function get_devicectl_command()
+    -- Optional explicit override via the Tools preference (e.g. point it at a
+    -- devicectl binary inside a specific Xcode).
     local prefs_path = editor.prefs.get("tools.ios-deploy-path")
     if #prefs_path > 0 then
         if editor.external_file_attributes(prefs_path).exists then
             return prefs_path
         else
-            print(("ios-deploy path defined in preferences does not exist: '%s'"):format(prefs_path))
+            print(("iOS install tool path defined in preferences does not exist: '%s'"):format(prefs_path))
             error(editor.bundle.abort_message)
         end
     end
-    local path = find_existing_path({{"which", "ios-deploy"}, "/opt/homebrew/bin/ios-deploy"})
+    -- `devicectl` is Apple's CoreDevice tool and ships inside Xcode. Prefer whatever
+    -- the active developer dir resolves, falling back to the default Xcode.app path
+    -- in case `xcode-select` points at the bare Command Line Tools.
+    local path = find_existing_path({
+        {"xcrun", "--find", "devicectl"},
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/devicectl"
+    })
     if path then
         return path
     else
-        print("Could not find 'ios-deploy' on this system, please install it and try again.\nIf it's already installed, configure its path in the Preferences' Tools pane.")
+        print("Could not find 'devicectl' on this system. Install Xcode and run\n  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer\nor configure a path in the Preferences' Tools pane.")
         error(editor.bundle.abort_message)
     end
 end
 
-local function get_ios_device(ios_deploy)
-    local success, output = pcall(editor.execute, ios_deploy, "--detect", "--json", "--timeout", "1", {reload_resources = false, out = "capture"})
+local function get_ios_device(devicectl)
+    local success, output = pcall(editor.execute, devicectl, "list", "devices", "--json-output", "-", {reload_resources = false, out = "capture"})
     if not success then
         print("Failed to list devices")
         error(editor.bundle.abort_message)
     end
-    local events = json.decode(output, {all=true})
-    for i = 1, #events do
-        local e = events[i]
-        if e.Event == "DeviceDetected" then
-            return {id = e.Device.DeviceIdentifier, label = e.Device.DeviceName}
+    local devices = json.decode(output).result.devices
+    for i = 1, #devices do
+        local d = devices[i]
+        if d.connectionProperties and d.connectionProperties.pairingState == "paired" then
+            return {id = d.identifier, label = (d.deviceProperties and d.deviceProperties.name) or d.identifier}
         end
     end
     print("No devices are connected")
     error(editor.bundle.abort_message)
 end
 
-local function install_ios_app(ios_deploy, device_id, app_path)
-    local success = pcall(editor.execute, ios_deploy, "--id", device_id, "--bundle", app_path, {reload_resources = false})
+-- Installs the app and returns its bundle identifier (devicectl launches by id).
+local function install_ios_app(devicectl, device_id, app_path)
+    local success, output = pcall(editor.execute, devicectl, "device", "install", "app", "--device", device_id, app_path, "--json-output", "-", {reload_resources = false, out = "capture"})
     if not success then
         print("Failed to install the app")
         error(editor.bundle.abort_message)
     end
+    local apps = json.decode(output).result.installedApplications
+    return apps and apps[1] and apps[1].bundleID
 end
 
-local function launch_ios_app(ios_deploy, device_id, app_path)
-    local success = pcall(editor.execute, ios_deploy, "--id", device_id, "--bundle", app_path, "--justlaunch", "--noinstall", {reload_resources = false})
+local function launch_ios_app(devicectl, device_id, bundle_id)
+    local success = pcall(editor.execute, devicectl, "device", "process", "launch", "--device", device_id, bundle_id, {reload_resources = false})
     if not success then
         print("Failed to launch the app")
         error(editor.bundle.abort_message)
@@ -310,18 +321,22 @@ local function bundle_ios(show_dialog)
     })
 
     if config.install then
-        print("Resolving ios-deploy location...")
-        local ios_deploy = get_ios_deploy_command()
-        print(("Resolved to '%s', listing devices..."):format(ios_deploy))
-        local device = get_ios_device(ios_deploy)
+        print("Resolving devicectl location...")
+        local devicectl = get_devicectl_command()
+        print(("Resolved to '%s', listing devices..."):format(devicectl))
+        local device = get_ios_device(devicectl)
         print(("Installing on '%s'"):format(device.label))
         local project_title = editor.get("/game.project", "project.title")
         local app_path = output_directory .. "/" .. project_title .. ".app"
-        install_ios_app(ios_deploy, device.id, app_path)
+        local bundle_id = install_ios_app(devicectl, device.id, app_path)
         if config.launch then
-            print(("Launching %s..."):format(project_title))
-            launch_ios_app(ios_deploy, device.id, app_path)
-            print("Install and launch done.")
+            if bundle_id then
+                print(("Launching %s..."):format(project_title))
+                launch_ios_app(devicectl, device.id, bundle_id)
+                print("Install and launch done.")
+            else
+                print("Install done, but could not determine the bundle identifier to launch.")
+            end
         else
             print("Install done.")
         end
