@@ -2013,9 +2013,8 @@ namespace dmScript
         return true;
     }
 
-    void TeardownCallback(LuaCallbackInfo* cbk)
+    void TeardownCallback(lua_State* L)
     {
-        lua_State* L = cbk->m_L;
         // [-2] old instance
         // [-1] context table
         lua_pop(L, 1);
@@ -2056,7 +2055,13 @@ namespace dmScript
 
         // [-2] old instance
         // [-1] context table
-        TeardownCallback(cbk);
+        // NOTE: Use the lua_State captured at the top of this function, not
+        // cbk->m_L. User code run by PCall above may have unreferenced this
+        // callback (e.g. cancelling the timer that owns it from within its own
+        // callback); the LuaCallbackInfo is a Lua userdata, so a GC step during
+        // that code can then free cbk. Re-reading cbk->m_L here would dereference
+        // freed memory. The captured L (the main thread) stays valid regardless.
+        TeardownCallback(L);
 
         return ret != 0 ? false : true;
     }
