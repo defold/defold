@@ -2013,13 +2013,24 @@ namespace dmScript
         return true;
     }
 
-    void TeardownCallback(lua_State* L)
+    // Internal teardown using an explicit lua_State. InvokeCallback passes the
+    // lua_State it captured *before* PCall, because user code run by PCall may
+    // have freed the LuaCallbackInfo userdata (e.g. cancelling, from within its
+    // own callback, the timer that owns it). Re-reading cbk->m_L after that would
+    // dereference freed memory. The captured L (the main thread) stays valid.
+    static void TeardownCallbackWithState(lua_State* L)
     {
         // [-2] old instance
         // [-1] context table
         lua_pop(L, 1);
 
         SetInstance(L);
+    }
+
+    void TeardownCallback(LuaCallbackInfo* cbk)
+    {
+        // Public API: keep the existing signature for external callers.
+        TeardownCallbackWithState(cbk->m_L);
     }
 
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
@@ -2055,13 +2066,9 @@ namespace dmScript
 
         // [-2] old instance
         // [-1] context table
-        // NOTE: Use the lua_State captured at the top of this function, not
-        // cbk->m_L. User code run by PCall above may have unreferenced this
-        // callback (e.g. cancelling the timer that owns it from within its own
-        // callback); the LuaCallbackInfo is a Lua userdata, so a GC step during
-        // that code can then free cbk. Re-reading cbk->m_L here would dereference
-        // freed memory. The captured L (the main thread) stays valid regardless.
-        TeardownCallback(L);
+        // Use the lua_State captured before PCall, not cbk->m_L: PCall may have run
+        // user code that freed the callback userdata (see TeardownCallbackWithState).
+        TeardownCallbackWithState(L);
 
         return ret != 0 ? false : true;
     }
