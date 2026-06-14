@@ -185,7 +185,10 @@ local function get_ios_device(devicectl)
     local devices = json.decode(output).result.devices
     for i = 1, #devices do
         local d = devices[i]
-        if d.connectionProperties and d.connectionProperties.pairingState == "paired" then
+        -- `list devices` returns every paired CoreDevice target (Apple Watch, Apple TV,
+        -- Mac, other iPads/iPhones), so restrict the pick to deployable iOS devices.
+        if d.connectionProperties and d.connectionProperties.pairingState == "paired"
+            and d.hardwareProperties and d.hardwareProperties.platform == "iOS" then
             return {id = d.identifier, label = (d.deviceProperties and d.deviceProperties.name) or d.identifier}
         end
     end
