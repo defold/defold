@@ -54,7 +54,7 @@ namespace dmGraphics
     };
 
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable();
-    static bool                         NullIsSupported();
+    static bool                         NullIsSupported(bool explicit_selection);
     static HContext                     NullGetContext();
 
     static GraphicsAdapter g_null_adapter(ADAPTER_FAMILY_NULL);
@@ -152,8 +152,9 @@ namespace dmGraphics
         return 0x0;
     }
 
-    static bool NullIsSupported()
+    static bool NullIsSupported(bool explicit_selection)
     {
+        (void) explicit_selection;
         return true;
     }
 

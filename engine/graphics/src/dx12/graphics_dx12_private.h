@@ -274,7 +274,7 @@ namespace dmGraphics
     void            SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc);
     HRESULT         CreateShaderModule(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader);
 
-    bool            DX12IsSupported();
+    bool            DX12IsSupported(bool explicit_selection);
     DXGI_FORMAT     DX12GetBackBufferFormat();
 
     DX12Context*    DX12NativeCreate(const struct ContextParams& params);

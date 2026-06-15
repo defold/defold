@@ -15,6 +15,7 @@
 #include <dlfcn.h>
 #include <android_native_app_glue.h>
 #include <dlib/log.h>
+#include <dlib/time.h>
 #include <dmsdk/dlib/android.h>
 #include <platform/platform_window_android.h>
 
@@ -149,6 +150,9 @@ namespace dmGraphics
 {
     void* g_lib_vulkan = 0;
 
+    static const uint32_t VKQUALITY_RECOMMENDATION_RETRY_COUNT       = 10;
+    static const uint32_t VKQUALITY_RECOMMENDATION_RETRY_INTERVAL_US = 25 * 1000;
+
     enum VkQualityInitResult
     {
         VKQUALITY_INIT_SUCCESS                  = 0,
@@ -244,20 +248,50 @@ namespace dmGraphics
         }
     }
 
-    bool AndroidVulkanIsRecommended()
+    bool AndroidVulkanIsRecommended(bool explicit_vulkan_requested)
     {
         int32_t init_result = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
         int32_t recommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
         if (!AndroidGetVkQualityResult(&init_result, &recommendation))
         {
+            // MVP1 policy: missing or unavailable VkQuality must not disable Vulkan.
+            // Warn and keep Defold's existing Vulkan support probe as the source of truth.
             dmLogWarning("VkQuality result unavailable, allowing Vulkan support probe.");
             return true;
         }
 
         if (init_result != VKQUALITY_INIT_SUCCESS)
         {
+            // MVP1 policy: missing, invalid, or incompatible VkQuality data is warning-only.
+            // We still allow the existing Vulkan support probe to decide availability.
             dmLogWarning("VkQuality initialization failed (%d), allowing Vulkan support probe.", init_result);
             return true;
+        }
+
+        if (recommendation == VKQUALITY_RECOMMENDATION_NOT_READY)
+        {
+            for (uint32_t i = 0; i < VKQUALITY_RECOMMENDATION_RETRY_COUNT; ++i)
+            {
+                dmTime::Sleep(VKQUALITY_RECOMMENDATION_RETRY_INTERVAL_US);
+                if (!AndroidGetVkQualityResult(&init_result, &recommendation))
+                {
+                    dmLogWarning("VkQuality result became unavailable while waiting for a recommendation, allowing Vulkan support probe.");
+                    return true;
+                }
+
+                if (init_result != VKQUALITY_INIT_SUCCESS)
+                {
+                    // MVP1 policy: missing, invalid, or incompatible VkQuality data is warning-only.
+                    // We still allow the existing Vulkan support probe to decide availability.
+                    dmLogWarning("VkQuality initialization failed (%d) while waiting for a recommendation, allowing Vulkan support probe.", init_result);
+                    return true;
+                }
+
+                if (recommendation != VKQUALITY_RECOMMENDATION_NOT_READY)
+                {
+                    break;
+                }
+            }
         }
 
         if (recommendation >= VKQUALITY_RECOMMENDATION_VULKAN_BECAUSE_DEVICE_MATCH &&
@@ -270,7 +304,25 @@ namespace dmGraphics
         if (recommendation >= VKQUALITY_RECOMMENDATION_GLES_BECAUSE_OLD_DEVICE &&
             recommendation <= VKQUALITY_RECOMMENDATION_GLES_BECAUSE_PREDICTION_MATCH)
         {
+            if (explicit_vulkan_requested)
+            {
+                dmLogWarning("VkQuality recommends OpenGL ES (%s), but Vulkan was explicitly requested. Allowing Vulkan support probe.", AndroidVkQualityRecommendationToString(recommendation));
+                return true;
+            }
+
             dmLogInfo("VkQuality recommends OpenGL ES (%s), disabling Vulkan adapter.", AndroidVkQualityRecommendationToString(recommendation));
+            return false;
+        }
+
+        if (recommendation == VKQUALITY_RECOMMENDATION_NOT_READY)
+        {
+            if (explicit_vulkan_requested)
+            {
+                dmLogWarning("VkQuality recommendation was not ready after waiting, but Vulkan was explicitly requested. Allowing Vulkan support probe.");
+                return true;
+            }
+
+            dmLogWarning("VkQuality recommendation was not ready after waiting, disabling Vulkan adapter.");
             return false;
         }
 

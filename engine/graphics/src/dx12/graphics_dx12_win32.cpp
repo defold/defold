@@ -215,8 +215,9 @@ void DX12NativeDestroy(DX12Context* context)
     delete context;
 }
 
-bool DX12IsSupported()
+bool DX12IsSupported(bool explicit_selection)
 {
+    (void) explicit_selection;
     IDXGIAdapter1* adapter = CreateDeviceAdapter(CreateDXGIFactory());
     if (adapter)
     {

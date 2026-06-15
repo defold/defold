@@ -108,7 +108,7 @@ static WGPUTextureUsage g_rendertarget_usage = WGPUTextureUsage_RenderAttachment
 #endif
 
 static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable();
-static bool WebGPUIsSupported();
+static bool WebGPUIsSupported(bool explicit_selection);
 static HContext WebGPUGetContext();
 static GraphicsAdapter g_webgpu_adapter(ADAPTER_FAMILY_WEBGPU);
 static WebGPUContext* g_WebGPUContext = NULL;
@@ -1475,8 +1475,9 @@ static HContext WebGPUNewContext(const ContextParams& params)
     return NULL;
 }
 
-static bool WebGPUIsSupported()
+static bool WebGPUIsSupported(bool explicit_selection)
 {
+    (void) explicit_selection;
     TRACE_CALL;
     return MAIN_THREAD_EM_ASM_INT({
         if (typeof window !== 'undefined' && typeof document !== 'undefined') {

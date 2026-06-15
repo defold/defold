@@ -68,11 +68,14 @@ namespace dmGraphics
 
             while(next)
             {
-                if (next->m_Family == family && next->m_IsSupportedCb())
+                if (next->m_Family == family)
                 {
-                    g_functions = next->m_RegisterCb();
-                    g_adapter   = next;
-                    return true;
+                    if (next->m_IsSupportedCb(true))
+                    {
+                        g_functions = next->m_RegisterCb();
+                        g_adapter   = next;
+                        return true;
+                    }
                 }
                 next = next->m_Next;
             }
@@ -88,7 +91,7 @@ namespace dmGraphics
 
         while(next)
         {
-            bool is_supported = next->m_IsSupportedCb();
+            bool is_supported = next->m_IsSupportedCb(false);
             if (is_supported && ((selected != 0x0 && next->m_Priority < selected->m_Priority) || selected == 0x0))
             {
                 selected = next;

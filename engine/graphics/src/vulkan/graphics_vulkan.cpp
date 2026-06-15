@@ -46,7 +46,7 @@ DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 namespace dmGraphics
 {
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
-    static bool                         VulkanIsSupported();
+    static bool                         VulkanIsSupported(bool explicit_selection);
     static HContext                     VulkanGetContext();
     static GraphicsAdapter g_vulkan_adapter(ADAPTER_FAMILY_VULKAN);
 
@@ -1569,7 +1569,7 @@ bail:
         return false;
     }
 
-    static bool VulkanIsSupported()
+    static bool VulkanIsSupported(bool explicit_selection)
     {
 #if defined(DM_PLATFORM_VENDOR)
         // If we are on a private platform, and this driver is registered, then it's already supported.
@@ -1581,7 +1581,7 @@ bail:
 #else
 
     #if ANDROID
-        if (!AndroidVulkanIsRecommended())
+        if (!AndroidVulkanIsRecommended(explicit_selection))
         {
             return false;
         }
