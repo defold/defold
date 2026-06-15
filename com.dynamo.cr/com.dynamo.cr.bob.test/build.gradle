@@ -3,6 +3,7 @@ apply from: '../com.dynamo.cr.bob/build.gradle'
 def testClassesDir = file("$testDir/build")
 def testTmpDir = file("$testDir/tmp")
 def DM_BOB_BUNDLERTEST_ONLY_HOST = project.hasProperty('DM_BOB_BUNDLERTEST_ONLY_HOST') ? project.property('DM_BOB_BUNDLERTEST_ONLY_HOST') : ''
+def DM_BOB_LARGE_ARCHIVE_TEST = (project.hasProperty('DM_BOB_LARGE_ARCHIVE_TEST') ? project.property('DM_BOB_LARGE_ARCHIVE_TEST') : System.getenv('DM_BOB_LARGE_ARCHIVE_TEST') ?: '').toString()
 
 task cleanTestDirs(type: Delete) {
     delete testClassesDir, testTmpDir
@@ -66,6 +67,7 @@ task testJar(type: Test, dependsOn: createTestJar) {
         } else {
             systemProperty 'DM_BOB_BUNDLERTEST_ONLY_HOST', DM_BOB_BUNDLERTEST_ONLY_HOST
         }
+        systemProperty 'DM_BOB_LARGE_ARCHIVE_TEST', DM_BOB_LARGE_ARCHIVE_TEST
     }
 
     testLogging {
@@ -86,6 +88,10 @@ task testJar(type: Test, dependsOn: createTestJar) {
 // old-fashioned way to run a single test in jar
 task runSingleTest(type: Test, dependsOn: createTestJar) {
     useJUnit()
+
+    doFirst {
+        systemProperty 'DM_BOB_LARGE_ARCHIVE_TEST', DM_BOB_LARGE_ARCHIVE_TEST
+    }
 
     testLogging {
         events 'passed', 'skipped', 'failed', 'standardOut'

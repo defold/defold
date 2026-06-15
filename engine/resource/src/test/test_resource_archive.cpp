@@ -13,6 +13,16 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <stdio.h>
+#include <sys/types.h>
+#if defined(_WIN32)
+#include <io.h>
+#include <dlib/safe_windows.h>
+#ifndef _MSC_VER
+#include <windows.h>
+#endif
+#include <winioctl.h>
+#endif
 #include "../resource.h"
 #include "../resource_manifest.h"
 #include "../resource_manifest_private.h"
@@ -104,6 +114,78 @@ static const uint8_t compressed_content_hash[][20] = {
     {  16U, 184U, 254U, 147U, 172U,  48U,  89U, 214U,  29U,  90U, 128U, 156U,  37U,  60U, 100U,  69U, 246U, 252U, 122U,  99U },
     {  90U,  15U,  50U,  67U, 184U,   5U, 147U, 194U, 160U, 203U,  45U, 150U,  20U, 194U,  55U, 123U, 189U, 218U, 105U, 103U }
 };
+
+static int TestSeekFile64(FILE* file, uint64_t offset)
+{
+#if defined(_WIN32)
+    return _fseeki64(file, (int64_t)offset, SEEK_SET);
+#else
+    return fseeko(file, (off_t)offset, SEEK_SET);
+#endif
+}
+
+static bool TestMarkFileSparse(FILE* file)
+{
+#if defined(_WIN32)
+    HANDLE handle = (HANDLE)_get_osfhandle(_fileno(file));
+    if (handle == INVALID_HANDLE_VALUE)
+    {
+        return false;
+    }
+
+    DWORD bytes_returned = 0;
+    return DeviceIoControl(handle, FSCTL_SET_SPARSE, 0, 0, 0, 0, &bytes_returned, 0) != 0;
+#else
+    return true;
+#endif
+}
+
+static bool WriteLargeOffsetArchiveIndex(const char* archive_path, const uint8_t* hash, uint32_t hash_len, uint32_t resource_offset, uint32_t resource_size)
+{
+    FILE* file = fopen(archive_path, "wb");
+    if (!file)
+    {
+        return false;
+    }
+
+    dmResourceArchive::ArchiveIndex header;
+    memset(&header, 0, sizeof(header));
+    header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION);
+    header.m_EntryDataCount = dmEndian::ToNetwork(1U);
+    header.m_EntryDataOffset = dmEndian::ToNetwork((uint32_t)(sizeof(dmResourceArchive::ArchiveIndex) + dmResourceArchive::MAX_HASH));
+    header.m_HashOffset = dmEndian::ToNetwork((uint32_t)sizeof(dmResourceArchive::ArchiveIndex));
+    header.m_HashLength = dmEndian::ToNetwork(hash_len);
+
+    uint8_t hash_buffer[dmResourceArchive::MAX_HASH] = { 0 };
+    memcpy(hash_buffer, hash, hash_len);
+
+    dmResourceArchive::EntryData entry;
+    entry.m_ResourceDataOffset = dmEndian::ToNetwork(resource_offset);
+    entry.m_ResourceSize = dmEndian::ToNetwork(resource_size);
+    entry.m_ResourceCompressedSize = dmEndian::ToNetwork(0xFFFFFFFFU);
+    entry.m_Flags = dmEndian::ToNetwork(0U);
+
+    bool ok = fwrite(&header, 1, sizeof(header), file) == sizeof(header);
+    ok = ok && fwrite(hash_buffer, 1, sizeof(hash_buffer), file) == sizeof(hash_buffer);
+    ok = ok && fwrite(&entry, 1, sizeof(entry), file) == sizeof(entry);
+    fclose(file);
+    return ok;
+}
+
+static bool WriteLargeOffsetArchiveData(const char* resource_path, uint32_t resource_offset, const uint8_t* payload, uint32_t payload_size)
+{
+    FILE* file = fopen(resource_path, "wb");
+    if (!file)
+    {
+        return false;
+    }
+
+    bool ok = TestMarkFileSparse(file);
+    ok = ok && TestSeekFile64(file, resource_offset) == 0;
+    ok = ok && fwrite(payload, 1, payload_size, file) == payload_size;
+    fclose(file);
+    return ok;
+}
 
 bool IsLiveUpdateResource(dmhash_t lu_path_hash)
 {
@@ -377,6 +459,52 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
 
     dmResourceArchive::Delete(archive);
+}
+
+// Verifies that disk-backed archive reads can seek to resources whose data starts beyond 2 GiB.
+TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove2GiB)
+{
+    const uint32_t resource_offset = 0x80000010U;
+    const uint8_t hash[20] = {
+        0x90, 0x9b, 0x2f, 0x3a, 0x7d, 0x0e, 0x41, 0x87, 0xa1, 0x54,
+        0x98, 0x77, 0x65, 0x43, 0x21, 0x10, 0xca, 0xfe, 0xba, 0xbe
+    };
+    const uint8_t payload[] = { 0xde, 0xad, 0xbe, 0xef, 0x11, 0x22, 0x33, 0x44 };
+
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/large_offset_sparse.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/large_offset_sparse.arcd");
+
+    remove(archive_path);
+    remove(resource_path);
+
+    ASSERT_TRUE(WriteLargeOffsetArchiveIndex(archive_path, hash, sizeof(hash), resource_offset, sizeof(payload)));
+    ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, resource_offset, payload, sizeof(payload)));
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    dmResourceArchive::EntryData* entry = 0;
+    result = dmResourceArchive::FindEntry(archive, hash, sizeof(hash), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    uint8_t buffer[sizeof(payload)] = { 0 };
+    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(payload, buffer, sizeof(payload));
+
+    uint8_t partial_buffer[4] = { 0 };
+    uint32_t nread = 0;
+    result = dmResourceArchive::ReadEntryPartial(archive, entry, 2, sizeof(partial_buffer), partial_buffer, &nread);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ((uint32_t)sizeof(partial_buffer), nread);
+    ASSERT_ARRAY_EQ_LEN(payload + 2, partial_buffer, sizeof(partial_buffer));
+
+    dmResourceArchive::Delete(archive);
+    remove(archive_path);
+    remove(resource_path);
 }
 
 
