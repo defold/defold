@@ -126,16 +126,17 @@ namespace dmInput
         uint16_t m_Negate : 1;
         uint16_t m_Scale : 1;
         uint16_t m_Clamp : 1;
+        uint16_t : 11;
     };
 
     struct GamepadConfig
     {
-        uint32_t m_DeviceId;
         dmHID::GamepadGuid m_Guid;
         char m_DeviceName[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-        float m_DeadZone;
-        uint8_t m_Legacy : 1;
         GamepadInput m_Inputs[dmInputDDF::MAX_GAMEPAD_COUNT];
+        float m_DeadZone; // Deprecated
+        uint32_t m_DeviceId; // hash of device id
+        uint8_t m_Legacy : 1;
     };
 
     struct Context

@@ -636,20 +636,23 @@ namespace dmInput
             }
 
             GamepadConfig gamepad_config = config;
+            const uint32_t device_id = has_guid
+                ? GamepadGuidHash32(gamepad_map.m_Guid.m_Data)
+                : dmHashString32(gamepad_map.m_Device);
             gamepad_config.m_Legacy = has_guid ? 0 : 1;
-            gamepad_config.m_DeviceId = has_guid ? GamepadGuidHash32(gamepad_map.m_Guid.m_Data) : dmHashString32(gamepad_map.m_Device);
+            gamepad_config.m_DeviceId = device_id;
 
             if (has_guid)
             {
                 gamepad_config.m_Guid = GamepadGuidBytesToHID(gamepad_map.m_Guid.m_Data);
             }
 
-            if (context->m_GamepadMaps.Get(gamepad_config.m_DeviceId) != 0x0)
+            if (context->m_GamepadMaps.Get(device_id) != 0x0)
             {
                 dmLogWarning("Gamepad map for device '%s' already registered.", gamepad_map.m_Device);
                 continue;
             }
-            context->m_GamepadMaps.Put(gamepad_config.m_DeviceId, gamepad_config);
+            context->m_GamepadMaps.Put(device_id, gamepad_config);
         }
     }
 
