@@ -14,6 +14,7 @@
 
 #include <dlfcn.h>
 #include <android_native_app_glue.h>
+#include <dlib/log.h>
 #include <dmsdk/dlib/android.h>
 #include <platform/platform_window_android.h>
 
@@ -147,6 +148,135 @@ PFN_vkGetFenceStatus vkGetFenceStatus;
 namespace dmGraphics
 {
     void* g_lib_vulkan = 0;
+
+    enum VkQualityInitResult
+    {
+        VKQUALITY_INIT_SUCCESS                  = 0,
+        VKQUALITY_ERROR_INITIALIZATION_FAILURE  = -1,
+        VKQUALITY_ERROR_NO_VULKAN              = -2,
+        VKQUALITY_ERROR_INVALID_DATA_VERSION   = -3,
+        VKQUALITY_ERROR_INVALID_DATA_FILE      = -4,
+        VKQUALITY_ERROR_MISSING_DATA_FILE      = -5
+    };
+
+    enum VkQualityRecommendation
+    {
+        VKQUALITY_RECOMMENDATION_NOT_READY                       = -2,
+        VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED           = -1,
+        VKQUALITY_RECOMMENDATION_VULKAN_BECAUSE_DEVICE_MATCH     = 0,
+        VKQUALITY_RECOMMENDATION_VULKAN_BECAUSE_PREDICTION_MATCH = 1,
+        VKQUALITY_RECOMMENDATION_VULKAN_BECAUSE_FUTURE_ANDROID   = 2,
+        VKQUALITY_RECOMMENDATION_GLES_BECAUSE_OLD_DEVICE         = 3,
+        VKQUALITY_RECOMMENDATION_GLES_BECAUSE_OLD_DRIVER         = 4,
+        VKQUALITY_RECOMMENDATION_GLES_BECAUSE_NO_DEVICE_MATCH    = 5,
+        VKQUALITY_RECOMMENDATION_GLES_BECAUSE_PREDICTION_MATCH   = 6
+    };
+
+    static bool AndroidCallDefoldActivityStaticInt(const char* method_name, int32_t* value)
+    {
+        dmAndroid::ThreadAttacher thread;
+        JNIEnv* env = thread.GetEnv();
+        if (!env)
+        {
+            return false;
+        }
+
+        jclass activity_class = dmAndroid::LoadClass(env, "com.dynamo.android.DefoldActivity");
+        if (env->ExceptionCheck() || !activity_class)
+        {
+            env->ExceptionClear();
+            return false;
+        }
+
+        jmethodID method_id = env->GetStaticMethodID(activity_class, method_name, "()I");
+        if (env->ExceptionCheck() || !method_id)
+        {
+            env->ExceptionClear();
+            env->DeleteLocalRef(activity_class);
+            return false;
+        }
+
+        jint result = env->CallStaticIntMethod(activity_class, method_id);
+        if (env->ExceptionCheck())
+        {
+            env->ExceptionClear();
+            env->DeleteLocalRef(activity_class);
+            return false;
+        }
+
+        env->DeleteLocalRef(activity_class);
+        *value = (int32_t) result;
+        return true;
+    }
+
+    bool AndroidGetVkQualityResult(int32_t* init_result, int32_t* recommendation)
+    {
+        assert(init_result);
+        assert(recommendation);
+
+        if (!AndroidCallDefoldActivityStaticInt("getVkQualityInitResult", init_result))
+        {
+            return false;
+        }
+
+        if (!AndroidCallDefoldActivityStaticInt("getVkQualityRecommendation", recommendation))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    static const char* AndroidVkQualityRecommendationToString(int32_t recommendation)
+    {
+        switch (recommendation)
+        {
+            case VKQUALITY_RECOMMENDATION_NOT_READY:                       return "not ready";
+            case VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED:           return "not initialized";
+            case VKQUALITY_RECOMMENDATION_VULKAN_BECAUSE_DEVICE_MATCH:     return "Vulkan because device match";
+            case VKQUALITY_RECOMMENDATION_VULKAN_BECAUSE_PREDICTION_MATCH: return "Vulkan because prediction match";
+            case VKQUALITY_RECOMMENDATION_VULKAN_BECAUSE_FUTURE_ANDROID:   return "Vulkan because future Android";
+            case VKQUALITY_RECOMMENDATION_GLES_BECAUSE_OLD_DEVICE:         return "GLES because old device";
+            case VKQUALITY_RECOMMENDATION_GLES_BECAUSE_OLD_DRIVER:         return "GLES because old driver";
+            case VKQUALITY_RECOMMENDATION_GLES_BECAUSE_NO_DEVICE_MATCH:    return "GLES because no device match";
+            case VKQUALITY_RECOMMENDATION_GLES_BECAUSE_PREDICTION_MATCH:   return "GLES because prediction match";
+            default:                                                       return "unknown";
+        }
+    }
+
+    bool AndroidVulkanIsRecommended()
+    {
+        int32_t init_result = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
+        int32_t recommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
+        if (!AndroidGetVkQualityResult(&init_result, &recommendation))
+        {
+            dmLogWarning("VkQuality result unavailable, allowing Vulkan support probe.");
+            return true;
+        }
+
+        if (init_result != VKQUALITY_INIT_SUCCESS)
+        {
+            dmLogWarning("VkQuality initialization failed (%d), allowing Vulkan support probe.", init_result);
+            return true;
+        }
+
+        if (recommendation >= VKQUALITY_RECOMMENDATION_VULKAN_BECAUSE_DEVICE_MATCH &&
+            recommendation <= VKQUALITY_RECOMMENDATION_VULKAN_BECAUSE_FUTURE_ANDROID)
+        {
+            dmLogInfo("VkQuality recommends Vulkan (%s).", AndroidVkQualityRecommendationToString(recommendation));
+            return true;
+        }
+
+        if (recommendation >= VKQUALITY_RECOMMENDATION_GLES_BECAUSE_OLD_DEVICE &&
+            recommendation <= VKQUALITY_RECOMMENDATION_GLES_BECAUSE_PREDICTION_MATCH)
+        {
+            dmLogInfo("VkQuality recommends OpenGL ES (%s), disabling Vulkan adapter.", AndroidVkQualityRecommendationToString(recommendation));
+            return false;
+        }
+
+        dmLogWarning("VkQuality recommendation is %s (%d), allowing Vulkan support probe.", AndroidVkQualityRecommendationToString(recommendation), recommendation);
+        return true;
+    }
 
     VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {

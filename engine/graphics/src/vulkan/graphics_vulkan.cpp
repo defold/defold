@@ -30,6 +30,10 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+#if ANDROID
+#include "android/graphics_vulkan_android.h"
+#endif
+
 #include <platform/platform_window_vulkan.h>
 
 #ifdef __MACH__
@@ -1577,6 +1581,11 @@ bail:
 #else
 
     #if ANDROID
+        if (!AndroidVulkanIsRecommended())
+        {
+            return false;
+        }
+
         if (!LoadVulkanLibrary())
         {
             dmLogError("Could not load Vulkan functions.");
