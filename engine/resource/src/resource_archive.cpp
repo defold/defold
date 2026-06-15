@@ -12,11 +12,22 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if defined(__linux__) && !defined(__ANDROID__) && !defined(_LARGEFILE64_SOURCE)
+#define _LARGEFILE64_SOURCE 1
+#endif
+
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#if defined(__ANDROID__)
+#include <fcntl.h>
+#include <unistd.h>
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
+#endif
 
 #include "resource.h"
 #include "resource_archive.h"
@@ -44,10 +55,37 @@ namespace dmResourceArchive
 {
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
 
+    static FILE* OpenResourceData(const char* path)
+    {
+#if defined(__ANDROID__)
+        int fd = open(path, O_RDONLY | O_LARGEFILE);
+        if (fd < 0)
+        {
+            return 0;
+        }
+        FILE* file = fdopen(fd, "rb");
+        if (!file)
+        {
+            close(fd);
+            return 0;
+        }
+        setvbuf(file, 0, _IONBF, 0);
+        return file;
+#elif defined(__linux__)
+        return fopen64(path, "rb");
+#else
+        return fopen(path, "rb");
+#endif
+    }
+
     static int SeekResourceData(FILE* file, uint64_t offset)
     {
 #if defined(_WIN32)
         return _fseeki64(file, (int64_t)offset, SEEK_SET);
+#elif defined(__ANDROID__)
+        return lseek64(fileno(file), (off64_t)offset, SEEK_SET) < 0 ? -1 : 0;
+#elif defined(__linux__)
+        return fseeko64(file, (off64_t)offset, SEEK_SET);
 #else
         return fseeko(file, (off_t)offset, SEEK_SET);
 #endif
@@ -142,7 +180,7 @@ namespace dmResourceArchive
         // Mark that this archive was loaded from file, and not memory-mapped
         ai->m_Userdata = FILE_LOADED_INDICATOR;
 
-        f_data = fopen(data_file_path, "rb");
+        f_data = OpenResourceData(data_file_path);
 
         if (!f_data)
         {

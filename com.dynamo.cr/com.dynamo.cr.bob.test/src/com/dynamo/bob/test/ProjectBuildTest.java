@@ -57,7 +57,6 @@ import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 public class ProjectBuildTest {
 
-    private static final String LARGE_ARCHIVE_TEST_PROPERTY = "DM_BOB_LARGE_ARCHIVE_TEST";
     private static final int LARGE_ARCHIVE_CUSTOM_RESOURCE_COUNT = 6;
     private static final long LARGE_ARCHIVE_CUSTOM_RESOURCE_SIZE = 16L;
     private static final int LARGE_ARCHIVE_RESOURCE_PADDING = 512 * 1024 * 1024;
@@ -424,9 +423,6 @@ public class ProjectBuildTest {
     // contains at least one unsigned resource offset above that boundary.
     public void testArchiveBuildGeneratedLargeCustomResources() throws Exception {
         Assume.assumeTrue(
-                "Set " + LARGE_ARCHIVE_TEST_PROPERTY + "=0 to skip the generated >2 GiB archive test.",
-                isLargeArchiveTestEnabled());
-        Assume.assumeTrue(
                 "Generated large archive test needs at least 6 GiB of free temp disk space.",
                 new File(contentRoot).getUsableSpace() >= MIN_LARGE_ARCHIVE_TEST_FREE_SPACE);
 
@@ -445,18 +441,6 @@ public class ProjectBuildTest {
         } finally {
             FileUtils.deleteDirectory(new File(contentRoot));
         }
-    }
-
-    private static boolean isLargeArchiveTestEnabled() {
-        String value = System.getProperty(LARGE_ARCHIVE_TEST_PROPERTY);
-        if (value == null) {
-            value = System.getenv(LARGE_ARCHIVE_TEST_PROPERTY);
-        }
-        return !isFalsey(value);
-    }
-
-    private static boolean isFalsey(String value) {
-        return value != null && (value.equals("0") || value.equalsIgnoreCase("false") || value.equalsIgnoreCase("no"));
     }
 
     private void createGeneratedLargeCustomResourceArchiveProject() throws IOException {

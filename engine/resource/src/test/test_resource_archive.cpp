@@ -12,6 +12,10 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if defined(__linux__) && !defined(__ANDROID__) && !defined(_LARGEFILE64_SOURCE)
+#define _LARGEFILE64_SOURCE 1
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -22,6 +26,12 @@
 #include <windows.h>
 #endif
 #include <winioctl.h>
+#elif defined(__ANDROID__)
+#include <fcntl.h>
+#include <unistd.h>
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
 #endif
 #include "../resource.h"
 #include "../resource_manifest.h"
@@ -115,10 +125,37 @@ static const uint8_t compressed_content_hash[][20] = {
     {  90U,  15U,  50U,  67U, 184U,   5U, 147U, 194U, 160U, 203U,  45U, 150U,  20U, 194U,  55U, 123U, 189U, 218U, 105U, 103U }
 };
 
+static FILE* TestOpenLargeFileForWrite(const char* path)
+{
+#if defined(__ANDROID__)
+    int fd = open(path, O_CREAT | O_TRUNC | O_WRONLY | O_LARGEFILE, 0666);
+    if (fd < 0)
+    {
+        return 0;
+    }
+    FILE* file = fdopen(fd, "wb");
+    if (!file)
+    {
+        close(fd);
+        return 0;
+    }
+    setvbuf(file, 0, _IONBF, 0);
+    return file;
+#elif defined(__linux__)
+    return fopen64(path, "wb");
+#else
+    return fopen(path, "wb");
+#endif
+}
+
 static int TestSeekFile64(FILE* file, uint64_t offset)
 {
 #if defined(_WIN32)
     return _fseeki64(file, (int64_t)offset, SEEK_SET);
+#elif defined(__ANDROID__)
+    return lseek64(fileno(file), (off64_t)offset, SEEK_SET) < 0 ? -1 : 0;
+#elif defined(__linux__)
+    return fseeko64(file, (off64_t)offset, SEEK_SET);
 #else
     return fseeko(file, (off_t)offset, SEEK_SET);
 #endif
@@ -174,7 +211,7 @@ static bool WriteLargeOffsetArchiveIndex(const char* archive_path, const uint8_t
 
 static bool WriteLargeOffsetArchiveData(const char* resource_path, uint32_t resource_offset, const uint8_t* payload, uint32_t payload_size)
 {
-    FILE* file = fopen(resource_path, "wb");
+    FILE* file = TestOpenLargeFileForWrite(resource_path);
     if (!file)
     {
         return false;
@@ -463,7 +500,7 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
 
 // Tests that file-backed archive reads treat the 32-bit resource data offset as unsigned.
 // It writes a sparse .arcd payload at 0x80000010 and verifies both full and partial
-// reads seek to that position instead of using a signed 32-bit fseek offset.
+// reads seek to that position instead of using a signed 32-bit file offset.
 TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove2GiB)
 {
     const uint32_t resource_offset = 0x80000010U;
