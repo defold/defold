@@ -136,7 +136,7 @@ public class Project {
     private HashMap<String, Task> tasks;
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
-    private BobTempScope tempScope;
+    private volatile BobTempScope tempScope;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
@@ -218,10 +218,17 @@ public class Project {
     }
 
     private BobTempScope getOrCreateTempScope() throws IOException {
-        if (this.tempScope == null) {
-            this.tempScope = new BobTempScope();
+        BobTempScope scope = this.tempScope;
+        if (scope == null) {
+            synchronized (this) {
+                scope = this.tempScope;
+                if (scope == null) {
+                    scope = new BobTempScope();
+                    this.tempScope = scope;
+                }
+            }
         }
-        return this.tempScope;
+        return scope;
     }
 
     public File createTempFile(String prefix, String suffix) throws IOException {

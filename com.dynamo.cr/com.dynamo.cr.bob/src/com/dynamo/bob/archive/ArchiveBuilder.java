@@ -445,90 +445,94 @@ public class ArchiveBuilder {
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
 
         Project project = new Project(new DefaultFileSystem());
-        // Keep builtins archives deterministic; parallel writes make .arcd offsets depend on thread scheduling.
-        project.setOption("max-cpu-threads", "1");
-        ResourceGraph resourceGraph = new ResourceGraph(project);
-        manifestBuilder.setResourceGraph(resourceGraph);
-
-        ResourceNode rootNode = resourceGraph.getRootNode();
-
-        List<String> excludedResources = new ArrayList<String>();
-
-        // set up publisher - has to be done before creating the ArchiveBuilder
-        PublisherSettings settings = new PublisherSettings();
-        settings.setZipFilepath(dirpathRoot.getAbsolutePath());
-        ZipPublisher publisher = new ZipPublisher(project, dirpathRoot.getAbsolutePath(), settings);
-        project.setPublisher(publisher);
-        publisher.setFilename(filepathZipArchive.getName());
-
-        int archivedEntries = 0;
-        String dirpathRootString = dirpathRoot.toString();
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4, project);
-        archiveBuilder.setForceCompression(doCompress);
-        for (File currentInput : inputs) {
-            String absolutePath = currentInput.getAbsolutePath();
-            boolean encrypt = ( absolutePath.endsWith("luac") ||
-                                absolutePath.endsWith("scriptc") ||
-                                absolutePath.endsWith("gui_scriptc") ||
-                                absolutePath.endsWith("render_scriptc"));
-            if (currentInput.getName().startsWith("liveupdate.")){
-                archiveBuilder.add(absolutePath, doCompress, encrypt, true);
-
-                String relativePath = currentInput.getAbsolutePath().substring(dirpathRootString.length());
-                relativePath = FilenameUtils.separatorsToUnix(relativePath);
-                excludedResources.add(relativePath);
-            } else {
-                archivedEntries++;
-                archiveBuilder.add(absolutePath, doCompress, encrypt, false);
-            }
-            ResourceNode currentNode = new ResourceNode(currentInput.getPath());
-            rootNode.addChild(currentNode);
-        }
-        System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
-
-        RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
-        RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");
-        archiveIndex.setLength(0);
-        archiveData.setLength(0);
-
-        publisher.start();
-        FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
         try {
-            System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
-            System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
+            // Keep builtins archives deterministic; parallel writes make .arcd offsets depend on thread scheduling.
+            project.setOption("max-cpu-threads", "1");
+            ResourceGraph resourceGraph = new ResourceGraph(project);
+            manifestBuilder.setResourceGraph(resourceGraph);
 
-            archiveBuilder.write(archiveIndex, archiveData, excludedResources);
+            ResourceNode rootNode = resourceGraph.getRootNode();
 
-            System.out.println("Writing " + filepathManifest.getCanonicalPath());
-            byte[] manifestFile = manifestBuilder.buildManifest();
-            outputStreamManifest.write(manifestFile);
+            List<String> excludedResources = new ArrayList<String>();
 
-            if (doOutputManifestHashFile) {
-                if (filepathManifestHash.exists()) {
-                    filepathManifestHash.delete();
-                    filepathManifestHash.createNewFile();
+            // set up publisher - has to be done before creating the ArchiveBuilder
+            PublisherSettings settings = new PublisherSettings();
+            settings.setZipFilepath(dirpathRoot.getAbsolutePath());
+            ZipPublisher publisher = new ZipPublisher(project, dirpathRoot.getAbsolutePath(), settings);
+            project.setPublisher(publisher);
+            publisher.setFilename(filepathZipArchive.getName());
+
+            int archivedEntries = 0;
+            String dirpathRootString = dirpathRoot.toString();
+            ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4, project);
+            archiveBuilder.setForceCompression(doCompress);
+            for (File currentInput : inputs) {
+                String absolutePath = currentInput.getAbsolutePath();
+                boolean encrypt = ( absolutePath.endsWith("luac") ||
+                                    absolutePath.endsWith("scriptc") ||
+                                    absolutePath.endsWith("gui_scriptc") ||
+                                    absolutePath.endsWith("render_scriptc"));
+                if (currentInput.getName().startsWith("liveupdate.")){
+                    archiveBuilder.add(absolutePath, doCompress, encrypt, true);
+
+                    String relativePath = currentInput.getAbsolutePath().substring(dirpathRootString.length());
+                    relativePath = FilenameUtils.separatorsToUnix(relativePath);
+                    excludedResources.add(relativePath);
+                } else {
+                    archivedEntries++;
+                    archiveBuilder.add(absolutePath, doCompress, encrypt, false);
                 }
-                FileOutputStream manifestHashOutoutStream = new FileOutputStream(filepathManifestHash);
-                manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
-                manifestHashOutoutStream.close();
+                ResourceNode currentNode = new ResourceNode(currentInput.getPath());
+                rootNode.addChild(currentNode);
             }
+            System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
 
-            String liveupdateManifestFilename = "liveupdate.game.dmanifest";
-            File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
-            FileUtils.copyFile(filepathManifest, luManifestFile);
-            publisher.publish(new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()), luManifestFile);
+            RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
+            RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");
+            archiveIndex.setLength(0);
+            archiveData.setLength(0);
 
-        } finally {
+            publisher.start();
+            FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
             try {
-                publisher.stop();
-                archiveIndex.close();
-                archiveData.close();
-                outputStreamManifest.close();
-            } catch (IOException exception) {
-                // Nothing to do, moving on ...
-            }
-        }
+                System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
+                System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-        System.out.println("Done.");
+                archiveBuilder.write(archiveIndex, archiveData, excludedResources);
+
+                System.out.println("Writing " + filepathManifest.getCanonicalPath());
+                byte[] manifestFile = manifestBuilder.buildManifest();
+                outputStreamManifest.write(manifestFile);
+
+                if (doOutputManifestHashFile) {
+                    if (filepathManifestHash.exists()) {
+                        filepathManifestHash.delete();
+                        filepathManifestHash.createNewFile();
+                    }
+                    FileOutputStream manifestHashOutoutStream = new FileOutputStream(filepathManifestHash);
+                    manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
+                    manifestHashOutoutStream.close();
+                }
+
+                String liveupdateManifestFilename = "liveupdate.game.dmanifest";
+                File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
+                FileUtils.copyFile(filepathManifest, luManifestFile);
+                publisher.publish(new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()), luManifestFile);
+
+            } finally {
+                try {
+                    publisher.stop();
+                    archiveIndex.close();
+                    archiveData.close();
+                    outputStreamManifest.close();
+                } catch (IOException exception) {
+                    // Nothing to do, moving on ...
+                }
+            }
+
+            System.out.println("Done.");
+        } finally {
+            project.dispose();
+        }
     }
 }
