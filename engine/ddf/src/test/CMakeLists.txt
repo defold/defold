@@ -44,4 +44,4 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
 endif()
 
 defold_target_link_libraries_web(test_ddf "${TARGET_PLATFORM}" library_sys.js)
-defold_register_test_target(test_ddf)
+defold_register_test_target(test_ddf ON "${DDF_TEST_SRC_DIR}")

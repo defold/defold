@@ -4515,14 +4515,34 @@ namespace dmGui
         return 0;
     }
 
-    /*# convert screen position to the local node position
+    /*# convert a screen position to a node position
      *
-     * Convert the screen position to the local position of supplied node
+     * Converts a screen-space position to the local position value for the supplied node.
+     * The conversion takes the parent transform, anchors, adjust mode, and adjust reference into account.
      *
      * @name gui.screen_to_local
-     * @param node [type:node] node used for getting local transformation matrix
-     * @param screen_position [type:vector3] screen position
-     * @return local_position [type:vector3] local position
+     * @param node [type:node] node whose local position space should be used
+     * @param screen_position [type:vector3] screen-space position
+     * @return local_position [type:vector3] local position value for the node
+     * @examples
+     *
+     * Animate a node to the pressed pointer position:
+     *
+     * ```lua
+     * function init(self)
+     *     msg.post(".", "acquire_input_focus")
+     *     self.marker = gui.get_node("marker")
+     * end
+     *
+     * function on_input(self, action_id, action)
+     *     if action_id == hash("touch") and action.pressed then
+     *         local screen_position = vmath.vector3(action.screen_x, action.screen_y, 0)
+     *         local target_position = gui.screen_to_local(self.marker, screen_position)
+     *         gui.animate(self.marker, gui.PROP_POSITION, target_position, gui.EASING_OUTQUAD, 0.2)
+     *         return true
+     *     end
+     * end
+     * ```
      */
     int LuaScreenToLocal(lua_State* L)
     {

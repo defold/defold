@@ -73,6 +73,11 @@ function(_defold_private_add_cmake_module_path ROOT)
   endif()
 endfunction()
 
+function(defold_get_private_repo_root OUT_VAR PLATFORM)
+  _defold_private_platform_var(_platform_var "${PLATFORM}")
+  set(${OUT_VAR} "${DEFOLD_PRIVATE_REPO_ROOT_${_platform_var}}" PARENT_SCOPE)
+endfunction()
+
 function(_defold_private_clear_cached_roots)
   get_cmake_property(_cache_vars CACHE_VARIABLES)
   foreach(_cache_var IN LISTS _cache_vars)

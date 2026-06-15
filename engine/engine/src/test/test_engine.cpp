@@ -16,9 +16,10 @@
 #include <dlib/testutil.h>
 
 #include <dlib/array.h>
-#include <dlib/http_client.h>
+#include <dlib/http/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dlib/profile.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
@@ -601,6 +602,9 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
 
 int main(int argc, char **argv)
 {
+#if defined(_WIN32)
+    dmLog::CloseConsoleWindow();
+#endif
     dmExportedSymbols();
     TestMainPlatformInit();
 

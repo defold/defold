@@ -37,7 +37,23 @@ def run_tests(executables, cfgpath: str) -> int:
     return 0
 
 
-def run_with_server(executables, workdir, ip: str, port: int, cfgpath: str, server_dirs) -> int:
+def run_android_command(android_runner: str, args) -> int:
+    cmd = [sys.executable, android_runner] + list(args)
+    print('Running Android test command:', subprocess.list2cmdline(cmd), flush=True)
+    return subprocess.call(cmd)
+
+
+def run_android_tests(executables, cfgpath: str, android_runner: str, android_cwd: str) -> int:
+    for exe in executables:
+        print('Running Android test with shared Defold test server:', exe, flush=True)
+        rc = run_android_command(android_runner, ['run-test', '--cwd', android_cwd, '--program', exe, '--config', cfgpath])
+        if rc != 0:
+            return rc
+    return 0
+
+
+def run_with_server(executables, workdir, ip: str, port: int, cfgpath: str, server_dirs,
+                    android_runner=None, android_cwd=None, android_stage=None) -> int:
     for server_dir in reversed(server_dirs):
         sys.path.insert(0, os.path.normpath(server_dir))
 
@@ -50,21 +66,47 @@ def run_with_server(executables, workdir, ip: str, port: int, cfgpath: str, serv
     if workdir:
         os.chdir(workdir)
 
+    if android_runner and not android_cwd:
+        android_cwd = workdir or os.getcwd()
+
     write_config(cfgpath, ip, port)
 
-    server = test_script_server.Server(port=port, ip=ip)
-    server.start()
+    prepared_android = False
+    server = None
+    rc = 0
     try:
-        return run_tests(executables, cfgpath)
+        if android_runner:
+            prepare_args = ['prepare', '--cwd', android_cwd, '--config', cfgpath]
+            for source, target in android_stage or []:
+                prepare_args.extend(['--stage', source, target])
+            rc = run_android_command(android_runner, prepare_args)
+            if rc != 0:
+                return rc
+            prepared_android = True
+
+        server = test_script_server.Server(port=port, ip=ip)
+        server.start()
+
+        if android_runner:
+            rc = run_android_tests(executables, cfgpath, android_runner, android_cwd)
+        else:
+            rc = run_tests(executables, cfgpath)
     finally:
-        try:
-            server.stop()
-        except Exception:
-            pass
+        if server:
+            try:
+                server.stop()
+            except Exception:
+                pass
+        if prepared_android:
+            stop_rc = run_android_command(android_runner, ['stop', '--cwd', android_cwd, '--config', cfgpath])
+            if rc == 0 and stop_rc != 0:
+                rc = stop_rc
         try:
             os.remove(cfgpath)
         except OSError:
             pass
+
+    return rc
 
 
 def main_argparse() -> int:
@@ -74,9 +116,15 @@ def main_argparse() -> int:
     parser.add_argument('--port', type=int, default=9001)
     parser.add_argument('--config', default='unittest.cfg')
     parser.add_argument('--server-dir', action='append', default=[])
+    parser.add_argument('--android-runner', default=None)
+    parser.add_argument('--android-cwd', default=None)
+    parser.add_argument('--android-stage', action='append', nargs=2, metavar=('SOURCE', 'TARGET'), default=[])
     parser.add_argument('executables', nargs='+')
     args = parser.parse_args()
-    return run_with_server(args.executables, args.workdir, args.ip, args.port, args.config, args.server_dir)
+    return run_with_server(args.executables, args.workdir, args.ip, args.port, args.config, args.server_dir,
+                           android_runner=args.android_runner,
+                           android_cwd=args.android_cwd,
+                           android_stage=args.android_stage)
 
 
 def main() -> int:

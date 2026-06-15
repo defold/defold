@@ -583,6 +583,7 @@ namespace dmGraphics
     uint32_t              GetPhysicalDeviceCount(VkInstance vkInstance);
     void                  GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize, void* pNextFeature);
     bool                  GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
+    QueueFamily           GetGraphicsQueueFamily(PhysicalDevice* device);
     QueueFamily           GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
     const VkFormat        GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates, uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
     void                  GetFormatProperties(VkPhysicalDevice vk_physical_device, VkFormat vk_format, VkFormatProperties* properties);

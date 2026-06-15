@@ -35,6 +35,7 @@ import release_to_egs
 import BuildUtility
 import http_cache
 import sdk_merge
+import solution_msvs
 import solution_xcode
 from datetime import datetime
 from urllib.parse import urlparse
@@ -112,6 +113,10 @@ class build_private(object):
     @classmethod
     def get_tag_suffix(cls):
         return cls._call(None, 'get_tag_suffix', '')
+
+    @classmethod
+    def can_run_tests(cls, platform, log_fn, env, device):
+        return cls._call(platform, 'can_run_tests', False, log_fn, env, device, get_platform_root(platform))
 
 assert(hasattr(build_private, 'get_target_platforms'))
 assert(hasattr(build_private, 'get_install_host_packages'))
@@ -410,6 +415,15 @@ BOB_TOOL_PLATFORMS = [
     'x86_64-win32'
 ]
 
+# SDKs that include host-side protoc/native-extension pipeline tools.
+SDK_PIPELINE_TOOL_PLATFORMS = (
+    'x86_64-macos',
+    'arm64-macos',
+    'x86_64-linux',
+    'arm64-linux',
+    'x86_64-win32'
+)
+
 BOB_TOOL_PACKAGE_PREFIXES = (
     'aapt2-',
     'apkc-',
@@ -657,7 +671,7 @@ class Configuration(object):
         Generate an IDE solution from the top-level CMakeLists.txt for the given target platform.
 
         - macOS/iOS: Xcode
-        - Windows: Visual Studio 2026
+        - Windows: Visual Studio
         - Android: Prints guidance to open CMakeLists.txt in Android Studio
         - Other platforms: falls back to Ninja/Unix Makefiles by default
         """
@@ -667,6 +681,7 @@ class Configuration(object):
 
         build_type = self._find_cmake_build_type(self.waf_options)
         build_tests = 'OFF' if '--skip-build-tests' in self.waf_options else 'ON'
+        build_home = self._platform_build_home(tp)
 
         # Android guidance
         if 'android' in tp:
@@ -676,32 +691,41 @@ class Configuration(object):
         # Choose generator
         generator = None
         arch_args = []
+        msvs_instance = None
+        windows_sdk_version = None
 
         if tp.endswith('-macos') or tp.endswith('-ios'):
             generator = 'Xcode'
-        elif 'win32' in tp:
-            generator = 'Visual Studio 18 2026'
-            # Map architecture
-            if tp == 'x86_64-win32':
-                arch_args = ['-A', 'x64']
-            elif tp == 'win32':
-                arch_args = ['-A', 'Win32']
+        elif solution_msvs.is_visual_studio_platform(tp):
+            msvs_selection = solution_msvs.latest_selection(self._log)
+            generator = msvs_selection['generator']
+            msvs_instance = msvs_selection.get('instance')
+            windows_sdk_version = solution_msvs.latest_windows_sdk_version()
+            arch_args = solution_msvs.arch_args(tp)
 
         # Build directory per target platform inside solutions/<platform>
         if not build_dir:
-            build_dir = os.path.join(self.defold_root, 'solutions', tp)
+            build_dir = os.path.join(build_home, 'solutions', tp)
 
+        target_name = f"Defold-{tp}"
         cmake_cmd = [
             'cmake', '-S', self.defold_root, '-B', build_dir,
             f'-DTARGET_PLATFORM={tp}',
             f'-DCMAKE_BUILD_TYPE={build_type}',
-            f'-DBUILD_TESTS={build_tests}'
+            f'-DBUILD_TESTS={build_tests}',
+            f'-DDEFOLD_SOLUTION_NAME:STRING={target_name}',
+            f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
+            f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
+            f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}'
         ]
         cmake_cmd += self._cmake_feature_defines()
         if generator:
             cmake_cmd += ['-G', generator]
         if arch_args:
             cmake_cmd += arch_args
+        if solution_msvs.is_visual_studio_generator(generator):
+            cmake_cmd += solution_msvs.cmake_args(generator, msvs_instance, windows_sdk_version)
+            cmake_cmd += ['-DDEFOLD_MSVC_IDE_SOLUTION:BOOL=ON']
 
         cmake_configure_state = self._cmake_configure_state(build_dir, cmake_cmd)
         cmake_configure_state_path = join(build_dir, '.defold_cmake_configure.json')
@@ -720,41 +744,42 @@ class Configuration(object):
 
         # Generate solution
         self._log(f'CMake solution settings: platform={tp}, build_type={build_type}, build_tests={build_tests}')
+        if solution_msvs.is_visual_studio_generator(generator):
+            solution_msvs.log_selection(self._log, generator, msvs_instance, windows_sdk_version)
         self._log('Generating solution with command: %s' % ' '.join(cmake_cmd))
         run.env_command(self._form_env(), cmake_cmd)
         with open(cmake_configure_state_path, 'w') as f:
             json.dump(cmake_configure_state, f, indent=2, sort_keys=True)
 
-        # Report absolute path to the generated solution files
         old_project_name = 'defold_libraries'
         solution_build_dir = os.path.abspath(build_dir)
-
-        target_name = f"Defold-{tp}"
         final_path = solution_build_dir
 
-        old_path = None
-        new_path = None
-
         if generator == 'Xcode':
-            # Default name from CMake project()
-            old_path = os.path.join(solution_build_dir, f"{old_project_name}.xcodeproj")
-            new_path = os.path.join(solution_build_dir, f"{target_name}.xcodeproj")
-        elif generator and generator.startswith('Visual Studio'):
-            old_path = os.path.join(solution_build_dir, f"{old_project_name}.sln")
-            new_path = os.path.join(solution_build_dir, f"{target_name}.sln")
+            final_path = os.path.join(solution_build_dir, f"{target_name}.xcodeproj")
+        elif solution_msvs.is_visual_studio_generator(generator):
+            final_path = solution_msvs.final_solution_path(build_dir, target_name)
 
-        if new_path != old_path and old_path is not None:
-            if os.path.exists(old_path):
+        stale_solution_paths = [
+            os.path.join(solution_build_dir, f"{old_project_name}.xcodeproj"),
+        ]
+        for stale_path in stale_solution_paths:
+            if stale_path != final_path and os.path.exists(stale_path):
                 try:
-                    if os.path.exists(new_path):
-                        shutil.rmtree(new_path)
-                    shutil.move(old_path, new_path)
-                    final_path = new_path
+                    if os.path.isdir(stale_path):
+                        shutil.rmtree(stale_path)
+                    else:
+                        os.remove(stale_path)
                 except Exception as e:
-                    self._log(f"Warning: Failed to rename project: {e}. Keeping default name: {old_path}")
-                    final_path = old_path
-            else:
-                final_path = new_path
+                    self._log(f"Warning: Failed to remove stale generated solution {stale_path}: {e}")
+        if solution_msvs.is_visual_studio_generator(generator):
+            solution_msvs.cleanup_stale_solutions(build_dir, final_path, old_project_name, self._log)
+
+        if generator and not os.path.exists(final_path):
+            self._log(f"Warning: Expected solution file was not found: {final_path}")
+
+        if solution_msvs.is_visual_studio_generator(generator):
+            solution_msvs.organize_solution(final_path, self.defold_root, self._log)
 
         if generator == 'Xcode' and os.path.exists(final_path):
             solution_xcode.configure_project(
@@ -813,7 +838,24 @@ class Configuration(object):
         self._log('distclean done.')
 
     def _clean_cmake_builddir(self, builddir):
-        self._remove_tree(builddir)
+        try:
+            self._remove_tree(builddir)
+            return
+        except PermissionError as e:
+            vs_state_dir = join(builddir, '.vs')
+            if not os.path.isdir(vs_state_dir):
+                raise
+            self._log(f'Warning: Could not remove {builddir}: {e}')
+            self._log(f'Keeping locked Visual Studio state directory: {vs_state_dir}')
+
+        for name in os.listdir(builddir):
+            path = join(builddir, name)
+            if normpath(path).lower() == normpath(vs_state_dir).lower():
+                continue
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
 
     def clean(self):
         """
@@ -1185,7 +1227,8 @@ class Configuration(object):
             self.fatal("Ninja not found in PATH")
         self._log(f"Found Ninja: {ninja}")
 
-        args = ["cmake", f"-DTARGET_PLATFORM={target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        cmake_target_platform = self._cmake_target_platform(target_platform)
+        args = ["cmake", f"-DTARGET_PLATFORM={cmake_target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
         if self.verbose:
             args.insert(1, '-DDEFOLD_VERBOSE=ON')
 
@@ -1310,15 +1353,23 @@ class Configuration(object):
         zip.close()
         return outfile.name
 
-    def _add_files_to_zip(self, zip, paths, basedir=None, topfolder=None):
+    def _add_files_to_zip(self, zip, paths, basedir=None, topfolder=None, path_filter=None, path_mapper=None):
         for p in paths:
             if not os.path.isfile(p):
                 continue
             an = p
             if basedir:
                 an = os.path.relpath(p, basedir)
+            an = an.replace('\\', '/')
+            if path_filter and not path_filter(an):
+                continue
+            if path_mapper:
+                an = path_mapper(an)
             if topfolder:
                 an = os.path.join(topfolder, an)
+            an = an.replace('\\', '/')
+            if an in zip.NameToInfo:
+                continue
             zip.write(p, an)
 
     def _add_file_to_zip(self, zip, src, dst):
@@ -1376,7 +1427,8 @@ class Configuration(object):
 
     # package the native SDK, return the path to the zip file
     # and path to zip sha256 signature file
-    def _package_platform_sdk(self, platform):
+    def _package_platform_sdk(self, platform=None):
+        platform = platform or self.target_platform
         sdk_archive_path = join(self.dynamo_home, 'defoldsdk.zip')
         with open(sdk_archive_path, 'wb') as outfile:
             zip = zipfile.ZipFile(outfile, 'w', zipfile.ZIP_DEFLATED)
@@ -1452,18 +1504,34 @@ class Configuration(object):
                             paths.append(os.path.join(root, f))
                 return paths
 
+            def _sdk_lib_path_filter(path):
+                basename = os.path.basename(path)
+                root, _ = os.path.splitext(basename)
+                shared_name = root[3:] if root.startswith('lib') else root
+                if shared_name.endswith('_shared') and not (shared_name == 'dlib_shared' and platform in SDK_PIPELINE_TOOL_PLATFORMS):
+                    return False
+                return True
+
+            def _sdk_lib_path_mapper(path):
+                # We currently still use the old "win32" folder for our x86 files
+                if path.startswith('lib/x86-win32/'):
+                    path = 'lib/win32/' + path[len('lib/x86-win32/'):]
+                elif path.startswith('ext/lib/x86-win32/'):
+                    path = 'ext/lib/win32/' + path[len('ext/lib/x86-win32/'):]
+                return path
+
             # Dynamo libs
             libdirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
             if platform == 'win32':
                 libdirs.append(os.path.join(self.dynamo_home, 'lib/x86-win32'))
             paths = _findlibs(libdirs)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
             # External libs
             libdirs = [os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)]
             if platform == 'win32':
                 libdirs.append(os.path.join(self.dynamo_home, 'ext/lib/x86-win32'))
             paths = _findlibs(libdirs)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
 
             if platform in ['armv7-android', 'arm64-android']:
                 # Android Jars (Dynamo)
@@ -1479,9 +1547,16 @@ class Configuration(object):
 
             # Win32 resource files
             if platform in ['win32', 'x86_64-win32']:
-                engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
-                defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
-                self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
+                resource_dirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
+                if platform == 'win32':
+                    resource_dirs.append(os.path.join(self.dynamo_home, 'lib/x86-win32'))
+                paths = []
+                for resource_dir in resource_dirs:
+                    paths.extend([
+                        os.path.join(resource_dir, 'defold.ico'),
+                        os.path.join(resource_dir, 'engine.rc')
+                    ])
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, path_mapper=_sdk_lib_path_mapper)
 
             # the port scripts contain the necessary files, only need to include them once
             if platform in ['wasm-web']:
@@ -1533,7 +1608,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # pipeline tools
-            if platform in ('x86_64-macos','arm64-macos','x86_64-linux','arm64-linux','x86_64-win32'): # needed for the linux build server
+            if platform in SDK_PIPELINE_TOOL_PLATFORMS:
                 # protoc
                 protoc = os.path.join(self.dynamo_home, 'ext/bin/%s/protoc' % platform)
                 ddfc_py = os.path.join(self.dynamo_home, 'bin/ddfc.py')
@@ -1764,7 +1839,7 @@ class Configuration(object):
     def _can_run_tests(self):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
-        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']
+        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
         supported_tests['x86_64-linux'] = []
         supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web']
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web']
@@ -1780,6 +1855,14 @@ class Configuration(object):
                 supported_tests['arm64-macos'].extend(android_tests)
                 supported_tests['x86_64-linux'].extend(android_tests)
                 supported_tests['x86_64-win32'].extend(android_tests)
+
+        if self.target_platform == 'x86_64-xbone':
+            can_run_xbone_tests = build_private.can_run_tests(self.target_platform, self._log, self._form_env(), self.test_device)
+            if self.test_device and not can_run_xbone_tests:
+                self.fatal("Requested Xbox test console '%s' is not available" % self.test_device)
+
+            if can_run_xbone_tests:
+                supported_tests['x86_64-win32'].append('x86_64-xbone')
 
         can_run_platform = self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
         if not can_run_platform:
@@ -1929,6 +2012,9 @@ class Configuration(object):
             return 'x86-win32'
         return platform
 
+    def _platform_build_home(self, platform):
+        return get_platform_root(platform) or self.defold_root
+
     def _engine_artifact_platform(self, platform):
         # Waf still writes 32-bit Windows artifacts to win32; CMake uses the
         # explicit arch tuple x86-win32 while archive/package names stay win32.
@@ -1937,7 +2023,39 @@ class Configuration(object):
         return self._cmake_target_platform(platform)
 
     def _cmake_top_build_dir(self, platform):
-        return join(self.defold_root, 'engine', 'build', platform)
+        build_home = self._platform_build_home(platform)
+        return join(build_home, 'engine', 'build', platform)
+
+    def _cmake_configure_inputs_mtime(self, roots):
+        watched_files = ('CMakeLists.txt',)
+        watched_suffixes = ('.cmake',)
+        watched_dirs = ('scripts/cmake', 'engine', 'share')
+        skipped_dirs = {'.git', '.gradle', '__pycache__', 'build', 'tmp', 'node_modules'}
+        latest = 0
+
+        for root in roots:
+            if not root or not os.path.isdir(root):
+                continue
+            for watched_dir in watched_dirs:
+                path = join(root, watched_dir)
+                if not os.path.isdir(path):
+                    continue
+                for dirpath, dirnames, filenames in os.walk(path):
+                    dirnames[:] = [d for d in dirnames if d not in skipped_dirs]
+                    for filename in filenames:
+                        if filename in watched_files or filename.endswith(watched_suffixes):
+                            try:
+                                latest = max(latest, os.path.getmtime(join(dirpath, filename)))
+                            except OSError:
+                                pass
+            top_cmake = join(root, 'CMakeLists.txt')
+            if os.path.exists(top_cmake):
+                try:
+                    latest = max(latest, os.path.getmtime(top_cmake))
+                except OSError:
+                    pass
+
+        return latest
 
     def _cmake_configure_state(self, builddir, cmake_configure_args):
         defines = {}
@@ -1951,9 +2069,15 @@ class Configuration(object):
             key = key.split(':', 1)[0]
             defines[key] = value
 
+        configure_roots = [self.defold_root]
+        build_home = defines.get('DEFOLD_BUILD_HOME')
+        if build_home and normpath(build_home) != normpath(self.defold_root):
+            configure_roots.append(build_home)
+
         return {
             'args': cmake_configure_args,
             'builddir': normpath(builddir),
+            'cmake_inputs_mtime': self._cmake_configure_inputs_mtime(configure_roots),
             'defold_root': normpath(self.defold_root),
             'dynamo_home': normpath(self.dynamo_home),
             'defines': defines
@@ -1983,6 +2107,8 @@ class Configuration(object):
             return False
         if current.get('dynamo_home') != previous.get('dynamo_home'):
             return False
+        if current.get('cmake_inputs_mtime') != previous.get('cmake_inputs_mtime'):
+            return False
 
         current_defines = dict(current.get('defines', {}))
         previous_defines = dict(previous.get('defines', {}))
@@ -1998,10 +2124,8 @@ class Configuration(object):
         if current_build_tests != 'OFF':
             return False
 
-        # A build tree configured with tests has every non-test target needed by
-        # the host pass. A tree configured without tests is also sufficient for
-        # the host pass.
-        return previous_build_tests in ('ON', 'OFF')
+        # Keep test install rules consistent with the requested host pass.
+        return previous_build_tests == current_build_tests
 
     def _cmake_cache_matches_configure_state(self, cmake_cache, configure_state):
         if not os.path.exists(cmake_cache):
@@ -2020,17 +2144,22 @@ class Configuration(object):
         defines = configure_state.get('defines', {})
         for key in ('CMAKE_BUILD_TYPE',
                     'CMAKE_INSTALL_PREFIX',
+                    'CMAKE_GENERATOR_INSTANCE',
+                    'CMAKE_SYSTEM_VERSION',
                     'TARGET_PLATFORM',
                     'BUILD_TESTS',
                     'DEFOLD_ENGINE_LIB_SET',
+                    'DEFOLD_BUILD_HOME',
                     'DEFOLD_SDK_ROOT',
+                    'DEFOLD_VISUAL_STUDIO_ROOT',
+                    'DEFOLD_WINDOWS_SDK_VERSION',
                     'DEFOLD_SKIP_BOB_LIGHT'):
             expected = defines.get(key)
             if expected is None:
                 continue
 
             actual = cache_values.get(key)
-            if key in ('CMAKE_INSTALL_PREFIX', 'DEFOLD_SDK_ROOT'):
+            if key in ('CMAKE_INSTALL_PREFIX', 'CMAKE_GENERATOR_INSTANCE', 'DEFOLD_BUILD_HOME', 'DEFOLD_SDK_ROOT', 'DEFOLD_VISUAL_STUDIO_ROOT'):
                 actual = normpath(actual) if actual else actual
                 expected = normpath(expected) if expected else expected
             if actual != expected:
@@ -2039,13 +2168,63 @@ class Configuration(object):
 
         return True
 
+    def _cmake_generated_install_matches_configure_state(self, configure_state):
+        args = configure_state.get('args', [])
+        generator = ''
+        for i, arg in enumerate(args):
+            if arg == '-G' and i + 1 < len(args):
+                generator = args[i + 1]
+            elif arg.startswith('-G') and len(arg) > 2:
+                generator = arg[2:]
+
+        # The top-level engine build uses Ninja. If a per-library binary
+        # directory was previously generated by a multi-config IDE solution,
+        # its cmake_install.cmake can still point at Debug/RelWithDebInfo
+        # subdirectories while Ninja produces libraries directly in the binary
+        # directory. Detect that stale generated state before skipping configure.
+        if generator != 'Ninja':
+            return True
+
+        defines = configure_state.get('defines', {})
+        build_home = defines.get('DEFOLD_BUILD_HOME')
+        platform = defines.get('TARGET_PLATFORM')
+        build_type = defines.get('CMAKE_BUILD_TYPE')
+        build_tests = defines.get('BUILD_TESTS')
+        if not build_home or not platform:
+            return True
+
+        engine_root = join(build_home, 'engine')
+        if not os.path.isdir(engine_root):
+            return True
+
+        stale_config_dirs = ['/build/%s/%s/' % (platform, config) for config in ('Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel')]
+        for lib in os.listdir(engine_root):
+            install_script = join(engine_root, lib, 'build', platform, 'cmake_install.cmake')
+            if not os.path.exists(install_script):
+                continue
+            try:
+                with open(install_script, 'r') as f:
+                    content = f.read().replace('\\', '/')
+            except OSError:
+                continue
+
+            stale_config_dir = next((path for path in stale_config_dirs if path in content), None)
+            if stale_config_dir:
+                self._log('CMake generated install mismatch for %s: stale multi-config output path found' % install_script)
+                return False
+            if build_tests == 'OFF' and '/src/test/cmake_install.cmake' in content:
+                self._log('CMake generated install mismatch for %s: stale test install rules found' % install_script)
+                return False
+
+        return True
+
     def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False):
         platform = self._cmake_target_platform(platform)
+        build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
         build_type = self._find_cmake_build_type(self.waf_options)
-        can_run_tests = self._can_run_tests()
-        build_tests = (not skip_tests) and can_run_tests and '--skip-build-tests' not in self.waf_options
+        build_tests = (not skip_tests) and '--skip-build-tests' not in self.waf_options and self._can_run_tests()
         supports_tests = build_tests
 
         # Keep CMake build directories persistent so repeated builds can be
@@ -2077,6 +2256,7 @@ class Configuration(object):
             f'-DTARGET_PLATFORM={platform}',
             f'-DBUILD_TESTS={cmake_build_tests}',
             f'-DDEFOLD_ENGINE_LIB_SET={lib_set}',
+            f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
             f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}',
@@ -2101,7 +2281,11 @@ class Configuration(object):
                 pass
 
         cmake_cache = join(builddir, 'CMakeCache.txt')
-        skip_configure = os.path.exists(cmake_cache) and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, allow_compatible_configure) and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)
+        skip_configure = (
+            os.path.exists(cmake_cache)
+            and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, allow_compatible_configure)
+            and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)
+            and self._cmake_generated_install_matches_configure_state(cmake_configure_state))
         if skip_configure:
             self._log(f'Skipping CMake configure {name}; configure state is unchanged')
         else:
@@ -2212,12 +2396,12 @@ class Configuration(object):
         host = self.host
         target_platform = self.target_platform
         with_waf = self._build_engine_with_waf()
-        cmake_incremental = not with_waf
-        cmd = self._build_engine_cmd_waf(**self._get_build_flags(), incremental = self.incremental or cmake_incremental)
-        args = cmd.split()
         if with_waf:
+            cmd = self._build_engine_cmd_waf(**self._get_build_flags(), incremental = self.incremental)
+            args = cmd.split()
             self._log('Building engine libs with Waf fallback (--with-waf)')
         else:
+            args = []
             self._log('Building engine libs with top-level CMake (incremental by default)')
 
         # Make sure we build these for the host platform for the toolchain (bob light)
@@ -3432,8 +3616,10 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
-        if self.test_device:
+        if self.test_device and 'android' in self.target_platform:
             env['ANDROID_SERIAL'] = self.test_device
+        elif self.test_device and self.target_platform == 'x86_64-xbone':
+            env['XBOX_CONSOLE'] = self.test_device
 
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')

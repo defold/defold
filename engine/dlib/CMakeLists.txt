@@ -62,101 +62,19 @@ function(dlib_target_os out_var)
   set(${out_var} "${_target_os}" PARENT_SCOPE)
 endfunction()
 
-function(dlib_platform_tags out_var)
-  dlib_target_os(_target_os)
-  set(_tags "${_target_os}")
-  if(_target_os STREQUAL "nx64")
-    list(APPEND _tags switch nintendo)
-  elseif(_target_os STREQUAL "ps4" OR _target_os STREQUAL "ps5")
-    list(APPEND _tags playstation sony)
-  elseif(_target_os STREQUAL "xbone")
-    list(APPEND _tags xbox microsoft win32)
-  endif()
-
-  if(_target_os STREQUAL "macos" OR _target_os STREQUAL "ios")
-    list(APPEND _tags darwin apple)
-  endif()
-
-  set(${out_var} "${_tags}" PARENT_SCOPE)
-endfunction()
-
-function(dlib_fallback_tags out_var)
-  dlib_target_os(_target_os)
-  set(_tags)
-  if(_target_os MATCHES "^(android|ios|linux|macos|web)$")
-    list(APPEND _tags posix)
-  endif()
-  list(APPEND _tags default)
-  set(${out_var} "${_tags}" PARENT_SCOPE)
-endfunction()
-
 function(dlib_select_feature out_selected out_all feature_base)
   set(options)
   set(oneValueArgs)
   set(multiValueArgs EXTRA_TAGS PREFERRED_TAGS)
   cmake_parse_arguments(DFEAT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-  file(GLOB _all CONFIGURE_DEPENDS
-       "${DLIB_SRC_DIR}/${feature_base}.cpp"
-       "${DLIB_SRC_DIR}/${feature_base}.c"
-       "${DLIB_SRC_DIR}/${feature_base}.cc"
-       "${DLIB_SRC_DIR}/${feature_base}.cxx"
-       "${DLIB_SRC_DIR}/${feature_base}.mm"
-       "${DLIB_SRC_DIR}/${feature_base}.m"
-       "${DLIB_SRC_DIR}/${feature_base}_*.cpp"
-       "${DLIB_SRC_DIR}/${feature_base}_*.c"
-       "${DLIB_SRC_DIR}/${feature_base}_*.cc"
-       "${DLIB_SRC_DIR}/${feature_base}_*.cxx"
-       "${DLIB_SRC_DIR}/${feature_base}_*.mm"
-       "${DLIB_SRC_DIR}/${feature_base}_*.m")
-
-  set(_selected)
-  foreach(_ext IN ITEMS cpp c cc cxx mm m)
-    if(EXISTS "${DLIB_SRC_DIR}/${feature_base}.${_ext}")
-      dlib_append_unique(_selected "${DLIB_SRC_DIR}/${feature_base}.${_ext}")
-    endif()
-  endforeach()
-
-  set(_tag_files)
-  foreach(_tag IN LISTS DFEAT_PREFERRED_TAGS)
-    foreach(_ext IN ITEMS cpp c cc cxx mm m)
-      if(EXISTS "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-        dlib_append_unique(_tag_files "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-      endif()
-    endforeach()
-  endforeach()
-
-  if(NOT _tag_files)
-    dlib_platform_tags(_platform_tags)
-    set(_candidate_tags ${_platform_tags} ${DFEAT_EXTRA_TAGS})
-    foreach(_tag IN LISTS _candidate_tags)
-      foreach(_ext IN ITEMS cpp c cc cxx mm m)
-        if(EXISTS "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-          dlib_append_unique(_tag_files "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-        endif()
-      endforeach()
-    endforeach()
-  endif()
-
-  if(NOT _tag_files)
-    dlib_fallback_tags(_fallback_tags)
-    foreach(_tag IN LISTS _fallback_tags)
-      foreach(_ext IN ITEMS cpp c cc cxx mm m)
-        if(EXISTS "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-          dlib_append_unique(_tag_files "${DLIB_SRC_DIR}/${feature_base}_${_tag}.${_ext}")
-        endif()
-      endforeach()
-    endforeach()
-  endif()
-
-  dlib_append_unique(_selected ${_tag_files})
-  if(NOT _all)
-    message(FATAL_ERROR "Could not find any source files for feature ${feature_base}")
-  endif()
-  if(NOT _selected)
-    message(FATAL_ERROR "Could not find selected source files for feature ${feature_base} on platform ${TARGET_PLATFORM}")
-  endif()
-
+  defold_select_feature_sources(_selected _all
+    BASE_DIR "${DLIB_SRC_DIR}"
+    FEATURE "${feature_base}"
+    PLATFORM "${TARGET_PLATFORM}"
+    PRIVATE_ROOT "${DEFOLD_PRIVATE_REPO_ROOT}"
+    EXTRA_TAGS ${DFEAT_EXTRA_TAGS}
+    PREFERRED_TAGS ${DFEAT_PREFERRED_TAGS})
   set(${out_selected} "${_selected}" PARENT_SCOPE)
   set(${out_all} "${_all}" PARENT_SCOPE)
 endfunction()
@@ -219,6 +137,7 @@ set(DLIB_MBEDTLS_INCLUDE_DIRS
 
 file(GLOB DLIB_BASE_SOURCES CONFIGURE_DEPENDS
      "${DLIB_CORE_DIR}/*.cpp"
+     "${DLIB_CORE_DIR}/http/*.cpp"
      "${DLIB_SRC_DIR}/zlib/*.c"
      "${DLIB_SRC_DIR}/lz4/*.c")
 
@@ -228,6 +147,7 @@ foreach(_feature IN ITEMS
     dlib/condition_variable
     dlib/crypt
     dlib/file_descriptor
+    dlib/log
     dlib/mutex
     dlib/socket
     dlib/sslsocket
@@ -247,7 +167,7 @@ foreach(_feature IN ITEMS
   elseif(_feature STREQUAL "dlib/sslsocket")
     if(DLIB_USE_MBEDTLS AND DLIB_TARGET_OS MATCHES "^(macos|ios)$")
       set(_preferred_tags mbedtls)
-    elseif(DLIB_TARGET_OS MATCHES "^(android|linux|win32)$")
+    elseif(DLIB_TARGET_OS MATCHES "^(android|linux|win32|xbone)$")
       set(_extra_tags mbedtls)
     endif()
   elseif(_feature STREQUAL "dlib/sys")
@@ -267,14 +187,12 @@ endforeach()
 dlib_append_unique(DLIB_SOURCES ${DLIB_FEATURE_SOURCES})
 dlib_remove_matching(DLIB_SOURCES "/image\\.cpp$" "/image_null\\.cpp$")
 dlib_remove_matching(DLIB_SOURCES "_null\\.cpp$")
-if(DLIB_TARGET_OS STREQUAL "ios")
-  dlib_append_unique(DLIB_SOURCES "${DLIB_CORE_DIR}/log_ios.mm")
-endif()
 if(TARGET_PLATFORM MATCHES "web$")
-  dlib_remove_matching(DLIB_SOURCES "/http_cache\\.cpp$" "/http_cache_verify\\.cpp$" "/configfile_http\\.cpp$")
+  dlib_remove_matching(DLIB_SOURCES "/http_cache\\.cpp$" "/http_cache_verify\\.cpp$" "/configfile_http\\.cpp$" "/http_service\\.cpp$")
   list(APPEND DLIB_SOURCES
     "${DLIB_CORE_DIR}/http_cache_null.cpp"
-    "${DLIB_CORE_DIR}/configfile_http_null.cpp")
+    "${DLIB_CORE_DIR}/configfile_http_null.cpp"
+    "${DLIB_CORE_DIR}/http/http_service_null.cpp")
 endif()
 
 file(GLOB DLIB_ZIP_SOURCES CONFIGURE_DEPENDS "${DLIB_SRC_DIR}/zip/*.c")
@@ -316,9 +234,6 @@ defold_add_library(mbedtls_noasan STATIC ${DLIB_MBEDTLS_SOURCES})
 set_target_properties(mbedtls_noasan PROPERTIES OUTPUT_NAME dmbedtls_noasan)
 target_include_directories(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
 target_compile_definitions(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_DEFINES})
-if(TARGET_PLATFORM MATCHES "win32$")
-  set_target_properties(mbedtls mbedtls_noasan PROPERTIES PREFIX "lib")
-endif()
 
 defold_add_library(dlib STATIC ${DLIB_SOURCES})
 target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
@@ -476,10 +391,7 @@ set(DLIB_PUBLIC_HEADERS
   "${DLIB_CORE_DIR}/endian.hpp"
   "${DLIB_CORE_DIR}/hash.h"
   "${DLIB_CORE_DIR}/hashtable.h"
-  "${DLIB_CORE_DIR}/http_cache.h"
   "${DLIB_CORE_DIR}/http_cache_verify.h"
-  "${DLIB_CORE_DIR}/http_client.h"
-  "${DLIB_CORE_DIR}/http_server.h"
   "${DLIB_CORE_DIR}/image.h"
   "${DLIB_CORE_DIR}/index_pool.h"
   "${DLIB_CORE_DIR}/jobsystem.h"
@@ -520,9 +432,20 @@ set(DLIB_PUBLIC_HEADERS
   "${DLIB_CORE_DIR}/zip.h"
   "${DLIB_CORE_DIR}/testutil.h")
 
+set(DLIB_HTTP_PUBLIC_HEADERS
+  "${DLIB_CORE_DIR}/http/http_cache.h"
+  "${DLIB_CORE_DIR}/http/http_client.h"
+  "${DLIB_CORE_DIR}/http/http_service.h"
+  "${DLIB_CORE_DIR}/http/http_server.h")
+
 defold_add_sdk_headers_target(dlib_public_sdk_headers
   DESTINATION include/dlib
   FILES ${DLIB_PUBLIC_HEADERS}
+  DEPENDS dlib)
+
+defold_add_sdk_headers_target(dlib_http_sdk_headers
+  DESTINATION include/dlib/http
+  FILES ${DLIB_HTTP_PUBLIC_HEADERS}
   DEPENDS dlib)
 
 defold_add_sdk_headers_target(dlib_profile_sdk_headers
@@ -532,6 +455,7 @@ defold_add_sdk_headers_target(dlib_profile_sdk_headers
 
 set(DLIB_SDK_HEADER_TARGETS
   dlib_public_sdk_headers
+  dlib_http_sdk_headers
   dlib_profile_sdk_headers
   dlib_dmsdk_sdk_headers)
 defold_add_sdk_headers_target(dlib_dmsdk_sdk_headers
@@ -544,6 +468,7 @@ add_custom_target(dlib_sdk_headers
   DEPENDS ${DLIB_SDK_HEADER_TARGETS})
 
 install(FILES ${DLIB_PUBLIC_HEADERS} DESTINATION include/dlib)
+install(FILES ${DLIB_HTTP_PUBLIC_HEADERS} DESTINATION include/dlib/http)
 
 install(FILES "${DLIB_CORE_DIR}/profile/profile.h" DESTINATION include/dlib/profile)
 install(DIRECTORY "${DLIB_SRC_DIR}/stb/" DESTINATION ext/include/stb FILES_MATCHING PATTERN "*.h")
@@ -553,6 +478,7 @@ install(DIRECTORY "${DLIB_SRC_DIR}/basis/transcoder/" DESTINATION ext/include/ba
 install(FILES "${DLIB_SRC_DIR}/python/dlib/__init__.py" DESTINATION lib/python/dlib)
 install(FILES "${DLIB_CORE_DIR}/memprofile.py" DESTINATION lib/python)
 install(PROGRAMS "${DLIB_ROOT}/bin/memprofile.sh" DESTINATION bin)
+install(DIRECTORY "${DLIB_SRC_DIR}/cs/dmsdk/" DESTINATION sdk/cs/dmsdk FILES_MATCHING PATTERN "*.cs")
 if(TARGET_PLATFORM MATCHES "web$")
   defold_install_js_library("${DLIB_CORE_DIR}/js/library_sys.js")
 endif()
