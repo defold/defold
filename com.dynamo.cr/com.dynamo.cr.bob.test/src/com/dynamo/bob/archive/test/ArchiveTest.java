@@ -153,6 +153,52 @@ public class ArchiveTest {
     }
 
     @Test
+    // Tests that ArchiveReader treats the 32-bit archive data offset as unsigned.
+    // It writes a sparse .arcd payload at 0x80000010 and verifies getEntryContent()
+    // seeks to that unsigned position instead of sign-extending it to a negative long.
+    public void testReaderHandlesResourceOffsetAbove2GiB() throws IOException {
+        final int resourceOffset = 0x80000010;
+        final int hashLength = 20;
+        final int hashOffset = 48;
+        final int entryOffset = hashOffset + ArchiveReader.HASH_BUFFER_BYTESIZE;
+        byte[] hash = new byte[ArchiveReader.HASH_BUFFER_BYTESIZE];
+        for (int i = 0; i < hashLength; ++i) {
+            hash[i] = (byte) (i * 7 + 3);
+        }
+        byte[] payload = new byte[] { (byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef, 0x11, 0x22, 0x33, 0x44 };
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
+             RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
+            index.setLength(0);
+            index.writeInt(ArchiveReader.VERSION);
+            index.writeInt(0); // Pad
+            index.writeLong(0); // UserData
+            index.writeInt(1); // EntryCount
+            index.writeInt(entryOffset);
+            index.writeInt(hashOffset);
+            index.writeInt(hashLength);
+            index.write(new byte[16]); // Archive index MD5
+            index.write(hash);
+            index.writeInt(resourceOffset);
+            index.writeInt(payload.length);
+            index.writeInt(ArchiveEntry.FLAG_UNCOMPRESSED);
+            index.writeInt(0); // Flags
+
+            data.setLength(0);
+            data.seek(Integer.toUnsignedLong(resourceOffset));
+            data.write(payload);
+        }
+
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
+        try {
+            ar.read();
+            assertArrayEquals(payload, ar.getEntryContent(ar.getEntries().get(0)));
+        } finally {
+            ar.close();
+        }
+    }
+
+    @Test
     public void testEntriesOrder() throws IOException, CompileExceptionError {
 
         // Create

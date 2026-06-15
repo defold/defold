@@ -418,7 +418,10 @@ public class ProjectBuildTest {
     }
 
     @Test
-    // Builds a generated project with sparse-padded custom resources and verifies the archive crosses 2 GiB.
+    // Tests that Bob can build archives with resource offsets above 2 GiB.
+    // It generates small custom resources, uses large archive-resource-padding to
+    // create sparse gaps, then verifies game.arcd crosses 2 GiB and the index
+    // contains at least one unsigned resource offset above that boundary.
     public void testArchiveBuildGeneratedLargeCustomResources() throws Exception {
         Assume.assumeTrue(
                 "Set " + LARGE_ARCHIVE_TEST_PROPERTY + "=0 to skip the generated >2 GiB archive test.",

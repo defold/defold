@@ -130,9 +130,13 @@ public class ArchiveReader {
         return entries;
     }
 
+    private static long getResourceOffset(ArchiveEntry entry) {
+        return Integer.toUnsignedLong(entry.getResourceOffset());
+    }
+
     public byte[] getEntryContent(ArchiveEntry entry) throws IOException {
         byte[] buf = new byte[entry.getSize()];
-        archiveDataFile.seek(entry.getResourceOffset());
+        archiveDataFile.seek(getResourceOffset(entry));
         archiveDataFile.read(buf, 0, entry.getSize());
 
         return buf;
@@ -151,7 +155,7 @@ public class ArchiveReader {
 
             // extract
             byte[] buf = new byte[entry.getSize()];
-            archiveDataFile.seek(entry.getResourceOffset());
+            archiveDataFile.seek(getResourceOffset(entry));
             archiveDataFile.read(buf, 0, readSize);
 
             File fo = new File(outdir);

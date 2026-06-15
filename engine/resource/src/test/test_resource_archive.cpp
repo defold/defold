@@ -461,7 +461,9 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     dmResourceArchive::Delete(archive);
 }
 
-// Verifies that disk-backed archive reads can seek to resources whose data starts beyond 2 GiB.
+// Tests that file-backed archive reads treat the 32-bit resource data offset as unsigned.
+// It writes a sparse .arcd payload at 0x80000010 and verifies both full and partial
+// reads seek to that position instead of using a signed 32-bit fseek offset.
 TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove2GiB)
 {
     const uint32_t resource_offset = 0x80000010U;
