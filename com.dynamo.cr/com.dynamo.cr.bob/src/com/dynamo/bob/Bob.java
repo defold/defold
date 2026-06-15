@@ -20,6 +20,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BobTempScope;
 import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Library;
@@ -644,8 +645,8 @@ public class Bob {
         }
     }
 
-    private static Project createProject(ClassLoader classLoader, String rootDirectory, String buildDirectory, String email, String auth) {
-        Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
+    private static Project createProject(ClassLoader classLoader, String rootDirectory, String buildDirectory, String email, String auth) throws IOException {
+        Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory, new BobTempScope());
         project.setOption("email", email);
         project.setOption("auth", auth);
 
@@ -782,6 +783,7 @@ public class Bob {
                 TimeProfiler.init(reportFiles);
             }
 
+            Project project = null;
             try {
                 TimeProfiler.start("ParseCommandLine");
                 if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
@@ -824,7 +826,7 @@ public class Bob {
 
                 String email = getOptionsValue(cmd, 'e', null);
                 String auth = getOptionsValue(cmd, 'u', null);
-                Project project = createProject(classLoader, rootDirectory, buildDirectory, email, auth);
+                project = createProject(classLoader, rootDirectory, buildDirectory, email, auth);
                 EngineArtifactsProvider.setCacheBase(new File(project.getBuildCachePath()));
 
                 if (cmd.hasOption("settings")) {
@@ -1030,9 +1032,11 @@ public class Bob {
                     System.out.println("\nThe build failed for the following reasons:");
                     System.out.println(errors);
                 }
-                project.dispose();
                 return new InvocationResult(ret, result);
             } finally {
+                if (project != null) {
+                    project.dispose();
+                }
                 TimeProfiler.createReport();
             }
         }

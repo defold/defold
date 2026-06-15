@@ -457,7 +457,7 @@ public class ArchiveBuilder {
         // set up publisher - has to be done before creating the ArchiveBuilder
         PublisherSettings settings = new PublisherSettings();
         settings.setZipFilepath(dirpathRoot.getAbsolutePath());
-        ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+        ZipPublisher publisher = new ZipPublisher(project, dirpathRoot.getAbsolutePath(), settings);
         project.setPublisher(publisher);
         publisher.setFilename(filepathZipArchive.getName());
 

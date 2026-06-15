@@ -50,7 +50,9 @@ import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BobTempScope;
 import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.ReportGenerator;
@@ -135,6 +137,7 @@ public class Project {
     private HashMap<String, Task> tasks;
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
+    private BobTempScope tempScope;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
@@ -184,7 +187,12 @@ public class Project {
 
     // For the editor
     public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+        this(loader, fileSystem, sourceRootDirectory, buildDirectory, null);
+    }
+
+    public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory, BobTempScope tempScope) {
         this.classLoader = loader;
+        this.tempScope = tempScope;
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
@@ -200,7 +208,32 @@ public class Project {
     }
 
     public void dispose() {
-        this.fileSystem.close();
+        try {
+            this.fileSystem.close();
+        } finally {
+            if (this.tempScope != null) {
+                this.tempScope.close();
+                this.tempScope = null;
+            }
+        }
+    }
+
+    public File createTempFile(String prefix, String suffix) throws IOException {
+        if (this.tempScope == null) {
+            File file = File.createTempFile(prefix, suffix);
+            FileUtil.deleteOnExit(file);
+            return file;
+        }
+        return this.tempScope.createTempFile(prefix, suffix);
+    }
+
+    public File createTempDirectory(String prefix) throws IOException {
+        if (this.tempScope == null) {
+            File directory = Files.createTempDirectory(prefix).toFile();
+            FileUtil.deleteOnExit(directory);
+            return directory;
+        }
+        return this.tempScope.createTempDirectory(prefix);
     }
 
     public String getRootDirectory() {
@@ -560,7 +593,7 @@ public class Project {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
-                        this.publisher = new ZipPublisher(getRootDirectory(), settings);
+                        this.publisher = new ZipPublisher(this, getRootDirectory(), settings);
                     } else if (PublisherSettings.PublishMode.Folder.equals(settings.getMode())) {
                         this.publisher = new FolderPublisher(getRootDirectory(), settings);
                     } else {
