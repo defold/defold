@@ -95,11 +95,12 @@ public class BobProjectPropertiesTest {
         createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
         createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_property.private = 1");
 
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.loadProjectFile(true);
-        BobProjectProperties properties = project.getProjectProperties();
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.loadProjectFile(true);
+            BobProjectProperties properties = project.getProjectProperties();
 
-        assertEquals(true, properties.isPrivate("project", "custom_property"));
+            assertEquals(true, properties.isPrivate("project", "custom_property"));
+        }
     }
 
     @Test
@@ -109,11 +110,12 @@ public class BobProjectPropertiesTest {
         createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_property.private = 1");
         createFile(contentRoot, BobProjectProperties.PROPERTIES_PROJECT_FILE, "[project]\ncustom_property.private = 0");
 
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.loadProjectFile(true);
-        BobProjectProperties properties = project.getProjectProperties();
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.loadProjectFile(true);
+            BobProjectProperties properties = project.getProjectProperties();
 
-        assertEquals(false, properties.isPrivate("project", "custom_property"));
+            assertEquals(false, properties.isPrivate("project", "custom_property"));
+        }
     }
 
     private String createFile(String root, String name, String content) throws IOException {

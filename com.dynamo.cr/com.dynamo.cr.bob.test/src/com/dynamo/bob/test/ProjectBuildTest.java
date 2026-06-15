@@ -82,24 +82,25 @@ public class ProjectBuildTest {
     }
 
     private void build(boolean archive, boolean publishLiveupdate) throws IOException, CompileExceptionError, MultipleCompileException {
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        if (archive) {
-            project.setOption("archive", "true");
-        }
-        if (publishLiveupdate) {
-            project.setOption("liveupdate", "true");
-        }
+            if (archive) {
+                project.setOption("archive", "true");
+            }
+            if (publishLiveupdate) {
+                project.setOption("liveupdate", "true");
+            }
 
-        // project.setOption("platform", Platform.X86Win32.getPair());
-        List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
-        for (TaskResult taskResult : result) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
+            // project.setOption("platform", Platform.X86Win32.getPair());
+            List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
+            for (TaskResult taskResult : result) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
         }
     }
 
@@ -251,8 +252,7 @@ public class ProjectBuildTest {
         createFile(contentRoot, "ignored-file.txt", "");
         createFile(contentRoot, "ignored-without-leading-slash.txt", "");
 
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        try {
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
             List<String> paths = new ArrayList<>();
             project.findResourcePaths("", paths);
             assertEquals(7, paths.size());
@@ -274,8 +274,6 @@ public class ProjectBuildTest {
             project.findResourceDirs("", dirs);
             assertEquals(2, dirs.size());
             assertEquals(new HashSet<>(Arrays.asList("sub", "visible")), new HashSet<>(dirs));
-        } finally {
-            project.dispose();
         }
     }
 

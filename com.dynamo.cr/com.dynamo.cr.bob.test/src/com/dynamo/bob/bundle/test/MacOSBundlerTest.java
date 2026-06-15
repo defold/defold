@@ -80,8 +80,7 @@ public class MacOSBundlerTest {
     }
 
     void build() throws IOException, CompileExceptionError, MultipleCompileException {
-        try {
-            Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
             project.setPublisher(new NullPublisher(new PublisherSettings()));
 
             ClassLoaderScanner scanner = new ClassLoaderScanner();

@@ -111,7 +111,7 @@ import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
  * @author Christian Murray
  *
  */
-public class Project {
+public class Project implements AutoCloseable {
 
     private static Logger logger = Logger.getLogger(Project.class.getName());
 
@@ -215,6 +215,11 @@ public class Project {
                 this.tempScope = null;
             }
         }
+    }
+
+    @Override
+    public void close() {
+        dispose();
     }
 
     private BobTempScope getOrCreateTempScope() throws IOException {

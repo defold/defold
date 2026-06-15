@@ -118,6 +118,9 @@ public class ArchiveTest {
 
     @After
     public void tearDown() throws IOException {
+        if (project != null) {
+            project.dispose();
+        }
         FileUtils.deleteDirectory(new File(contentRoot));
         FileUtils.deleteQuietly(outputDarc);
 
