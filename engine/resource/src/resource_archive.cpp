@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 #include "resource.h"
 #include "resource_archive.h"
@@ -42,6 +43,15 @@
 namespace dmResourceArchive
 {
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
+
+    static int SeekResourceData(FILE* file, uint64_t offset)
+    {
+#if defined(_WIN32)
+        return _fseeki64(file, (int64_t)offset, SEEK_SET);
+#else
+        return fseeko(file, (off_t)offset, SEEK_SET);
+#endif
+    }
 
     ArchiveIndex::ArchiveIndex()
     {
@@ -318,7 +328,10 @@ namespace dmResourceArchive
         {
             // we need to read from the file on disc
             FILE* resource_file = afi->m_FileResourceData;
-            fseek(resource_file, resource_offset, SEEK_SET);
+            if (SeekResourceData(resource_file, resource_offset) != 0)
+            {
+                return dmResourceArchive::RESULT_IO_ERROR;
+            }
 
             Result result = dmResourceArchive::RESULT_OK;
             // Note, we don't need to check if it's encrypted here, as it's guaranteed to
@@ -440,7 +453,10 @@ namespace dmResourceArchive
         {
             // we need to read from the file on disc
             FILE* resource_file = afi->m_FileResourceData;
-            fseek(resource_file, resource_offset+offset, SEEK_SET);
+            if (SeekResourceData(resource_file, (uint64_t)resource_offset + offset) != 0)
+            {
+                return RESULT_IO_ERROR;
+            }
 
             // we can read directly to the output buffer
             size_t nmemb = fread(buffer, 1, size, resource_file);

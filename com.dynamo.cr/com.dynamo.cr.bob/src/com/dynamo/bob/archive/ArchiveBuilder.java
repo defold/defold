@@ -363,11 +363,15 @@ public class ArchiveBuilder {
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
-        int pos = (int) outFile.getFilePointer();
-        int newPos = (int) (outFile.getFilePointer() + (align - 1));
-        newPos &= ~(align - 1);
+        long pos = outFile.getFilePointer();
+        long newPos = (pos + align - 1L) & ~((long) align - 1L);
+        long padding = newPos - pos;
+        if (padding > 4096) {
+            outFile.seek(newPos);
+            return;
+        }
 
-        for (int i = 0; i < (newPos - pos); ++i) {
+        for (int i = 0; i < padding; ++i) {
             outFile.writeByte((byte) 0);
         }
     }
