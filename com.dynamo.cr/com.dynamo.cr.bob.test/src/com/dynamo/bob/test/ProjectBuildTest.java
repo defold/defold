@@ -58,6 +58,21 @@ public class ProjectBuildTest {
     private String contentRoot;
     private String projectName = "Unnamed";
 
+    private static class CountingPublisher extends NullPublisher {
+        int startCount = 0;
+        int stopCount = 0;
+
+        @Override
+        public void start() throws CompileExceptionError {
+            startCount++;
+        }
+
+        @Override
+        public void stop() throws CompileExceptionError {
+            stopCount++;
+        }
+    }
+
     @Before
     public void setUp() throws Exception {
         projectName = "Unnamed";
@@ -346,6 +361,33 @@ public class ProjectBuildTest {
         assertTrue(hasResource(bundledManifestData, "/logic/level.collectionc"));
         assertTrue(hasResource(bundledManifestData, "/logic/level.goc"));
         assertTrue(hasResource(bundledManifestData, "/logic/level.scriptc"));
+    }
+
+    @Test
+    // Verifies archive builds start the publisher once, so stateful publishers do not leak or reset temp outputs.
+    public void testArchiveBuildStartsPublisherOnce() throws IOException, CompileExceptionError, MultipleCompileException {
+        createDefaultFiles();
+        CountingPublisher publisher = new CountingPublisher();
+
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build") {
+            @Override
+            public void createPublisher() throws CompileExceptionError {
+                setPublisher(publisher);
+            }
+        }) {
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
+            project.setOption("archive", "true");
+
+            List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
+            for (TaskResult taskResult : result) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
+        }
+
+        assertEquals(1, publisher.startCount);
+        assertEquals(1, publisher.stopCount);
     }
 
     @Test

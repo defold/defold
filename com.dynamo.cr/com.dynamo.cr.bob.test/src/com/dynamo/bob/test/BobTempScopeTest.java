@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -56,6 +57,17 @@ public class BobTempScopeTest {
         }
     }
 
+    public static class UnclosedScopeProcess {
+        public static void main(String[] args) throws Exception {
+            System.setProperty(KEEP_TEMP_PROPERTY, "false");
+            BobTempScope scope = new BobTempScope();
+            File tempFile = scope.createTempFile("bob-temp-scope-shutdown-test", ".tmp");
+
+            Files.write(tempFile.toPath(), "temp".getBytes(StandardCharsets.UTF_8));
+            Files.write(new File(args[0]).toPath(), scope.getRootDirectory().getAbsolutePath().getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
     @Test
     public void testCloseDeletesScopeDirectory() throws Exception {
         // Creates a scoped temp file, directory, and nested file, then verifies close() removes the entire scope tree.
@@ -81,6 +93,30 @@ public class BobTempScopeTest {
         assertFalse(scopeRoot.exists());
         assertFalse(tempFile.exists());
         assertFalse(tempDirectory.exists());
+    }
+
+    @Test
+    public void testUnclosedScopeIsCleanedWhenJvmExits() throws Exception {
+        // Starts a child JVM that leaves a scope open, then verifies process shutdown removes the scope root.
+        File scopePathFile = temporaryFolder.newFile("unclosed-scope-root.txt");
+        assertTrue(scopePathFile.delete());
+
+        String javaExecutable = new File(System.getProperty("java.home"), "bin/java").getAbsolutePath();
+        Process process = new ProcessBuilder(
+                javaExecutable,
+                "-cp",
+                System.getProperty("java.class.path"),
+                UnclosedScopeProcess.class.getName(),
+                scopePathFile.getAbsolutePath())
+                .redirectErrorStream(true)
+                .start();
+
+        String processOutput = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = process.waitFor();
+
+        assertEquals(processOutput, 0, exitCode);
+        File scopeRoot = new File(new String(Files.readAllBytes(scopePathFile.toPath()), StandardCharsets.UTF_8).trim());
+        assertFalse(scopeRoot.exists());
     }
 
     @Test

@@ -21,6 +21,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
+/**
+ * Owns temporary files and directories created during a Bob invocation, keeping them
+ * under one root so {@link com.dynamo.bob.Project#dispose()} can remove them
+ * together after the build.
+ */
 public class BobTempScope implements AutoCloseable {
 
     private static final Logger logger = Logger.getLogger(BobTempScope.class.getName());
@@ -29,11 +34,14 @@ public class BobTempScope implements AutoCloseable {
 
     private final File rootDirectory;
     private final boolean keepTemp;
+    private final Thread shutdownHook;
     private boolean closed = false;
 
     public BobTempScope() throws IOException {
         this.rootDirectory = Files.createTempDirectory("defold-bob-invoke-").toFile();
         this.keepTemp = shouldKeepTemp();
+        this.shutdownHook = new Thread(this::cleanupOnShutdown, "bob-temp-scope-cleanup");
+        Runtime.getRuntime().addShutdownHook(this.shutdownHook);
     }
 
     private static boolean shouldKeepTemp() {
@@ -43,7 +51,7 @@ public class BobTempScope implements AutoCloseable {
         }
 
         String envValue = System.getenv(KEEP_TEMP_ENV);
-        return envValue != null && !envValue.isEmpty() && !"0".equals(envValue) && !"false".equalsIgnoreCase(envValue);
+        return envValue != null && ("1".equals(envValue) || "true".equalsIgnoreCase(envValue));
     }
 
     public synchronized File createTempFile(String prefix, String suffix) throws IOException {
@@ -72,7 +80,27 @@ public class BobTempScope implements AutoCloseable {
             return;
         }
         closed = true;
+        unregisterShutdownHook();
+        cleanupRootDirectory();
+    }
 
+    private synchronized void cleanupOnShutdown() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        cleanupRootDirectory();
+    }
+
+    private void unregisterShutdownHook() {
+        try {
+            Runtime.getRuntime().removeShutdownHook(this.shutdownHook);
+        } catch (IllegalStateException ignored) {
+            // The JVM is already shutting down, so the hook is either running or about to run.
+        }
+    }
+
+    private void cleanupRootDirectory() {
         if (keepTemp) {
             logger.info("Keeping Bob temporary directory '%s'", rootDirectory.getAbsolutePath());
             return;

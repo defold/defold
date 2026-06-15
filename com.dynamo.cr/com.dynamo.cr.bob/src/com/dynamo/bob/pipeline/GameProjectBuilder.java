@@ -345,7 +345,6 @@ public class GameProjectBuilder extends Builder {
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
 
                 // create the archive and manifest
-                project.getPublisher().start();
                 ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
                 createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);

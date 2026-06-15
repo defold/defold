@@ -57,10 +57,6 @@ public class FontTest {
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    private File newTempFile(String prefix, String suffix) throws IOException {
-        return File.createTempFile(prefix, suffix, temporaryFolder.getRoot());
-    }
-
     private String copyResourceToDir(String tmpDir, String resName) throws IOException {
         String outputPath = Paths.get(tmpDir, resName).toString();
 
@@ -237,7 +233,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = newTempFile("glyph-bank-output", ".glyph_bankc");
+        File outfile = temporaryFolder.newFile("glyph-bank-output.glyph_bankc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -283,7 +279,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = newTempFile("glyph-bank-output", ".glyph_bankc");
+        File outfile = temporaryFolder.newFile("glyph-bank-output.glyph_bankc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -329,7 +325,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = newTempFile("glyph-bank-output", ".glyph_bankc");
+        File outfile = temporaryFolder.newFile("glyph-bank-output.glyph_bankc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -374,7 +370,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = newTempFile("glyph-bank-output", ".glyph_bankc");
+        File outfile = temporaryFolder.newFile("glyph-bank-output.glyph_bankc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -457,7 +453,7 @@ public class FontTest {
                 .setSize(24)
                 .build();
 
-        File outfile = newTempFile("font-output", ".fontc");
+        File outfile = temporaryFolder.newFile("font-output.fontc");
 
         // compile font
         boolean success = true;
@@ -504,7 +500,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = newTempFile("font-output", ".fontc");
+        File outfile = temporaryFolder.newFile("font-output.fontc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -546,7 +542,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = newTempFile("font-output", ".fontc");
+        File outfile = temporaryFolder.newFile("font-output.fontc");
 
         // compile font
         Fontc fontc = new Fontc();
