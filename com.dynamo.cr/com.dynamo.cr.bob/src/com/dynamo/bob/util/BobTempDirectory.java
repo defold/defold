@@ -26,9 +26,9 @@ import java.nio.file.Files;
  * under one root so {@link com.dynamo.bob.Project#dispose()} can remove them
  * together after the build.
  */
-public class BobTempScope implements AutoCloseable {
+public class BobTempDirectory implements AutoCloseable {
 
-    private static final Logger logger = Logger.getLogger(BobTempScope.class.getName());
+    private static final Logger logger = Logger.getLogger(BobTempDirectory.class.getName());
     private static final String KEEP_TEMP_ENV = "DM_BOB_KEEP_TEMP";
     private static final String KEEP_TEMP_PROPERTY = "defold.bob.keepTemp";
 
@@ -37,10 +37,10 @@ public class BobTempScope implements AutoCloseable {
     private final Thread shutdownHook;
     private boolean closed = false;
 
-    public BobTempScope() throws IOException {
+    public BobTempDirectory() throws IOException {
         this.rootDirectory = Files.createTempDirectory("defold-bob-invoke-").toFile();
         this.keepTemp = shouldKeepTemp();
-        this.shutdownHook = new Thread(this::cleanupOnShutdown, "bob-temp-scope-cleanup");
+        this.shutdownHook = new Thread(this::cleanupOnShutdown, "bob-temp-directory-cleanup");
         Runtime.getRuntime().addShutdownHook(this.shutdownHook);
     }
 
@@ -70,7 +70,7 @@ public class BobTempScope implements AutoCloseable {
 
     private void checkOpen() throws IOException {
         if (closed) {
-            throw new IOException("Bob temporary scope is already closed");
+            throw new IOException("Bob temporary directory is already closed");
         }
     }
 

@@ -32,9 +32,9 @@ import org.junit.rules.TemporaryFolder;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.util.BobTempScope;
+import com.dynamo.bob.util.BobTempDirectory;
 
-public class BobTempScopeTest {
+public class BobTempDirectoryTest {
     private static final String KEEP_TEMP_PROPERTY = "defold.bob.keepTemp";
 
     private String previousKeepTempProperty;
@@ -57,57 +57,57 @@ public class BobTempScopeTest {
         }
     }
 
-    public static class UnclosedScopeProcess {
+    public static class UnclosedDirectoryProcess {
         public static void main(String[] args) throws Exception {
             System.setProperty(KEEP_TEMP_PROPERTY, "false");
-            BobTempScope scope = new BobTempScope();
-            File tempFile = scope.createTempFile("bob-temp-scope-shutdown-test", ".tmp");
+            BobTempDirectory directory = new BobTempDirectory();
+            File tempFile = directory.createTempFile("bob-temp-directory-shutdown-test", ".tmp");
 
             Files.write(tempFile.toPath(), "temp".getBytes(StandardCharsets.UTF_8));
-            Files.write(new File(args[0]).toPath(), scope.getRootDirectory().getAbsolutePath().getBytes(StandardCharsets.UTF_8));
+            Files.write(new File(args[0]).toPath(), directory.getRootDirectory().getAbsolutePath().getBytes(StandardCharsets.UTF_8));
         }
     }
 
     @Test
-    public void testCloseDeletesScopeDirectory() throws Exception {
-        // Creates a scoped temp file, directory, and nested file, then verifies close() removes the entire scope tree.
-        File scopeRoot;
+    public void testCloseDeletesTempDirectory() throws Exception {
+        // Creates a temp file, directory, and nested file, then verifies close() removes the entire temp tree.
+        File rootDirectory;
         File tempFile;
         File tempDirectory;
 
-        try (BobTempScope scope = new BobTempScope()) {
-            scopeRoot = scope.getRootDirectory();
-            tempFile = scope.createTempFile("bob-temp-scope-test", ".tmp");
-            tempDirectory = scope.createTempDirectory("bob-temp-scope-test-dir");
+        try (BobTempDirectory directory = new BobTempDirectory()) {
+            rootDirectory = directory.getRootDirectory();
+            tempFile = directory.createTempFile("bob-temp-directory-test", ".tmp");
+            tempDirectory = directory.createTempDirectory("bob-temp-directory-test-dir");
             File nestedFile = new File(tempDirectory, "nested.tmp");
 
             Files.write(tempFile.toPath(), "temp".getBytes(StandardCharsets.UTF_8));
             Files.write(nestedFile.toPath(), "nested".getBytes(StandardCharsets.UTF_8));
 
-            assertTrue(scopeRoot.isDirectory());
+            assertTrue(rootDirectory.isDirectory());
             assertTrue(tempFile.isFile());
             assertTrue(tempDirectory.isDirectory());
             assertTrue(nestedFile.isFile());
         }
 
-        assertFalse(scopeRoot.exists());
+        assertFalse(rootDirectory.exists());
         assertFalse(tempFile.exists());
         assertFalse(tempDirectory.exists());
     }
 
     @Test
-    public void testUnclosedScopeIsCleanedWhenJvmExits() throws Exception {
-        // Starts a child JVM that leaves a scope open, then verifies process shutdown removes the scope root.
-        File scopePathFile = temporaryFolder.newFile("unclosed-scope-root.txt");
-        assertTrue(scopePathFile.delete());
+    public void testUnclosedTempDirectoryIsCleanedWhenJvmExits() throws Exception {
+        // Starts a child JVM that leaves a temp directory open, then verifies process shutdown removes the root.
+        File rootPathFile = temporaryFolder.newFile("unclosed-temp-directory-root.txt");
+        assertTrue(rootPathFile.delete());
 
         String javaExecutable = new File(System.getProperty("java.home"), "bin/java").getAbsolutePath();
         Process process = new ProcessBuilder(
                 javaExecutable,
                 "-cp",
                 System.getProperty("java.class.path"),
-                UnclosedScopeProcess.class.getName(),
-                scopePathFile.getAbsolutePath())
+                UnclosedDirectoryProcess.class.getName(),
+                rootPathFile.getAbsolutePath())
                 .redirectErrorStream(true)
                 .start();
 
@@ -115,43 +115,43 @@ public class BobTempScopeTest {
         int exitCode = process.waitFor();
 
         assertEquals(processOutput, 0, exitCode);
-        File scopeRoot = new File(new String(Files.readAllBytes(scopePathFile.toPath()), StandardCharsets.UTF_8).trim());
-        assertFalse(scopeRoot.exists());
+        File rootDirectory = new File(new String(Files.readAllBytes(rootPathFile.toPath()), StandardCharsets.UTF_8).trim());
+        assertFalse(rootDirectory.exists());
     }
 
     @Test
     public void testClosePreventsFurtherTempCreation() throws Exception {
-        // Verifies a closed scope deletes its root and rejects any later temp-file creation with IOException.
-        BobTempScope scope = new BobTempScope();
-        scope.close();
+        // Verifies a closed temp directory deletes its root and rejects any later temp-file creation with IOException.
+        BobTempDirectory directory = new BobTempDirectory();
+        directory.close();
 
         try {
-            scope.createTempFile("bob-temp-scope-test", ".tmp");
+            directory.createTempFile("bob-temp-directory-test", ".tmp");
             fail("Expected temp file creation after close to fail");
         } catch (IOException expected) {
         }
 
-        assertFalse(scope.getRootDirectory().exists());
+        assertFalse(directory.getRootDirectory().exists());
     }
 
     @Test
-    public void testProjectDisposeClosesTempScope() throws Exception {
-        // Verifies Project.dispose() closes the attached scope and removes temps created through the Project API.
-        BobTempScope scope = new BobTempScope();
-        File scopeRoot = scope.getRootDirectory();
+    public void testProjectDisposeClosesTempDirectory() throws Exception {
+        // Verifies Project.dispose() closes the attached temp directory and removes temps created through the Project API.
+        BobTempDirectory directory = new BobTempDirectory();
+        File rootDirectory = directory.getRootDirectory();
         File projectRoot = temporaryFolder.newFolder("project");
-        Project project = new Project(getClass().getClassLoader(), new DefaultFileSystem(), projectRoot.getAbsolutePath(), "build/default", scope);
+        Project project = new Project(getClass().getClassLoader(), new DefaultFileSystem(), projectRoot.getAbsolutePath(), "build/default", directory);
 
-        File tempFile = project.createTempFile("project-temp-scope-test", ".tmp");
-        File tempDirectory = project.createTempDirectory("project-temp-scope-test-dir");
+        File tempFile = project.createTempFile("project-temp-directory-test", ".tmp");
+        File tempDirectory = project.createTempDirectory("project-temp-directory-test-dir");
 
-        assertTrue(scopeRoot.isDirectory());
+        assertTrue(rootDirectory.isDirectory());
         assertTrue(tempFile.isFile());
         assertTrue(tempDirectory.isDirectory());
 
         project.dispose();
 
-        assertFalse(scopeRoot.exists());
+        assertFalse(rootDirectory.exists());
         assertFalse(tempFile.exists());
         assertFalse(tempDirectory.exists());
     }

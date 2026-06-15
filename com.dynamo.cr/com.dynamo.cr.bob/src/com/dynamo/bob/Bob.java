@@ -20,7 +20,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.BobTempScope;
+import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.Library.Result;
@@ -643,7 +643,7 @@ public class Bob {
     }
 
     private static Project createProject(ClassLoader classLoader, String rootDirectory, String buildDirectory, String email, String auth) throws IOException {
-        Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory, new BobTempScope());
+        Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory, new BobTempDirectory());
         project.setOption("email", email);
         project.setOption("auth", auth);
 

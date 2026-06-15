@@ -50,7 +50,7 @@ import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.BobTempScope;
+import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.MinifyPathCollector;
@@ -136,7 +136,7 @@ public class Project implements AutoCloseable {
     private HashMap<String, Task> tasks;
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
-    private volatile BobTempScope tempScope;
+    private volatile BobTempDirectory tempDirectory;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
@@ -189,9 +189,9 @@ public class Project implements AutoCloseable {
         this(loader, fileSystem, sourceRootDirectory, buildDirectory, null);
     }
 
-    public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory, BobTempScope tempScope) {
+    public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory, BobTempDirectory tempDirectory) {
         this.classLoader = loader;
-        this.tempScope = tempScope;
+        this.tempDirectory = tempDirectory;
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
@@ -210,9 +210,9 @@ public class Project implements AutoCloseable {
         try {
             this.fileSystem.close();
         } finally {
-            if (this.tempScope != null) {
-                this.tempScope.close();
-                this.tempScope = null;
+            if (this.tempDirectory != null) {
+                this.tempDirectory.close();
+                this.tempDirectory = null;
             }
         }
     }
@@ -222,26 +222,26 @@ public class Project implements AutoCloseable {
         dispose();
     }
 
-    private BobTempScope getOrCreateTempScope() throws IOException {
-        BobTempScope scope = this.tempScope;
-        if (scope == null) {
+    private BobTempDirectory getOrCreateTempDirectory() throws IOException {
+        BobTempDirectory directory = this.tempDirectory;
+        if (directory == null) {
             synchronized (this) {
-                scope = this.tempScope;
-                if (scope == null) {
-                    scope = new BobTempScope();
-                    this.tempScope = scope;
+                directory = this.tempDirectory;
+                if (directory == null) {
+                    directory = new BobTempDirectory();
+                    this.tempDirectory = directory;
                 }
             }
         }
-        return scope;
+        return directory;
     }
 
     public File createTempFile(String prefix, String suffix) throws IOException {
-        return getOrCreateTempScope().createTempFile(prefix, suffix);
+        return getOrCreateTempDirectory().createTempFile(prefix, suffix);
     }
 
     public File createTempDirectory(String prefix) throws IOException {
-        return getOrCreateTempScope().createTempDirectory(prefix);
+        return getOrCreateTempDirectory().createTempDirectory(prefix);
     }
 
     public String getRootDirectory() {
