@@ -714,6 +714,9 @@
                                           (and (not has-hidden-outline-key-path)
                                                (get-in flat-renderable [:user-data :editor-preview-light]))
                                           (conj! flat-renderable))
+        has-model? (or (:has-model? flattened-scene)
+                       (and is-visible
+                            (contains? (:tags renderable) :model)))
         scene-aabb (cond-> (:scene-aabb flattened-scene)
                            (and is-visible (not (geom/empty-aabb? visibility-aabb)))
                            (geom/aabb-union (geom/aabb-transform visibility-aabb world-transform)))]
@@ -744,6 +747,7 @@
                                             alloc-picking-id!)))
             {:renderables pass-renderables
              :preview-light-renderables preview-light-renderables
+             :has-model? has-model?
              :scene-aabb scene-aabb}
             (:children scene))))
 
@@ -779,9 +783,10 @@
         parent-world-rotation geom/NoRotation
         parent-world-transform geom/Identity4d
         parent-world-scale (Vector3d. 1 1 1)]
-    (let [{:keys [renderables preview-light-renderables scene-aabb]}
+    (let [{:keys [renderables preview-light-renderables has-model? scene-aabb]}
           (flatten-scene-renderables! {:renderables (make-pass-renderables)
                                        :preview-light-renderables (transient [])
+                                       :has-model? false
                                        :scene-aabb geom/null-aabb}
                                       true
                                       true
@@ -797,9 +802,14 @@
                                       parent-world-scale
                                       parent-world-transform
                                       alloc-picking-id!)
-          preview-light-renderables (persistent! preview-light-renderables)]
+          preview-light-renderables (persistent! preview-light-renderables)
+          add-default-preview-lights? (and has-model?
+                                           (empty? preview-light-renderables))
+          preview-light-data (cond-> (light/preview-light-data-from-renderables preview-light-renderables)
+                               add-default-preview-lights?
+                               light/with-default-preview-lights)]
       {:renderables (persist-pass-renderables! renderables)
-       :preview-light-data (light/preview-light-data-from-renderables preview-light-renderables)
+       :preview-light-data preview-light-data
        :scene-aabb (if (geom/null-aabb? scene-aabb)
                      geom/empty-bounding-box
                      scene-aabb)})))
