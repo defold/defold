@@ -58,7 +58,7 @@ public class BobTempScopeTest {
 
     @Test
     public void testCloseDeletesScopeDirectory() throws Exception {
-        // Bob invocation temp files should disappear when the per-invocation scope is closed.
+        // Creates a scoped temp file, directory, and nested file, then verifies close() removes the entire scope tree.
         File scopeRoot;
         File tempFile;
         File tempDirectory;
@@ -85,7 +85,7 @@ public class BobTempScopeTest {
 
     @Test
     public void testClosePreventsFurtherTempCreation() throws Exception {
-        // Closed scopes must fail fast so callers cannot leak files into a disposed invocation.
+        // Verifies a closed scope deletes its root and rejects any later temp-file creation with IOException.
         BobTempScope scope = new BobTempScope();
         scope.close();
 
@@ -100,7 +100,7 @@ public class BobTempScopeTest {
 
     @Test
     public void testProjectDisposeClosesTempScope() throws Exception {
-        // Bob.invoke() disposes the project, so project disposal must also clean scoped temp files.
+        // Verifies Project.dispose() closes the attached scope and removes temps created through the Project API.
         BobTempScope scope = new BobTempScope();
         File scopeRoot = scope.getRootDirectory();
         File projectRoot = temporaryFolder.newFolder("project");
