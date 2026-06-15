@@ -111,7 +111,43 @@ public final class GamepadConverter {
         CANONICAL_SDL_PACKET_BINDINGS.put("righttrigger", "a5");
     }
 
+    private static final Map<String, String> GLFW_WINDOWS_XINPUT_PACKET_BINDINGS = new HashMap<>();
+    static {
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("a", "b0");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("b", "b1");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("x", "b2");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("y", "b3");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("leftshoulder", "b4");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("rightshoulder", "b5");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("back", "b6");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("start", "b7");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("leftstick", "b8");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("rightstick", "b9");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("dpup", "h0.1");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("dpright", "h0.2");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("dpdown", "h0.4");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("dpleft", "h0.8");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("leftx", "a0");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("+leftx", "+a0");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("-leftx", "-a0");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("lefty", "a1");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("+lefty", "+a1");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("-lefty", "-a1");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("rightx", "a2");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("+rightx", "+a2");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("-rightx", "-a2");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("righty", "a3");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("+righty", "+a3");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("-righty", "-a3");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("lefttrigger", "a4");
+        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("righttrigger", "a5");
+    }
+
     private static final String HEX_GUID_PATTERN = "^[0-9a-fA-F]{32}";
+    private static final Map<String, String> SDL_GUID_ALIASES = new HashMap<>();
+    static {
+        SDL_GUID_ALIASES.put("xinput", "78696e70757401000000000000000000");
+    }
 
     private GamepadConverter() {}
 
@@ -348,11 +384,12 @@ public final class GamepadConverter {
     }
 
     private static boolean isValidGuid(String guid) {
-        return guid != null && guid.matches("[0-9a-fA-F]{32}");
+        return resolveGuidAlias(guid) != null;
     }
 
     private static byte[] parseGuidBytes(String guid) {
-        if (!isValidGuid(guid)) {
+        guid = resolveGuidAlias(guid);
+        if (guid == null) {
             return null;
         }
 
@@ -369,7 +406,22 @@ public final class GamepadConverter {
         return bytes;
     }
 
+    private static String resolveGuidAlias(String guid) {
+        if (guid == null) {
+            return null;
+        }
+
+        if (guid.matches("[0-9a-fA-F]{32}")) {
+            return guid;
+        }
+
+        return SDL_GUID_ALIASES.get(guid.toLowerCase());
+    }
+
     private static List<String> convertSdlMappingToDefoldMap(SdlMapping mapping, String platform) {
+        if (usesGLFWWindowsXInputPacketLayout(mapping, platform)) {
+            return convertSdlMappingToFixedPacketDefoldMap(mapping.mappings, GLFW_WINDOWS_XINPUT_PACKET_BINDINGS);
+        }
         return convertSdlMappingToDefoldMap(mapping.mappings, usesCanonicalSdlPacketLayout(platform));
     }
 
@@ -377,6 +429,63 @@ public final class GamepadConverter {
     // SDL row still identifies the device and logical controls, but not our packet indices.
     private static boolean usesCanonicalSdlPacketLayout(String platform) {
         return platform.equals("macos") || platform.equals("ios");
+    }
+
+    // SDL's Windows XInput mappings use SDL's packet axis order:
+    // lx, ly, lt, rx, ry, rt. GLFW exposes XInput as lx, ly, rx, ry, lt, rt.
+    private static boolean usesGLFWWindowsXInputPacketLayout(SdlMapping mapping, String platform) {
+        if (!platform.equals("windows")) {
+            return false;
+        }
+
+        String guid = resolveGuidAlias(mapping.guid);
+        if (guid == null) {
+            return false;
+        }
+
+        if ("78696e70757401000000000000000000".equalsIgnoreCase(guid)) {
+            return true;
+        }
+
+        if (!guid.regionMatches(true, 8, "5e04", 0, 4)) {
+            return false;
+        }
+
+        return hasSdlPhysicalBinding(mapping.mappings, "a", "b0") &&
+               hasSdlPhysicalBinding(mapping.mappings, "b", "b1") &&
+               hasSdlPhysicalBinding(mapping.mappings, "leftx", "a0") &&
+               hasSdlPhysicalBinding(mapping.mappings, "lefty", "a1") &&
+               hasSdlPhysicalBinding(mapping.mappings, "rightx", "a3") &&
+               hasSdlPhysicalBinding(mapping.mappings, "righty", "a4");
+    }
+
+    private static boolean hasSdlPhysicalBinding(String sdlMappings, String logical, String binding) {
+        String[] parts = sdlMappings.split(",");
+        for (String part : parts) {
+            part = part.trim();
+            if (part.isEmpty() || part.startsWith("platform:")) {
+                continue;
+            }
+
+            int colonIdx = part.indexOf(':');
+            if (colonIdx == -1) {
+                continue;
+            }
+
+            String entryLogical = part.substring(0, colonIdx).trim();
+            String entryBinding = part.substring(colonIdx + 1).trim();
+            if (logical.equalsIgnoreCase(entryLogical) && binding.equalsIgnoreCase(stripAxisDirection(entryBinding))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String stripAxisDirection(String binding) {
+        if (binding.startsWith("+") || binding.startsWith("-")) {
+            return binding.substring(1);
+        }
+        return binding;
     }
 
     private static List<String> convertSdlMappingToDefoldMap(String sdlMappings, boolean canonicalSdlPacketLayout) {
@@ -398,6 +507,22 @@ public final class GamepadConverter {
             }
 
             result.addAll(convertSdlMappingEntries(part));
+        }
+
+        return result;
+    }
+
+    private static List<String> convertSdlMappingToFixedPacketDefoldMap(String sdlMappings, Map<String, String> packetBindings) {
+        List<String> result = new ArrayList<>();
+
+        String[] parts = sdlMappings.split(",");
+        for (String part : parts) {
+            part = part.trim();
+            if (part.isEmpty() || part.startsWith("platform:")) {
+                continue;
+            }
+
+            result.addAll(convertSdlMappingEntriesToCanonicalPacket(part, packetBindings));
         }
 
         return result;

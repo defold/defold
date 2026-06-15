@@ -73,6 +73,65 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testConvertSdlXInputAliasToGamepadMapsRuntime() throws Exception {
+        String sdl = "xinput,XInput Controller,a:b0,b:b1,x:b2,y:b3,back:b6,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,leftstick:b8,lefttrigger:a2,leftx:a0,lefty:a1,rightshoulder:b5,rightstick:b9,righttrigger:a5,rightx:a3,righty:a4,start:b7,platform:Windows,\n";
+
+        GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "x86_64-win32"));
+        GamepadMapRuntime driver = maps.getMappings(0);
+
+        assertEquals("XInput Controller", driver.getDevice());
+        assertTrue(driver.hasGuid());
+        assertEquals("78696e70757401000000000000000000", bytesToHex(driver.getGuid().toByteArray()));
+        assertEquals(0, find(driver, Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertEquals(2, find(driver, Gamepad.GAMEPAD_RSTICK_LEFT).getIndex());
+        assertEquals(3, find(driver, Gamepad.GAMEPAD_RSTICK_UP).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
+        assertMissingInput(driver, Gamepad.GAMEPAD_GUIDE);
+    }
+
+    @Test
+    public void testConvertWindowsXboxOneMappingToGLFWXInputPacketLayout() throws Exception {
+        String sdl = "030000005e040000ff02000000000000,Xbox Wireless Controller,a:b0,b:b1,x:b2,y:b3,back:b6,guide:b10,start:b7,leftstick:b8,rightstick:b9,leftshoulder:b4,rightshoulder:b5,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,leftx:a0,lefty:a1,rightx:a3,righty:a4,lefttrigger:a2,righttrigger:a5,platform:Windows,\n";
+
+        GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "x86_64-win32"));
+        GamepadMapRuntime driver = maps.getMappings(0);
+
+        assertEquals("Xbox Wireless Controller", driver.getDevice());
+        assertEquals("030000005e040000ff02000000000000", bytesToHex(driver.getGuid().toByteArray()));
+        assertEquals(2, find(driver, Gamepad.GAMEPAD_RSTICK_LEFT).getIndex());
+        assertEquals(3, find(driver, Gamepad.GAMEPAD_RSTICK_UP).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
+        assertHasModifier(find(driver, Gamepad.GAMEPAD_RSTICK_UP), GamepadModifier.GAMEPAD_MODIFIER_NEGATE);
+        assertHasModifier(find(driver, Gamepad.GAMEPAD_LTRIGGER), GamepadModifier.GAMEPAD_MODIFIER_SCALE);
+        assertHasModifier(find(driver, Gamepad.GAMEPAD_RTRIGGER), GamepadModifier.GAMEPAD_MODIFIER_SCALE);
+
+        GamepadMapEntry dpadUp = find(driver, Gamepad.GAMEPAD_LPAD_UP);
+        assertEquals(GamepadType.GAMEPAD_TYPE_HAT, dpadUp.getType());
+        assertEquals(0, dpadUp.getIndex());
+        assertEquals(1, dpadUp.getHatMask());
+        assertMissingInput(driver, Gamepad.GAMEPAD_GUIDE);
+    }
+
+    @Test
+    public void testConvertWindowsXbox360SignedTriggerMappingToGLFWXInputPacketLayout() throws Exception {
+        String sdl = "030000005e0400008e02000000000000,Xbox 360 Controller,a:b0,b:b1,x:b2,y:b3,back:b6,start:b7,leftstick:b8,rightstick:b9,leftshoulder:b4,rightshoulder:b5,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,leftx:a0,lefty:a1,rightx:a3,righty:a4,lefttrigger:+a2,righttrigger:-a2,platform:Windows,\n";
+
+        GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "x86_64-win32"));
+        GamepadMapRuntime driver = maps.getMappings(0);
+
+        assertEquals("Xbox 360 Controller", driver.getDevice());
+        assertEquals("030000005e0400008e02000000000000", bytesToHex(driver.getGuid().toByteArray()));
+        assertEquals(2, find(driver, Gamepad.GAMEPAD_RSTICK_LEFT).getIndex());
+        assertEquals(3, find(driver, Gamepad.GAMEPAD_RSTICK_UP).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
+        assertHasModifier(find(driver, Gamepad.GAMEPAD_LTRIGGER), GamepadModifier.GAMEPAD_MODIFIER_SCALE);
+        assertHasModifier(find(driver, Gamepad.GAMEPAD_RTRIGGER), GamepadModifier.GAMEPAD_MODIFIER_SCALE);
+    }
+
+    @Test
     public void testConvertSignedAxisBindings() throws Exception {
         String sdl = "03000000000000000000000000000000,Axis Dpad,dpdown:+a1,dpleft:-a0,dpright:+a0,dpup:-a1,platform:Linux,\n";
 
@@ -337,6 +396,12 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
             }
         }
         throw new AssertionError("Missing gamepad input: " + input);
+    }
+
+    private static void assertMissingInput(GamepadMapRuntime map, Gamepad input) {
+        for (GamepadMapEntry entry : map.getMapList()) {
+            assertFalse("Unexpected gamepad input: " + input, entry.getInput() == input);
+        }
     }
 
     private static void assertHasModifier(GamepadMapEntry entry, GamepadModifier modifier) {

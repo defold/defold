@@ -210,9 +210,16 @@ const char* GetGamepadIdentityName(const GamepadIdentity& identity, const char* 
             case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY1:
             case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY2:
                 return "Xbox 360 Controller";
+            case USB_PRODUCT_XBOX_ONE_ADAPTIVE:                 return "Xbox Adaptive Controller";
+            case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_1:           return "Xbox Elite Wireless Controller";
+            case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2:           return "Xbox Elite Wireless Controller Series 2";
             case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2_BLUETOOTH: return "Xbox Elite Wireless Controller Series 2";
+            case USB_PRODUCT_XBOX_ONE_S:                        return "Xbox Wireless Controller";
+            case USB_PRODUCT_XBOX_ONE_S_REV2_BLUETOOTH:         return "Xbox Wireless Controller";
+            case USB_PRODUCT_XBOX_SERIES_X:                     return "Xbox Wireless Controller";
             case USB_PRODUCT_XBOX_SERIES_X_BLE:                 return "Xbox Wireless Controller";
             case USB_PRODUCT_XBOX_ONE_S_REV1_BLUETOOTH:         return "Xbox Wireless Controller";
+            case USB_PRODUCT_XBOX_ONE_XBOXGIP_CONTROLLER:       return "Xbox Wireless Controller";
             default: break;
         }
     }
