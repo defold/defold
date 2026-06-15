@@ -15,6 +15,7 @@
 (ns internal.txsteps.set-property-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.node :as in]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support])
   (:import [clojure.lang ExceptionInfo]))
@@ -270,10 +271,39 @@
       (testing "Transaction attempt fails."
         (is (thrown?
               ExceptionInfo
-              (g/transact
-                (g/set-property node-id :basic-property "invalid-non-keyword-value")))))
+              (binding [in/*suppress-schema-warnings* true]
+                (g/transact
+                  (g/set-property node-id :basic-property "invalid-non-keyword-value"))))))
 
       (testing "After transaction attempt."
         (is (= nil
                (g/node-value node-id :basic-property)
                (g/node-value node-id :basic-output)))))))
+
+(g/defnode EffectivePropertyTestNode
+  (property mode g/Keyword (default :raw))
+
+  (property effective-property g/Keyword
+            (value (g/fnk [effective-property mode]
+                     (case mode
+                       :computed :computed-effective-property-value
+                       :raw effective-property)))))
+
+(deftest undo-uses-raw-assigned-property-value-for-replay-protection-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph! :history true)
+          node-id (g/make-node! graph-id EffectivePropertyTestNode)]
+
+      (g/transact
+        [(g/set-property node-id :mode :computed)
+         (g/set-property node-id :effective-property :new-effective-property-value)])
+
+      (is (= :new-effective-property-value
+             (g/raw-property-value (g/now) node-id :effective-property)))
+      (is (= :computed-effective-property-value
+             (g/node-value node-id :effective-property)))
+
+      (g/undo! graph-id)
+
+      (is (nil? (g/raw-property-value (g/now) node-id :effective-property)))
+      (is (nil? (g/node-value node-id :effective-property))))))

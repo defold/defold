@@ -296,7 +296,16 @@
   [tx-result transact-opts]
   (when (and (not (:dry-run transact-opts))
              (= :ok (:status tx-result)))
-    (swap! *the-system* is/merge-graphs (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result))
+    (swap! *the-system*
+           is/merge-graphs
+           (get-in tx-result [:basis :graphs])
+           (:graphs-modified tx-result)
+           (:outputs-modified tx-result)
+           (:nodes-deleted tx-result)
+           (not= false (:undoable transact-opts))
+           (:changes tx-result)
+           (:label tx-result)
+           (:sequence-label tx-result))
     (when (:full-invalidation transact-opts)
       (clear-system-cache!))
     nil))
@@ -321,6 +330,10 @@
                 tracked accurately in this mode, so callers that need
                 consistent undo semantics must reset or otherwise manage
                 history explicitly.
+
+              :undoable
+                Defaults to true. When false, commits graph changes without
+                appending the realized transaction changes to the undo stack.
 
               :tx-data-context-map
                 Initial transaction data context map. The final value is

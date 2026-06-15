@@ -15,6 +15,7 @@
 (ns internal.txsteps.update-property-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.node :as in]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support])
   (:import [clojure.lang ExceptionInfo]))
@@ -321,12 +322,13 @@
       (testing "Transaction attempt fails."
         (is (thrown?
               ExceptionInfo
-              (g/transact
-                (g/update-property
-                  node-id :basic-property
-                  (fn [old-value]
-                    (is (= nil old-value))
-                    "invalid-non-keyword-value"))))))
+              (binding [in/*suppress-schema-warnings* true]
+                (g/transact
+                  (g/update-property
+                    node-id :basic-property
+                    (fn [old-value]
+                      (is (= nil old-value))
+                      "invalid-non-keyword-value")))))))
 
       (testing "After transaction attempt."
         (is (= nil

@@ -25,7 +25,6 @@
             [editor.code.script-intelligence :as si]
             [editor.code.transpilers :as code.transpilers]
             [editor.collision-groups :as collision-groups]
-            [editor.core :as core]
             [editor.dialogs :as dialogs]
             [editor.editor-localization-bundle :as editor-localization-bundle]
             [editor.game-project-core :as gpc]
@@ -1177,23 +1176,22 @@
        (filter (comp (set open-resource-nodes) first))
        (into {})))
 
-(defn- perform-selection [basis project all-selections old-all-selections]
+(defn- perform-selection [basis project all-selections]
   (let [all-node-ids (->> all-selections
                           vals
                           (reduce into [])
                           distinct
                           vec)]
-    (when (not= old-all-selections all-selections)
-      (concat
-        (g/set-property project :all-selections all-selections)
-        (for [[node-id label] (g/sources-of basis project :all-selected-node-ids)]
-          (g/disconnect node-id label project :all-selected-node-ids))
-        (for [[node-id label] (g/sources-of basis project :all-selected-node-properties)]
-          (g/disconnect node-id label project :all-selected-node-properties))
-        (for [node-id all-node-ids]
-          (concat
-            (g/connect node-id :_node-id project :all-selected-node-ids)
-            (g/connect node-id :_properties project :all-selected-node-properties)))))))
+    (concat
+      (g/set-property project :all-selections all-selections)
+      (for [[node-id label] (g/sources-of basis project :all-selected-node-ids)]
+        (g/disconnect node-id label project :all-selected-node-ids))
+      (for [[node-id label] (g/sources-of basis project :all-selected-node-properties)]
+        (g/disconnect node-id label project :all-selected-node-properties))
+      (for [node-id all-node-ids]
+        (concat
+          (g/connect node-id :_node-id project :all-selected-node-ids)
+          (g/connect node-id :_properties project :all-selected-node-properties))))))
 
 (defn select
   [project resource-node node-ids open-resource-nodes evaluation-context]
@@ -1204,7 +1202,8 @@
                    [resource-node])
         old-all-selections (g/node-value project :all-selections evaluation-context)
         all-selections (update-selection old-all-selections open-resource-nodes resource-node node-ids)]
-    (perform-selection basis project all-selections old-all-selections)))
+    (when (not= old-all-selections all-selections)
+      (perform-selection basis project all-selections))))
 
 (defn- perform-sub-selection
   ([project all-sub-selections]
@@ -1425,11 +1424,13 @@
                              (let [all-selections (-> old-all-selections
                                                       (dissoc-deleted)
                                                       (remap-selection old->new (comp vector first)))]
-                               (perform-selection basis project all-selections old-all-selections))
+                               (when (not= old-all-selections all-selections)
+                                 (perform-selection basis project all-selections)))
                              (let [all-sub-selections (-> old-all-sub-selections
                                                           (dissoc-deleted)
                                                           (remap-selection old->new (constantly [])))]
-                               (perform-sub-selection project all-sub-selections))))]
+                               (when (not= old-all-sub-selections all-sub-selections)
+                                 (perform-sub-selection project all-sub-selections)))))]
         (g/transact transact-opts tx-data)))
 
     ;; Invalidating outputs is the only change that does not reset the undo

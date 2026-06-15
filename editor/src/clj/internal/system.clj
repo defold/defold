@@ -18,6 +18,7 @@
             [internal.graph.types :as gt]
             [internal.history :as h]
             [internal.node :as in]
+            [internal.transaction :as it]
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce])
@@ -28,7 +29,6 @@
 (declare graphs)
 
 (def ^:private maximum-cached-items     20000)
-(def ^:private maximum-disposal-backlog 2500)
 (def ^:private history-size-max         60)
 
 (prefer-method print-method java.util.Map clojure.lang.IDeref)
@@ -39,21 +39,14 @@
   []
   (AtomicLong. 0))
 
-(defonce/record HistoryState [label graph sequence-label cache-keys])
-
-(defn history-state [graph outputs-modified]
-  (->HistoryState (:tx-label graph) graph (:tx-sequence-label graph) outputs-modified))
-
-(defn- history-state-merge-cache-keys
-  [new old]
-  (update new :cache-keys into (:cache-keys old)))
+(defonce/record HistoryState [label sequence-label changes])
 
 (defn- merge-into-top
   [tape new-state]
   (let [old-state (h/ivalue tape)]
     (conj
       (h/truncate (h/iprev tape))
-      (history-state-merge-cache-keys new-state old-state))))
+      (assoc new-state :changes (into (:changes old-state) (:changes new-state))))))
 
 (defn- =*
   "Comparison operator that treats nil as not equal to anything."
@@ -61,37 +54,19 @@
   ([x y] (and x y (= x y) x))
   ([x y & more] (reduce =* (=* x y) more)))
 
-(defn- new-history [graph]
-  {:tape (conj (h/paper-tape history-size-max)
-               (history-state graph #{}))})
+(defn- new-history []
+  {:tape (h/paper-tape history-size-max)})
 
 (defn merge-or-push-history
-  [history old-graph new-graph outputs-modified]
-  (assert (set? outputs-modified))
-  (let [new-state (history-state new-graph outputs-modified)
-        tape-op (if (=* (:tx-sequence-label new-graph) (:tx-sequence-label old-graph))
+  [history label sequence-label changes]
+  (let [new-state (->HistoryState label sequence-label changes)
+        tape-op (if (=* sequence-label (:sequence-label (h/ivalue (:tape history))))
                   merge-into-top
                   conj)]
     (update history :tape tape-op new-state)))
 
 (defn undo-stack [history]
-  (->> history
-       :tape
-       h/before
-       next
-       vec))
-
-(defn- time-warp [system graph outputs-to-refresh]
-  (let [graph-id (:_graph-id graph)
-        graphs (graphs system)]
-    (let [pseudo-basis (ig/multigraph-basis graphs)
-          {hydrated-basis :basis
-           hydrated-outputs-to-refresh :outputs-to-refresh} (ig/hydrate-after-undo pseudo-basis graph)
-          outputs-to-refresh (into (or outputs-to-refresh #{}) hydrated-outputs-to-refresh)
-          changes (util/group-into {} #{} gt/endpoint-node-id gt/endpoint-label outputs-to-refresh)
-          warped-basis (ig/update-successors hydrated-basis changes)]
-      {:graph (get-in warped-basis [:graphs graph-id])
-       :outputs-to-refresh outputs-to-refresh})))
+  (-> history :tape h/before vec))
 
 (defn last-graph            [system]          (-> system :last-graph))
 (defn system-cache          [system]          (some-> system :cache))
@@ -149,47 +124,88 @@
                           (c/cache-invalidate invalidated-endpoints)
                           (c/cache-encache changed-endpoint+value-pairs basis))))))
 
-(defn- step-through-history
-  [step-function system graph-id]
-  (let [history (graph-history system graph-id)
-        {:keys [tape]} history
-        prior-state (h/ivalue tape)
-        tape (step-function tape)
-        next-state (h/ivalue tape)
-        outputs-to-refresh (into (:cache-keys prior-state)
-                                 (:cache-keys next-state))]
-    (if-not next-state
-      system
-      (let [{:keys [graph outputs-to-refresh]} (time-warp system (:graph next-state) outputs-to-refresh)]
-        (-> system
-            (assoc-in [:graphs graph-id] graph)
-            (assoc-in [:history graph-id :tape] tape)
-            (invalidate-outputs outputs-to-refresh))))))
+(defn- remove-deleted-user-data
+  [user-data deleted-node-ids]
+  (reduce-kv (fn [user-data graph-id deleted-node-ids]
+               (update user-data graph-id #(apply dissoc % deleted-node-ids)))
+             user-data
+             (group-by gt/node-id->graph-id deleted-node-ids)))
 
-(def undo-history (partial step-through-history h/iprev))
-(def cancel-history (partial step-through-history h/drop-current))
-(def redo-history (partial step-through-history h/inext))
+(defn- commit-transaction-effects
+  [system outputs-modified nodes-deleted]
+  (-> system
+      (update :cache c/cache-invalidate outputs-modified)
+      (update :user-data remove-deleted-user-data (keys nodes-deleted))
+      (update :invalidate-counters bump-invalidate-counters outputs-modified)))
+
+(defn- commit-graph-states
+  [system post-tx-graphs]
+  (reduce-kv (fn [system graph-id graph]
+               (assoc-in system [:graphs graph-id] (update graph :tx-id util/safe-inc)))
+             system
+             post-tx-graphs))
+
+(defn- replay-history
+  [system changes change-fn]
+  (let [ctx (it/new-transaction-context
+              (basis system)
+              (id-generators system)
+              (override-id-generator system)
+              {}
+              nil
+              false)
+        ctx (reduce (fn [ctx change]
+                      (-> ctx
+                          (change-fn change)
+                          (update :completed-action-count inc)))
+                    ctx
+                    changes)
+        tx-result (it/finalize-applied-changes ctx)]
+    (-> system
+        (commit-graph-states (get-in tx-result [:basis :graphs]))
+        (commit-transaction-effects (:outputs-modified tx-result)
+                                    (:nodes-deleted tx-result)))))
+
+(defn- update-history-tape
+  [system graph-id tape]
+  (assoc-in system [:history graph-id :tape] tape))
+
+(defn undo-history
+  [system graph-id]
+  (let [tape (get-in system [:history graph-id :tape])]
+    (if-let [state (h/ivalue tape)]
+      (-> system
+          (replay-history (rseq (:changes state)) it/revert-change)
+          (update-history-tape graph-id (h/iprev tape)))
+      system)))
+
+(defn redo-history
+  [system graph-id]
+  (let [tape (get-in system [:history graph-id :tape])]
+    (if-let [state (clojure.core/peek (h/after tape))]
+      (-> system
+          (replay-history (:changes state) it/perform-change)
+          (update-history-tape graph-id (h/inext tape)))
+      system)))
 
 (defn redo-stack [history]
-  (->> history
-       :tape
-       h/after
-       vec))
+  (-> history :tape h/after vec))
 
 (defn clear-history
   [system graph-id]
-  (let [graph (get-in system [:graphs graph-id])
-        initial-state (history-state graph #{})]
-    (update-in system [:history graph-id :tape] (fn [tape] (conj (empty tape) initial-state)))))
+  (if (get-in system [:history graph-id :tape])
+    (update-in system [:history graph-id] #(assoc % :tape (empty (:tape %))))
+    system))
 
 (defn cancel
   [system graph-id sequence-id]
-  (let [history (graph-history system graph-id)
-        tape (:tape history)
-        previous-change (h/ivalue tape)
-        ok-to-cancel? (=* sequence-id (:sequence-label previous-change))]
-    (cond-> system
-            ok-to-cancel? (cancel-history graph-id))))
+  (let [tape (get-in system [:history graph-id :tape])
+        state (h/ivalue tape)]
+    (if (=* sequence-id (:sequence-label state))
+      (-> system
+          (replay-history (rseq (:changes state)) it/revert-change)
+          (update-history-tape graph-id (h/drop-current tape)))
+      system)))
 
 (defn- make-initial-graph
   [{graph :initial-graph :or {graph (assoc (ig/empty-graph) :_graph-id 0)}}]
@@ -240,7 +256,7 @@
   (let [graph-id (next-available-graph-id system)]
     (-> system
         (attach-graph* graph-id graph)
-        (assoc-in [:history graph-id] (new-history graph)))))
+        (assoc-in [:history graph-id] (new-history)))))
 
 (defn detach-graph
   [system graph]
@@ -254,6 +270,7 @@
   (let [initial-graph (make-initial-graph configuration)
         cache (make-cache configuration)]
     (-> {:graphs {}
+         :history {}
          :id-generators {}
          :override-id-generator (integer-counter)
          :cache cache
@@ -261,47 +278,52 @@
          :user-data {}}
         (attach-graph initial-graph))))
 
-(defn- has-history? [system graph-id] (not (nil? (graph-history system graph-id))))
+(defn- has-history? [system graph-id]
+  (some? (:tape (graph-history system graph-id))))
+
 (def ^:private meaningful-change? contains?)
 
 (defn- remember-change
-  [system graph-id before after outputs-modified]
-  (update-in system [:history graph-id] merge-or-push-history before after outputs-modified))
+  [system graph-id label sequence-label changes]
+  (update-in system [:history graph-id] merge-or-push-history label sequence-label changes))
+
+(defn- prepare-transaction-graphs
+  [system post-tx-graphs significantly-modified-graphs]
+  (reduce-kv (fn [post-tx-graphs graph-id graph]
+               (let [start-tx (:tx-id graph -1)
+                     sidereal-tx (graph-time system graph-id)]
+                 (when (< start-tx sidereal-tx)
+                   ;; graph was modified concurrently by a different transaction.
+                   (throw (ex-info "Concurrent modification of graph"
+                                   {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx})))
+                 (let [graph-before (get-in system [:graphs graph-id])
+                       graph (if (not (meaningful-change? significantly-modified-graphs graph-id))
+                               (assoc graph :tx-sequence-label (:tx-sequence-label graph-before))
+                               graph)]
+                   (assoc post-tx-graphs graph-id graph))))
+             {}
+             post-tx-graphs))
+
+(defn- remember-transaction-changes
+  [system post-tx-graphs significantly-modified-graphs undoable changes label sequence-label]
+  (if (or (not undoable)
+          (coll/empty? changes))
+    system
+    (reduce-kv (fn [system graph-id _graph]
+                 (if (and (has-history? system graph-id)
+                          (meaningful-change? significantly-modified-graphs graph-id))
+                   (remember-change system graph-id label sequence-label changes)
+                   system))
+               system
+               post-tx-graphs)))
 
 (defn merge-graphs
-  [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted]
-  (let [graph-id->outputs-modified (util/group-into
-                                     {}
-                                     #{}
-                                     #(gt/node-id->graph-id (gt/endpoint-node-id %))
-                                     outputs-modified)
-        post-system (reduce (fn [system [graph-id graph]]
-                              (let [start-tx (:tx-id graph -1)
-                                    sidereal-tx (graph-time system graph-id)]
-                                (if (< start-tx sidereal-tx)
-                                  ;; graph was modified concurrently by a different transaction.
-                                  (throw (ex-info "Concurrent modification of graph"
-                                                  {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx}))
-                                  (let [graph-before (get-in system [:graphs graph-id])
-                                        graph-after (update graph :tx-id util/safe-inc)
-                                        graph-after (if (not (meaningful-change? significantly-modified-graphs graph-id))
-                                                      (assoc graph-after :tx-sequence-label (:tx-sequence-label graph-before))
-                                                      graph-after)
-                                        system-after (if (and (has-history? system graph-id)
-                                                              (meaningful-change? significantly-modified-graphs graph-id))
-                                                       (remember-change system graph-id graph-before graph-after (graph-id->outputs-modified graph-id #{}))
-                                                       system)]
-                                    (assoc-in system-after [:graphs graph-id] graph-after)))))
-                            system
-                            post-tx-graphs)]
-    (-> post-system
-        (update :cache c/cache-invalidate outputs-modified)
-        (update :user-data (fn [user-data]
-                             (reduce (fn [user-data [graph-id deleted-node-ids]]
-                                       (update user-data graph-id (partial apply dissoc) deleted-node-ids))
-                                     user-data
-                                     (group-by gt/node-id->graph-id (keys nodes-deleted)))))
-        (update :invalidate-counters bump-invalidate-counters outputs-modified))))
+  [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted undoable changes label sequence-label]
+  (let [post-tx-graphs (prepare-transaction-graphs system post-tx-graphs significantly-modified-graphs)]
+    (-> system
+        (remember-transaction-changes post-tx-graphs significantly-modified-graphs undoable changes label sequence-label)
+        (commit-graph-states post-tx-graphs)
+        (commit-transaction-effects outputs-modified nodes-deleted))))
 
 (defn basis-graphs-identical? [basis1 basis2]
   (let [graph-ids (keys (:graphs basis1))]
