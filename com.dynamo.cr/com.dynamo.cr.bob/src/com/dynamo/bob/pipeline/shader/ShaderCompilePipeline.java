@@ -27,7 +27,6 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.MurmurHash;
 
@@ -66,6 +65,7 @@ public class ShaderCompilePipeline {
 
     protected String pipelineName;
     protected ArrayList<ShaderModule> shaderModules = new ArrayList<>();
+    protected ArrayList<File> tempFiles = new ArrayList<>();
     protected Options options                       = null;
 
     private static String tintExe = null;
@@ -81,7 +81,17 @@ public class ShaderCompilePipeline {
     }
 
     protected void reset() {
+        for (File tempFile : tempFiles) {
+            FileUtils.deleteQuietly(tempFile);
+        }
+        tempFiles.clear();
         shaderModules.clear();
+    }
+
+    protected File createTempFile(String prefix, String suffix) throws IOException {
+        File file = File.createTempFile(prefix, suffix);
+        tempFiles.add(file);
+        return file;
     }
 
     private static String ShaderTypeToSpirvStage(ShaderDesc.ShaderType shaderType) {
@@ -278,8 +288,7 @@ public class ShaderCompilePipeline {
         for (ShaderModule module : this.shaderModules) {
             String baseName = this.pipelineName + "." + ShaderTypeToSpirvStage(module.desc.type);
 
-            File fileInGLSL = File.createTempFile(baseName, ".glsl");
-            FileUtil.deleteOnExit(fileInGLSL);
+            File fileInGLSL = createTempFile(baseName, ".glsl");
 
             String glsl = module.desc.source;
             if (this.options.splitTextureSamplers) {
@@ -288,13 +297,11 @@ public class ShaderCompilePipeline {
             }
             FileUtils.writeByteArrayToFile(fileInGLSL, glsl.getBytes());
 
-            File fileOutSpv = File.createTempFile(baseName, ".spv");
-            FileUtil.deleteOnExit(fileOutSpv);
+            File fileOutSpv = createTempFile(baseName, ".spv");
             generateSPIRv(module.desc.resourcePath, module.desc.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
 
             // Generate an optimized version of the final .spv file
-            File fileOutSpvOpt = File.createTempFile(this.pipelineName, ".optimized.spv");
-            FileUtil.deleteOnExit(fileOutSpvOpt);
+            File fileOutSpvOpt = createTempFile(this.pipelineName, ".optimized.spv");
             generateSPIRvOptimized(module.desc.resourcePath, fileOutSpv.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
 
             module.spirvFile = fileOutSpvOpt;
@@ -327,8 +334,7 @@ public class ShaderCompilePipeline {
                 ShadercJni.DeleteShaderContext(fragmentModule.spirvContext);
 
                 String baseName = this.pipelineName + "." + ShaderTypeToSpirvStage(fragmentModule.desc.type);
-                File remappedSpvFile = File.createTempFile(baseName, ".remapped.spv");
-                FileUtil.deleteOnExit(remappedSpvFile);
+                File remappedSpvFile = createTempFile(baseName, ".remapped.spv");
                 FileUtils.writeByteArrayToFile(remappedSpvFile, remappedSpv.data);
 
                 fragmentModule.spirvContext = remappedSpvContext;
@@ -467,8 +473,7 @@ public class ShaderCompilePipeline {
             String shaderTypeStr = ShaderTypeToSpirvStage(shaderType);
             String versionStr    = "v" + version;
 
-            File fileCrossCompiled = File.createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
-            FileUtil.deleteOnExit(fileCrossCompiled);
+            File fileCrossCompiled = createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
 
             generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
 
@@ -548,11 +553,16 @@ public class ShaderCompilePipeline {
     public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, ArrayList<ShaderModuleDesc> descs, Options options) throws IOException, CompileExceptionError {
         pipeline.options = options;
         pipeline.reset();
-        for (ShaderModuleDesc desc : descs) {
-            pipeline.addShaderModule(desc);
+        try {
+            for (ShaderModuleDesc desc : descs) {
+                pipeline.addShaderModule(desc);
+            }
+            pipeline.prepare();
+            return pipeline;
+        } catch (IOException | CompileExceptionError | RuntimeException e) {
+            destroyShaderPipeline(pipeline);
+            throw e;
         }
-        pipeline.prepare();
-        return pipeline;
     }
 
     public static void destroyShaderPipeline(ShaderCompilePipeline pipeline) {

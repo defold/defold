@@ -45,7 +45,6 @@ import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -58,6 +57,21 @@ public class ProjectBuildTest {
 
     private String contentRoot;
     private String projectName = "Unnamed";
+
+    private static class CountingPublisher extends NullPublisher {
+        int startCount = 0;
+        int stopCount = 0;
+
+        @Override
+        public void start() throws CompileExceptionError {
+            startCount++;
+        }
+
+        @Override
+        public void stop() throws CompileExceptionError {
+            stopCount++;
+        }
+    }
 
     @Before
     public void setUp() throws Exception {
@@ -83,24 +97,25 @@ public class ProjectBuildTest {
     }
 
     private void build(boolean archive, boolean publishLiveupdate) throws IOException, CompileExceptionError, MultipleCompileException {
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        if (archive) {
-            project.setOption("archive", "true");
-        }
-        if (publishLiveupdate) {
-            project.setOption("liveupdate", "true");
-        }
+            if (archive) {
+                project.setOption("archive", "true");
+            }
+            if (publishLiveupdate) {
+                project.setOption("liveupdate", "true");
+            }
 
-        // project.setOption("platform", Platform.X86Win32.getPair());
-        List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
-        for (TaskResult taskResult : result) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
+            // project.setOption("platform", Platform.X86Win32.getPair());
+            List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
+            for (TaskResult taskResult : result) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
         }
     }
 
@@ -252,8 +267,7 @@ public class ProjectBuildTest {
         createFile(contentRoot, "ignored-file.txt", "");
         createFile(contentRoot, "ignored-without-leading-slash.txt", "");
 
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        try {
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
             List<String> paths = new ArrayList<>();
             project.findResourcePaths("", paths);
             assertEquals(7, paths.size());
@@ -275,8 +289,6 @@ public class ProjectBuildTest {
             project.findResourceDirs("", dirs);
             assertEquals(2, dirs.size());
             assertEquals(new HashSet<>(Arrays.asList("sub", "visible")), new HashSet<>(dirs));
-        } finally {
-            project.dispose();
         }
     }
 
@@ -349,6 +361,33 @@ public class ProjectBuildTest {
         assertTrue(hasResource(bundledManifestData, "/logic/level.collectionc"));
         assertTrue(hasResource(bundledManifestData, "/logic/level.goc"));
         assertTrue(hasResource(bundledManifestData, "/logic/level.scriptc"));
+    }
+
+    @Test
+    // Verifies archive builds start the publisher once, so stateful publishers do not leak or reset temp outputs.
+    public void testArchiveBuildStartsPublisherOnce() throws IOException, CompileExceptionError, MultipleCompileException {
+        createDefaultFiles();
+        CountingPublisher publisher = new CountingPublisher();
+
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build") {
+            @Override
+            public void createPublisher() throws CompileExceptionError {
+                setPublisher(publisher);
+            }
+        }) {
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
+            project.setOption("archive", "true");
+
+            List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
+            for (TaskResult taskResult : result) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
+        }
+
+        assertEquals(1, publisher.startCount);
+        assertEquals(1, publisher.stopCount);
     }
 
     @Test
@@ -476,7 +515,6 @@ public class ProjectBuildTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }

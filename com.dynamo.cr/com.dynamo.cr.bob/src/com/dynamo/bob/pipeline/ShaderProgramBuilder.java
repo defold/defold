@@ -589,68 +589,69 @@ public class ShaderProgramBuilder extends Builder {
         System.setProperty("java.awt.headless", "true");
         ShaderProgramBuilder builder = new ShaderProgramBuilder();
 
-        Project project = new Project(new DefaultFileSystem());
-        project.scanJavaClasses();
-        builder.setProject(project);
+        try (Project project = new Project(new DefaultFileSystem())) {
+            project.scanJavaClasses();
+            builder.setProject(project);
 
-        if (args.length < 3) {
-            System.err.println("Unable to build shader - no platform passed in.%n");
-            return;
-        }
-
-        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
-
-        String outputPath, platform, contentRoot;
-
-        if (args.length == 4) {
-            outputPath   = args[1];
-            platform     = args[2];
-            contentRoot  = args[3];
-            modules.add(GetShaderDesc(project, args[0], contentRoot));
-        } else {
-            outputPath   = args[2];
-            platform     = args[3];
-            contentRoot  = args[4];
-            modules.add(GetShaderDesc(project, args[0], contentRoot));
-            modules.add(GetShaderDesc(project, args[1], contentRoot));
-        }
-
-        assert platform != null;
-        Platform outputPlatform = Platform.get(platform);
-        IShaderCompiler shaderCompiler = project.getShaderCompiler(outputPlatform);
-        if (shaderCompiler == null) {
-            System.err.printf("Unable to build shader - no shader compiler found.%n");
-            return;
-        }
-
-        try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
-
-            IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-            if (Platform.getHostPlatform().isWindows()) {
-                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
-            }
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
-            compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
-
-            if (platform.equals(Platform.X86_64PS4) || platform.equals(Platform.X86_64PS5))
-            {
-                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_PSSL);
+            if (args.length < 3) {
+                System.err.println("Unable to build shader - no platform passed in.%n");
+                return;
             }
 
+            ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
 
-            try {
-                ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
-                ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
-                shaderDescResult.shaderDesc.writeTo(os);
+            String outputPath, platform, contentRoot;
 
-            } catch (Exception e) {
-                System.err.printf("Error: %s\n", e.getMessage());
-                throw e;
+            if (args.length == 4) {
+                outputPath   = args[1];
+                platform     = args[2];
+                contentRoot  = args[3];
+                modules.add(GetShaderDesc(project, args[0], contentRoot));
+            } else {
+                outputPath   = args[2];
+                platform     = args[3];
+                contentRoot  = args[4];
+                modules.add(GetShaderDesc(project, args[0], contentRoot));
+                modules.add(GetShaderDesc(project, args[1], contentRoot));
+            }
+
+            assert platform != null;
+            Platform outputPlatform = Platform.get(platform);
+            IShaderCompiler shaderCompiler = project.getShaderCompiler(outputPlatform);
+            if (shaderCompiler == null) {
+                System.err.printf("Unable to build shader - no shader compiler found.%n");
+                return;
+            }
+
+            try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
+
+                IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                if (Platform.getHostPlatform().isWindows()) {
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
+                }
+                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_MSL_22);
+                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+
+                if (platform.equals(Platform.X86_64PS4) || platform.equals(Platform.X86_64PS5))
+                {
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_PSSL);
+                }
+
+
+                try {
+                    ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, compileOptions);
+                    ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
+                    shaderDescResult.shaderDesc.writeTo(os);
+
+                } catch (Exception e) {
+                    System.err.printf("Error: %s\n", e.getMessage());
+                    throw e;
+                }
             }
         }
     }

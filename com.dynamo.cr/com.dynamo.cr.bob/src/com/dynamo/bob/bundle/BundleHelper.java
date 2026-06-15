@@ -64,7 +64,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.logging.Logger;
@@ -452,7 +451,7 @@ public class BundleHelper {
                 largestIcon = resource;
             }
         }
-        File largestIconFile = File.createTempFile("temp", "default_icon.png");
+        File largestIconFile = project.createTempFile("temp", "default_icon.png");
 
         if (largestIcon != null) {
             IResource largestIconRes = project.getResource(largestIcon);
@@ -535,10 +534,10 @@ public class BundleHelper {
         return new ArrayList<String>(Arrays.asList(line.split("\\s*,\\s*")));
     }
 
-    public static File copyResourceToTempFile(String resourcePath) throws IOException
+    public static File copyResourceToTempFile(Project project, String resourcePath) throws IOException
     {
         String filename = FilenameUtils.getName(resourcePath);
-        File file = File.createTempFile("temp", filename);
+        File file = project.createTempFile("temp", filename);
         URL url = BundleHelper.class.getResource(resourcePath);
         FileUtils.writeByteArrayToFile(file, IOUtils.toByteArray(url));
         return file;
@@ -805,8 +804,7 @@ public class BundleHelper {
         File zipFile = null;
 
         try {
-            zipFile = File.createTempFile("build_" + sdkVersion, ".zip");
-            FileUtil.deleteOnExit(zipFile);
+            zipFile = project.createTempFile("build_" + sdkVersion, ".zip");
         } catch (IOException e) {
             throw new CompileExceptionError("Failed to create temp zip file", e.getCause());
         }
@@ -1051,7 +1049,7 @@ public class BundleHelper {
                 });
     }
 
-    public static void createFatLibrary(List<Platform> architectures, String projectOutputDir, File targetDir, ICanceled canceled) throws IOException {
+    public static void createFatLibrary(Project project, List<Platform> architectures, String projectOutputDir, File targetDir, ICanceled canceled) throws IOException {
         Set<String> copiedFileNames = new HashSet<>();
         for (int i = 0; i < architectures.size(); ++i) {
             Platform arch = architectures.get(i);
@@ -1087,8 +1085,7 @@ public class BundleHelper {
                         // Create fat/universal binary
                         try {
                             if (allLibs.size() > 1) {
-                                File dynamicLib = File.createTempFile(libraryName, "");
-                                FileUtil.deleteOnExit(dynamicLib);
+                                File dynamicLib = project.createTempFile(libraryName, "");
                                 BundleHelper.throwIfCanceled(canceled);
                                 lipoBinaries(dynamicLib, allLibs);
 

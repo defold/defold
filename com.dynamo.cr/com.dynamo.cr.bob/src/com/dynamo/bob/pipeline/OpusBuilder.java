@@ -49,7 +49,7 @@ public class OpusBuilder extends CopyBuilder{
 
         File tmpOggFile = null;
         try {
-            tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
+            tmpOggFile = project.createTempFile("ogg_tmp", null);
             BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(tmpOggFile));
             try {
                 os.write(input.getContent());
