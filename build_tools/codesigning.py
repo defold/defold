@@ -37,7 +37,7 @@ def _platform_is_linux(platform):
 
 def mac_certificate(codesigning_identity):
     if run.command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0:
-        return codesigning_identity
+        return codesigning_identity.replace("\"", "")
     else:
         return None
 
@@ -94,8 +94,6 @@ def sign_file(platform, options, file):
         if certificate is None:
             log("Codesigning certificate not found for signing identity %s" % codesigning_identity)
             sys.exit(1)
-
-        log("Found codesigning certificate %s", codesigning_identity)
 
         if file.endswith(".app"):
             run.command([
