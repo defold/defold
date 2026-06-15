@@ -95,6 +95,8 @@ def sign_file(platform, options, file):
             log("Codesigning certificate not found for signing identity %s" % codesigning_identity)
             sys.exit(1)
 
+        log("Found codesigning certificate %s", codesigning_identity)
+
         if file.endswith(".app"):
             run.command([
                 'codesign',
