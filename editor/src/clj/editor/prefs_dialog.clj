@@ -37,6 +37,7 @@
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.localization :as localization]
+            [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.system :as system]
             [util.coll :as coll]
@@ -235,6 +236,25 @@
           (:new-shortcut-popup state)
           (assoc-in [:new-shortcut-popup :shortcut] shortcut)))
 
+;; Scene that currently has the recording mouse filter installed. We grab it at
+;; install time so teardown doesn't have to reach it through the popup, whose
+;; hide event isn't reliable across platforms. The filter is removed on every
+;; popup-close path (see close-new-shortcut-popup!); a leaked filter keeps
+;; eating mouse presses and the dialog looks frozen.
+(defonce ^:private recording-mouse-filter-scene (atom nil))
+
+(defn- remove-recording-mouse-filter! []
+  (when-let [^Scene scene @recording-mouse-filter-scene]
+    (when-let [handler (.remove (.getProperties scene) ::recording-mouse-filter)]
+      (.removeEventFilter scene MouseEvent/MOUSE_PRESSED ^EventHandler handler)
+      (.removeEventFilter scene MouseEvent/MOUSE_RELEASED ^EventHandler handler)
+      (.removeEventFilter scene MouseEvent/MOUSE_CLICKED ^EventHandler handler))
+    (reset! recording-mouse-filter-scene nil)))
+
+(defn- close-new-shortcut-popup! [swap-state]
+  (remove-recording-mouse-filter!)
+  (swap-state dissoc :new-shortcut-popup))
+
 (defn- filter-new-shortcut-popup-events [command displayed-shortcut swap-state update-keymap e]
   (condp instance? e
     KeyEvent
@@ -254,11 +274,11 @@
               shortcut (KeyCodeCombination. (.getCode e) shift control alt meta KeyCombination$ModifierValue/UP)]
           (cond
             (= displayed-shortcut shortcut escape-shortcut)
-            (swap-state dissoc :new-shortcut-popup)
+            (close-new-shortcut-popup! swap-state)
 
             (and displayed-shortcut (= shortcut enter-shortcut))
             (let [shortcut-str (str displayed-shortcut)]
-              (swap-state dissoc :new-shortcut-popup)
+              (close-new-shortcut-popup! swap-state)
               (update-keymap update command (fn [old-changes]
                                               (-> old-changes
                                                   (update :remove (fnil disj #{}) shortcut-str)
@@ -287,40 +307,44 @@
     nil))
 
 (defn- handle-owner-scene-mouse-event-while-recording
-  "Replaces popup auto-hide while the new shortcut popup is open
+  "Mouse handler on the prefs dialog scene while the new shortcut popup is open.
 
-  Mouse thumb button presses are recorded as the new shortcut no matter where
-  the cursor is, while other mouse button presses close the popup like
-  auto-hide would. Since consuming a press does not stop JavaFX from
-  delivering the released and clicked events of the same gesture, the rest of
-  a recorded thumb button gesture is consumed as well."
+  Stands in for the popup auto-hide, which we turn off so mouse shortcuts can be
+  recorded. The platform split is about window stacking:
+
+  Windows and macOS keep the popup above the owner, so a thumb button is recorded
+  wherever it's pressed in the dialog and any other button closes the popup.
+  Consuming the press doesn't stop the matching release and click, so we consume
+  those too.
+
+  Linux raises the owner above the popup on click, which would hide it, so we
+  don't record presses outside the popup (its own filter still handles thumb
+  presses over it); any outside press just closes the popup."
   [recorded-button swap-state ^MouseEvent e]
   (let [event-type (.getEventType e)
         button (.getButton e)]
-    (cond
-      (= MouseEvent/MOUSE_PRESSED event-type)
-      (do (.consume e)
-          (if-let [shortcut (keymap/mouse-shortcut-from-event e)]
-            (do (vreset! recorded-button button)
-                (swap-state set-recorded-shortcut shortcut))
-            (swap-state dissoc :new-shortcut-popup)))
-
-      (or (= MouseEvent/MOUSE_RELEASED event-type)
-          (= MouseEvent/MOUSE_CLICKED event-type))
-      (when (= @recorded-button button)
+    (if (os/is-linux?)
+      (when (= MouseEvent/MOUSE_PRESSED event-type)
         (.consume e)
-        (when (= MouseEvent/MOUSE_CLICKED event-type)
-          (vreset! recorded-button nil))))))
+        (close-new-shortcut-popup! swap-state))
+      (cond
+        (= MouseEvent/MOUSE_PRESSED event-type)
+        (do (.consume e)
+            (if-let [shortcut (keymap/mouse-shortcut-from-event e)]
+              (do (vreset! recorded-button button)
+                  (swap-state set-recorded-shortcut shortcut))
+              (close-new-shortcut-popup! swap-state)))
 
-(defn- remove-recording-mouse-filter! [^Scene scene]
-  (when scene
-    (when-let [handler (.remove (.getProperties scene) ::recording-mouse-filter)]
-      (.removeEventFilter scene MouseEvent/MOUSE_PRESSED ^EventHandler handler)
-      (.removeEventFilter scene MouseEvent/MOUSE_RELEASED ^EventHandler handler)
-      (.removeEventFilter scene MouseEvent/MOUSE_CLICKED ^EventHandler handler))))
+        (or (= MouseEvent/MOUSE_RELEASED event-type)
+            (= MouseEvent/MOUSE_CLICKED event-type))
+        (when (= @recorded-button button)
+          (.consume e)
+          (when (= MouseEvent/MOUSE_CLICKED event-type)
+            (vreset! recorded-button nil)))))))
 
 (defn- install-recording-mouse-filter! [^Scene scene swap-state]
-  (remove-recording-mouse-filter! scene)
+  (remove-recording-mouse-filter!)
+  (reset! recording-mouse-filter-scene scene)
   (let [recorded-button (volatile! nil)
         handler (reify EventHandler
                   (handle [_ event]
@@ -329,11 +353,6 @@
     (.addEventFilter scene MouseEvent/MOUSE_PRESSED handler)
     (.addEventFilter scene MouseEvent/MOUSE_RELEASED handler)
     (.addEventFilter scene MouseEvent/MOUSE_CLICKED handler)))
-
-(defn- on-new-shortcut-popup-hiding [swap-state ^WindowEvent e]
-  (let [^PopupWindow popup (.getSource e)]
-    (remove-recording-mouse-filter! (some-> (.getOwnerWindow popup) .getScene)))
-  (swap-state dissoc :new-shortcut-popup))
 
 (defn- new-shortcut-view
   [{:keys [keymap command shortcut localization-state]}]
@@ -424,20 +443,18 @@
        (cond
          new-shortcut-popup
          (let [{:keys [command x y shortcut]} new-shortcut-popup]
-           ;; Auto-hide is intentionally not used here: it would hide the popup
-           ;; on mouse thumb button presses outside the popup, which should be
-           ;; recorded as the new shortcut instead. A mouse-pressed filter on
-           ;; the owner window scene replicates auto-hide for other mouse
-           ;; buttons while the popup is showing.
+           ;; No auto-hide here: it would close the popup on a thumb button
+           ;; press outside the popup, which we want to record instead. The
+           ;; owner-scene mouse filter closes the popup on other buttons while
+           ;; it's open.
            {:fx/type fx.popup/lifecycle
             :on-window true
             :showing true
             :anchor-x x
             :anchor-y y
-            :on-hiding #(on-new-shortcut-popup-hiding swap-state %)
-            ;; The event filter is on the popup content root so that key and
-            ;; mouse events are captured no matter which popup node they
-            ;; target.
+            :on-hiding (fn [_] (close-new-shortcut-popup! swap-state))
+            ;; Filter on the content root so key and mouse events are caught
+            ;; wherever in the popup they land.
             :content [{:fx/type fx.stack-pane/lifecycle
                        :pref-width new-shortcut-popup-width
                        :event-filter #(filter-new-shortcut-popup-events command shortcut swap-state update-keymap %)
@@ -525,7 +542,11 @@
   [{:keys [prefs prefs-state localization-state localization result-fn]}]
   {:fx/type fxui/dialog-stage
    :showing true
-   :on-hidden result-fn
+   ;; Drop the recording mouse filter if the dialog is closed while a new
+   ;; shortcut popup is open, since the popup's own hide event may not fire.
+   :on-hidden (fn [e]
+                (remove-recording-mouse-filter!)
+                (result-fn e))
    :title (localization-state (localization/message "prefs.dialog.title"))
    :resizable true
    :min-width 650
