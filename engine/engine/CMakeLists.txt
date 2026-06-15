@@ -511,6 +511,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
     set(_classes_dex \"\${_dex_dir}/classes.dex\")
     set(_android_jars
       \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/vkquality.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\")
     foreach(_android_jar IN LISTS _android_jars)

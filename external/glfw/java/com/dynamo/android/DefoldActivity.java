@@ -28,6 +28,7 @@ import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
@@ -140,6 +141,15 @@ public class DefoldActivity extends NativeActivity {
     }
 
     private static final String TAG = "DefoldActivity";
+    private static final String VKQUALITY_CLASS_NAME = "com.google.android.games.vkquality.VKQuality";
+    private static final int VKQUALITY_INIT_SUCCESS = 0;
+    private static final int VKQUALITY_ERROR_INITIALIZATION_FAILURE = -1;
+    private static final int VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED = -1;
+
+    private static boolean vkQualityPreflightComplete = false;
+    private static Object vkQuality = null;
+    private static int vkQualityInitResult = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
+    private static int vkQualityRecommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
 
     /**
      * NOTE! This method only exists because of a known bug in the NDK where the KeyEvent characters are
@@ -153,6 +163,62 @@ public class DefoldActivity extends NativeActivity {
     public native void glfwSetMarkedTextNative(String text);
 
     private boolean keyboardActive;
+
+    private static synchronized void runVkQualityPreflight(Context context) {
+        if (vkQualityPreflightComplete) {
+            return;
+        }
+
+        try {
+            Class<?> vkQualityClass = Class.forName(VKQUALITY_CLASS_NAME);
+            java.lang.reflect.Constructor<?> constructor = vkQualityClass.getConstructor(Context.class);
+            Context appContext = context.getApplicationContext();
+            if (appContext == null) {
+                appContext = context;
+            }
+            Object instance = constructor.newInstance(appContext);
+            java.lang.reflect.Method startMethod = vkQualityClass.getMethod("StartVkQualityWithFlags", String.class, int.class);
+            vkQualityInitResult = ((Integer) startMethod.invoke(instance, null, 0)).intValue();
+            vkQuality = instance;
+            if (vkQualityInitResult == VKQUALITY_INIT_SUCCESS) {
+                updateVkQualityRecommendation();
+            }
+            Log.i(TAG, "VkQuality preflight result: init=" + vkQualityInitResult + " recommendation=" + vkQualityRecommendation);
+        } catch (Throwable t) {
+            vkQuality = null;
+            vkQualityInitResult = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
+            vkQualityRecommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
+            Log.w(TAG, "VkQuality preflight unavailable", t);
+        } finally {
+            vkQualityPreflightComplete = true;
+        }
+    }
+
+    private static synchronized void updateVkQualityRecommendation() {
+        if (vkQuality == null || vkQualityInitResult != VKQUALITY_INIT_SUCCESS) {
+            return;
+        }
+
+        try {
+            java.lang.reflect.Method getMethod = vkQuality.getClass().getMethod("GetVkQuality");
+            vkQualityRecommendation = ((Integer) getMethod.invoke(vkQuality)).intValue();
+        } catch (Throwable t) {
+            Log.w(TAG, "VkQuality recommendation unavailable", t);
+        }
+    }
+
+    public static synchronized boolean isVkQualityPreflightComplete() {
+        return vkQualityPreflightComplete;
+    }
+
+    public static synchronized int getVkQualityInitResult() {
+        return vkQualityInitResult;
+    }
+
+    public static synchronized int getVkQualityRecommendation() {
+        updateVkQualityRecommendation();
+        return vkQualityRecommendation;
+    }
 
     private class DefoldInputWrapper extends InputConnectionWrapper {
         private DefoldActivity _ctx;
@@ -250,6 +316,7 @@ public class DefoldActivity extends NativeActivity {
     public static native void glfwSetPendingResizeBecauseOfInsets();
 
     protected void onCreate(Bundle savedInstanceState) {
+        runVkQualityPreflight(this);
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
 

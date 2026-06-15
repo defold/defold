@@ -1548,7 +1548,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
                 # Android Jars (external)
-                external_jars = ("glfw_android.jar")
+                external_jars = ("glfw_android.jar", "vkquality.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -2596,7 +2596,11 @@ class Configuration(object):
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']]])
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar'} # this should be the stripped one
+                         'ext/share/java/android.jar': 'lib/android.jar', # this should be the stripped one
+                         'ext/share/java/vkquality.jar': 'lib/vkquality.jar',
+                         'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
+                         'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
+                         'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so'}
 
         switch_files = {}
         win32_engine_platform = self._engine_artifact_platform('win32')

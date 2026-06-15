@@ -487,6 +487,7 @@ def bobJarFileTree = fileTree(project.bobDir) {
             'lib/time_report_template.html',
             'lib/android.jar',
             'lib/classes.dex',
+            'lib/vkquality/**/*',
             'lib/*.zip'
     exclude '**/*dSYM.zip',
             'tmp/**'

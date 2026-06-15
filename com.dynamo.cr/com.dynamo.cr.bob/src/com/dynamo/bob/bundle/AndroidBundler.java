@@ -62,6 +62,7 @@ public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
     private static String stripToolName = "strip_android";
+    private static final String VKQUALITY_DATA_FILE = "vkqualitydata.vkq";
 
     private static Hashtable<Platform, String> platformToStripToolMap = new Hashtable<Platform, String>();
     static {
@@ -329,6 +330,39 @@ public class AndroidBundler implements IBundler {
         }
     }
 
+    private File getOptionalBobFile(String path) {
+        try {
+            return new File(Bob.getPath(path));
+        } catch (RuntimeException e) {
+            logger.warning("Skipping optional Android bundle file '" + path + "': " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        File dataFile = getOptionalBobFile("lib/vkquality/" + VKQUALITY_DATA_FILE);
+        if (dataFile == null) {
+            return;
+        }
+        File dest = new File(assetsDir, VKQUALITY_DATA_FILE);
+        logger.info("Copying VkQuality data " + dataFile + " to " + dest);
+        FileUtils.copyFile(dataFile, dest);
+        BundleHelper.throwIfCanceled(canceled);
+    }
+
+    private void copyVkQualityLibrary(Platform architecture, File libDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        String architectureLibName = platformToLibMap.get(architecture);
+        File library = getOptionalBobFile(FilenameUtils.concat("libexec/" + architecture.getExtenderPair(), "libvkquality.so"));
+        if (library == null) {
+            return;
+        }
+        File architectureDir = createDir(libDir, architectureLibName);
+        File dest = new File(architectureDir, library.getName());
+        logger.info("Copying VkQuality library " + library + " to " + dest);
+        FileUtils.copyFile(library, dest);
+        BundleHelper.throwIfCanceled(canceled);
+    }
+
     /**
     * Copy local Android resources such as icons and bundle resources
     */
@@ -516,6 +550,7 @@ public class AndroidBundler implements IBundler {
                 }
                 BundleHelper.throwIfCanceled(canceled);
             }
+            copyVkQualityDataFile(assetsDir, canceled);
 
             // copy resources
             logger.info("Copying resources to " + resDir);
@@ -530,6 +565,7 @@ public class AndroidBundler implements IBundler {
                 logger.info("Copying engine to " + dest);
                 copyEngineBinary(project, architecture, dest);
                 BundleHelper.throwIfCanceled(canceled);
+                copyVkQualityLibrary(architecture, libDir, canceled);
             }
 
             // copy shared libraries (from dependency.aar/jni/<arch>/<name>.so)

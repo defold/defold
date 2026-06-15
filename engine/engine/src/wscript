@@ -124,6 +124,7 @@ def build(bld):
 
     android_jar_paths = [
               '%s/ext/share/java/glfw_android.jar' % (dynamo_home),
+              '%s/ext/share/java/vkquality.jar' % (dynamo_home),
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/sound_android.jar' % (dynamo_home)]
 
