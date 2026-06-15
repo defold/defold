@@ -13,7 +13,7 @@ When one branch of an `if` is trivial, prefer placing the trivial branch in the 
 
 ## Functions
 
-When a `defn` has a return type hint, put the type hint and argument vector on the next line.
+When a `defn` has a return type hint, put the type hint and argument vector on the next line, but don't split them.
 
 Avoid introducing multiple arities to functions. Prefer updating call sites with added arguments instead. For recursive functions, prefer a separate private `-impl`-suffixed helper over an internal-only arity.
 
@@ -45,6 +45,9 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 ## Linting
 
 Use `clj-kondo` to find and fix lint issues in your changes.
+
+When fixing lint issues,
+* Don't replace unused named parameters with `_`. Instead, prefix the existing name with `_` so that the name remains readable.
 
 ## Inline single-use trivial helpers/constants/locals
 
