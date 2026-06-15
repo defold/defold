@@ -35,7 +35,6 @@ import com.dynamo.bob.Progress;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.MacOSBundler;
@@ -127,7 +126,6 @@ public class MacOSBundlerTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }

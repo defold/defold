@@ -52,7 +52,6 @@ import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BobTempScope;
 import com.dynamo.bob.util.BuildInputDataCollector;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.ReportGenerator;
@@ -218,22 +217,19 @@ public class Project {
         }
     }
 
-    public File createTempFile(String prefix, String suffix) throws IOException {
+    private BobTempScope getOrCreateTempScope() throws IOException {
         if (this.tempScope == null) {
-            File file = File.createTempFile(prefix, suffix);
-            FileUtil.deleteOnExit(file);
-            return file;
+            this.tempScope = new BobTempScope();
         }
-        return this.tempScope.createTempFile(prefix, suffix);
+        return this.tempScope;
+    }
+
+    public File createTempFile(String prefix, String suffix) throws IOException {
+        return getOrCreateTempScope().createTempFile(prefix, suffix);
     }
 
     public File createTempDirectory(String prefix) throws IOException {
-        if (this.tempScope == null) {
-            File directory = Files.createTempDirectory(prefix).toFile();
-            FileUtil.deleteOnExit(directory);
-            return directory;
-        }
-        return this.tempScope.createTempDirectory(prefix);
+        return getOrCreateTempScope().createTempDirectory(prefix);
     }
 
     public String getRootDirectory() {

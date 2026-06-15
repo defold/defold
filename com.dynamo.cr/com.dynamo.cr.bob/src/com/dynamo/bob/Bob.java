@@ -22,7 +22,6 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BobTempScope;
 import com.dynamo.bob.util.BuildInputDataCollector;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.Library.Result;
 import com.dynamo.bob.util.PackedResources;
@@ -182,7 +181,7 @@ public class Bob {
         return dstFile;
     }
 
-    public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
+    public static void extractToFolder(final URL url, File toFolder) throws IOException {
         TimeProfiler.start("extractToFolder %s", toFolder.toString());
         TimeProfiler.addData("url", url.toString());
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
@@ -194,8 +193,6 @@ public class Bob {
                 if (!entry.isDirectory()) {
 
                     File dstFile = resolveArchiveEntry(toFolder, entry.getName());
-                    if (deleteOnExit)
-                        FileUtil.deleteOnExit(dstFile);
                     dstFile.getParentFile().mkdirs();
 
                     OutputStream fileStream = null;
@@ -226,7 +223,7 @@ public class Bob {
     }
 
     public static void extract(final URL url, File toFolder) throws IOException {
-        extractToFolder(url, toFolder, true);
+        extractToFolder(url, toFolder);
     }
 
     public static void atomicExtractDirectory(final URL url, File toFolder, String directoryName) throws IOException {
@@ -238,7 +235,7 @@ public class Bob {
         toFolder.mkdirs();
         File tmpFolder = new File(toFolder, String.format(".%s_%d", directoryName, System.nanoTime()));
         try {
-            extractToFolder(url, tmpFolder, false);
+            extractToFolder(url, tmpFolder);
             File extracted = new File(tmpFolder, directoryName);
             if (!extracted.isDirectory()) {
                 throw new IOException(String.format("Archive '%s' did not contain directory '%s'", url, directoryName));

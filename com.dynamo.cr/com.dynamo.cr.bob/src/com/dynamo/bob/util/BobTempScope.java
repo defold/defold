@@ -82,7 +82,6 @@ public class BobTempScope implements AutoCloseable {
             FileUtils.deleteDirectory(rootDirectory);
         } catch (IOException e) {
             logger.warning("Failed to delete Bob temporary directory '%s': %s", rootDirectory.getAbsolutePath(), e.getMessage());
-            FileUtil.deleteOnExit(rootDirectory);
         }
     }
 }
