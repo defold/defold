@@ -30,6 +30,7 @@ import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.MurmurHash;
 
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.apache.commons.io.FileUtils;
@@ -41,6 +42,7 @@ public class ShaderCompilePipeline {
         public ArrayList<String> defines = new ArrayList<>();
         public String externalToolPath;
         public String externalToolArgs;
+        public Platform targetPlatform;
         public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
     }
@@ -258,6 +260,13 @@ public class ShaderCompilePipeline {
         opts.no420PackExtension            = 1;
         opts.glslEsDefaultFloatPrecision   = this.options.glslEsDefaultFloatPrecision;
         opts.glslEsDefaultIntPrecision     = this.options.glslEsDefaultIntPrecision;
+        if (this.options.targetPlatform != null) {
+            if (this.options.targetPlatform.matchesOS(OS.OS_ID_IOS)) {
+                opts.targetPlatform = Shaderc.ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_IOS;
+            } else if (this.options.targetPlatform.isMacOS()) {
+                opts.targetPlatform = Shaderc.ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_MACOS;
+            }
+        }
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
             opts.glslEmitUboAsPlainUniforms = 1;

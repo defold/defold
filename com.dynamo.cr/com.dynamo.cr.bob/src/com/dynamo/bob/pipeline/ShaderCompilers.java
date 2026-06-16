@@ -216,6 +216,7 @@ public class ShaderCompilers {
                 opts.externalToolArgs = this.baseOptions.externalToolArgs;
             }
             opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
+            opts.targetPlatform = this.platform;
             opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
             opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
 
