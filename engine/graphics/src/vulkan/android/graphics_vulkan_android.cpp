@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlfcn.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <android_native_app_glue.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -176,26 +178,87 @@ namespace dmGraphics
         VKQUALITY_RECOMMENDATION_GLES_BECAUSE_PREDICTION_MATCH   = 6
     };
 
-    static bool AndroidCallDefoldActivityStaticInt(const char* method_name, int32_t* value)
+    static void AndroidSetVkQualityError(char* error_buffer, uint32_t error_buffer_size, const char* format, ...)
+    {
+        if (!error_buffer || error_buffer_size == 0)
+        {
+            return;
+        }
+
+        va_list args;
+        va_start(args, format);
+        vsnprintf(error_buffer, error_buffer_size, format, args);
+        va_end(args);
+        error_buffer[error_buffer_size - 1] = 0;
+    }
+
+    static void AndroidSetVkQualityJavaExceptionError(JNIEnv* env, const char* message, char* error_buffer, uint32_t error_buffer_size)
+    {
+        if (!env->ExceptionCheck())
+        {
+            AndroidSetVkQualityError(error_buffer, error_buffer_size, "%s", message);
+            return;
+        }
+
+        jthrowable exception = env->ExceptionOccurred();
+        env->ExceptionClear();
+
+        jclass throwable_class = env->FindClass("java/lang/Throwable");
+        jmethodID to_string_method = throwable_class ? env->GetMethodID(throwable_class, "toString", "()Ljava/lang/String;") : 0;
+        jstring exception_string = (jstring) (to_string_method && exception ? env->CallObjectMethod(exception, to_string_method) : 0);
+
+        if (exception_string && !env->ExceptionCheck())
+        {
+            const char* exception_utf = env->GetStringUTFChars(exception_string, 0);
+            AndroidSetVkQualityError(error_buffer, error_buffer_size, "%s: %s", message, exception_utf ? exception_utf : "<exception string unavailable>");
+            if (exception_utf)
+            {
+                env->ReleaseStringUTFChars(exception_string, exception_utf);
+            }
+        }
+        else
+        {
+            env->ExceptionClear();
+            AndroidSetVkQualityError(error_buffer, error_buffer_size, "%s: <exception details unavailable>", message);
+        }
+
+        if (exception_string)
+        {
+            env->DeleteLocalRef(exception_string);
+        }
+        if (throwable_class)
+        {
+            env->DeleteLocalRef(throwable_class);
+        }
+        if (exception)
+        {
+            env->DeleteLocalRef(exception);
+        }
+    }
+
+    static bool AndroidCallDefoldActivityStaticInt(const char* method_name, int32_t* value, char* error_buffer, uint32_t error_buffer_size)
     {
         dmAndroid::ThreadAttacher thread;
         JNIEnv* env = thread.GetEnv();
         if (!env)
         {
+            AndroidSetVkQualityError(error_buffer, error_buffer_size, "JNI environment unavailable while calling DefoldActivity.%s", method_name);
             return false;
         }
 
         jclass activity_class = dmAndroid::LoadClass(env, "com.dynamo.android.DefoldActivity");
         if (env->ExceptionCheck() || !activity_class)
         {
-            env->ExceptionClear();
+            AndroidSetVkQualityJavaExceptionError(env, "Could not load com.dynamo.android.DefoldActivity", error_buffer, error_buffer_size);
             return false;
         }
 
         jmethodID method_id = env->GetStaticMethodID(activity_class, method_name, "()I");
         if (env->ExceptionCheck() || !method_id)
         {
-            env->ExceptionClear();
+            char message[128];
+            snprintf(message, sizeof(message), "Could not find DefoldActivity.%s()I", method_name);
+            AndroidSetVkQualityJavaExceptionError(env, message, error_buffer, error_buffer_size);
             env->DeleteLocalRef(activity_class);
             return false;
         }
@@ -203,7 +266,9 @@ namespace dmGraphics
         jint result = env->CallStaticIntMethod(activity_class, method_id);
         if (env->ExceptionCheck())
         {
-            env->ExceptionClear();
+            char message[128];
+            snprintf(message, sizeof(message), "Exception while calling DefoldActivity.%s()I", method_name);
+            AndroidSetVkQualityJavaExceptionError(env, message, error_buffer, error_buffer_size);
             env->DeleteLocalRef(activity_class);
             return false;
         }
@@ -213,17 +278,18 @@ namespace dmGraphics
         return true;
     }
 
-    bool AndroidGetVkQualityResult(int32_t* init_result, int32_t* recommendation)
+    bool AndroidGetVkQualityResult(int32_t* init_result, int32_t* recommendation, char* error_buffer, uint32_t error_buffer_size)
     {
         assert(init_result);
         assert(recommendation);
+        AndroidSetVkQualityError(error_buffer, error_buffer_size, "no error");
 
-        if (!AndroidCallDefoldActivityStaticInt("getVkQualityInitResult", init_result))
+        if (!AndroidCallDefoldActivityStaticInt("getVkQualityInitResult", init_result, error_buffer, error_buffer_size))
         {
             return false;
         }
 
-        if (!AndroidCallDefoldActivityStaticInt("getVkQualityRecommendation", recommendation))
+        if (!AndroidCallDefoldActivityStaticInt("getVkQualityRecommendation", recommendation, error_buffer, error_buffer_size))
         {
             return false;
         }
@@ -252,11 +318,12 @@ namespace dmGraphics
     {
         int32_t init_result = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
         int32_t recommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
-        if (!AndroidGetVkQualityResult(&init_result, &recommendation))
+        char error_buffer[256];
+        if (!AndroidGetVkQualityResult(&init_result, &recommendation, error_buffer, sizeof(error_buffer)))
         {
             // MVP1 policy: missing or unavailable VkQuality must not disable Vulkan.
             // Warn and keep Defold's existing Vulkan support probe as the source of truth.
-            dmLogWarning("VkQuality result unavailable, allowing Vulkan support probe.");
+            dmLogWarning("VkQuality result unavailable (%s), allowing Vulkan support probe.", error_buffer);
             return true;
         }
 
@@ -273,9 +340,9 @@ namespace dmGraphics
             for (uint32_t i = 0; i < VKQUALITY_RECOMMENDATION_RETRY_COUNT; ++i)
             {
                 dmTime::Sleep(VKQUALITY_RECOMMENDATION_RETRY_INTERVAL_US);
-                if (!AndroidGetVkQualityResult(&init_result, &recommendation))
+                if (!AndroidGetVkQualityResult(&init_result, &recommendation, error_buffer, sizeof(error_buffer)))
                 {
-                    dmLogWarning("VkQuality result became unavailable while waiting for a recommendation, allowing Vulkan support probe.");
+                    dmLogWarning("VkQuality result became unavailable while waiting for a recommendation (%s), allowing Vulkan support probe.", error_buffer);
                     return true;
                 }
 
