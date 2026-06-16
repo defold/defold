@@ -142,6 +142,7 @@ public class DefoldActivity extends NativeActivity {
 
     private static final String TAG = "DefoldActivity";
     private static final String VKQUALITY_CLASS_NAME = "com.google.android.games.vkquality.VKQuality";
+    private static final String VKQUALITY_ENABLED_META_DATA = "com.defold.vkquality.enabled";
     private static final int VKQUALITY_INIT_SUCCESS = 0;
     private static final int VKQUALITY_ERROR_INITIALIZATION_FAILURE = -1;
     private static final int VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED = -1;
@@ -167,6 +168,12 @@ public class DefoldActivity extends NativeActivity {
     private static synchronized void runVkQualityPreflight(Context context) {
         if (vkQualityPreflightComplete) {
             Log.i(TAG, "VkQuality preflight already complete: init=" + vkQualityInitResult + " recommendation=" + vkQualityRecommendation);
+            return;
+        }
+
+        if (!isVkQualityPreflightEnabled(context)) {
+            Log.i(TAG, "VkQuality preflight disabled by manifest metadata: " + VKQUALITY_ENABLED_META_DATA);
+            vkQualityPreflightComplete = true;
             return;
         }
 
@@ -200,6 +207,21 @@ public class DefoldActivity extends NativeActivity {
         } finally {
             vkQualityPreflightComplete = true;
         }
+    }
+
+    private static boolean isVkQualityPreflightEnabled(Context context) {
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            ApplicationInfo appInfo = packageManager.getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA);
+            Bundle metaData = appInfo.metaData;
+            if (metaData != null && metaData.containsKey(VKQUALITY_ENABLED_META_DATA)) {
+                Object value = metaData.get(VKQUALITY_ENABLED_META_DATA);
+                return value == null || Boolean.parseBoolean(value.toString());
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.w(TAG, "Unable to read VkQuality manifest metadata", e);
+        }
+        return true;
     }
 
     private static synchronized void updateVkQualityRecommendation() {

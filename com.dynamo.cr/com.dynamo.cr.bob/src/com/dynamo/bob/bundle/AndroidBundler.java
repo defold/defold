@@ -47,6 +47,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
@@ -339,6 +340,19 @@ public class AndroidBundler implements IBundler {
         }
     }
 
+    public static boolean usesVulkanGraphicsAdapter(Project project) {
+        String shaderAdapters = project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+        if (shaderAdapters == null) {
+            return true;
+        }
+        for (String shaderAdapter : shaderAdapters.split(",")) {
+            if (ShaderCompilers.SHADER_ADAPTER_VULKAN.equals(shaderAdapter.trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
         File dataFile = getOptionalBobFile("lib/vkquality/" + VKQUALITY_DATA_FILE);
         if (dataFile == null) {
@@ -550,7 +564,13 @@ public class AndroidBundler implements IBundler {
                 }
                 BundleHelper.throwIfCanceled(canceled);
             }
-            copyVkQualityDataFile(assetsDir, canceled);
+
+            boolean vkQualityEnabled = usesVulkanGraphicsAdapter(project);
+            if (vkQualityEnabled) {
+                copyVkQualityDataFile(assetsDir, canceled);
+            } else {
+                logger.info("Skipping VkQuality data because Vulkan is not among the configured graphics adapters");
+            }
 
             // copy resources
             logger.info("Copying resources to " + resDir);
@@ -565,7 +585,11 @@ public class AndroidBundler implements IBundler {
                 logger.info("Copying engine to " + dest);
                 copyEngineBinary(project, architecture, dest);
                 BundleHelper.throwIfCanceled(canceled);
-                copyVkQualityLibrary(architecture, libDir, canceled);
+                if (vkQualityEnabled) {
+                    copyVkQualityLibrary(architecture, libDir, canceled);
+                } else {
+                    logger.info("Skipping VkQuality library for " + architecture + " because Vulkan is not among the configured graphics adapters");
+                }
             }
 
             // copy shared libraries (from dependency.aar/jni/<arch>/<name>.so)
@@ -886,6 +910,7 @@ public class AndroidBundler implements IBundler {
         // We copy and resize the default icon in builtins if no other icons are set.
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
+        properties.put("defold.vkquality.enabled", usesVulkanGraphicsAdapter(project) ? "true" : "false");
 
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
