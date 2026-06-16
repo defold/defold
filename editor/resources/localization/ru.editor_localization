@@ -1321,6 +1321,9 @@ property.label.size = Размер
 property.label.text = Текст
 property.label.tracking = Трекинг
 
+# Properties: light
+
+
 # Properties: mesh
 
 property.mesh.normal-stream = Поток нормалей
@@ -2205,6 +2208,7 @@ form.label.sound.group = Группа
 form.label.sound.gain = Усиление
 form.label.sound.pan = Панорама
 form.label.sound.speed = Скорость
+
 
 form.label.liveupdate.liveupdate = Live Update
 form.label.liveupdate.liveupdate.mode = Режим
