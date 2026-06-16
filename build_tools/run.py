@@ -106,34 +106,30 @@ def _exec_command(arg_list, **kwargs):
         arg_str = _sanitize_text(arg_str, secrets)
     if not silent: log('[exec] %s' % arg_str)
 
-    # Make sure we produce a steady stream of output
-    # However, this also makes us lose the color information
+    output = ""
+    # In an interactive terminal (ie not on ci, but on a developer machine)
     if 'stdout' in kwargs:
         del kwargs['stdout']
     process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
-
-    output = ''
     while True:
         line = process.stdout.readline().decode(errors='replace')
-        if line != '':
-            output += line
-            if not silent: log(_sanitize_text(line, secrets).rstrip())
-        else:
-            break
+        if not line: break
+        output += line
+        if not silent: log(line.rstrip())
+
+    output = _sanitize_text(output, secrets).strip()
 
     if process.wait() != 0:
         e = ExecException(process.returncode)
-        e.output = _sanitize_text(output, secrets)
+        e.output = output
         log('[exec] %s' % arg_str)
-        log("Error: %s" % _sanitize_text(output, secrets))
+        log("Error: %s" % output)
         raise e
 
     output = _to_str(output)
-    return output.strip()
+    return output
 
 def command(args, **kwargs):
-    if kwargs.get("shell") is None:
-        kwargs["shell"] = False
     # Executes a command, and exits if it fails
     try:
         return _exec_command(args, **kwargs)
@@ -149,7 +145,4 @@ def shell_command(args, **kwargs):
 
 
 def env_command(env, args, **kwargs):
-    return _exec_command(args, shell = False, stdout = None, env = env, **kwargs)
-
-def env_shell_command(env, args, **kwargs):
-    return _exec_command(args, shell = True, env = env, **kwargs)
+    return _exec_command(args, env = env, **kwargs)
