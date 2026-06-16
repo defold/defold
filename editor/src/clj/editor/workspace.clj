@@ -911,10 +911,6 @@ ordinary paths."
              (into [resource-listener-entry]
                    resource-listener-entries)))))
 
-(g/defnk produce-disk-sha256s-by-node-id [_node-id]
-  (or (g/user-data _node-id :disk-sha256s-by-node-id)
-      {}))
-
 (g/defnode Workspace
   (property root g/Str
             (set (gu/immutable-property-setter root)))
@@ -948,7 +944,7 @@ ordinary paths."
   (property resource-list g/Any) ; Assigned from resource-snapshot property setter.
   (property resource-map g/Any) ; Assigned from resource-snapshot property setter.
   (property resource-listeners g/Any)
-  (output disk-sha256s-by-node-id g/Any :unjammable produce-disk-sha256s-by-node-id)
+  (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any (default {:default {:id :default}}))
   (property resource-types g/Any)
   (property resource-types-non-editable g/Any)
@@ -1105,11 +1101,12 @@ ordinary paths."
               (g/connect notifications :_node-id workspace :notifications)
               (g/connect code-preprocessors :_node-id workspace :code-preprocessors))))))))
 
-(defn- merge-disk-sha256s!
-  [workspace disk-sha256s-by-node-id]
-  (g/user-data-swap! workspace :disk-sha256s-by-node-id
-                     #(into (or % {}) disk-sha256s-by-node-id))
-  (g/invalidate-outputs! [(g/endpoint workspace :disk-sha256s-by-node-id)]))
+(defn set-disk-sha256 [workspace node-id disk-sha256]
+  {:pre [(g/node-id? workspace)
+         (g/node-id? node-id)
+         (or (nil? disk-sha256) (digest/sha256-hex? disk-sha256))]}
+  (g/non-undoable
+    (g/update-property workspace :disk-sha256s-by-node-id assoc node-id disk-sha256)))
 
 (defn merge-disk-sha256s [workspace disk-sha256s-by-node-id]
   {:pre [(g/node-id? workspace)
@@ -1117,13 +1114,8 @@ ordinary paths."
          (every? g/node-id? (keys disk-sha256s-by-node-id))
          (every? #(or (nil? %) (digest/sha256-hex? %)) (vals disk-sha256s-by-node-id))]}
   (when-not (coll/empty? disk-sha256s-by-node-id)
-    (g/callback merge-disk-sha256s! workspace disk-sha256s-by-node-id)))
-
-(defn set-disk-sha256 [workspace node-id disk-sha256]
-  {:pre [(g/node-id? workspace)
-         (g/node-id? node-id)
-         (or (nil? disk-sha256) (digest/sha256-hex? disk-sha256))]}
-  (merge-disk-sha256s workspace {node-id disk-sha256}))
+    (g/non-undoable
+      (g/update-property workspace :disk-sha256s-by-node-id into disk-sha256s-by-node-id))))
 
 (defn register-view-type
   "Register a new view type that can be used by resources

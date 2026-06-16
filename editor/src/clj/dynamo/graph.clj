@@ -280,7 +280,26 @@
   "Return a vector of flattened transaction steps from a sequence of possibly
   nested sequences of transaction steps."
   [txs]
-  (into [] coll/flatten-xf txs))
+  (letfn [(eager-tx-data-into [result txs]
+            (reduce
+              (fn [result tx]
+                (cond
+                  (nil? tx)
+                  result
+
+                  (it/non-undoable? tx)
+                  (conj result (it/non-undoable (eager-tx-data (it/non-undoable-tx-data tx))))
+
+                  (sequential? tx)
+                  (eager-tx-data-into result tx)
+
+                  :else
+                  (conj result tx)))
+              result
+              txs))]
+    (if (it/non-undoable? txs)
+      (it/non-undoable (eager-tx-data (it/non-undoable-tx-data txs)))
+      (eager-tx-data-into [] txs))))
 
 (defn make-transaction-context [opts]
   (let [system (deref *the-system*)
@@ -289,8 +308,9 @@
         override-id-generator (is/override-id-generator system)
         tx-data-context-map (or (:tx-data-context-map opts) {})
         metrics-collector (:metrics opts)
-        full-invalidation (:full-invalidation opts)]
-    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation)))
+        full-invalidation (:full-invalidation opts)
+        record-changes (:undoable opts true)]
+    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation record-changes)))
 
 (defn commit-tx-result!
   [tx-result transact-opts]
@@ -302,7 +322,6 @@
            (:graphs-modified tx-result)
            (:outputs-modified tx-result)
            (:nodes-deleted tx-result)
-           (not= false (:undoable transact-opts))
            (:changes tx-result)
            (:label tx-result)
            (:sequence-label tx-result))
@@ -388,18 +407,51 @@
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
 
+(defn non-undoable
+  "Marks a sequence of transaction steps so its effects are applied, but its
+  realized transaction changes are omitted from the undo history."
+  [txs]
+  [(it/non-undoable txs)])
+
+(defn- flattened-tx-data-into
+  [result txs]
+  (reduce
+    (fn [result tx]
+      (cond
+        (nil? tx)
+        result
+
+        (it/non-undoable? tx)
+        (flattened-tx-data-into result (it/non-undoable-tx-data tx))
+
+        (sequential? tx)
+        (flattened-tx-data-into result tx)
+
+        :else
+        (conj result tx)))
+    result
+    txs))
+
+(defn- flattened-tx-data
+  [txs]
+  (if (it/non-undoable? txs)
+    (flattened-tx-data (it/non-undoable-tx-data txs))
+    (flattened-tx-data-into [] txs)))
+
 (defn tx-data?
   "Returns true if the value is a (possibly nested) sequence of transaction
   steps."
   [value]
-  (and (seqable? value)
-       (coll/reduce-> value
-         false
-         coll/flatten-xf
-         (fn [_ item]
-           (if (it/tx-step? item)
-             true
-             (reduced false))))))
+  (if (it/non-undoable? value)
+    (tx-data? (it/non-undoable-tx-data value))
+    (and (seqable? value)
+         (reduce
+           (fn [_ item]
+             (if (it/tx-step? item)
+               true
+               (reduced false)))
+           false
+           (flattened-tx-data value)))))
 
 (defn tx-data-step-types
   "Given a sequence of possibly nested transaction steps, returns a sequence of
@@ -407,27 +459,24 @@
   tests."
   [txs]
   (sequence
-    (comp coll/flatten-xf
-          (map it/tx-step-type))
-    txs))
+    (map it/tx-step-type)
+    (flattened-tx-data txs)))
 
 (defn tx-data-added-arcs
   "Given a sequence of possibly nested transaction steps, returns a sequence of
   Arcs that will be added by any encountered :tx-step/connect steps."
   [txs]
   (sequence
-    (comp coll/flatten-xf
-          (keep it/tx-step-added-arc))
-    txs))
+    (keep it/tx-step-added-arc)
+    (flattened-tx-data txs)))
 
 (defn tx-data-added-nodes
   "Given a sequence of possibly nested transaction steps, returns a sequence of
   Nodes that will be added by any encountered :tx-step/add-node steps."
   [txs]
   (sequence
-    (comp coll/flatten-xf
-          (keep it/tx-step-added-node))
-    txs))
+    (keep it/tx-step-added-node)
+    (flattened-tx-data txs)))
 
 (defn tx-data-added-node-ids
   "Given a sequence of possibly nested transaction steps, returns a sequence of

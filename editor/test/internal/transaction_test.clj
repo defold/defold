@@ -34,6 +34,14 @@
 
 (defn safe+ [x y] (int (or (and x (+ x y)) y)))
 
+(deftest non-undoable-eager-tx-data-test
+  (let [node-id (gt/make-node-id 0 1)
+        tx-data (g/non-undoable [[(g/set-property node-id :marker 1)]])
+        [eager-tx-data] (g/eager-tx-data tx-data)]
+    (is (it/non-undoable? eager-tx-data))
+    (is (= [:tx-step/set-property]
+           (g/tx-data-step-types eager-tx-data)))))
+
 (deftest low-level-transactions
   (testing "one node"
     (ts/with-clean-system

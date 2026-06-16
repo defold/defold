@@ -37,6 +37,8 @@
   (perform [ctx]) ; Returns a new ctx with changes applied.
   (revert [ctx])) ; Returns a new ctx with changes reverted.
 
+(defonce/type NonUndoable [txs])
+
 ;; ---------------------------------------------------------------------------
 ;; Internal state
 ;; ---------------------------------------------------------------------------
@@ -51,6 +53,18 @@
 (defn tx-change?
   [value]
   (instance? TransactionChange value))
+
+(defn non-undoable
+  [txs]
+  (->NonUndoable txs))
+
+(defn non-undoable?
+  [value]
+  (instance? NonUndoable value))
+
+(defn non-undoable-tx-data
+  [^NonUndoable txs]
+  (.-txs txs))
 
 (defn perform-change
   [ctx ^TransactionChange change]
@@ -1485,28 +1499,39 @@
 
 (defn realize-tx
   [ctx actions]
-  (reduce
-    (fn [[ctx changes] ^TransactionStep action]
-      (cond
-        (nil? action)
-        [ctx changes]
+  (let [record-changes (:record-changes ctx)
+        ctx (cond-> ctx
+              (non-undoable? actions) (assoc :record-changes false))
+        actions (cond-> actions
+                  (non-undoable? actions) non-undoable-tx-data)
+        [ctx changes] (reduce
+                        (fn [[ctx changes] ^TransactionStep action]
+                          (cond
+                            (nil? action)
+                            [ctx changes]
 
-        (sequential? action)
-        (let [[ctx nested-changes] (realize-tx ctx action)]
-          [ctx (into changes nested-changes)])
+                            (non-undoable? action)
+                            (let [[ctx _nested-changes] (realize-tx ctx action)]
+                              [ctx changes])
 
-        :else
-        (let [[ctx action-changes] (try
-                                     (du/measuring (:metrics ctx) (.step-type action) (.metrics-key action)
-                                       (.realize action ctx))
-                                     (catch Exception e
-                                       (when *tx-debug*
-                                         (println (txerrstr ctx "Transaction failed on " action)))
-                                       (throw e)))]
-          [(update ctx :completed-action-count inc)
-           (into changes action-changes)])))
-    [ctx []]
-    actions))
+                            (sequential? action)
+                            (let [[ctx nested-changes] (realize-tx ctx action)]
+                              [ctx (into changes nested-changes)])
+
+                            :else
+                            (let [[ctx action-changes] (try
+                                                         (du/measuring (:metrics ctx) (.step-type action) (.metrics-key action)
+                                                           (.realize action ctx))
+                                                         (catch Exception e
+                                                           (when *tx-debug*
+                                                             (println (txerrstr ctx "Transaction failed on " action)))
+                                                           (throw e)))]
+                              [(update ctx :completed-action-count inc)
+                               (cond-> changes
+                                 (:record-changes ctx) (into action-changes))])))
+                        [ctx []]
+                        actions)]
+    [(assoc ctx :record-changes record-changes) changes]))
 
 (defn apply-tx
   [ctx actions]
@@ -1537,7 +1562,7 @@
              :tx-data-context-map (deref tx-data-context))))
 
 (defn new-transaction-context
-  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation]
+  [basis node-id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation record-changes]
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
@@ -1556,7 +1581,8 @@
    :txid (new-txid)
    :tx-data-context (atom tx-data-context-map)
    :metrics metrics-collector
-   :full-invalidation full-invalidation})
+   :full-invalidation full-invalidation
+   :record-changes record-changes})
 
 (defn update-overrides
   [{:keys [override-nodes-affected-ordered] :as ctx}]
@@ -1599,10 +1625,13 @@
 (defn transact*
   [ctx actions]
   (when *tx-debug*
-    (println (txerrstr ctx "actions" (seq actions))))
+    (println (txerrstr ctx "actions" (if (non-undoable? actions)
+                                       (non-undoable-tx-data actions)
+                                       (seq actions)))))
   (let [[ctx changes] (realize-tx ctx actions)
         [ctx override-changes] (realize-update-overrides ctx)]
     (-> ctx
-        (assoc :changes (into changes override-changes))
+        (assoc :changes (cond-> changes
+                          (:record-changes ctx) (into override-changes)))
         finalize-applied-changes
         apply-tx-label)))

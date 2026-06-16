@@ -195,6 +195,25 @@
         (is (= "initial" (g/node-value root :where)))
         (is (= 42 (g/node-value root :touched))))))
 
+  (testing "nested non-undoable transaction data is not reverted by undo"
+    (ts/with-clean-system
+      (let [pgraph-id (g/make-graph! :history true)
+            [root] (ts/tx-nodes (g/make-node pgraph-id Root :where "initial" :touched 0))]
+        (g/reset-undo! pgraph-id)
+
+        (g/transact
+          (concat
+            (g/set-property root :where "undoable")
+            (g/non-undoable
+              (g/set-property root :touched 42))))
+
+        (is (= 1 (g/undo-stack-count pgraph-id)))
+
+        (g/undo! pgraph-id)
+
+        (is (= "initial" (g/node-value root :where)))
+        (is (= 42 (g/node-value root :touched))))))
+
   (testing "later non-undoable transactions to the same property are reverted"
     (ts/with-clean-system
       (let [pgraph-id (g/make-graph! :history true)

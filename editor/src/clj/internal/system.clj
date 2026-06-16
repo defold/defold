@@ -153,6 +153,7 @@
               (override-id-generator system)
               {}
               nil
+              false
               false)
         ctx (reduce (fn [ctx change]
                       (-> ctx
@@ -305,9 +306,8 @@
              post-tx-graphs))
 
 (defn- remember-transaction-changes
-  [system post-tx-graphs significantly-modified-graphs undoable changes label sequence-label]
-  (if (or (not undoable)
-          (coll/empty? changes))
+  [system post-tx-graphs significantly-modified-graphs changes label sequence-label]
+  (if (coll/empty? changes)
     system
     (reduce-kv (fn [system graph-id _graph]
                  (if (and (has-history? system graph-id)
@@ -318,10 +318,10 @@
                post-tx-graphs)))
 
 (defn merge-graphs
-  [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted undoable changes label sequence-label]
+  [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted changes label sequence-label]
   (let [post-tx-graphs (prepare-transaction-graphs system post-tx-graphs significantly-modified-graphs)]
     (-> system
-        (remember-transaction-changes post-tx-graphs significantly-modified-graphs undoable changes label sequence-label)
+        (remember-transaction-changes post-tx-graphs significantly-modified-graphs changes label sequence-label)
         (commit-graph-states post-tx-graphs)
         (commit-transaction-effects outputs-modified nodes-deleted))))
 
