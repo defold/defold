@@ -108,6 +108,7 @@ def sign_file(platform, options, file):
             run.command([
                 'codesign',
                 '--force',
+                '--options', 'runtime',
                 '--sign', certificate,
                 file])
 
