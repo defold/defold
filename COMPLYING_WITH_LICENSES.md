@@ -28,6 +28,7 @@ The following software has licenses which require inclusion of their respective 
     * [mbedTLS](/licenses/NOTICE-mbedtls) - Used when doing HTTPS requests or creating SSL sockets. Included in all builds of Defold.
     * [Basis Universal](/licenses/NOTICE-basisuniversal) - Used when compressing textures.
     * [Remotery](/licenses/NOTICE-remotery) - Used during development of your game. Not included in the release builds of Defold.
+    * [Metal.hpp](/licenses/NOTICE-metal-cpp) - Used by the Metal graphics backend on macOS and iOS.
   * MIT
     * [jctest](/licenses/NOTICE-jctest) - Used when running unit tests in the engine. Not included in any builds.
     * [Lua](/licenses/NOTICE-lua) - Used in HTML5 builds.

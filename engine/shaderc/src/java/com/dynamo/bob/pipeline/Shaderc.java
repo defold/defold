@@ -223,11 +223,32 @@ public class Shaderc {
         }
     };
 
+    public enum ShaderCompilerPlatform {
+        SHADER_COMPILER_PLATFORM_DEFAULT(0),
+        SHADER_COMPILER_PLATFORM_MACOS(1),
+        SHADER_COMPILER_PLATFORM_IOS(2);
+        private final int value;
+        private ShaderCompilerPlatform(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public ShaderCompilerPlatform fromValue(int value) throws IllegalArgumentException {
+            for (ShaderCompilerPlatform e : ShaderCompilerPlatform.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to ShaderCompilerPlatform: %d", value) );
+        }
+    };
+
     public static class ShaderCompilerOptions {
         public int version = 0;
         public String entryPoint;
         public ShaderPrecision glslEsDefaultFloatPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public ShaderPrecision glslEsDefaultIntPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        public ShaderCompilerPlatform targetPlatform = ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_DEFAULT;
         public byte removeUnusedVariables = 0;
         public byte no420PackExtension = 0;
         public byte glslEmitUboAsPlainUniforms = 0;

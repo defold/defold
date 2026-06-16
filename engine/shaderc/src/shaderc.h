@@ -136,6 +136,13 @@ namespace dmShaderc
         SHADER_PRECISION_HIGHP,
     };
 
+    enum ShaderCompilerPlatform
+    {
+        SHADER_COMPILER_PLATFORM_DEFAULT,
+        SHADER_COMPILER_PLATFORM_MACOS,
+        SHADER_COMPILER_PLATFORM_IOS,
+    };
+
     struct ShaderCompilerOptions
     {
         ShaderCompilerOptions()
@@ -143,6 +150,7 @@ namespace dmShaderc
         , m_EntryPoint("main")
         , m_GlslEsDefaultFloatPrecision(SHADER_PRECISION_MEDIUMP)
         , m_GlslEsDefaultIntPrecision(SHADER_PRECISION_HIGHP)
+        , m_TargetPlatform(SHADER_COMPILER_PLATFORM_DEFAULT)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(true)
@@ -153,6 +161,7 @@ namespace dmShaderc
         const char*     m_EntryPoint;
         ShaderPrecision m_GlslEsDefaultFloatPrecision;
         ShaderPrecision m_GlslEsDefaultIntPrecision;
+        ShaderCompilerPlatform m_TargetPlatform;
         uint8_t         m_RemoveUnusedVariables      : 1;
         uint8_t         m_No420PackExtension         : 1;
         uint8_t         m_GlslEmitUboAsPlainUniforms : 1;

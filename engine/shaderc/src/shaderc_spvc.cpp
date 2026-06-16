@@ -694,8 +694,9 @@ namespace dmShaderc
                 default: dmLogWarning("MSL version %d not supported for crosscompiling, defaulting to 2.2", options.m_Version);
             }
 
+            uint32_t msl_platform = options.m_TargetPlatform == SHADER_COMPILER_PLATFORM_IOS ? SPVC_MSL_PLATFORM_IOS : SPVC_MSL_PLATFORM_MACOS;
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_MSL_VERSION, msl_version);
-            spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_MSL_PLATFORM, SPVC_MSL_PLATFORM_MACOS);
+            spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_MSL_PLATFORM, msl_platform);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, SPVC_TRUE);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_MSL_EMULATE_CUBEMAP_ARRAY, SPVC_FALSE);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_FLIP_VERTEX_Y, context->m_Stage == SHADER_STAGE_VERTEX ? SPVC_TRUE : SPVC_FALSE);

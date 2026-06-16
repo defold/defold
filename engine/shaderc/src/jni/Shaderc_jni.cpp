@@ -47,6 +47,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(entryPoint, "Ljava/lang/String;");
         GET_FLD(glslEsDefaultFloatPrecision, "ShaderPrecision");
         GET_FLD(glslEsDefaultIntPrecision, "ShaderPrecision");
+        GET_FLD(targetPlatform, "ShaderCompilerPlatform");
         GET_FLD_TYPESTR(removeUnusedVariables, "B");
         GET_FLD_TYPESTR(no420PackExtension, "B");
         GET_FLD_TYPESTR(glslEmitUboAsPlainUniforms, "B");
@@ -164,6 +165,7 @@ jobject C2J_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, const Sha
     dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.entryPoint, src->m_EntryPoint);
     dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultFloatPrecision, src->m_GlslEsDefaultFloatPrecision);
     dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultIntPrecision, src->m_GlslEsDefaultIntPrecision);
+    dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.targetPlatform, src->m_TargetPlatform);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.removeUnusedVariables, src->m_RemoveUnusedVariables);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension, src->m_No420PackExtension);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms, src->m_GlslEmitUboAsPlainUniforms);
@@ -490,6 +492,7 @@ bool J2C_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, jobject obj,
     out->m_EntryPoint = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.entryPoint);
     out->m_GlslEsDefaultFloatPrecision = (ShaderPrecision)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultFloatPrecision);
     out->m_GlslEsDefaultIntPrecision = (ShaderPrecision)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultIntPrecision);
+    out->m_TargetPlatform = (ShaderCompilerPlatform)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.targetPlatform);
     out->m_RemoveUnusedVariables = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.removeUnusedVariables);
     out->m_No420PackExtension = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension);
     out->m_GlslEmitUboAsPlainUniforms = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms);
