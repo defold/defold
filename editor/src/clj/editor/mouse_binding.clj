@@ -322,7 +322,6 @@
 (defn command-for-action [context action]
   (command-for-action* @bindings-atom context action))
 
-
 (defn binding-display-text [localization {selected-modifiers :modifiers :keys [button]}]
   (if button
     (let [parts (into []

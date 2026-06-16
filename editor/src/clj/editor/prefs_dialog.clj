@@ -489,10 +489,12 @@
                 :spacing :small
                 :children
                 [{:fx/type fxui/button
+                  :style-class ["button-darker"]
                   :text (localization-state (localization/message "dialog.button.cancel"))
                   :on-action (fn [_] (swap-state dissoc :mouse-binding-popup))}
                  {:fx/type fxui/button
-                  :text (localization-state (localization/message "prefs.keymap.mouse-binding.button.apply"))
+                  :style-class ["button-darker"]
+                  :text (localization-state (localization/message "dialog.button.apply"))
                   :on-action (fn [_]
                                (update-mouse-bindings
                                  #(mouse-binding/update-command-binding % context command binding-index draft-binding))
@@ -543,10 +545,12 @@
                 :spacing :small
                 :children
                 [{:fx/type fxui/button
+                  :style-class ["button-darker"]
                   :text (localization-state (localization/message "dialog.button.cancel"))
                   :on-action (fn [_] (swap-state dissoc :mouse-modifier-popup))}
                  {:fx/type fxui/button
-                  :text (localization-state (localization/message "prefs.keymap.mouse-binding.button.apply"))
+                  :style-class ["button-darker"]
+                  :text (localization-state (localization/message "dialog.button.apply"))
                   :on-action (fn [_]
                                (update-mouse-bindings
                                  #(mouse-binding/update-command % context command draft-modifier))
@@ -631,8 +635,8 @@
                                    {:fx/type fx.menu-item/lifecycle
                                     :text (localization-state
                                             (localization/message
-                                              "prefs.keymap.context-menu.remove-mouse-binding"
-                                              {"binding" (mouse-binding/binding-display-text localization-state binding)}))
+                                              "prefs.keymap.context-menu.remove"
+                                              {"shortcut" (mouse-binding/binding-display-text localization-state binding)}))
                                     :on-action (fn [_]
                                                  (update-mouse-bindings
                                                    #(mouse-binding/remove-command-binding % context command idx)))})))
@@ -654,7 +658,7 @@
   (case (:kind row)
     :mouse-binding (text-util/includes-ignore-case?
                      (coll/join-to-string " " (into (into [(:context-path row)] (:action row))
-                                                    (map mouse-binding/binding-display-text (:bindings row))))
+                                                    (map (partial mouse-binding/binding-display-text localization-state) (:bindings row))))
                      filter-text)
     :mouse-modifier (text-util/includes-ignore-case?
                       (coll/join-to-string " " (conj (into [(:context-path row)] (:action row))

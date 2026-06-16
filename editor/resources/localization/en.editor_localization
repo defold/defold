@@ -147,6 +147,7 @@ dialog.button.report = Report
 dialog.button.disable-scene-editor = Disable Scene Editor
 dialog.button.cancel = Cancel
 dialog.button.delete = Delete
+dialog.button.apply = Apply
 
 # Error Dialog
 
@@ -726,9 +727,7 @@ prefs.keymap.mouse-binding.button.middle = Middle
 prefs.keymap.mouse-binding.button.right = Right
 prefs.keymap.mouse-binding.section.button = Mouse Button
 prefs.keymap.mouse-binding.section.modifiers = Modifiers
-prefs.keymap.mouse-binding.button.apply = Apply
 prefs.keymap.context-menu.add-mouse-binding = Add Mouse Binding
-prefs.keymap.context-menu.remove-mouse-binding = Remove {binding}
 prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = Reset to Defaults
 prefs.keymap.context-menu.edit-modifier = Edit Modifier
 prefs.keymap.inherited-from = Inherited from {context}
