@@ -356,14 +356,15 @@ public class GameProjectBuilder extends Builder {
             String platform = project.option("platform", "generic");
             project.getPublisher().setPlatform(platform);
             File archiveIndexHandle = project.createTempFile("defold.index_", ".arci");
-            RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
             File archiveDataHandle = project.createTempFile("defold.data_", ".arcd");
-            RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
 
             // create the archive and manifest
             ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
             ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
-            createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
+            try (RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
+                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle)) {
+                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
+            }
             byte[] fullManifestFile = manifestBuilder.buildManifest();
             byte[] bundledManifestFile = manifestBuilder.buildManifest(true);
             this.project.setArchiveBuilder(archiveBuilder);

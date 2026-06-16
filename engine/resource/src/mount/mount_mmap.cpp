@@ -130,6 +130,24 @@ namespace dmResource
         return UnmapFile(map, size);
     }
 
+    static Result MountArchiveFromFileBacked(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
+    {
+        dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(index_path, data_path, archive);
+        if (result == dmResourceArchive::RESULT_OK)
+        {
+            // A null mount_info marks a file-backed archive. UnmountArchiveInternal()
+            // will only delete the archive container; there are no mapped regions to release.
+            *mount_info = 0;
+            return RESULT_OK;
+        }
+        if (result == dmResourceArchive::RESULT_VERSION_MISMATCH)
+        {
+            return RESULT_VERSION_MISMATCH;
+        }
+
+        return RESULT_IO_ERROR;
+    }
+
     Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         void* index_map = 0x0;
@@ -147,6 +165,12 @@ namespace dmResource
         if (r != RESULT_OK)
         {
             munmap(index_map, index_size);
+            Result fallback_result = MountArchiveFromFileBacked(index_path, data_path, archive, mount_info);
+            if (fallback_result != RESULT_IO_ERROR)
+            {
+                return fallback_result;
+            }
+
             dmLogError("Error when mapping data file '%s', result = %i", data_path, r);
             return r;
         }
