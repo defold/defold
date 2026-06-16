@@ -442,7 +442,8 @@ BOB_TOOL_PACKAGE_PREFIXES = (
 BOB_TOOL_PACKAGES = ('codesign_allocate', 'strip', 'zipalign')
 
 BOB_EXTRA_PLATFORM_PACKAGES = {
-    'arm64-android': [sdk.ANDROID_PACKAGE]
+    'armv7-android': ["vkquality-1.1-2642a0d"],
+    'arm64-android': [sdk.ANDROID_PACKAGE, "vkquality-1.1-2642a0d"]
 }
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
