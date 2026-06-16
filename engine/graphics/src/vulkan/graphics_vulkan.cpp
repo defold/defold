@@ -1828,6 +1828,11 @@ bail:
         DM_PROFILE(__FUNCTION__);
         VulkanContext* context = (VulkanContext*) _context;
 
+        if (!context->m_FrameBegun)
+        {
+            return;
+        }
+
         uint32_t frameInFlight = context->m_CurrentFrameInFlight;
         FrameResource& currentFrame = context->m_FrameResources[frameInFlight];
 
@@ -1902,7 +1907,11 @@ bail:
             context->m_SwapChain->m_LastPresentId = present_id;
         }
 
-        if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
+        if (res == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            dmLogOnceWarning("Vulkan swapchain is out of date, reason: VK_ERROR_OUT_OF_DATE_KHR.");
+        }
+        else if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR)
         {
             CHECK_VK_ERROR(res);
         }
