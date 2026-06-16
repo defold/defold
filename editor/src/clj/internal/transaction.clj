@@ -602,24 +602,24 @@
     (mark-output-activated ctx node-id property)))
 
 (defn- ctx-set-raw-property
-  [ctx node-id property value override-node dynamic property-overridden]
+  [ctx node-id property value override-node dynamic property-overridden value-changed]
   (let [basis (:basis ctx)
         node (gt/node-by-id-at basis node-id)]
     (if (nil? node)
       ctx
-      (-> ctx
-          (mark-property-activated node-id property override-node dynamic property-overridden)
-          (update :basis property-default-setter node-id node property value)))))
+      (cond-> (update ctx :basis property-default-setter node-id node property value)
+        value-changed
+        (mark-property-activated node-id property override-node dynamic property-overridden)))))
 
 (defn- ctx-restore-raw-property
-  [ctx node-id property value assigned override-node dynamic property-overridden]
+  [ctx node-id property value assigned override-node dynamic property-overridden value-changed]
   (let [basis (:basis ctx)
         node (gt/node-by-id-at basis node-id)]
     (if (nil? node)
       ctx
-      (-> ctx
-          (mark-property-activated node-id property override-node dynamic property-overridden)
-          (update :basis restore-raw-property node-id node property value assigned)))))
+      (cond-> (update ctx :basis restore-raw-property node-id node property value assigned)
+        value-changed
+        (mark-property-activated node-id property override-node dynamic property-overridden)))))
 
 (defn- raw-property-assigned-to?
   [ctx node-id property value]
@@ -648,28 +648,28 @@
       (let [node-type (:name @(:node-type (gt/node-by-id-at basis node-id)))]
         (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
 
-(defonce/type SetRawPropertyTXC [node-id property-label old-value old-value-assigned new-value override-node dynamic property-overridden]
+(defonce/type SetRawPropertyTXC [node-id property-label old-value old-value-assigned new-value override-node dynamic property-overridden value-changed]
   TransactionChange
   (perform [_this ctx]
-    (ctx-set-raw-property ctx node-id property-label new-value override-node dynamic property-overridden))
+    (ctx-set-raw-property ctx node-id property-label new-value override-node dynamic property-overridden value-changed))
 
   (revert [_this ctx]
     (if (raw-property-assigned-to? ctx node-id property-label new-value)
-      (ctx-restore-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden)
+      (ctx-restore-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden value-changed)
       ctx)))
 
 (defonce/type ClearRawPropertyTXC [node-id property-label old-value old-value-assigned override-node dynamic property-overridden]
   TransactionChange
   (perform [_this ctx]
-    (ctx-restore-raw-property ctx node-id property-label nil false override-node dynamic property-overridden))
+    (ctx-restore-raw-property ctx node-id property-label nil false override-node dynamic property-overridden true))
 
   (revert [_this ctx]
     (if (raw-property-unassigned? ctx node-id property-label)
-      (ctx-restore-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden)
+      (ctx-restore-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden true)
       ctx)))
 
 (defn- make-set-raw-property-change
-  [node-id node property-label new-value]
+  [node-id node property-label new-value value-changed]
   (let [node-type (gt/node-type node)
         assigned-properties (gt/assigned-properties node)
         override-node (some? (gt/original node))
@@ -682,7 +682,8 @@
                          new-value
                          override-node
                          dynamic
-                         (gt/property-overridden? node property-label))))
+                         (gt/property-overridden? node property-label)
+                         value-changed)))
 
 (defn- make-clear-raw-property-change
   [ctx node-id property-label]
@@ -714,12 +715,13 @@
     (let [evaluation-context (in/custom-evaluation-context {:basis (:basis ctx)
                                                             :tx-data-context (:tx-data-context ctx)})
           old-value (in/node-property-value node property-label evaluation-context)
-          change (make-set-raw-property-change node-id node property-label new-value)
+          value-changed (not= old-value new-value)
+          change (make-set-raw-property-change node-id node property-label new-value value-changed)
           ctx (perform-change ctx change)]
-      (if (= old-value new-value)
-        [ctx [change]]
+      (if value-changed
         (let [[ctx setter-changes] (realize-setter-actions ctx node-id node property-label old-value new-value)]
-          [ctx (into [change] setter-changes)])))
+          [ctx (into [change] setter-changes)])
+        [ctx [change]]))
     [ctx []]))
 
 (defn- realize-update-property
