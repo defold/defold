@@ -621,18 +621,6 @@
         value-changed
         (mark-property-activated node-id property override-node dynamic property-overridden)))))
 
-(defn- raw-property-assigned-to?
-  [ctx node-id property value]
-  (when-let [node (gt/node-by-id-at (:basis ctx) node-id)]
-    (let [assigned-properties (gt/assigned-properties node)]
-      (and (contains? assigned-properties property)
-           (= value (get assigned-properties property))))))
-
-(defn- raw-property-unassigned?
-  [ctx node-id property]
-  (when-let [node (gt/node-by-id-at (:basis ctx) node-id)]
-    (not (raw-property-assigned? node property))))
-
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
   (try
     (let [tx-data-context (:tx-data-context ctx)
@@ -654,9 +642,7 @@
     (ctx-set-raw-property ctx node-id property-label new-value override-node dynamic property-overridden value-changed))
 
   (revert [_this ctx]
-    (if (raw-property-assigned-to? ctx node-id property-label new-value)
-      (ctx-restore-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden value-changed)
-      ctx)))
+    (ctx-restore-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden value-changed)))
 
 (defonce/type ClearRawPropertyTXC [node-id property-label old-value old-value-assigned override-node dynamic property-overridden]
   TransactionChange
@@ -664,9 +650,7 @@
     (ctx-restore-raw-property ctx node-id property-label nil false override-node dynamic property-overridden true))
 
   (revert [_this ctx]
-    (if (raw-property-unassigned? ctx node-id property-label)
-      (ctx-restore-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden true)
-      ctx)))
+    (ctx-restore-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden true)))
 
 (defn- make-set-raw-property-change
   [node-id node property-label new-value value-changed]

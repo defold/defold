@@ -195,7 +195,7 @@
         (is (= "initial" (g/node-value root :where)))
         (is (= 42 (g/node-value root :touched))))))
 
-  (testing "later non-undoable transactions to the same property are preserved"
+  (testing "later non-undoable transactions to the same property are reverted"
     (ts/with-clean-system
       (let [pgraph-id (g/make-graph! :history true)
             [root] (ts/tx-nodes (g/make-node pgraph-id Root :where "initial"))]
@@ -209,7 +209,24 @@
 
         (g/undo! pgraph-id)
 
-        (is (= "non-undoable" (g/node-value root :where)))))))
+        (is (= "initial" (g/node-value root :where))))))
+
+  (testing "later non-undoable clears to the same property are reverted"
+    (ts/with-clean-system
+      (let [pgraph-id (g/make-graph! :history true)
+            [root] (ts/tx-nodes (g/make-node pgraph-id Root :where "initial"))
+            [override-root] (ts/tx-nodes (g/override root))]
+        (g/reset-undo! pgraph-id)
+
+        (g/transact
+          (g/set-property override-root :where "undoable"))
+
+        (g/transact {:undoable false}
+          (g/clear-property override-root :where))
+
+        (g/undo! pgraph-id)
+
+        (is (= "initial" (g/node-value override-root :where)))))))
 
 (defn touch
   [node label & [seq-id]]
