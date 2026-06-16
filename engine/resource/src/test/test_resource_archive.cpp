@@ -256,6 +256,37 @@ static bool WriteLargeOffsetArchiveData(const char* resource_path, uint64_t reso
     return ok;
 }
 
+static void WriteLargeOffsetArchiveV6(const char* archive_path, const char* resource_path, const uint8_t* hash, uint32_t hash_len, uint64_t resource_offset, const uint8_t* payload, uint32_t payload_size, uint32_t flags)
+{
+    remove(archive_path);
+    remove(resource_path);
+
+    ASSERT_TRUE(WriteArchiveIndexV6(archive_path, hash, hash_len, resource_offset, payload_size, flags));
+    ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, resource_offset, payload, payload_size));
+}
+
+static void AssertArchiveEntryReadable(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, uint64_t resource_offset, uint32_t flags, const uint8_t* payload, uint32_t payload_size)
+{
+    dmResourceArchive::EntryData* entry = 0;
+    dmResourceArchive::Result result = dmResourceArchive::FindEntry(archive, hash, hash_len, &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(resource_offset, dmResourceArchive::GetEntryResourceDataOffset(entry));
+    ASSERT_EQ(flags, dmResourceArchive::GetEntryFlags(entry));
+
+    uint8_t buffer[16] = { 0 };
+    ASSERT_LE(payload_size, (uint32_t)sizeof(buffer));
+    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(payload, buffer, payload_size);
+
+    uint8_t partial_buffer[4] = { 0 };
+    uint32_t nread = 0;
+    result = dmResourceArchive::ReadEntryPartial(archive, entry, 2, sizeof(partial_buffer), partial_buffer, &nread);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ((uint32_t)sizeof(partial_buffer), nread);
+    ASSERT_ARRAY_EQ_LEN(payload + 2, partial_buffer, sizeof(partial_buffer));
+}
+
 bool IsLiveUpdateResource(dmhash_t lu_path_hash)
 {
     for (uint32_t i = 0; i < (sizeof(liveupdate_path_hash) / sizeof(liveupdate_path_hash[0])); ++i)
@@ -597,35 +628,47 @@ TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove4GiB)
     dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/large_offset_v6_sparse.arci");
     dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/large_offset_v6_sparse.arcd");
 
-    remove(archive_path);
-    remove(resource_path);
-
-    ASSERT_TRUE(WriteArchiveIndexV6(archive_path, hash, sizeof(hash), resource_offset, sizeof(payload), flags));
-    ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, resource_offset, payload, sizeof(payload)));
+    WriteLargeOffsetArchiveV6(archive_path, resource_path, hash, sizeof(hash), resource_offset, payload, sizeof(payload), flags);
 
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
 
-    dmResourceArchive::EntryData* entry = 0;
-    result = dmResourceArchive::FindEntry(archive, hash, sizeof(hash), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(resource_offset, dmResourceArchive::GetEntryResourceDataOffset(entry));
-    ASSERT_EQ(flags, dmResourceArchive::GetEntryFlags(entry));
-
-    uint8_t buffer[sizeof(payload)] = { 0 };
-    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_ARRAY_EQ_LEN(payload, buffer, sizeof(payload));
-
-    uint8_t partial_buffer[4] = { 0 };
-    uint32_t nread = 0;
-    result = dmResourceArchive::ReadEntryPartial(archive, entry, 2, sizeof(partial_buffer), partial_buffer, &nread);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ((uint32_t)sizeof(partial_buffer), nread);
-    ASSERT_ARRAY_EQ_LEN(payload + 2, partial_buffer, sizeof(partial_buffer));
+    AssertArchiveEntryReadable(archive, hash, sizeof(hash), resource_offset, flags, payload, sizeof(payload));
 
     dmResourceArchive::Delete(archive);
+    remove(archive_path);
+    remove(resource_path);
+}
+
+// Platform mount code may choose mmap instead of the file-backed archive reader. This
+// verifies that mounting a local v6 archive with data above 4 GiB still allows full and
+// partial reads through the mounted archive handle.
+TEST(dmResourceArchive, MountArchiveInternal_ResourceOffsetAbove4GiB)
+{
+    const uint64_t resource_offset = 0x100000010ULL;
+    const uint32_t flags = 1 << 3;
+    const uint8_t hash[20] = {
+        0x63, 0xd9, 0xa1, 0x2b, 0x5c, 0x6d, 0x7e, 0x8f, 0x90, 0xab,
+        0xbc, 0xcd, 0xde, 0xef, 0x10, 0x21, 0x32, 0x43, 0x54, 0x66
+    };
+    const uint8_t payload[] = { 0x4d, 0x4e, 0x54, 0x36, 0xde, 0xad, 0xbe, 0xef };
+
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/mount_large_offset_v6_sparse.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/mount_large_offset_v6_sparse.arcd");
+
+    WriteLargeOffsetArchiveV6(archive_path, resource_path, hash, sizeof(hash), resource_offset, payload, sizeof(payload), flags);
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    void* mount_info = 0;
+    dmResource::Result mount_result = dmResource::MountArchiveInternal(archive_path, resource_path, &archive, &mount_info);
+    ASSERT_EQ(dmResource::RESULT_OK, mount_result);
+
+    AssertArchiveEntryReadable(archive, hash, sizeof(hash), resource_offset, flags, payload, sizeof(payload));
+
+    dmResource::UnmountArchiveInternal(archive, mount_info);
     remove(archive_path);
     remove(resource_path);
 }

@@ -202,6 +202,17 @@ namespace dmResource
             r = MapArchiveFile(data_path, data_map, data_length);
             if (r != RESULT_OK)
             {
+                dmResourceArchive::Result load_result = dmResourceArchive::LoadArchiveFromFile(index_path, data_path, archive);
+                if (load_result == dmResourceArchive::RESULT_OK)
+                {
+                    *mount_info = 0;
+                    return RESULT_OK;
+                }
+                if (load_result == dmResourceArchive::RESULT_VERSION_MISMATCH)
+                {
+                    return RESULT_VERSION_MISMATCH;
+                }
+
                 dmLogError("Error mapping liveupdate data file, result = %i", r);
                 return RESULT_IO_ERROR;
             }
@@ -275,6 +286,10 @@ namespace dmResource
 
         if (!info)
         {
+            if (archive)
+            {
+                dmResourceArchive::Delete(archive);
+            }
             return;
         }
 
