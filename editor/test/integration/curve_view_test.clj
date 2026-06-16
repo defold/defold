@@ -39,14 +39,6 @@
   (let [[x y] (world->screen view world-x world-y)]
     (test-util/mouse-move! view x y)))
 
-(defn- mouse-press! [view world-x world-y]
-  (let [[x y] (world->screen view world-x world-y)]
-    (test-util/mouse-press! view x y)))
-
-(defn- mouse-release! [view world-x world-y]
-  (let [[x y] (world->screen view world-x world-y)]
-    (test-util/mouse-release! view x y)))
-
 (defn- mouse-click!
   ([view world-x world-y]
    (mouse-click! view world-x world-y []))

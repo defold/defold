@@ -402,7 +402,7 @@
     :orthographic (dolly-orthographic camera (- delta))
     :perspective (dolly-perspective camera delta)))
 
-(def ^:private zoom-inertia 0.04)
+(def ^:private dolly-inertia 0.04)
 
 (defn- interpolate-position-and-focus-point [camera target-camera ^double factor]
   (let [current-pos (types/position camera)
@@ -419,7 +419,7 @@
   (let [target-camera (:dolly-target-camera (g/user-data camera-node ::camera-state))]
     (if (nil? target-camera)
       camera
-      (let [factor (- 1.0 (Math/exp (- (/ dt ^double zoom-inertia))))
+      (let [factor (- 1.0 (Math/exp (- (/ dt ^double dolly-inertia))))
             [new-pos ^Vector4d new-fp] (interpolate-position-and-focus-point camera target-camera factor)]
         (case (:type camera)
           :perspective
@@ -963,12 +963,14 @@
           movement (cond
                      (and mouse-binding-command (not override-camera))
                      (camera-command->movement mouse-binding-command)
+
                      (= type :mouse-pressed)
                      (let [command (mouse-binding/command-for-action (camera-mouse-binding-context local-cam)
                                                                      action)
                            movement (camera-command->movement command)]
                        (or (and movement (movements-enabled movement) movement)
                            :idle))
+
                      :else
                      (get camera-state :movement :idle))]
       (case type
@@ -1235,8 +1237,7 @@
   ::scene-camera-orthographic
   "Scene 2D Camera"
   [{:command :scene.camera.orbit
-    :action ["Orbit"]
-    :binding {:button :primary :modifiers [:control]}}
+    :action ["Orbit"]}
    {:command :scene.camera.pan
     :action ["Pan"]
     :binding {:button :primary :modifiers [:alt]}}
@@ -1272,7 +1273,7 @@
     :action ["Pan"]
     :binding {:button :middle :modifiers []}}
    {:command :scene.camera.zoom
-    :action ["Zoom"]
+    :action ["Dolly"]
     :binding {:button :primary :modifiers [:control :alt]}}])
 
 (defn show-settings! [camera-node ^Parent owner prefs keymap localization]

@@ -14,8 +14,9 @@
 
 (ns editor.mouse-binding
   (:require [clojure.string :as string]
-            [editor.input :as i]
+            [editor.input :as input]
             [editor.os :as os]
+            [editor.localization :as localization]
             [editor.util :as util]))
 
 (set! *warn-on-reflection* true)
@@ -24,9 +25,9 @@
 (def modifiers [:shift :control :alt])
 
 (def button->label
-  {:primary "Left"
-   :middle "Middle"
-   :secondary "Right"})
+  {:primary (localization/message "prefs.keymap.mouse-binding.button.left")
+   :middle (localization/message "prefs.keymap.mouse-binding.button.middle")
+   :secondary (localization/message "prefs.keymap.mouse-binding.button.right")})
 
 (def modifier->label
   (if (os/is-mac-os?)
@@ -299,7 +300,7 @@
           (boolean
             (some (fn [mb]
                     (when-let [b (:binding mb)]
-                      (i/mouse-binding-active? b input-state)))
+                      (input/mouse-binding-active? b input-state)))
                   (effective-command-bindings* state context command binding-maps))))
         (when-let [fallback (get-in state [:contexts context :fallback-context])]
           (command-active?* state fallback command input-state)))))
@@ -311,7 +312,7 @@
   (or (some (fn [[command bindings]]
               (when (some (fn [mouse-binding]
                             (when-let [binding (:binding mouse-binding)]
-                              (i/mouse-binding-action? binding action)))
+                              (input/mouse-binding-action? binding action)))
                           (effective-command-bindings* state context command bindings))
                 command))
             (get-in state [:contexts context :bindings]))
@@ -322,12 +323,11 @@
   (command-for-action* @bindings-atom context action))
 
 
-(defn binding-display-text [{selected-modifiers :modifiers
-                             :keys [button]}]
+(defn binding-display-text [localization {selected-modifiers :modifiers :keys [button]}]
   (if button
     (let [parts (into []
                       (comp (filter (set selected-modifiers))
                             (map modifier->label))
                       modifiers)]
-      (string/join "+" (conj parts (button->label button))))
+      (string/join "+" (conj parts (localization (button->label button)))))
     ""))
