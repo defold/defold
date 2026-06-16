@@ -21,6 +21,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
+
 #include <android_native_app_glue.h>
 #include <android/asset_manager.h>
 
@@ -50,14 +54,20 @@ namespace dmResource
 
     static Result MapArchiveFile(const char* path, void*& out_map, uint64_t& out_size)
     {
-        int fd = open(path, O_RDONLY);
+        int fd = open(path, O_RDONLY | O_LARGEFILE);
         if (fd < 0)
         {
             return RESULT_RESOURCE_NOT_FOUND;
         }
 
-        struct stat fs;
-        if (fstat(fd, &fs))
+        struct stat64 fs;
+        if (fstat64(fd, &fs))
+        {
+            close(fd);
+            return RESULT_IO_ERROR;
+        }
+
+        if ((uint64_t)fs.st_size > (uint64_t)((size_t)-1))
         {
             close(fd);
             return RESULT_IO_ERROR;
