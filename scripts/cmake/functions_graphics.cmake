@@ -156,7 +156,7 @@ function(defold_target_link_graphics target platform)
     elseif(_PLAT_OS STREQUAL "macos")
         set(FRAMEWORK_OPENGL OpenGL)
     elseif(_PLAT_OS STREQUAL "ios")
-        set(FRAMEWORK_DMGLFW QuartzCore;OpenGLES;CoreVideo;CoreGraphics)
+        set(FRAMEWORK_DMGLFW QuartzCore;OpenGLES;CoreVideo;CoreGraphics;CoreMotion)
     endif()
 
     # Vulkan

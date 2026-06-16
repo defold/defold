@@ -2222,7 +2222,7 @@ def detect(conf):
     elif TargetOS.IOS == target_os:
         conf.env['STLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']
-        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics', 'CoreMotion']
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_VULKAN'] = ['vulkan', 'X11-xcb']
         # currently we only have the validation
