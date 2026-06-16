@@ -673,6 +673,73 @@ TEST(dmResourceArchive, MountArchiveInternal_ResourceOffsetAbove4GiB)
     remove(resource_path);
 }
 
+// File-backed archives keep normalized hash/entry arrays for v5 indexes. Replacing the
+// active index must discard those arrays, otherwise lookups continue using the old index.
+TEST(dmResourceArchive, SetNewArchiveIndex_ClearsFileBackedLookupArrays)
+{
+    const uint8_t old_hash[20] = {
+        0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78, 0x89, 0x9a,
+        0xab, 0xbc, 0xcd, 0xde, 0xef, 0xf0, 0x10, 0x20, 0x30, 0x40
+    };
+    const uint8_t new_hash[20] = {
+        0x02, 0x13, 0x24, 0x35, 0x46, 0x57, 0x68, 0x79, 0x8a, 0x9b,
+        0xac, 0xbd, 0xce, 0xdf, 0xe0, 0xf1, 0x11, 0x21, 0x31, 0x41
+    };
+    const uint8_t payload[] = { 'r', 'e', 'p', 'l', 'a', 'c', 'e', 0 };
+
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/replace_index_v5.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/replace_index_v5.arcd");
+
+    remove(archive_path);
+    remove(resource_path);
+
+    ASSERT_TRUE(WriteArchiveIndexV5(archive_path, old_hash, sizeof(old_hash), 0, sizeof(payload)));
+    ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, 0, payload, sizeof(payload)));
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    struct ArchiveIndexV6Buffer
+    {
+        dmResourceArchive::ArchiveIndex m_Header;
+        uint8_t m_Hash[dmResourceArchive::MAX_HASH];
+        dmResourceArchive::EntryData m_Entry;
+    };
+
+    ArchiveIndexV6Buffer replacement;
+    memset(&replacement, 0, sizeof(replacement));
+    replacement.m_Header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION_6);
+    replacement.m_Header.m_EntryDataCount = dmEndian::ToNetwork(1U);
+    replacement.m_Header.m_EntryDataOffset = dmEndian::ToNetwork((uint32_t)((uintptr_t)&replacement.m_Entry - (uintptr_t)&replacement));
+    replacement.m_Header.m_HashOffset = dmEndian::ToNetwork((uint32_t)((uintptr_t)&replacement.m_Hash - (uintptr_t)&replacement));
+    replacement.m_Header.m_HashLength = dmEndian::ToNetwork((uint32_t)sizeof(new_hash));
+    memcpy(replacement.m_Hash, new_hash, sizeof(new_hash));
+    replacement.m_Entry.m_ResourceDataOffsetAndFlags = dmEndian::ToNetwork(dmResourceArchive::PackEntryDataOffsetAndFlags(0, 0));
+    replacement.m_Entry.m_ResourceSize = dmEndian::ToNetwork((uint32_t)sizeof(payload));
+    replacement.m_Entry.m_ResourceCompressedSize = dmEndian::ToNetwork(0xFFFFFFFFU);
+
+    dmResourceArchive::SetNewArchiveIndex(archive, &replacement.m_Header, true);
+
+    dmResourceArchive::EntryData* entry = 0;
+    result = dmResourceArchive::FindEntry(archive, old_hash, sizeof(old_hash), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
+
+    result = dmResourceArchive::FindEntry(archive, new_hash, sizeof(new_hash), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    uint8_t buffer[sizeof(payload)] = { 0 };
+    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(payload, buffer, sizeof(payload));
+
+    dmResourceArchive::Delete(archive);
+    remove(archive_path);
+    remove(resource_path);
+}
+
 // Bundled and mapped archives do not go through the file-load normalization path, so v6
 // lookup must work directly from the 16-byte packed entry layout. This in-memory v6 index
 // contains one mapped entry with the currently unused fourth flag bit and verifies

@@ -140,6 +140,19 @@ namespace dmResourceArchive
         ConvertEntryDataV5(entries_v5, file_index->m_Entries, entry_count);
     }
 
+    static void ClearArchiveFileIndexLookup(ArchiveFileIndex* file_index)
+    {
+        if (!file_index)
+        {
+            return;
+        }
+
+        delete[] file_index->m_Hashes;
+        delete[] file_index->m_Entries;
+        file_index->m_Hashes = 0;
+        file_index->m_Entries = 0;
+    }
+
     static uint8_t* GetArchiveHashes(HArchiveIndexContainer archive)
     {
         if (archive->m_ArchiveFileIndex && archive->m_ArchiveFileIndex->m_Hashes)
@@ -611,10 +624,18 @@ namespace dmResourceArchive
         {
             delete archive_container->m_ArchiveIndex;
         }
+
+        ClearArchiveFileIndexLookup(archive_container->m_ArchiveFileIndex);
+
         // Use this runtime archive index until the next reboot
         archive_container->m_ArchiveIndex = new_index;
         // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
         archive_container->m_IsMemMapped = mem_mapped;
+
+        if (dmEndian::ToNetwork(new_index->m_Version) == VERSION_5)
+        {
+            NormalizeArchiveIndexV5(archive_container);
+        }
     }
 
     uint32_t GetEntryCount(HArchiveIndexContainer archive)
