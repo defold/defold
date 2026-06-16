@@ -962,7 +962,9 @@
                                (nil? (camera-command->movement mouse-binding-command)))
           movement (cond
                      (and mouse-binding-command (not override-camera))
-                     (camera-command->movement mouse-binding-command)
+                     (let [movement (camera-command->movement mouse-binding-command)]
+                       (or (and movement (movements-enabled movement) movement)
+                           :idle))
 
                      (= type :mouse-pressed)
                      (let [command (mouse-binding/command-for-action (camera-mouse-binding-context local-cam)

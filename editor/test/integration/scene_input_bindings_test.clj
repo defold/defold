@@ -22,6 +22,7 @@
             [editor.mouse-binding :as mouse-binding]
             [editor.mouse-binding-test :refer [with-mouse-bindings]]
             [editor.scene :as scene]
+            [editor.scene-selection :as selection]
             [editor.tile-map :as tile-map]
             [editor.tile-map-common :as tile-map-common]
             [editor.types :as types]
@@ -313,6 +314,53 @@
         (let [view (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
                      (g/set-property! :viewport (types/->Region 0 128 0 128)))]
           (run-persisted-override-pan-test! view {:button :primary :modifiers [:shift]}))))))
+
+(deftest disallowed-curve-view-camera-bindings-are-ignored
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/register!
+        ::curve-view/curve-view-camera
+        "Curve Editor"
+        [{:command :scene.camera.pan
+          :action ["Pan"]}
+         {:command :scene.camera.zoom
+          :action ["Zoom"]}
+         {:command :scene.camera.orbit
+          :action ["Orbit"]
+          :binding {:button :primary :modifiers [:shift]}}
+         {:command :scene.camera.free-look
+          :action ["Free Look"]
+          :binding {:button :primary :modifiers [:control]}}])
+      (let [view (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
+                   (g/set-property! :viewport (types/->Region 0 128 0 128)))
+            camera-controller (camera-controller view)
+            initial-camera (g/node-value view :camera)]
+        (is camera-controller)
+        (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [64.0 64.0 0.0] [64.0 64.0 0.0]))
+        (doseq [{:keys [name button modifiers expected-movement]}
+                [{:name "orbit"
+                  :button :primary
+                  :modifiers [:shift]
+                  :expected-movement :tumble}
+                 {:name "free look"
+                  :button :primary
+                  :modifiers [:control]
+                  :expected-movement :look}]]
+          (testing name
+            (let [input-state (reduce
+                                (partial dispatch-action! view)
+                                (input/make-input-state)
+                                [(action :mouse-moved 64.0 64.0 button modifiers)
+                                 (action :mouse-pressed 64.0 64.0 button modifiers)
+                                 (action :drag-detected 64.0 64.0 button modifiers)])]
+              (is (not= expected-movement
+                        (:movement (g/user-data camera-controller :editor.camera/camera-state))))
+              (is (not (:free-cam-mode (g/user-data camera-controller :editor.camera/camera-state))))
+              (let [input-state (dispatch-action! view input-state (action :mouse-moved 96.0 64.0 button modifiers))
+                    input-state (update-tick! view input-state 2)]
+                (dispatch-action! view input-state (action :mouse-released 96.0 64.0 button modifiers))))
+            (is (= initial-camera (g/node-value view :camera))
+                "Curve view should ignore camera movements that are disabled there.")))))))
 
 (deftest persisted-camera-override-works-in-tile-map-view
   (test-util/with-loaded-project
