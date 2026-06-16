@@ -44,9 +44,46 @@ namespace dmResource
         AAsset* data_asset;
         void* data_map; // non null if retrieved by MapFile
         void* index_map; // non null if retrieved by MapFile
-        uint32_t data_length;
+        uint64_t data_length;
         uint32_t index_length;
     };
+
+    static Result MapArchiveFile(const char* path, void*& out_map, uint64_t& out_size)
+    {
+        int fd = open(path, O_RDONLY);
+        if (fd < 0)
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        struct stat fs;
+        if (fstat(fd, &fs))
+        {
+            close(fd);
+            return RESULT_IO_ERROR;
+        }
+
+        out_map = mmap(0, fs.st_size, PROT_READ, MAP_SHARED, fd, 0);
+        close(fd);
+
+        if (!out_map || out_map == (void*)-1)
+        {
+            return RESULT_IO_ERROR;
+        }
+
+        out_size = (uint64_t)fs.st_size;
+
+        return RESULT_OK;
+    }
+
+    static Result UnmapArchiveFile(void*& map, uint64_t size)
+    {
+        if (map != 0x0)
+        {
+            munmap(map, (size_t)size);
+        }
+        return RESULT_OK;
+    }
 
     Result MapAsset(const char* path, void*& out_asset, uint32_t& out_size, void*& out_map)
     {
@@ -133,7 +170,7 @@ namespace dmResource
         uint32_t index_length = 0;
         void* index_map = 0x0;
         AAsset* data_asset = 0x0;
-        uint32_t data_length = 0;
+        uint64_t data_length = 0;
         void* data_map = 0x0;
 
         Result r;
@@ -142,7 +179,9 @@ namespace dmResource
         bool mem_mapped_data = false;
         if (strcmp(data_path, "game.arcd") == 0)
         {
-            r = MapAsset(data_path, (void*&)data_asset, data_length, data_map);
+            uint32_t data_asset_length = 0;
+            r = MapAsset(data_path, (void*&)data_asset, data_asset_length, data_map);
+            data_length = data_asset_length;
             if (r != RESULT_OK)
             {
                 dmLogError("Error when mapping data file '%s', result = %i", data_path, r);
@@ -150,7 +189,7 @@ namespace dmResource
             }
         } else
         {
-            r = MapFile(data_path, data_map, data_length);
+            r = MapArchiveFile(data_path, data_map, data_length);
             if (r != RESULT_OK)
             {
                 dmLogError("Error mapping liveupdate data file, result = %i", r);
@@ -167,9 +206,9 @@ namespace dmResource
             if (r != RESULT_OK)
             {
                 if (mem_mapped_data)
-                    UnmapFile(data_map, data_length);
+                    UnmapArchiveFile(data_map, data_length);
                 else
-                    UnmapAsset((void*&)data_asset, data_length);
+                    UnmapAsset((void*&)data_asset, (uint32_t)data_length);
                 dmLogError("Error when mapping index file, result: %i", r);
                 return RESULT_IO_ERROR;
             }
@@ -180,9 +219,9 @@ namespace dmResource
             if (r != RESULT_OK)
             {
                 if (mem_mapped_data)
-                    UnmapFile(data_map, data_length);
+                    UnmapArchiveFile(data_map, data_length);
                 else
-                    UnmapAsset((void*&)data_asset, data_length);
+                    UnmapAsset((void*&)data_asset, (uint32_t)data_length);
                 dmLogError("Error mapping liveupdate index file, result = %i", r);
                 return RESULT_IO_ERROR;
             }
@@ -195,9 +234,9 @@ namespace dmResource
         if (res != dmResourceArchive::RESULT_OK)
         {
             if (mem_mapped_data)
-                UnmapFile(data_map, data_length);
+                UnmapArchiveFile(data_map, data_length);
             else
-                UnmapAsset((void*&)data_asset, data_length);
+                UnmapAsset((void*&)data_asset, (uint32_t)data_length);
 
             if (mem_mapped_index)
                 UnmapFile(index_map, index_length);
@@ -240,10 +279,10 @@ namespace dmResource
 
         if (info->data_asset)
         {
-            UnmapAsset((void*&)info->data_asset, info->data_length);
+            UnmapAsset((void*&)info->data_asset, (uint32_t)info->data_length);
         } else if(info->data_map)
         {
-            UnmapFile(info->data_map, info->data_length);
+            UnmapArchiveFile(info->data_map, info->data_length);
         }
 
         delete info;

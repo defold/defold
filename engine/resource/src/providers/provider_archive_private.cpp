@@ -16,6 +16,7 @@
 #include "provider_archive_private.h"
 #include "../resource.h"
 
+#include <inttypes.h>
 #include <dlib/dstrings.h>
 #include <dlib/endian.hpp>
 #include <dlib/log.h>
@@ -60,8 +61,9 @@ namespace dmResourceProviderArchivePrivate
         uint8_t* hashes = 0;
         dmResourceArchive::EntryData* entries = 0;
 
-        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-        if (!archive->m_IsMemMapped)
+        // If archive is loaded from file, or a v5 memory mapped index was normalized,
+        // use the member arrays for hashes and entries. Otherwise read with memory offsets.
+        if (archive->m_ArchiveFileIndex && archive->m_ArchiveFileIndex->m_Entries)
         {
             hashes = archive->m_ArchiveFileIndex->m_Hashes;
             entries = archive->m_ArchiveFileIndex->m_Entries;
@@ -77,12 +79,13 @@ namespace dmResourceProviderArchivePrivate
             uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
             dmResourceArchive::EntryData* e = &entries[i];
 
-            uint32_t flags = dmEndian::ToNetwork(e->m_Flags);
-            printf("entry e/c/l: %d%d%d sz: %u csz: %u off: %u hash: ",
+            uint32_t flags = dmResourceArchive::GetEntryFlags(e);
+            uint64_t resource_offset = dmResourceArchive::GetEntryResourceDataOffset(e);
+            printf("entry e/c/l: %d%d%d sz: %u csz: %u off: %" PRIu64 " hash: ",
                 (flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED) != 0,
                 (flags & dmResourceArchive::ENTRY_FLAG_COMPRESSED) != 0,
                 (flags & dmResourceArchive::ENTRY_FLAG_LIVEUPDATE_DATA) != 0,
-                dmEndian::ToNetwork(e->m_ResourceSize), dmEndian::ToNetwork(e->m_ResourceCompressedSize), dmEndian::ToNetwork(e->m_ResourceDataOffset));
+                dmEndian::ToNetwork(e->m_ResourceSize), dmEndian::ToNetwork(e->m_ResourceCompressedSize), resource_offset);
 
             PrintHash(h, 20);
             printf("\n");

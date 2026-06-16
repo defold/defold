@@ -47,6 +47,7 @@ import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -502,7 +503,7 @@ public class ProjectBuildTest {
 
     private static boolean hasArchiveEntryOffsetAbove2GiB(File archiveIndex) throws IOException {
         try (RandomAccessFile input = new RandomAccessFile(archiveIndex, "r")) {
-            input.readInt();  // Version
+            int version = input.readInt();
             input.readInt();  // Padding
             input.readLong(); // UserData
             int entryCount = input.readInt();
@@ -511,10 +512,19 @@ public class ProjectBuildTest {
             input.readInt(); // HashLength
             input.seek(entryOffset);
             for (int i = 0; i < entryCount; ++i) {
-                long resourceOffset = Integer.toUnsignedLong(input.readInt());
-                input.readInt(); // ResourceSize
-                input.readInt(); // ResourceCompressedSize
-                input.readInt(); // Flags
+                long resourceOffset;
+                if (version == ArchiveBuilder.VERSION_5) {
+                    resourceOffset = Integer.toUnsignedLong(input.readInt());
+                    input.readInt(); // ResourceSize
+                    input.readInt(); // ResourceCompressedSize
+                    input.readInt(); // Flags
+                } else if (version == ArchiveBuilder.VERSION_6) {
+                    resourceOffset = input.readLong() & ArchiveBuilder.V6_OFFSET_MASK;
+                    input.readInt(); // ResourceSize
+                    input.readInt(); // ResourceCompressedSize
+                } else {
+                    throw new IOException("Unsupported archive index version: " + version);
+                }
                 if (resourceOffset > TWO_GIB) {
                     return true;
                 }

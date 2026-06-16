@@ -30,8 +30,12 @@ import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 
 public class ArchiveReader {
-    public static final int VERSION = 5;
+    public static final int VERSION_5 = 5;
+    public static final int VERSION_6 = 6;
+    public static final int VERSION = VERSION_6;
     public static final int HASH_BUFFER_BYTESIZE = 64; // 512 bits
+    private static final int V6_FLAGS_SHIFT = 60;
+    private static final long V6_OFFSET_MASK = 0x0fffffffffffffffL;
 
     private ArrayList<ArchiveEntry> entries = null;
 
@@ -68,14 +72,14 @@ public class ArchiveReader {
 
         // Version
         int indexVersion = this.archiveIndexFile.readInt();
-        if (indexVersion == ArchiveReader.VERSION) {
-            readArchiveData();
+        if (indexVersion == ArchiveReader.VERSION_5 || indexVersion == ArchiveReader.VERSION_6) {
+            readArchiveData(indexVersion);
         } else {
             throw new IOException("Unsupported archive index version: " + indexVersion);
         }
     }
 
-    private void readArchiveData() throws IOException {
+    private void readArchiveData(int indexVersion) throws IOException {
         // INDEX
         archiveIndexFile.readInt(); // Pad
         archiveIndexFile.readLong(); // UserData, should be 0
@@ -119,10 +123,18 @@ public class ArchiveReader {
         for (int i=0; i<entryCount; ++i) {
             ArchiveEntry e = entries.get(i);
 
-            e.setResourceOffset(archiveIndexFile.readInt());
-            e.setSize(archiveIndexFile.readInt());
-            e.setCompressedSize(archiveIndexFile.readInt());
-            e.setFlags(archiveIndexFile.readInt());
+            if (indexVersion == ArchiveReader.VERSION_5) {
+                e.setResourceOffset(Integer.toUnsignedLong(archiveIndexFile.readInt()));
+                e.setSize(archiveIndexFile.readInt());
+                e.setCompressedSize(archiveIndexFile.readInt());
+                e.setFlags(archiveIndexFile.readInt());
+            } else {
+                long offsetAndFlags = archiveIndexFile.readLong();
+                e.setResourceOffset(offsetAndFlags & V6_OFFSET_MASK);
+                e.setSize(archiveIndexFile.readInt());
+                e.setCompressedSize(archiveIndexFile.readInt());
+                e.setFlags((int) (offsetAndFlags >>> V6_FLAGS_SHIFT));
+            }
         }
     }
 
@@ -131,7 +143,7 @@ public class ArchiveReader {
     }
 
     private static long getResourceOffset(ArchiveEntry entry) {
-        return Integer.toUnsignedLong(entry.getResourceOffset());
+        return entry.getResourceOffset();
     }
 
     public byte[] getEntryContent(ArchiveEntry entry) throws IOException {

@@ -146,16 +146,23 @@ public class ArchiveTest {
         outFileIndex.close();
         outFileData.close();
 
+        // A normal tiny archive does not need 64-bit offsets, so the builder should keep
+        // emitting v5 to preserve old-engine compatibility. The first index header field
+        // is the archive version, which proves the conditional rollout decision.
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "r")) {
+            assertEquals(ArchiveBuilder.VERSION_5, index.readInt());
+        }
+
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
         ar.read();
         ar.close();
     }
 
+    // Existing v5 archives can contain offsets above Integer.MAX_VALUE. This hand-written
+    // v5 index points to a sparse .arcd payload at 0x80000010, which proves ArchiveReader
+    // converts the 32-bit field to an unsigned long before seeking and reading.
     @Test
-    // Tests that ArchiveReader treats the 32-bit archive data offset as unsigned.
-    // It writes a sparse .arcd payload at 0x80000010 and verifies getEntryContent()
-    // seeks to that unsigned position instead of sign-extending it to a negative long.
     public void testReaderHandlesResourceOffsetAbove2GiB() throws IOException {
         final int resourceOffset = 0x80000010;
         final int hashLength = 20;
@@ -170,7 +177,7 @@ public class ArchiveTest {
         try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
              RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
             index.setLength(0);
-            index.writeInt(ArchiveReader.VERSION);
+            index.writeInt(ArchiveReader.VERSION_5);
             index.writeInt(0); // Pad
             index.writeLong(0); // UserData
             index.writeInt(1); // EntryCount
@@ -193,6 +200,91 @@ public class ArchiveTest {
         try {
             ar.read();
             assertArrayEquals(payload, ar.getEntryContent(ar.getEntries().get(0)));
+        } finally {
+            ar.close();
+        }
+    }
+
+    // V6 stores archive flags in the high 4 bits of the first entry word and the offset
+    // in the low 60 bits. This hand-written v6 index uses the currently unused fourth
+    // flag bit and a sparse payload above 4 GiB, proving ArchiveReader decodes both
+    // values from the packed word before seeking to the resource data.
+    @Test
+    public void testReaderHandlesVersion6PackedOffsetAndFlags() throws IOException {
+        final long resourceOffset = ArchiveBuilder.MAX_UNSIGNED_INT_OFFSET + 1L;
+        final int flags = 1 << 3;
+        final int hashLength = 20;
+        final int hashOffset = 48;
+        final int entryOffset = hashOffset + ArchiveReader.HASH_BUFFER_BYTESIZE;
+        byte[] hash = new byte[ArchiveReader.HASH_BUFFER_BYTESIZE];
+        for (int i = 0; i < hashLength; ++i) {
+            hash[i] = (byte) (i * 11 + 5);
+        }
+        byte[] payload = new byte[] { 0x41, 0x52, 0x43, 0x36, 0x55, 0x66, 0x77, 0x01 };
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
+             RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
+            index.setLength(0);
+            index.writeInt(ArchiveReader.VERSION_6);
+            index.writeInt(0); // Pad
+            index.writeLong(0); // UserData
+            index.writeInt(1); // EntryCount
+            index.writeInt(entryOffset);
+            index.writeInt(hashOffset);
+            index.writeInt(hashLength);
+            index.write(new byte[16]); // Archive index MD5
+            index.write(hash);
+            index.writeLong(((long) flags << ArchiveBuilder.V6_FLAGS_SHIFT) | resourceOffset);
+            index.writeInt(payload.length);
+            index.writeInt(ArchiveEntry.FLAG_UNCOMPRESSED);
+
+            data.setLength(0);
+            data.seek(resourceOffset);
+            data.write(payload);
+        }
+
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
+        try {
+            ar.read();
+            ArchiveEntry entry = ar.getEntries().get(0);
+            assertEquals(resourceOffset, entry.getResourceOffset());
+            assertEquals(flags, entry.getFlags());
+            assertArrayEquals(payload, ar.getEntryContent(entry));
+        } finally {
+            ar.close();
+        }
+    }
+
+    // The rollout keeps small archives on v5 and switches to v6 only when an offset no
+    // longer fits in uint32. Pre-seeking the data file past 0xffffffff before writing one
+    // tiny resource forces that condition, then the test verifies the v6 header, stored
+    // offset, and readable payload.
+    @Test
+    public void testBuilderWritesVersion6ForResourceOffsetAbove4GiB() throws IOException, CompileExceptionError {
+        final long resourceOffset = ArchiveBuilder.MAX_UNSIGNED_INT_OFFSET + 1L;
+        byte[] payload = new byte[] { (byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef, 0x11, 0x22, 0x33, 0x44 };
+
+        ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder, 4, project);
+        ab.add(createDummyFile(contentRoot, "large-offset.bin", payload));
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
+             RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
+            index.setLength(0);
+            data.setLength(0);
+            data.seek(resourceOffset);
+            ab.write(index, data, new ArrayList<String>());
+        }
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "r")) {
+            assertEquals(ArchiveBuilder.VERSION_6, index.readInt());
+        }
+
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
+        try {
+            ar.read();
+            ArchiveEntry entry = ar.getEntries().get(0);
+            assertEquals(resourceOffset, entry.getResourceOffset());
+            assertArrayEquals(payload, ar.getEntryContent(entry));
         } finally {
             ar.close();
         }

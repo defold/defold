@@ -60,9 +60,15 @@ public class ArchiveBuilder {
 
     private static Logger logger = Logger.getLogger(ArchiveBuilder.class.getName());
 
-    public static final int VERSION = 5;
+    public static final int VERSION_5 = 5;
+    public static final int VERSION_6 = 6;
+    public static final int VERSION = VERSION_6;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
+    public static final long MAX_UNSIGNED_INT_OFFSET = 0xffffffffL;
+    public static final int V6_FLAGS_SHIFT = 60;
+    public static final int V6_MAX_FLAGS = 0xf;
+    public static final long V6_OFFSET_MASK = 0x0fffffffffffffffL;
 
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
     private List<ArchiveEntry> excludedEntries;
@@ -218,7 +224,7 @@ public class ArchiveBuilder {
                 // do not write to it at the same time
                 synchronized (archiveData) {
                     alignBuffer(archiveData, this.resourcePadding);
-                    entry.setResourceOffset((int) archiveData.getFilePointer());
+                    entry.setResourceOffset(archiveData.getFilePointer());
                     archiveData.write(buffer, 0, buffer.length);
                 }
             }
@@ -236,8 +242,10 @@ public class ArchiveBuilder {
     private void writeArchiveIndex(RandomAccessFile archiveIndex, List<ArchiveEntry> archiveEntries) throws IOException {
         TimeProfiler.start("writeArchiveIndex");
 
+        int version = archiveIndexVersion(archiveEntries);
+
         // INDEX
-        archiveIndex.writeInt(VERSION); // Version
+        archiveIndex.writeInt(version); // Version
         archiveIndex.writeInt(0); // Pad
         archiveIndex.writeLong(0); // UserData, used in runtime to distinguish between if the index and resources are memory mapped or loaded from disk
         archiveIndex.writeInt(0); // EntryCount
@@ -260,12 +268,18 @@ public class ArchiveBuilder {
         int entryOffset = (int) archiveIndex.getFilePointer();
         alignBuffer(archiveIndex, 4);
 
-        ByteBuffer indexBuffer = ByteBuffer.allocate(4 * 4 * archiveEntries.size());
+        ByteBuffer indexBuffer = ByteBuffer.allocate(getArchiveEntryDataSize(version) * archiveEntries.size());
         for (ArchiveEntry entry : archiveEntries) {
-            indexBuffer.putInt(entry.getResourceOffset());
-            indexBuffer.putInt(entry.getSize());
-            indexBuffer.putInt(entry.getCompressedSize());
-            indexBuffer.putInt(entry.getFlags());
+            if (version == VERSION_5) {
+                indexBuffer.putInt((int) entry.getResourceOffset());
+                indexBuffer.putInt(entry.getSize());
+                indexBuffer.putInt(entry.getCompressedSize());
+                indexBuffer.putInt(entry.getFlags());
+            } else {
+                indexBuffer.putLong(packArchiveEntryOffsetAndFlags(entry));
+                indexBuffer.putInt(entry.getSize());
+                indexBuffer.putInt(entry.getCompressedSize());
+            }
         }
         archiveIndex.write(indexBuffer.array());
 
@@ -284,7 +298,7 @@ public class ArchiveBuilder {
 
         // Update index header with offsets
         archiveIndex.seek(0);
-        archiveIndex.writeInt(VERSION);
+        archiveIndex.writeInt(version);
         archiveIndex.writeInt(0); // Pad
         archiveIndex.writeLong(0); // UserData
         archiveIndex.writeInt(archiveEntries.size());
@@ -296,6 +310,33 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
+    private int archiveIndexVersion(List<ArchiveEntry> archiveEntries) {
+        for (ArchiveEntry entry : archiveEntries) {
+            if (entry.getResourceOffset() > MAX_UNSIGNED_INT_OFFSET) {
+                return VERSION_6;
+            }
+        }
+        return VERSION_5;
+    }
+
+    public static int getArchiveEntryDataSize(int version) {
+        return 16;
+    }
+
+    private static long packArchiveEntryOffsetAndFlags(ArchiveEntry entry) throws IOException {
+        long resourceOffset = entry.getResourceOffset();
+        if (resourceOffset < 0 || resourceOffset > V6_OFFSET_MASK) {
+            throw new IOException(String.format("Archive entry offset %d cannot fit in v6 offset field", resourceOffset));
+        }
+
+        int flags = entry.getFlags();
+        if ((flags & ~V6_MAX_FLAGS) != 0) {
+            throw new IOException(String.format("Archive entry flags 0x%x cannot fit in v6 flags field", flags));
+        }
+
+        return ((long) flags << V6_FLAGS_SHIFT) | resourceOffset;
+    }
+
     // The flow of how a resource is found in the archive:
     // URL → url_hash ───> Manifest: url_hash → data_hash
     //                                            ↓
@@ -303,7 +344,8 @@ public class ArchiveBuilder {
     //                                            ↓
     //                    Archive Index: if found, use index to get Entry from parallel EntryData array
     //                                            ↓
-    //                    EntryData = { offset, size, compressed_size, flags }
+    //                    v5 EntryData = { offset, size, compressed_size, flags }
+    //                    v6 EntryData = { offset_and_flags, size, compressed_size }
     //                                            ↓
     //                    Read bytes from .arcd (using offset via fseek or mmap)
     //                                            ↓

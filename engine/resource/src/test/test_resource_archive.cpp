@@ -177,7 +177,7 @@ static bool TestMarkFileSparse(FILE* file)
 #endif
 }
 
-static bool WriteLargeOffsetArchiveIndex(const char* archive_path, const uint8_t* hash, uint32_t hash_len, uint32_t resource_offset, uint32_t resource_size)
+static bool WriteArchiveIndexV5(const char* archive_path, const uint8_t* hash, uint32_t hash_len, uint32_t resource_offset, uint32_t resource_size)
 {
     FILE* file = fopen(archive_path, "wb");
     if (!file)
@@ -187,7 +187,40 @@ static bool WriteLargeOffsetArchiveIndex(const char* archive_path, const uint8_t
 
     dmResourceArchive::ArchiveIndex header;
     memset(&header, 0, sizeof(header));
-    header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION);
+    header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION_5);
+    header.m_EntryDataCount = dmEndian::ToNetwork(1U);
+    header.m_EntryDataOffset = dmEndian::ToNetwork((uint32_t)(sizeof(dmResourceArchive::ArchiveIndex) + dmResourceArchive::MAX_HASH));
+    header.m_HashOffset = dmEndian::ToNetwork((uint32_t)sizeof(dmResourceArchive::ArchiveIndex));
+    header.m_HashLength = dmEndian::ToNetwork(hash_len);
+
+    uint8_t hash_buffer[dmResourceArchive::MAX_HASH] = { 0 };
+    memcpy(hash_buffer, hash, hash_len);
+
+    uint32_t entry[4] = {
+        dmEndian::ToNetwork(resource_offset),
+        dmEndian::ToNetwork(resource_size),
+        dmEndian::ToNetwork(0xFFFFFFFFU),
+        dmEndian::ToNetwork(0U)
+    };
+
+    bool ok = fwrite(&header, 1, sizeof(header), file) == sizeof(header);
+    ok = ok && fwrite(hash_buffer, 1, sizeof(hash_buffer), file) == sizeof(hash_buffer);
+    ok = ok && fwrite(&entry, 1, sizeof(entry), file) == sizeof(entry);
+    fclose(file);
+    return ok;
+}
+
+static bool WriteArchiveIndexV6(const char* archive_path, const uint8_t* hash, uint32_t hash_len, uint64_t resource_offset, uint32_t resource_size, uint32_t flags)
+{
+    FILE* file = fopen(archive_path, "wb");
+    if (!file)
+    {
+        return false;
+    }
+
+    dmResourceArchive::ArchiveIndex header;
+    memset(&header, 0, sizeof(header));
+    header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION_6);
     header.m_EntryDataCount = dmEndian::ToNetwork(1U);
     header.m_EntryDataOffset = dmEndian::ToNetwork((uint32_t)(sizeof(dmResourceArchive::ArchiveIndex) + dmResourceArchive::MAX_HASH));
     header.m_HashOffset = dmEndian::ToNetwork((uint32_t)sizeof(dmResourceArchive::ArchiveIndex));
@@ -197,10 +230,9 @@ static bool WriteLargeOffsetArchiveIndex(const char* archive_path, const uint8_t
     memcpy(hash_buffer, hash, hash_len);
 
     dmResourceArchive::EntryData entry;
-    entry.m_ResourceDataOffset = dmEndian::ToNetwork(resource_offset);
+    entry.m_ResourceDataOffsetAndFlags = dmEndian::ToNetwork(dmResourceArchive::PackEntryDataOffsetAndFlags(resource_offset, flags));
     entry.m_ResourceSize = dmEndian::ToNetwork(resource_size);
     entry.m_ResourceCompressedSize = dmEndian::ToNetwork(0xFFFFFFFFU);
-    entry.m_Flags = dmEndian::ToNetwork(0U);
 
     bool ok = fwrite(&header, 1, sizeof(header), file) == sizeof(header);
     ok = ok && fwrite(hash_buffer, 1, sizeof(hash_buffer), file) == sizeof(hash_buffer);
@@ -209,7 +241,7 @@ static bool WriteLargeOffsetArchiveIndex(const char* archive_path, const uint8_t
     return ok;
 }
 
-static bool WriteLargeOffsetArchiveData(const char* resource_path, uint32_t resource_offset, const uint8_t* payload, uint32_t payload_size)
+static bool WriteLargeOffsetArchiveData(const char* resource_path, uint64_t resource_offset, const uint8_t* payload, uint32_t payload_size)
 {
     FILE* file = TestOpenLargeFileForWrite(resource_path);
     if (!file)
@@ -498,9 +530,9 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     dmResourceArchive::Delete(archive);
 }
 
-// Tests that file-backed archive reads treat the 32-bit resource data offset as unsigned.
-// It writes a sparse .arcd payload at 0x80000010 and verifies both full and partial
-// reads seek to that position instead of using a signed 32-bit file offset.
+// Old v5 archives can place data above 2 GiB, so the v6 reader changes must keep treating
+// the 32-bit offset field as unsigned. This hand-written v5 index points at a sparse
+// .arcd payload at 0x80000010 and verifies both full and partial file-backed reads.
 TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove2GiB)
 {
     const uint32_t resource_offset = 0x80000010U;
@@ -518,7 +550,7 @@ TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove2GiB)
     remove(archive_path);
     remove(resource_path);
 
-    ASSERT_TRUE(WriteLargeOffsetArchiveIndex(archive_path, hash, sizeof(hash), resource_offset, sizeof(payload)));
+    ASSERT_TRUE(WriteArchiveIndexV5(archive_path, hash, sizeof(hash), resource_offset, sizeof(payload)));
     ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, resource_offset, payload, sizeof(payload)));
 
     dmResourceArchive::HArchiveIndexContainer archive = 0;
@@ -544,6 +576,107 @@ TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove2GiB)
     dmResourceArchive::Delete(archive);
     remove(archive_path);
     remove(resource_path);
+}
+
+// V6 exists to let .arcd data grow past the uint32 offset limit while keeping resource
+// sizes uint32. This hand-written v6 index packs the currently unused fourth flag bit
+// with an offset above 4 GiB, writes a tiny payload there in a sparse .arcd, and verifies
+// the decoded flags plus full and partial file-backed reads.
+TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove4GiB)
+{
+    const uint64_t resource_offset = 0x100000010ULL;
+    const uint32_t flags = 1 << 3;
+    const uint8_t hash[20] = {
+        0x43, 0xe9, 0xa1, 0x2b, 0x5c, 0x6d, 0x7e, 0x8f, 0x90, 0xab,
+        0xbc, 0xcd, 0xde, 0xef, 0x10, 0x21, 0x32, 0x43, 0x54, 0x65
+    };
+    const uint8_t payload[] = { 0x41, 0x52, 0x43, 0x36, 0xde, 0xad, 0xbe, 0xef };
+
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/large_offset_v6_sparse.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/large_offset_v6_sparse.arcd");
+
+    remove(archive_path);
+    remove(resource_path);
+
+    ASSERT_TRUE(WriteArchiveIndexV6(archive_path, hash, sizeof(hash), resource_offset, sizeof(payload), flags));
+    ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, resource_offset, payload, sizeof(payload)));
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    dmResourceArchive::EntryData* entry = 0;
+    result = dmResourceArchive::FindEntry(archive, hash, sizeof(hash), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(resource_offset, dmResourceArchive::GetEntryResourceDataOffset(entry));
+    ASSERT_EQ(flags, dmResourceArchive::GetEntryFlags(entry));
+
+    uint8_t buffer[sizeof(payload)] = { 0 };
+    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(payload, buffer, sizeof(payload));
+
+    uint8_t partial_buffer[4] = { 0 };
+    uint32_t nread = 0;
+    result = dmResourceArchive::ReadEntryPartial(archive, entry, 2, sizeof(partial_buffer), partial_buffer, &nread);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ((uint32_t)sizeof(partial_buffer), nread);
+    ASSERT_ARRAY_EQ_LEN(payload + 2, partial_buffer, sizeof(partial_buffer));
+
+    dmResourceArchive::Delete(archive);
+    remove(archive_path);
+    remove(resource_path);
+}
+
+// Bundled and mapped archives do not go through the file-load normalization path, so v6
+// lookup must work directly from the 16-byte packed entry layout. This in-memory v6 index
+// contains one mapped entry with the currently unused fourth flag bit and verifies
+// FindEntry plus ReadEntry against mapped payload bytes.
+TEST(dmResourceArchive, Wrap_Version6)
+{
+    const uint32_t flags = 1 << 3;
+    const uint8_t hash[20] = {
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa,
+        0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x10, 0x20, 0x30, 0x40
+    };
+    const uint8_t payload[] = { 'v', '6', '_', 'w', 'r', 'a', 'p', 0 };
+
+    struct ArchiveIndexV6Buffer
+    {
+        dmResourceArchive::ArchiveIndex m_Header;
+        uint8_t m_Hash[dmResourceArchive::MAX_HASH];
+        dmResourceArchive::EntryData m_Entry;
+    };
+
+    ArchiveIndexV6Buffer index_buffer;
+    memset(&index_buffer, 0, sizeof(index_buffer));
+    index_buffer.m_Header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION_6);
+    index_buffer.m_Header.m_EntryDataCount = dmEndian::ToNetwork(1U);
+    index_buffer.m_Header.m_EntryDataOffset = dmEndian::ToNetwork((uint32_t)((uintptr_t)&index_buffer.m_Entry - (uintptr_t)&index_buffer));
+    index_buffer.m_Header.m_HashOffset = dmEndian::ToNetwork((uint32_t)((uintptr_t)&index_buffer.m_Hash - (uintptr_t)&index_buffer));
+    index_buffer.m_Header.m_HashLength = dmEndian::ToNetwork((uint32_t)sizeof(hash));
+    memcpy(index_buffer.m_Hash, hash, sizeof(hash));
+    index_buffer.m_Entry.m_ResourceDataOffsetAndFlags = dmEndian::ToNetwork(dmResourceArchive::PackEntryDataOffsetAndFlags(0, flags));
+    index_buffer.m_Entry.m_ResourceSize = dmEndian::ToNetwork((uint32_t)sizeof(payload));
+    index_buffer.m_Entry.m_ResourceCompressedSize = dmEndian::ToNetwork(0xFFFFFFFFU);
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(&index_buffer, sizeof(index_buffer), true, payload, sizeof(payload), true, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    dmResourceArchive::EntryData* entry = 0;
+    result = dmResourceArchive::FindEntry(archive, hash, sizeof(hash), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(flags, dmResourceArchive::GetEntryFlags(entry));
+
+    uint8_t buffer[sizeof(payload)] = { 0 };
+    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(payload, buffer, sizeof(payload));
+
+    dmResourceArchive::Delete(archive);
 }
 
 

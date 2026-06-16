@@ -33,6 +33,9 @@ import binascii
 import json
 
 XTEA_BLOCK_SIZE = 8
+ARCHIVE_V6_FLAGS_SHIFT = 60
+ARCHIVE_V6_OFFSET_MASK = 0x0fffffffffffffff
+
 def xtea_decrypt(v, key, n=32):
     v0 = (v >> 32) & 0xFFFFFFFF;
     v1 = (v >> 0) & 0xFFFFFFFF;
@@ -88,33 +91,42 @@ if __name__ == "__main__":
     else:
         output = False
 
+    arcd_path = None
+    arcd_content = None
+    arcd_basedir = None
     if os.path.isdir(resources):
         with open(os.path.join(resources, "game.projectc"), "rb") as f:
             project = f.read()
         with open(os.path.join(resources, "game.dmanifest"), "rb") as f:
             manifest = f.read()
-        with open(os.path.join(resources, "game.arcd"), "rb") as f:
-            arcd = bytearray(f.read())
+        arcd_path = os.path.join(resources, "game.arcd")
         with open(os.path.join(resources, "game.arci"), "rb") as f:
             arci = f.read()
     else:
-        def gather_pieces(basedir, contents, name):
+        def find_content(contents, name):
             for content in contents:
                 if content['name'] == name:
-                    data = bytearray(content['size'])
-                    mv = memoryview(data)
-                    for piece in content['pieces']:
-                        piece_path = os.path.join(basedir, piece['name'])
-                        with open(piece_path, 'rb') as d:
-                            r = d.readinto(mv[piece['offset']:])
-                    return data
+                    return content
+            return None
+
+        def gather_pieces(basedir, contents, name):
+            content = find_content(contents, name)
+            if content:
+                data = bytearray(content['size'])
+                mv = memoryview(data)
+                for piece in content['pieces']:
+                    piece_path = os.path.join(basedir, piece['name'])
+                    with open(piece_path, 'rb') as d:
+                        r = d.readinto(mv[piece['offset']:])
+                return data
             return None
         with open(resources, 'r') as f:
             obj = json.load(f)
-            project = gather_pieces(os.path.dirname(resources), obj['content'], "game.projectc")
-            manifest = gather_pieces(os.path.dirname(resources), obj['content'], "game.dmanifest")
-            arcd = gather_pieces(os.path.dirname(resources), obj['content'], "game.arcd")
-            arci = gather_pieces(os.path.dirname(resources), obj['content'], "game.arci")
+            arcd_basedir = os.path.dirname(resources)
+            project = gather_pieces(arcd_basedir, obj['content'], "game.projectc")
+            manifest = gather_pieces(arcd_basedir, obj['content'], "game.dmanifest")
+            arcd_content = find_content(obj['content'], "game.arcd")
+            arci = gather_pieces(arcd_basedir, obj['content'], "game.arci")
 
     if output:
         with open(output + "/game.projectc", "wb") as o:
@@ -134,31 +146,76 @@ if __name__ == "__main__":
                 url = getattr(r, "url")
                 hash_map[url] = hash;
 
-    entryCount = struct.unpack_from(">i", arci, 16)[0]
-    entryOffset = struct.unpack_from(">i", arci, 20)[0]
-    hashesOffset = struct.unpack_from(">i", arci, 24)[0]
-    hashLength = struct.unpack_from(">i", arci, 28)[0]
+    archiveVersion = struct.unpack_from(">I", arci, 0)[0]
+    entryCount = struct.unpack_from(">I", arci, 16)[0]
+    entryOffset = struct.unpack_from(">I", arci, 20)[0]
+    hashesOffset = struct.unpack_from(">I", arci, 24)[0]
+    hashLength = struct.unpack_from(">I", arci, 28)[0]
+    if archiveVersion == 5:
+        entrySize = 16
+    elif archiveVersion == 6:
+        entrySize = 16
+    else:
+        raise Exception("Unsupported archive index version: %d" % archiveVersion)
+
+    def read_arcd(offset, size):
+        if arcd_path:
+            with open(arcd_path, "rb") as f:
+                f.seek(offset)
+                return bytearray(f.read(size))
+        if arcd_content:
+            data = bytearray(size)
+            mv = memoryview(data)
+            pieces = arcd_content['pieces']
+            end = offset + size
+            for i, piece in enumerate(pieces):
+                piece_offset = piece['offset']
+                if i + 1 < len(pieces):
+                    piece_end = pieces[i + 1]['offset']
+                else:
+                    piece_end = arcd_content['size']
+
+                read_offset = max(offset, piece_offset)
+                read_end = min(end, piece_end)
+                if read_offset >= read_end:
+                    continue
+
+                piece_path = os.path.join(arcd_basedir, piece['name'])
+                with open(piece_path, "rb") as f:
+                    f.seek(read_offset - piece_offset)
+                    f.readinto(mv[read_offset - offset:read_end - offset])
+            return data
+        raise Exception("No game.arcd data found")
+
     for i in range(0, entryCount):
         hashOffset = hashesOffset+(i*64)
         hash = arci[hashOffset:hashOffset+hashLength]
         for url, h in hash_map.items():
             if hash == h:
-                offset = struct.unpack_from(">i", arci, entryOffset + (i * 16) + 0)[0]
-                uncompressed_size = struct.unpack_from(">i", arci, entryOffset + (i * 16) + 4)[0]
-                compressed_size = struct.unpack_from(">i", arci, entryOffset + (i * 16) + 8)[0]
-                flags = struct.unpack_from(">i", arci, entryOffset + (i * 16) + 12)[0]
+                currentEntryOffset = entryOffset + (i * entrySize)
+                if archiveVersion == 5:
+                    offset = struct.unpack_from(">I", arci, currentEntryOffset + 0)[0]
+                    uncompressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 4)[0]
+                    compressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 8)[0]
+                    flags = struct.unpack_from(">I", arci, currentEntryOffset + 12)[0]
+                else:
+                    offset_and_flags = struct.unpack_from(">Q", arci, currentEntryOffset + 0)[0]
+                    offset = offset_and_flags & ARCHIVE_V6_OFFSET_MASK
+                    flags = offset_and_flags >> ARCHIVE_V6_FLAGS_SHIFT
+                    uncompressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 8)[0]
+                    compressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 12)[0]
                 size = compressed_size
-                if compressed_size == -1:
+                if compressed_size == 0xFFFFFFFF:
                     size = uncompressed_size
                 #print("Index found %s %d-%d" % (url, offset, size))
 
                 if output:
-                    data = arcd[offset:offset+size]
+                    data = read_arcd(offset, size)
                     try:
                         if flags & 1:
                             #print("encrypted")
                             xtea_decryptCTR(bytearray(b'aQj8CScgNP4VsfXK'), data)
-                        if compressed_size != -1:
+                        if compressed_size != 0xFFFFFFFF:
                             if options.uncompress:
                                 data = lz4.block.decompress(data, uncompressed_size)
                             else:
@@ -172,9 +229,7 @@ if __name__ == "__main__":
                     os.makedirs(os.path.dirname(output_file), 0o777, True)
                     with open(output_file, "wb") as o:
                         o.write(data)
-                elif compressed_size != -1:
+                elif compressed_size != 0xFFFFFFFF:
                     print("Found %s %d-%d(%d) [Compressed%s]" % (url, offset, size, compressed_size, " Encrypted" if flags & 1 else ""))
                 else:
                     print("Found %s %d-%d%s" % (url, offset, size, " [Encrypted]" if flags & 1 else ""))
-
-
