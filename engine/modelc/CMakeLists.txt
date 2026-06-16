@@ -79,36 +79,7 @@ if(MODELC_IS_DESKTOP)
   defold_target_link_libraries(modelc_shared "${TARGET_PLATFORM}"
     ${MODELC_SHARED_DEPENDENCIES})
   defold_target_link_app(modelc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
-  if(NOT DEFOLD_SKIP_CODESIGN AND TARGET_PLATFORM MATCHES "macos|win32$")
-    set(MODELC_CODESIGN_ARGS
-      --platform "${TARGET_PLATFORM}"
-      --file "$<TARGET_FILE:modelc_shared>")
-    if(DEFOLD_CODESIGNING_IDENTITY)
-      list(APPEND MODELC_CODESIGN_ARGS --codesigning-identity "${DEFOLD_CODESIGNING_IDENTITY}")
-    endif()
-    if(DEFOLD_GCLOUD_PROJECTID)
-      list(APPEND MODELC_CODESIGN_ARGS --gcloud-projectid "${DEFOLD_GCLOUD_PROJECTID}")
-    endif()
-    if(DEFOLD_GCLOUD_LOCATION)
-      list(APPEND MODELC_CODESIGN_ARGS --gcloud-location "${DEFOLD_GCLOUD_LOCATION}")
-    endif()
-    if(DEFOLD_GCLOUD_KEYRINGNAME)
-      list(APPEND MODELC_CODESIGN_ARGS --gcloud-keyringname "${DEFOLD_GCLOUD_KEYRINGNAME}")
-    endif()
-    if(DEFOLD_GCLOUD_KEYNAME)
-      list(APPEND MODELC_CODESIGN_ARGS --gcloud-keyname "${DEFOLD_GCLOUD_KEYNAME}")
-    endif()
-    if(DEFOLD_GCLOUD_CERTFILE)
-      list(APPEND MODELC_CODESIGN_ARGS --gcloud-certfile "${DEFOLD_GCLOUD_CERTFILE}")
-    endif()
-    if(DEFOLD_GCLOUD_KEYFILE)
-      list(APPEND MODELC_CODESIGN_ARGS --gcloud-keyfile "${DEFOLD_GCLOUD_KEYFILE}")
-    endif()
-    add_custom_command(TARGET modelc_shared POST_BUILD
-      COMMAND "${DEFOLD_PYTHON}" "${DEFOLD_HOME}/build_tools/codesigning.py" ${MODELC_CODESIGN_ARGS}
-      COMMENT "Signing modelc_shared"
-      VERBATIM)
-  endif()
+  defold_codesign_target(modelc_shared)
 
   set(MODELC_JAR "${CMAKE_CURRENT_BINARY_DIR}/modelimporter.jar")
   set(MODELC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")

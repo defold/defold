@@ -111,36 +111,7 @@ if(SHADERC_IS_DESKTOP)
     ${SHADERC_SHARED_DEPENDENCIES}
     ${SHADERC_EXTRA_LIBS})
   defold_target_link_app(shaderc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
-  if(NOT DEFOLD_SKIP_CODESIGN AND TARGET_PLATFORM MATCHES "macos|win32$")
-    set(SHADERC_CODESIGN_ARGS
-      --platform "${TARGET_PLATFORM}"
-      --file "$<TARGET_FILE:shaderc_shared>")
-    if(DEFOLD_CODESIGNING_IDENTITY)
-      list(APPEND SHADERC_CODESIGN_ARGS --codesigning-identity "${DEFOLD_CODESIGNING_IDENTITY}")
-    endif()
-    if(DEFOLD_GCLOUD_PROJECTID)
-      list(APPEND SHADERC_CODESIGN_ARGS --gcloud-projectid "${DEFOLD_GCLOUD_PROJECTID}")
-    endif()
-    if(DEFOLD_GCLOUD_LOCATION)
-      list(APPEND SHADERC_CODESIGN_ARGS --gcloud-location "${DEFOLD_GCLOUD_LOCATION}")
-    endif()
-    if(DEFOLD_GCLOUD_KEYRINGNAME)
-      list(APPEND SHADERC_CODESIGN_ARGS --gcloud-keyringname "${DEFOLD_GCLOUD_KEYRINGNAME}")
-    endif()
-    if(DEFOLD_GCLOUD_KEYNAME)
-      list(APPEND SHADERC_CODESIGN_ARGS --gcloud-keyname "${DEFOLD_GCLOUD_KEYNAME}")
-    endif()
-    if(DEFOLD_GCLOUD_CERTFILE)
-      list(APPEND SHADERC_CODESIGN_ARGS --gcloud-certfile "${DEFOLD_GCLOUD_CERTFILE}")
-    endif()
-    if(DEFOLD_GCLOUD_KEYFILE)
-      list(APPEND SHADERC_CODESIGN_ARGS --gcloud-keyfile "${DEFOLD_GCLOUD_KEYFILE}")
-    endif()
-    add_custom_command(TARGET shaderc_shared POST_BUILD
-      COMMAND "${DEFOLD_PYTHON}" "${DEFOLD_HOME}/build_tools/codesigning.py" ${SHADERC_CODESIGN_ARGS}
-      COMMENT "Signing shaderc_shared"
-      VERBATIM)
-  endif()
+  defold_codesign_target(shaderc_shared)
 
   set(SHADERC_JAR "${CMAKE_CURRENT_BINARY_DIR}/shaderc.jar")
   set(SHADERC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")
