@@ -107,7 +107,6 @@ def _exec_command(arg_list, **kwargs):
     if not silent: log('[exec] %s' % arg_str)
 
     output = ""
-    # In an interactive terminal (ie not on ci, but on a developer machine)
     if 'stdout' in kwargs:
         del kwargs['stdout']
     process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
