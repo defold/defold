@@ -50,6 +50,18 @@ public class AndroidTools {
 
     private static boolean initialized = false;
 
+    private static void extractOptionalResource(File rootFolder, String path, boolean executable) throws IOException {
+        File f = new File(rootFolder, path);
+        if (f.exists()) {
+            return;
+        }
+        URL url = Bob.class.getResource("/" + path);
+        if (url != null) {
+            f.getParentFile().mkdirs();
+            Bob.atomicCopy(url, f, executable);
+        }
+    }
+
     /**
      * Execute a command.
      * Sets LD_LIBRARY_PATH on Linux before running the command.
@@ -158,6 +170,9 @@ public class AndroidTools {
                     File f = new File(rootFolder, "lib/classes.dex");
                     Bob.atomicCopy(classesDex, f, false);
                 }
+                extractOptionalResource(rootFolder, "lib/vkquality/vkqualitydata.vkq", false);
+                extractOptionalResource(rootFolder, "libexec/armv7-android/libvkquality.so", false);
+                extractOptionalResource(rootFolder, "libexec/arm64-android/libvkquality.so", false);
 
                 getAapt2Path();
 
