@@ -262,6 +262,7 @@ def create_gcloud_options(gcloud_service_key):
         if not os.path.exists(gcloud_keyfile):
             print("Google Cloud key file not found:", gcloud_keyfile)
             sys.exit(1)
+
         print("Using Google Cloud key file", gcloud_keyfile)
         opts.append('--gcloud-keyfile=%s' % gcloud_keyfile)
 
@@ -269,6 +270,7 @@ def create_gcloud_options(gcloud_service_key):
         if not os.path.exists(gcloud_certfile):
             print("Google Cloud certificate not found:", gcloud_certfile)
             sys.exit(1)
+
         print("Using Google Cloud certificate ", gcloud_certfile)
         opts.append('--gcloud-certfile=%s' % gcloud_certfile)
     return opts
