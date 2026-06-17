@@ -113,37 +113,6 @@ def sign_file(platform, options, file):
                 file])
 
 
-
-def sign_files_in_zip(platform, options, zip_file):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_zip = os.path.join(tmpdir, 'signed.zip')
-
-        with zipfile.ZipFile(zip_file, 'r') as src_zip:
-            with zipfile.ZipFile(tmp_zip, 'w') as dst_zip:
-                for info in src_zip.infolist():
-                    name = info.filename
-
-                    # Keep directory entries unchanged.
-                    if info.is_dir():
-                        dst_zip.writestr(info, b'')
-                        continue
-
-                    lower_name = name.lower()
-                    should_sign = lower_name.endswith('.exe') or lower_name.endswith('.dll')
-
-                    if should_sign:
-                        extracted_path = src_zip.extract(info, tmpdir)
-                        sign_file(platform, options, extracted_path)
-
-                        # Preserve the original zip metadata/compression settings.
-                        with open(extracted_path, 'rb') as f:
-                            dst_zip.writestr(info, f.read())
-                    else:
-                        dst_zip.writestr(info, src_zip.read(name))
-
-        shutil.move(tmp_zip, zip_file)
-
-
 def _main():
     parser = optparse.OptionParser()
     parser.add_option('--platform', dest='platform', help='Target platform')
