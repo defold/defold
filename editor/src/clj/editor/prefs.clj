@@ -198,7 +198,7 @@
                                                                           :properties
                                                                           {:button {:type :enum
                                                                                     :values [:primary :middle :secondary]}
-                                                                           :modifiers {:type :array
+                                                                           :modifiers {:type :set
                                                                                        :item {:type :enum
                                                                                               :values [:shift :alt :control]}}}}}
                                                         :modifier {:type :enum

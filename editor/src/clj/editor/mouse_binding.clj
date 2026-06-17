@@ -48,6 +48,14 @@
          ;;                                      command {:modifier modifier-kw}}}} ; modifier-only
          :contexts {}}))
 
+(defn- normalize-binding-modifiers
+  "Ensures a command map's `:binding` has its `:modifiers` as a set, defaulting a
+  missing value to `#{}`. Leaves fallback-only/modifier-only maps (no `:binding`)
+  untouched."
+  [command-map]
+  (cond-> command-map
+    (:binding command-map) (update-in [:binding :modifiers] set)))
+
 (defn register!
   "Registers mouse bindings for a context.
 
@@ -68,7 +76,10 @@
             (cond-> (assoc-in (update-in state [:contexts context] dissoc :fallback-context)
                               [:contexts context :bindings]
                               (group-by :command
-                                        (mapv #(assoc % :context-path context-path) bindings)))
+                                        (mapv #(-> %
+                                                   (assoc :context-path context-path)
+                                                   normalize-binding-modifiers)
+                                              bindings)))
               (:fallback-context opts)
               (assoc-in [:contexts context :fallback-context] (:fallback-context opts)))))
    nil))
@@ -83,6 +94,24 @@
 (defn fallback-context [context]
   (get-in @bindings-atom [:contexts context :fallback-context]))
 
+(defn- normalize-user-overrides
+  "Ensures every override binding's `:modifiers` is a set (defaulting missing to
+  `#{}`), so the in-memory representation matches registered defaults."
+  [user-overrides]
+  (into {}
+        (map (fn [[context commands]]
+               [context
+                (into {}
+                      (map (fn [[command override]]
+                             [command
+                              (cond-> override
+                                (:bindings override)
+                                (update :bindings #(mapv (fn [binding]
+                                                           (update binding :modifiers set))
+                                                         %)))]))
+                      commands)]))
+        user-overrides))
+
 (defn set-user-overrides!
   "Replaces the per-context user overrides in the bindings atom.
 
@@ -90,7 +119,8 @@
     {context {command {:bindings [binding ...]}      ; regular commands
               modifier-cmd {:modifier modifier-kw}}} ; modifier-only commands"
   [user-overrides]
-  (swap! bindings-atom update :contexts
+  (let [user-overrides (normalize-user-overrides user-overrides)]
+    (swap! bindings-atom update :contexts
          (fn [contexts]
            (let [all-ctxs (into (set (keys contexts)) (keys user-overrides))]
              (reduce (fn [acc ctx]
@@ -101,7 +131,7 @@
                                   (assoc ctx-data :user-overrides ctx-user-overrides)
                                   (dissoc ctx-data :user-overrides)))))
                      {}
-                     all-ctxs))))
+                     all-ctxs)))))
   nil)
 
 (defn- effective-command-bindings* [state context command default-bindings]
@@ -219,7 +249,9 @@
     (update-command-bindings* user-overrides context command value)))
 
 (defn- normalize-binding [binding]
-  (update binding :modifiers #(vec (sort %))))
+  ;; `:modifiers` is a set, so it already compares by value regardless of order;
+  ;; coerce defensively in case a caller passes a seq/vector.
+  (update binding :modifiers set))
 
 (defn command-binding-duplicate?
   "Returns true if `binding` duplicates another editable binding for the command.
@@ -325,7 +357,7 @@
 (defn binding-display-text [localization {selected-modifiers :modifiers :keys [button]}]
   (if button
     (let [parts (into []
-                      (comp (filter (set selected-modifiers))
+                      (comp (filter (set selected-modifiers)) ; selected-modifiers is a set; coerce defensively for nil/seq
                             (map modifier->label))
                       modifiers)]
       (string/join "+" (conj parts (localization (button->label button)))))

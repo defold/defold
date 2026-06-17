@@ -179,7 +179,7 @@
                         (handle-drag-dropped! drop-fn root-id select-fn action))
                       nil)
       :mouse-pressed (let [op-seq (gensym)
-                           toggle? (true? (some true? (map #(% action) toggle-modifiers)))
+                           toggle? (boolean (some (:modifiers action) toggle-modifiers))
                            mode :single]
                        (g/transact
                          (concat

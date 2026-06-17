@@ -1232,7 +1232,7 @@
 
   (output scale g/Any :cached produce-scale)
   (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* ^double scale))))
-  (output snap-enabled g/Bool :cached (g/fnk [start-action action] (and start-action (:shift action))))
+  (output snap-enabled g/Bool :cached (g/fnk [start-action action] (and start-action (contains? (:modifiers action) :shift))))
   (output manip-delta g/Any :cached produce-manip-delta)
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))

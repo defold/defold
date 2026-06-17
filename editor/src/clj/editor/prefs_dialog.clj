@@ -140,7 +140,8 @@
 
 
 (defn- normalize-binding [binding]
-  (update binding :modifiers #(vec (sort %))))
+  ;; `:modifiers` is a set (compares by value); coerce defensively for nil/seq.
+  (update binding :modifiers set))
 
 (defn- mouse-binding->cmds
   "Returns {[context normalized-binding] -> #{command ...}} excluding inherited rows."
@@ -413,8 +414,8 @@
   [{:keys [row binding-index binding current-user-overrides
            draft-binding swap-draft-binding binding->cmds localization-state
            swap-state update-mouse-bindings]}]
-  (let [draft-binding (merge {:modifiers []} binding draft-binding)
-        selected-modifiers (set (:modifiers draft-binding))
+  (let [draft-binding (merge {:modifiers #{}} binding draft-binding)
+        selected-modifiers (:modifiers draft-binding)
         {:keys [context command]} row
         warnings (when (:button draft-binding)
                    (seq (disj (get binding->cmds [context (normalize-binding draft-binding)] #{}) command)))
@@ -463,9 +464,9 @@
                                 :selected (contains? selected-modifiers modifier)
                                 :on-selected-changed (fn [selected]
                                                        (swap-draft-binding update :modifiers
-                                                                           (fn [ms] (vec (cond-> (set ms)
-                                                                                           selected (conj modifier)
-                                                                                           (not selected) (disj modifier))))))})
+                                                                           (fn [ms] (cond-> (set ms)
+                                                                                      selected (conj modifier)
+                                                                                      (not selected) (disj modifier)))))})
                              mouse-binding/modifiers)}]}
           {:fx/type fxui/label
            :alignment :center

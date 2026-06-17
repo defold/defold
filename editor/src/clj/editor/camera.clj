@@ -1242,23 +1242,23 @@
     :action ["Orbit"]}
    {:command :scene.camera.pan
     :action ["Pan"]
-    :binding {:button :primary :modifiers [:alt]}}
+    :binding {:button :primary :modifiers #{:alt}}}
    {:command :scene.camera.pan
     :action ["Pan"]
-    :binding {:button :middle :modifiers []}}
+    :binding {:button :middle :modifiers #{}}}
    {:command :scene.camera.pan
     :action ["Pan"]
-    :binding {:button :secondary :modifiers []}}
+    :binding {:button :secondary :modifiers #{}}}
    {:command :scene.camera.zoom
     :action ["Zoom"]
-    :binding {:button :primary :modifiers [:control :alt]}}])
+    :binding {:button :primary :modifiers #{:control :alt}}}])
 
 (mouse-binding/register!
   ::scene-camera-perspective
   "Scene 3D Camera"
   [{:command :scene.camera.free-look
     :action ["Free Look"]
-    :binding {:button :secondary :modifiers []}}
+    :binding {:button :secondary :modifiers #{}}}
    {:command :scene.camera.free-look.speed-boost
     :action ["Free Look" "Speed Boost"]
     :modifier :shift}
@@ -1267,16 +1267,16 @@
     :modifier :alt}
    {:command :scene.camera.orbit
     :action ["Orbit"]
-    :binding {:button :primary :modifiers [:control]}}
+    :binding {:button :primary :modifiers #{:control}}}
    {:command :scene.camera.pan
     :action ["Pan"]
-    :binding {:button :primary :modifiers [:alt]}}
+    :binding {:button :primary :modifiers #{:alt}}}
    {:command :scene.camera.pan
     :action ["Pan"]
-    :binding {:button :middle :modifiers []}}
+    :binding {:button :middle :modifiers #{}}}
    {:command :scene.camera.zoom
     :action ["Dolly"]
-    :binding {:button :primary :modifiers [:control :alt]}}])
+    :binding {:button :primary :modifiers #{:control :alt}}}])
 
 (defn show-settings! [camera-node ^Parent owner prefs keymap localization]
   (let [persp-fov-fn

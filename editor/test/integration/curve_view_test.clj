@@ -172,10 +172,10 @@
         "Curve Editor"
         [{:command :curve-view.add-control-point
           :action ["Add Control Point"]
-          :binding {:button :middle :modifiers []}}
+          :binding {:button :middle :modifiers #{}}}
          {:command :curve-view.delete-control-point
           :action ["Delete Control Point"]
-          :binding {:button :secondary :modifiers []}}])
+          :binding {:button :secondary :modifiers #{}}}])
       (let [view (make-curve-view! app-view 800 400)
             node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
             emitter (:node-id (test-util/outline node-id [0]))
@@ -190,6 +190,7 @@
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :middle
                                                    :click-count 1
+                                                   :modifiers #{}
                                                    :world-pos (Point3d. 0.05 0.5 0.0)}
                                    nil))
         (is (= 9 (point-count)))
@@ -200,6 +201,7 @@
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :secondary
                                                    :click-count 1
+                                                   :modifiers #{}
                                                    :world-pos (Point3d. 0.05 0.62 0.0)}
                                    nil))
         (is (= 8 (point-count)))
@@ -220,16 +222,16 @@
         "Curve Editor"
         [{:command :curve-view.add-control-point
           :action ["Add Control Point"]
-          :binding {:button :primary :modifiers [:shift]}}
+          :binding {:button :primary :modifiers #{:shift}}}
          {:command :curve-view.delete-control-point
           :action ["Delete Control Point"]
-          :binding {:button :primary :modifiers [:alt]}}])
+          :binding {:button :primary :modifiers #{:alt}}}])
       (mouse-binding/set-user-overrides!
         {::curve-view/curve-view-camera
          {:curve-view.add-control-point
-          {:bindings [{:button :middle :modifiers []}]}
+          {:bindings [{:button :middle :modifiers #{}}]}
           :curve-view.delete-control-point
-          {:bindings [{:button :secondary :modifiers []}]}}})
+          {:bindings [{:button :secondary :modifiers #{}}]}}})
       (let [view (make-curve-view! app-view 800 400)
             node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
             emitter (:node-id (test-util/outline node-id [0]))
@@ -244,6 +246,7 @@
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :middle
                                                    :click-count 1
+                                                   :modifiers #{}
                                                    :world-pos (Point3d. 0.05 0.5 0.0)}
                                    nil))
         (is (= 9 (point-count)))
@@ -254,6 +257,7 @@
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :secondary
                                                    :click-count 1
+                                                   :modifiers #{}
                                                    :world-pos (Point3d. 0.05 0.62 0.0)}
                                    nil))
         (is (= 8 (point-count)))

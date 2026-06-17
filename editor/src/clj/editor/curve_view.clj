@@ -322,7 +322,7 @@
                                           true)
                                         (when (or (= handle :control-point) (= handle :tangent))
                                           (let [op-seq (gensym)
-                                                sel-mods? (some #(get action %) selection/toggle-modifiers)]
+                                                sel-mods? (some (:modifiers action) selection/toggle-modifiers)]
                                             (when (not sel-mods?)
                                               (when (and (= handle :control-point)
                                                          (not (contains? (set sub-selection) data)))

@@ -772,9 +772,8 @@
      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
    (let [handlers (g/sources-of view :input-handlers)
          user-data (g/node-value view :selected-tool-renderables)
-         action (reduce #(assoc %1 %2 true)
-                        {:type type :x x :y y :click-count click-count :button button}
-                        modifiers)
+         action (-> {:type type :x x :y y :click-count click-count :button button}
+                    (assoc :modifiers (set modifiers)))
          action (scene/augment-action view action)]
      ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
      (scene/dispatch-input handlers (input/make-input-state) action user-data))))

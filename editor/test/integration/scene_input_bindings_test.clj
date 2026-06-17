@@ -30,17 +30,14 @@
   (:import [javax.vecmath Point3d]))
 
 (defn- action [type x y button modifiers]
-  (reduce
-    (fn [action modifier]
-      (assoc action modifier true))
-    {:type type
-     :x x
-     :y y
-     :screen-x x
-     :screen-y y
-     :click-count 1
-     :button button}
-    modifiers))
+  {:type type
+   :x x
+   :y y
+   :screen-x x
+   :screen-y y
+   :click-count 1
+   :button button
+   :modifiers (set modifiers)})
 
 (defn- dispatch-action! [view input-state action]
   (let [input-dispatch-context (scene/input-dispatch-context view)
@@ -118,15 +115,15 @@
         "Tile Map Editor"
         [{:command :scene.tile-map.paint
           :action ["Paint"]
-          :binding {:button :primary :modifiers []}}
+          :binding {:button :primary :modifiers #{}}}
          {:command :scene.tile-map.erase
           :action ["Erase"]
-          :binding {:button :primary :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers #{:shift}}}])
       (is (= :scene.tile-map.erase
              (mouse-binding/command-for-action
                ::tile-map/tile-map-editor
                {:button :primary
-                :shift true})))
+                :modifiers #{:shift}})))
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
             tile [-2 -2]
@@ -171,7 +168,7 @@
         "Scene 2D Camera"
         [{:command :scene.camera.pan
           :action ["Pan"]
-          :binding {:button :primary :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers #{:shift}}}])
       (let [[_collection-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
             camera-controller (camera-controller view)
             initial-camera (g/node-value view :camera)
@@ -197,13 +194,13 @@
         "Scene 2D Camera"
         [{:command :scene.camera.pan
           :action ["Pan"]
-          :binding {:button :primary :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers #{:shift}}}])
       (mouse-binding/register!
         ::tile-map/tile-map-editor
         "Tile Map Editor"
         [{:command :scene.tile-map.erase
           :action ["Erase"]
-          :binding {:button :primary :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers #{:shift}}}])
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
             tile [-2 -2]
@@ -232,7 +229,7 @@
         "Scene 2D Camera"
         [{:command :scene.camera.pan
           :action ["Pan"]
-          :binding {:button :primary :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers #{:shift}}}])
       (mouse-binding/register!
         ::tile-map/tile-map-editor
         "Tile Map Editor"
@@ -283,37 +280,37 @@
         "Scene 2D Camera"
         [{:command :scene.camera.pan
           :action ["Pan"]
-          :binding {:button :primary :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers #{:shift}}}])
 
       (testing "registered binding works without overrides"
         (let [[_ view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)]
-          (run-persisted-override-pan-test! view {:button :primary :modifiers [:shift]})))
+          (run-persisted-override-pan-test! view {:button :primary :modifiers #{:shift}})))
 
       (testing "single override binding in scene view"
         (mouse-binding/set-user-overrides!
           {::camera/scene-camera-orthographic
            {:scene.camera.pan
-            {:bindings [{:button :primary :modifiers [:shift]}]}}})
+            {:bindings [{:button :primary :modifiers #{:shift}}]}}})
         (let [[_ view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)]
-          (run-persisted-override-pan-test! view {:button :primary :modifiers [:shift]})))
+          (run-persisted-override-pan-test! view {:button :primary :modifiers #{:shift}})))
 
       (testing "appended override binding in scene view"
         (mouse-binding/set-user-overrides!
           {::camera/scene-camera-orthographic
            {:scene.camera.pan
-            {:bindings [{:button :primary :modifiers [:shift]}
-                        {:button :middle :modifiers [:control]}]}}})
+            {:bindings [{:button :primary :modifiers #{:shift}}
+                        {:button :middle :modifiers #{:control}}]}}})
         (let [[_ view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)]
-          (run-persisted-override-pan-test! view {:button :middle :modifiers [:control]})))
+          (run-persisted-override-pan-test! view {:button :middle :modifiers #{:control}})))
 
       (testing "override binding works in curve view"
         (mouse-binding/set-user-overrides!
           {::camera/scene-camera-orthographic
            {:scene.camera.pan
-            {:bindings [{:button :primary :modifiers [:shift]}]}}})
+            {:bindings [{:button :primary :modifiers #{:shift}}]}}})
         (let [view (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
                      (g/set-property! :viewport (types/->Region 0 128 0 128)))]
-          (run-persisted-override-pan-test! view {:button :primary :modifiers [:shift]}))))))
+          (run-persisted-override-pan-test! view {:button :primary :modifiers #{:shift}}))))))
 
 (deftest disallowed-curve-view-camera-bindings-are-ignored
   (test-util/with-loaded-project
@@ -327,10 +324,10 @@
           :action ["Zoom"]}
          {:command :scene.camera.orbit
           :action ["Orbit"]
-          :binding {:button :primary :modifiers [:shift]}}
+          :binding {:button :primary :modifiers #{:shift}}}
          {:command :scene.camera.free-look
           :action ["Free Look"]
-          :binding {:button :primary :modifiers [:control]}}])
+          :binding {:button :primary :modifiers #{:control}}}])
       (let [view (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
                    (g/set-property! :viewport (types/->Region 0 128 0 128)))
             camera-controller (camera-controller view)
@@ -340,11 +337,11 @@
         (doseq [{:keys [name button modifiers expected-movement]}
                 [{:name "orbit"
                   :button :primary
-                  :modifiers [:shift]
+                  :modifiers #{:shift}
                   :expected-movement :tumble}
                  {:name "free look"
                   :button :primary
-                  :modifiers [:control]
+                  :modifiers #{:control}
                   :expected-movement :look}]]
           (testing name
             (let [input-state (reduce
@@ -374,7 +371,7 @@
       (mouse-binding/set-user-overrides!
         {::camera/scene-camera-orthographic
          {:scene.camera.pan
-          {:bindings [{:button :secondary :modifiers [:control]}]}}})
+          {:bindings [{:button :secondary :modifiers #{:control}}]}}})
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
             camera-controller (camera-controller view)
@@ -418,7 +415,7 @@
         "Scene 2D Camera"
         [{:command :scene.camera.pan
           :action ["Pan"]
-          :binding {:button :primary :modifiers [:shift]}}])
+          :binding {:button :primary :modifiers #{:shift}}}])
       (mouse-binding/set-user-overrides!
         {::camera/scene-camera-orthographic
          {:scene.camera.pan
