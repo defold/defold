@@ -318,9 +318,8 @@ namespace dmGraphics
     uint32_t GetRegisteredAdaptersCount();
 
     /**
-     * Get the number of linked graphics adapters that can render to a graphics context.
-     * This excludes ADAPTER_FAMILY_NONE and ADAPTER_FAMILY_NULL.
-     * @return The number of linked render-capable graphics adapters.
+     * Get the number of linked graphics adapters.
+     * @return The number of linked graphics adapters.
      */
     uint32_t GetLinkedGraphicsAdapterCount();
 

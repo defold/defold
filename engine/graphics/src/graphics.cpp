@@ -90,11 +90,7 @@ namespace dmGraphics
         GraphicsAdapter* next = g_adapter_list;
         while(next)
         {
-            if (next->m_Family != ADAPTER_FAMILY_NONE &&
-                next->m_Family != ADAPTER_FAMILY_NULL)
-            {
-                ++adapter_count;
-            }
+            ++adapter_count;
             next = next->m_Next;
         }
 
