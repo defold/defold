@@ -14,6 +14,7 @@ set(GS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(GS_SRC_DIR "${GS_ROOT}/src/gamesys")
 set(GS_DMSDK_SRC_DIR "${GS_ROOT}/src")
 set(GS_PROTO_DIR "${GS_ROOT}/proto/gamesys")
+set(GS_DLIB_PROTO_ROOT "${GS_ROOT}/../dlib/proto")
 set(GS_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 set(GAMESYS_DEPENDENCIES
     ddf
@@ -78,7 +79,14 @@ foreach(_pf IN LISTS GS_PROTO_FILES)
   list(APPEND GS_PROTO_CC "${_out_cc}")
   list(APPEND GS_PROTO_HEADERS "${_out_h}")
 endforeach()
-add_custom_target(gamesys_proto_cpp DEPENDS ${GS_PROTO_CC} ${GS_PROTO_HEADERS})
+
+set(GS_HTTP_PROTO "${GS_DLIB_PROTO_ROOT}/dlib/http_ddf.proto")
+set(GS_HTTP_PROTO_CC "${CMAKE_CURRENT_BINARY_DIR}/dlib/http_ddf.pb.cc")
+set(GS_HTTP_PROTO_HEADER "${CMAKE_CURRENT_BINARY_DIR}/dlib/http_ddf.h")
+defold_protoc_gen_cpp("${GS_HTTP_PROTO_CC}" "${GS_HTTP_PROTO}" INCLUDES "${GS_DLIB_PROTO_ROOT}" "${DEFOLD_SDK_ROOT}/share/proto")
+list(APPEND GS_PROTO_CC "${GS_HTTP_PROTO_CC}")
+
+add_custom_target(gamesys_proto_cpp DEPENDS ${GS_PROTO_CC} ${GS_PROTO_HEADERS} "${GS_HTTP_PROTO_HEADER}")
 add_custom_target(gamesys_proto_headers)
 add_dependencies(gamesys_proto_headers gamesys_proto_cpp)
 
@@ -369,6 +377,8 @@ install(FILES "${GS_SRC_DIR}/gamesys.h" DESTINATION include/gamesys)
 install(FILES "${GS_SRC_DIR}/components/comp_gui.h" DESTINATION include/gamesys/components)
 install(FILES "${GS_SRC_DIR}/fontgen/fontgen.h" DESTINATION include/gamesys/fontgen)
 install(FILES ${GS_PROTO_HEADERS} "${GS_MODEL_HEADER}" DESTINATION include/gamesys)
+install(FILES "${GS_HTTP_PROTO_HEADER}" DESTINATION include/dlib)
+install(FILES "${GS_HTTP_PROTO}" DESTINATION share/proto/dlib)
 install(DIRECTORY "${GS_ROOT}/src/dmsdk/"
         DESTINATION sdk/include/dmsdk
         FILES_MATCHING

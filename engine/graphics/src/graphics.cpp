@@ -125,6 +125,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_VENDOR;
         if (dmStrCaseCmp("dx12", adapter_name) == 0)
             return ADAPTER_FAMILY_DIRECTX;
+        if (dmStrCaseCmp("metal", adapter_name) == 0)
+            return ADAPTER_FAMILY_METAL;
         assert(0 && "Adapter type not supported?");
         return ADAPTER_FAMILY_NONE;
     }
@@ -143,6 +145,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_METAL);
             default:break;
         }
         return "<unknown dmGraphics::AdapterFamily>";
@@ -1406,8 +1409,8 @@ namespace dmGraphics
                 continue;
             }
 
-            const ShaderResourceTypeInfo* root_type = &type_infos[root_type_index];
-            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, root_type, user_data);
+            UniformBufferLayout* layout = (UniformBufferLayout*) binding->m_BindingUserData;
+            callback(binding->m_Res->m_Set, binding->m_Res->m_Binding, type_infos.Begin(), type_infos.Size(), root_type_index, layout, user_data);
         }
     }
 
@@ -1455,8 +1458,7 @@ namespace dmGraphics
     UniformBufferLayout* AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
     {
         // Create a uniform buffer layout that can be used to check uniform buffer compatability
-        UniformBufferLayout ubo_layout;
-        GetUniformBufferLayout(res->m_Type.m_TypeIndex, type_infos, num_type_infos, &ubo_layout);
+        UniformBufferLayout ubo_layout = GetUniformBufferLayout(res->m_Type.m_TypeIndex, type_infos, num_type_infos);
 
         uint32_t layout_offset = program->m_UniformBufferLayouts.Size();
         program->m_UniformBufferLayouts.Push(ubo_layout);
@@ -1626,7 +1628,7 @@ namespace dmGraphics
         return DM_ALIGN(offset, max_alignment);
     }
 
-    static uint32_t CalculateShaderTypesSize(uint32_t root_type_index, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
+    uint32_t GetUniformBufferTypeSize(uint32_t root_type_index, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos)
     {
         assert(root_type_index < num_type_infos);
         uint32_t size = CalculateStd140StructSize(type_infos, root_type_index, false);
@@ -1857,7 +1859,7 @@ namespace dmGraphics
     }
     // This function expects that the offsets are already calculated! I.e, if the types are created manually
     // you can use the UpdateShaderTypesOffsets function (graphics_private.h) first.
-    void GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc)
+    UniformBufferLayout GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types)
     {
         HashState32 hash_state;
         dmHashInit32(&hash_state, false);
@@ -1868,8 +1870,12 @@ namespace dmGraphics
 
         HashTypeRecursive(root_type_index, types, num_types, &hash_state, visited);
 
-        layout_desc->m_Hash = dmHashFinal32(&hash_state);
-        layout_desc->m_Size = CalculateShaderTypesSize(root_type_index, types, num_types);
+        return dmHashFinal32(&hash_state);
+    }
+
+    bool IsUniformBufferLayoutCompatible(UniformBufferLayout bound_layout, uint32_t bound_size, UniformBufferLayout program_layout, uint32_t program_size)
+    {
+        return bound_layout == program_layout && bound_size >= program_size;
     }
     void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits)
     {
@@ -2432,9 +2438,9 @@ namespace dmGraphics
     {
         g_functions.m_GetViewport(context, x, y, width, height);
     }
-    HUniformBuffer NewUniformBuffer(HContext context, const UniformBufferLayout& layout)
+    HUniformBuffer NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size)
     {
-        return g_functions.m_NewUniformBuffer(context, layout);
+        return g_functions.m_NewUniformBuffer(context, layout, size);
     }
     void DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer)
     {

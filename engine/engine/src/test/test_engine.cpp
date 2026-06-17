@@ -16,7 +16,7 @@
 #include <dlib/testutil.h>
 
 #include <dlib/array.h>
-#include <dlib/http_client.h>
+#include <dlib/http/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>

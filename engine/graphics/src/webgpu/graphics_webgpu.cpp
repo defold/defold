@@ -1970,12 +1970,13 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
     wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
 }
 
-static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
 {
     WebGPUContext* context = (WebGPUContext*)_context;
 
     WebGPUUniformBuffer* ubo = new WebGPUUniformBuffer();
     ubo->m_BaseUniformBuffer.m_Layout = layout;
+    ubo->m_BaseUniformBuffer.m_Size = size;
     ubo->m_BaseUniformBuffer.m_BoundSet = UNUSED_BINDING_OR_SET;
     ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
@@ -1985,7 +1986,7 @@ static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, const UniformBuf
     WGPUBufferDescriptor desc = {};
 #endif
 
-    desc.size  = layout.m_Size;
+    desc.size  = size;
     desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
 
     ubo->m_Buffer = wgpuDeviceCreateBuffer(context->m_Device, &desc);
@@ -1997,7 +1998,7 @@ static void WebGPUSetUniformBuffer(HContext _context, HUniformBuffer uniform_buf
 {
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
-    assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+    assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
     wgpuQueueWriteBuffer(context->m_Queue, ubo->m_Buffer, offset, data, size);
 }
 
@@ -2417,12 +2418,12 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, pgm_res.m_Res->m_BindingInfo.m_BlockSize))
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                bound_ubo->m_BaseUniformBuffer.m_Layout,
                                 pgm_res.m_Res->m_Name,
-                                pgm_layout->m_Hash);
+                                *pgm_layout);
 
                             // Fallback to the scratch buffer uniform setup
                             bound_ubo = 0;
@@ -2433,7 +2434,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     {
                         entries[desc.entryCount].buffer = bound_ubo->m_Buffer;
                         entries[desc.entryCount].offset = 0;
-                        entries[desc.entryCount].size   = bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size;
+                        entries[desc.entryCount].size   = bound_ubo->m_BaseUniformBuffer.m_Size;
                     }
                     else
                     {

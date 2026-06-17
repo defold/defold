@@ -19,13 +19,12 @@
 #include <dlib/dstrings.h>
 #include <dlib/array.h>
 #include <dlib/hash.h>
-#include <dlib/http_cache.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/sys.h>
 
-#include <dlib/http_client.h>
-#include <dlib/http_cache.h>
+#include <dlib/http/http_client.h>
+#include <dlib/http/http_cache.h>
 #include <dlib/http_cache_verify.h>
 
 #include <stdio.h> // debug printf

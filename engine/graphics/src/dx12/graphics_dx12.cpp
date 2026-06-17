@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -1620,15 +1620,16 @@ namespace dmGraphics
         buffer->m_Base.m_Size = aligned_size;
     }
 
-    static HUniformBuffer DX12NewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer DX12NewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         DX12Context* context = (DX12Context*) _context;
         DX12UniformBuffer* ubo = new DX12UniformBuffer();
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
-        CreateConstantBuffer(context, &ubo->m_DeviceBuffer, layout.m_Size);
+        CreateConstantBuffer(context, &ubo->m_DeviceBuffer, size);
 
         return (HUniformBuffer) ubo;
     }
@@ -1636,7 +1637,7 @@ namespace dmGraphics
     static void DX12SetUniformBuffer(HContext _context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DX12UniformBuffer* ubo = (DX12UniformBuffer*)uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
         memcpy(ubo->m_DeviceBuffer.m_MappedDataPtr + offset, data, size);
     }
 
@@ -2363,12 +2364,12 @@ namespace dmGraphics
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, pgm_res.m_Res->m_BindingInfo.m_BlockSize))
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                bound_ubo->m_BaseUniformBuffer.m_Layout,
                                 pgm_res.m_Res->m_Name,
-                                pgm_layout->m_Hash);
+                                *pgm_layout);
 
                             // Fallback to the scratch buffer uniform setup
                             bound_ubo = 0;

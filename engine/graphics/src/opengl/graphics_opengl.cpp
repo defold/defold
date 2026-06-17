@@ -2213,7 +2213,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer OpenGLNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
 
@@ -2225,6 +2225,7 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLUniformBuffer* ubo = new OpenGLUniformBuffer();
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
@@ -2234,7 +2235,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 
         // Clear out UBO first
-        SetUniformBuffer(_context, (HUniformBuffer) ubo, 0, layout.m_Size, 0);
+        SetUniformBuffer(_context, (HUniformBuffer) ubo, 0, size, 0);
 
         return (HUniformBuffer) ubo;
     }
@@ -2243,12 +2244,12 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*)_context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
 
         GLuint handle = GetGLHandle(context, ubo->m_Id);
 
         glBindBuffer(GL_UNIFORM_BUFFER, handle);
-        if (size < ubo->m_BaseUniformBuffer.m_Layout.m_Size)
+        if (size < ubo->m_BaseUniformBuffer.m_Size)
         {
             glBufferSubDataARB(GL_UNIFORM_BUFFER, offset, size, data);
             CHECK_GL_ERROR;
@@ -2925,12 +2926,12 @@ static void LogFrameBufferError(GLenum status)
                     ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[ubo.m_ResourceSet][ubo.m_ResourceBinding];
                     UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
 
-                    if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                    if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, pgm_res.m_Res->m_BindingInfo.m_BlockSize))
                     {
                         dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                            bound_ubo->m_BaseUniformBuffer.m_Layout,
                             pgm_res.m_Res->m_Name,
-                            pgm_layout->m_Hash);
+                            *pgm_layout);
 
                         // Fallback to the scratch buffer uniform setup
                         bound_ubo = 0;

@@ -11,10 +11,9 @@ set(RECORD_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(RECORD_SRC_DIR "${RECORD_ROOT}/src/record")
 set(RECORD_NULL_DEPENDENCIES dlib)
 set(RECORD_DEPENDENCIES dlib vpx)
-
-set(RECORD_IS_DESKTOP OFF)
-if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
-  set(RECORD_IS_DESKTOP ON)
+set(RECORD_IS_DESKTOP_PLATFORM OFF)
+if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
+  set(RECORD_IS_DESKTOP_PLATFORM ON)
 endif()
 
 set(RECORD_INSTALL_TARGETS record_null)
@@ -28,7 +27,7 @@ defold_target_link_libraries(record_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${REC
 set_target_properties(record_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET record_sdk_headers)
 
 defold_feature_disabled(record RECORD_FEATURE_DISABLED)
-if(RECORD_IS_DESKTOP AND NOT RECORD_FEATURE_DISABLED)
+if(RECORD_IS_DESKTOP_PLATFORM AND NOT RECORD_FEATURE_DISABLED)
   defold_add_library(record STATIC
     "${RECORD_SRC_DIR}/record.cpp"
     "${RECORD_SRC_DIR}/record_common.cpp")

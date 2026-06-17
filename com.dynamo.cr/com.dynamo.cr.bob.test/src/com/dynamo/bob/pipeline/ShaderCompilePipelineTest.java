@@ -283,23 +283,27 @@ public class ShaderCompilePipelineTest {
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
 
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testCompareTypes");
-        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
 
-        SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
-        SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+            SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+            SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
 
-        assertTrue(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "equal"));
-        assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal"));
-        assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal_two"));
+            assertTrue(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "equal"));
+            assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal"));
+            assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal_two"));
 
-        // The "equal" ubos should be merged, which means that it will only be part of the VS reflection and not the FS
-        Shaderc.ShaderResource equalUboA = getShaderResource(reflectorVs, "equal");
-        Shaderc.ShaderResource equalUboB = getShaderResource(reflectorFs, "equal");
-        assert equalUboA != null;
-        assert equalUboB == null;
+            // The "equal" ubos should be merged, which means that it will only be part of the VS reflection and not the FS
+            Shaderc.ShaderResource equalUboA = getShaderResource(reflectorVs, "equal");
+            Shaderc.ShaderResource equalUboB = getShaderResource(reflectorFs, "equal");
+            assert equalUboA != null;
+            assert equalUboB == null;
 
-        int combinedShaderStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
-        assertEquals(combinedShaderStages, equalUboA.stageFlags);
+            int combinedShaderStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+            assertEquals(combinedShaderStages, equalUboA.stageFlags);
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
     }
 
     private Shaderc.ShaderResource getShaderResource(SPIRVReflector reflector, String name) {

@@ -341,10 +341,12 @@ namespace dmRender
         bool has_light_buffer;
         uint16_t light_buffer_set;
         uint16_t light_buffer_binding;
-        GetProgramLightBufferBinding(render_context, m->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding);
-        m->m_HasLightBuffer     = has_light_buffer;
-        m->m_LightBufferSet     = light_buffer_set;
-        m->m_LightBufferBinding = light_buffer_binding;
+        uint16_t light_buffer_capacity;
+        GetProgramLightBufferBinding(render_context, m->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding, &light_buffer_capacity);
+        m->m_HasLightBuffer       = has_light_buffer;
+        m->m_LightBufferSet       = light_buffer_set;
+        m->m_LightBufferBinding   = light_buffer_binding;
+        m->m_LightBufferCapacity  = light_buffer_capacity;
 
         return (HMaterial)m;
     }
