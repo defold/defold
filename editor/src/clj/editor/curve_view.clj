@@ -306,7 +306,8 @@
                                               (case edit-command
                                                 :curve-view.delete-control-point
                                                 (let [[nid property id] data]
-                                                  (g/update-property nid property types/geom-delete [id]))
+                                                  [(g/update-property nid property types/geom-delete [id])
+                                                   (g/set-property self :handle :curve-click)])
 
                                                 :curve-view.add-control-point
                                                 (let [[nid property ^Point3d p] data

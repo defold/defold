@@ -32,6 +32,7 @@
            [editor.types Rect]
            [java.lang Math Runnable]
            [javafx.scene Node Scene]
+           [javafx.scene.control ContextMenu]
            [javafx.scene.input DragEvent]
            [javax.vecmath Matrix4d Point2i Point3d Vector3d]))
 
@@ -116,6 +117,12 @@
                       (filter #(not (nil? %)) [(g/node-value controller :root-id)]))]
     (select-fn selection op-seq)))
 
+(defn- init-scene-context-menu! ^ContextMenu [^Scene scene ^Node anchor-node]
+  (doto (ui/init-context-menu! ::scene-context-menu scene)
+    ;; Let the dismissing RMB press continue into scene input so pan can start immediately.
+    (.setConsumeAutoHidingEvents false)
+    (ui/hide-context-menu-on-anchor-pressed! anchor-node)))
+
 (def mac-toggle-modifiers #{:shift :meta})
 (def other-toggle-modifiers #{:shift})
 (def toggle-modifiers (if system/mac? mac-toggle-modifiers other-toggle-modifiers))
@@ -198,7 +205,7 @@
                         (when contextual?
                           (let [node ^Node (:target action)
                                 scene ^Scene (.getScene node)
-                                context-menu (ui/init-context-menu! ::scene-context-menu scene)]
+                                context-menu (init-scene-context-menu! scene node)]
                             (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
                         nil)
       :mouse-moved (if start
