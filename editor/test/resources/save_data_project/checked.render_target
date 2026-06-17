@@ -2,10 +2,12 @@ color_attachments {
   width: 128
   height: 128
   format: TEXTURE_FORMAT_LUMINANCE
+  sample_count: 4
 }
 depth_stencil_attachment {
   width: 128
   height: 128
   format: DEPTH_STENCIL_FORMAT_D32F_S8U
+  sample_count: 4
   texture_storage: true
 }
