@@ -235,7 +235,10 @@
         "Tile Map Editor"
         [{:command :scene.camera.pan
           :action ["Pan"]}]
-        {:fallback-context ::camera/scene-camera-orthographic})
+        ;; The tool context leaves pan unbound; runtime resolution does not consult
+        ;; :inherited-context, so the action falls through to the CameraController,
+        ;; which self-resolves it against its live (orthographic) projection.
+        {:inherited-context ::camera/scene-camera-orthographic})
       (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
             layer-node (layer-node tile-map-node)
             camera-controller (camera-controller view)
@@ -254,6 +257,42 @@
                 input-state (update-tick! view input-state 2)]
             (dispatch-action! view input-state (action :mouse-released 80.0 64.0 :primary [:shift]))))
         (is (not= initial-camera (g/node-value view :camera)))))))
+
+(deftest right-click-starts-free-look-from-tool-context-in-3d
+  ;; Regression: a tool context (here tile-map, active in :editor mode) used to
+  ;; force the orthographic camera bindings, so right-click resolved to pan even
+  ;; when the camera was in perspective. Now the tool context leaves the camera
+  ;; command unbound and the CameraController self-resolves against the live
+  ;; projection, so right-click starts free-look in 3D.
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/register!
+        ::camera/scene-camera-perspective
+        "Scene 3D Camera"
+        [{:command :scene.camera.free-look
+          :action ["Free Look"]
+          :binding {:button :secondary :modifiers #{}}}])
+      (mouse-binding/register!
+        ::tile-map/tile-map-editor
+        "Tile Map Editor"
+        [{:command :scene.camera.pan
+          :action ["Pan"]}]
+        {:inherited-context ::camera/scene-camera-orthographic})
+      (let [[tile-map-node view] (open-tile-map-scene-view! project app-view "/tilegrid/with_layers.tilemap" 128 128)
+            layer-node (layer-node tile-map-node)
+            camera-controller (camera-controller view)]
+        (app-view/select! app-view [layer-node])
+        (refresh-selection! view)
+        (is camera-controller)
+        ;; Put the camera into 3D (perspective) mode.
+        (g/set-property! camera-controller :local-camera (camera/make-camera :perspective))
+        (reduce
+          (partial dispatch-action! view)
+          (input/make-input-state)
+          [(action :mouse-moved 64.0 64.0 :secondary [])
+           (action :mouse-pressed 64.0 64.0 :secondary [])])
+        ;; Right-click resolves to free-look (:look), not pan (:track).
+        (is (= :look (:movement (g/user-data camera-controller :editor.camera/camera-state))))))))
 
 (defn- run-persisted-override-pan-test! [view trigger-binding]
   (let [camera-ctrl (camera-controller view)

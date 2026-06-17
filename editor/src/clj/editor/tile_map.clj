@@ -1609,7 +1609,7 @@
     :action ["Pan"]}
    {:command :scene.camera.zoom
     :action ["Zoom"]}]
-  {:fallback-context :editor.camera/scene-camera-orthographic})
+  {:inherited-context :editor.camera/scene-camera-orthographic})
 
 (g/defnode TileMapGrid
   (inherits grid/Grid)

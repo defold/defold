@@ -42,7 +42,7 @@
   (atom {;; contexts: {context {:bindings {command [{:binding b :action a ...}  ; regular commands
          ;;                                         ;; or
          ;;                                         {:modifier m :action a ...}]} ; modifier-only
-         ;;                     :fallback-context context
+         ;;                     :inherited-context context ; prefs-display only, not runtime
          ;;                     :user-overrides {command {:bindings [binding ...]}  ; regular commands
          ;;                                              ;; or
          ;;                                      command {:modifier modifier-kw}}}} ; modifier-only
@@ -50,7 +50,7 @@
 
 (defn- normalize-binding-modifiers
   "Ensures a command map's `:binding` has its `:modifiers` as a set, defaulting a
-  missing value to `#{}`. Leaves fallback-only/modifier-only maps (no `:binding`)
+  missing value to `#{}`. Leaves inherited-only/modifier-only maps (no `:binding`)
   untouched."
   [command-map]
   (cond-> command-map
@@ -67,32 +67,37 @@
     `:binding` - map with `:button` and `:modifiers` keys; mutually exclusive with `:modifier`
     `:modifier` - modifier keyword for modifier-only commands; mutually exclusive with `:binding`
   `opts` - optional map with:
-    `:fallback-context` - context to fall back to when no binding is found."
+    `:inherited-context` - context whose bindings the Preferences UI displays as
+                           the inherited value for this context's unbound commands.
+                           Display only; not consulted during runtime resolution."
   ([context context-path bindings]
    (register! context context-path bindings nil))
   ([context context-path bindings opts]
    (swap! bindings-atom
           (fn [state]
-            (cond-> (assoc-in (update-in state [:contexts context] dissoc :fallback-context)
+            (cond-> (assoc-in (update-in state [:contexts context] dissoc :inherited-context)
                               [:contexts context :bindings]
                               (group-by :command
                                         (mapv #(-> %
                                                    (assoc :context-path context-path)
                                                    normalize-binding-modifiers)
                                               bindings)))
-              (:fallback-context opts)
-              (assoc-in [:contexts context :fallback-context] (:fallback-context opts)))))
+              (:inherited-context opts)
+              (assoc-in [:contexts context :inherited-context] (:inherited-context opts)))))
    nil))
 
 (defn unregister!
   "Removes all registered data for `context`, including bindings,
-  fallback context, and user overrides."
+  inherited context, and user overrides."
   [context]
   (swap! bindings-atom update :contexts dissoc context)
   nil)
 
-(defn fallback-context [context]
-  (get-in @bindings-atom [:contexts context :fallback-context]))
+(defn inherited-context
+  "Returns the context whose bindings the Preferences UI displays as the inherited
+  value for `context`'s unbound commands. Display only; not used at runtime."
+  [context]
+  (get-in @bindings-atom [:contexts context :inherited-context]))
 
 (defn- normalize-user-overrides
   "Ensures every override binding's `:modifiers` is a set (defaulting missing to
@@ -157,7 +162,7 @@
 
   For regular mouse-binding commands this is the flat binding vector the edit UI
   works with: user overrides if present, otherwise the registered defaults
-  stripped to raw `{:button :modifiers}` maps. Does not apply fallback-context
+  stripped to raw `{:button :modifiers}` maps. Does not apply prefs-display
   inheritance.
 
   For modifier-only commands this is the effective modifier keyword."
@@ -170,7 +175,7 @@
 
 (defn resolve-command-binding
   "Resolves the effective binding state for a command, accounting for user
-  overrides, registered defaults, and fallback-context inheritance.
+  overrides, registered defaults, and prefs-display inheritance.
 
   For modifier-only commands returns a map with `:kind :mouse-modifier`,
   `:modifier` (the effective modifier), and `:default-modifier`.
@@ -178,8 +183,9 @@
   For regular commands returns a map with `:kind :mouse-binding`, `:bindings`
   (the effective binding vector), `:binding-source` (`:custom` when the user
   overrode the defaults, `:inherited` when the bindings come from the
-  fallback context, `:default` otherwise), and `:fallback-context-path` (the
-  source context's display path when inherited, else nil).
+  `:inherited-context` context, `:default` otherwise), and
+  `:inherited-context-path` (the source context's display path when inherited,
+  else nil).
 
   Both include the template keys from the registered binding (`:context-path`,
   `:action`, etc.), plus `:context` and `:command`."
@@ -197,22 +203,22 @@
       (let [overrides (get-in user-overrides [context command])
             custom? (contains? overrides :bindings)
             defaults (into [] (keep :binding) default-bindings-data)
-            fallback-ctx (when (and (not custom?) (empty? (filter some? defaults)))
-                           (fallback-context context))
-            fallback-data (when fallback-ctx (default-command-bindings fallback-ctx command))
-            fallback-bindings (when fallback-ctx
-                                (or (user-command-bindings user-overrides fallback-ctx command)
-                                    (into [] (keep :binding) fallback-data)))
-            inherited? (boolean (seq fallback-bindings))
+            inherits-from (when (and (not custom?) (empty? (filter some? defaults)))
+                            (inherited-context context))
+            inherited-data (when inherits-from (default-command-bindings inherits-from command))
+            inherited-bindings (when inherits-from
+                                 (or (user-command-bindings user-overrides inherits-from command)
+                                     (into [] (keep :binding) inherited-data)))
+            inherited? (boolean (seq inherited-bindings))
             bindings (cond custom?    (:bindings overrides)
-                           inherited? fallback-bindings
+                           inherited? inherited-bindings
                            :else      defaults)]
         (assoc template
           :kind :mouse-binding
           :binding-source (cond custom? :custom
                                 inherited? :inherited
                                 :else :default)
-          :fallback-context-path (when inherited? (some :context-path fallback-data))
+          :inherited-context-path (when inherited? (some :context-path inherited-data))
           :bindings bindings)))))
 
 (defn- update-command-bindings*
@@ -324,32 +330,28 @@
 
 (defn- command-active?* [state context command input-state]
   (let [binding-maps (get-in state [:contexts context :bindings command])]
-    (or (if (some :modifier binding-maps)
-          (let [default-modifier (some :modifier binding-maps)
-                effective-modifier (get-in state [:contexts context :user-overrides command :modifier] default-modifier)]
-            (boolean (when effective-modifier
-                       (contains? (:modifiers input-state) effective-modifier))))
-          (boolean
-            (some (fn [mb]
-                    (when-let [b (:binding mb)]
-                      (input/mouse-binding-active? b input-state)))
-                  (effective-command-bindings* state context command binding-maps))))
-        (when-let [fallback (get-in state [:contexts context :fallback-context])]
-          (command-active?* state fallback command input-state)))))
+    (if (some :modifier binding-maps)
+      (let [default-modifier (some :modifier binding-maps)
+            effective-modifier (get-in state [:contexts context :user-overrides command :modifier] default-modifier)]
+        (boolean (when effective-modifier
+                   (contains? (:modifiers input-state) effective-modifier))))
+      (boolean
+        (some (fn [mb]
+                (when-let [b (:binding mb)]
+                  (input/mouse-binding-active? b input-state)))
+              (effective-command-bindings* state context command binding-maps))))))
 
 (defn command-active? [context command input-state]
   (boolean (command-active?* @bindings-atom context command input-state)))
 
 (defn- command-for-action* [state context action]
-  (or (some (fn [[command bindings]]
-              (when (some (fn [mouse-binding]
-                            (when-let [binding (:binding mouse-binding)]
-                              (input/mouse-binding-action? binding action)))
-                          (effective-command-bindings* state context command bindings))
-                command))
-            (get-in state [:contexts context :bindings]))
-      (when-let [fallback (get-in state [:contexts context :fallback-context])]
-        (command-for-action* state fallback action))))
+  (some (fn [[command bindings]]
+          (when (some (fn [mouse-binding]
+                        (when-let [binding (:binding mouse-binding)]
+                          (input/mouse-binding-action? binding action)))
+                      (effective-command-bindings* state context command bindings))
+            command))
+        (get-in state [:contexts context :bindings])))
 
 (defn command-for-action [context action]
   (command-for-action* @bindings-atom context action))

@@ -251,7 +251,7 @@
                     :mouse-binding
                     (let [inherited? (= :inherited (:binding-source row))
                           inherited-tooltip (when inherited?
-                                              (localization-state (localization/message "prefs.keymap.inherited-from" {"context" (:fallback-context-path row)})))]
+                                              (localization-state (localization/message "prefs.keymap.inherited-from" {"context" (:inherited-context-path row)})))]
                       (mapv (fn [binding warnings]
                               (let [pseudo-classes (cond
                                                      warnings #{:warning}

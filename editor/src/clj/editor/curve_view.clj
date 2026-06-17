@@ -64,7 +64,7 @@
     :action ["Add Control Point"]}
    {:command :curve-view.delete-control-point
     :action ["Delete Control Point"]}]
-  {:fallback-context :editor.camera/scene-camera-orthographic})
+  {:inherited-context :editor.camera/scene-camera-orthographic})
 
 ; Line shader
 
