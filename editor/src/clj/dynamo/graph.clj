@@ -410,8 +410,10 @@
 (defn non-undoable
   "Marks a sequence of transaction steps so its effects are applied, but its
   realized transaction changes are omitted from the undo history."
-  [txs]
-  [(it/non-undoable txs)])
+  ([tx-data]
+   [(it/non-undoable tx-data)])
+  ([tx-data & more]
+   [(it/non-undoable (concat tx-data more))]))
 
 (defn- flattened-tx-data-into
   [result txs]

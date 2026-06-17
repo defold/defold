@@ -4424,7 +4424,7 @@
 
 ;; SDK api
 (defn register-node-tree-attachment-node-type [workspace node-type]
-  (concat
+  (g/non-undoable
     ;; add the node type to gui scene's :nodes list (node tree root)
     (attachment/register workspace GuiSceneNode :nodes :add {node-type add-attachment-to-gui-scene-node})
     ;; add the node type to gui node's :nodes list (branches)

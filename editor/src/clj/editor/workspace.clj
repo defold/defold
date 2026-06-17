@@ -360,7 +360,7 @@ ordinary paths."
                                              (let [ext (string/lower-case ext)]
                                                (pair ext (assoc resource-type :ext ext :build-ext (or build-ext (str ext "c")))))))
                                       ext))]
-    (concat
+    (g/non-undoable
       (g/update-property workspace :resource-types editable-resource-type-map-update-fn resource-types-by-ext)
       (g/update-property workspace :resource-types-non-editable non-editable-resource-type-map-update-fn resource-types-by-ext))))
 
@@ -603,6 +603,7 @@ ordinary paths."
   (when-not (Boolean/getBoolean "defold.tests")
     (log/info :message (str "Loading plugin " (resource/path resource))))
   (try
+    ;; TODO(decouple-undo-from-graph): Throw if this creates any undo steps.
     (if-let [plugin-fn (load-string (slurp resource))]
       (do
         (plugin-fn workspace)
@@ -968,14 +969,15 @@ ordinary paths."
 
 ;; SDK api
 (defn register-resource-kind-extension [workspace resource-kind extension]
-  (g/update-property
-    workspace :resource-kind-extensions
-    (fn [extensions-by-resource-kind]
-      (if-some [extensions (extensions-by-resource-kind resource-kind)]
-        (if (neg? (coll/index-of extensions extension))
-          (assoc extensions-by-resource-kind resource-kind (conj extensions extension))
-          extensions-by-resource-kind) ; Already registered, return unaltered.
-        (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind)))))))
+  (g/non-undoable
+    (g/update-property
+      workspace :resource-kind-extensions
+      (fn [extensions-by-resource-kind]
+        (if-some [extensions (extensions-by-resource-kind resource-kind)]
+          (if (neg? (coll/index-of extensions extension))
+            (assoc extensions-by-resource-kind resource-kind (conj extensions extension))
+            extensions-by-resource-kind) ; Already registered, return unaltered.
+          (throw (IllegalArgumentException. (str "Unsupported resource-kind:" resource-kind))))))))
 
 (defn resource-kind-extensions [workspace resource-kind evaluation-context]
   ;; TODO: This is often abused inside production functions, but this data

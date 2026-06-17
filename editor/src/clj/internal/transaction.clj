@@ -37,7 +37,7 @@
   (perform [ctx]) ; Returns a new ctx with changes applied.
   (revert [ctx])) ; Returns a new ctx with changes reverted.
 
-(defonce/type NonUndoable [txs])
+(defonce/type NonUndoable [tx-data])
 
 ;; ---------------------------------------------------------------------------
 ;; Internal state
@@ -55,8 +55,8 @@
   (instance? TransactionChange value))
 
 (defn non-undoable
-  [txs]
-  (->NonUndoable txs))
+  [tx-data]
+  (->NonUndoable tx-data))
 
 (defn non-undoable?
   [value]
@@ -64,7 +64,7 @@
 
 (defn non-undoable-tx-data
   [^NonUndoable txs]
-  (.-txs txs))
+  (.tx_data txs))
 
 (defn perform-change
   [ctx ^TransactionChange change]

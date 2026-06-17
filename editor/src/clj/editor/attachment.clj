@@ -102,24 +102,25 @@
          (or (nil? reorder) (ifn? reorder))
          (or (nil? read-only?) (ifn? read-only?))
          (or get add reorder read-only?)]}
-  (g/update-property
-    workspace
-    :node-attachments
-    (fn [s]
-      (let [definition (-> s
-                           (clojure.core/get node-type)
-                           :lists
-                           list-kw
-                           (cond->
-                             add (update :add coll/merge add)
-                             get (assoc :get get)
-                             reorder (assoc :reorder reorder)
-                             read-only? (assoc :read-only? read-only?)))]
-        ;; The first registration has to provide :get
-        ;; Subsequent registrations typically add additional :add fns
-        (assert (contains? definition :get))
-        (assert (not (contains? definition :alias)) "Cannot modify an alias")
-        (assoc-list-definition s node-type list-kw definition)))))
+  (g/non-undoable
+    (g/update-property
+      workspace
+      :node-attachments
+      (fn [s]
+        (let [definition (-> s
+                             (clojure.core/get node-type)
+                             :lists
+                             list-kw
+                             (cond->
+                               add (update :add coll/merge add)
+                               get (assoc :get get)
+                               reorder (assoc :reorder reorder)
+                               read-only? (assoc :read-only? read-only?)))]
+          ;; The first registration has to provide :get
+          ;; Subsequent registrations typically add additional :add fns
+          (assert (contains? definition :get))
+          (assert (not (contains? definition :alias)) "Cannot modify an alias")
+          (assoc-list-definition s node-type list-kw definition))))))
 
 (defn alias
   "Create transaction steps that alias a node type's list as another node-type
