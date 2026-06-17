@@ -759,6 +759,11 @@ public class AndroidBundler implements IBundler {
     private File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         BundleHelper.throwIfCanceled(canceled);
 
+        // Native extension builds provide compiledresources.apk and skip the local aapt2 path that
+        // normally initializes AndroidTools. Initialize explicitly so packed Android resources such
+        // as VkQuality data and native libraries are extracted before Bob.getPath() lookups below.
+        AndroidTools.initialize();
+
         final Platform platform = getFirstPlatform(project);
 
         File apk;
