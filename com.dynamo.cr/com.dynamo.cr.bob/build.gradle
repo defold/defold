@@ -292,6 +292,10 @@ task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
         exclude '**/*dSYM.zip'
     })
     inputs.file("${project.dynamoHome}/ext/share/java/bundletool-all.jar").optional()
+    inputs.files(fileTree("${project.dynamoHome}/ext/lib") {
+        include 'armv7-android/libvkquality.so',
+                'arm64-android/libvkquality.so'
+    })
     outputs.dirs(
             "${project.bobDir}/libexec",
             "${project.bobDir}/lib/x86_64-macos",
@@ -312,6 +316,14 @@ task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
                 from bundletoolJar
                 into "${project.bobDir}/libexec"
             }
+        }
+
+        copy {
+            from fileTree("${project.dynamoHome}/ext/lib") {
+                include 'armv7-android/libvkquality.so',
+                        'arm64-android/libvkquality.so'
+            }
+            into "${project.bobDir}/libexec"
         }
 
         def platformFiles = [
