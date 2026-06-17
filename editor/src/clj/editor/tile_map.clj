@@ -1227,9 +1227,10 @@
       (let [brush (g/node-value self :brush evaluation-context)
             op-seq (gensym)]
         (swap! state assoc :last-tile current-tile)
-        {:non-undoable [(g/set-property self :op-seq op-seq)]
-         :undoable [(g/operation-sequence op-seq)
-                    (g/update-property active-layer :cell-map paint current-tile brush)]}))))
+        [(g/non-undoable
+           (g/set-property self :op-seq op-seq))
+         (g/operation-sequence op-seq)
+         (g/update-property active-layer :cell-map paint current-tile brush)]))))
 
 (defmethod update-op :paint
   [_op self _action state evaluation-context _cursor-mode]
@@ -1239,13 +1240,14 @@
         (swap! state assoc :last-tile current-tile)
         (let [brush (g/node-value self :brush evaluation-context)
               op-seq (g/node-value self :op-seq evaluation-context)]
-          {:undoable [(g/operation-sequence op-seq)
-                      (g/update-property active-layer :cell-map paint current-tile brush)]})))))
+          [(g/operation-sequence op-seq)
+           (g/update-property active-layer :cell-map paint current-tile brush)])))))
 
 (defmethod end-op :paint
   [_op self _action state _evaluation-context _cursor-mode]
   (swap! state dissoc :last-tile)
-  {:non-undoable [(g/set-property self :op-seq nil)]})
+  (g/non-undoable
+    (g/set-property self :op-seq nil)))
 
 ;; selecting brush from cell-map
 
@@ -1253,14 +1255,16 @@
   [_op self _action _state evaluation-context _cursor-mode]
   (when (g/node-value self :active-layer evaluation-context)
     (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
-      {:non-undoable [(g/set-property self :op-select-start current-tile)
-                      (g/set-property self :op-select-end current-tile)]})))
+      (g/non-undoable
+        (g/set-property self :op-select-start current-tile)
+        (g/set-property self :op-select-end current-tile)))))
 
 (defmethod update-op :select
   [_op self _action _state evaluation-context _cursor-mode]
   (when (g/node-value self :active-layer evaluation-context)
     (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
-      {:non-undoable [(g/set-property self :op-select-end current-tile)]})))
+      (g/non-undoable
+        (g/set-property self :op-select-end current-tile)))))
 
 (defmethod end-op :select
   [_op self _action _state evaluation-context cursor-mode]
@@ -1268,14 +1272,15 @@
     (let [cell-map (g/node-value active-layer :cell-map evaluation-context)
           start (g/node-value self :op-select-start evaluation-context)
           end (g/node-value self :op-select-end evaluation-context)]
-      {:non-undoable (into []
-                           cat
-                           [(when (or (= :cut-mode cursor-mode) (= :select-mode cursor-mode))
-                              [(g/set-property self :brush (make-brush-from-selection cell-map start end))])
-                            [(g/set-property self :op-select-start nil)
-                             (g/set-property self :op-select-end nil)]])
-       :undoable (when (or (= :erase-mode cursor-mode) (= :cut-mode cursor-mode))
-                   [(g/update-property active-layer :cell-map erase-area start end)])})))
+      (concat
+        (when (or (= :cut-mode cursor-mode) (= :select-mode cursor-mode))
+          (g/non-undoable
+            (g/set-property self :brush (make-brush-from-selection cell-map start end))))
+        (when (or (= :erase-mode cursor-mode) (= :cut-mode cursor-mode))
+          (g/update-property active-layer :cell-map erase-area start end))
+        (g/non-undoable
+          (g/set-property self :op-select-start nil)
+          (g/set-property self :op-select-end nil))))))
 
 (defn- handle-input-editor
   [self action state evaluation-context]
@@ -1285,43 +1290,39 @@
                       (and (true? (:shift action)) (true? (:alt action))) :erase-mode
                       (true? (:shift action)) :select-mode
                       :else :paint-mode)
-        txs (case (:type action)
+        tx (case (:type action)
              :mouse-pressed
              (when-not (some? op)
                (let [op (if (true? (:shift action))
                           :select
                           :paint)
-                     {:keys [undoable non-undoable]} (begin-op op self action state evaluation-context cursor-mode)]
-                 (when (or (seq undoable) (seq non-undoable))
-                   {:undoable undoable
-                    :non-undoable (into [(g/set-property self :op op)
-                                         (g/set-property self :cursor-mode cursor-mode)]
-                                        non-undoable)})))
+                     op-tx (begin-op op self action state evaluation-context cursor-mode)]
+                 (when (seq op-tx)
+                   (concat
+                     (g/non-undoable
+                       (g/set-property self :op op)
+                       (g/set-property self :cursor-mode cursor-mode))
+                     op-tx))))
 
              :mouse-moved
-             (let [{:keys [undoable non-undoable]} (when (some? op)
-                                                     (update-op op self action state evaluation-context cursor-mode))]
-               {:undoable undoable
-                :non-undoable (into [(g/set-property self :cursor-world-pos (:world-pos action))
-                                     (g/set-property self :cursor-screen-pos (:screen-pos action))
-                                     (g/set-property self :cursor-mode cursor-mode)]
-                                    non-undoable)})
+             (concat
+               (g/non-undoable
+                 (g/set-property self :cursor-world-pos (:world-pos action))
+                 (g/set-property self :cursor-screen-pos (:screen-pos action))
+                 (g/set-property self :cursor-mode cursor-mode))
+               (when (some? op)
+                 (update-op op self action state evaluation-context cursor-mode)))
 
              :mouse-released
              (when (some? op)
-               (let [{:keys [undoable non-undoable]} (end-op op self action state evaluation-context (g/node-value self :cursor-mode evaluation-context))]
-                 {:undoable undoable
-                  :non-undoable (into [(g/set-property self :op nil)]
-                                      non-undoable)}))
+               (concat
+                 (g/non-undoable
+                   (g/set-property self :op nil))
+                 (end-op op self action state evaluation-context (g/node-value self :cursor-mode evaluation-context))))
 
              nil)]
-    (when (or (seq (:undoable txs)) (seq (:non-undoable txs)))
-      (when (seq (:non-undoable txs))
-        (g/transact
-          {:undoable false}
-          (:non-undoable txs)))
-      (when (seq (:undoable txs))
-        (g/transact (:undoable txs)))
+    (when (seq tx)
+      (g/transact tx)
       true)))
 
 (defn- handle-input-palette
@@ -1349,8 +1350,8 @@
           {:undoable false}
           (concat
             (when (and start-tile end-tile)
-              [(g/set-property self :brush
-                 (make-brush-from-selection-in-palette start-tile end-tile (g/node-value self :tile-source-attributes evaluation-context)))])
+              (g/set-property self :brush
+                (make-brush-from-selection-in-palette start-tile end-tile (g/node-value self :tile-source-attributes evaluation-context))))
             [(g/set-property self :start-palette-tile nil)
              (g/set-property self :mode :editor)]))
         true)
