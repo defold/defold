@@ -1736,7 +1736,6 @@ bail:
 
         // Wait for GPU to finish work for this frame-in-flight
         vkWaitForFences(vk_device, 1, &currentFrame.m_SubmitFence, VK_TRUE, UINT64_MAX);
-        vkResetFences(vk_device, 1, &currentFrame.m_SubmitFence);
 
         // Acquire next swap chain image
         VkResult res = context->m_SwapChain->Advance(vk_device, currentFrame.m_ImageAvailable);
@@ -1761,6 +1760,9 @@ bail:
                 return;
             }
         }
+
+        // Only reset after a successful acquire. If we bail before submitting, the fence must stay signaled.
+        vkResetFences(vk_device, 1, &currentFrame.m_SubmitFence);
 
         // Flush per-swapchain-image resources to destroy
         if (context->m_MainResourcesToDestroy[frameInFlight]->Size() > 0)
