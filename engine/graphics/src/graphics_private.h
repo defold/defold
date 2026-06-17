@@ -53,13 +53,154 @@ namespace dmGraphics
         TextureParams m_StencilBufferParams;
         TextureParams m_DepthStencilTextureParams;
         HTexture      m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture      m_TextureColorResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture      m_TextureDepth;
+        HTexture      m_TextureDepthResolve;
         HTexture      m_TextureStencil;
+        HTexture      m_TextureStencilResolve;
         HTexture      m_TextureDepthStencil;
+        HTexture      m_TextureDepthStencilResolve;
         uint16_t      m_Id;
         uint8_t       m_ColorAttachmentCount;
+        uint32_t      m_ColorSampleCounts[MAX_BUFFER_COLOR_ATTACHMENTS];
+        uint32_t      m_DepthSampleCount;
+        uint32_t      m_StencilSampleCount;
+        uint32_t      m_DepthStencilSampleCount;
         uint8_t       m_IsBound;
     };
+
+    static inline uint32_t GetDefaultSampleCount(uint32_t sample_count)
+    {
+        return sample_count == 0 ? 1 : sample_count;
+    }
+
+    static inline uint32_t GetRenderTargetCreationSampleCount(const RenderTargetCreationParams& params, BufferType buffer_type)
+    {
+        if (IsColorBufferType(buffer_type))
+        {
+            return GetDefaultSampleCount(params.m_ColorBufferSampleCounts[GetBufferTypeIndex(buffer_type)]);
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+        {
+            return GetDefaultSampleCount(params.m_DepthBufferSampleCount);
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            return GetDefaultSampleCount(params.m_StencilBufferSampleCount);
+        }
+        return 1;
+    }
+
+    static inline HTexture GetRenderTargetAttachmentTexture(const RenderTarget* rt, BufferType buffer_type)
+    {
+        if (IsColorBufferType(buffer_type))
+        {
+            return rt->m_TextureColor[GetBufferTypeIndex(buffer_type)];
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+        {
+            return rt->m_TextureDepth ? rt->m_TextureDepth : rt->m_TextureDepthStencil;
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            return rt->m_TextureStencil ? rt->m_TextureStencil : rt->m_TextureDepthStencil;
+        }
+        return 0;
+    }
+
+    static inline HTexture GetRenderTargetResolveTexture(const RenderTarget* rt, BufferType buffer_type)
+    {
+        if (IsColorBufferType(buffer_type))
+        {
+            return rt->m_TextureColorResolve[GetBufferTypeIndex(buffer_type)];
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+        {
+            return rt->m_TextureDepthResolve ? rt->m_TextureDepthResolve : rt->m_TextureDepthStencilResolve;
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            return rt->m_TextureStencilResolve ? rt->m_TextureStencilResolve : rt->m_TextureDepthStencilResolve;
+        }
+        return 0;
+    }
+
+    static inline HTexture GetRenderTargetSampleableTexture(const RenderTarget* rt, BufferType buffer_type)
+    {
+        HTexture resolve_texture = GetRenderTargetResolveTexture(rt, buffer_type);
+        return resolve_texture ? resolve_texture : GetRenderTargetAttachmentTexture(rt, buffer_type);
+    }
+
+    static inline void SetRenderTargetAttachmentTexture(RenderTarget* rt, BufferType buffer_type, HTexture texture)
+    {
+        if (IsColorBufferType(buffer_type))
+        {
+            rt->m_TextureColor[GetBufferTypeIndex(buffer_type)] = texture;
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+        {
+            rt->m_TextureDepth = texture;
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            rt->m_TextureStencil = texture;
+        }
+    }
+
+    static inline void SetRenderTargetResolveTexture(RenderTarget* rt, BufferType buffer_type, HTexture texture)
+    {
+        if (IsColorBufferType(buffer_type))
+        {
+            rt->m_TextureColorResolve[GetBufferTypeIndex(buffer_type)] = texture;
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+        {
+            rt->m_TextureDepthResolve = texture;
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            rt->m_TextureStencilResolve = texture;
+        }
+    }
+
+    static inline void SetRenderTargetAttachmentSampleCount(RenderTarget* rt, BufferType buffer_type, uint32_t sample_count)
+    {
+        sample_count = GetDefaultSampleCount(sample_count);
+        if (IsColorBufferType(buffer_type))
+        {
+            rt->m_ColorSampleCounts[GetBufferTypeIndex(buffer_type)] = sample_count;
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+        {
+            rt->m_DepthSampleCount = sample_count;
+            rt->m_DepthStencilSampleCount = sample_count;
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            rt->m_StencilSampleCount = sample_count;
+            rt->m_DepthStencilSampleCount = sample_count;
+        }
+    }
+
+    static inline uint32_t GetRenderTargetAttachmentSampleCount(const RenderTarget* rt, BufferType buffer_type)
+    {
+        if (IsColorBufferType(buffer_type))
+        {
+            return GetDefaultSampleCount(rt->m_ColorSampleCounts[GetBufferTypeIndex(buffer_type)]);
+        }
+        else if (buffer_type == BUFFER_TYPE_DEPTH_BIT)
+        {
+            return GetDefaultSampleCount(rt->m_DepthSampleCount ? rt->m_DepthSampleCount : rt->m_DepthStencilSampleCount);
+        }
+        else if (buffer_type == BUFFER_TYPE_STENCIL_BIT)
+        {
+            return GetDefaultSampleCount(rt->m_StencilSampleCount ? rt->m_StencilSampleCount : rt->m_DepthStencilSampleCount);
+        }
+        return 1;
+    }
+
+    void ConformRenderTargetCreationSampleCounts(RenderTargetCreationParams* params, uint32_t buffer_type_flags, uint32_t max_sample_count, bool mixed_sample_counts_supported, const char* adapter_name);
+    void SetRenderTargetBaseSampleCounts(RenderTarget* rt, uint32_t buffer_type_flags, const RenderTargetCreationParams& params);
 
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;

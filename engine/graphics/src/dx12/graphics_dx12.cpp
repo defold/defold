@@ -2911,16 +2911,19 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static HRenderTarget DX12NewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         DX12Context* context = (DX12Context*) _context;
+        RenderTargetCreationParams rt_params = params;
+        ConformRenderTargetCreationSampleCounts(&rt_params, buffer_type_flags, 1, false, "DX12");
         DX12RenderTarget* rt = new DX12RenderTarget();
         RenderTarget* brt = &rt->m_Base;
         brt->m_Id         = GetNextRenderTargetId();
 
-        memcpy(brt->m_ColorTextureParams, params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
-        brt->m_DepthBufferParams         = params.m_DepthBufferParams;
-        brt->m_StencilBufferParams       = params.m_StencilBufferParams;
+        memcpy(brt->m_ColorTextureParams, rt_params.m_ColorBufferParams, sizeof(TextureParams) * MAX_BUFFER_COLOR_ATTACHMENTS);
+        brt->m_DepthBufferParams         = rt_params.m_DepthBufferParams;
+        brt->m_StencilBufferParams       = rt_params.m_StencilBufferParams;
         brt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
-            params.m_DepthBufferParams :
-            params.m_StencilBufferParams;
+            rt_params.m_DepthBufferParams :
+            rt_params.m_StencilBufferParams;
+        SetRenderTargetBaseSampleCounts(brt, buffer_type_flags, rt_params);
 
         const BufferType color_buffer_flags[] = {
             BUFFER_TYPE_COLOR0_BIT,
@@ -2941,7 +2944,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             if (buffer_type_flags & buffer_type)
             {
                 TextureParams& color_buffer_params = brt->m_ColorTextureParams[i];
-                HTexture new_texture_color_handle  = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
+                HTexture new_texture_color_handle  = NewTexture(_context, rt_params.m_ColorBufferCreationParams[i]);
                 DX12Texture* new_texture_color     = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, new_texture_color_handle);
 
                 color_attachments[color_attachment_count] = new_texture_color;
@@ -3016,7 +3019,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
         if (has_depth_stencil)
         {
-            const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
+            const TextureCreationParams& stencil_depth_create_params = has_depth ? rt_params.m_DepthBufferCreationParams : rt_params.m_StencilBufferCreationParams;
 
             HTexture texture_depth_stencil         = NewTexture(_context, stencil_depth_create_params);
             DX12Texture* texture_depth_stencil_ptr = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, texture_depth_stencil);

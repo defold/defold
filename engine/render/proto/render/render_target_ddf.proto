@@ -13,6 +13,7 @@ message RenderTargetDesc
         required uint32 width                                  = 1;
         required uint32 height                                 = 2;
         optional dmGraphics.TextureImage.TextureFormat format  = 3 [default = TEXTURE_FORMAT_RGBA];
+        optional uint32 sample_count                           = 4 [default = 1];
     }
 
     message DepthStencilAttachment
@@ -21,6 +22,7 @@ message RenderTargetDesc
         required uint32                        height          = 2;
         optional dmGraphics.DepthStencilFormat format          = 3 [default = DEPTH_STENCIL_FORMAT_D24U_S8U];
         optional bool                          texture_storage = 4;
+        optional uint32                        sample_count    = 5 [default = 1];
     }
 
     repeated ColorAttachment        color_attachments        = 1;

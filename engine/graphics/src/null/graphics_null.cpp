@@ -1235,6 +1235,8 @@ namespace dmGraphics
     static HRenderTarget NullNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         NullContext* context = (NullContext*) _context;
+        RenderTargetCreationParams rt_params = params;
+        ConformRenderTargetCreationSampleCounts(&rt_params, buffer_type_flags, 255, true, "Null");
         NullRenderTarget* rt = new NullRenderTarget();
 
         BufferType color_buffer_flags[] = {
@@ -1264,11 +1266,11 @@ namespace dmGraphics
         {
             if (buffer_type_flags & color_buffer_flags[i])
             {
-                rt->m_Base.m_ColorTextureParams[i] = params.m_ColorBufferParams[i];
+                rt->m_Base.m_ColorTextureParams[i] = rt_params.m_ColorBufferParams[i];
                 ClearTextureParamsData(rt->m_Base.m_ColorTextureParams[i]);
-                uint32_t buffer_size                    = GetBufferSize(params.m_ColorBufferParams[i]);
+                uint32_t buffer_size                    = GetBufferSize(rt_params.m_ColorBufferParams[i]);
                 rt->m_Base.m_ColorTextureParams[i].m_DataSize  = buffer_size;
-                rt->m_Base.m_TextureColor[i]             = NewTexture(_context, params.m_ColorBufferCreationParams[i]);
+                rt->m_Base.m_TextureColor[i]             = NewTexture(_context, rt_params.m_ColorBufferCreationParams[i]);
                 NullTexture* attachment_tex = 0x0;
                 {
                     attachment_tex                 = GetAssetFromContainer<NullTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
@@ -1283,13 +1285,13 @@ namespace dmGraphics
 
         if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
         {
-            rt->m_Base.m_DepthBufferParams = params.m_DepthBufferParams;
+            rt->m_Base.m_DepthBufferParams = rt_params.m_DepthBufferParams;
             ClearTextureParamsData(rt->m_Base.m_DepthBufferParams);
-            if (params.m_DepthTexture)
+            if (rt_params.m_DepthTexture)
             {
-                uint32_t buffer_size               = sizeof(float) * params.m_DepthBufferParams.m_Width * params.m_DepthBufferParams.m_Height;
+                uint32_t buffer_size               = sizeof(float) * rt_params.m_DepthBufferParams.m_Width * rt_params.m_DepthBufferParams.m_Height;
                 rt->m_Base.m_DepthBufferParams.m_DataSize = buffer_size;
-                rt->m_Base.m_TextureDepth           = NewTexture(_context, params.m_DepthBufferCreationParams);
+                rt->m_Base.m_TextureDepth           = NewTexture(_context, rt_params.m_DepthBufferCreationParams);
                 NullTexture* attachment_tex = 0x0;
                 {
                     attachment_tex            = GetAssetFromContainer<NullTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepth);
@@ -1301,18 +1303,18 @@ namespace dmGraphics
             }
             else
             {
-                rt->m_FrameBuffer.m_DepthBuffer = new char[GetBufferSize(params.m_DepthBufferParams)];
+                rt->m_FrameBuffer.m_DepthBuffer = new char[GetBufferSize(rt_params.m_DepthBufferParams)];
             }
         }
         if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
         {
-            rt->m_Base.m_StencilBufferParams = params.m_StencilBufferParams;
+            rt->m_Base.m_StencilBufferParams = rt_params.m_StencilBufferParams;
             ClearTextureParamsData(rt->m_Base.m_StencilBufferParams);
-            if (params.m_StencilTexture)
+            if (rt_params.m_StencilTexture)
             {
-                uint32_t buffer_size                 = sizeof(float) * params.m_StencilBufferParams.m_Width * params.m_StencilBufferParams.m_Height;
+                uint32_t buffer_size                 = sizeof(float) * rt_params.m_StencilBufferParams.m_Width * rt_params.m_StencilBufferParams.m_Height;
                 rt->m_Base.m_StencilBufferParams.m_DataSize = buffer_size;
-                rt->m_Base.m_TextureStencil           = NewTexture(_context, params.m_StencilBufferCreationParams);
+                rt->m_Base.m_TextureStencil           = NewTexture(_context, rt_params.m_StencilBufferCreationParams);
                 NullTexture* attachment_tex = 0x0;
                 {
                     attachment_tex              = GetAssetFromContainer<NullTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureStencil);
@@ -1324,9 +1326,10 @@ namespace dmGraphics
             }
             else
             {
-                rt->m_FrameBuffer.m_StencilBuffer = new char[GetBufferSize(params.m_StencilBufferParams)];
+                rt->m_FrameBuffer.m_StencilBuffer = new char[GetBufferSize(rt_params.m_StencilBufferParams)];
             }
         }
+        SetRenderTargetBaseSampleCounts(&rt->m_Base, buffer_type_flags, rt_params);
 
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }

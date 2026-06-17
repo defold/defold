@@ -896,6 +896,9 @@ namespace dmGraphics
         TextureParams         m_ColorBufferParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureParams         m_DepthBufferParams;
         TextureParams         m_StencilBufferParams;
+        uint32_t              m_ColorBufferSampleCounts[MAX_BUFFER_COLOR_ATTACHMENTS];
+        uint32_t              m_DepthBufferSampleCount;
+        uint32_t              m_StencilBufferSampleCount;
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
@@ -1564,6 +1567,15 @@ namespace dmGraphics
      * @param height [type:uint32_t&]
      */
     void GetRenderTargetSize(HContext context, HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
+
+    /*#
+     * @name GetRenderTargetSampleCount
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @param buffer_type [type:dmGraphics::BufferType]
+     * @return sample_count [type:uint32_t]
+     */
+    uint32_t GetRenderTargetSampleCount(HContext context, HRenderTarget render_target, BufferType buffer_type);
 
     /*#
      * @name SetRenderTargetSize

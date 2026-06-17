@@ -1693,6 +1693,9 @@ static int GetTextureInfo(lua_State* L)
  * `height`
  * : [type:number] height of the texture
  *
+ * `sample_count`
+ * : [type:number] effective sample count of the render target attachment
+ *
  * `depth`
  * : [type:number] depth of the texture (i.e 1 for a 2D texture and 6 for a cube map)
  *
@@ -1807,6 +1810,9 @@ static int GetRenderTargetInfo(lua_State* L)
 
             lua_pushinteger(L, buffer_type);
             lua_setfield(L, -2, "buffer_type");
+
+            lua_pushinteger(L, dmGraphics::GetRenderTargetSampleCount(g_ResourceModule.m_GraphicsContext, rt_handle, buffer_type));
+            lua_setfield(L, -2, "sample_count");
 
             if (rt_res)
             {

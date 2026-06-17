@@ -36,6 +36,8 @@
 (def ^:private color-attachments-message (localization/message "form.label.render-target.color-attachments"))
 (def ^:private depth-stencil-attachment-width-message (localization/message "form.label.render-target.depth-stencil-attachment-width"))
 (def ^:private depth-stencil-attachment-height-message (localization/message "form.label.render-target.depth-stencil-attachment-height"))
+(def ^:private sample-counts #{1 2 4 8 16})
+(def ^:private sample-count-options (mapv (fn [sample-count] [sample-count (str sample-count)]) (sort sample-counts)))
 
 (def form-data
   {:navigation false
@@ -56,18 +58,28 @@
                           :localization-key "render-target.color-attachments.format"
                           :type :choicebox
                           :options (protobuf-forms/make-enum-options Graphics$TextureImage$TextureFormat)
-                          :default :texture-format-rgba}]}
+                          :default :texture-format-rgba}
+                         {:path [:sample-count]
+                          :localization-key "render-target.color-attachments.sample-count"
+                          :type :choicebox
+                          :options sample-count-options
+                          :default 1}]}
               {:path [:depth-stencil-attachment-width]
                :localization-key "render-target.depth-stencil-attachment-width"
                :type :integer}
               {:path [:depth-stencil-attachment-height]
                :localization-key "render-target.depth-stencil-attachment-height"
                :type :integer}
+              {:path [:depth-stencil-attachment-sample-count]
+               :localization-key "render-target.depth-stencil-attachment-sample-count"
+               :type :choicebox
+               :options sample-count-options
+               :default 1}
               {:path [:depth-stencil-attachment-texture-storage]
                :localization-key "render-target.depth-stencil-attachment-texture-storage"
                :type :boolean}]}]})
 
-(g/defnk produce-form-data [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
+(g/defnk produce-form-data [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-sample-count depth-stencil-attachment-texture-storage :as args]
   (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
@@ -77,7 +89,7 @@
                           :clear protobuf-forms-util/clear-form-op}))))
 
 (g/defnk produce-save-value
-  [color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-format depth-stencil-attachment-texture-storage]
+  [color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-format depth-stencil-attachment-sample-count depth-stencil-attachment-texture-storage]
   (let [color-attachments
         (mapv #(protobuf/clear-defaults RenderTarget$RenderTargetDesc$ColorAttachment %)
               color-attachments)
@@ -87,6 +99,7 @@
           :width depth-stencil-attachment-width
           :height depth-stencil-attachment-height
           :format depth-stencil-attachment-format
+          :sample-count depth-stencil-attachment-sample-count
           :texture-storage depth-stencil-attachment-texture-storage)]
 
     (protobuf/make-map-without-defaults RenderTarget$RenderTargetDesc
@@ -124,6 +137,16 @@
                          (localization/message "error.render-target.color-attachment-height-must-be-greater-than-zero"
                                                {"index" color-attachment-index})))]))
 
+(defn- validate-sample-count [v _name]
+  (when-not (contains? sample-counts (or v 1))
+    (localization/message "error.render-target.sample-count-must-be-supported")))
+
+(defn- color-attachment-sample-count->error-values [color-attachment-index {:keys [sample-count]} node-id label]
+  (when-not (contains? sample-counts (or sample-count 1))
+    (g/->error node-id label :fatal sample-count
+               (localization/message "error.render-target.color-attachment-sample-count-must-be-supported"
+                                     {"index" color-attachment-index}))))
+
 (g/defnode RenderTargetNode
   (inherits resource-node/ResourceNode)
 
@@ -135,6 +158,8 @@
             (dynamic visible (g/constantly false)))
   (property depth-stencil-attachment-format g/Any (default (protobuf/default RenderTarget$RenderTargetDesc$DepthStencilAttachment :format))
             (dynamic visible (g/constantly false)))
+  (property depth-stencil-attachment-sample-count g/Int (default 1)
+            (dynamic visible (g/constantly false)))
   (property depth-stencil-attachment-texture-storage g/Bool (default (protobuf/default RenderTarget$RenderTargetDesc$DepthStencilAttachment :texture-storage))
             (dynamic visible (g/constantly false)))
 
@@ -142,15 +167,20 @@
   (output form-data g/Any produce-form-data)
   (output gpu-texture-generator g/Any (g/constantly texture-util/placeholder-gpu-texture-generator))
   (output build-targets g/Any :cached produce-build-targets)
-  (output build-errors g/Any (g/fnk [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
+  (output build-errors g/Any (g/fnk [_node-id color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-sample-count]
                                (g/package-errors _node-id
                                                  (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments color-attachments-message)
                                                  (into [] (map-indexed
                                                             (fn [i color-attachment]
                                                               (color-attachment->error-values i color-attachment _node-id :color-attachments))
                                                             color-attachments))
+                                                 (into [] (map-indexed
+                                                            (fn [i color-attachment]
+                                                              (color-attachment-sample-count->error-values i color-attachment _node-id :color-attachments))
+                                                            color-attachments))
                                                  (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width depth-stencil-attachment-width-message)
                                                  (validation/prop-error :fatal _node-id :depth-stencil-attachment-height validation/prop-negative? depth-stencil-attachment-height depth-stencil-attachment-height-message)
+                                                 (validation/prop-error :fatal _node-id :depth-stencil-attachment-sample-count validate-sample-count depth-stencil-attachment-sample-count (localization/message "form.label.render-target.depth-stencil-attachment-sample-count"))
                                                  (when (and (> depth-stencil-attachment-width 0) (= 0 depth-stencil-attachment-height))
                                                    (g/->error _node-id :depth-stencil-attachment-width :fatal depth-stencil-attachment-width
                                                               (localization/message "error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is")))
@@ -170,6 +200,7 @@
         depth-stencil-attachment-width :width
         depth-stencil-attachment-height :height
         depth-stencil-attachment-format :format
+        depth-stencil-attachment-sample-count :sample-count
         depth-stencil-attachment-texture-storage :texture-storage))))
 
 (def ^:private default-pb-depth-stencil-attachment (protobuf/required-field-defaults RenderTarget$RenderTargetDesc$DepthStencilAttachment))

@@ -64,6 +64,7 @@ namespace dmGameSystem
             params.m_ColorBufferParams[i].m_Height     = att.m_Height;
             params.m_ColorBufferParams[i].m_Depth      = 1;
             params.m_ColorBufferParams[i].m_LayerCount = 1;
+            params.m_ColorBufferSampleCounts[i]         = att.m_SampleCount == 0 ? 1 : att.m_SampleCount;
 
             params.m_ColorBufferLoadOps[i]  = dmGraphics::ATTACHMENT_OP_DONT_CARE;
             params.m_ColorBufferStoreOps[i] = dmGraphics::ATTACHMENT_OP_STORE;
@@ -93,6 +94,7 @@ namespace dmGameSystem
                 params.m_DepthBufferParams.m_Height     = ddf->m_DepthStencilAttachment.m_Height;
                 params.m_DepthBufferParams.m_Depth      = 1;
                 params.m_DepthBufferParams.m_LayerCount = 1;
+                params.m_DepthBufferSampleCount          = ddf->m_DepthStencilAttachment.m_SampleCount == 0 ? 1 : ddf->m_DepthStencilAttachment.m_SampleCount;
 
                 params.m_DepthTexture = ddf->m_DepthStencilAttachment.m_TextureStorage;
             }
@@ -115,6 +117,7 @@ namespace dmGameSystem
                 params.m_StencilBufferParams.m_Height     = ddf->m_DepthStencilAttachment.m_Height;
                 params.m_StencilBufferParams.m_Depth      = 1;
                 params.m_StencilBufferParams.m_LayerCount = 1;
+                params.m_StencilBufferSampleCount          = ddf->m_DepthStencilAttachment.m_SampleCount == 0 ? 1 : ddf->m_DepthStencilAttachment.m_SampleCount;
                 params.m_StencilTexture                   = false; // Currently not supported
             }
         }

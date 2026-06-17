@@ -65,6 +65,7 @@ namespace dmRender
     #define RENDER_SCRIPT_U_WRAP_NAME "u_wrap"
     #define RENDER_SCRIPT_V_WRAP_NAME "v_wrap"
     #define RENDER_SCRIPT_FLAGS_NAME "flags"
+    #define RENDER_SCRIPT_SAMPLE_COUNT_NAME "sample_count"
 
     static uint32_t RENDER_SCRIPT_TYPE_HASH = 0;
     static uint32_t RENDER_SCRIPT_INSTANCE_TYPE_HASH = 0;
@@ -804,6 +805,7 @@ namespace dmRender
      * `format`                |  `graphics.TEXTURE_FORMAT_LUMINANCE`<br/>`graphics.TEXTURE_FORMAT_RGB`<br/>`graphics.TEXTURE_FORMAT_RGBA`<br/>`graphics.TEXTURE_FORMAT_DEPTH`<br/>`graphics.TEXTURE_FORMAT_STENCIL`<br/>`graphics.TEXTURE_FORMAT_RGBA32F`<br/>`graphics.TEXTURE_FORMAT_RGBA16F`<br/>
      * `width`                 | number
      * `height`                | number
+     * `sample_count` (optional) | number
      * `min_filter` (optional) | `graphics.TEXTURE_FILTER_LINEAR`<br/>`graphics.TEXTURE_FILTER_NEAREST`
      * `mag_filter` (optional) | `graphics.TEXTURE_FILTER_LINEAR`<br/>`graphics.TEXTURE_FILTER_NEAREST`
      * `u_wrap`     (optional) | `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`<br/>`graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`<br/>`graphics.TEXTURE_WRAP_MIRRORED_REPEAT`<br/>`graphics.TEXTURE_WRAP_REPEAT`<br/>
@@ -927,6 +929,7 @@ namespace dmRender
             dmGraphics::TextureCreationParams* cp = 0;
             lua_Integer width                     = 0;
             lua_Integer height                    = 0;
+            lua_Integer sample_count              = 1;
 
             if (dmGraphics::IsColorBufferType(buffer_type))
             {
@@ -1007,6 +1010,15 @@ namespace dmRender
                 {
                     height = luaL_checkinteger(L, -1);
                 }
+                else if (strncmp(key, RENDER_SCRIPT_SAMPLE_COUNT_NAME, strlen(RENDER_SCRIPT_SAMPLE_COUNT_NAME)) == 0)
+                {
+                    sample_count = luaL_checkinteger(L, -1);
+                    if (sample_count < 1)
+                    {
+                        lua_pop(L, 4);  // [-4,+0 = 0] pop key-value pair and key-value pair
+                        return DM_LUA_ERROR("Invalid render target sample count: %d. Sample count must be greater than 0.", (int) sample_count);
+                    }
+                }
                 else if (strncmp(key, RENDER_SCRIPT_MIN_FILTER_NAME, strlen(RENDER_SCRIPT_MIN_FILTER_NAME)) == 0)
                 {
                     p->m_MinFilter = (dmGraphics::TextureFilter)(int)luaL_checkinteger(L, -1);
@@ -1038,11 +1050,12 @@ namespace dmRender
                 else
                 {
                     lua_pop(L, 4);  // [-4,+0 = 0] pop key-value pair and key-value pair
-                    return DM_LUA_ERROR("Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s, %s.",
+                    return DM_LUA_ERROR("Unknown key supplied to %s.rendertarget: %s. Available keys are: %s, %s, %s, %s, %s, %s, %s, %s, %s.",
                         RENDER_SCRIPT_LIB_NAME, key,
                         RENDER_SCRIPT_FORMAT_NAME,
                         RENDER_SCRIPT_WIDTH_NAME,
                         RENDER_SCRIPT_HEIGHT_NAME,
+                        RENDER_SCRIPT_SAMPLE_COUNT_NAME,
                         RENDER_SCRIPT_MIN_FILTER_NAME,
                         RENDER_SCRIPT_MAG_FILTER_NAME,
                         RENDER_SCRIPT_U_WRAP_NAME,
@@ -1059,6 +1072,19 @@ namespace dmRender
             p->m_Height = (uint32_t) height;
             cp->m_Width = p->m_Width;
             cp->m_Height = p->m_Height;
+
+            if (dmGraphics::IsColorBufferType(buffer_type))
+            {
+                params.m_ColorBufferSampleCounts[dmGraphics::GetBufferTypeIndex(buffer_type)] = (uint32_t) sample_count;
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+            {
+                params.m_DepthBufferSampleCount = (uint32_t) sample_count;
+            }
+            else if (buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+            {
+                params.m_StencilBufferSampleCount = (uint32_t) sample_count;
+            }
         }
 
         dmGraphics::HRenderTarget render_target = dmGraphics::NewRenderTarget(i->m_RenderContext->m_GraphicsContext, buffer_type_flags, params);
