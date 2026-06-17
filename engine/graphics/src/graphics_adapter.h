@@ -26,7 +26,8 @@ namespace dmGraphics
     struct GraphicsAdapterFunctionTable;
     typedef GraphicsAdapterFunctionTable (*GraphicsAdapterRegisterFunctionsCb)();
     // explicit_selection is true when the adapter was requested by family, e.g. via --graphics-adapter,
-    // and false when Defold is probing adapters during automatic priority-based selection.
+    // or when it is the only linked real graphics adapter available. It is false when Defold is
+    // probing multiple adapters during automatic priority-based selection.
     typedef bool                         (*GraphicsAdapterIsSupportedCb)(bool explicit_selection);
     typedef HContext                     (*GraphicsAdapterGetContextCb)();
 
