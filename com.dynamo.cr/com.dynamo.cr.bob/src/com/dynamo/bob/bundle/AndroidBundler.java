@@ -331,12 +331,11 @@ public class AndroidBundler implements IBundler {
         }
     }
 
-    private File getOptionalBobFile(String path) {
+    private File getRequiredBobFile(String path) throws CompileExceptionError {
         try {
             return new File(Bob.getPath(path));
         } catch (RuntimeException e) {
-            logger.warning("Skipping optional Android bundle file '" + path + "': " + e.getMessage());
-            return null;
+            throw new CompileExceptionError("Required Android bundle file '" + path + "' is missing from Bob", e);
         }
     }
 
@@ -354,10 +353,7 @@ public class AndroidBundler implements IBundler {
     }
 
     private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        File dataFile = getOptionalBobFile("lib/vkquality/" + VKQUALITY_DATA_FILE);
-        if (dataFile == null) {
-            return;
-        }
+        File dataFile = getRequiredBobFile("lib/vkquality/" + VKQUALITY_DATA_FILE);
         File dest = new File(assetsDir, VKQUALITY_DATA_FILE);
         logger.info("Copying VkQuality data " + dataFile + " to " + dest);
         FileUtils.copyFile(dataFile, dest);
@@ -366,10 +362,7 @@ public class AndroidBundler implements IBundler {
 
     private void copyVkQualityLibrary(Platform architecture, File libDir, ICanceled canceled) throws IOException, CompileExceptionError {
         String architectureLibName = platformToLibMap.get(architecture);
-        File library = getOptionalBobFile(FilenameUtils.concat("libexec/" + architecture.getExtenderPair(), "libvkquality.so"));
-        if (library == null) {
-            return;
-        }
+        File library = getRequiredBobFile(FilenameUtils.concat("libexec/" + architecture.getExtenderPair(), "libvkquality.so"));
         File architectureDir = createDir(libDir, architectureLibName);
         File dest = new File(architectureDir, library.getName());
         logger.info("Copying VkQuality library " + library + " to " + dest);
@@ -910,7 +903,13 @@ public class AndroidBundler implements IBundler {
         // We copy and resize the default icon in builtins if no other icons are set.
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
-        properties.put("defold.vkquality.enabled", usesVulkanGraphicsAdapter(project) ? "true" : "false");
+        boolean vkQualityEnabled = usesVulkanGraphicsAdapter(project);
+        properties.put("defold.vkquality.enabled", vkQualityEnabled ? "true" : "false");
+
+        Map<String, Object> defoldProperties = propertiesMap.computeIfAbsent("defold", k -> new HashMap<String, Object>());
+        Map<String, Object> vkQualityProperties = new HashMap<String, Object>();
+        vkQualityProperties.put("enabled", vkQualityEnabled);
+        defoldProperties.put("vkquality", vkQualityProperties);
 
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);

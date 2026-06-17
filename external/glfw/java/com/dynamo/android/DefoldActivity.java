@@ -167,33 +167,24 @@ public class DefoldActivity extends NativeActivity {
 
     private static synchronized void runVkQualityPreflight(Context context) {
         if (vkQualityPreflightComplete) {
-            Log.i(TAG, "VkQuality preflight already complete: init=" + vkQualityInitResult + " recommendation=" + vkQualityRecommendation);
             return;
         }
 
         if (!isVkQualityPreflightEnabled(context)) {
-            Log.i(TAG, "VkQuality preflight disabled by manifest metadata: " + VKQUALITY_ENABLED_META_DATA);
             vkQualityPreflightComplete = true;
             return;
         }
 
-        Log.i(TAG, "VkQuality preflight starting");
         try {
             Class<?> vkQualityClass = Class.forName(VKQUALITY_CLASS_NAME);
-            Log.i(TAG, "VkQuality class loaded: " + VKQUALITY_CLASS_NAME);
             java.lang.reflect.Constructor<?> constructor = vkQualityClass.getConstructor(Context.class);
-            Log.i(TAG, "VkQuality constructor found");
             Context appContext = context.getApplicationContext();
             if (appContext == null) {
                 appContext = context;
             }
-            Log.i(TAG, "VkQuality using context: " + appContext.getClass().getName());
             Object instance = constructor.newInstance(appContext);
-            Log.i(TAG, "VkQuality instance created");
             java.lang.reflect.Method startMethod = vkQualityClass.getMethod("StartVkQualityWithFlags", String.class, int.class);
-            Log.i(TAG, "VkQuality StartVkQualityWithFlags method found");
             vkQualityInitResult = ((Integer) startMethod.invoke(instance, null, 0)).intValue();
-            Log.i(TAG, "VkQuality StartVkQualityWithFlags returned: " + vkQualityInitResult);
             vkQuality = instance;
             if (vkQualityInitResult == VKQUALITY_INIT_SUCCESS) {
                 updateVkQualityRecommendation();
@@ -226,33 +217,27 @@ public class DefoldActivity extends NativeActivity {
 
     private static synchronized void updateVkQualityRecommendation() {
         if (vkQuality == null || vkQualityInitResult != VKQUALITY_INIT_SUCCESS) {
-            Log.i(TAG, "VkQuality recommendation update skipped: instance=" + (vkQuality != null) + " init=" + vkQualityInitResult);
             return;
         }
 
         try {
             java.lang.reflect.Method getMethod = vkQuality.getClass().getMethod("GetVkQuality");
-            Log.i(TAG, "VkQuality GetVkQuality method found");
             vkQualityRecommendation = ((Integer) getMethod.invoke(vkQuality)).intValue();
-            Log.i(TAG, "VkQuality GetVkQuality returned: " + vkQualityRecommendation);
         } catch (Throwable t) {
             Log.w(TAG, "VkQuality recommendation unavailable", t);
         }
     }
 
     public static synchronized boolean isVkQualityPreflightComplete() {
-        Log.i(TAG, "VkQuality preflight complete queried: " + vkQualityPreflightComplete);
         return vkQualityPreflightComplete;
     }
 
     public static synchronized int getVkQualityInitResult() {
-        Log.i(TAG, "VkQuality init result queried: " + vkQualityInitResult);
         return vkQualityInitResult;
     }
 
     public static synchronized int getVkQualityRecommendation() {
         updateVkQualityRecommendation();
-        Log.i(TAG, "VkQuality recommendation queried: " + vkQualityRecommendation);
         return vkQualityRecommendation;
     }
 
@@ -352,9 +337,7 @@ public class DefoldActivity extends NativeActivity {
     public static native void glfwSetPendingResizeBecauseOfInsets();
 
     protected void onCreate(Bundle savedInstanceState) {
-        Log.i(TAG, "DefoldActivity onCreate: running VkQuality preflight before NativeActivity startup");
         runVkQualityPreflight(this);
-        Log.i(TAG, "DefoldActivity onCreate: VkQuality preflight complete=" + vkQualityPreflightComplete + " init=" + vkQualityInitResult + " recommendation=" + vkQualityRecommendation);
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
 
