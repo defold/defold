@@ -318,6 +318,13 @@ namespace dmGraphics
     uint32_t GetRegisteredAdaptersCount();
 
     /**
+     * Get the number of linked graphics adapters that can render to a graphics context.
+     * This excludes ADAPTER_FAMILY_NONE and ADAPTER_FAMILY_NULL.
+     * @return The number of linked render-capable graphics adapters.
+     */
+    uint32_t GetLinkedGraphicsAdapterCount();
+
+    /**
      * Gets a graphics adapter at a specific index.
      * The list of adapters is sorted by priority, getting the adapter at index 0 will return the adapter with the highest priority.
      * @param index The graphics adapter to get.

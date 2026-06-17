@@ -314,7 +314,7 @@ namespace dmGraphics
         }
     }
 
-    bool AndroidVulkanIsRecommended(bool explicit_vulkan_requested)
+    bool AndroidVulkanIsRecommended()
     {
         int32_t init_result = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
         int32_t recommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
@@ -371,24 +371,12 @@ namespace dmGraphics
         if (recommendation >= VKQUALITY_RECOMMENDATION_GLES_BECAUSE_OLD_DEVICE &&
             recommendation <= VKQUALITY_RECOMMENDATION_GLES_BECAUSE_PREDICTION_MATCH)
         {
-            if (explicit_vulkan_requested)
-            {
-                dmLogWarning("VkQuality recommends OpenGL ES (%s), but Vulkan was explicitly requested. Allowing Vulkan support probe.", AndroidVkQualityRecommendationToString(recommendation));
-                return true;
-            }
-
             dmLogInfo("VkQuality recommends OpenGL ES (%s), disabling Vulkan adapter.", AndroidVkQualityRecommendationToString(recommendation));
             return false;
         }
 
         if (recommendation == VKQUALITY_RECOMMENDATION_NOT_READY)
         {
-            if (explicit_vulkan_requested)
-            {
-                dmLogWarning("VkQuality recommendation was not ready after waiting, but Vulkan was explicitly requested. Allowing Vulkan support probe.");
-                return true;
-            }
-
             dmLogWarning("VkQuality recommendation was not ready after waiting, disabling Vulkan adapter.");
             return false;
         }

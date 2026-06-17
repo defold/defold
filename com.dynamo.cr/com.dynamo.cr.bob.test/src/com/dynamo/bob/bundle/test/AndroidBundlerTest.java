@@ -38,15 +38,18 @@ public class AndroidBundlerTest {
     public void testVkQualityPackagingFollowsGraphicsAdapters() throws IOException {
         Project project = new Project(new DefaultFileSystem(), ".", "build");
 
-        assertTrue(AndroidBundler.usesVulkanGraphicsAdapter(project));
+        assertTrue(AndroidBundler.usesVkQuality(project));
 
         project.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, ShaderCompilers.SHADER_ADAPTER_OPENGLES);
-        assertFalse(AndroidBundler.usesVulkanGraphicsAdapter(project));
+        assertFalse(AndroidBundler.usesVkQuality(project));
+
+        project.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, ShaderCompilers.SHADER_ADAPTER_VULKAN);
+        assertFalse(AndroidBundler.usesVkQuality(project));
 
         project.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, String.join(",",
                 ShaderCompilers.SHADER_ADAPTER_OPENGLES,
                 ShaderCompilers.SHADER_ADAPTER_VULKAN));
-        assertTrue(AndroidBundler.usesVulkanGraphicsAdapter(project));
+        assertTrue(AndroidBundler.usesVkQuality(project));
     }
 
     @Test

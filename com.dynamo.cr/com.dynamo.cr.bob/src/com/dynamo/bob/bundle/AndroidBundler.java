@@ -338,17 +338,22 @@ public class AndroidBundler implements IBundler {
         }
     }
 
-    public static boolean usesVulkanGraphicsAdapter(Project project) {
+    public static boolean usesVkQuality(Project project) {
         String shaderAdapters = project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
         if (shaderAdapters == null) {
             return true;
         }
+        boolean hasVulkanAdapter = false;
+        boolean hasFallbackAdapter = false;
         for (String shaderAdapter : shaderAdapters.split(",")) {
-            if (ShaderCompilers.SHADER_ADAPTER_VULKAN.equals(shaderAdapter.trim())) {
-                return true;
+            String adapter = shaderAdapter.trim();
+            if (ShaderCompilers.SHADER_ADAPTER_VULKAN.equals(adapter)) {
+                hasVulkanAdapter = true;
+            } else if (!adapter.isEmpty()) {
+                hasFallbackAdapter = true;
             }
         }
-        return false;
+        return hasVulkanAdapter && hasFallbackAdapter;
     }
 
     private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
@@ -555,11 +560,11 @@ public class AndroidBundler implements IBundler {
                 BundleHelper.throwIfCanceled(canceled);
             }
 
-            boolean vkQualityEnabled = usesVulkanGraphicsAdapter(project);
+            boolean vkQualityEnabled = usesVkQuality(project);
             if (vkQualityEnabled) {
                 copyVkQualityDataFile(assetsDir, canceled);
             } else {
-                logger.info("Skipping VkQuality data because Vulkan is not among the configured graphics adapters");
+                logger.info("Skipping VkQuality data because Vulkan does not need runtime backend selection");
             }
 
             // copy resources
@@ -578,7 +583,7 @@ public class AndroidBundler implements IBundler {
                 if (vkQualityEnabled) {
                     copyVkQualityLibrary(architecture, libDir, canceled);
                 } else {
-                    logger.info("Skipping VkQuality library for " + architecture + " because Vulkan is not among the configured graphics adapters");
+                    logger.info("Skipping VkQuality library for " + architecture + " because Vulkan does not need runtime backend selection");
                 }
             }
 
@@ -762,7 +767,7 @@ public class AndroidBundler implements IBundler {
         // Native extension builds provide compiledresources.apk and skip the local aapt2 path that
         // normally initializes AndroidTools. Initialize explicitly so packed Android resources such
         // as VkQuality data and native libraries are extracted before Bob.getPath() lookups below.
-        AndroidTools.initialize();
+        AndroidTools.init();
 
         final Platform platform = getFirstPlatform(project);
 
@@ -905,7 +910,7 @@ public class AndroidBundler implements IBundler {
         // We copy and resize the default icon in builtins if no other icons are set.
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
-        boolean vkQualityEnabled = usesVulkanGraphicsAdapter(project);
+        boolean vkQualityEnabled = usesVkQuality(project);
         properties.put("defold.vkquality.enabled", vkQualityEnabled ? "true" : "false");
 
         Map<String, Object> defoldProperties = propertiesMap.computeIfAbsent("defold", k -> new HashMap<String, Object>());

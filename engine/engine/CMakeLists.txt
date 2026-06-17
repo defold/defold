@@ -510,7 +510,8 @@ if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
       \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\"")
-  if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+  list(LENGTH ENGINE_GRAPHICS_SYMBOLS ENGINE_GRAPHICS_SYMBOLS_COUNT)
+  if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS AND ENGINE_GRAPHICS_SYMBOLS_COUNT GREATER 1)
     string(APPEND ENGINE_ANDROID_JARS_INSTALL_CODE "
       \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/vkquality.jar\"")
   endif()

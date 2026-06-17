@@ -48,7 +48,7 @@ namespace dmGraphics
     static const D3D12_RESOURCE_STATES DM_DX12_RESOURCE_STATE_BUFFER_READ = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER;
 
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable();
-    bool                                DX12IsSupported(bool explicit_selection);
+    bool                                DX12IsSupported();
     static HContext                     DX12GetContext();
     static bool                         DX12Initialize(HContext);
     static GraphicsAdapter g_dx12_adapter(ADAPTER_FAMILY_DIRECTX);

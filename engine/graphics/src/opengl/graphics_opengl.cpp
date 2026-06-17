@@ -477,7 +477,7 @@ static void LogFrameBufferError(GLenum status)
     #endif
 
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
-    static bool                         OpenGLIsSupported(bool explicit_selection);
+    static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();
 
     #if defined(DM_GRAPHICS_USE_OPENGLES)
@@ -1157,9 +1157,8 @@ static void LogFrameBufferError(GLenum status)
         return (HContext) g_Context;
     }
 
-    static bool OpenGLIsSupported(bool explicit_selection)
+    static bool OpenGLIsSupported()
     {
-        (void) explicit_selection;
         return true;
     }
 

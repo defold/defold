@@ -126,7 +126,7 @@ def build(bld):
               '%s/ext/share/java/glfw_android.jar' % (dynamo_home),
               '%s/share/java/gamesys_android.jar' % (dynamo_home),
               '%s/share/java/sound_android.jar' % (dynamo_home)]
-    if 'GraphicsAdapterVulkan' in graphics_lib_symbols:
+    if 'GraphicsAdapterVulkan' in graphics_lib_symbols and len(graphics_lib_symbols) > 1:
         android_jar_paths.append('%s/ext/share/java/vkquality.jar' % (dynamo_home))
 
     glfw_js = '../../../ext/lib/%s/js/library_glfw.js' % bld.env.PLATFORM

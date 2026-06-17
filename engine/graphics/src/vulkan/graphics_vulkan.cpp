@@ -46,7 +46,7 @@ DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 namespace dmGraphics
 {
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
-    static bool                         VulkanIsSupported(bool explicit_selection);
+    static bool                         VulkanIsSupported();
     static HContext                     VulkanGetContext();
     static GraphicsAdapter g_vulkan_adapter(ADAPTER_FAMILY_VULKAN);
 
@@ -1571,7 +1571,7 @@ bail:
         return false;
     }
 
-    static bool VulkanIsSupported(bool explicit_selection)
+    static bool VulkanIsSupported()
     {
 #if defined(DM_PLATFORM_VENDOR)
         // If we are on a private platform, and this driver is registered, then it's already supported.
@@ -1583,7 +1583,10 @@ bail:
 #else
 
     #if ANDROID
-        if (!AndroidVulkanIsRecommended(explicit_selection))
+        // VkQuality is only useful when Vulkan can fall back to another linked graphics adapter.
+        // If Vulkan is the only linked adapter, continue with the regular Vulkan support probe.
+        const bool only_linked_graphics_adapter = GetLinkedGraphicsAdapterCount() == 1;
+        if (!only_linked_graphics_adapter && !AndroidVulkanIsRecommended())
         {
             return false;
         }

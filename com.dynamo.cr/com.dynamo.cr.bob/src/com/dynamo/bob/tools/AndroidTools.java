@@ -143,11 +143,7 @@ public class AndroidTools {
         return aapt2File.getAbsolutePath();
     }
 
-    public static void initialize() {
-        init();
-    }
-
-    private static synchronized void init() {
+    public static synchronized void init() {
         TimeProfiler.start("Init Android");
         if (!initialized)
         {

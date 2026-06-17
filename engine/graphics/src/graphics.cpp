@@ -70,7 +70,7 @@ namespace dmGraphics
             {
                 if (next->m_Family == family)
                 {
-                    if (next->m_IsSupportedCb(true))
+                    if (next->m_IsSupportedCb())
                     {
                         g_functions = next->m_RegisterCb();
                         g_adapter   = next;
@@ -84,7 +84,7 @@ namespace dmGraphics
         return false;
     }
 
-    static uint32_t GetLinkedGraphicsAdapterCount()
+    uint32_t GetLinkedGraphicsAdapterCount()
     {
         uint32_t adapter_count = 0;
         GraphicsAdapter* next = g_adapter_list;
@@ -105,13 +105,10 @@ namespace dmGraphics
     {
         GraphicsAdapter* next     = g_adapter_list;
         GraphicsAdapter* selected = 0x0;
-        uint32_t adapter_count    = GetLinkedGraphicsAdapterCount();
 
         while(next)
         {
-            // Treat a single linked graphics adapter as explicit selection. This lets platform
-            // recommendation layers warn without disabling the only backend included in the build.
-            bool is_supported = next->m_IsSupportedCb(adapter_count == 1);
+            bool is_supported = next->m_IsSupportedCb();
             if (is_supported && ((selected != 0x0 && next->m_Priority < selected->m_Priority) || selected == 0x0))
             {
                 selected = next;
