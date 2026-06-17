@@ -277,6 +277,10 @@ def bobLightResourceRoot = file("${project.bobDir}/src")
 def bobLightResourceFiles = fileTree(bobLightResourceRoot) {
     exclude '**/*.java'
 }
+def vkQualityNativeLibraries = [
+        'armv7-android/libvkquality.so',
+        'arm64-android/libvkquality.so'
+]
 
 task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
     inputs.files(bobLightResourceFiles)
@@ -293,8 +297,7 @@ task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
     })
     inputs.file("${project.dynamoHome}/ext/share/java/bundletool-all.jar").optional()
     inputs.files(fileTree("${project.dynamoHome}/ext/lib") {
-        include 'armv7-android/libvkquality.so',
-                'arm64-android/libvkquality.so'
+        include vkQualityNativeLibraries
     })
     outputs.dirs(
             "${project.bobDir}/libexec",
@@ -310,6 +313,13 @@ task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
     })
 
     doLast {
+        def missingVkQualityLibraries = vkQualityNativeLibraries.findAll { relativePath ->
+            !file("${project.dynamoHome}/ext/lib/${relativePath}").exists()
+        }
+        if (!missingVkQualityLibraries.isEmpty()) {
+            throw new RuntimeException("Required VkQuality native libraries are missing from DYNAMO_HOME: ${missingVkQualityLibraries.collect { "ext/lib/${it}" }.join(', ')}")
+        }
+
         def bundletoolJar = file("${project.dynamoHome}/ext/share/java/bundletool-all.jar")
         if (bundletoolJar.exists()) {
             copy {
@@ -320,10 +330,16 @@ task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
 
         copy {
             from fileTree("${project.dynamoHome}/ext/lib") {
-                include 'armv7-android/libvkquality.so',
-                        'arm64-android/libvkquality.so'
+                include vkQualityNativeLibraries
             }
             into "${project.bobDir}/libexec"
+        }
+
+        def missingPackagedVkQualityLibraries = vkQualityNativeLibraries.findAll { relativePath ->
+            !file("${project.bobDir}/libexec/${relativePath}").exists()
+        }
+        if (!missingPackagedVkQualityLibraries.isEmpty()) {
+            throw new RuntimeException("Required VkQuality native libraries were not copied into Bob: ${missingPackagedVkQualityLibraries.collect { "libexec/${it}" }.join(', ')}")
         }
 
         def platformFiles = [
