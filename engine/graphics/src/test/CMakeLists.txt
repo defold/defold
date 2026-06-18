@@ -26,45 +26,7 @@ endif()
 defold_register_test_target(test_graphics)
 
 if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
-  set(_graphics_app_libs graphics graphics_transcoder_basisu)
-  set(_graphics_app_platform_lib platform)
-  set(_graphics_app_glfw_lib glfw3)
-  set(_graphics_app_extra_libs)
-  set(_graphics_app_symbols)
-
-  if(TARGET_PLATFORM STREQUAL "arm64-linux")
-    set(_graphics_app_libs graphics_opengles graphics_transcoder_basisu)
-    list(APPEND _graphics_app_symbols GraphicsAdapterOpenGLES)
-  else()
-    list(APPEND _graphics_app_symbols GraphicsAdapterOpenGL)
-  endif()
-
-  if(TARGET_PLATFORM MATCHES "^(armv7-android|arm64-android)$")
-    list(APPEND _graphics_app_extra_libs graphics)
-  endif()
-
-  if(WITH_VULKAN AND GRAPHICS_PLATFORM_SUPPORTS_VULKAN)
-    list(APPEND _graphics_app_extra_libs graphics_vulkan)
-    list(APPEND _graphics_app_symbols GraphicsAdapterVulkan)
-    defold_get_glfw_version(_graphics_app_glfw_version "${TARGET_PLATFORM}")
-    if(_graphics_app_glfw_version EQUAL 3)
-      set(_graphics_app_platform_lib platform_vulkan)
-    endif()
-  endif()
-
-  if(WITH_DX12 AND GRAPHICS_PLATFORM_SUPPORTS_DX12)
-    list(APPEND _graphics_app_extra_libs graphics_dx12)
-    list(APPEND _graphics_app_symbols GraphicsAdapterDX12)
-  endif()
-
-  if(WITH_WEBGPU AND GRAPHICS_PLATFORM_SUPPORTS_WEBGPU)
-    list(APPEND _graphics_app_extra_libs graphics_webgpu)
-    list(APPEND _graphics_app_symbols GraphicsAdapterWebGPU)
-  endif()
-
-  if(TARGET_PLATFORM STREQUAL "arm64-nx64")
-    set(_graphics_app_glfw_lib)
-  endif()
+  defold_get_graphics_symbols(_graphics_app_symbols "${TARGET_PLATFORM}")
 
   if(_graphics_app_symbols)
     defold_create_exported_symbols_file(
@@ -81,15 +43,34 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
       testmain
       ddf
       dlib
-      profile_null
-      ${_graphics_app_libs}
-      ${_graphics_app_platform_lib}
-      ${_graphics_app_glfw_lib}
-      ${_graphics_app_extra_libs})
+      profile_null)
+    defold_target_link_graphics(test_app_graphics "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_platform(test_app_graphics "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_socket(test_app_graphics "${TARGET_PLATFORM}" PRIVATE)
-    defold_target_link_opengl(test_app_graphics "${TARGET_PLATFORM}" PRIVATE)
+    if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols)
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_HAS_VULKAN=1)
+    endif()
+    if("GraphicsAdapterOpenGL" IN_LIST _graphics_app_symbols)
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_HAS_OPENGL=1)
+    endif()
+    if("GraphicsAdapterOpenGLES" IN_LIST _graphics_app_symbols)
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_HAS_OPENGLES=1)
+    endif()
+    if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64-nx64)$")
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_DEFAULT_VULKAN=1)
+    elseif("GraphicsAdapterOpenGLES" IN_LIST _graphics_app_symbols)
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_DEFAULT_OPENGLES=1)
+    else()
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_DEFAULT_OPENGL=1)
+    endif()
     if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos)$")
       target_link_libraries(test_app_graphics PRIVATE "-framework IOKit")
+    endif()
+    if(TARGET_PLATFORM STREQUAL "arm64-ios")
+      target_link_libraries(test_app_graphics PRIVATE
+        "-framework QuartzCore"
+        "-framework CoreVideo"
+        "-framework CoreGraphics")
     endif()
     if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
       find_package(Threads REQUIRED)

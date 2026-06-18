@@ -444,6 +444,9 @@ set(ENGINE_DMENGINE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmen
 defold_create_exported_symbols_file("${ENGINE_DMENGINE_EXPORTS}" "${ENGINE_DMENGINE_SYMBOLS}")
 defold_add_executable(dmengine "${ENGINE_MAIN_CPP}" "${ENGINE_DMENGINE_EXPORTS}")
 engine_configure_executable(dmengine debug engine engine_service graphics "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+defold_xcode_configure_ios_app(dmengine
+  BUNDLE_ID "${DEFOLD_IOS_BUNDLE_IDENTIFIER}"
+  VERSION "${ENGINE_VERSION}")
 
 set(ENGINE_RELEASE_SYMBOLS
   ${ENGINE_EXPORTED_SYMBOLS}

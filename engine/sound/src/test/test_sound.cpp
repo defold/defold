@@ -186,7 +186,7 @@ struct TestParams
         m_BufferFrameCount = buffer_frame_count;
     }
 
-    float LengthInSeconds()
+    float LengthInSeconds() const
     {
         if (!m_MixRate)
             return 0.0f;
@@ -194,6 +194,14 @@ struct TestParams
         return (m_FrameCount / (float)m_MixRate) * m_Speed;
     }
 };
+
+static float SoundTestPlaybackDuration(const TestParams& params, float fallback_duration)
+{
+    float length = params.LengthInSeconds();
+    if (length <= 0.0f)
+        return fallback_duration;
+    return length;
+}
 
 struct TestParams2
 {
@@ -1742,7 +1750,7 @@ TEST_P(dmSoundTestPlayTest, Panning)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     bool playing = false;
-    float length = params.LengthInSeconds();
+    float duration = SoundTestPlaybackDuration(params, 0.5f);
     uint64_t tstart = dmTime::GetMonotonicTime();
     do {
         r = dmSound::Update();
@@ -1758,12 +1766,15 @@ TEST_P(dmSoundTestPlayTest, Panning)
         uint64_t tend = dmTime::GetMonotonicTime();
         float elapsed = (tend - tstart) / 1000000.0f;
 
-        if (length > 0.0f)
-            playing = elapsed <= length;
-        else
-            playing = dmSound::IsPlaying(instance);
+        playing = elapsed <= duration && dmSound::IsPlaying(instance);
 
     } while (playing);
+
+    if (dmSound::IsPlaying(instance))
+    {
+        r = dmSound::Stop(instance);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    }
 
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -2552,10 +2563,23 @@ TEST_P(dmSoundTestStartTimePlayTest, StartTime)
     r = dmSound::Play(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
+    float duration = SoundTestPlaybackDuration(params, 0.5f);
+    uint64_t tstart = dmTime::GetMonotonicTime();
+    bool playing = false;
     do {
         r = dmSound::Update();
         ASSERT_EQ(dmSound::RESULT_OK, r);
-    } while (dmSound::IsPlaying(instance));
+
+        uint64_t tend = dmTime::GetMonotonicTime();
+        float elapsed = (tend - tstart) / 1000000.0f;
+        playing = elapsed <= duration && dmSound::IsPlaying(instance);
+    } while (playing);
+
+    if (dmSound::IsPlaying(instance))
+    {
+        r = dmSound::Stop(instance);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    }
 
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);

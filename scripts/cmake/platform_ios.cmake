@@ -17,8 +17,10 @@ if(NOT _DEFOLD_IPHONEOS_MIN)
 endif()
 
 # Compile definitions (mirrors waf_dynamo iOS defaults)
-target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_IOS)
-target_compile_definitions(defold_sdk INTERFACE DM_HOSTFS=\"\")
+target_compile_definitions(defold_sdk INTERFACE
+  DM_PLATFORM_IOS
+  DM_NO_SYSTEM_FUNCTION
+  DM_HOSTFS=\"\")
 
 if(_DEFOLD_TARGET_ARCH STREQUAL "x86_64")
   target_compile_definitions(defold_sdk INTERFACE DM_PLATFORM_IOS_SIMULATOR IOS_SIMULATOR)

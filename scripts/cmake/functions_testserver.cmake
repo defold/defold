@@ -6,7 +6,8 @@ defold_log("functions_testserver.cmake:")
 #
 # Public API:
 #   defold_register_test_with_server(<target> <platform>
-#     [PORT <port>] [WORKDIR <dir>] [CONFIG_NAME <name.cfg>])
+#     [PORT <port>] [WORKDIR <dir>] [CONFIG_NAME <name.cfg>]
+#     [STAGE_FILES <source> <target> ...])
 #
 # Effect:
 #   - Creates a run target named run_<target>_server that:
@@ -17,6 +18,39 @@ defold_log("functions_testserver.cmake:")
 #   - Adds run_<target>_server under the global run_tests aggregate
 
 # Register a test run target that wraps execution with the test server lifecycle.
+function(_defold_testserver_ios_runner_args out_var run_dir_abs cfg_path ios_runner_platform)
+  set(_stage_files ${ARGN})
+  _defold_find_python(_python)
+  _defold_build_stage_file_args(_stage_args ${_stage_files})
+
+  set(_runner_args
+    "--runner-arg=${_python}"
+    "--runner-arg=${DEFOLD_HOME}/build_tools/build_ios.py"
+    "--runner-arg=run-test"
+    "--runner-arg=--platform"
+    "--runner-arg=${ios_runner_platform}"
+    "--runner-arg=--cwd"
+    "--runner-arg=${run_dir_abs}"
+    "--runner-arg=--program"
+    "--runner-arg={exe}"
+    "--runner-arg=--config"
+    "--runner-arg={config}")
+
+  foreach(_stage_arg IN LISTS _stage_args)
+    list(APPEND _runner_args "--runner-arg=${_stage_arg}")
+  endforeach()
+
+  set(${out_var} "${_runner_args}" PARENT_SCOPE)
+endfunction()
+
+function(_defold_testserver_server_dir_args out_var)
+  set(_server_dir_args)
+  foreach(_server_dir IN LISTS ARGN)
+    list(APPEND _server_dir_args --server-dir "${_server_dir}")
+  endforeach()
+  set(${out_var} "${_server_dir_args}" PARENT_SCOPE)
+endfunction()
+
 function(defold_register_test_with_server target platform)
   if(NOT TARGET ${target})
     message(FATAL_ERROR "defold_register_test_with_server: target '${target}' does not exist")
@@ -24,7 +58,7 @@ function(defold_register_test_with_server target platform)
 
   set(options)
   set(oneValueArgs PORT WORKDIR CONFIG_NAME)
-  set(multiValueArgs)
+  set(multiValueArgs STAGE_FILES)
   cmake_parse_arguments(DTS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   if(NOT DTS_PORT)
@@ -59,18 +93,53 @@ function(defold_register_test_with_server target platform)
   list(REMOVE_DUPLICATES _SERVER_DIRS)
   set(_CFG_PATH "${CMAKE_CURRENT_BINARY_DIR}/${DTS_CONFIG_NAME}")
   set(_WRAP "${DEFOLD_CMAKE_DIR}/testserver.py")
-  set(_SERVER_IP "localhost")
+  if(platform STREQUAL "arm64-ios")
+    set(_SERVER_IP "auto")
+  else()
+    set(_SERVER_IP "localhost")
+  endif()
+  _defold_testserver_server_dir_args(_SERVER_DIR_ARGS ${_SERVER_DIRS})
+
+  set(_IOS_RUNNER_ARGS)
+  if(platform MATCHES "^(arm64-ios|x86_64-ios)$")
+    if(NOT _RUN_DIR_ABS)
+      message(FATAL_ERROR "defold_register_test_with_server: iOS test '${target}' requires WORKDIR")
+    endif()
+    if(platform STREQUAL "x86_64-ios")
+      set(_IOS_RUNNER_PLATFORM "simulator")
+    else()
+      set(_IOS_RUNNER_PLATFORM "device")
+    endif()
+    _defold_testserver_ios_runner_args(_IOS_RUNNER_ARGS "${_RUN_DIR_ABS}" "${_CFG_PATH}" "${_IOS_RUNNER_PLATFORM}" ${DTS_STAGE_FILES})
+  endif()
 
   set(_run_target "run_${target}_server")
   if(NOT TARGET ${_run_target})
-    add_custom_target(${_run_target}
-      COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_SERVER_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
-      DEPENDS ${target}
-      USES_TERMINAL
-      COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")
+    if(platform MATCHES "^(arm64-ios|x86_64-ios)$")
+      add_custom_target(${_run_target}
+        COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
+          --workdir "${_RUN_DIR_ABS}"
+          --ip "${_SERVER_IP}"
+          --port "${DTS_PORT}"
+          --config "${_CFG_PATH}"
+          ${_SERVER_DIR_ARGS}
+          ${_IOS_RUNNER_ARGS}
+          -- "$<TARGET_FILE:${target}>"
+        DEPENDS ${target}
+        USES_TERMINAL
+        COMMAND_EXPAND_LISTS
+        COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")
+    else()
+      add_custom_target(${_run_target}
+        COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_SERVER_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
+        DEPENDS ${target}
+        USES_TERMINAL
+        COMMAND_EXPAND_LISTS
+        COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")
+    endif()
   endif()
 
-  if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android")
+  if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
     set(_prepare_target "prepare_${_run_target}")
     if(NOT TARGET ${_prepare_target})
       add_custom_target(${_prepare_target} DEPENDS ${target})
@@ -89,7 +158,7 @@ endfunction()
 function(defold_register_tests_with_server group platform)
   set(options)
   set(oneValueArgs PORT WORKDIR CONFIG_NAME)
-  set(multiValueArgs TARGETS)
+  set(multiValueArgs TARGETS STAGE_FILES)
   cmake_parse_arguments(DTS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   if(NOT DTS_TARGETS)
@@ -127,10 +196,7 @@ function(defold_register_tests_with_server group platform)
   endif()
   list(REMOVE_DUPLICATES _SERVER_DIRS)
 
-  set(_SERVER_DIR_ARGS)
-  foreach(_SERVER_DIR IN LISTS _SERVER_DIRS)
-    list(APPEND _SERVER_DIR_ARGS --server-dir "${_SERVER_DIR}")
-  endforeach()
+  _defold_testserver_server_dir_args(_SERVER_DIR_ARGS ${_SERVER_DIRS})
 
   set(_TEST_EXES)
   foreach(_TARGET IN LISTS DTS_TARGETS)
@@ -142,8 +208,25 @@ function(defold_register_tests_with_server group platform)
 
   set(_CFG_PATH "${CMAKE_CURRENT_BINARY_DIR}/${DTS_CONFIG_NAME}")
   set(_WRAP "${DEFOLD_CMAKE_DIR}/testserver.py")
-  set(_SERVER_IP "localhost")
+  if(platform STREQUAL "arm64-ios")
+    set(_SERVER_IP "auto")
+  else()
+    set(_SERVER_IP "localhost")
+  endif()
   set(_run_target "run_${group}_server")
+
+  set(_IOS_RUNNER_ARGS)
+  if(platform MATCHES "^(arm64-ios|x86_64-ios)$")
+    if(NOT _RUN_DIR_ABS)
+      message(FATAL_ERROR "defold_register_tests_with_server: iOS test group '${group}' requires WORKDIR")
+    endif()
+    if(platform STREQUAL "x86_64-ios")
+      set(_IOS_RUNNER_PLATFORM "simulator")
+    else()
+      set(_IOS_RUNNER_PLATFORM "device")
+    endif()
+    _defold_testserver_ios_runner_args(_IOS_RUNNER_ARGS "${_RUN_DIR_ABS}" "${_CFG_PATH}" "${_IOS_RUNNER_PLATFORM}" ${DTS_STAGE_FILES})
+  endif()
 
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
@@ -153,6 +236,7 @@ function(defold_register_tests_with_server group platform)
         --port "${DTS_PORT}"
         --config "${_CFG_PATH}"
         ${_SERVER_DIR_ARGS}
+        ${_IOS_RUNNER_ARGS}
         -- ${_TEST_EXES}
       DEPENDS ${DTS_TARGETS}
       USES_TERMINAL
@@ -160,7 +244,7 @@ function(defold_register_tests_with_server group platform)
       COMMENT "Running ${group} with shared Defold test server on ${_SERVER_IP}:${DTS_PORT}")
   endif()
 
-  if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android")
+  if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
     set(_prepare_target "prepare_${_run_target}")
     if(NOT TARGET ${_prepare_target})
       add_custom_target(${_prepare_target} DEPENDS ${DTS_TARGETS})

@@ -42,6 +42,103 @@ or
 
 	$ ios-deploy --debug --bundle test.app
 
+## Running CMake Tests On A Connected Device
+
+The top-level CMake `build_engine` flow can build, sign, install and run `arm64-ios`
+unit tests on a locally connected iOS device:
+
+    $ ./scripts/build.py --platform=arm64-ios build_engine
+
+The `x86_64-ios` platform runs tests through an iOS simulator:
+
+    $ ./scripts/build.py --platform=x86_64-ios build_engine
+
+Physical-device tests use `xcrun devicectl` and installed/local signing assets.
+The runner does not create or update provisioning profiles and it does not
+register devices in Apple Developer. The selected provisioning profile must
+already include the connected device. Simulator tests use `xcrun simctl` and do
+not require provisioning profiles.
+
+If exactly one connected physical iOS device is available, the runner selects it
+automatically. Pass `--test-device <udid-or-name>` only when multiple devices are
+available or when you want to force a specific device:
+
+    $ ./scripts/build.py --platform=arm64-ios --test-device <udid-or-name> build_engine
+
+Simulator tests require an installed iOS Simulator runtime and at least one
+available iPhone simulator device. On Apple Silicon hosts, the current
+`x86_64-ios` runner expects a universal iOS simulator runtime:
+
+    $ xcodebuild -downloadPlatform iOS -architectureVariant universal
+    $ xcrun simctl list devices available
+    $ python3 build_tools/build_ios.py list-simulators
+
+If exactly one iOS simulator is available, the runner selects and boots it
+automatically. If multiple simulators are available, either boot the one you want
+first or pass `--test-device <simulator-udid-or-name>`.
+
+By default the runner auto-selects a single matching development identity and
+provisioning profile. If more than one asset matches, or if the automatic choice
+is not the one you want, pass explicit overrides:
+
+    $ ./scripts/build.py --platform=arm64-ios \
+        --ios-identity "Apple Development: Name (TEAMID)" \
+        --ios-mobileprovision /path/to/profile.mobileprovision \
+        --ios-team-id TEAMID \
+        build_engine
+
+The generated test app bundle id is `<prefix>.<test-target>`, using
+`com.defold.tests` as the default prefix. Pass `--ios-bundle-id-prefix` only
+when your provisioning profile requires a different app id prefix.
+
+The `build_tools/build_ios.py` helper is normally invoked by `build.py`, but it
+can also be run directly from the repository root when diagnosing device or
+signing setup:
+
+    $ python3 build_tools/build_ios.py --help
+    $ python3 build_tools/build_ios.py list-devices
+    $ python3 build_tools/build_ios.py list-simulators
+    $ python3 build_tools/build_ios.py list-identities
+    $ python3 build_tools/build_ios.py list-teams
+    $ python3 build_tools/build_ios.py can-run-tests
+    $ python3 build_tools/build_ios.py can-run-tests --platform simulator
+
+`list-teams` prints teams found in installed provisioning profiles. Its columns
+are team id, team name, profile count, iOS profile count, and unexpired iOS
+profile count.
+
+Use `can-run-tests` before a full engine build if you want to verify that
+`devicectl`, a connected device, a provisioning profile, and a matching signing
+identity are available. The same signing overrides accepted by `build.py` can be
+passed to the helper with shorter option names:
+
+    $ python3 build_tools/build_ios.py can-run-tests \
+        --identity "Apple Development: Name (TEAMID)" \
+        --mobileprovision /path/to/profile.mobileprovision \
+        --team-id TEAMID
+
+`run-test` packages and runs one already-built test executable. Most local
+testing should use `./scripts/build.py --platform=arm64-ios build_engine`
+instead, because it builds the engine tests and generates the per-test
+`run_<target>` commands. Add `--test-device <udid-or-name>` only when you need
+to override device auto-selection.
+
+Tests that require iOS Local Network privacy for Bonjour/mDNS are not included
+in unattended iOS `run_tests`. iOS requires the user to grant that permission
+interactively; Developer Mode and development signing do not let the runner
+pre-approve it.
+
+If `devicectl` reports that CoreDeviceService could not initialize, first verify
+that Xcode can see the device:
+
+    $ xcrun devicectl list devices
+
+Unlock and reconnect the device, quit Xcode, and retry. On slow machines or
+after Xcode updates, you can give CoreDevice more time:
+
+    $ IOS_DEVICECTL_TIMEOUT=120 IOS_DEVICECTL_RETRIES=3 \
+        python3 build_tools/build_ios.py list-devices
+
 ### QuickLook plugin for .ipa and .mobileprovision
 
 It's often required to peek inside the permissions of a package or mobile provisioning file.
