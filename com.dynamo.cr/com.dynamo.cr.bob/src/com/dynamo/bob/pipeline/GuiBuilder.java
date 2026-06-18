@@ -210,8 +210,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             ? customType.getProperty(property.getId())
                             : customType.getProperty(property.getIdHash());
 
-                    if (propertyDefinition != null && propertyDefinition.isResource() && property.hasStringValue() && !property.getStringValue().isEmpty()) {
-                        nodeResources.add(property.getStringValue());
+                    if (propertyDefinition != null && propertyDefinition.isResource() && property.hasString() && !property.getString().isEmpty()) {
+                        nodeResources.add(property.getString());
                     }
                 }
             }
@@ -284,9 +284,13 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private static NodeDesc.Builder ApplyOverriddenFieldValues(NodeDesc.Builder targetBuilder, NodeDesc overrideNode) {
         Descriptors.Descriptor typeDesc = NodeDesc.getDescriptor();
 
+        if (overrideNode.getCustomPropertiesCount() != 0) {
+            mergeCustomPropertiesByIdHash(targetBuilder, overrideNode);
+        }
+
         for (int fieldNumber : overrideNode.getOverriddenFieldsList()) {
             if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
-                mergeCustomPropertiesByIdHash(targetBuilder, overrideNode);
+                continue;
             } else {
                 FieldDescriptor fieldDesc = typeDesc.findFieldByNumber(fieldNumber);
                 assert fieldDesc != null;
@@ -327,7 +331,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
             break;
         case TYPE_STRING:
-            propertyBuilder.setStringValue(value == null ? "" : value.toString());
+            propertyBuilder.setString(value == null ? "" : value.toString());
             break;
         case TYPE_VECTOR3:
             if (!(value instanceof Vector3)) {
@@ -360,8 +364,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         if (property.hasId() && !property.getId().isEmpty()) {
             propertyBuilder.setIdHash(hashPropertyName(property.getId()));
         }
-        if (property.getType() == PropertyType.TYPE_HASH && property.hasStringValue()) {
-            propertyBuilder.setHash(hashPropertyName(property.getStringValue()));
+        if (property.getType() == PropertyType.TYPE_HASH && property.hasString()) {
+            propertyBuilder.setHash(hashPropertyName(property.getString()));
         }
 
         propertyBuilder.clearId();
@@ -448,7 +452,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         customType.migrateProperties(migratedProperties);
 
         var overriddenFields = new ArrayList<Integer>(node.getOverriddenFieldsCount());
-        var addedCustomPropertiesField = false;
         for (int fieldNumber : node.getOverriddenFieldsList()) {
             var customPropertyName = switch (fieldNumber) {
                 case NodeDesc.SPINE_SCENE_FIELD_NUMBER -> "spine_scene";
@@ -458,14 +461,11 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 case NodeDesc.SPINE_CREATE_BONES_FIELD_NUMBER -> "spine_create_bones";
                 default -> null;
             };
-            if (customPropertyName == null || !legacyPropertyNames.contains(customPropertyName)) {
+            if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
+                continue;
+            } else if (customPropertyName == null || !legacyPropertyNames.contains(customPropertyName)) {
                 overriddenFields.add(fieldNumber);
-            } else if (migratedProperties.containsKey(customPropertyName)) {
-                addedCustomPropertiesField = true;
             }
-        }
-        if (addedCustomPropertiesField && !overriddenFields.contains(NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER)) {
-            overriddenFields.add(NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER);
         }
 
         var migratedPropertyHashes = new HashSet<Long>();
@@ -538,7 +538,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         if((parentSceneNode == null) && (nodeMapDefault != null)) {
             parentSceneNode = nodeMapDefault.get(builder.getId());
         }
-        if(parentSceneNode != null && parentSceneNode.getOverriddenFieldsCount() != 0) {
+        if(parentSceneNode != null && (parentSceneNode.getOverriddenFieldsCount() != 0 || parentSceneNode.getCustomPropertiesCount() != 0)) {
             ApplyOverriddenFieldValues(builder, parentSceneNode);
         }
         // opt fields ignored by run-time

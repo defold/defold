@@ -351,17 +351,17 @@ nodes {
   custom_properties {
     id: "spine_default_animation"
     type: TYPE_STRING
-    string_value: "first_animation"
+    string: "first_animation"
   }
   custom_properties {
     id: "spine_scene"
     type: TYPE_STRING
-    string_value: "first_spinescene"
+    string: "first_spinescene"
   }
   custom_properties {
     id: "spine_skin"
     type: TYPE_STRING
-    string_value: "first_skin"
+    string: "first_skin"
   }
 }
 nodes {

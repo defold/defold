@@ -362,9 +362,9 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertFalse(spineScene.hasId());
         Assert.assertEquals(Gui.Property.PropertyType.TYPE_STRING, spineScene.getType());
         Assert.assertEquals(Gui.Property.PropertyType.TYPE_BOOLEAN, spineCreateBones.getType());
-        Assert.assertEquals("spineboy", spineScene.getStringValue());
-        Assert.assertEquals("walk", defaultAnimation.getStringValue());
-        Assert.assertEquals("default", spineSkin.getStringValue());
+        Assert.assertEquals("spineboy", spineScene.getString());
+        Assert.assertEquals("walk", defaultAnimation.getString());
+        Assert.assertEquals("default", spineSkin.getString());
         Assert.assertTrue(spineCreateBones.getBoolean());
     }
 
@@ -381,7 +381,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
         Assert.assertEquals(NodeDesc.Type.TYPE_CUSTOM, node.getType());
         Assert.assertEquals(405028931, node.getCustomType());
-        Assert.assertEquals("spineboy", findCustomProperty(node, "spine_scene").getStringValue());
+        Assert.assertEquals("spineboy", findCustomProperty(node, "spine_scene").getString());
     }
 
     @Test
@@ -393,7 +393,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         src.append("  custom_properties {\n");
         src.append("    id: \"spine_default_animation\"\n");
         src.append("    type: TYPE_STRING\n");
-        src.append("    string_value: \"existing\"\n");
+        src.append("    string: \"existing\"\n");
         src.append("  }\n");
         finishNode(src);
 
@@ -404,7 +404,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Gui.Property property = findCustomProperty(node, "spine_default_animation");
         Assert.assertNotNull(property);
         Assert.assertFalse(property.hasId());
-        Assert.assertEquals("existing", property.getStringValue());
+        Assert.assertEquals("existing", property.getString());
     }
 
     @Test(expected = CompileExceptionError.class)
@@ -439,7 +439,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         NodeDesc node = findNode(gui, "Landscape", "spine");
 
         Assert.assertFalse(node.hasSpineDefaultAnimation());
-        Assert.assertEquals("jump", findCustomProperty(node, "spine_default_animation").getStringValue());
+        Assert.assertEquals("jump", findCustomProperty(node, "spine_default_animation").getString());
     }
 
     // Legacy Spine template child overrides use old Spine field numbers. When the
@@ -465,7 +465,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
         Assert.assertNotNull(node);
         Assert.assertFalse(node.hasSpineDefaultAnimation());
-        Assert.assertEquals("jump", findCustomProperty(node, "spine_default_animation").getStringValue());
+        Assert.assertEquals("jump", findCustomProperty(node, "spine_default_animation").getString());
     }
 
     @Test
@@ -485,7 +485,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(PropertyType.TYPE_HASH, findCustomProperty(node, "hash").getType());
         Assert.assertEquals(MurmurHash.hash64("hash_value"), findCustomProperty(node, "hash").getHash());
         Assert.assertEquals(PropertyType.TYPE_STRING, findCustomProperty(node, "string").getType());
-        Assert.assertEquals("text", findCustomProperty(node, "string").getStringValue());
+        Assert.assertEquals("text", findCustomProperty(node, "string").getString());
         Assert.assertEquals(PropertyType.TYPE_VECTOR3, findCustomProperty(node, "vector3").getType());
         Assert.assertEquals(3.0f, findCustomProperty(node, "vector3").getVector3().getZ(), EPSILON);
         Assert.assertEquals(PropertyType.TYPE_VECTOR4, findCustomProperty(node, "vector4").getType());
@@ -535,13 +535,13 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testHashCustomPropertyStringValueIsHashed() throws Exception {
+    public void testHashCustomPropertyStringIsHashed() throws Exception {
         StringBuilder src = createGui();
         startCustomNode(src, "typed", "Typed");
         src.append("  custom_properties {\n");
         src.append("    id: \"hash\"\n");
         src.append("    type: TYPE_HASH\n");
-        src.append("    string_value: \"readable_hash\"\n");
+        src.append("    string: \"readable_hash\"\n");
         src.append("  }\n");
         finishNode(src);
 
@@ -553,7 +553,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertFalse(property.hasId());
         Assert.assertEquals(PropertyType.TYPE_HASH, property.getType());
         Assert.assertTrue(property.hasHash());
-        Assert.assertFalse(property.hasStringValue());
+        Assert.assertFalse(property.hasString());
         Assert.assertEquals(MurmurHash.hash64("readable_hash"), property.getHash());
     }
 
@@ -566,7 +566,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         templateSrc.append("  custom_properties {\n");
         templateSrc.append("    id: \"hash\"\n");
         templateSrc.append("    type: TYPE_HASH\n");
-        templateSrc.append("    string_value: \"base_hash\"\n");
+        templateSrc.append("    string: \"base_hash\"\n");
         templateSrc.append("  }\n");
         templateSrc.append("  custom_properties {\n");
         templateSrc.append("    id: \"number\"\n");
@@ -578,7 +578,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
         StringBuilder referencingSrc = createGui();
         addTemplateNode(referencingSrc, "template", "", "/template.gui");
-        startOverriddenNode(referencingSrc, NodeDesc.Type.TYPE_CUSTOM, "template/typed", "template", true, List.of(NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER));
+        startOverriddenNode(referencingSrc, NodeDesc.Type.TYPE_CUSTOM, "template/typed", "template", true, List.of());
         referencingSrc.append("  custom_properties {\n");
         referencingSrc.append("    id: \"number\"\n");
         referencingSrc.append("    type: TYPE_NUMBER\n");

@@ -236,7 +236,7 @@ namespace dmGameSystem
 
             case dmGuiDDF::Property::TYPE_STRING:
                 property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
-                property->m_String = strdup(ddf_property.m_Value.m_StringValue ? ddf_property.m_Value.m_StringValue : "");
+                property->m_String = strdup(ddf_property.m_Value.m_String ? ddf_property.m_Value.m_String : "");
                 if (!property->m_String)
                 {
                     return false;
@@ -320,20 +320,6 @@ namespace dmGameSystem
         return true;
     }
 
-    static const uint32_t NODE_DESC_CUSTOM_PROPERTIES_FIELD_NUMBER = 50;
-
-    static bool HasOverriddenField(const dmGuiDDF::NodeDesc* node_desc, uint32_t field_number)
-    {
-        for (uint32_t i = 0; i < node_desc->m_OverriddenFields.m_Count; ++i)
-        {
-            if (node_desc->m_OverriddenFields[i] == field_number)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     static void ResetDefaultNodeDescCache(GuiComponent* component, uint32_t node_count)
     {
         if (node_count == 0)
@@ -377,7 +363,7 @@ namespace dmGameSystem
 
     static const dmGuiDDF::NodeDesc* GetCustomPropertiesNodeDesc(const dmGui::HScene scene, dmGui::HNode node, const dmGuiDDF::NodeDesc* node_desc)
     {
-        if (node_desc->m_CustomProperties.m_Count != 0 || HasOverriddenField(node_desc, NODE_DESC_CUSTOM_PROPERTIES_FIELD_NUMBER))
+        if (node_desc->m_CustomProperties.m_Count != 0)
         {
             return node_desc;
         }

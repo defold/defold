@@ -36,7 +36,7 @@ nodes {
   custom_properties {
     id: "test_custom_string"
     type: TYPE_STRING
-    string_value: "default"
+    string: "default"
   }
   custom_properties {
     id: "test_custom_number"
@@ -94,11 +94,10 @@ layouts {
     type: TYPE_BOX
     blend_mode: BLEND_MODE_ALPHA
     id: "custom_props_layout"
-    overridden_fields: 50
     custom_properties {
       id: "test_custom_string"
       type: TYPE_STRING
-      string_value: "landscape"
+      string: "landscape"
     }
     custom_properties {
       id: "test_custom_number"

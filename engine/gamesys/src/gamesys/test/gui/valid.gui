@@ -46,7 +46,7 @@ nodes {
   custom_properties {
     id: "test_custom_string"
     type: TYPE_STRING
-    string_value: "component"
+    string: "component"
   }
 }
 material: "/gui/gui.material"

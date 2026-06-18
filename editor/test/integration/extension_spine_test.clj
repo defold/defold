@@ -440,8 +440,8 @@
                     (is (not (contains? spine-gui-node :alpha)))
                     (is (not (contains? spine-gui-node :template-node-child)))
                     (is (= :size-mode-auto (:size-mode spine-gui-node)))
-                    (is (= "spineboy" (custom-property spine-gui-node "spine_scene" :string-value)))
-                    (is (= "walk" (custom-property spine-gui-node "spine_default_animation" :string-value)))
+                    (is (= "spineboy" (custom-property spine-gui-node "spine_scene" :string)))
+                    (is (= "walk" (custom-property spine-gui-node "spine_default_animation" :string)))
                     (is (not (contains? spine-gui-node :spine-skin)))
                     (is (empty? (:overridden-fields spine-gui-node)))))
 
@@ -473,7 +473,7 @@
        :options
        (mapv first)))
 
-(deftest new-spine-node-custom-property-edit-test
+(deftest new-spine-node-property-edit-test
   (test-util/with-loaded-project project-path
     (let [gui-scene (test-util/resource-node project "/main/spineboy.gui")
           node-tree (g/node-value gui-scene :node-tree)
@@ -487,7 +487,7 @@
       (is (contains? (set (property-value-choices spine-node :spine-default-animation)) "walk"))
       (test-util/prop! spine-node :spine-default-animation "missing")
       (is (g/error? (test-util/prop-error spine-node :spine-default-animation)))
-      (is (= "spineboy" (custom-property (g/node-value spine-node :node-msg) "spine_scene" :string-value))))))
+      (is (= "spineboy" (custom-property (g/node-value spine-node :node-msg) "spine_scene" :string))))))
 
 (deftest legacy-template-child-spine-scene-override-builds-test
   (test-util/with-loaded-project project-path
@@ -497,7 +497,7 @@
         (let [built-scene-desc (get-in build-targets [0 :user-data :pb])
               built-spine-node (coll/first-where #(= "template/spine" (:id %))
                                                  (:nodes built-scene-desc))]
-          (is (= "flag" (runtime-custom-property built-spine-node "spine_scene" :string-value)))
+          (is (= "flag" (runtime-custom-property built-spine-node "spine_scene" :string)))
           (is (= #{{:name "spineboy"
                     :path "/assets/spineboy/spineboy.spinescene"}
                    {:name "flag"
@@ -520,8 +520,8 @@
                                                     (:layouts built-scene-desc))
                 built-layout-spine-node (coll/first-where #(= "template/spine" (:id %))
                                                           (:nodes built-layout-desc))]
-            (is (= "spineboy" (runtime-custom-property built-spine-node "spine_scene" :string-value)))
-            (is (= "flag" (runtime-custom-property built-layout-spine-node "spine_scene" :string-value)))
+            (is (= "spineboy" (runtime-custom-property built-spine-node "spine_scene" :string)))
+            (is (= "flag" (runtime-custom-property built-layout-spine-node "spine_scene" :string)))
             (is (= #{{:name "spineboy"
                       :path "/assets/spineboy/spineboy.spinescene"}
                      {:name "flag"
@@ -552,7 +552,7 @@
         (gui-test/with-visible-layout! gui-scene "Portrait"
           (test-util/prop! spine-node :spine-default-animation "jump")))
 
-      (testing "After overriding a property, the runtime override NodeDesc includes the effective custom properties."
+      (testing "After overriding a Spine property in a layout, the runtime override NodeDesc includes regular fields and effective custom properties."
         (let [built-scene-desc (built-scene-desc gui-scene)
               built-layout-desc (get-in built-scene-desc [:layouts 0])
               built-node-desc-for-layout (get-in built-layout-desc [:nodes 0])]
@@ -564,13 +564,13 @@
                                        :boolean false}
                                       {:id-hash (murmur/hash64 "spine_default_animation")
                                        :type :type-string
-                                       :string-value "jump"}
+                                       :string "jump"}
                                       {:id-hash (murmur/hash64 "spine_scene")
                                        :type :type-string
-                                       :string-value "spineboy"}
+                                       :string "spineboy"}
                                       {:id-hash (murmur/hash64 "spine_skin")
                                        :type :type-string
-                                       :string-value ""}]
+                                       :string ""}]
                   :id "spineboy"
                   :position [200.0 0.0 0.0 0.0]
                   :custom-type 405028931}

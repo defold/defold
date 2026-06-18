@@ -7,7 +7,7 @@ nodes {
   custom_properties {
     id: "spine_scene"
     type: TYPE_STRING
-    string_value: "spineboy"
+    string: "spineboy"
   }
 }
 material: "/builtins/materials/gui.material"

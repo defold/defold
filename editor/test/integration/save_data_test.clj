@@ -215,16 +215,12 @@
     {"data_type" :allowed-default
      "long_values" :unused}}
 
-   'dmGuiDDF.Property
-   {:default
-    {"id_hash" :runtime-only}}
-
    ['dmGuiDDF.Property "[TYPE_NUMBER]"]
    {:default
     {"boolean" :unused
      "hash" :unused
      "quat" :unused
-     "string_value" :unused
+     "string" :unused
      "type" :allowed-default
      "vector3" :unused
      "vector4" :unused}}
@@ -234,7 +230,7 @@
     {"hash" :unused
      "number" :unused
      "quat" :unused
-     "string_value" :unused
+     "string" :unused
      "vector3" :unused
      "vector4" :unused}}
 
@@ -262,7 +258,7 @@
      "hash" :unused
      "number" :unused
      "quat" :unused
-     "string_value" :unused
+     "string" :unused
      "vector4" :unused}}
 
    ['dmGuiDDF.Property "[TYPE_VECTOR4]"]
@@ -271,7 +267,7 @@
      "hash" :unused
      "number" :unused
      "quat" :unused
-     "string_value" :unused
+     "string" :unused
      "vector3" :unused}}
 
    ['dmGuiDDF.Property "[TYPE_QUAT]"]
@@ -279,7 +275,7 @@
     {"boolean" :unused
      "hash" :unused
      "number" :unused
-     "string_value" :unused
+     "string" :unused
      "vector3" :unused
      "vector4" :unused}}
 

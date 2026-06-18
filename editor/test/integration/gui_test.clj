@@ -109,8 +109,7 @@
             (set (gui/layout-property-setter test-quat)))
   (property test-resource g/Str (default "")
             (static custom-property {:id "test_resource"
-                                     :protobuf-type :type-string
-                                     :resource-kind :test-gui-resource})
+                                     :protobuf-type :type-string})
             (dynamic edit-type (gui/layout-property-edit-type test-resource {:type g/Str}))
             (value (gui/layout-property-getter test-resource))
             (set (gui/layout-property-setter test-resource)))
@@ -175,10 +174,16 @@
   (output pb-msg g/Any (g/fnk [name test-gui-resource]
                          {:name name
                           :path (resource/resource->proj-path test-gui-resource)}))
-  (output build-errors g/Any (g/fnk [_node-id name name-counts test-gui-resource]
-                               (g/package-errors _node-id
-                                 (gui/prop-unique-id-error _node-id :name name name-counts "Name")
-                                 (gui/prop-resource-error _node-id :test-gui-resource test-gui-resource "Test GUI Resource")))))
+  (output build-errors g/Any
+          (g/fnk [_node-id name name-counts test-gui-resource]
+            (g/package-errors
+              _node-id
+              (gui/prop-unique-id-error _node-id :name name name-counts "Name")
+              (gui/prop-resource-error _node-id :test-gui-resource test-gui-resource "Test GUI Resource")))))
+
+(defmethod gui/update-gui-resource-reference [::TestCustomGuiNode :test-gui-resource]
+  [_ evaluation-context node-id old-name new-name]
+  (gui/update-basic-gui-resource-reference evaluation-context node-id :test-resource old-name new-name))
 
 (defn- attach-test-gui-resource [scene resources-node entry-node]
   (concat
@@ -243,9 +248,9 @@
 (deftest custom-gui-extension-registration
   (test-util/with-scratch-project "test/resources/empty_project"
     (let [custom-type (murmur/hash32 "TestCustom")
-          test-quat [(float 0.0) (float 0.0) (float 0.707) (float 0.707)]
-          test-vector3 [(float 1.0) (float 2.0) (float 3.0)]
-          test-vector4 [(float 4.0) (float 5.0) (float 6.0) (float 7.0)]
+          test-quat (vector-of :float 0.0 0.0 0.707 0.707)
+          test-vector3 (vector-of :float 1.0 2.0 3.0)
+          test-vector4 (vector-of :float 4.0 5.0 6.0 7.0)
           test-hash "hash_value"
           source-resources [{:name "beta" :path "/beta.testguiresource"}
                             {:name "alpha" :path "/alpha.testguiresource"}]]
@@ -269,13 +274,13 @@
                                      :custom-type-name "TestCustom"
                                      :custom-properties [{:id "unknown"
                                                           :type :type-string
-                                                          :string-value "kept"}
+                                                          :string "kept"}
                                                          {:id "test_hash"
                                                           :type :type-hash
-                                                          :string-value test-hash}
+                                                          :string test-hash}
                                                          {:id "test_resource"
                                                           :type :type-string
-                                                          :string-value "alpha"}
+                                                          :string "alpha"}
                                                          {:id "test_number"
                                                           :type :type-number
                                                           :number 42.0}
@@ -317,7 +322,7 @@
                    (select-keys saved-node [:type :custom-type-name :id])))
             (is (= [{:id "test_hash"
                      :type :type-hash
-                     :string-value test-hash}
+                     :string test-hash}
                     {:id "test_number"
                      :type :type-number
                      :number 42.0}
@@ -326,7 +331,7 @@
                      :quat test-quat}
                     {:id "test_resource"
                      :type :type-string
-                     :string-value "alpha"}
+                     :string "alpha"}
                     {:id "test_vector3"
                      :type :type-vector3
                      :vector3 test-vector3}
@@ -335,7 +340,7 @@
                      :vector4 test-vector4}]
                    (:custom-properties saved-node))))
 
-          (testing "Generic custom resource property references are renamed in graph storage."
+          (testing "Custom resource property references are renamed by node-specific handlers."
             (test-util/prop! (gui-test-gui-resource gui-scene "alpha") :name "renamed_alpha")
             (is (= "renamed_alpha" (prop custom-node :test-resource)))
             (is (= "renamed_alpha" (:test-resource (test-custom-property-values custom-node))))))))))
@@ -352,7 +357,7 @@
                                      :custom-type-name "TestCustom"
                                      :custom-properties [{:id "test_hash"
                                                           :type :type-hash
-                                                          :string-value test-hash}
+                                                          :string test-hash}
                                                          {:id "test_number"
                                                           :type :type-number
                                                           :number 42.0}]
@@ -420,7 +425,7 @@
                  (get-in [:nodes 0])
                  (select-keys [:type :custom-type-name :custom-type :id]))))
       (is (thrown-with-msg?
-            IllegalArgumentException
+            IllegalStateException
             #"custom_type_name 'TestCustom' resolves to custom_type"
             (#'gui/sanitize-scene gui-node-type-registry {:nodes [mismatched-node]})))
       (is (thrown-with-msg?
@@ -433,7 +438,7 @@
                         :id "custom"
                         :custom-properties [{:id "test_number"
                                              :type :type-string
-                                             :string-value "wrong"}]}]})))
+                                             :string "wrong"}]}]})))
       (let [sanitized-node (-> (#'gui/sanitize-scene gui-node-type-registry {:nodes [boxed-node-with-stale-custom-type-name]})
                                :nodes
                                first)]
@@ -837,8 +842,11 @@
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
     (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
-(defn- run-add-gui-node! [project scene app-view parent node-type-info]
-  (let [user-data (assoc node-type-info :scene scene :parent parent :handler-fn gui/add-gui-node-handler)]
+(defn- run-add-gui-node! [project scene app-view parent node-type]
+  (let [user-data (assoc (gui-node-type-info (project/workspace project) node-type)
+                    :scene scene
+                    :parent parent
+                    :handler-fn gui/add-gui-node-handler)]
     (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
 (defn set-visible-layout! [scene layout]
@@ -884,7 +892,7 @@
       (set-visible-layout! scene "Portrait")
       (let [node-tree (g/node-value scene :node-tree)]
         (is (= #{"box"} (set (map :label (:children (test-util/outline scene [0]))))))
-        (run-add-gui-node! project scene app-view node-tree (gui-node-type-info workspace gui/BoxNode))
+        (run-add-gui-node! project scene app-view node-tree gui/BoxNode)
         (is (= #{"box" "box1"} (set (map :label (:children (test-util/outline scene [0]))))))))))
 
 (defn- gui-text [scene id]
@@ -1468,7 +1476,7 @@
     (:custom-properties node-desc)))
 
 (defn- saved-node-desc-resource-field-values [node-desc]
-  (let [spine-scene (saved-node-desc-custom-property-value node-desc "spine_scene" :string-value)]
+  (let [spine-scene (saved-node-desc-custom-property-value node-desc "spine_scene" :string)]
     (cond-> (select-keys node-desc [:font :layer :material :particlefx :texture])
             spine-scene
             (assoc :spine-scene spine-scene))))
@@ -1476,8 +1484,7 @@
 (deftest custom-gui-custom-properties-test
   (test-util/with-scratch-project "test/resources/empty_project"
     (register-test-gui-extensions workspace)
-    (let [custom-properties-pb-field-index (gui/prop-key->pb-field-index :custom-properties)
-          gui-resource (test-util/make-resource!
+    (let [gui-resource (test-util/make-resource!
                          workspace
                          "/custom_virtual_properties.gui"
                          {:nodes [{:type :type-custom
@@ -1490,7 +1497,6 @@
                                      :nodes [{:type :type-custom
                                               :custom-type-name "TestCustom"
                                               :id "custom"
-                                              :overridden-fields [custom-properties-pb-field-index]
                                               :custom-properties [{:id "test_number"
                                                                    :type :type-number
                                                                    :number 1.0}]}]}]})]
@@ -1498,14 +1504,15 @@
       (let [gui-scene (test-util/resource-node project gui-resource)
             custom-node (gui-node gui-scene "custom")]
         (testing "Properties panel exposes custom properties as real graph properties."
-          (is (= 2.0 (prop custom-node :test-number)))
-          (is (= 2.0 (:test-number (g/node-value custom-node :prop->value))))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-number))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-dash))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-underscore))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-slash))
-          (is (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :test-colon))
-          (is (not (contains? (get-in (g/node-value custom-node :_properties) [:properties]) :custom-properties))))
+          (let [properties (:properties (g/node-value custom-node :_properties))]
+            (is (= 2.0 (prop custom-node :test-number)))
+            (is (= 2.0 (:test-number (g/node-value custom-node :prop->value))))
+            (is (contains? properties :test-number))
+            (is (contains? properties :test-dash))
+            (is (contains? properties :test-underscore))
+            (is (contains? properties :test-slash))
+            (is (contains? properties :test-colon))
+            (is (not (contains? properties :custom-properties)))))
 
         (testing "Editor scripts use graph property names with regular snake_case conversion."
           (g/with-auto-evaluation-context evaluation-context
@@ -1539,7 +1546,7 @@
             (is (= 1.0 (prop custom-node :test-number)))
             (is (test-util/prop-overridden? custom-node :test-number)))
           (let [saved-layout-node (-> (g/node-value gui-scene :save-value) :layouts first :nodes first)]
-            (is (= [custom-properties-pb-field-index] (:overridden-fields saved-layout-node)))
+            (is (not (contains? saved-layout-node :overridden-fields)))
             (is (= 1.0 (saved-node-desc-custom-property-value saved-layout-node "test_number" :number)))))
 
         (testing "Editor scripts can list, set, and reset custom properties by id."
@@ -1563,8 +1570,7 @@
 (deftest custom-gui-template-override-transfer-test
   (test-util/with-scratch-project "test/resources/empty_project"
     (register-test-gui-extensions workspace)
-    (let [custom-properties-pb-field-index (gui/prop-key->pb-field-index :custom-properties)
-          source-gui-resource (test-util/make-resource!
+    (let [source-gui-resource (test-util/make-resource!
                                 workspace
                                 "/custom_template_source.gui"
                                 {:nodes [{:type :type-custom
@@ -1600,7 +1606,7 @@
               saved-override-node (-> (g/node-value referencing-gui-scene :save-value) :nodes first)]
           (is (= 7.0 (saved-node-desc-custom-property-value saved-source-node "test_number" :number)))
           (is (not (contains? saved-override-node :custom-properties)))
-          (is (not (contains? (set (:overridden-fields saved-override-node)) custom-properties-pb-field-index))))))))
+          (is (not (contains? saved-override-node :overridden-fields))))))))
 
 ;; Mirrors GuiBuilderTest.testTemplateCustomPropertyOverridePreservesBaseProperties.
 ;; A sparse template override of one custom property must preserve other non-default base custom properties.
@@ -1615,7 +1621,7 @@
                 :id "custom"
                 :custom-properties [{:id "test_hash"
                                      :type :type-hash
-                                     :string-value "base_hash"}
+                                     :string "base_hash"}
                                     {:id "test_number"
                                      :type :type-number
                                      :number 2.0}]}]})

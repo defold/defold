@@ -356,17 +356,17 @@ nodes {
   custom_properties {
     id: "spine_default_animation"
     type: TYPE_STRING
-    string_value: "first_animation"
+    string: "first_animation"
   }
   custom_properties {
     id: "spine_scene"
     type: TYPE_STRING
-    string_value: "first_spinescene"
+    string: "first_spinescene"
   }
   custom_properties {
     id: "spine_skin"
     type: TYPE_STRING
-    string_value: "first_skin"
+    string: "first_skin"
   }
 }
 nodes {
@@ -382,7 +382,7 @@ nodes {
   custom_properties {
     id: "test_hash"
     type: TYPE_HASH
-    string_value: "first_hash"
+    string: "first_hash"
   }
   custom_properties {
     id: "test_number"
@@ -392,7 +392,7 @@ nodes {
   custom_properties {
     id: "test_string"
     type: TYPE_STRING
-    string_value: "first_string"
+    string: "first_string"
   }
   custom_properties {
     id: "test_quat"
@@ -785,7 +785,6 @@ nodes {
   overridden_fields: 45
   overridden_fields: 46
   overridden_fields: 47
-  overridden_fields: 50
   template_node_child: true
   custom_type_name: "Spine"
   material: "second_material"
@@ -797,17 +796,17 @@ nodes {
   custom_properties {
     id: "spine_default_animation"
     type: TYPE_STRING
-    string_value: "second_animation"
+    string: "second_animation"
   }
   custom_properties {
     id: "spine_scene"
     type: TYPE_STRING
-    string_value: "second_spinescene"
+    string: "second_spinescene"
   }
   custom_properties {
     id: "spine_skin"
     type: TYPE_STRING
-    string_value: "second_skin"
+    string: "second_skin"
   }
 }
 nodes {
@@ -1173,7 +1172,6 @@ layouts {
     overridden_fields: 45
     overridden_fields: 46
     overridden_fields: 47
-    overridden_fields: 50
     custom_type_name: "Spine"
     material: "second_material"
     custom_properties {
@@ -1184,24 +1182,23 @@ layouts {
     custom_properties {
       id: "spine_default_animation"
       type: TYPE_STRING
-      string_value: "second_animation"
+      string: "second_animation"
     }
     custom_properties {
       id: "spine_scene"
       type: TYPE_STRING
-      string_value: "second_spinescene"
+      string: "second_spinescene"
     }
     custom_properties {
       id: "spine_skin"
       type: TYPE_STRING
-      string_value: "second_skin"
+      string: "second_skin"
     }
   }
   nodes {
     type: TYPE_CUSTOM
     id: "save_data_custom"
     parent: "parent"
-    overridden_fields: 50
     custom_type_name: "SaveDataCustom"
     custom_properties {
       id: "test_boolean"
@@ -1211,7 +1208,7 @@ layouts {
     custom_properties {
       id: "test_hash"
       type: TYPE_HASH
-      string_value: "second_hash"
+      string: "second_hash"
     }
     custom_properties {
       id: "test_number"
@@ -1221,7 +1218,7 @@ layouts {
     custom_properties {
       id: "test_string"
       type: TYPE_STRING
-      string_value: "second_string"
+      string: "second_string"
     }
     custom_properties {
       id: "test_quat"
@@ -1612,7 +1609,6 @@ layouts {
     overridden_fields: 45
     overridden_fields: 46
     overridden_fields: 47
-    overridden_fields: 50
     template_node_child: true
     custom_type_name: "Spine"
     material: "second_material"
@@ -1624,17 +1620,17 @@ layouts {
     custom_properties {
       id: "spine_default_animation"
       type: TYPE_STRING
-      string_value: "second_animation"
+      string: "second_animation"
     }
     custom_properties {
       id: "spine_scene"
       type: TYPE_STRING
-      string_value: "second_spinescene"
+      string: "second_spinescene"
     }
     custom_properties {
       id: "spine_skin"
       type: TYPE_STRING
-      string_value: "second_skin"
+      string: "second_skin"
     }
   }
   nodes {
