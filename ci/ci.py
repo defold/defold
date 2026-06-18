@@ -349,7 +349,10 @@ def build_editor2(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor build: %s" % platform)
 
+    cmd_args = ('"%s" scripts/build.py distclean install_ext build_editor2' % sys.executable).split()
     cmd_opts = []
+    cmd_opts.append('--channel=%s' % channel)
+    cmd_opts.append('--platform=%s' % platform)
 
     if args.engine_artifacts:
         cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
@@ -364,26 +367,23 @@ def build_editor2(channel, platform, args):
     if args.skip_tests:
         cmd_opts.append('--skip-tests')
 
-    cmd_opts.append('--channel=%s' % channel)
-
-    opts_string = ' '.join(cmd_opts)
-
-    call('"%s" scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
+    cmd = ' '.join(cmd_args + cmd_opts)
+    call(cmd)
 
 def test_editor(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor tests: %s" % platform)
 
-    opts = []
-
-    opts.append('--channel=%s' % channel)
+    cmd_args = ('"%s" scripts/build.py distclean install_ext test_editor2' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append('--channel=%s' % channel)
+    cmd_opts.append('--platform=%s' % platform)
 
     if args.engine_artifacts:
-        opts.append('--engine-artifacts=%s' % args.engine_artifacts)
+        cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
 
-    opts_string = ' '.join(opts)
-
-    call('python scripts/build.py distclean install_ext test_editor2 --platform=%s %s' % (platform, opts_string))
+    cmd = ' '.join(cmd_args + cmd_opts)
+    call(cmd)
 
 def archive_editor2(channel, platform, args):
     if platform is None:
@@ -391,39 +391,44 @@ def archive_editor2(channel, platform, args):
     else:
         platforms = [platform]
 
-    opts = []
-    opts.append("--channel=%s" % channel)
+    if args.skip_install_ext:
+        cmd_args = ('"%s" scripts/build.py archive_editor2' % sys.executable).split()
+    else:
+        cmd_args = ('"%s" scripts/build.py install_ext archive_editor2' % sys.executable).split()
 
-    if args.engine_artifacts:
-        opts.append('--engine-artifacts=%s' % args.engine_artifacts)
-
-    opts_string = ' '.join(opts)
     for platform in platforms:
-        if args.skip_install_ext:
-            call('"%s" scripts/build.py archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
-        else:
-            call('"%s" scripts/build.py install_ext archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
+        cmd_opts = []
+        cmd_opts.append("--channel=%s" % channel)
+        cmd_opts.append('--platform=%s' % platform)
+
+        if args.engine_artifacts:
+            cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
+
+        cmd = ' '.join(cmd_args + cmd_opts)
+        call(cmd)
 
 def distclean():
     call('"%s" scripts/build.py distclean' % sys.executable)
 
 
 def install_ext(platform = None):
-    opts = []
+    cmd_args = ('"%s" scripts/build.py install_ext' % sys.executable).split()
+    cmd_opts = []
     if platform:
-        opts.append('--platform=%s' % platform)
+        cmd_opts.append('--platform=%s' % platform)
 
-    call('"%s" scripts/build.py install_ext %s' % (sys.executable, ' '.join(opts)))
+    cmd = ' '.join(cmd_args + cmd_opts)
+    call(cmd)
 
 
 def build_bob(channel, branch, args):
-    args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
-    opts = []
-    opts.append("--channel=%s" % channel)
+    cmd_args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append("--channel=%s" % channel)
     if args.skip_tests:
-        opts.append("--skip-tests")
+        cmd_opts.append("--skip-tests")
 
-    cmd = ' '.join(args + opts)
+    cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 def test_bob(channel):
@@ -432,23 +437,23 @@ def test_bob(channel):
 
 
 def release(channel):
-    args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
-    opts = []
-    opts.append("--channel=%s" % channel)
+    cmd_args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append("--channel=%s" % channel)
 
     token = get_github_token()
     if token:
-        opts.append("--github-token=%s" % token)
+        cmd_opts.append("--github-token=%s" % token)
 
-    cmd = ' '.join(args + opts)
+    cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 def build_sdk(channel):
-    args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
-    opts = []
-    opts.append("--channel=%s" % channel)
+    cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append("--channel=%s" % channel)
 
-    cmd = ' '.join(args + opts)
+    cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 
@@ -573,7 +578,7 @@ def main(argv):
         elif command == "archive-editor":
             archive_editor2(channel, platform, args)
         elif command == "bob":
-            build_bob( channel, branch, args)
+            build_bob(channel, branch, args)
         elif command == "test-bob":
             test_bob(channel)
         elif command == "sdk":
