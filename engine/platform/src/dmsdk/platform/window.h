@@ -110,6 +110,7 @@ typedef enum WindowResult
  * @member WINDOW_GRAPHICS_API_VENDOR Vendor-specific backend
  * @member WINDOW_GRAPHICS_API_WEBGPU WebGPU backend
  * @member WINDOW_GRAPHICS_API_DIRECTX DirectX backend
+ * @member WINDOW_GRAPHICS_API_METAL Metal backend
  */
 typedef enum WindowsGraphicsApi
 {
@@ -120,6 +121,7 @@ typedef enum WindowsGraphicsApi
     WINDOW_GRAPHICS_API_VENDOR   = 4,
     WINDOW_GRAPHICS_API_WEBGPU   = 5,
     WINDOW_GRAPHICS_API_DIRECTX  = 6,
+    WINDOW_GRAPHICS_API_METAL    = 7,
 } WindowsGraphicsApi;
 
 /*# window state enumeration

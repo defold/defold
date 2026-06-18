@@ -84,6 +84,9 @@ bool SetLogFile(const char* path);
  */
 void __ios_log_print(LogSeverity severity, const char* str_buf);
 
+void DoLogPlatform(LogSeverity severity, const char* output, int output_len);
+void CloseConsoleWindow();
+
 #if defined(_WIN32)
 bool HResultToString(HRESULT hr, char* buffer, size_t buffer_size);
 void LogHResult(LogSeverity severity, HRESULT hr, const char* str_buf);

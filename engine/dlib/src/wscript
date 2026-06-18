@@ -22,7 +22,7 @@ def build(bld):
 
     build_util = create_build_utility(bld.env)
 
-    source_dirs = 'dlib/*.cpp zlib/*.c lz4/*.c'.split(' ')
+    source_dirs = 'dlib/*.cpp dlib/http/*.cpp zlib/*.c lz4/*.c'.split(' ')
     platform_source_dirs = []
 
     if re.match('arm.*?android', bld.env.PLATFORM):
@@ -98,6 +98,7 @@ def build(bld):
     for feature_name in ['dlib/condition_variable',
                          'dlib/crypt',
                          'dlib/file_descriptor',
+                         'dlib/log',
                          'dlib/mutex',
                          'dlib/socket',
                          'dlib/sslsocket',
@@ -137,7 +138,7 @@ def build(bld):
     sslsocket_uses_mbedtls = use_mbedtls or target_os not in ['macos', 'ios', 'web']
 
     if 'web' in bld.env.PLATFORM:
-        source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'configfile_http.cpp'])
+        source_files = remove_files(source_files, ['http_cache.cpp', 'http_cache_verify.cpp', 'configfile_http.cpp', 'http_service.cpp'])
         extra_defines.append('DM_NO_HTTP_CACHE')
 
     mbedtls_public_includes = ['.', './mbedtls/defold', './mbedtls', './mbedtls/include', './mbedtls/tf-psa-crypto/include', './mbedtls/tf-psa-crypto/drivers/builtin/include']
@@ -180,7 +181,7 @@ def build(bld):
     # remove all null implementations
     dlib.source = remove_files(dlib.source, ['_null.cpp'])
     if 'web' in bld.env.PLATFORM:
-        dlib.source += bld.path.ant_glob(['dlib/http_cache_null.cpp', 'dlib/configfile_http_null.cpp'])
+        dlib.source += bld.path.ant_glob(['dlib/http_cache_null.cpp', 'dlib/configfile_http_null.cpp', 'dlib/http/http_service_null.cpp'])
 
     if 'macos' in bld.env.BUILD_PLATFORM and build_util.get_target_os() not in ['macos', 'ios']:
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
@@ -250,6 +251,8 @@ def build(bld):
                          target       = 'dmbedtls_noasan')
     dmbedtls_noasan.source = [x for x in dmbedtls.source]
     dmbedtls_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+
+    bld.install_files('${PREFIX}/share/proto/dlib', '../proto/dlib/http_ddf.proto')
 
     libzip_dirs = ['zip/**/*.c']
 
@@ -447,10 +450,11 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/endian.hpp')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hash.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/hashtable.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache.h')
+    bld.install_files('${PREFIX}/include/dlib/http', 'dlib/http/http_cache.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/http_cache_verify.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_client.h')
-    bld.install_files('${PREFIX}/include/dlib', 'dlib/http_server.h')
+    bld.install_files('${PREFIX}/include/dlib/http', 'dlib/http/http_client.h')
+    bld.install_files('${PREFIX}/include/dlib/http', 'dlib/http/http_service.h')
+    bld.install_files('${PREFIX}/include/dlib/http', 'dlib/http/http_server.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/image.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/index_pool.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/jobsystem.h')

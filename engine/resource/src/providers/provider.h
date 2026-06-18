@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 #include <dlib/hash.h>
-#include <dlib/http_cache.h>
+#include <dlib/http/http_cache.h>
 #include <dlib/uri.h>
 
 #include "../resource.h"

@@ -30,14 +30,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import com.dynamo.bob.font.BMFont;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
@@ -45,7 +46,6 @@ import com.dynamo.bob.font.BMFont.ChannelData;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.GlyphBank;
 import com.dynamo.render.proto.Font.GlyphBank.Glyph;
@@ -54,12 +54,14 @@ public class FontTest {
 
     private static final double EPSILON = 0.000001;
 
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
     private String copyResourceToDir(String tmpDir, String resName) throws IOException {
         String outputPath = Paths.get(tmpDir, resName).toString();
 
         InputStream inputStream = getClass().getResourceAsStream(resName);
         File outputFile = new File(outputPath);
-        FileUtil.deleteOnExit(outputFile);
         OutputStream outputStream = new FileOutputStream(outputFile);
         IOUtils.copy(inputStream, outputStream);
         inputStream.close();
@@ -231,8 +233,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
-        FileUtil.deleteOnExit(outfile);
+        File outfile = temporaryFolder.newFile("glyph-bank-output.glyph_bankc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -278,8 +279,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
-        FileUtil.deleteOnExit(outfile);
+        File outfile = temporaryFolder.newFile("glyph-bank-output.glyph_bankc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -325,8 +325,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
-        FileUtil.deleteOnExit(outfile);
+        File outfile = temporaryFolder.newFile("glyph-bank-output.glyph_bankc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -371,8 +370,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = File.createTempFile("glyph-bank-output", ".glyph_bankc");
-        FileUtil.deleteOnExit(outfile);
+        File outfile = temporaryFolder.newFile("glyph-bank-output.glyph_bankc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -455,8 +453,7 @@ public class FontTest {
                 .setSize(24)
                 .build();
 
-        File outfile = File.createTempFile("font-output", ".fontc");
-        FileUtil.deleteOnExit(outfile);
+        File outfile = temporaryFolder.newFile("font-output.fontc");
 
         // compile font
         boolean success = true;
@@ -491,8 +488,7 @@ public class FontTest {
     public void testFNT() throws Exception {
 
         // copy fnt and texture file
-        final Path tmpDir = Files.createTempDirectory("fnt-tmp");
-        FileUtil.deleteOnExit(tmpDir.toFile());
+        final Path tmpDir = temporaryFolder.newFolder("fnt-tmp").toPath();
         String tmpFnt = copyResourceToDir(tmpDir.toString(), "bmfont.fnt");
         copyResourceToDir(tmpDir.toString(), "bmfont.png");
 
@@ -504,8 +500,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = File.createTempFile("font-output", ".fontc");
-        FileUtil.deleteOnExit(outfile);
+        File outfile = temporaryFolder.newFile("font-output.fontc");
 
         // compile font
         Fontc fontc = new Fontc();
@@ -547,8 +542,7 @@ public class FontTest {
             .build();
 
         // temp output file
-        File outfile = File.createTempFile("font-output", ".fontc");
-        FileUtil.deleteOnExit(outfile);
+        File outfile = temporaryFolder.newFile("font-output.fontc");
 
         // compile font
         Fontc fontc = new Fontc();

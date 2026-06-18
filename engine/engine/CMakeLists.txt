@@ -64,13 +64,26 @@ if(NOT ENGINE_SHA1)
   set(ENGINE_SHA1 "unknown")
 endif()
 
+set(ENGINE_PRIVATE_SHA1 "")
+if(DEFOLD_PRIVATE_REPO_ROOT)
+  execute_process(
+    COMMAND git -c "safe.directory=${DEFOLD_PRIVATE_REPO_ROOT}" -C "${DEFOLD_PRIVATE_REPO_ROOT}" rev-parse HEAD
+    OUTPUT_VARIABLE ENGINE_PRIVATE_SHA1
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_VARIABLE ENGINE_PRIVATE_SHA1_ERROR
+    RESULT_VARIABLE ENGINE_PRIVATE_SHA1_RESULT)
+  if(NOT ENGINE_PRIVATE_SHA1_RESULT EQUAL 0)
+    message(FATAL_ERROR "Could not resolve private engine sha1 for ${TARGET_PLATFORM}: ${ENGINE_PRIVATE_SHA1_ERROR}")
+  endif()
+endif()
+
 file(READ "${DEFOLD_HOME}/VERSION" ENGINE_VERSION)
 string(STRIP "${ENGINE_VERSION}" ENGINE_VERSION)
 
 set(ENGINE_VERSION_HEADER "${CMAKE_CURRENT_BINARY_DIR}/engine_version.h")
 file(GENERATE
   OUTPUT "${ENGINE_VERSION_HEADER}"
-  CONTENT "namespace dmEngineVersion\n{\n    static const char* PLATFORM = \"${TARGET_PLATFORM}\";\n    static const char* VERSION = \"${ENGINE_VERSION}\";\n    static const char* VERSION_SHA1 = \"${ENGINE_SHA1}\";\n}\n")
+  CONTENT "namespace dmEngineVersion\n{\n    static const char* PLATFORM = \"${TARGET_PLATFORM}\";\n    static const char* VERSION = \"${ENGINE_VERSION}\";\n    static const char* VERSION_SHA1 = \"${ENGINE_SHA1}\";\n    static const char* PRIVATE_VERSION_SHA1 = \"${ENGINE_PRIVATE_SHA1}\";\n}\n")
 
 set(ENGINE_DDF_PROTO "${ENGINE_PROTO_DIR}/engine/engine_ddf.proto")
 set(ENGINE_DDF_CPP "${CMAKE_CURRENT_BINARY_DIR}/engine/engine_ddf.cpp")
@@ -97,6 +110,9 @@ endif()
 
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
+file(GLOB ENGINE_BOB_PLUGIN_JARS CONFIGURE_DEPENDS "${DEFOLD_SDK_ROOT}/share/java/plugins/*.jar")
+set(ENGINE_BOB_CLASSPATH_LIST "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS})
+cmake_path(CONVERT "${ENGINE_BOB_CLASSPATH_LIST}" TO_NATIVE_PATH_LIST ENGINE_BOB_CLASSPATH)
 
 file(GLOB_RECURSE ENGINE_CONTENT_SOURCES CONFIGURE_DEPENDS
   "${ENGINE_CONTENT_DIR}/builtins/*"
@@ -130,16 +146,18 @@ add_custom_command(
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest"
     "${ENGINE_BUILTINS_STAMP}"
-  COMMAND "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
+  COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+    "${Python3_EXECUTABLE}" "${ENGINE_CMAKE_CONTENT_SCRIPT}" builtins
     --source-root "${ENGINE_CONTENT_DIR}"
     --work-root "${ENGINE_BUILTINS_WORK_ROOT}"
     --output-root "${ENGINE_BUILTINS_OUTPUT_DIR}"
     --stamp "${ENGINE_BUILTINS_STAMP}"
     --bob-light "${ENGINE_BOB_LIGHT}"
+    --bob-classpath "${ENGINE_BOB_CLASSPATH}"
     --platform "${TARGET_PLATFORM}"
     ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
-  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_CONTENT_SOURCES}
+  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES}
   COMMENT "Building engine builtin archive"
   VERBATIM)
 add_custom_target(engine_builtins
@@ -155,7 +173,7 @@ set(ENGINE_DEBUG_SPC "${CMAKE_CURRENT_BINARY_DIR}/content/materials/debug.spc")
 add_custom_command(
   OUTPUT "${ENGINE_DEBUG_SPC}"
   COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/content/materials"
-  COMMAND "${Java_JAVA_EXECUTABLE}" -cp "${ENGINE_BOB_LIGHT}"
+  COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${ENGINE_BOB_CLASSPATH}"
     com.dynamo.bob.pipeline.ShaderProgramBuilder
     "${ENGINE_CONTENT_DIR}/materials/debug.fp"
     "${ENGINE_CONTENT_DIR}/materials/debug.vp"
@@ -167,6 +185,7 @@ add_custom_command(
     "${ENGINE_CONTENT_DIR}/materials/debug.vp"
     "${ENGINE_CONTENT_DIR}/materials/debug.material"
     "${ENGINE_BOB_LIGHT}"
+    ${ENGINE_BOB_PLUGIN_JARS}
   COMMENT "Building engine debug shader"
   VERBATIM)
 
@@ -409,7 +428,9 @@ function(engine_configure_executable target variant engine_lib engine_service_li
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
     endif()
   else()
-    if(TARGET record)
+    if(variant STREQUAL "release")
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
+    elseif(TARGET record)
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
     else()
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
@@ -432,7 +453,20 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   endif()
 endfunction()
 
-set(ENGINE_MAIN_CPP "${ENGINE_SRC_DIR}/common/main.cpp")
+set(ENGINE_MAIN_SOURCES "${ENGINE_SRC_DIR}/common/main.cpp")
+if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+  list(APPEND ENGINE_MAIN_SOURCES "${ENGINE_SRC_DIR}/common/android_main.cpp")
+endif()
+
+function(engine_add_binary target)
+  if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
+    # NativeActivity loads Android engines with dlopen/dlsym, so these must be
+    # true shared libraries rather than PIE executables renamed to .so files.
+    defold_add_library(${target} SHARED ${ARGN})
+  else()
+    defold_add_executable(${target} ${ARGN})
+  endif()
+endfunction()
 
 set(ENGINE_DMENGINE_SYMBOLS
   ${ENGINE_EXPORTED_SYMBOLS}
@@ -442,7 +476,7 @@ set(ENGINE_DMENGINE_SYMBOLS
   ${ENGINE_COMPONENT_SYMBOLS})
 set(ENGINE_DMENGINE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmengine.cpp")
 defold_create_exported_symbols_file("${ENGINE_DMENGINE_EXPORTS}" "${ENGINE_DMENGINE_SYMBOLS}")
-defold_add_executable(dmengine "${ENGINE_MAIN_CPP}" "${ENGINE_DMENGINE_EXPORTS}")
+engine_add_binary(dmengine ${ENGINE_MAIN_SOURCES} "${ENGINE_DMENGINE_EXPORTS}")
 engine_configure_executable(dmengine debug engine engine_service graphics "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
 defold_xcode_configure_ios_app(dmengine
   BUNDLE_ID "${DEFOLD_IOS_BUNDLE_IDENTIFIER}"
@@ -455,7 +489,7 @@ set(ENGINE_RELEASE_SYMBOLS
   ${ENGINE_COMPONENT_SYMBOLS})
 set(ENGINE_RELEASE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmengine_release.cpp")
 defold_create_exported_symbols_file("${ENGINE_RELEASE_EXPORTS}" "${ENGINE_RELEASE_SYMBOLS}")
-defold_add_executable(dmengine_release "${ENGINE_MAIN_CPP}" "${ENGINE_RELEASE_EXPORTS}")
+engine_add_binary(dmengine_release ${ENGINE_MAIN_SOURCES} "${ENGINE_RELEASE_EXPORTS}")
 engine_configure_executable(dmengine_release release engine_release engine_service_null graphics "profile_null;profilerext_null" "ProfilerExt")
 
 set(ENGINE_HEADLESS_SYMBOLS
@@ -467,7 +501,7 @@ set(ENGINE_HEADLESS_SYMBOLS
   ${ENGINE_COMPONENT_SYMBOLS})
 set(ENGINE_HEADLESS_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmengine_headless.cpp")
 defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADLESS_SYMBOLS}")
-defold_add_executable(dmengine_headless "${ENGINE_MAIN_CPP}" "${ENGINE_HEADLESS_EXPORTS}")
+engine_add_binary(dmengine_headless ${ENGINE_MAIN_SOURCES} "${ENGINE_HEADLESS_EXPORTS}")
 engine_configure_executable(dmengine_headless headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
 
 if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
@@ -505,6 +539,7 @@ defold_install_targets(TARGETS engine engine_release engine_service engine_servi
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 defold_install_targets(TARGETS dmengine dmengine_release dmengine_headless
+  LIBRARY DESTINATION bin/${TARGET_PLATFORM}
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
 if(TARGET_PLATFORM MATCHES "win32")
@@ -536,12 +571,16 @@ defold_add_sdk_headers_target(engine_public_sdk_headers
   SOURCE_ROOT "${ENGINE_SRC_DIR}"
   FILES "${ENGINE_SRC_DIR}/engine.h"
   DEPENDS engine)
+defold_add_sdk_headers_target(engine_ddf_sdk_headers
+  DESTINATION include/engine
+  FILES "${ENGINE_DDF_H}"
+  DEPENDS engine)
 defold_add_sdk_headers_target(engine_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk
   SOURCE_ROOT "${ENGINE_ROOT}/src/dmsdk"
   FILES ${ENGINE_DMSDK_HEADERS}
   DEPENDS engine)
-set(ENGINE_SDK_HEADER_TARGETS engine_public_sdk_headers engine_dmsdk_sdk_headers)
+set(ENGINE_SDK_HEADER_TARGETS engine_public_sdk_headers engine_ddf_sdk_headers engine_dmsdk_sdk_headers)
 list(APPEND ENGINE_SDK_HEADER_TARGETS
   crashext_sdk_headers
   extension_sdk_headers
@@ -559,9 +598,12 @@ list(APPEND ENGINE_SDK_HEADER_TARGETS
 add_custom_target(engine_sdk_headers
   DEPENDS ${ENGINE_SDK_HEADER_TARGETS})
 
-install(FILES "${ENGINE_SRC_DIR}/engine.h" DESTINATION include/engine)
+install(FILES "${ENGINE_SRC_DIR}/engine.h" "${ENGINE_DDF_H}" DESTINATION include/engine)
 install(FILES "${ENGINE_PROTO_DIR}/engine/engine_ddf.proto" DESTINATION share/proto/engine)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/proto/engine/engine_ddf_pb2.py" DESTINATION lib/python/engine)
+if(TARGET_PLATFORM MATCHES "win32$")
+  install(FILES "${ENGINE_SRC_DIR}/defold.ico" "${ENGINE_SRC_DIR}/engine.rc" DESTINATION lib/${TARGET_PLATFORM})
+endif()
 install(FILES "${ENGINE_ROOT}/scripts/dmengine_memprofile.sh"
   DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)

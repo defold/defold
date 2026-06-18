@@ -1,0 +1,21 @@
+#include <metal_stdlib>
+#include <simd/simd.h>
+using namespace metal;
+
+struct main0_out
+{
+    float4 color [[color(0)]];
+};
+
+struct main0_in
+{
+    float2 var_texcoord0 [[user(locn0)]];
+};
+
+fragment main0_out main0(main0_in in [[stage_in]])
+{
+    main0_out out = {};
+    out.color = float4(in.var_texcoord0.x, in.var_texcoord0.y, 0.0, 1.0);
+    out.color.w = 1.0;
+    return out;
+}

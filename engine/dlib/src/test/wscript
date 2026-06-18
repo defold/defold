@@ -191,6 +191,7 @@ def build(bld):
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
 
     if not skip_http:
+        create_test(bld, 'test_http', source = 'test_http.c', c_only = True, extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_httpclient', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
         create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)

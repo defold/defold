@@ -82,7 +82,7 @@ function(resource_archive out_var name use_compression)
   add_custom_command(
     OUTPUT ${_resource_archive_outputs}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${RESOURCE_TEST_BUILD_DIR}"
-    COMMAND "${Java_JAVA_EXECUTABLE}" -cp "${RESOURCE_BOB_LIGHT}" com.dynamo.bob.archive.ArchiveBuilder
+    COMMAND "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${RESOURCE_BOB_LIGHT}" com.dynamo.bob.archive.ArchiveBuilder
             "${RESOURCE_TEST_BUILD_DIR}"
             "${RESOURCE_TEST_BUILD_DIR}/${name}"
             ${_resource_archive_flags}

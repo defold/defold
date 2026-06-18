@@ -295,7 +295,8 @@ static android_LogPriority ToAndroidPriority(LogSeverity severity)
 }
 #endif
 
-static void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
+#if !defined(_WIN32) && !defined(_GAMING_XBOX)
+void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
 {
 #ifdef ANDROID
         __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
@@ -318,8 +319,6 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
                 Module.print(UTF8ToString($0));
             }, output);
         }
-#elif defined(_GAMING_XBOX)
-    OutputDebugStringA(output);
 #else
     if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
     {
@@ -331,6 +330,7 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
     }
 #endif
 }
+#endif
 
 // Here we put logging that needs to be thread safe
 // We either push it on the logger thread, or from the main thread if threads aren't supported (e.g. html5)
@@ -582,30 +582,6 @@ bool SetLogFile(const char* path)
     return true;
 }
 
-#if defined(_WIN32)
-
-bool HResultToString(HRESULT hr, char* buffer, size_t buffer_size)
-{
-    buffer[0] = 0;
-    return 0 != FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
-                    NULL, hr,
-                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-                    (LPSTR) buffer, buffer_size,
-                    NULL);
-}
-
-void LogHResult(LogSeverity severity, HRESULT result, const char* str_buf)
-{
-    char msg[256];
-    char buffer[1024];
-    dmLog::HResultToString(result, msg, sizeof(msg));
-    dmSnPrintf(buffer, sizeof(buffer), "%s (hr: 0x%08x code: %d : '%s')\n", str_buf, result, HRESULT_CODE(result), msg);
-    dmLogError(buffer);
-    OutputDebugStringA(buffer);
-}
-#endif
-
-
 } //namespace dmLog
 
 void dmLogRegisterListener(FLogListener listener)
@@ -658,6 +634,9 @@ namespace dmLog {
     void RegisterLogListener(FLogListener listener)     { dmLogRegisterListener(listener); }
     void UnregisterLogListener(FLogListener listener)   { dmLogUnregisterListener(listener); }
     void Setlevel(LogSeverity severity)                 { dmLogSetLevel(severity); }
+#if !defined(_WIN32) && !defined(_GAMING_XBOX)
+    void CloseConsoleWindow()                           {}
+#endif
 }
 
 

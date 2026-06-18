@@ -129,7 +129,9 @@ function(defold_target_link_libraries target platform)
   set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
   set(_LIBS)
   foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
-    if(_lib STREQUAL "lua" AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
+    if(_lib STREQUAL "graphics" AND DEFINED DEFOLD_PLATFORM_GRAPHICS_LIBS)
+      list(APPEND _LIBS ${DEFOLD_PLATFORM_GRAPHICS_LIBS})
+    elseif(_lib STREQUAL "lua" AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
       list(APPEND _LIBS luajit-5.1)
     else()
       list(APPEND _LIBS "${_lib}")
@@ -179,7 +181,7 @@ function(defold_target_link_libraries target platform)
         get_target_property(_sdk_headers_target "${_lib}" DEFOLD_SDK_HEADERS_TARGET)
       endif()
 
-      if(_sdk_headers_target AND TARGET "${_sdk_headers_target}")
+      if(_sdk_headers_target AND TARGET "${_sdk_headers_target}" AND NOT DEFOLD_MSVC_IDE_SOLUTION)
         add_dependencies(${target} "${_sdk_headers_target}")
       endif()
     endif()
@@ -305,15 +307,15 @@ function(defold_add_sdk_headers_target target_name)
     list(APPEND _outputs "${_output}")
     list(APPEND _commands
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${_output_dir}"
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_file}" "${_output}")
+      COMMAND "${CMAKE_COMMAND}" -E copy "${_file}" "${_output}")
   endforeach()
 
   add_custom_command(
     OUTPUT ${_outputs}
     ${_commands}
-    DEPENDS ${SDK_HEADERS_DEPENDS} ${SDK_HEADERS_FILES}
+    DEPENDS ${SDK_HEADERS_FILES}
     VERBATIM)
-  add_custom_target(${target_name} DEPENDS ${_outputs})
+  add_custom_target(${target_name} DEPENDS ${_outputs} ${SDK_HEADERS_DEPENDS})
 endfunction()
 
 function(defold_get_box2d_library out_var)
@@ -407,13 +409,37 @@ endfunction()
 #   defold_add_executable(<name>
 #                         [EXCLUDE_FROM_ALL]
 #                         source1 [source2 ...])
+function(defold_resolve_private_source_paths out_var)
+  set(_resolved)
+  foreach(_arg IN LISTS ARGN)
+    set(_resolved_arg "${_arg}")
+    if(DEFOLD_PRIVATE_REPO_ROOT
+       AND IS_ABSOLUTE "${_arg}"
+       AND NOT EXISTS "${_arg}"
+       AND NOT _arg MATCHES "^\\$<")
+      file(RELATIVE_PATH _relative "${DEFOLD_HOME}" "${_arg}")
+      if(NOT _relative MATCHES "^\\.\\."
+         AND NOT IS_ABSOLUTE "${_relative}")
+        set(_private_candidate "${DEFOLD_PRIVATE_REPO_ROOT}/${_relative}")
+        if(EXISTS "${_private_candidate}")
+          set(_resolved_arg "${_private_candidate}")
+        endif()
+      endif()
+    endif()
+    list(APPEND _resolved "${_resolved_arg}")
+  endforeach()
+  set(${out_var} "${_resolved}" PARENT_SCOPE)
+endfunction()
+
 function(defold_add_executable target)
   if(NOT target)
     message(FATAL_ERROR "defold_add_executable: target name is required")
   endif()
 
+  defold_resolve_private_source_paths(_sources ${ARGN})
+
   # Forward all remaining args directly to add_executable
-  add_executable(${target} ${ARGN})
+  add_executable(${target} ${_sources})
 
   # Attach local include dir (e.g., ./include) and headers if present
   if(COMMAND defold_attach_local_include)
@@ -495,8 +521,10 @@ function(defold_add_library target)
     message(FATAL_ERROR "defold_add_library: target name is required")
   endif()
 
+  defold_resolve_private_source_paths(_sources ${ARGN})
+
   # Forward all remaining args directly to add_library
-  add_library(${target} ${ARGN})
+  add_library(${target} ${_sources})
 
   if(target MATCHES "_noasan$" AND COMMAND defold_target_skip_sanitizer)
     defold_target_skip_sanitizer(${target})

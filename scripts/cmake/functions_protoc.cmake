@@ -124,7 +124,6 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
     endif()
     if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET dlib_shared)
         list(APPEND _ddf_plugin_env "DM_DLIB_SHARED_LIBRARY=$<TARGET_FILE:dlib_shared>")
-        list(APPEND _ddf_plugin_deps dlib_shared)
     elseif(HOST_PLATFORM_IS_WINDOWS)
         list(APPEND _ddf_plugin_env "DM_DLIB_SHARED_LIBRARY=${DEFOLD_SDK_ROOT}/lib/${HOST_PLATFORM}/dlib_shared.dll")
     endif()
@@ -144,7 +143,7 @@ function(defold_protoc_gen_cpp OUT_CPP SRC_PROTO)
     if(NOT "${OUT_CPP}" STREQUAL "${_out_cc}")
         add_custom_command(
             OUTPUT "${OUT_CPP}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_out_cc}" "${OUT_CPP}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_out_cc}" "${OUT_CPP}"
             DEPENDS "${_out_cc}"
             VERBATIM
             COMMENT "Copying ${_out_cc} to ${OUT_CPP}"
@@ -211,7 +210,7 @@ function(defold_protoc_gen_protobuf_cpp OUT_CC SRC_PROTO)
     if(NOT "${OUT_CC}" STREQUAL "${_out_cc}")
         add_custom_command(
             OUTPUT "${OUT_CC}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_out_cc}" "${OUT_CC}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_out_cc}" "${OUT_CC}"
             DEPENDS "${_out_cc}"
             VERBATIM
             COMMENT "Copying ${_out_cc} to ${OUT_CC}"
@@ -457,7 +456,7 @@ function(defold_protoc_gen_py OUT_PY SRC_PROTO)
     if(NOT "${OUT_PY}" STREQUAL "${_gen_py}")
         add_custom_command(
             OUTPUT "${OUT_PY}"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_gen_py}" "${OUT_PY}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_gen_py}" "${OUT_PY}"
             DEPENDS "${_gen_py}"
             VERBATIM
             COMMENT "Copying ${_gen_py} to ${OUT_PY}"

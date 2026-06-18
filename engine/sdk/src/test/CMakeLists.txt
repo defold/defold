@@ -66,6 +66,15 @@ function(sdk_apply_header_test_settings target)
     target_compile_definitions(${target} PRIVATE DM_PLATFORM_IOS DM_NO_SYSTEM_FUNCTION DM_HOSTFS=\"\")
   elseif(TARGET_PLATFORM MATCHES "android")
     target_compile_definitions(${target} PRIVATE ANDROID DM_HOSTFS=\"\")
+    set(_sdk_android_ndk "${ANDROID_NDK}")
+    if(NOT _sdk_android_ndk AND DEFINED CMAKE_ANDROID_NDK)
+      set(_sdk_android_ndk "${CMAKE_ANDROID_NDK}")
+    endif()
+    if(_sdk_android_ndk)
+      target_include_directories(${target} SYSTEM PRIVATE
+        "${_sdk_android_ndk}/sources/android/native_app_glue"
+        "${_sdk_android_ndk}/sources/android/cpufeatures")
+    endif()
   elseif(TARGET_PLATFORM MATCHES "web")
     target_compile_definitions(${target} PRIVATE DM_PLATFORM_HTML5 DM_NO_SYSTEM_FUNCTION DM_HOSTFS=\"/node_vfs/\")
   elseif(TARGET_PLATFORM MATCHES "linux")
@@ -83,12 +92,47 @@ function(sdk_apply_header_test_settings target)
       UNICODE
       _UNICODE)
     target_compile_options(${target} PRIVATE /FIdmsdk/dlib/safe_windows.h)
+  elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
+    target_compile_definitions(${target} PRIVATE
+      DM_PLATFORM_VENDOR
+      DM_PLATFORM_WINDOWS
+      DM_NO_SYSTEM_FUNCTION
+      DM_IPV6_UNSUPPORTED
+      DM_PROTOBUF_USE_MACHINE_ENDIAN_H
+      USE_PROTOBUF_LITTLE_ENDIAN
+      DM_MBEDTLS_NO_SIGNAL_H
+      DM_MBEDTLS_CUSTOM_RAND
+      DM_HAS_NO_GETENV
+      DM_LUASOCKET_UNSUPPORTED
+      LUA_NO_SYSTEM
+      LUA_NO_TMPFILE
+      LUA_NO_TMPNAM
+      LUA_NO_GETENV
+      DM_HAVE_KEYBOARD_SUPPORT=0
+      DM_GRAPHICS_NULL_SHADER_LANGUAGE=LANGUAGE_GLSL_SM430
+      ATG_ENABLE_TELEMETRY
+      _ATL_NO_DEFAULT_LIBS
+      __WRL_NO_DEFAULT_LIB__
+      __WRL_CLASSIC_COM_STRICT__
+      WINAPI_FAMILY=WINAPI_FAMILY_GAMES
+      _GAMING_XBOX
+      _GAMING_XBOX_XBOXONE
+      WIN32_LEAN_AND_MEAN
+      NOMINMAX
+      _CRT_SECURE_NO_WARNINGS
+      UNICODE
+      _UNICODE
+      _HAS_EXCEPTIONS=0
+      DM_SOUND_DSP_IMPL=SSE
+      DM_HOSTFS=\"G:\")
+    target_compile_options(${target} PRIVATE /FIdmsdk/dlib/safe_windows.h)
   endif()
   foreach(_sdk_header_dependency IN ITEMS
       dlib_sdk_headers
       engine_sdk_headers
       extension_sdk_headers
       graphics_sdk_headers
+      hid_sdk_headers
       lua_sdk_headers
       script_sdk_headers
       sound_sdk_headers

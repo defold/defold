@@ -37,7 +37,7 @@
 #include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/http_client.h>
+#include <dlib/http/http_client.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memprofile.h>
@@ -808,6 +808,7 @@ namespace dmEngine
             case dmGraphics::ADAPTER_FAMILY_VENDOR:   return WINDOW_GRAPHICS_API_VENDOR;
             case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return WINDOW_GRAPHICS_API_WEBGPU;
             case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return WINDOW_GRAPHICS_API_DIRECTX;
+            case dmGraphics::ADAPTER_FAMILY_METAL:    return WINDOW_GRAPHICS_API_METAL;
             default:break;
         }
         assert(0);
@@ -2569,6 +2570,10 @@ bail:
 
 void dmEngineInitialize()
 {
+#if defined(_WIN32)
+    dmLog::CloseConsoleWindow();
+#endif
+
 #if DM_RELEASE
     dLib::SetDebugMode(false);
 #endif

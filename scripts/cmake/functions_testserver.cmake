@@ -91,6 +91,12 @@ function(defold_register_test_with_server target platform)
     list(APPEND _SERVER_DIRS "${CMAKE_CURRENT_SOURCE_DIR}")
   endif()
   list(REMOVE_DUPLICATES _SERVER_DIRS)
+
+  set(_SERVER_DIR_ARGS)
+  foreach(_SERVER_DIR IN LISTS _SERVER_DIRS)
+    list(APPEND _SERVER_DIR_ARGS --server-dir "${_SERVER_DIR}")
+  endforeach()
+
   set(_CFG_PATH "${CMAKE_CURRENT_BINARY_DIR}/${DTS_CONFIG_NAME}")
   set(_WRAP "${DEFOLD_CMAKE_DIR}/testserver.py")
   if(platform STREQUAL "arm64-ios")
@@ -99,6 +105,27 @@ function(defold_register_test_with_server target platform)
     set(_SERVER_IP "localhost")
   endif()
   _defold_testserver_server_dir_args(_SERVER_DIR_ARGS ${_SERVER_DIRS})
+
+  set(_ANDROID_ARGS)
+  if(platform MATCHES "arm64-android|armv7-android")
+    list(APPEND _ANDROID_ARGS
+      --android-runner "${DEFOLD_HOME}/build_tools/build_android.py"
+      --android-cwd "${_RUN_DIR_ABS}")
+    set(_STAGE_FILES ${DTS_STAGE_FILES})
+    list(LENGTH _STAGE_FILES _STAGE_LEN)
+    math(EXPR _STAGE_REMAINDER "${_STAGE_LEN} % 2")
+    if(NOT _STAGE_REMAINDER EQUAL 0)
+      message(FATAL_ERROR "defold_register_test_with_server: STAGE_FILES requires SOURCE TARGET pairs")
+    endif()
+    set(_STAGE_IDX 0)
+    while(_STAGE_IDX LESS _STAGE_LEN)
+      list(GET _STAGE_FILES ${_STAGE_IDX} _STAGE_SOURCE)
+      math(EXPR _STAGE_TARGET_IDX "${_STAGE_IDX} + 1")
+      list(GET _STAGE_FILES ${_STAGE_TARGET_IDX} _STAGE_TARGET)
+      list(APPEND _ANDROID_ARGS --android-stage "${_STAGE_SOURCE}" "${_STAGE_TARGET}")
+      math(EXPR _STAGE_IDX "${_STAGE_IDX} + 2")
+    endwhile()
+  endif()
 
   set(_IOS_RUNNER_ARGS)
   if(platform MATCHES "^(arm64-ios|x86_64-ios)$")
@@ -115,39 +142,42 @@ function(defold_register_test_with_server target platform)
 
   set(_run_target "run_${target}_server")
   if(NOT TARGET ${_run_target})
-    if(platform MATCHES "^(arm64-ios|x86_64-ios)$")
-      add_custom_target(${_run_target}
-        COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
-          --workdir "${_RUN_DIR_ABS}"
-          --ip "${_SERVER_IP}"
-          --port "${DTS_PORT}"
-          --config "${_CFG_PATH}"
-          ${_SERVER_DIR_ARGS}
-          ${_IOS_RUNNER_ARGS}
-          -- "$<TARGET_FILE:${target}>"
-        DEPENDS ${target}
-        USES_TERMINAL
-        COMMAND_EXPAND_LISTS
-        COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")
-    else()
-      add_custom_target(${_run_target}
-        COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_SERVER_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
-        DEPENDS ${target}
-        USES_TERMINAL
-        COMMAND_EXPAND_LISTS
-        COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")
-    endif()
+    add_custom_target(${_run_target}
+      COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
+        --workdir "${_RUN_DIR_ABS}"
+        --ip "${_SERVER_IP}"
+        --port "${DTS_PORT}"
+        --config "${_CFG_PATH}"
+        ${_ANDROID_ARGS}
+        ${_SERVER_DIR_ARGS}
+        ${_IOS_RUNNER_ARGS}
+        -- "$<TARGET_FILE:${target}>"
+      DEPENDS ${target}
+      USES_TERMINAL
+      COMMAND_EXPAND_LISTS
+      COMMENT "Running ${target} with Defold test server on ${_SERVER_IP}:${DTS_PORT}")
   endif()
 
+  set(_sequential_dep ${target})
   if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
     set(_prepare_target "prepare_${_run_target}")
     if(NOT TARGET ${_prepare_target})
       add_custom_target(${_prepare_target} DEPENDS ${target})
     endif()
-    defold_xcode_register_sequential_test_command(${_run_target}
-      COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}" $<TARGET_FILE:${target}> "${_RUN_DIR_ABS}" "${_SERVER_IP}" "${DTS_PORT}" "${_CFG_PATH}" ${_SERVER_DIRS}
-      DEPENDS ${_prepare_target})
-  else()
+    set(_sequential_dep ${_prepare_target})
+  endif()
+  if(NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
+    defold_register_sequential_test_command(${_run_target}
+      COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
+        --workdir "${_RUN_DIR_ABS}"
+        --ip "${_SERVER_IP}"
+        --port "${DTS_PORT}"
+        --config "${_CFG_PATH}"
+        ${_SERVER_DIR_ARGS}
+        -- "$<TARGET_FILE:${target}>"
+      DEPENDS ${_sequential_dep})
+  endif()
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode" OR platform MATCHES "arm64-ios|x86_64-ios")
     if(NOT TARGET run_tests)
       add_custom_target(run_tests)
     endif()
@@ -213,6 +243,27 @@ function(defold_register_tests_with_server group platform)
   else()
     set(_SERVER_IP "localhost")
   endif()
+
+  set(_ANDROID_ARGS)
+  if(platform MATCHES "arm64-android|armv7-android")
+    list(APPEND _ANDROID_ARGS
+      --android-runner "${DEFOLD_HOME}/build_tools/build_android.py"
+      --android-cwd "${_RUN_DIR_ABS}")
+    set(_STAGE_FILES ${DTS_STAGE_FILES})
+    list(LENGTH _STAGE_FILES _STAGE_LEN)
+    math(EXPR _STAGE_REMAINDER "${_STAGE_LEN} % 2")
+    if(NOT _STAGE_REMAINDER EQUAL 0)
+      message(FATAL_ERROR "defold_register_tests_with_server: STAGE_FILES requires SOURCE TARGET pairs")
+    endif()
+    set(_STAGE_IDX 0)
+    while(_STAGE_IDX LESS _STAGE_LEN)
+      list(GET _STAGE_FILES ${_STAGE_IDX} _STAGE_SOURCE)
+      math(EXPR _STAGE_TARGET_IDX "${_STAGE_IDX} + 1")
+      list(GET _STAGE_FILES ${_STAGE_TARGET_IDX} _STAGE_TARGET)
+      list(APPEND _ANDROID_ARGS --android-stage "${_STAGE_SOURCE}" "${_STAGE_TARGET}")
+      math(EXPR _STAGE_IDX "${_STAGE_IDX} + 2")
+    endwhile()
+  endif()
   set(_run_target "run_${group}_server")
 
   set(_IOS_RUNNER_ARGS)
@@ -235,6 +286,7 @@ function(defold_register_tests_with_server group platform)
         --ip "${_SERVER_IP}"
         --port "${DTS_PORT}"
         --config "${_CFG_PATH}"
+        ${_ANDROID_ARGS}
         ${_SERVER_DIR_ARGS}
         ${_IOS_RUNNER_ARGS}
         -- ${_TEST_EXES}
@@ -244,12 +296,16 @@ function(defold_register_tests_with_server group platform)
       COMMENT "Running ${group} with shared Defold test server on ${_SERVER_IP}:${DTS_PORT}")
   endif()
 
+  set(_sequential_dep ${DTS_TARGETS})
   if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
     set(_prepare_target "prepare_${_run_target}")
     if(NOT TARGET ${_prepare_target})
       add_custom_target(${_prepare_target} DEPENDS ${DTS_TARGETS})
     endif()
-    defold_xcode_register_sequential_test_command(${_run_target}
+    set(_sequential_dep ${_prepare_target})
+  endif()
+  if(NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
+    defold_register_sequential_test_command(${_run_target}
       COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
         --workdir "${_RUN_DIR_ABS}"
         --ip "${_SERVER_IP}"
@@ -257,8 +313,9 @@ function(defold_register_tests_with_server group platform)
         --config "${_CFG_PATH}"
         ${_SERVER_DIR_ARGS}
         -- ${_TEST_EXES}
-      DEPENDS ${_prepare_target})
-  else()
+      DEPENDS ${_sequential_dep})
+  endif()
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode" OR platform MATCHES "arm64-ios|x86_64-ios")
     if(NOT TARGET run_tests)
       add_custom_target(run_tests)
     endif()

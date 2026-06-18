@@ -224,6 +224,73 @@ struct ClearBackbufferTest : ITest
     }
 };
 
+struct MslArgumentBuffersTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HUniformLocation   m_UniformLoc;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::ShaderDesc shader_desc = {};
+
+        assert(dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL);
+
+        char* vs_buffer = (char*) malloc(sizeof(graphics_assets::msl_vertex_program));
+        char* fs_buffer = (char*) malloc(sizeof(graphics_assets::msl_fragment_program));
+
+        memcpy(vs_buffer, graphics_assets::msl_vertex_program, sizeof(graphics_assets::msl_vertex_program));
+        memcpy(fs_buffer, graphics_assets::msl_fragment_program, sizeof(graphics_assets::msl_fragment_program));
+
+        vs_buffer[sizeof(graphics_assets::msl_vertex_program) - 1] = '\0';
+        fs_buffer[sizeof(graphics_assets::msl_fragment_program) - 1] = '\0';
+
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, (uint8_t*) vs_buffer, sizeof(graphics_assets::msl_vertex_program));
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, (uint8_t*) fs_buffer, sizeof(graphics_assets::msl_fragment_program));
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = AddShaderType(&shader_desc, "sprite_140_vs");
+        AddShaderTypeMember(&shader_desc, type_info, "view_proj", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_MAT4, 0, 1);
+        AddShaderResourceUniformBuffer(&shader_desc, "sprite_140_vs", 0, 0, 0, sizeof(dmVMath::Matrix4));
+        AddShaderResource(&shader_desc, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+
+        char error_buffer[1024] = {};
+
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
+
+        DeleteShaderDesc(&shader_desc);
+
+        m_UniformLoc = GetUniformLocation(m_Program, "view_proj");
+
+        const float vertex_data_no_index[] = {
+            -0.5f, -0.5f, 0.0f, 1.0f,
+             0.5f, -0.5f, 0.0f, 1.0f,
+            -0.5f,  0.5f, 0.0f, 1.0f,
+             0.5f, -0.5f, 0.0f, 1.0f,
+             0.5f,  0.5f, 0.0f, 1.0f,
+            -0.5f,  0.5f, 0.0f, 1.0f,
+        };
+
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
+        dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
+
+        dmVMath::Matrix4 identity = dmVMath::Matrix4::identity();
+        dmGraphics::SetConstantM4(engine->m_GraphicsContext, (dmVMath::Vector4*) &identity, 1, m_UniformLoc);
+
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
+    }
+};
+
 struct DrawTriangleTest : ITest
 {
     dmGraphics::HProgram           m_Program;
@@ -235,7 +302,7 @@ struct DrawTriangleTest : ITest
         const float vertex_data_no_index[] = {
             // Position            // UV Coordinates
             -0.5f, -0.5f,          0.0f, 0.0f,    // Bottom-left
-             0.5f, -0.5f,          1.0f, 0.0f,    // Bottom-right
+            0.5f, -0.5f,          1.0f, 0.0f,    // Bottom-right
             -0.5f,  0.5f,          0.0f, 1.0f,    // Top-left
 
              0.5f, -0.5f,          1.0f, 0.0f,    // Bottom-right
@@ -250,28 +317,28 @@ struct DrawTriangleTest : ITest
         dmGraphics::AddVertexStream(stream_declaration, "texcoord", 2, dmGraphics::TYPE_FLOAT, false);
         m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
 
-        dmGraphics::ShaderDesc* shader_desc = new dmGraphics::ShaderDesc();
+        dmGraphics::ShaderDesc shader_desc = {};
 
     #if defined(DM_TEST_APP_GRAPHICS_HAS_VENDOR_ASSETS)
-        AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::vendor_vertex_program, sizeof(graphics_assets::vendor_vertex_program));
-        AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::vendor_fragment_program, sizeof(graphics_assets::vendor_fragment_program));
+        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::vendor_vertex_program, sizeof(graphics_assets::vendor_vertex_program));
+        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::vendor_fragment_program, sizeof(graphics_assets::vendor_fragment_program));
     #else
         assert(0); // TODO
     #endif
 
-        AddShaderResource(shader_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
-        AddShaderResource(shader_desc, "texcoord", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 1, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader_desc, "texcoord", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 1, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
         // TODO: Test resources
         // AddShaderResource(&shader_desc, "Test", dmGraphics::ShaderDesc::SHADER_TYPE_UNIFORM_BUFFER, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, 0);
 
-        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, shader_desc, 0, 0);
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, 0, 0);
         if (!m_Program)
         {
             dmLogError("Failed to create draw triangle test program");
             engine->m_Failed = true;
         }
 
-        DeleteShaderDesc(shader_desc);
+        DeleteShaderDesc(&shader_desc);
     }
 
     void Execute(EngineCtx* engine) override
@@ -455,11 +522,11 @@ struct ComputeTest : ITest
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
-            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, (uint8_t*) graphics_assets::glsl_compute_program, sizeof(graphics_assets::glsl_compute_program));
+            AddShaderWithType(&compute_desc, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_compute_program, sizeof(graphics_assets::glsl_compute_program));
         }
         else
         {
-            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, (uint8_t*) graphics_assets::spirv_compute_program, sizeof(graphics_assets::spirv_compute_program));
+            AddShaderWithType(&compute_desc, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_compute_program, sizeof(graphics_assets::spirv_compute_program));
         }
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = AddShaderType(&compute_desc, "buf");
@@ -573,11 +640,11 @@ struct UniformBufferTest : ITest
 
         dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
 
-        dmGraphics::UniformBufferLayout ubo_layout;
-        dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types), &ubo_layout);
+        dmGraphics::UniformBufferLayout ubo_layout = dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types));
+        uint32_t ubo_size = dmGraphics::GetUniformBufferTypeSize(0, types, DM_ARRAY_SIZE(types));
 
-        uint8_t* ubo_data = new uint8_t[ubo_layout.m_Size];
-        memset(ubo_data, 0, ubo_layout.m_Size);
+        uint8_t* ubo_data = new uint8_t[ubo_size];
+        memset(ubo_data, 0, ubo_size);
 
         // Write test data
         uint32_t lights_offset = light_data_members[0].m_Offset;
@@ -650,8 +717,8 @@ struct UniformBufferTest : ITest
             WriteFloats(ubo_data, light3_intensity, &intensity, 1);
         }
 
-        m_UBO = dmGraphics::NewUniformBuffer(engine->m_GraphicsContext, ubo_layout);
-        dmGraphics::SetUniformBuffer(engine->m_GraphicsContext, m_UBO, 0, ubo_layout.m_Size, (const void*) ubo_data);
+        m_UBO = dmGraphics::NewUniformBuffer(engine->m_GraphicsContext, ubo_layout, ubo_size);
+        dmGraphics::SetUniformBuffer(engine->m_GraphicsContext, m_UBO, 0, ubo_size, (const void*) ubo_data);
 
         // Bound once, should be bound to all shaders that use set=1, binding=0
         dmGraphics::EnableUniformBuffer(engine->m_GraphicsContext, m_UBO, 1, 0);
@@ -668,43 +735,42 @@ struct UniformBufferTest : ITest
 
         m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-        dmGraphics::ShaderDesc* shader_desc = new dmGraphics::ShaderDesc;
-        memset(shader_desc, 0, sizeof(dmGraphics::ShaderDesc));
+        dmGraphics::ShaderDesc shader_desc = {};
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::glsl_fragment_program_ubo, sizeof(graphics_assets::glsl_fragment_program_ubo));
+            AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
+            AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (uint8_t*) graphics_assets::glsl_fragment_program_ubo, sizeof(graphics_assets::glsl_fragment_program_ubo));
         }
         else
         {
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
-            AddShader(shader_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::spirv_fragment_program_ubo, sizeof(graphics_assets::spirv_fragment_program_ubo));
+            AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
+            AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_fragment_program_ubo, sizeof(graphics_assets::spirv_fragment_program_ubo));
         }
 
-        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_data = AddShaderType(shader_desc, "LightData");
-        AddShaderTypeMember(shader_desc, type_light_data, "lights", 1, light_data_members[0].m_Offset, 4);
-        AddShaderTypeMember(shader_desc, type_light_data, "light_count", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_data_members[1].m_Offset, 1);
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_data = AddShaderType(&shader_desc, "LightData");
+        AddShaderTypeMember(&shader_desc, type_light_data, "lights", 1, light_data_members[0].m_Offset, 4);
+        AddShaderTypeMember(&shader_desc, type_light_data, "light_count", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_data_members[1].m_Offset, 1);
 
-        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light = AddShaderType(shader_desc, "Light");
-        AddShaderTypeMember(shader_desc, type_light, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_members[0].m_Offset, 1);
-        AddShaderTypeMember(shader_desc, type_light, "light_color", 2, light_members[1].m_Offset, 1);
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light = AddShaderType(&shader_desc, "Light");
+        AddShaderTypeMember(&shader_desc, type_light, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_members[0].m_Offset, 1);
+        AddShaderTypeMember(&shader_desc, type_light, "light_color", 2, light_members[1].m_Offset, 1);
 
-        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_color = AddShaderType(shader_desc, "LightColor");
-        AddShaderTypeMember(shader_desc, type_light_color, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_color_members[0].m_Offset, 1);
-        AddShaderTypeMember(shader_desc, type_light_color, "intensity", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_color_members[1].m_Offset, 1);
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_color = AddShaderType(&shader_desc, "LightColor");
+        AddShaderTypeMember(&shader_desc, type_light_color, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_color_members[0].m_Offset, 1);
+        AddShaderTypeMember(&shader_desc, type_light_color, "intensity", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_color_members[1].m_Offset, 1);
 
-        AddShaderResource(shader_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
-        AddShaderResource(shader_desc, "LightData", 0, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
+        AddShaderResource(&shader_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader_desc, "LightData", 0, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
 
-        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, shader_desc, 0, 0);
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, 0, 0);
         if (!m_Program)
         {
             dmLogError("Failed to create uniform buffer test program");
             engine->m_Failed = true;
         }
 
-        DeleteShaderDesc(shader_desc);
+        DeleteShaderDesc(&shader_desc);
 
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
         dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
@@ -848,6 +914,10 @@ static void* EngineCreate(int argc, char** argv)
     {
         window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
     }
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL)
+    {
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_METAL;
+    }
 
     WindowResult wr = dmPlatform::OpenWindow(engine->m_Window, window_params);
     if (WINDOW_RESULT_OK != wr)
@@ -968,6 +1038,8 @@ static dmGraphics::AdapterFamily GetDefaultAdapterFamily()
 {
 #if defined(DM_TEST_APP_GRAPHICS_DEFAULT_VULKAN)
     return dmGraphics::ADAPTER_FAMILY_VULKAN;
+#elif defined(DM_TEST_APP_GRAPHICS_DEFAULT_METAL)
+    return dmGraphics::ADAPTER_FAMILY_METAL;
 #elif defined(DM_TEST_APP_GRAPHICS_DEFAULT_OPENGLES)
     return dmGraphics::ADAPTER_FAMILY_OPENGLES;
 #else
@@ -982,6 +1054,7 @@ static const char* GetAdapterName(dmGraphics::AdapterFamily family)
         case dmGraphics::ADAPTER_FAMILY_OPENGL:   return "opengl";
         case dmGraphics::ADAPTER_FAMILY_OPENGLES: return "opengles";
         case dmGraphics::ADAPTER_FAMILY_VULKAN:   return "vulkan";
+        case dmGraphics::ADAPTER_FAMILY_METAL:    return "metal";
         default: break;
     }
     return "unknown";
@@ -1004,6 +1077,10 @@ static void InstallAdapter(int argc, char **argv)
         else if (strcmp(argv[i], "vulkan") == 0)
         {
             family = dmGraphics::ADAPTER_FAMILY_VULKAN;
+        }
+        else if (strcmp(argv[i], "metal") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_METAL;
         }
     }
 

@@ -45,6 +45,8 @@ namespace
         dmArray<AVAudioPCMBuffer*>  m_FreeBuffers;
         uint32_t                    m_MixRate;
         uint32_t                    m_FramesPerBuffer;
+        uint32_t                    m_BufferCount;
+        uint32_t                    m_MaxBufferCount;
         bool                        m_Started;
         dmMutex::HMutex             m_Mutex;
         id                          m_EngineConfigObserver;
