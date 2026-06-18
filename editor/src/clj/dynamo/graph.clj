@@ -330,6 +330,7 @@
     nil))
 
 (defn transact
+  ;; TODO(decouple-undo-from-graph): Figure out if :full-invalidation still warrants a reset-undo! call.
   "Runs a transaction against the graph system.
 
   Args:
@@ -345,10 +346,9 @@
                 tracking and uses full invalidation instead of incremental
                 updates. The system cache is cleared automatically after
                 commit, but older evaluation contexts may still be stale and
-                must not be written back into the cache. Undo history is not
-                tracked accurately in this mode, so callers that need
-                consistent undo semantics must reset or otherwise manage
-                history explicitly.
+                must not be written back into the cache. Undo is not tracked
+                accurately in this mode, so callers that need consistent undo
+                semantics must reset or otherwise manage undo explicitly.
 
               :undoable
                 Defaults to true. When false, commits graph changes without
@@ -409,7 +409,7 @@
 
 (defn non-undoable
   "Marks a sequence of transaction steps so its effects are applied, but its
-  realized transaction changes are omitted from the undo history."
+  realized transaction changes are omitted from undo."
   ([tx-data]
    [(it/non-undoable tx-data)])
   ([tx-data & more]
@@ -767,10 +767,10 @@
   [label]
   (it/sequence-label label))
 
-(defn prev-sequence-label [graph-id]
+(defn prev-sequence-label [undo-key]
   (let [sys @*the-system*]
-    (when-let [prev-step (some-> (is/graph-history sys graph-id)
-                                 (is/undo-stack)
+    (when-let [prev-step (some-> (is/undo sys undo-key)
+                                 is/undo-stack
                                  (last))]
       (:sequence-label prev-step))))
 
@@ -2052,15 +2052,15 @@
       (clear-system-cache!))))
 
 (defn make-graph!
-  "Create a new graph in the system with optional values of `:history` and `:volatility`. If no
-  options are provided, the history ability is false and the volatility is 0
+  "Create a new graph in the system with an optional value of `:volatility`. If no
+  options are provided, the volatility is 0
 
   Example:
 
-  `(make-graph! :history true :volatility 1)`"
-  [& {:keys [history volatility] :or {history false volatility 0}}]
+  `(make-graph! :volatility 1)`"
+  [& {:keys [volatility] :or {volatility 0}}]
   (let [g (assoc (ig/empty-graph) :_volatility volatility)
-        s (swap! *the-system* (if history is/attach-graph-with-history is/attach-graph) g)]
+        s (swap! *the-system* is/attach-graph g)]
     (:last-graph s)))
 
 (defn last-graph-added
@@ -2081,63 +2081,63 @@
   ` (delete-graph! agraph-id)`"
   [graph-id]
   (when-let [graph (is/graph @*the-system* graph-id)]
-    (transact (mapv it/delete-node (ig/node-ids graph)))
+    (transact {:undoable false} (mapv it/delete-node (ig/node-ids graph)))
     (swap! *the-system* is/detach-graph graph-id)
     nil))
 
 (defn undo!
-  "Given a `graph-id` resets the graph back to the last _step_ in time.
+  "Resets the graph system back to the last undo step.
 
   Example:
 
-  (undo gid)"
-  [graph-id]
-  (swap! *the-system* is/undo-history graph-id)
+  (undo! undo-key)"
+  [undo-key]
+  (swap! *the-system* is/undo-action undo-key)
   nil)
 
 (defn has-undo?
-  "Returns true/false if a `graph-id` has an undo available"
-  [graph-id]
-  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
+  "Returns true/false if an undo is available"
+  [undo-key]
+  (let [undo-stack (is/undo-stack (is/undo @*the-system* undo-key))]
     (not (empty? undo-stack))))
 
 (defn undo-stack-count
-  "Returns the number of entries in the undo stack for `graph-id`"
-  [graph-id]
-  (let [undo-stack (is/undo-stack (is/graph-history @*the-system* graph-id))]
+  "Returns the number of entries in the undo stack"
+  [undo-key]
+  (let [undo-stack (is/undo-stack (is/undo @*the-system* undo-key))]
     (count undo-stack)))
 
 (defn redo!
-  "Given a `graph-id` reverts an undo of the graph
+  "Reverts an undo of the graph system
 
-  Example: `(redo gid)`"
-  [graph-id]
-  (swap! *the-system* is/redo-history graph-id)
+  Example: `(redo! undo-key)`"
+  [undo-key]
+  (swap! *the-system* is/redo-action undo-key)
   nil)
 
 (defn has-redo?
-  "Returns true/false if a `graph-id` has an redo available"
-  [graph-id]
-  (let [redo-stack (is/redo-stack (is/graph-history @*the-system* graph-id))]
+  "Returns true/false if a redo is available"
+  [undo-key]
+  (let [redo-stack (is/redo-stack (is/undo @*the-system* undo-key))]
     (not (empty? redo-stack))))
 
 (defn reset-undo!
-  "Given a `graph-id`, clears all undo history for the graph
+  "Clears undo
 
   Example:
-  `(reset-undo! gid)`"
-  [graph-id]
-  (swap! *the-system* is/clear-history graph-id)
+  `(reset-undo! undo-key)`"
+  [undo-key]
+  (swap! *the-system* is/clear-undo undo-key)
   nil)
 
 (defn cancel!
-  "Given a `graph-id` and a `sequence-id` _cancels_ any sequence of undos on the graph as
-  if they had never happened in the history.
+  "Given an `undo-key` and a `sequence-id` reverts all undoable changes that were
+  made using that `sequence-id`.
 
   Example:
-  `(cancel! gid :a)`"
-  [graph-id sequence-id]
-  (swap! *the-system* is/cancel graph-id sequence-id)
+  `(cancel! undo-key :a)`"
+  [undo-key sequence-id]
+  (swap! *the-system* is/cancel-undo undo-key sequence-id)
   nil)
 
 (defn evaluation-context?

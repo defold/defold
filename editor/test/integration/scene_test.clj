@@ -139,14 +139,14 @@
                (is (= 0.0 (.x (pos go-node))))
                (test-util/mouse-drag! view 64 64 68 64)
                (is (not= 0.0 (.x (pos go-node))))
-               (g/undo! project-graph)
+               (g/undo! :undo/global)
                ;; Rotate tool
                (test-util/set-active-tool! app-view :rotate)
                (is (= 0.0 (.x (rot go-node))))
                ;; begin drag at y = 80 to hit y axis (for x rotation)
                (test-util/mouse-drag! view 64 80 64 84)
                (is (not= 0.0 (.x (rot go-node))))
-               (g/undo! project-graph)
+               (g/undo! :undo/global)
                ;; Scale tool
                (test-util/set-active-tool! app-view :scale)
                (is (= 1.0 (.x (scale go-node))))
@@ -210,7 +210,7 @@
                (g/transact (g/delete-node go-node))
                (is (test-util/empty-selection? app-view))
                ;; Undo
-               (g/undo! project-graph)
+               (g/undo! :undo/global)
                (is (test-util/selected? app-view go-node))
                ;; Select again
                (test-util/mouse-click! view 32 32)
@@ -257,7 +257,7 @@
                          [(double 0.0) (double 0.0) (double 0.0)]
                          (vector-of :float 0.0 0.0 0.0)
                          (vector-of :double 0.0 0.0 0.0)])]
-            (with-open [_ (test-util/make-graph-reverter project-graph)]
+            (with-open [_ (test-util/make-undo-reverter :undo/global)]
               (g/set-property! go-node :position original-position)
               (test-util/mouse-drag! view 64 64 68 64)
               (let [modified-position (g/node-value go-node :position)]
@@ -273,7 +273,7 @@
                          [(double 0.0) (double 0.0) (double 0.0) (double 1.0)]
                          (vector-of :float 0.0 0.0 0.0 1.0)
                          (vector-of :double 0.0 0.0 0.0 1.0)])]
-            (with-open [_ (test-util/make-graph-reverter project-graph)]
+            (with-open [_ (test-util/make-undo-reverter :undo/global)]
               (g/set-property! go-node :rotation original-rotation)
               (test-util/mouse-drag! view 64 80 64 84)
               (let [modified-rotation (g/node-value go-node :rotation)]
@@ -289,7 +289,7 @@
                          [(double 1.0) (double 1.0) (double 1.0)]
                          (vector-of :float 1.0 1.0 1.0)
                          (vector-of :double 1.0 1.0 1.0)])]
-            (with-open [_ (test-util/make-graph-reverter project-graph)]
+            (with-open [_ (test-util/make-undo-reverter :undo/global)]
               (g/set-property! go-node :scale original-scale)
               (test-util/mouse-drag! view 64 64 68 64)
               (let [modified-scale (g/node-value go-node :scale)]

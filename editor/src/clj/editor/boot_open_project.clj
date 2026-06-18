@@ -84,8 +84,8 @@
   (when (nil? @the-root)
     (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))
     (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-    (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
-    (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
+    (alter-var-root #'*project-graph* (fn [_] (g/make-graph! :volatility 1)))
+    (alter-var-root #'*view-graph* (fn [_] (g/make-graph! :volatility 2)))))
 
 (defn- setup-workspace! [project-path build-settings workspace-config localization]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config localization)]
@@ -448,5 +448,5 @@
       (ui/run-now
         (icons/initialize! workspace)
         (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
-      (g/reset-undo! *project-graph*)
+      (g/reset-undo! :undo/global)
       (log/info :message "project loaded"))))

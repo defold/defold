@@ -24,7 +24,7 @@
 
 (deftest override-transfer-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [indirectly-owned-node-id
            directly-owned-node-id
@@ -202,9 +202,9 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))

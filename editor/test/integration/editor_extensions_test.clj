@@ -544,7 +544,7 @@
       (is (= [1 2 3 4] (test-util/prop node :__vec4)))
 
       ;; single undo
-      (g/undo! (g/node-id->graph-id project))
+      (g/undo! :undo/global)
 
       ;; all the changes should be reverted — a single transaction!
       (test-initial-state!))))

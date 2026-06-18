@@ -21,7 +21,7 @@
 
 (deftest update-graph-value-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)]
+    (let [graph-id (g/make-graph!)]
       (testing "Before transact."
         (is (= nil (g/graph-value graph-id :things))))
 
@@ -31,9 +31,9 @@
         (is (= {:a 1} (g/graph-value graph-id :things))))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (is (= nil (g/graph-value graph-id :things))))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (is (= {:a 1} (g/graph-value graph-id :things)))))))

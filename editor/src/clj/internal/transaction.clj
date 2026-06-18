@@ -82,11 +82,11 @@
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
 (defn- mark-endpoints-activated
-  [ctx endpoints record-history]
+  [ctx endpoints record-undo]
   (if (:full-invalidation ctx)
     ctx
     (cond-> (update ctx :nodes-affected into endpoints)
-      record-history (update :history-nodes-affected into endpoints))))
+      record-undo (update :undo-nodes-affected into endpoints))))
 
 (defn- mark-input-activated
   [ctx node-id input-label]
@@ -1096,7 +1096,7 @@
 (def ^:private context-snapshot-change-keys
   [:basis
    :nodes-affected
-   :history-nodes-affected
+   :undo-nodes-affected
    :nodes-added
    :nodes-modified
    :nodes-deleted
@@ -1538,10 +1538,10 @@
   (first (realize-tx ctx actions)))
 
 (defn mark-nodes-modified
-  [{:keys [history-nodes-affected] :as ctx}]
+  [{:keys [undo-nodes-affected] :as ctx}]
   (assoc ctx
     :nodes-modified
-    (into #{} (map gt/endpoint-node-id) history-nodes-affected)))
+    (into #{} (map gt/endpoint-node-id) undo-nodes-affected)))
 
 (defn apply-tx-label
   [{:keys [label sequence-label] :as ctx}]
@@ -1566,7 +1566,7 @@
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
-   :history-nodes-affected #{}
+   :undo-nodes-affected #{}
    :nodes-added []
    :nodes-modified #{}
    :nodes-deleted {}

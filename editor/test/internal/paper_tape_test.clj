@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.paper-tape-test
-  (:require [internal.history :refer :all]
-            [clojure.test :refer :all]))
+  (:require [clojure.test :refer [deftest is testing]]
+            [internal.paper-tape :refer [drop-current inext iprev ivalue paper-tape truncate]]))
 
 (deftest shuffling-items
   (testing "cursor back and forth"

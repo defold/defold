@@ -20,11 +20,11 @@ The inputs and outputs are generally constrained to a particular data type, but 
 
 The graph is modified by executing transactions using the `g/transact` function. It takes a (possibly nested) sequence of `transaction-steps` and ensures all of them or none of them are applied. Each `transaction-step` only performs a small operation like "Create Node", "Set Property" or "Add Connection". Larger operations like adding a component to a game object are composed of many small `transaction-steps`. It is possible to evaluate the graph on a background thread by obtaining an `evaluation-context`, which contains a snapshot of the graph state, and supplying it with all graph queries. However, running `g/transact` from a background thread is not allowed, so a background thread must post `g/transact` calls to the main thread using something like `ui/run-later`.
 
+The system has global undo, which means that it keeps an ordered list of undo steps that we append to every time an undoable transaction is performed. A `g/transact` call is undoable by default, but you can supply `{:undoable false}` as `opts` to make non-undoable changes. You can also include non-undoable changes in an undoable transaction by wrapping a (possibly nested) sequence of `transaction-steps` in `g/non-undoable`.
+
 ## Multiple graphs
 
 There might be several graphs in play at any one time. Typically, all the project data (i.e. "model" data) resides in one graph, whereas any number of views (as in user-interface elements) can have their own graphs whose node inputs are connected to the project graph. Closing a view discards the view graph but leaves the project graph intact.
-
-The project graph has history enabled, which means that it keeps an ever-growing list of graph states that we append to every time an undoable action is performed. Undoing and redoing becomes a simple matter of pointing to one of the previous graph states. However, care must be taken when introducing state as any programmatic change to the project graph creates an undo step.
 
 ## The workspace
 
@@ -64,7 +64,7 @@ When a `Resource` is moved or renamed, the editor adds `transaction-steps` to se
 
 Deleted `Resources` are handled in a different fashion. Here the old `ResourceNode` remains in the graph along with all its connections to other nodes, but the `ResourceNode` is marked as defective. In this state, its outputs are jammed with an `ErrorValue` denoting the file as missing. Anything that depends on the deleted `Resource` will produce an `ErrorValue` with information about the missing `Resource`. If the deleted `Resource` reappears on disk, the defective `ResourceNode` will be replaced with a non-defective one during `resource-sync`.
 
-At present, the `node-ids` of the recreated substructure will not match up to the `node-ids` from the old, deleted `ResourceNodes`. Objects might have been removed or added in a different order to the modified file, so it is difficult to retain the structure. Because of this, we must clear the undo history whenever we perform these changes during a `resource-sync`.
+At present, the `node-ids` of the recreated substructure will not match up to the `node-ids` from the old, deleted `ResourceNodes`. Objects might have been removed or added in a different order to the modified file, so it is difficult to retain the structure. Because of this, we must clear undo whenever we perform these changes during a `resource-sync`.
 
 Once the editor has collected all the `transaction-steps` that describe the changes to the project graph, they are executed in an isolated transaction. To the outside world, it appears as if all the loaded nodes were suddenly populated and connected to the project graph in one go.
 

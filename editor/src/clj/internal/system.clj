@@ -16,9 +16,9 @@
   (:require [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.history :as h]
             [internal.node :as in]
             [internal.transaction :as it]
+            [internal.paper-tape :as tape]
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce])
@@ -28,8 +28,9 @@
 
 (declare graphs)
 
-(def ^:private maximum-cached-items     20000)
-(def ^:private history-size-max         60)
+(def ^:private maximum-cached-items 20000)
+(def ^:private maximum-undo-steps 60)
+(def ^:private global-undo-key :undo/global)
 
 (prefer-method print-method java.util.Map clojure.lang.IDeref)
 (prefer-method print-method clojure.lang.IPersistentMap clojure.lang.IDeref)
@@ -39,44 +40,44 @@
   []
   (AtomicLong. 0))
 
-(defonce/record HistoryState [label sequence-label changes])
+(defonce/record UndoState [label sequence-label changes])
 
 (defn- merge-into-top
   [tape new-state]
-  (let [old-state (h/ivalue tape)]
+  (let [old-state (tape/ivalue tape)]
     (conj
-      (h/truncate (h/iprev tape))
+      (tape/truncate (tape/iprev tape))
       (assoc new-state :changes (into (:changes old-state) (:changes new-state))))))
 
 (defn- =*
   "Comparison operator that treats nil as not equal to anything."
-  ([x] true)
+  ([_x] true)
   ([x y] (and x y (= x y) x))
   ([x y & more] (reduce =* (=* x y) more)))
 
-(defn- new-history []
-  {:tape (h/paper-tape history-size-max)})
+(defn- new-undo []
+  (tape/paper-tape maximum-undo-steps))
 
-(defn merge-or-push-history
-  [history label sequence-label changes]
-  (let [new-state (->HistoryState label sequence-label changes)
-        tape-op (if (=* sequence-label (:sequence-label (h/ivalue (:tape history))))
+(defn merge-or-push-undo
+  [paper-tape label sequence-label changes]
+  (let [new-state (->UndoState label sequence-label changes)
+        tape-op (if (=* sequence-label (:sequence-label (tape/ivalue paper-tape)))
                   merge-into-top
                   conj)]
-    (update history :tape tape-op new-state)))
+    (tape-op paper-tape new-state)))
 
-(defn undo-stack [history]
-  (-> history :tape h/before vec))
+(defn undo-stack [undo]
+  (-> undo tape/before vec))
 
-(defn last-graph            [system]          (-> system :last-graph))
-(defn system-cache          [system]          (some-> system :cache))
-(defn graphs                [system]          (-> system :graphs))
-(defn graph                 [system graph-id] (some-> system :graphs (get graph-id)))
-(defn graph-time            [system graph-id] (some-> system :graphs (get graph-id) :tx-id))
-(defn graph-history         [system graph-id] (-> system :history (get graph-id)))
-(defn basis                 [system]          (ig/multigraph-basis (:graphs system)))
-(defn id-generators         [system]          (-> system :id-generators))
-(defn override-id-generator [system]          (-> system :override-id-generator))
+(defn last-graph [system] (-> system :last-graph))
+(defn system-cache [system] (some-> system :cache))
+(defn graphs [system] (-> system :graphs))
+(defn graph [system graph-id] (some-> system :graphs (get graph-id)))
+(defn graph-time [system graph-id] (some-> system :graphs (get graph-id) :tx-id))
+(defn undo [system undo-key] (-> system :undo (get undo-key)))
+(defn basis [system] (ig/multigraph-basis (:graphs system)))
+(defn id-generators [system] (-> system :id-generators))
+(defn override-id-generator [system] (-> system :override-id-generator))
 
 (defn- bump-invalidate-counters
   [invalidate-map endpoints]
@@ -145,7 +146,7 @@
              system
              post-tx-graphs))
 
-(defn- replay-history
+(defn- replay-undo
   [system changes change-fn]
   (let [ctx (it/new-transaction-context
               (basis system)
@@ -167,45 +168,45 @@
         (commit-transaction-effects (:outputs-modified tx-result)
                                     (:nodes-deleted tx-result)))))
 
-(defn- update-history-tape
-  [system graph-id tape]
-  (assoc-in system [:history graph-id :tape] tape))
+(defn- update-undo
+  [system undo-key undo]
+  (assoc-in system [:undo undo-key] undo))
 
-(defn undo-history
-  [system graph-id]
-  (let [tape (get-in system [:history graph-id :tape])]
-    (if-let [state (h/ivalue tape)]
+(defn undo-action
+  [system undo-key]
+  (let [undo (undo system undo-key)]
+    (if-let [state (tape/ivalue undo)]
       (-> system
-          (replay-history (rseq (:changes state)) it/revert-change)
-          (update-history-tape graph-id (h/iprev tape)))
+          (replay-undo (rseq (:changes state)) it/revert-change)
+          (update-undo undo-key (tape/iprev undo)))
       system)))
 
-(defn redo-history
-  [system graph-id]
-  (let [tape (get-in system [:history graph-id :tape])]
-    (if-let [state (clojure.core/peek (h/after tape))]
+(defn redo-action
+  [system undo-key]
+  (let [undo (undo system undo-key)]
+    (if-let [state (clojure.core/peek (tape/after undo))]
       (-> system
-          (replay-history (:changes state) it/perform-change)
-          (update-history-tape graph-id (h/inext tape)))
+          (replay-undo (:changes state) it/perform-change)
+          (update-undo undo-key (tape/inext undo)))
       system)))
 
-(defn redo-stack [history]
-  (-> history :tape h/after vec))
+(defn redo-stack [undo]
+  (-> undo tape/after vec))
 
-(defn clear-history
-  [system graph-id]
-  (if (get-in system [:history graph-id :tape])
-    (update-in system [:history graph-id] #(assoc % :tape (empty (:tape %))))
+(defn clear-undo
+  [system undo-key]
+  (if-let [undo (undo system undo-key)]
+    (update-undo system undo-key (empty undo))
     system))
 
-(defn cancel
-  [system graph-id sequence-id]
-  (let [tape (get-in system [:history graph-id :tape])
-        state (h/ivalue tape)]
+(defn cancel-undo
+  [system undo-key sequence-id]
+  (let [undo (undo system undo-key)
+        state (tape/ivalue undo)]
     (if (=* sequence-id (:sequence-label state))
       (-> system
-          (replay-history (rseq (:changes state)) it/revert-change)
-          (update-history-tape graph-id (h/drop-current tape)))
+          (replay-undo (rseq (:changes state)) it/revert-change)
+          (update-undo undo-key (tape/drop-current undo)))
       system)))
 
 (defn- make-initial-graph
@@ -252,26 +253,17 @@
   (let [graph-id (next-available-graph-id system)]
     (attach-graph* system graph-id graph)))
 
-(defn attach-graph-with-history
-  [system graph]
-  (let [graph-id (next-available-graph-id system)]
-    (-> system
-        (attach-graph* graph-id graph)
-        (assoc-in [:history graph-id] (new-history)))))
-
 (defn detach-graph
   [system graph]
   (let [graph-id (if (map? graph) (:_graph-id graph) graph)]
-    (-> system
-        (update :graphs dissoc graph-id)
-        (update :history dissoc graph-id))))
+    (update system :graphs dissoc graph-id)))
 
 (defn make-system
   [configuration]
   (let [initial-graph (make-initial-graph configuration)
         cache (make-cache configuration)]
     (-> {:graphs {}
-         :history {}
+         :undo {global-undo-key (new-undo)}
          :id-generators {}
          :override-id-generator (integer-counter)
          :cache cache
@@ -279,14 +271,11 @@
          :user-data {}}
         (attach-graph initial-graph))))
 
-(defn- has-history? [system graph-id]
-  (some? (:tape (graph-history system graph-id))))
-
 (def ^:private meaningful-change? contains?)
 
 (defn- remember-change
-  [system graph-id label sequence-label changes]
-  (update-in system [:history graph-id] merge-or-push-history label sequence-label changes))
+  [system label sequence-label changes]
+  (update-in system [:undo global-undo-key] merge-or-push-undo label sequence-label changes))
 
 (defn- prepare-transaction-graphs
   [system post-tx-graphs significantly-modified-graphs]
@@ -306,22 +295,17 @@
              post-tx-graphs))
 
 (defn- remember-transaction-changes
-  [system post-tx-graphs significantly-modified-graphs changes label sequence-label]
-  (if (coll/empty? changes)
-    system
-    (reduce-kv (fn [system graph-id _graph]
-                 (if (and (has-history? system graph-id)
-                          (meaningful-change? significantly-modified-graphs graph-id))
-                   (remember-change system graph-id label sequence-label changes)
-                   system))
-               system
-               post-tx-graphs)))
+  [system significantly-modified-graphs changes label sequence-label]
+  (cond-> system
+          (and (coll/not-empty changes)
+               (coll/not-empty significantly-modified-graphs))
+          (remember-change label sequence-label changes)))
 
 (defn merge-graphs
   [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted changes label sequence-label]
   (let [post-tx-graphs (prepare-transaction-graphs system post-tx-graphs significantly-modified-graphs)]
     (-> system
-        (remember-transaction-changes post-tx-graphs significantly-modified-graphs changes label sequence-label)
+        (remember-transaction-changes significantly-modified-graphs changes label sequence-label)
         (commit-graph-states post-tx-graphs)
         (commit-transaction-effects outputs-modified nodes-deleted))))
 
@@ -441,7 +425,7 @@
 
 (defn clone-system [system]
   {:graphs (:graphs system)
-   :history (:history system)
+   :undo (:undo system)
    :id-generators (into {}
                         (map (fn [[graph-id ^AtomicLong gen]]
                                [graph-id (AtomicLong. (.longValue gen))]))

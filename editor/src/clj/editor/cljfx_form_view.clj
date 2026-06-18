@@ -1798,7 +1798,12 @@
     (g/set-property view :renderer (create-renderer view parent workspace project localization))
     (g/connect resource-node :form-data view :form-data)))
 
-(def make-form-view-node! (comp first g/tx-nodes-added g/transact make-form-view-node))
+(defn make-form-view-node! [graph parent resource-node workspace project localization]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (make-form-view-node graph parent resource-node workspace project localization)))))
 
 (defn- make-form-view [graph parent resource-node opts]
   (let [{:keys [workspace project tab localization]} opts

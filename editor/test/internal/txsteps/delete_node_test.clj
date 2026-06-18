@@ -174,7 +174,7 @@
 
 (deftest evicts-cache-entries-associated-with-deleted-nodes-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           key->node-id (setup-override-hierarchy! graph-id OwnerTestNode OwnedTestNode)
           node-id->key (set/map-invert key->node-id)
 
@@ -210,7 +210,7 @@
         (ensure-evicted!))
 
       (testing "Remains evicted after undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-evicted!))
 
       (testing "Encache at undo state before redo."
@@ -218,12 +218,12 @@
         (ensure-encached!))
 
       (testing "Evicted by redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-evicted!)))))
 
 (deftest evicts-cache-entries-associated-with-successor-outputs-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           {:as key->node-id
            :keys [owner-node-id
@@ -274,7 +274,7 @@
         (ensure-evicted!))
 
       (testing "Remains evicted after undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-evicted!))
 
       (testing "Encache at undo state before redo."
@@ -282,12 +282,12 @@
         (ensure-encached!))
 
       (testing "Evicted by redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-evicted!)))))
 
 (deftest undo-redo-node-deletion-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           {:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! graph-id OwnerTestNode OwnedTestNode)
           node-ids (sort (vals key->node-id))
           node-id->key (set/map-invert key->node-id)
@@ -314,11 +314,11 @@
         (ensure-nodes-absent-from-graph!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-nodes-present-in-graph!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-nodes-absent-from-graph!)))))
 
 (deftest undo-redo-node-user-data-deletion-test
@@ -334,7 +334,7 @@
   ;;   user-data as a concept and just store the information in regular
   ;;   properties.
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           {:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! graph-id OwnerTestNode OwnedTestNode)
           node-id->key (coll/into-> key->node-id (sorted-map) (map coll/flip))
 
@@ -369,5 +369,5 @@
         (ensure-user-data-absent-from-system!))
 
       (testing "User data is not restored by undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-user-data-absent-from-system!)))))

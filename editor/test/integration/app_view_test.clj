@@ -30,15 +30,15 @@
             [support.test-support :refer [spit-until-new-mtime with-clean-system]]))
 
 (deftest open-editor
-  (testing "Opening editor only alters undo history by selection"
+  (testing "Opening editor only alters undo by selection"
            (test-util/with-loaded-project
              (let [proj-graph (g/node-id->graph-id project)
-                   _          (is (not (g/has-undo? proj-graph)))
+                   _ (is (not (g/has-undo? :undo/global)))
                    [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
-               ;; One history entry for selection
-               (is (g/has-undo? proj-graph))
-               (g/undo! proj-graph)
-               (is (not (g/has-undo? proj-graph)))))))
+               ;; One undo entry for selection.
+               (is (g/has-undo? :undo/global))
+               (g/undo! :undo/global)
+               (is (not (g/has-undo? :undo/global)))))))
 
 (deftest select-test
   (testing "asserts that all node-ids are non-nil"

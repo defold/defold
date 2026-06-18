@@ -23,7 +23,7 @@
 
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           original-node-id (first (g/take-node-ids graph-id 1))
 
           original-props
@@ -71,7 +71,7 @@
                (g/node-value override-node-id :basic-output))))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (is (= :original-basic-property-value
                (g/node-value original-node-id :basic-property)
                (g/node-value original-node-id :basic-output)))
@@ -80,7 +80,7 @@
                (g/node-value override-node-id :basic-output))))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (is (= :original-basic-property-value
                (g/node-value original-node-id :basic-property)
                (g/node-value original-node-id :basic-output)))
@@ -90,7 +90,7 @@
 
 (deftest effecting-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           original-node-id (first (g/take-node-ids graph-id 1))
 
           original-props
@@ -198,9 +198,9 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))

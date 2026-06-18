@@ -178,7 +178,7 @@
 (defonce game-project-resource
   (workspace/find-resource workspace "/game.project"))
 
-(defonce project-graph-id (g/make-graph! :history true :volatility 1))
+(defonce project-graph-id (g/make-graph! :volatility 1))
 
 (defonce node-id+resource-pairs
   (run-and-measure-task!
@@ -265,7 +265,7 @@
 
     migrated-resource-node-ids))
 
-(defonce ^:private -reset-undo- (g/reset-undo! project-graph-id))
+(defonce ^:private -reset-undo- (g/reset-undo! :undo/global))
 
 (defonce build-results
   (g/with-auto-evaluation-context evaluation-context

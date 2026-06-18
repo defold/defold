@@ -22,7 +22,7 @@
 
 (deftest expand-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           node-id (g/make-node! graph-id helpers/PropertyTestNode)]
 
       (testing "Transact."
@@ -38,20 +38,20 @@
                (g/node-value node-id :basic-output))))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (is (= nil
                (g/node-value node-id :basic-property)
                (g/node-value node-id :basic-output))))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (is (= :basic-property-value
                (g/node-value node-id :basic-property)
                (g/node-value node-id :basic-output)))))))
 
 (deftest expand-within-expanded-tx-steps-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           node-id (g/make-node! graph-id helpers/PropertyTestNode)]
 
       (testing "Transact."
@@ -73,7 +73,7 @@
                (g/node-value node-id :effecting-output))))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (is (= nil
                (g/node-value node-id :basic-property)
                (g/node-value node-id :basic-output)))
@@ -82,7 +82,7 @@
                (g/node-value node-id :effecting-output))))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (is (= :basic-property-value
                (g/node-value node-id :basic-property)
                (g/node-value node-id :basic-output)))

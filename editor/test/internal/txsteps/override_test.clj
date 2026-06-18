@@ -25,7 +25,7 @@
 
 (deftest override-node-creation-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [owner-node-id
            directly-owned-node-id
@@ -139,16 +139,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest override-node-creation-with-limited-traversal-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           traverse-fn
           (g/make-override-traverse-fn
@@ -262,16 +262,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest override-node-creation-with-init-props-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [owner-node-id
            directly-owned-node-id
@@ -356,16 +356,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest override-node-creation-with-properties-by-node-id-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [owner-node-id
            directly-owned-node-id
@@ -445,16 +445,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest override-node-creation-with-init-fn-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [owner-node-id
            directly-owned-node-id
@@ -542,9 +542,9 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))

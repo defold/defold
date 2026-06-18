@@ -55,12 +55,12 @@
   (Thread/sleep 1))
 
 (defn undo-stack
-  [graph]
-  (is/undo-stack (is/graph-history @g/*the-system* graph)))
+  [_graph]
+  (is/undo-stack (is/undo @g/*the-system* :undo/global)))
 
 (defn redo-stack
-  [graph]
-  (is/redo-stack (is/graph-history @g/*the-system* graph)))
+  [_graph]
+  (is/redo-stack (is/undo @g/*the-system* :undo/global)))
 
 ;; These *-until-new-mtime fns are hacks to support the resource-watch sync, which checks mtime
 

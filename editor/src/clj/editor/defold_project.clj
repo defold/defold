@@ -996,7 +996,7 @@
          total-progress (progress/advance total-progress read-progress-span)
 
          ;; We can use full invalidation on the initial load since we have
-         ;; nothing in the cache and will reset the undo history afterward.
+         ;; nothing in the cache and will reset undo afterward.
          full-invalidation-transact true
 
          transact-opts {:metrics transaction-metrics
@@ -1130,15 +1130,15 @@
           nil)))))
 
 (handler/defhandler :edit.undo :global
-  (enabled? [project-graph] (g/has-undo? project-graph))
+  (enabled? [project-graph] (g/has-undo? :undo/global))
   (run [project-graph]
-    (g/undo! project-graph)
+    (g/undo! :undo/global)
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (handler/defhandler :edit.redo :global
-  (enabled? [project-graph] (g/has-redo? project-graph))
+  (enabled? [project-graph] (g/has-redo? :undo/global))
   (run [project-graph]
-    (g/redo! project-graph)
+    (g/redo! :undo/global)
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
 (handler/register-menu! ::menubar :editor.app-view/view
@@ -1433,12 +1433,12 @@
                                  (perform-sub-selection project all-sub-selections)))))]
         (g/transact transact-opts tx-data)))
 
-    ;; Invalidating outputs is the only change that does not reset the undo
-    ;; history. This is a quick way to find out if we have any significant
+    ;; Invalidating outputs is the only change that does not reset undo. This
+    ;; is a quick way to find out if we have any significant
     ;; changes, but we must take care to also exclude non-change information
     ;; such as the list of :kept resources from this check.
     (when (some seq (vals (dissoc plan :invalidate-outputs :kept)))
-      (g/reset-undo! (graph project)))
+      (g/reset-undo! :undo/global))
 
     (du/when-metrics
       (reset! resource-change-metrics-atom
@@ -1786,7 +1786,7 @@
     (handle-resource-changes project-id changes render-progress!)))
 
 (defn make-project [graph workspace-id extensions]
-  (let [plugin-graph (g/make-graph! :history false :volatility 2)
+  (let [plugin-graph (g/make-graph! :volatility 2)
         code-preprocessors (workspace/code-preprocessors workspace-id)
 
         transpilers-id
@@ -1818,7 +1818,7 @@
                 (g/set-graph-value graph :code-transpilers transpilers-id)))))]
     (reload-plugins! project-id (g/node-value project-id :resources))
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
-    (g/reset-undo! graph)
+    (g/reset-undo! :undo/global)
     project-id))
 
 (defn read-dependencies [game-project-resource]

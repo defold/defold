@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns internal.history)
+(ns internal.paper-tape)
 
 (set! *warn-on-reflection* true)
 
@@ -31,15 +31,15 @@
 
 (deftype PaperTape [limit limiter on-drop left right]
   clojure.lang.IPersistentCollection
-  (seq [this]     (concat left right))
-  (count [this]   (+ (count left) (count right)))
-  (cons  [this o] (PaperTape. limit limiter on-drop (limiter (conj left o)) []))
-  (empty [this]   (PaperTape. limit limiter on-drop [] []))
-  (equiv [this o] (and (instance? PaperTape o)
-                       (let [^PaperTape that o]
-                         (and (= limit (.limit that))
-                              (= left (.left that))
-                              (= right (.right that))))))
+  (seq [_this]     (concat left right))
+  (count [_this]   (+ (count left) (count right)))
+  (cons  [_this o] (PaperTape. limit limiter on-drop (limiter (conj left o)) []))
+  (empty [_this]   (PaperTape. limit limiter on-drop [] []))
+  (equiv [_this o] (and (instance? PaperTape o)
+                        (let [^PaperTape that o]
+                          (and (= limit (.limit that))
+                               (= left (.left that))
+                               (= right (.right that))))))
 
   Iterator
   ;; Move one from right to left
@@ -54,16 +54,16 @@
       (PaperTape. limit limiter on-drop (pop left) (conj right v))
       this))
 
-  (ivalue [this]  (peek left))
-  (before [this]  left)
-  (after  [this]  right)
+  (ivalue [_this] (peek left))
+  (before [_this] left)
+  (after  [_this] right)
 
   Truncate
-  (truncate [this]
+  (truncate [_this]
     (PaperTape. limit limiter on-drop left []))
 
   Drop
-  (drop-current [this]
+  (drop-current [_this]
     (PaperTape. limit limiter on-drop (pop left) right)))
 
 (defn- make-limiter
@@ -77,6 +77,6 @@
 
 (defn paper-tape
   ([limit]
-   (paper-tape limit (fn [v])))
+   (paper-tape limit (fn [_v])))
   ([limit on-drop]
    (PaperTape. limit (make-limiter limit) on-drop [] [])))

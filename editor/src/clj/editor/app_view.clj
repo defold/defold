@@ -2341,7 +2341,7 @@
               (.setContent tab-content)
               (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
               (editor-tab/set-view-type! view-type))
-        view-graph (g/make-graph! :history false :volatility 2)
+        view-graph (g/make-graph! :volatility 2)
         select-fn (partial select app-view)
         open-resource-fn (partial open-resource! app-view prefs localization project)
         opts (merge opts
@@ -3125,7 +3125,7 @@
                              image-view ^ImageView (.getGraphic tooltip)]
                          (when-not (.getImage image-view)
                            (let [resource-node (project/get-resource-node project resource)
-                                 view-graph (g/make-graph! :history false :volatility 2)
+                                 view-graph (g/make-graph! :volatility 2)
                                  select-fn (partial select app-view)
                                  opts (assoc ((:id view-type) (:view-opts resource-type))
                                         :app-view app-view

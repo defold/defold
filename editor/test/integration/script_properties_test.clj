@@ -363,7 +363,7 @@
                     (doseq [error-item-of-faulty-node error-items-of-faulty-node]
                       (is (= [(tu/resource workspace proj-path) node-id]
                              (error-item-open-info-without-opts error-item-of-faulty-node)))))))))]
-      (with-open [_ (tu/make-graph-reverter (g/node-id->graph-id project))]
+      (with-open [_ (tu/make-undo-reverter :undo/global)]
         (testing "Script files allow go.property and keep regular validation"
           (write-file! workspace "ok.script" bad-source)
           (let [script-node (tu/resource-node project "/ok.script")]
@@ -449,7 +449,7 @@
                                 (build-resource-path "/from-props-script.png")]))))))
 
             (testing "Editing the script code affects exposed properties"
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-undo-reverter :undo/global)]
                 (edit-script! props-script ["go.property('other', resource.texture('/from-props-script.png'))"])
                 (let [properties (properties props-script)]
                   (is (not (contains? properties :__atlas)))
@@ -467,7 +467,7 @@
                            [(build-resource-path "/from-props-script.png")]))))))
 
             (testing "Missing resource error"
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-undo-reverter :undo/global)]
                 (edit-script! props-script ["go.property('texture', resource.texture('/missing-resource.png'))"])
                 (let [properties (properties props-script)
                       error-value (tu/prop-error props-script :__texture)]
@@ -486,7 +486,7 @@
                              (error-item-open-info-without-opts error-item-of-faulty-node))))))))
 
             (testing "Unsupported resource error"
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-undo-reverter :undo/global)]
                 (edit-script! props-script ["go.property('texture', resource.texture('/from-props-script.material'))"])
                 (let [properties (properties props-script)
                       error-value (tu/prop-error props-script :__texture)]
@@ -569,7 +569,7 @@
                   (is (empty? (:property-resources built-props-game-object)))))))
 
           (testing "Overrides do not affect props script"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! props-script-component :__atlas    (resource "/from-props-game-object.atlas"))
               (edit-property! props-script-component :__material (resource "/from-props-game-object.material"))
               (edit-property! props-script-component :__texture  (resource "/from-props-game-object.png"))
@@ -597,7 +597,7 @@
                                   (build-resource-path "/from-props-script.png")]))))))))
 
           (testing "Overrides"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (doseq [[resource-kind prop-kw resource build-resource]
                       [["atlas"    :__atlas    (resource "/from-props-game-object.atlas")    (build-resource "/from-props-game-object.atlas")]
                        ["material" :__material (resource "/from-props-game-object.material") (build-resource "/from-props-game-object.material")]
@@ -643,7 +643,7 @@
                     (is (empty? (:property-resources built-props-game-object))))))))
 
           (testing "Missing resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! props-script-component :__texture (resource "/missing-resource.png"))
               (let [properties (properties props-script-component)
                     error-value (tu/prop-error props-script-component :__texture)]
@@ -667,7 +667,7 @@
                 (is (not (g/error? (tu/build-error! props-game-object)))))))
 
           (testing "Unsupported resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! props-script-component :__texture (resource "/from-props-game-object.material"))
               (let [properties (properties props-script-component)
                     error-value (tu/prop-error props-script-component :__texture)]
@@ -692,7 +692,7 @@
 
           (testing "Downstream error breaks build"
             (are [lines message]
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-undo-reverter :undo/global)]
                 (edit-script! props-script lines)
                 (let [error-value (tu/build-error! props-game-object)]
                   (when (is (g/error? error-value))
@@ -830,7 +830,7 @@
                   (is (empty? (:property-resources built-props-collection)))))))
 
           (testing "Overrides do not affect props script or game object"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! ov-props-script-component :__atlas    (resource "/from-props-collection.atlas"))
               (edit-property! ov-props-script-component :__material (resource "/from-props-collection.material"))
               (edit-property! ov-props-script-component :__texture  (resource "/from-props-collection.png"))
@@ -862,7 +862,7 @@
                     (is (empty? (:property-resources built-props-game-object))))))))
 
           (testing "Overrides"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (doseq [[resource-kind prop-kw resource build-resource]
                       [["atlas"    :__atlas    (resource "/from-props-collection.atlas")    (build-resource "/from-props-collection.atlas")]
                        ["material" :__material (resource "/from-props-collection.material") (build-resource "/from-props-collection.material")]
@@ -910,7 +910,7 @@
                     (is (empty? (:property-resources built-props-collection))))))))
 
           (testing "Missing resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! ov-props-script-component :__texture (resource "/missing-resource.png"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -934,7 +934,7 @@
                 (is (not (g/error? (tu/build-error! props-collection)))))))
 
           (testing "Unsupported resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! ov-props-script-component :__texture (resource "/from-props-collection.material"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -959,7 +959,7 @@
 
           (testing "Downstream error breaks build"
             (are [lines message]
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-undo-reverter :undo/global)]
                 (edit-script! props-script lines)
                 (let [error-value (tu/build-error! props-collection)]
                   (when (is (g/error? error-value))
@@ -1117,7 +1117,7 @@
                   (is (empty? (:property-resources built-sub-props-collection)))))))
 
           (testing "Overrides do not affect props script or game object"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! ov-props-script-component :__atlas    (resource "/from-sub-props-collection.atlas"))
               (edit-property! ov-props-script-component :__material (resource "/from-sub-props-collection.material"))
               (edit-property! ov-props-script-component :__texture  (resource "/from-sub-props-collection.png"))
@@ -1149,7 +1149,7 @@
                     (is (empty? (:property-resources built-props-game-object))))))))
 
           (testing "Overrides"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (doseq [[resource-kind prop-kw resource build-resource]
                       [["atlas"    :__atlas    (resource "/from-sub-props-collection.atlas")    (build-resource "/from-sub-props-collection.atlas")]
                        ["material" :__material (resource "/from-sub-props-collection.material") (build-resource "/from-sub-props-collection.material")]
@@ -1200,7 +1200,7 @@
                     (is (empty? (:property-resources built-sub-props-collection))))))))
 
           (testing "Missing resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! ov-props-script-component :__texture (resource "/missing-resource.png"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -1224,7 +1224,7 @@
               (is (not (g/error? (tu/build-error! sub-props-collection))))))
 
           (testing "Unsupported resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! ov-props-script-component :__texture (resource "/from-sub-props-collection.material"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -1249,7 +1249,7 @@
 
           (testing "Downstream error breaks build"
             (are [lines message]
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-undo-reverter :undo/global)]
                 (edit-script! props-script lines)
                 (let [error-value (tu/build-error! sub-props-collection)]
                   (when (is (g/error? error-value))
@@ -1363,7 +1363,7 @@
                   (is (empty? (:property-resources built-sub-props-collection)))))))
 
           (testing "Overrides do not affect props script or game object"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! ov-props-script-component :__atlas    (resource "/from-sub-props-collection.atlas"))
               (edit-property! ov-props-script-component :__material (resource "/from-sub-props-collection.material"))
               (edit-property! ov-props-script-component :__texture  (resource "/from-sub-props-collection.png"))
@@ -1395,7 +1395,7 @@
                     (is (empty? (:property-resources built-embedded-game-object))))))))
 
           (testing "Overrides"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (doseq [[resource-kind prop-kw resource build-resource]
                       [["atlas"    :__atlas    (resource "/from-sub-props-collection.atlas")    (build-resource "/from-sub-props-collection.atlas")]
                        ["material" :__material (resource "/from-sub-props-collection.material") (build-resource "/from-sub-props-collection.material")]
@@ -1446,7 +1446,7 @@
                     (is (empty? (:property-resources built-sub-props-collection))))))))
 
           (testing "Missing resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! ov-props-script-component :__texture (resource "/missing-resource.png"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -1470,7 +1470,7 @@
               (is (not (g/error? (tu/build-error! sub-props-collection))))))
 
           (testing "Unsupported resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-property! ov-props-script-component :__texture (resource "/from-sub-props-collection.material"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -1495,7 +1495,7 @@
 
           (testing "Downstream error breaks build"
             (are [lines message]
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-undo-reverter :undo/global)]
                 (edit-script! props-script lines)
                 (let [error-value (tu/build-error! sub-props-collection)]
                   (when (is (g/error? error-value))
@@ -1603,7 +1603,7 @@
           (is (= props-script-component (g/override-original ov-props-script-component)))
           (is (= ov-props-script-component (g/override-original ov-ov-props-script-component)))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-undo-reverter :undo/global)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
             (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
             (is (assigned-property? ov-props-script-component    "/from-props-game-object.atlas"))
@@ -1618,7 +1618,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-undo-reverter :undo/global)]
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-script.atlas"))
             (is (assigned-property? ov-props-script-component    "/from-props-collection.atlas"))
@@ -1633,7 +1633,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-undo-reverter :undo/global)]
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-script.atlas"))
             (is (assigned-property? ov-props-script-component    "/from-props-script.atlas"))
@@ -1648,7 +1648,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-undo-reverter :undo/global)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
@@ -1665,7 +1665,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-undo-reverter :undo/global)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
@@ -1682,7 +1682,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-undo-reverter :undo/global)]
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-script.atlas"))
@@ -1699,7 +1699,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-undo-reverter :undo/global)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
@@ -1738,19 +1738,19 @@
           (atlas-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas"))
 
           (testing "Rename property in script."
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-script! props-script ["go.property('renamed', resource.atlas('/from-props-script.atlas'))"])
               (is (atlas-resource-property? (:__renamed (properties props-script)) (resource "/from-props-script.atlas")))
               (is (atlas-resource-property? (:__renamed (properties props-script-component)) (resource "/from-props-game-object.atlas")))))
 
           (testing "Change property default in script."
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-script! props-script ["go.property('atlas', resource.atlas('/renamed-from-props-script.atlas'))"])
               (is (atlas-resource-property? (:__atlas (properties props-script)) (resource "/renamed-from-props-script.atlas")))
               (is (atlas-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas")))))
 
           (testing "Change property type in script."
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-undo-reverter :undo/global)]
               (edit-script! props-script ["go.property('atlas', resource.texture('/from-props-script.png'))"])
               (is (texture-resource-property? (:__atlas (properties props-script)) (resource "/from-props-script.png")))
               (is (texture-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas")))

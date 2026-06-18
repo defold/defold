@@ -4156,32 +4156,29 @@
         canvas-pane (Pane. (into-array Node [canvas]))
         undo-grouping-info (pair :navigation (gensym))
         lsp (lsp/get-node-lsp basis resource-node)
-        view-node
-        (setup-view!
-          resource-node
-          (-> (g/make-nodes graph
-                [view [CodeEditorView
-                       :canvas canvas
-                       :color-scheme code-color-scheme
-                       :font-size (.getValue font-size-property)
-                       :font-name (.getValue font-name-property)
-                       :grammar grammar
-                       :gutter-view (->CodeEditorGutterView)
-                       :highlighted-find-term (.getValue highlighted-find-term-property)
-                       :line-height-factor 1.2
-                       :localization localization
-                       :undo-grouping-info undo-grouping-info
-                       :visible-indentation-guides? (.getValue visible-indentation-guides-property)
-                       :visible-minimap? (.getValue visible-minimap-property)
-                       :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property))]]
-                (g/connect project :_node-id view :project)
-                (g/connect app-view :keymap view :keymap)
-                (g/connect app-view :open-views view :open-views))
-              g/transact
-              g/tx-nodes-added
-              first)
-          app-view
-          lsp)
+        view-node (first
+                    (g/tx-nodes-added
+                      (g/transact
+                        {:undoable false}
+                        (g/make-nodes graph
+                          [view [CodeEditorView
+                                 :canvas canvas
+                                 :color-scheme code-color-scheme
+                                 :font-size (.getValue font-size-property)
+                                 :font-name (.getValue font-name-property)
+                                 :grammar grammar
+                                 :gutter-view (->CodeEditorGutterView)
+                                 :highlighted-find-term (.getValue highlighted-find-term-property)
+                                 :line-height-factor 1.2
+                                 :localization localization
+                                 :undo-grouping-info undo-grouping-info
+                                 :visible-indentation-guides? (.getValue visible-indentation-guides-property)
+                                 :visible-minimap? (.getValue visible-minimap-property)
+                                 :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property))]]
+                          (g/connect project :_node-id view :project)
+                          (g/connect app-view :keymap view :keymap)
+                          (g/connect app-view :open-views view :open-views)))))
+        view-node (setup-view! resource-node view-node app-view lsp)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node localization)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node localization)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node editable localization)

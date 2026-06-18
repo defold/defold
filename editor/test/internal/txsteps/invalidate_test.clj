@@ -23,7 +23,7 @@
 
 (deftest evicts-cache-entries-associated-with-invalidated-node-outputs-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           invalidated-node-id (g/make-node! graph-id helpers/PropertyTestNode
                                 :basic-property :invalidated-basic-property-value
                                 :effecting-property :invalidated-effecting-property-value)
@@ -50,7 +50,7 @@
 
 (deftest evicts-cache-entries-associated-with-explicit-successor-outputs-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [source-node-id
            target-node-id
@@ -86,7 +86,7 @@
 
 (deftest evicts-cache-entries-associated-with-implicit-override-successor-outputs-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [owner-node-id
            directly-owned-node-id
@@ -136,12 +136,12 @@
 
 (deftest non-undoable-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           node-id (g/make-node! graph-id helpers/PropertyTestNode
                     :basic-property :basic-property-value
                     :effecting-property :effecting-property-value)
           output-endpoints (test-support/cacheable-endpoints node-id)
-          undo-stack-count-before (g/undo-stack-count graph-id)]
+          undo-stack-count-before (g/undo-stack-count :undo/global)]
 
       (testing "Cached before transact."
         (helpers/encache-endpoints! output-endpoints)
@@ -151,4 +151,4 @@
       (testing "Transact."
         (g/transact
           (g/invalidate node-id))
-        (is (= undo-stack-count-before (g/undo-stack-count graph-id)))))))
+        (is (= undo-stack-count-before (g/undo-stack-count :undo/global)))))))

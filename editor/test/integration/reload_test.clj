@@ -175,12 +175,6 @@
     (do-until-new-mtime (fn [^File f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 
-(defn- has-undo? [project]
-  (g/has-undo? (g/node-id->graph-id project)))
-
-(defn- no-undo? [project]
-  (not (has-undo? project)))
-
 (defn- graph-nodes [node-id] (set (g/node-ids (g/graph (g/node-id->graph-id node-id)))))
 
 (deftest internal-file
@@ -194,7 +188,7 @@
           (is (= (inc initial-node-count) (node-count)))
           (is (not (nil? initial-node)))
           (is (= "test" (g/node-value initial-node :name)))
-          (is (no-undo? project))
+          (is (not (g/has-undo? :undo/global)))
           (testing "Change internal file"
             (write-file workspace "/test.collection" "name: \"test_name\"")
             (let [changed-node (project/get-resource-node project "/test.collection")]
@@ -202,7 +196,7 @@
               (is (not (nil? changed-node)))
               (is (not= initial-node changed-node))
               (is (= "test_name" (g/node-value changed-node :name)))
-              (is (no-undo? project))
+              (is (not (g/has-undo? :undo/global)))
               (testing "Delete internal file"
                 (delete-file workspace "/test.collection")
                 (let [node (project/get-resource-node project "/test.collection")
@@ -211,7 +205,7 @@
                   (is (nil? node))
                   (is (= defective-node changed-node))
                   (is (seq (g/node-value defective-node :_output-jammers)))
-                  (is (no-undo? project)))))))))))
+                  (is (not (g/has-undo? :undo/global))))))))))))
 
 (deftest external-file
   (with-clean-system
@@ -224,11 +218,11 @@
         (add-img workspace img-path 64 64)
         (let [initial-node (project/get-resource-node project img-path)]
           (is (some? initial-node))
-          (is (no-undo? project))
+          (is (not (g/has-undo? :undo/global)))
           (testing "Reference it, node added and linked"
             (g/transact
               (atlas/add-images atlas-node-id [(workspace/resolve-resource (g/node-value atlas-node-id :resource) img-path)]))
-            (is (has-undo? project))
+            (is (g/has-undo? :undo/global))
             (let [undo-count (count (undo-stack (g/node-id->graph-id project)))
                   anim-data (g/node-value atlas-node-id :anim-data)
                   anim (get anim-data anim-id)]
@@ -265,12 +259,12 @@
             (let [node (project/get-resource-node project "/test.collection")]
               (g/transact
                 (g/set-property node :name "new_name"))
-              (is (has-undo? project))
+              (is (g/has-undo? :undo/global))
               (disk/async-save! progress/null-render-progress! progress/null-render-progress! project/dirty-save-data project nil
                                 (fn [successful?]
                                   (when (is successful?)
                                     (sync! workspace)
-                                    (is (has-undo? project)))
+                                    (is (g/has-undo? :undo/global)))
                                   (exit-event-loop!))))))))))
 
 (defn- find-error [type v]

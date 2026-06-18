@@ -440,7 +440,7 @@
                                               build-artifacts))]
           (is (= 2 (count-exts (keys content-by-target) "goc")))
           (is (= 1 (count-exts (keys content-by-target) "spritec")))))
-      (g/undo! (g/node-id->graph-id project))
+      (g/undo! :undo/global)
       (testing "Verify equivalent sprites are not merged after being changed in memory"
         (test-util/prop! comp-node :blend-mode :blend-mode-add)
         (let [build-artifacts (project-build-artifacts! project resource-node)

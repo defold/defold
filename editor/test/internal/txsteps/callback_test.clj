@@ -21,7 +21,7 @@
 
 (deftest callback-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           calls (atom [])]
       (testing "Transact."
         (g/transact
@@ -31,4 +31,4 @@
             :first-arg
             :second-arg))
         (is (= [[:first-arg :second-arg]] @calls))
-        (is (= 0 (g/undo-stack-count graph-id)))))))
+        (is (= 0 (g/undo-stack-count :undo/global)))))))

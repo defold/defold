@@ -24,7 +24,7 @@
 
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           original-node-id (first (g/take-node-ids graph-id 1))
 
           override-node-id
@@ -84,12 +84,12 @@
         (ensure-original-modified-override-unmodified!))
 
       (testing "Undo change to original node."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-original-unmodified!)
         (ensure-override-unmodified!))
 
       (testing "Redo change to original node."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-original-modified!)
         (ensure-original-modified-override-unmodified!))
 
@@ -100,18 +100,18 @@
         (ensure-original-modified-override-modified!))
 
       (testing "Undo change to override node."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-original-modified!)
         (ensure-original-modified-override-unmodified!))
 
       (testing "Redo change to override node."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-original-modified!)
         (ensure-original-modified-override-modified!)))))
 
 (deftest effecting-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           original-node-id (g/make-node! graph-id helpers/PropertyTestNode)
 
           override-node-id
@@ -222,12 +222,12 @@
         (ensure-original-modified-override-unmodified!))
 
       (testing "Undo change to original node."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-original-unmodified!)
         (ensure-override-unmodified!))
 
       (testing "Redo change to original node."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-original-modified!)
         (ensure-original-modified-override-unmodified!))
 
@@ -249,18 +249,18 @@
         (ensure-original-modified-override-modified!))
 
       (testing "Undo change to override node."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-original-modified!)
         (ensure-original-modified-override-unmodified!))
 
       (testing "Redo change to override node."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-original-modified!)
         (ensure-original-modified-override-modified!)))))
 
 (deftest validation-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           node-id (g/make-node! graph-id helpers/PropertyTestNode)]
 
       (testing "Before transaction attempt."

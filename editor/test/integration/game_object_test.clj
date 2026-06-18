@@ -62,7 +62,7 @@
           go-read-fn (:read-fn (resource/resource-type go-resource))]
       (doseq [resource-type resource-types]
         (testing (:ext resource-type)
-          (with-open [_ (test-util/make-graph-reverter (project/graph project))]
+          (with-open [_ (test-util/make-undo-reverter :undo/global)]
             (test-util/add-embedded-component! go-id resource-type)
             (let [save-data (g/node-value go-id :save-data)
                   save-value (:save-value save-data)
@@ -91,7 +91,7 @@
                      [(double 1.0) (double 1.0) (double 1.0)]
                      (vector-of :float 1.0 1.0 1.0)
                      (vector-of :double 1.0 1.0 1.0)])]
-        (with-open [_ (test-util/make-graph-reverter project-graph)]
+        (with-open [_ (test-util/make-undo-reverter :undo/global)]
           (g/set-property! embedded-component :scale original-scale)
           (test-util/manip-scale! embedded-component [2.0 2.0 2.0])
           (let [modified-scale (g/node-value embedded-component :scale)]

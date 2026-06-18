@@ -24,7 +24,7 @@
 
 (deftest introduce-connection-on-regular-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [source-node-id target-node-id]
           (g/tx-nodes-added
@@ -73,16 +73,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest replace-connection-on-regular-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [initial-source-node-id replacement-source-node-id target-node-id]
           (g/tx-nodes-added
@@ -137,16 +137,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest introduce-connection-on-array-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [source-node-id target-node-id]
           (g/tx-nodes-added
@@ -195,16 +195,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest append-connection-on-array-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [first-source-node-id second-source-node-id target-node-id]
           (g/tx-nodes-added
@@ -264,16 +264,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest introduce-shadowing-connection-on-regular-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [initial-source-node-id shadowing-source-node-id original-target-node-id]
           (g/tx-nodes-added
@@ -363,16 +363,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest replace-shadowing-connection-on-regular-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [initial-source-node-id initial-shadowing-source-node-id replacement-shadowing-source-node-id original-target-node-id]
           (g/tx-nodes-added
@@ -470,16 +470,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest introduce-shadowing-connection-on-array-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [initial-source-one-node-id initial-source-two-node-id shadowing-source-node-id original-target-node-id]
           (g/tx-nodes-added
@@ -583,16 +583,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest append-shadowing-connection-on-array-input-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [initial-source-one-node-id initial-source-two-node-id shadowing-source-one-node-id shadowing-source-two-node-id original-target-node-id]
           (g/tx-nodes-added
@@ -707,16 +707,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest override-node-creation-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [indirectly-owned-node-id
            directly-owned-node-id
@@ -810,16 +810,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest override-node-creation-with-limited-traversal-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           traverse-fn
           (g/make-override-traverse-fn
@@ -896,16 +896,16 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))
 
 (deftest override-node-creation-with-init-props-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
 
           [indirectly-owned-node-id
            directly-owned-node-id
@@ -1004,9 +1004,9 @@
         (ensure-after!))
 
       (testing "Undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-before!))
 
       (testing "Redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-after!)))))

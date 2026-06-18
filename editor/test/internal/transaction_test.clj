@@ -217,8 +217,8 @@
 (deftest transact-with-full-invalidation-test
   (testing "Invalidates all graph successor caches after a property update."
     (ts/with-clean-system
-      (let [graph-a (g/make-graph! :history false)
-            graph-b (g/make-graph! :history false)
+      (let [graph-a (g/make-graph!)
+            graph-b (g/make-graph!)
             [resource-a receiver-a resource-b receiver-b] (ts/tx-nodes
                                                             (g/make-node graph-a Resource)
                                                             (g/make-node graph-a Receiver)
@@ -252,7 +252,7 @@
 
   (testing "Does not invalidate successors for a no-op transaction."
     (ts/with-clean-system
-      (let [graph (g/make-graph! :history false)
+      (let [graph (g/make-graph!)
             [resource receiver] (ts/tx-nodes
                                   (g/make-node graph Resource)
                                   (g/make-node graph Receiver))]
@@ -265,7 +265,7 @@
 
   (testing "Recomputes topology changes after connect and disconnect."
     (ts/with-clean-system
-      (let [graph (g/make-graph! :history false)
+      (let [graph (g/make-graph!)
             [resource receiver] (ts/tx-nodes
                                   (g/make-node graph Resource)
                                   (g/make-node graph Receiver))]

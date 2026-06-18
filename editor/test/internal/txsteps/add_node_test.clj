@@ -197,11 +197,11 @@
 
 (deftest generates-single-undo-step-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           node-id (first (g/take-node-ids graph-id 1))]
 
       (testing "Before transact."
-        (is (= 0 (g/undo-stack-count graph-id))))
+        (is (= 0 (g/undo-stack-count :undo/global))))
 
       (testing "Transact."
         (g/transact
@@ -209,11 +209,11 @@
                         :_node-id node-id
                         :basic-property :basic-property-value
                         :effecting-property :effecting-property-value)))
-        (is (= 1 (g/undo-stack-count graph-id)))))))
+        (is (= 1 (g/undo-stack-count :undo/global)))))))
 
 (deftest undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph! :history true)
+    (let [graph-id (g/make-graph!)
           node-id (first (g/take-node-ids graph-id 1))
 
           ensure-node-absent-from-graph!
@@ -256,9 +256,9 @@
         (ensure-node-present-in-graph!))
 
       (testing "Node absent after undo."
-        (g/undo! graph-id)
+        (g/undo! :undo/global)
         (ensure-node-absent-from-graph!))
 
       (testing "Node present after redo."
-        (g/redo! graph-id)
+        (g/redo! :undo/global)
         (ensure-node-present-in-graph!)))))

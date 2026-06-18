@@ -126,7 +126,7 @@
 
         check-field!
         (fn check-field! [field-index new-num-value]
-          (with-open [_ (test-util/make-graph-reverter project-graph)]
+          (with-open [_ (test-util/make-undo-reverter :undo/global)]
             (let [text-field-count
                   (do
                     (render-form! view-node)
@@ -174,8 +174,8 @@
                 original-property-values)
 
           form-view-parent (AnchorPane.)
-          project-graph (g/make-graph! :history true :volatility 1)
-          view-graph (g/make-graph! :history false :volatility 2)
+          project-graph (g/make-graph! :volatility 1)
+          view-graph (g/make-graph! :volatility 2)
           resource-node (apply g/make-node! project-graph NumericPropertiesNode (mapcat identity property-values))
           view-node (cljfx-form-view/make-form-view-node! view-graph form-view-parent resource-node nil nil test-util/localization)
           form-data (g/node-value view-node :form-data)

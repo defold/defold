@@ -440,18 +440,18 @@
 
 (defn setup-project!
   ([workspace]
-   (let [proj-graph (g/make-graph! :history true :volatility 1)
+   (let [proj-graph (g/make-graph! :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
          project (project/load-project! project)]
-     (g/reset-undo! proj-graph)
+     (g/reset-undo! :undo/global)
      project))
   ([workspace resources]
-   (let [proj-graph (g/make-graph! :history true :volatility 1)
+   (let [proj-graph (g/make-graph! :volatility 1)
          extensions (extensions/make proj-graph)
          project (project/make-project proj-graph workspace extensions)
          project (project/load-project! project progress/null-render-progress! resources)]
-     (g/reset-undo! proj-graph)
+     (g/reset-undo! :undo/global)
      project)))
 
 (defn project-node-resources [project]
@@ -523,20 +523,21 @@
   (output active-view g/NodeID (gu/passthrough active-view)))
 
 (defn make-view-graph! []
-  (g/make-graph! :history false :volatility 2))
+  (g/make-graph! :volatility 2))
 
 (defn setup-app-view! [project]
   (let [view-graph (make-view-graph!)]
-    (-> (g/make-nodes view-graph [app-view [MockAppView
-                                            :active-tool :move
-                                            :manip-space :world
-                                            :scene (Scene. (VBox.))]]
-          (g/connect project :_node-id app-view :project-id)
-          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
-            (g/connect project label app-view label)))
-      g/transact
-      g/tx-nodes-added
-      first)))
+    (first
+      (g/tx-nodes-added
+        (g/transact
+          {:undoable false}
+          (g/make-nodes view-graph [app-view [MockAppView
+                                              :active-tool :move
+                                              :manip-space :world
+                                              :scene (Scene. (VBox.))]]
+            (g/connect project :_node-id app-view :project-id)
+            (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+              (g/connect project label app-view label))))))))
 
 (defn- make-tab! [project app-view path make-view-fn!]
   (let [node-id (project/get-resource-node project path)
@@ -547,9 +548,10 @@
       (do
         (g/set-property! app-view :active-view view)
         [node-id view])
-      (let [view-graph (g/make-graph! :history false :volatility 2)
+      (let [view-graph (g/make-graph! :volatility 2)
             view (make-view-fn! view-graph node-id)]
         (g/transact
+          {:undoable false}
           (concat
             (g/connect node-id :_node-id view :resource-node)
             (g/connect node-id :valid-node-id+type+resource view :node-id+type+resource)
@@ -561,11 +563,11 @@
 
 (defn open-tab! [project app-view path]
   (first
-    (make-tab! project app-view path (fn [view-graph resource-node]
-                                      (->> (g/make-node view-graph MockView)
-                                        g/transact
-                                        g/tx-nodes-added
-                                        first)))))
+    (make-tab! project app-view path (fn [view-graph _resource-node]
+                                       (->> (g/make-node view-graph MockView)
+                                            (g/transact {:undoable false})
+                                            g/tx-nodes-added
+                                            first)))))
 
 (defn open-scene-view! [project app-view path width height]
   (make-tab! project app-view path (fn [view-graph resource-node]
@@ -1083,27 +1085,18 @@
          (finally
            (prop! ~node-id# ~property# old-value#))))))
 
-(defn make-graph-reverter
-  "Returns an AutoCloseable that reverts the specified graph to the state it was
+(defn make-undo-reverter
+  "Returns an AutoCloseable that reverts the specified undo to the state it was
   at construction time when its close method is invoked. Suitable for use with
   the (with-open) macro."
-  ^AutoCloseable [graph-id]
-  (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
+  ^AutoCloseable [undo-key]
+  (let [initial-undo-stack-count (g/undo-stack-count undo-key)]
     (reify AutoCloseable
       (close [_]
-        (loop [undo-stack-count (g/undo-stack-count graph-id)]
+        (loop [undo-stack-count (g/undo-stack-count undo-key)]
           (when (< initial-undo-stack-count undo-stack-count)
-            (g/undo! graph-id)
-            (recur (g/undo-stack-count graph-id))))))))
-
-(defn make-project-graph-reverter
-  "Returns an AutoCloseable that reverts the project graph to the state it was
-  at construction time when its close method is invoked. Suitable for use with
-  the (with-open) macro."
-  ^AutoCloseable [project]
-  {:pre [(g/node-instance? project/Project project)]}
-  (let [project-graph-id (g/node-id->graph-id project)]
-    (make-graph-reverter project-graph-id)))
+            (g/undo! undo-key)
+            (recur (g/undo-stack-count undo-key))))))))
 
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
@@ -1111,11 +1104,10 @@
                    :node-type (g/node-type* basis node-id)})))
 
 (defmacro with-changes-reverted
-  "Evaluates the body expressions in a try expression, and reverts any changes
-  to the project graph in the finally clause. Returns the result of the last
-  body expression."
-  [project & body]
-  `(with-open [project-graph-reverter# (make-project-graph-reverter ~project)]
+  "Evaluates the body expressions in a try expression, and reverts any undoable
+  changes in the finally clause. Returns the result of the body expression."
+  [& body]
+  `(with-open [_undo-reverter# (make-undo-reverter :undo/global)]
      ~@body))
 
 (defn- validate-component-resource-node-id
