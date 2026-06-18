@@ -254,25 +254,29 @@
             (transient successors-changed)
             affected-node-id+label-pairs))))))
 
+(defn- mark-override-originals-changed [ctx basis original-node-id]
+  (if (:full-invalidation ctx)
+    ctx
+    (let [all-originals (ig/override-originals basis original-node-id)]
+      (-> ctx
+          ;; Any property, input or output on any original nodes must now take the
+          ;; updated override node set into account.
+          (flag-all-successors-changed all-originals)
+
+          ;; Similarly, so must the source outputs of any arcs that target any of
+          ;; the original nodes.
+          (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals))))))
+
 (defn- ctx-override-node [ctx original-node-id override-node-id]
   (assert (= (gt/node-id->graph-id original-node-id) (gt/node-id->graph-id override-node-id))
           "Override nodes must belong to the same graph as the original")
   (let [basis (:basis ctx)
         ctx (assoc ctx :basis (gt/override-node basis original-node-id override-node-id))]
-    (if (:full-invalidation ctx)
-      ctx
-      (let [all-originals (ig/override-originals basis original-node-id)]
-        (-> ctx
-            ;; Any property, input or output on any original nodes must now take the
-            ;; new override node into account.
-            (flag-all-successors-changed all-originals)
-
-            ;; Similarly, so must the source outputs of any arcs that target any of
-            ;; the original nodes.
-            (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals)))))))
+    (mark-override-originals-changed ctx basis original-node-id)))
 
 (declare apply-tx
          realize-tx
+         make-delete-nodes-change
          new-node
          ->AddOverrideTXC
          ->DeleteNodeTXC
@@ -503,8 +507,58 @@
       (fn [[ctx changes] node-id]
         (realize-populate-overrides ctx changes node-id)))))
 
-(defn- ctx-transfer-overrides
-  [ctx from-id->to-id]
+(defn- set-override-node-ids
+  [basis original-id override-node-ids]
+  (reduce (fn [basis override-node-id]
+            (gt/override-node basis original-id override-node-id))
+          (gt/override-node-clear basis original-id)
+          override-node-ids))
+
+(defn- ctx-replace-override-node-ids
+  [ctx original-id override-node-ids]
+  (let [basis (:basis ctx)]
+    (-> ctx
+        (assoc :basis (set-override-node-ids basis original-id override-node-ids))
+        (mark-override-originals-changed basis original-id))))
+
+(defonce/type ClearOverrideNodesTXC [original-id override-node-ids]
+  TransactionChange
+  (perform [_this ctx]
+    (ctx-replace-override-node-ids ctx original-id []))
+
+  (revert [_this ctx]
+    (ctx-replace-override-node-ids ctx original-id override-node-ids)))
+
+(defonce/type ReplaceOverrideRootTXC [override-id old-override new-override]
+  TransactionChange
+  (perform [_this ctx]
+    (update ctx :basis gt/replace-override override-id new-override))
+
+  (revert [_this ctx]
+    (update ctx :basis gt/replace-override override-id old-override)))
+
+(defn- ctx-set-override-node-original
+  [ctx override-node-id original-id]
+  (let [basis (:basis ctx)
+        override-node (gt/node-by-id-at basis override-node-id)]
+    (-> ctx
+        (assoc :basis (gt/replace-node basis override-node-id (gt/set-original override-node original-id)))
+        (mark-all-outputs-activated override-node-id))))
+
+(defonce/type RepointOverrideNodeTXC [override-node-id old-original-id new-original-id new-original-override-node-ids-before]
+  TransactionChange
+  (perform [_this ctx]
+    (-> ctx
+        (ctx-set-override-node-original override-node-id new-original-id)
+        (ctx-override-node new-original-id override-node-id)))
+
+  (revert [_this ctx]
+    (-> ctx
+        (ctx-replace-override-node-ids new-original-id new-original-override-node-ids-before)
+        (ctx-set-override-node-original override-node-id old-original-id))))
+
+(defn- realize-transfer-overrides
+  [ctx changes from-id->to-id]
   ;; This method updates the existing override layer to use the to-id as the
   ;; root of the override layer. It also updates the "first level" (i.e. direct)
   ;; override nodes that have from-id as their original to instead have to-id as
@@ -520,7 +574,7 @@
         override-node-id->override-id (into {}
                                             (map (fn [override-node-id]
                                                    (pair override-node-id
-                                                         (gt/override-id (gt/node-by-id-at basis override-node-id)))))
+                                                         (node-id->override-id basis override-node-id))))
                                             override-node-ids)
         override-id->override (into {}
                                     (comp
@@ -543,45 +597,52 @@
                                                 node-ids-from-override (ig/pre-traverse basis [override-node-id] traverse-fn)]
                                             node-ids-from-override)))
                                 (remove retained))
-                              override-node-ids)]
-    (-> ctx
-        (update :basis (fn [basis]
-                         ;; Clear out the original to override node-id mappings
-                         ;; from the graph. Normally entries are removed from
-                         ;; this mapping inside basis-remove-node as nodes are
-                         ;; deleted, but since we're transferring overrides, we
-                         ;; must do it manually here.
-                         (reduce (fn [basis from-node-id]
-                                   (gt/override-node-clear basis from-node-id))
-                                 basis
-                                 (keys from-id->to-id)))) ; from nodes no longer have any override nodes
-        (update :basis (fn [basis]
-                         (reduce (fn [basis [override-id override]]
-                                   (gt/replace-override basis override-id (update override :root-id from-id->to-id)))
-                                 basis
-                                 overrides-to-fix))) ; re-root overrides that used to have a from node id as root
-        (as-> ctx
-              (reduce ctx-delete-node ctx nodes-to-delete))
+                              override-node-ids)
+
+        ;; Clear out the original to override node-id mappings from the graph.
+        ;; Normally entries are removed from this mapping inside
+        ;; basis-remove-node as nodes are deleted, but since we're transferring
+        ;; overrides, we must do it manually here.
+        [ctx changes]
+        (coll/reduce-> (keys from-id->to-id) (pair ctx changes)
+          (fn [[ctx changes] from-id]
+            (let [override-node-ids (ig/get-overrides basis from-id)]
+              (if (coll/empty? override-node-ids)
+                (pair ctx changes)
+                (perform-and-conj-change ctx changes (->ClearOverrideNodesTXC from-id override-node-ids))))))
+
+        ;; Re-root overrides that used to have a from node id as root.
+        [ctx changes]
+        (coll/reduce-> overrides-to-fix (pair ctx changes)
+          (fn [[ctx changes] [override-id override]]
+            (let [new-override (update override :root-id from-id->to-id)]
+              (perform-and-conj-change ctx changes (->ReplaceOverrideRootTXC override-id override new-override)))))
+
+        ;; Delete old nodes.
+        [ctx changes]
+        (if-let [change (make-delete-nodes-change ctx nodes-to-delete)]
+          (perform-and-conj-change ctx changes change)
+          (pair ctx changes))
 
         ;; * repoint the first level override nodes to use to-node as original
         ;; * add as override nodes of to-node
-        (as-> ctx
-              (reduce (fn [ctx override-node-id]
-                        (let [basis (:basis ctx)
-                              override-node (gt/node-by-id-at basis override-node-id)
-                              old-original (gt/original override-node)
-                              new-original (from-id->to-id old-original)
-                              new-basis (gt/replace-node basis override-node-id (gt/set-original override-node new-original))]
-                          (-> ctx
-                              (assoc :basis new-basis)
-                              (mark-all-outputs-activated override-node-id)
-                              (ctx-override-node new-original override-node-id))))
-                      ctx
-                      override-node-ids))
-        (as-> ctx
-              (reduce populate-overrides
-                      ctx
-                      (vals from-id->to-id))))))
+        [ctx changes]
+        (coll/reduce-> override-node-ids (pair ctx changes)
+          (fn [[ctx changes] override-node-id]
+            (let [basis (:basis ctx)
+                  override-node (gt/node-by-id-at basis override-node-id)
+                  old-original-id (gt/original override-node)
+                  new-original-id (from-id->to-id old-original-id)
+                  change (->RepointOverrideNodeTXC override-node-id
+                                                   old-original-id
+                                                   new-original-id
+                                                   (ig/get-overrides basis new-original-id))]
+              (perform-and-conj-change ctx changes change))))]
+
+    ;; Populate the fresh override layers.
+    (coll/reduce-> (vals from-id->to-id) (pair ctx changes)
+      (fn [[ctx changes] to-id]
+        (realize-populate-overrides ctx changes to-id)))))
 
 (defn- property-default-setter
   [basis node-id node property new-value]
@@ -1087,27 +1148,6 @@
   [root-id traverse-fn init-props-fn init-fn properties-by-node-id]
   [(->OverrideTXS root-id traverse-fn init-props-fn init-fn properties-by-node-id)])
 
-(def ^:private context-snapshot-change-keys
-  [:basis
-   :nodes-affected
-   :undo-nodes-affected
-   :nodes-added
-   :nodes-modified
-   :nodes-deleted
-   :outputs-modified
-   :graphs-modified
-   :override-nodes-affected-seen
-   :override-nodes-affected-ordered
-   :successors-changed])
-
-(defonce/type ContextSnapshotTXC [ctx-before ctx-after]
-  TransactionChange
-  (perform [_this ctx]
-    (merge ctx (select-keys ctx-after context-snapshot-change-keys)))
-
-  (revert [_this ctx]
-    (merge ctx (select-keys ctx-before context-snapshot-change-keys))))
-
 (defonce/type TransferOverridesTXS [from-id->to-id]
   TransactionStep
   (step-type [_this]
@@ -1121,10 +1161,7 @@
       (second (first from-id->to-id))))
 
   (realize [_this ctx changes]
-    (let [ctx-before ctx
-          ctx-after (ctx-transfer-overrides ctx from-id->to-id)
-          change (->ContextSnapshotTXC ctx-before ctx-after)]
-      [ctx-after (conj-change changes change)])))
+    (realize-transfer-overrides ctx changes from-id->to-id)))
 
 (defn transfer-overrides [from-id->to-id]
   [(->TransferOverridesTXS from-id->to-id)])
