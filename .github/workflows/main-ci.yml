@@ -279,6 +279,7 @@ jobs:
       { name: 'Install dependencies', if: *should_build_switch, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
+        if: *should_build_switch,
         shell: bash,
         run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests'
       },
@@ -309,6 +310,7 @@ jobs:
       { name: 'Install dependencies', if: *should_build_ps, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
+        if: *should_build_ps,
         shell: bash,
         run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests'
       },
@@ -339,6 +341,7 @@ jobs:
       { name: 'Install dependencies', if: *should_build_xbox, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
+        if: *should_build_xbox,
         shell: bash,
         run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests'
       },
