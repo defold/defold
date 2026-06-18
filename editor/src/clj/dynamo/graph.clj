@@ -308,9 +308,8 @@
         override-id-generator (is/override-id-generator system)
         tx-data-context-map (or (:tx-data-context-map opts) {})
         metrics-collector (:metrics opts)
-        full-invalidation (:full-invalidation opts)
-        record-changes (:undoable opts true)]
-    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation record-changes)))
+        full-invalidation (:full-invalidation opts)]
+    (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation)))
 
 (defn commit-tx-result!
   [tx-result transact-opts]
@@ -399,7 +398,10 @@
    (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
          transaction-context (make-transaction-context opts)
          tx-result (do-strict-evaluation-context-scope-body
-                     (it/transact* transaction-context txs))]
+                     (it/transact* transaction-context
+                                   txs
+                                   (when (:undoable opts true)
+                                     (transient []))))]
      (commit-tx-result! tx-result opts)
      tx-result)))
 
