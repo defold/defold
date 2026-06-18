@@ -122,7 +122,7 @@ if(SHADERC_IS_DESKTOP)
             "${SHADERC_GENERATED_JAVA}"
             "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
     COMMAND "${Java_JAR_EXECUTABLE}" cf "${SHADERC_JAR}" -C "${SHADERC_CLASSES_DIR}" .
-    DEPENDS shaderc_bindings "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
+    DEPENDS shaderc_bindings "${SHADERC_GENERATED_JAVA}" "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
     COMMENT "Packaging shaderc.jar")
   add_custom_target(shaderc_jar ALL DEPENDS "${SHADERC_JAR}")
   add_dependencies(shaderc_jar shaderc_bindings)

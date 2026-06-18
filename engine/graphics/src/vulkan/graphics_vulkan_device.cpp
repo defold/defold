@@ -391,36 +391,50 @@ namespace dmGraphics
 
     VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount)
     {
-        VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;
+        VkSampleCountFlags vk_sample_count =
+            VK_SAMPLE_COUNT_1_BIT  |
+            VK_SAMPLE_COUNT_2_BIT  |
+            VK_SAMPLE_COUNT_4_BIT  |
+            VK_SAMPLE_COUNT_8_BIT  |
+            VK_SAMPLE_COUNT_16_BIT |
+            VK_SAMPLE_COUNT_32_BIT |
+            VK_SAMPLE_COUNT_64_BIT;
 
-        if (bufferFlagBits & BUFFER_TYPE_COLOR0_BIT)
+        if (bufferFlagBits & (BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_COLOR1_BIT | BUFFER_TYPE_COLOR2_BIT | BUFFER_TYPE_COLOR3_BIT))
         {
-            vk_sample_count = physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
+            vk_sample_count &= physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
         }
 
         if (bufferFlagBits & BUFFER_TYPE_DEPTH_BIT)
         {
-            vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferColorSampleCounts);
+            vk_sample_count &= physicalDevice->m_Properties.limits.framebufferDepthSampleCounts;
         }
 
         if (bufferFlagBits & BUFFER_TYPE_STENCIL_BIT)
         {
-            vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferStencilSampleCounts);
+            vk_sample_count &= physicalDevice->m_Properties.limits.framebufferStencilSampleCounts;
         }
 
-        const uint8_t sample_count_index_requested = (uint8_t) sampleCount == 0 ? 0 : (uint8_t) log2f((float) sampleCount);
-        const uint8_t sample_count_index_max       = (uint8_t) log2f((float) vk_sample_count);
         const VkSampleCountFlagBits vk_count_bits[] = {
-            VK_SAMPLE_COUNT_1_BIT,
-            VK_SAMPLE_COUNT_2_BIT,
-            VK_SAMPLE_COUNT_4_BIT,
-            VK_SAMPLE_COUNT_8_BIT,
-            VK_SAMPLE_COUNT_16_BIT,
-            VK_SAMPLE_COUNT_32_BIT,
             VK_SAMPLE_COUNT_64_BIT,
+            VK_SAMPLE_COUNT_32_BIT,
+            VK_SAMPLE_COUNT_16_BIT,
+            VK_SAMPLE_COUNT_8_BIT,
+            VK_SAMPLE_COUNT_4_BIT,
+            VK_SAMPLE_COUNT_2_BIT,
+            VK_SAMPLE_COUNT_1_BIT,
         };
 
-        return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(vk_count_bits); ++i)
+        {
+            VkSampleCountFlagBits vk_count = vk_count_bits[i];
+            if (sampleCount >= (uint8_t) vk_count && (vk_sample_count & vk_count))
+            {
+                return vk_count;
+            }
+        }
+
+        return VK_SAMPLE_COUNT_1_BIT;
     }
 
     struct LayoutTransitionInfo
@@ -973,20 +987,25 @@ bail:
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment,
-        RenderPassAttachment* resolveAttachment,
+        RenderPassAttachment* resolveAttachments,
         VkRenderPass* renderPassOut)
     {
         assert(*renderPassOut == VK_NULL_HANDLE);
 
         const uint8_t num_depth_attachments = (depthStencilAttachment ? 1 : 0);
-        const uint8_t num_attachments       = numColorAttachments + num_depth_attachments + (resolveAttachment ? 1 : 0);
-        VkAttachmentDescription* vk_attachment_desc     = new VkAttachmentDescription[num_attachments];
-        VkAttachmentReference* vk_attachment_color_ref  = new VkAttachmentReference[numColorAttachments];
-        VkAttachmentReference vk_attachment_depth_ref   = {};
-        VkAttachmentReference vk_attachment_resolve_ref = {};
+        const uint8_t num_resolve_attachments = resolveAttachments ? numColorAttachments : 0;
+        const uint8_t num_attachments       = numColorAttachments + num_depth_attachments + num_resolve_attachments;
+        VkAttachmentDescription* vk_attachment_desc      = new VkAttachmentDescription[num_attachments];
+        VkAttachmentReference* vk_attachment_color_ref   = new VkAttachmentReference[numColorAttachments];
+        VkAttachmentReference* vk_attachment_resolve_ref = resolveAttachments ? new VkAttachmentReference[numColorAttachments] : 0;
+        VkAttachmentReference vk_attachment_depth_ref    = {};
 
         memset(vk_attachment_desc, 0, sizeof(VkAttachmentDescription) * num_attachments);
         memset(vk_attachment_color_ref, 0, sizeof(VkAttachmentReference) * numColorAttachments);
+        if (vk_attachment_resolve_ref)
+        {
+            memset(vk_attachment_resolve_ref, 0, sizeof(VkAttachmentReference) * numColorAttachments);
+        }
 
         for (uint16_t i=0; i < numColorAttachments; i++)
         {
@@ -1035,21 +1054,25 @@ bail:
             vk_attachment_depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         }
 
-        if (resolveAttachment)
+        if (resolveAttachments)
         {
-            const uint8_t resolve_index = numColorAttachments + num_depth_attachments;
-            VkAttachmentDescription& attachment_resolve = vk_attachment_desc[resolve_index];
-            attachment_resolve.format         = resolveAttachment->m_Format;
-            attachment_resolve.samples        = VK_SAMPLE_COUNT_1_BIT;
-            attachment_resolve.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_resolve.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment_resolve.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment_resolve.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-            attachment_resolve.finalLayout    = resolveAttachment->m_ImageLayout;
+            const uint8_t first_resolve_index = numColorAttachments + num_depth_attachments;
+            for (uint16_t i=0; i < numColorAttachments; i++)
+            {
+                const uint8_t resolve_index = first_resolve_index + i;
+                VkAttachmentDescription& attachment_resolve = vk_attachment_desc[resolve_index];
+                attachment_resolve.format         = resolveAttachments[i].m_Format;
+                attachment_resolve.samples        = VK_SAMPLE_COUNT_1_BIT;
+                attachment_resolve.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+                attachment_resolve.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+                attachment_resolve.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+                attachment_resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+                attachment_resolve.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+                attachment_resolve.finalLayout    = resolveAttachments[i].m_ImageLayout;
 
-            vk_attachment_resolve_ref.attachment = resolve_index;
-            vk_attachment_resolve_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                vk_attachment_resolve_ref[i].attachment = resolve_index;
+                vk_attachment_resolve_ref[i].layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            }
         }
 
         // Subpass dependencies describe access patterns between several 'sub-passes',
@@ -1077,7 +1100,7 @@ bail:
         vk_sub_pass_description.colorAttachmentCount    = numColorAttachments;
         vk_sub_pass_description.pColorAttachments       = vk_attachment_color_ref;
         vk_sub_pass_description.pDepthStencilAttachment = depthStencilAttachment ? &vk_attachment_depth_ref : 0;
-        vk_sub_pass_description.pResolveAttachments     = resolveAttachment ? &vk_attachment_resolve_ref : 0;
+        vk_sub_pass_description.pResolveAttachments     = vk_attachment_resolve_ref;
 
         VkRenderPassCreateInfo render_pass_create_info;
         memset(&render_pass_create_info, 0, sizeof(render_pass_create_info));
@@ -1094,6 +1117,7 @@ bail:
 
         delete[] vk_attachment_desc;
         delete[] vk_attachment_color_ref;
+        delete[] vk_attachment_resolve_ref;
 
         return res;
     }
