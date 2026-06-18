@@ -20,7 +20,6 @@
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource-io :as resource-io]
-            [editor.resource-node :as resource-node]
             [editor.yaml :as yaml]))
 
 (def macos #{:x86_64-osx :arm64-osx})
@@ -98,50 +97,6 @@
   (or (some-> custom-lib-names platform (get lib) (str ".lib"))
       (and (contains? windows platform) (str "lib" lib ".lib"))
       lib))
-
-(defn- legacy-library-name->current [platform key]
-  (when (contains? windows platform)
-    (case key
-      :excludeLibs (into {}
-                         (map (fn [[lib custom-lib]]
-                                [(str "lib" lib) custom-lib]))
-                         (custom-lib-names platform))
-      :libs (into {}
-                  (map (fn [[lib custom-lib]]
-                         [(str "lib" lib ".lib") (str custom-lib ".lib")]))
-                  (custom-lib-names platform))
-      nil)))
-
-(defn- normalize-legacy-library-names [platform key values]
-  (if-let [legacy-name->current-name (legacy-library-name->current platform key)]
-    (into [] (comp (map #(get legacy-name->current-name % %)) (distinct)) values)
-    values))
-
-(defn- migrate-legacy-library-names-in-context [platform context]
-  (cond-> context
-    (vector? (:excludeLibs context))
-    (update :excludeLibs #(normalize-legacy-library-names platform :excludeLibs %))
-
-    (vector? (:libs context))
-    (update :libs #(normalize-legacy-library-names platform :libs %))))
-
-(defn- migrate-legacy-library-names-in-platform [platform platform-map]
-  (if (map? platform-map)
-    (update platform-map :context
-            #(if (map? %) (migrate-legacy-library-names-in-context platform %) %))
-    platform-map))
-
-(defn- migrate-legacy-library-names [manifest]
-  (if (map? manifest)
-    (update manifest :platforms
-            (fn [platforms]
-              (if (map? platforms)
-                (into {}
-                      (map (fn [[platform platform-map]]
-                             [platform (migrate-legacy-library-names-in-platform platform platform-map)]))
-                      platforms)
-                platforms)))
-    manifest))
 
 ;; region toggles
 
@@ -245,14 +200,13 @@
 
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
-    :contains (let [{:keys [platform key value]} toggle
-                    values (get-in-guarded manifest
-                                           :platforms map?
-                                           platform map?
-                                           :context map?
-                                           key vector?
-                                           [])]
-                (boolean (some #{value} (normalize-legacy-library-names platform key values))))
+    :contains (let [{:keys [platform key value]} toggle]
+                (boolean (some #(= value %) (get-in-guarded manifest
+                                                            :platforms map?
+                                                            platform map?
+                                                            :context map?
+                                                            key vector?
+                                                            []))))
     :boolean (let [{:keys [platform key value]} toggle
                    default-value (not value)]
                (= value (get-in-guarded manifest
@@ -274,9 +228,9 @@
                   key vector? []
                   (if enabled
                     (fn [values]
-                      (into [] (distinct) (conj (normalize-legacy-library-names platform key values) value)))
+                      (into [] (distinct) (conj values value)))
                     (fn [values]
-                      (into [] (remove #{value}) (normalize-legacy-library-names platform key values))))))
+                      (filterv #(not= value %) values)))))
 
     :boolean (let [enabled value
                    {:keys [platform key value]} toggle]
@@ -630,11 +584,6 @@
     :both webgpu-toggles
     :web-gl))
 
-(defn- parse-app-manifest [node-id resource lines]
-  (yaml/with-error-translation node-id :manifest resource
-    (with-open [reader (data/lines-reader lines)]
-      (yaml/load reader keyword))))
-
 (def ^:private app-manifest-key-order-pattern
   (let [platform-pattern [[:context [;; defines
                                      :defines
@@ -675,41 +624,13 @@
                   [:wasm-web platform-pattern]
                   [:wasm_pthread-web platform-pattern]]]]))
 
-(defn- app-manifest-indent [indent-type]
-  (case indent-type
-    :two-spaces 2
-    4))
-
-(defn- dump-app-manifest-lines [manifest indent-type]
-  (util/split-lines
-    (yaml/dump manifest
-               :order-pattern app-manifest-key-order-pattern
-               :indent (app-manifest-indent indent-type))))
-
-(defn- migrate-legacy-library-name-lines [node-id resource lines indent-type]
-  (let [manifest (parse-app-manifest node-id resource lines)]
-    (when-not (g/error? manifest)
-      (let [migrated-manifest (migrate-legacy-library-names manifest)]
-        (when (not= manifest migrated-manifest)
-          (dump-app-manifest-lines migrated-manifest indent-type))))))
-
-(defn- migrate-legacy-library-names-load-fn [_project self resource]
-  (let [lines (r/read-fn resource)
-        indent-type (r/guess-indent-type lines)]
-    (when-some [migrated-lines (migrate-legacy-library-name-lines self resource lines indent-type)]
-      (resource-node/set-source-value! self (r/source-value-fn lines))
-      (concat
-        (g/set-properties self
-          :modified-indent-type indent-type
-          :modified-lines migrated-lines)
-        (g/callback-ec g/flag-nodes-as-migrated! [self])))))
-
 (g/defnode AppManifestNode
   (inherits r/CodeEditorResourceNode)
   (output parsed-manifest g/Any :cached (g/fnk [lines _node-id resource]
                                           (resource-io/with-error-translation resource _node-id :manifest
-                                            (migrate-legacy-library-names
-                                              (parse-app-manifest _node-id resource lines)))))
+                                            (yaml/with-error-translation _node-id :manifest resource
+                                              (with-open [reader (data/lines-reader lines)]
+                                                (yaml/load reader keyword))))))
   (property manifest g/Any
             (dynamic visible (g/constantly false))
             (value (gu/passthrough parsed-manifest))
@@ -717,8 +638,12 @@
                    (g/set-property
                      self
                      :modified-lines
-                     (dump-app-manifest-lines new-value
-                                              (g/node-value self :indent-type evaluation-context))))))
+                     (util/split-lines
+                       (yaml/dump new-value
+                                  :order-pattern app-manifest-key-order-pattern
+                                  :indent (case (g/node-value self :indent-type evaluation-context)
+                                            :two-spaces 2
+                                            4)))))))
   (property physics-2d g/Any
             (dynamic label (properties/label-dynamic :appmanifest :physics-2d))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :physics-2d))
@@ -870,7 +795,6 @@
     :icon "icons/32/Icons_05-Project-info.png"
     :category (localization/message "resource.category.project_settings")
     :node-type AppManifestNode
-    :additional-load-fn migrate-legacy-library-names-load-fn
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
     :lazy-loaded true))

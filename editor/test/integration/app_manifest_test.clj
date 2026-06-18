@@ -20,36 +20,6 @@
             [editor.code.data :as data]
             [integration.test-util :as test-util]))
 
-(def ^:private windows-platforms [:x86-win32 :x86_64-win32])
-
-(defn- invert-map [m]
-  (into {} (map (fn [[k v]] [v k])) m))
-
-(defn- replace-library-names [current-name->replacement values]
-  (into [] (map #(get current-name->replacement % %)) values))
-
-(defn- replace-windows-library-names [manifest current-name->replacement]
-  (reduce
-    (fn [manifest platform]
-      (update-in manifest [:platforms platform :context]
-                 (fn [context]
-                   (cond-> context
-                     (vector? (:libs context))
-                     (update :libs #(replace-library-names current-name->replacement %))
-
-                     (vector? (:excludeLibs context))
-                     (update :excludeLibs #(replace-library-names current-name->replacement %))))))
-    manifest
-    windows-platforms))
-
-(defn- assert-windows-library-names [manifest legacy-name->current-name]
-  (doseq [platform windows-platforms
-          :let [context (get-in manifest [:platforms platform :context])
-                values (into [] cat [(:libs context) (:excludeLibs context)])]
-          [legacy current] legacy-name->current-name]
-    (is (some? (some #{current} values)))
-    (is (not-any? #{legacy} values))))
-
 (deftest toggle-test
   (testing "contains toggles"
     (let [toggle (app-manifest/contains-toggle :common :libs "foo")]
@@ -72,27 +42,6 @@
                  {:platforms {:common {:context {:libs "not-a-coll"}}}} toggle true)))
         (is (= {:platforms {:common {:context {:libs []}}}}
                (app-manifest/set-toggle-value {:platforms {:common :invalid}} toggle false))))))
-  (testing "contains toggles accept legacy Windows library names"
-    (doseq [platform windows-platforms
-            [key current legacy] [[:libs "script_box2d.lib" "libscript_box2d.lib"]
-                                  [:excludeLibs "script_box2d" "libscript_box2d"]
-                                  [:excludeLibs "script_box2d_defold" "libscript_box2d_defold"]
-                                  [:libs "gamesys_model_null.lib" "libgamesys_model_null.lib"]
-                                  [:excludeLibs "gamesys_model" "libgamesys_model"]]]
-      (let [toggle (app-manifest/contains-toggle platform key current)]
-        (is (true? (app-manifest/get-toggle-value
-                     {:platforms {platform {:context {key [legacy]}}}}
-                     toggle)))
-        (is (= {:platforms {platform {:context {key [current]}}}}
-               (app-manifest/set-toggle-value
-                 {:platforms {platform {:context {key [legacy]}}}}
-                 toggle
-                 true)))
-        (is (= {:platforms {platform {:context {key []}}}}
-               (app-manifest/set-toggle-value
-                 {:platforms {platform {:context {key [legacy]}}}}
-                 toggle
-                 false))))))
   (testing "boolean toggle"
     (testing "get"
       (testing "positive toggle (expects value to be true for toggle to be on)"
@@ -229,53 +178,6 @@
                        (app-manifest/set-setting-value setting v)
                        (app-manifest/update-setting-value setting update-fn)
                        (app-manifest/get-setting-value setting))))))))))
-
-(deftest physics-setting-legacy-windows-script-box2d-test
-  (let [legacy-name->current-name {"libscript_box2d.lib" "script_box2d.lib"
-                                   "libscript_box2d_defold" "script_box2d_defold"}
-        legacy-manifest (-> {}
-                            (app-manifest/set-setting-value app-manifest/physics-setting {:2d :v3 :3d false})
-                            (replace-windows-library-names (invert-map legacy-name->current-name)))]
-    (is (= {:2d :v3 :3d false}
-           (app-manifest/get-setting-value legacy-manifest app-manifest/physics-setting)))
-    (let [updated-2d (app-manifest/update-setting-value legacy-manifest app-manifest/physics-setting assoc :2d :v3)]
-      (is (= {:2d :v3 :3d false}
-             (app-manifest/get-setting-value updated-2d app-manifest/physics-setting)))
-      (assert-windows-library-names updated-2d legacy-name->current-name))
-    (let [updated-3d (app-manifest/update-setting-value legacy-manifest app-manifest/physics-setting assoc :3d true)]
-      (is (= {:2d :v3 :3d true}
-             (app-manifest/get-setting-value updated-3d app-manifest/physics-setting)))
-      (assert-windows-library-names updated-3d legacy-name->current-name))))
-
-(deftest rig-setting-legacy-windows-gamesys-test
-  (let [legacy-name->current-name {"libgamesys_rig_null.lib" "gamesys_rig_null.lib"
-                                   "libgamesys_model_null.lib" "gamesys_model_null.lib"
-                                   "libgamesys_model" "gamesys_model"
-                                   "libgamesys_rig" "gamesys_rig"}
-        legacy-manifest (-> {}
-                            (app-manifest/set-setting-value app-manifest/rig-setting :none)
-                            (replace-windows-library-names (invert-map legacy-name->current-name)))]
-    (is (= :none (app-manifest/get-setting-value legacy-manifest app-manifest/rig-setting)))
-    (let [updated (app-manifest/set-setting-value legacy-manifest app-manifest/rig-setting :none)]
-      (is (= :none (app-manifest/get-setting-value updated app-manifest/rig-setting)))
-      (assert-windows-library-names updated legacy-name->current-name))))
-
-(deftest app-manifest-load-accepts-legacy-windows-library-names
-  (test-util/with-loaded-project
-    (let [manifest (test-util/resource-node project "/app_manifest/legacy_windows_library_names.appmanifest")
-          parsed-manifest (g/node-value manifest :manifest)
-          modified-text (slurp (data/lines-reader (g/node-value manifest :modified-lines)))
-          legacy-name->current-name {"libscript_box2d.lib" "script_box2d.lib"
-                                     "libscript_box2d_defold" "script_box2d_defold"
-                                     "libgamesys_model_null.lib" "gamesys_model_null.lib"
-                                     "libgamesys_rig_null.lib" "gamesys_rig_null.lib"
-                                     "libgamesys_model" "gamesys_model"
-                                     "libgamesys_rig" "gamesys_rig"}]
-      (is (true? (g/node-value manifest :dirty)))
-      (doseq [[legacy current] legacy-name->current-name]
-        (is (string/includes? modified-text current))
-        (is (false? (string/includes? modified-text legacy))))
-      (assert-windows-library-names parsed-manifest legacy-name->current-name))))
 
 (deftest android-graphics-setting-test
   (testing "OpenGL-only Android excludes Vulkan link inputs"
