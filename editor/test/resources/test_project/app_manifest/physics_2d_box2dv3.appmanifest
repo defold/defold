@@ -71,14 +71,14 @@ platforms:
             excludeLibs: [libphysics, libLinearMath, libBulletDynamics, libBulletCollision, libbox2d_defold, script_box2d_defold]
             excludeSymbols: []
             symbols: []
-            libs: [libphysics_2d.lib, libbox2d.lib, libscript_box2d.lib]
+            libs: [libphysics_2d.lib, libbox2d.lib, script_box2d.lib]
             linkFlags: []
     x86_64-win32:
         context:
             excludeLibs: [libphysics, libLinearMath, libBulletDynamics, libBulletCollision, libbox2d_defold, script_box2d_defold]
             excludeSymbols: []
             symbols: []
-            libs: [libphysics_2d.lib, libbox2d.lib, libscript_box2d.lib]
+            libs: [libphysics_2d.lib, libbox2d.lib, script_box2d.lib]
             linkFlags: []
     wasm-web:
         context:

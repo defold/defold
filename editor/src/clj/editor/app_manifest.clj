@@ -70,6 +70,7 @@
                "platform_vulkan" "platform_vulkan"
                "vpx" "vpx"
                "vulkan" "vulkan-1"
+               "script_box2d" "script_box2d"
                "script_box2d_defold" "script_box2d_defold"}
    :x86_64-win32 {"gamesys" "gamesys"
                   "gamesys_model" "gamesys_model"
@@ -84,6 +85,7 @@
                   "platform_vulkan" "platform_vulkan"
                   "vpx" "vpx"
                   "vulkan" "vulkan-1"
+                  "script_box2d" "script_box2d"
                   "script_box2d_defold" "script_box2d_defold"}})
 
 (defn platformify-excluded-lib [platform lib]
