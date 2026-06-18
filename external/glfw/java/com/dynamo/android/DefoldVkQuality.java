@@ -107,9 +107,18 @@ public final class DefoldVkQuality {
         } catch (PackageManager.NameNotFoundException e) {
             Log.w(TAG, "Unable to read VkQuality manifest metadata", e);
         }
-        // Bob writes this metadata only when the Android bundle includes the VkQuality package.
-        // If it is absent, do not probe an optional dependency that may not be bundled.
-        return false;
+        // Custom manifests may omit Defold's metadata entry. In that case, use
+        // the optional upstream class as the signal for whether Bob bundled VkQuality.
+        return isVkQualityClassAvailable();
+    }
+
+    private static boolean isVkQualityClassAvailable() {
+        try {
+            Class.forName(VKQUALITY_CLASS_NAME, false, DefoldVkQuality.class.getClassLoader());
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     private static void evaluateRecommendation() {
