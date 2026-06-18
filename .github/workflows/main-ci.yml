@@ -26,7 +26,7 @@ env:
   SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
   DOTNET_CHANNEL: 9.0.1xx
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
-  OPTION_SKIP_SIGN: ${{ case(github.event.client_payload.skip_sign, '--skip-sign', '') }}
+  OPTION_SKIP_SIGN: ${{ case(github.event.client_payload.skip_sign == 'true', '--skip-sign', '') }}
 
 jobs:
   # ---- BUILD ENGINE VERSIONS ------------------
