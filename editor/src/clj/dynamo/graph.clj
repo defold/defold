@@ -749,7 +749,7 @@
        (concat
         ~@(map
            (fn [ctor id]
-             (list `it/new-node
+             (list `it/add-node
                    (if (sequential? ctor)
                      (if (= 2 (count ctor))
                        `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
@@ -790,7 +790,7 @@
   Example:
 
   `(transact (add-node (construct SimpleTestNode)))`"
-  it/new-node)
+  it/add-node)
 
 (defn- construct-node-with-id
   [graph-id node-type args]
@@ -810,7 +810,7 @@
                (if (= 1 (count args))
                  (first args)
                  (apply assoc {} args)))]
-    (it/new-node (construct-node-with-id graph-id node-type args))))
+    (it/add-node (construct-node-with-id graph-id node-type args))))
 
 (defn make-node!
   "Creates the transaction step and runs it in a transaction, returning the resulting node.
@@ -1831,7 +1831,7 @@
    (let [deserializer  (partial deserializer basis graph-id)
          nodes         (map deserializer (:nodes fragment))
          new-nodes     (remove #(gt/node-by-id-at basis (gt/node-id %)) nodes)
-         node-txs      (vec (mapcat it/new-node new-nodes))
+         node-txs      (vec (mapcat it/add-node new-nodes))
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
          deserialize-dictionary (into id-dictionary external-refs)

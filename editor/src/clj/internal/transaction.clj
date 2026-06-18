@@ -62,23 +62,24 @@
   [^NonUndoable txs]
   (.tx_data txs))
 
-(defn perform-change
+(definline perform-change
   [ctx ^TransactionChange change]
-  (.perform change ctx))
+  `(.perform ~(with-meta change {:tag `TransactionChange}) ~ctx))
 
-(defn revert-change
+(definline revert-change
   [ctx ^TransactionChange change]
-  (.revert change ctx))
+  `(.revert ~(with-meta change {:tag `TransactionChange}) ~ctx))
 
-(defn- conj-change
+(definline ^:private conj-change
   [changes change]
-  (cond-> changes
-    changes (conj! change)))
+  `(when-let [changes# ~changes]
+     (conj! changes# ~change)))
 
-(defn- perform-and-conj-change
+(definline ^:private perform-and-conj-change
   [ctx changes change]
-  (pair (perform-change ctx change)
-        (conj-change changes change)))
+  `(let [change# ~change]
+     (pair (perform-change ~ctx change#)
+           (conj-change ~changes change#))))
 
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
@@ -274,18 +275,18 @@
         ctx (assoc ctx :basis (gt/override-node basis original-node-id override-node-id))]
     (mark-override-originals-changed ctx basis original-node-id)))
 
-(declare apply-tx
-         realize-tx
-         make-delete-nodes-change
-         new-node
-         ->AddOverrideTXC
+(declare ^:private make-delete-nodes-change)
+
+(declare ->AddOverrideTXC
          ->DeleteNodeTXC
          ->InvalidateOutputTXC
          ->InvalidateTXC
          ->LabelTXC
          ->OverrideNodeTXC
          ->SequenceLabelTXC
-         ->UpdateGraphValueTXC)
+         ->UpdateGraphValueTXC
+         add-node
+         realize-tx)
 
 (defonce/type AddOverrideTXS [override-id root-id traverse-fn init-props-fn]
   TransactionStep
@@ -354,7 +355,7 @@
                              node-ids)
         override-node-ids (map gt/node-id override-nodes)
         original-node-id->override-node-id (zipmap node-ids override-node-ids)
-        new-override-nodes-tx-data (map new-node override-nodes)
+        new-override-nodes-tx-data (map add-node override-nodes)
         new-override-tx-data (concat
                                (new-override override-id root-id traverse-fn init-props-fn)
                                (map (fn [node-id override-node-id]
@@ -371,76 +372,6 @@
   (->> node-id
        (gt/node-by-id-at basis)
        gt/override-id))
-
-(declare ctx-add-node)
-
-(defn- ctx-make-override-nodes [ctx override-id node-ids init-props-fn]
-  (reduce (fn [ctx node-id]
-            (let [basis (:basis ctx)]
-              (if (coll/some #(= override-id (node-id->override-id basis %))
-                             (ig/get-overrides basis node-id))
-                ctx
-                (let [graph-id (gt/node-id->graph-id node-id)
-                      original-node (gt/node-by-id-at basis node-id)
-                      node-type (gt/node-type original-node)
-                      properties (when init-props-fn
-                                   (init-props-fn basis node-id node-type))
-                      new-override-node-id (next-node-id ctx graph-id)
-                      new-override-node (in/make-override-node
-                                          override-id
-                                          new-override-node-id
-                                          node-type
-                                          node-id
-                                          properties)]
-                  (-> ctx
-                      (ctx-add-node new-override-node)
-                      (ctx-override-node node-id new-override-node-id))))))
-          ctx
-          node-ids))
-
-(defn- populate-overrides [ctx node-id]
-  ;; When a transaction concludes, this gets called for each node-id where a
-  ;; :cascade-delete input gained a new connection. We must now create new
-  ;; override nodes for the relevant nodes in the connected subgraph. Each
-  ;; override layer will get a chance to spawn its own set of override nodes,
-  ;; based on its traverse-fn.
-  ;;
-  ;; It is possible for an override layer to be created for a root-node and
-  ;; connections to have been introduced later in the same transaction. In that
-  ;; case, the :override transaction step will have already traversed and
-  ;; created override nodes from the :cascade-delete subgraph that was connected
-  ;; to the root-node at the time.
-  (let [basis (:basis ctx)
-        override-node-ids (ig/get-overrides basis node-id)
-        override-node-count (count override-node-ids)
-        ctx (loop [override-node-index 0
-                   ctx ctx
-                   prev-traverse-fn nil
-                   prev-traverse-result nil]
-              (if (>= override-node-index override-node-count)
-                ctx
-                (let [override-node-id (override-node-ids override-node-index)
-                      override-id (node-id->override-id basis override-node-id)
-                      {:keys [init-props-fn traverse-fn]} (ig/override-by-id basis override-id)
-                      node-ids (if (identical? prev-traverse-fn traverse-fn)
-                                 prev-traverse-result
-                                 (when-let [source-node-ids
-                                            (some-> (traverse-fn basis node-id) ; Immediate relevant source nodes connected to a :cascade-delete input.
-                                                    (coll/into-> []
-                                                      (remove
-                                                        (fn already-traversed? [immediate-node-id]
-                                                          (coll/some
-                                                            #(= override-id (node-id->override-id basis %))
-                                                            (ig/get-overrides basis immediate-node-id)))))
-                                                    (coll/not-empty))]
-                                   (ig/pre-traverse basis source-node-ids traverse-fn)))]
-                  (recur (inc override-node-index)
-                         (ctx-make-override-nodes ctx override-id node-ids init-props-fn)
-                         traverse-fn
-                         node-ids))))]
-    (reduce populate-overrides
-            ctx
-            override-node-ids)))
 
 (defn- realize-make-override-nodes [ctx changes override-id node-ids init-props-fn]
   (coll/reduce-> node-ids (pair ctx changes)
@@ -461,7 +392,7 @@
                                     node-type
                                     node-id
                                     properties)
-                tx-data [(new-node new-override-node)
+                tx-data [(add-node new-override-node)
                          (override-node node-id new-override-node-id)]]
             (realize-tx ctx tx-data changes)))))))
 
@@ -500,7 +431,7 @@
                  traverse-fn
                  node-ids))))))
 
-(defn- realize-update-overrides
+(defn realize-update-overrides
   [{:keys [override-nodes-affected-ordered] :as ctx} changes]
   (du/measuring (:metrics ctx) :update-overrides
     (coll/reduce-> override-nodes-affected-ordered (pair ctx changes)
@@ -563,7 +494,7 @@
   ;; root of the override layer. It also updates the "first level" (i.e. direct)
   ;; override nodes that have from-id as their original to instead have to-id as
   ;; their original. It then deletes every other override node that was produced
-  ;; from the existing override layer and re-runs the populate-overrides
+  ;; from the existing override layer and re-runs the realize-populate-overrides
   ;; function for the updated graph state. This will cause any missing override
   ;; nodes to be re-created from the structure of to-id.
   (let [basis (:basis ctx)
@@ -803,28 +734,6 @@
         (pair ctx changes)))
     (pair ctx changes)))
 
-(defn- apply-defaults [ctx node]
-  ;; Ensure property setters are run for all properties that have a non-nil
-  ;; value immediately after construction. We don't need to mark outputs
-  ;; activated, as we're doing this on a newly constructed node and ctx-add-node
-  ;; will mark all our outputs activated regardless.
-  (let [node-id (gt/node-id node)
-        node-type (gt/node-type node)
-        ordered-property-setter-infos (in/ordered-property-setter-infos node-type)]
-    (if (coll/empty? ordered-property-setter-infos)
-      ctx
-      (let [assigned-properties (gt/assigned-properties node)
-            value-fn (if (some? (gt/original node))
-                       (fn override-node-value-fn [property-label _default-value]
-                         (get assigned-properties property-label))
-                       (fn regular-node-value-fn [property-label default-value]
-                         (get assigned-properties property-label default-value)))]
-        (coll/reduce-> ordered-property-setter-infos ctx
-          (fn [ctx [property-label default-value setter-fn]]
-            (if-some [property-value (value-fn property-label default-value)]
-              (apply-tx ctx (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value))
-              ctx)))))))
-
 (defn- realize-defaults
   [ctx changes node]
   (let [node-id (gt/node-id node)
@@ -840,7 +749,7 @@
                          (get assigned-properties property-label default-value)))]
         (coll/reduce-> ordered-property-setter-infos (pair ctx changes)
           (fn [[ctx changes] [property-label default-value setter-fn]]
-            (if-let [property-value (value-fn property-label default-value)]
+            (if-some [property-value (value-fn property-label default-value)]
               (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value)
                     [ctx changes] (realize-tx ctx setter-actions changes)]
                 (pair ctx changes))
@@ -855,11 +764,6 @@
         (update :nodes-added conj node-id)
         (assoc-in [:successors-changed node-id] nil)
         (mark-all-outputs-activated node-id))))
-
-(defn- ctx-add-node [ctx node]
-  (-> ctx
-      (ctx-add-node-raw node)
-      (apply-defaults node)))
 
 (defn- ctx-callback
   [ctx fn args opts]
@@ -935,7 +839,7 @@
               ;; If we're connecting to a :cascade-delete input, we will need to
               ;; re-traverse the :cascade-delete inputs of the connected sub-graph
               ;; and create override nodes for each node. This happens in the
-              ;; update-overrides function once the transaction concludes.
+              ;; realize-update-overrides function once the transaction concludes.
               (flag-override-nodes-affected target-id))))
       ctx)
     ctx))
@@ -1025,7 +929,7 @@
           changes (conj-change changes change)]
       (realize-defaults ctx changes added-node))))
 
-(defn new-node
+(defn add-node
   "*transaction step* - Add a node to its corresponding graph."
   [node]
   {:pre [(some? (gt/node-id node))]}
@@ -1081,10 +985,6 @@
                          overrides
                          node->overrides)))))
 
-(defn- make-delete-node-change
-  [ctx node-id]
-  (make-delete-nodes-change ctx [node-id]))
-
 (defonce/type DeleteNodeTXC [nodes-by-id arcs overrides node->overrides]
   TransactionChange
   (perform [_this ctx]
@@ -1123,7 +1023,7 @@
     node-id)
 
   (realize [_this ctx changes]
-    (if-let [change (make-delete-node-change ctx node-id)]
+    (if-let [change (make-delete-nodes-change ctx [node-id])]
       (perform-and-conj-change ctx changes change)
       (pair ctx changes))))
 
@@ -1567,10 +1467,6 @@
 
     (pair ctx (if is-non-undoable outer-changes changes))))
 
-(defn apply-tx
-  [ctx tx-data]
-  (first (realize-tx ctx tx-data nil)))
-
 (defn mark-nodes-modified
   [{:keys [undo-nodes-affected] :as ctx}]
   (assoc ctx
@@ -1579,10 +1475,9 @@
 
 (defn apply-tx-label
   [{:keys [label sequence-label] :as ctx}]
-  (cond-> (update-in ctx [:basis :graphs] update-vals #(assoc % :tx-sequence-label sequence-label))
-
-    label
-    (update-in [:basis :graphs] update-vals #(assoc % :tx-label label))))
+  (update-in
+    ctx [:basis :graphs] coll/update-vals
+    coll/removing-assoc :tx-sequence-label sequence-label :tx-label label))
 
 (def tx-report-keys
   (cond-> [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label :changes]
@@ -1616,13 +1511,6 @@
    :tx-data-context (atom tx-data-context-map)
    :metrics metrics-collector
    :full-invalidation full-invalidation})
-
-(defn update-overrides
-  [{:keys [override-nodes-affected-ordered] :as ctx}]
-  (du/measuring (:metrics ctx) :update-overrides
-    (reduce populate-overrides
-            ctx
-            override-nodes-affected-ordered)))
 
 (defn update-successors
   [{:keys [^long completed-action-count successors-changed] :as ctx}]

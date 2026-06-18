@@ -226,11 +226,13 @@
 
               (run-and-measure-task!
                 :apply-load-tx-data
-                (it/apply-tx transaction-context tx-data))
+                (let [[transaction-context] (it/realize-tx transaction-context tx-data nil)]
+                  transaction-context))
 
               (run-and-measure-task!
                 :update-overrides
-                (it/update-overrides transaction-context))
+                (let [[transaction-context] (it/realize-update-overrides transaction-context nil)]
+                  transaction-context))
 
               (it/mark-nodes-modified transaction-context)
 
@@ -240,8 +242,8 @@
 
               (when transaction-context
                 (it/trace-dependencies transaction-context)
-                (it/apply-tx-label transaction-context)
-                (it/finalize-update transaction-context)))
+                (it/finalize-update transaction-context)
+                (it/apply-tx-label transaction-context)))
 
         _ (when tx-result
             (g/commit-tx-result! tx-result transact-opts))
