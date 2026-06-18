@@ -1001,8 +1001,13 @@
                                :initial-x x
                                :initial-y y
                                :movement movement)
-            (when (and (= movement :idle)
-                       (not free-cam-mode))
+            ;; NOTE: For a secondary (right) press we still propagate the action so the
+            ;; selection handler can pick the object under the cursor before showing the
+            ;; context menu. The camera tracks/free-looks via handle-update-tick and swallows
+            ;; the release only when an actual drag occurred, so a plain click still selects.
+            (when (and (not free-cam-mode)
+                       (or (= movement :idle)
+                           (= (:button action) :secondary)))
               action)))
 
         :drag-detected

@@ -26,6 +26,7 @@
             [editor.tile-map :as tile-map]
             [editor.tile-map-common :as tile-map-common]
             [editor.types :as types]
+            [editor.ui :as ui]
             [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d]))
 
@@ -259,7 +260,7 @@
         (is (not= initial-camera (g/node-value view :camera)))))))
 
 (deftest right-click-starts-free-look-from-tool-context-in-3d
-  ;; Regression: a tool context (here tile-map, active in :editor mode) used to
+  ;; A tool context (here tile-map, active in :editor mode) used to
   ;; force the orthographic camera bindings, so right-click resolved to pan even
   ;; when the camera was in perspective. Now the tool context leaves the camera
   ;; command unbound and the CameraController self-resolves against the live
@@ -445,6 +446,41 @@
 
         (is (not= initial-camera (g/node-value view :camera))
             "Camera should have panned via the overridden binding.")))))
+
+(deftest right-click-over-object-selects-it
+  ;; Right-clicking an object must select it (so the context menu acts on
+  ;; the clicked object), even though right-click also resolves to a camera movement
+  ;; (pan) here. The CameraController has to propagate the secondary press instead of
+  ;; swallowing it, so the SelectionController can pick the object under the cursor and
+  ;; select it on release.
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/register!
+        ::camera/scene-camera-orthographic
+        "Scene 2D Camera"
+        [{:command :scene.camera.pan
+          :action ["Pan"]
+          :binding {:button :secondary :modifiers #{}}}])
+      (let [[resource-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
+            go-node (ffirst (g/sources-of resource-node :child-scenes))
+            ;; Showing the context menu on release is a JavaFX side effect that needs a
+            ;; live scene/window we don't have here. The object is selected just before
+            ;; the menu shows, so stub the menu with a no-op ContextMenu and assert the
+            ;; selection.
+            menu-stub (ui/run-now (proxy [javafx.scene.control.ContextMenu] []
+                                    (show [_node _x _y] nil)))]
+        ;; The root scene node is selected initially, not the game object.
+        (is (test-util/selected? app-view resource-node))
+        (with-redefs [selection/init-scene-context-menu! (fn [_scene _node] menu-stub)]
+          (reduce
+            (partial dispatch-action! view)
+            (input/make-input-state)
+            [(action :mouse-moved 64.0 64.0 :secondary [])
+             (action :mouse-pressed 64.0 64.0 :secondary [])
+             (assoc (action :mouse-released 64.0 64.0 :secondary [])
+                    :target (javafx.scene.Group.))]))
+        (is (test-util/selected? app-view go-node)
+            "Right-clicking the object should select it before showing the context menu.")))))
 
 (deftest empty-camera-binding-override-disables-default-pan
   (test-util/with-loaded-project
