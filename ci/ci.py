@@ -370,7 +370,7 @@ def build_editor2(channel, platform, args):
 
     call('"%s" scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
 
-def test_editor(channel, platform, engine_artifacts = None):
+def test_editor(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor tests: %s" % platform)
 
@@ -378,14 +378,14 @@ def test_editor(channel, platform, engine_artifacts = None):
 
     opts.append('--channel=%s' % channel)
 
-    if engine_artifacts:
-        opts.append('--engine-artifacts=%s' % engine_artifacts)
+    if args.engine_artifacts:
+        opts.append('--engine-artifacts=%s' % args.engine_artifacts)
 
     opts_string = ' '.join(opts)
 
     call('python scripts/build.py distclean install_ext test_editor2 --platform=%s %s' % (platform, opts_string))
 
-def archive_editor2(channel, engine_artifacts = None, platform = None, skip_install_ext = False):
+def archive_editor2(channel, platform, args):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
@@ -394,12 +394,12 @@ def archive_editor2(channel, engine_artifacts = None, platform = None, skip_inst
     opts = []
     opts.append("--channel=%s" % channel)
 
-    if engine_artifacts:
-        opts.append('--engine-artifacts=%s' % engine_artifacts)
+    if args.engine_artifacts:
+        opts.append('--engine-artifacts=%s' % args.engine_artifacts)
 
     opts_string = ' '.join(opts)
     for platform in platforms:
-        if skip_install_ext:
+        if args.skip_install_ext:
             call('"%s" scripts/build.py archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
         else:
             call('"%s" scripts/build.py install_ext archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
@@ -416,11 +416,11 @@ def install_ext(platform = None):
     call('"%s" scripts/build.py install_ext %s' % (sys.executable, ' '.join(opts)))
 
 
-def build_bob(channel, branch = None, skip_tests = False):
+def build_bob(channel, branch, args):
     args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
     opts = []
     opts.append("--channel=%s" % channel)
-    if skip_tests:
+    if args.skip_tests:
         opts.append("--skip-tests")
 
     cmd = ' '.join(args + opts)
@@ -477,17 +477,17 @@ def get_branch():
 
     return branch
 
-def release_settings_for_branch(branch, engine_artifacts):
+def release_settings_for_branch(branch):
     if branch == "master":
-        return "stable", True, engine_artifacts or "archived"
+        return "stable", True
     if branch == "beta":
-        return "beta", True, engine_artifacts or "archived"
+        return "beta", True
     if branch == "dev":
-        return "alpha", True, engine_artifacts or "archived"
-    return "dev", False, engine_artifacts or "archived"
+        return "alpha", True
+    return "dev", False
 
 def should_release_branch(branch):
-    return release_settings_for_branch(branch, None)[1]
+    return release_settings_for_branch(branch)[1]
 
 def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
@@ -509,7 +509,7 @@ def main(argv):
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
     parser.add_argument("--skip-codesign", dest="skip_codesign", action='store_true', help="")
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
-    parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
@@ -552,44 +552,28 @@ def main(argv):
         print("true" if should_release_branch(branch) else "false")
         return
 
-    channel, make_release, engine_artifacts = release_settings_for_branch(branch, args.engine_artifacts)
+    channel, make_release = release_settings_for_branch(branch)
 
-    print(f"Using branch={branch} channel={channel} engine_artifacts={engine_artifacts}")
+    print(f"Using branch={branch} channel={channel} engine_artifacts={args.engine_artifacts}")
 
     # execute commands
     for command in args.commands:
         if command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
-            build_engine(
-                channel,
-                platform,
-                args)
+            build_engine(channel, platform, args)
         elif command == "build-editor":
             if not platform:
                 raise Exception("No --platform specified.")
-            build_editor2(
-                channel,
-                platform,
-                args)
+            build_editor2(channel, platform, args)
         elif command == "test-editor":
             if not platform:
                 raise Exception("No --platform specified.")
-            test_editor(
-                channel,
-                platform,
-                engine_artifacts = engine_artifacts)
+            test_editor(channel, platform, args)
         elif command == "archive-editor":
-            archive_editor2(
-                channel,
-                engine_artifacts = engine_artifacts,
-                platform = platform,
-                skip_install_ext = args.skip_install_ext)
+            archive_editor2(channel, platform, args)
         elif command == "bob":
-            build_bob(
-                channel,
-                branch = branch,
-                skip_tests = args.skip_tests)
+            build_bob( channel, branch, args)
         elif command == "test-bob":
             test_bob(channel)
         elif command == "sdk":
