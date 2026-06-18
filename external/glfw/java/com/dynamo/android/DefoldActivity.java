@@ -141,17 +141,6 @@ public class DefoldActivity extends NativeActivity {
     }
 
     private static final String TAG = "DefoldActivity";
-    private static final String VKQUALITY_CLASS_NAME = "com.google.android.games.vkquality.VKQuality";
-    private static final String VKQUALITY_ENABLED_META_DATA = "com.defold.vkquality.enabled";
-    private static final int VKQUALITY_INIT_SUCCESS = 0;
-    private static final int VKQUALITY_ERROR_INITIALIZATION_FAILURE = -1;
-    private static final int VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED = -1;
-
-    private static boolean vkQualityPreflightComplete = false;
-    private static Object vkQuality = null;
-    private static int vkQualityInitResult = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
-    private static int vkQualityRecommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
-
     /**
      * NOTE! This method only exists because of a known bug in the NDK where the KeyEvent characters are
      * not copied over to the corresponding native AInputEvent.
@@ -164,82 +153,6 @@ public class DefoldActivity extends NativeActivity {
     public native void glfwSetMarkedTextNative(String text);
 
     private boolean keyboardActive;
-
-    private static synchronized void runVkQualityPreflight(Context context) {
-        if (vkQualityPreflightComplete) {
-            return;
-        }
-
-        if (!isVkQualityPreflightEnabled(context)) {
-            vkQualityPreflightComplete = true;
-            return;
-        }
-
-        try {
-            Class<?> vkQualityClass = Class.forName(VKQUALITY_CLASS_NAME);
-            java.lang.reflect.Constructor<?> constructor = vkQualityClass.getConstructor(Context.class);
-            Context appContext = context.getApplicationContext();
-            if (appContext == null) {
-                appContext = context;
-            }
-            Object instance = constructor.newInstance(appContext);
-            java.lang.reflect.Method startMethod = vkQualityClass.getMethod("StartVkQualityWithFlags", String.class, int.class);
-            vkQualityInitResult = ((Integer) startMethod.invoke(instance, null, 0)).intValue();
-            vkQuality = instance;
-            if (vkQualityInitResult == VKQUALITY_INIT_SUCCESS) {
-                updateVkQualityRecommendation();
-            }
-            Log.i(TAG, "VkQuality preflight result: init=" + vkQualityInitResult + " recommendation=" + vkQualityRecommendation);
-        } catch (Throwable t) {
-            vkQuality = null;
-            vkQualityInitResult = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
-            vkQualityRecommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
-            Log.w(TAG, "VkQuality preflight unavailable", t);
-        } finally {
-            vkQualityPreflightComplete = true;
-        }
-    }
-
-    private static boolean isVkQualityPreflightEnabled(Context context) {
-        try {
-            PackageManager packageManager = context.getPackageManager();
-            ApplicationInfo appInfo = packageManager.getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA);
-            Bundle metaData = appInfo.metaData;
-            if (metaData != null && metaData.containsKey(VKQUALITY_ENABLED_META_DATA)) {
-                Object value = metaData.get(VKQUALITY_ENABLED_META_DATA);
-                return value == null || Boolean.parseBoolean(value.toString());
-            }
-        } catch (PackageManager.NameNotFoundException e) {
-            Log.w(TAG, "Unable to read VkQuality manifest metadata", e);
-        }
-        return true;
-    }
-
-    private static synchronized void updateVkQualityRecommendation() {
-        if (vkQuality == null || vkQualityInitResult != VKQUALITY_INIT_SUCCESS) {
-            return;
-        }
-
-        try {
-            java.lang.reflect.Method getMethod = vkQuality.getClass().getMethod("GetVkQuality");
-            vkQualityRecommendation = ((Integer) getMethod.invoke(vkQuality)).intValue();
-        } catch (Throwable t) {
-            Log.w(TAG, "VkQuality recommendation unavailable", t);
-        }
-    }
-
-    public static synchronized boolean isVkQualityPreflightComplete() {
-        return vkQualityPreflightComplete;
-    }
-
-    public static synchronized int getVkQualityInitResult() {
-        return vkQualityInitResult;
-    }
-
-    public static synchronized int getVkQualityRecommendation() {
-        updateVkQualityRecommendation();
-        return vkQualityRecommendation;
-    }
 
     private class DefoldInputWrapper extends InputConnectionWrapper {
         private DefoldActivity _ctx;
@@ -337,7 +250,7 @@ public class DefoldActivity extends NativeActivity {
     public static native void glfwSetPendingResizeBecauseOfInsets();
 
     protected void onCreate(Bundle savedInstanceState) {
-        runVkQualityPreflight(this);
+        DefoldVkQuality.runPreflight(this);
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
 

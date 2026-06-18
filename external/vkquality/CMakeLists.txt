@@ -1,6 +1,15 @@
-cmake_minimum_required(VERSION 3.22.1)
+cmake_minimum_required(VERSION 4.0)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
+include(functions)
+include(functions_sdk)
+include(sdk)
 
 project(vkquality LANGUAGES CXX)
+
+if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External package install prefix" FORCE)
+endif()
 
 if(NOT TARGET_PLATFORM MATCHES "^(armv7|arm64)-android$")
   message(FATAL_ERROR "VkQuality is only supported on Android platforms, got: ${TARGET_PLATFORM}")

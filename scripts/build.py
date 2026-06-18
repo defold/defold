@@ -2479,11 +2479,6 @@ class Configuration(object):
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
-        if lib != 'vkquality':
-            self.fatal("Unsupported CMake external package '%s'" % lib)
-        if platform not in ('armv7-android', 'arm64-android'):
-            self.fatal("VkQuality is only supported on Android platforms, got: %s" % platform)
-
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
         package_name = '%s-%s' % (lib, version)
         source_dir = join(self.defold_root, 'external', lib)
@@ -2492,16 +2487,8 @@ class Configuration(object):
         package_dir = join(self.defold_root, 'packages')
         package_path = join(package_dir, '%s-%s.tar.gz' % (package_name, platform))
 
-        ndk_root = join(self.dynamo_home, 'ext', 'SDKs', PACKAGES_ANDROID_NDK)
-        toolchain_file = join(ndk_root, 'build', 'cmake', 'android.toolchain.cmake')
-        android_jar = join(self.dynamo_home, 'ext', 'share', 'java', 'android.jar')
-        android_abi = 'arm64-v8a' if platform == 'arm64-android' else 'armeabi-v7a'
-        android_api = sdk.ANDROID_64_NDK_API_VERSION if platform == 'arm64-android' else sdk.ANDROID_NDK_API_VERSION
-
-        if not os.path.exists(toolchain_file):
-            self.fatal("Android NDK CMake toolchain not found: %s" % toolchain_file)
-        if not os.path.exists(android_jar):
-            self.fatal("Android platform jar not found: %s" % android_jar)
+        if not os.path.exists(join(source_dir, 'CMakeLists.txt')):
+            self.fatal("CMake external package '%s' is missing CMakeLists.txt" % lib)
 
         if os.path.exists(install_dir):
             shutil.rmtree(install_dir)
@@ -2516,12 +2503,8 @@ class Configuration(object):
             '-GNinja',
             '-DCMAKE_BUILD_TYPE=%s' % build_type,
             '-DTARGET_PLATFORM=%s' % platform,
-            '-DCMAKE_TOOLCHAIN_FILE=%s' % toolchain_file,
-            '-DANDROID_ABI=%s' % android_abi,
-            '-DANDROID_PLATFORM=android-%s' % android_api,
-            '-DANDROID_STL=c++_static',
-            '-DCMAKE_INSTALL_PREFIX=%s' % install_dir,
-            '-DDEFOLD_ANDROID_JAR=%s' % android_jar,
+            '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
+            '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
         ]
         build_args = ['cmake', '--build', build_dir, '--target', 'install']
         if self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options):
