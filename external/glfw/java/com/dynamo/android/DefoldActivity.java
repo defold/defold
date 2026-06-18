@@ -28,7 +28,6 @@ import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Build;
 import android.os.IBinder;
-import android.util.Log;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
@@ -141,6 +140,7 @@ public class DefoldActivity extends NativeActivity {
     }
 
     private static final String TAG = "DefoldActivity";
+
     /**
      * NOTE! This method only exists because of a known bug in the NDK where the KeyEvent characters are
      * not copied over to the corresponding native AInputEvent.

@@ -48,7 +48,7 @@ class VkQualityManager {
 
  public:
   VkQualityManager(JNIEnv *env, AAssetManager *asset_manager,
-                   const char *storage_path, const char *asset_filename, 
+                   const char *storage_path, const char *asset_filename,
                    const vkqGraphicsAPIInfo *api_info, int32_t flags,
                    ConstructorTag);
 

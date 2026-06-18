@@ -139,7 +139,7 @@ typedef struct vkqGraphicsAPIInfo {
    const char *gles_version_string;
 
   /**
-   * @brief If non-null, expected to be a pointer to a valid 
+   * @brief If non-null, expected to be a pointer to a valid
    * `vkGetPhysicalDeviceProperties` structure. If provided, the library
    * will use the data in this structure instead of creating a Vulkan
    * instance to retrieve it.
@@ -230,7 +230,7 @@ vkQualityInitResult vkQuality_initializeFlags(JNIEnv *env, AAssetManager *asset_
                                          const char *storage_path,
                                          const char *asset_filename,
                                          const vkqGraphicsAPIInfo *api_info,
-                                         int32_t flags);                                        
+                                         int32_t flags);
 
 /**
  * @brief Destroy resources that VkQuality has created.

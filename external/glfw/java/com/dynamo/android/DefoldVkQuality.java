@@ -31,6 +31,10 @@ public final class DefoldVkQuality {
     private static final int VKQUALITY_LOG_INFO = 1;
     private static final int VKQUALITY_LOG_WARNING = 2;
 
+    // Mirrored by AndroidVulkanIsRecommended() in graphics_vulkan_android.cpp.
+    public static final int VULKAN_RECOMMENDATION_ALLOW = 0;
+    public static final int VULKAN_RECOMMENDATION_DENY = 1;
+
     private static final int VKQUALITY_INIT_SUCCESS = 0;
     private static final int VKQUALITY_ERROR_INITIALIZATION_FAILURE = -1;
 
@@ -48,9 +52,7 @@ public final class DefoldVkQuality {
     private static Object vkQuality = null;
     private static int initResult = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
     private static int recommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
-    private static boolean vulkanRecommended = true;
-    private static int logLevel = VKQUALITY_LOG_WARNING;
-    private static String recommendationMessage = "VkQuality preflight has not run, allowing Vulkan support probe.";
+    private static int vulkanRecommendation = VULKAN_RECOMMENDATION_ALLOW;
 
     private DefoldVkQuality() {
     }
@@ -61,7 +63,7 @@ public final class DefoldVkQuality {
         }
 
         if (!isPreflightEnabled(context)) {
-            setDecision(true, VKQUALITY_LOG_INFO, "VkQuality is disabled, allowing Vulkan support probe.");
+            vulkanRecommendation = VULKAN_RECOMMENDATION_ALLOW;
             preflightComplete = true;
             return;
         }
@@ -83,23 +85,14 @@ public final class DefoldVkQuality {
             vkQuality = null;
             initResult = VKQUALITY_ERROR_INITIALIZATION_FAILURE;
             recommendation = VKQUALITY_RECOMMENDATION_ERROR_NOT_INITIALIZED;
-            setDecision(true, VKQUALITY_LOG_WARNING, "VkQuality preflight unavailable (" + t.toString() + "), allowing Vulkan support probe.");
-            Log.w(TAG, "VkQuality preflight unavailable", t);
+            setDecision(true, VKQUALITY_LOG_WARNING, "VkQuality preflight unavailable (" + t.toString() + "), allowing Vulkan support probe.", t);
         } finally {
             preflightComplete = true;
         }
     }
 
-    public static synchronized boolean isVulkanRecommended() {
-        return vulkanRecommended;
-    }
-
-    public static synchronized int getLogLevel() {
-        return logLevel;
-    }
-
-    public static synchronized String getRecommendationMessage() {
-        return recommendationMessage;
+    public static synchronized int getVulkanRecommendation() {
+        return vulkanRecommendation;
     }
 
     private static boolean isPreflightEnabled(Context context) {
@@ -177,16 +170,27 @@ public final class DefoldVkQuality {
             recommendation = ((Integer) getMethod.invoke(vkQuality)).intValue();
             return true;
         } catch (Throwable t) {
-            setDecision(true, VKQUALITY_LOG_WARNING, "VkQuality recommendation unavailable (" + t.toString() + "), allowing Vulkan support probe.");
-            Log.w(TAG, "VkQuality recommendation unavailable", t);
+            setDecision(true, VKQUALITY_LOG_WARNING, "VkQuality recommendation unavailable (" + t.toString() + "), allowing Vulkan support probe.", t);
             return false;
         }
     }
 
     private static void setDecision(boolean recommended, int level, String message) {
-        vulkanRecommended = recommended;
-        logLevel = level;
-        recommendationMessage = message;
+        setDecision(recommended, level, message, null);
+    }
+
+    private static void setDecision(boolean recommended, int level, String message, Throwable throwable) {
+        vulkanRecommendation = recommended ? VULKAN_RECOMMENDATION_ALLOW : VULKAN_RECOMMENDATION_DENY;
+
+        if (level == VKQUALITY_LOG_WARNING) {
+            if (throwable != null) {
+                Log.w(TAG, message, throwable);
+            } else {
+                Log.w(TAG, message);
+            }
+        } else {
+            Log.i(TAG, message);
+        }
     }
 
     private static String recommendationToString(int value) {

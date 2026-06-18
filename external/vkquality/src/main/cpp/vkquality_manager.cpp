@@ -501,8 +501,4 @@ vkQualityInitResult VkQualityManager::StartRecommendation() {
   return result;
 }
 
-
-
 } // namespace vkquality
-
-

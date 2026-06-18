@@ -150,10 +150,11 @@ namespace dmGraphics
 {
     void* g_lib_vulkan = 0;
 
-    enum VkQualityLogLevel
+    enum VkQualityRecommendation
     {
-        VKQUALITY_LOG_INFO    = 1,
-        VKQUALITY_LOG_WARNING = 2
+        // Mirrored by DefoldVkQuality.VULKAN_RECOMMENDATION_*.
+        VKQUALITY_RECOMMENDATION_ALLOW = 0,
+        VKQUALITY_RECOMMENDATION_DENY  = 1
     };
 
     static void AndroidSetVkQualityJavaExceptionError(JNIEnv* env, const char* message, char* error_buffer, uint32_t error_buffer_size)
@@ -205,10 +206,10 @@ namespace dmGraphics
         }
     }
 
-    static bool AndroidLoadDefoldVkQualityClass(JNIEnv* env, jclass* activity_class, char* error_buffer, uint32_t error_buffer_size)
+    static bool AndroidLoadDefoldVkQualityClass(JNIEnv* env, jclass* vkquality_class, char* error_buffer, uint32_t error_buffer_size)
     {
-        *activity_class = dmAndroid::LoadClass(env, "com.dynamo.android.DefoldVkQuality");
-        if (env->ExceptionCheck() || !*activity_class)
+        *vkquality_class = dmAndroid::LoadClass(env, "com.dynamo.android.DefoldVkQuality");
+        if (env->ExceptionCheck() || !*vkquality_class)
         {
             AndroidSetVkQualityJavaExceptionError(env, "Could not load com.dynamo.android.DefoldVkQuality", error_buffer, error_buffer_size);
             return false;
@@ -217,148 +218,48 @@ namespace dmGraphics
         return true;
     }
 
-    static bool AndroidCallDefoldVkQualityStaticBoolean(const char* method_name, bool* value, char* error_buffer, uint32_t error_buffer_size)
+    static bool AndroidGetDefoldVkQualityRecommendation(int32_t* recommendation, char* error_buffer, uint32_t error_buffer_size)
     {
         dmAndroid::ThreadAttacher thread;
         JNIEnv* env = thread.GetEnv();
         if (!env)
         {
-            dmSnPrintf(error_buffer, error_buffer_size, "JNI environment unavailable while calling DefoldVkQuality.%s", method_name);
+            dmSnPrintf(error_buffer, error_buffer_size, "JNI environment unavailable while calling DefoldVkQuality.getVulkanRecommendation");
             return false;
         }
 
-        jclass activity_class = 0;
-        if (!AndroidLoadDefoldVkQualityClass(env, &activity_class, error_buffer, error_buffer_size))
+        jclass vkquality_class = 0;
+        if (!AndroidLoadDefoldVkQualityClass(env, &vkquality_class, error_buffer, error_buffer_size))
         {
             return false;
         }
 
-        jmethodID method_id = env->GetStaticMethodID(activity_class, method_name, "()Z");
+        jmethodID method_id = env->GetStaticMethodID(vkquality_class, "getVulkanRecommendation", "()I");
         if (env->ExceptionCheck() || !method_id)
         {
-            char message[128];
-            dmSnPrintf(message, sizeof(message), "Could not find DefoldVkQuality.%s()Z", method_name);
-            AndroidSetVkQualityJavaExceptionError(env, message, error_buffer, error_buffer_size);
-            env->DeleteLocalRef(activity_class);
+            AndroidSetVkQualityJavaExceptionError(env, "Could not find DefoldVkQuality.getVulkanRecommendation()I", error_buffer, error_buffer_size);
+            env->DeleteLocalRef(vkquality_class);
             return false;
         }
 
-        jboolean result = env->CallStaticBooleanMethod(activity_class, method_id);
+        jint result = env->CallStaticIntMethod(vkquality_class, method_id);
         if (env->ExceptionCheck())
         {
-            char message[128];
-            dmSnPrintf(message, sizeof(message), "Exception while calling DefoldVkQuality.%s()Z", method_name);
-            AndroidSetVkQualityJavaExceptionError(env, message, error_buffer, error_buffer_size);
-            env->DeleteLocalRef(activity_class);
+            AndroidSetVkQualityJavaExceptionError(env, "Exception while calling DefoldVkQuality.getVulkanRecommendation()I", error_buffer, error_buffer_size);
+            env->DeleteLocalRef(vkquality_class);
             return false;
         }
 
-        env->DeleteLocalRef(activity_class);
-        *value = result == JNI_TRUE;
-        return true;
-    }
-
-    static bool AndroidCallDefoldVkQualityStaticInt(const char* method_name, int32_t* value, char* error_buffer, uint32_t error_buffer_size)
-    {
-        dmAndroid::ThreadAttacher thread;
-        JNIEnv* env = thread.GetEnv();
-        if (!env)
-        {
-            dmSnPrintf(error_buffer, error_buffer_size, "JNI environment unavailable while calling DefoldVkQuality.%s", method_name);
-            return false;
-        }
-
-        jclass activity_class = 0;
-        if (!AndroidLoadDefoldVkQualityClass(env, &activity_class, error_buffer, error_buffer_size))
-        {
-            return false;
-        }
-
-        jmethodID method_id = env->GetStaticMethodID(activity_class, method_name, "()I");
-        if (env->ExceptionCheck() || !method_id)
-        {
-            char message[128];
-            dmSnPrintf(message, sizeof(message), "Could not find DefoldVkQuality.%s()I", method_name);
-            AndroidSetVkQualityJavaExceptionError(env, message, error_buffer, error_buffer_size);
-            env->DeleteLocalRef(activity_class);
-            return false;
-        }
-
-        jint result = env->CallStaticIntMethod(activity_class, method_id);
-        if (env->ExceptionCheck())
-        {
-            char message[128];
-            dmSnPrintf(message, sizeof(message), "Exception while calling DefoldVkQuality.%s()I", method_name);
-            AndroidSetVkQualityJavaExceptionError(env, message, error_buffer, error_buffer_size);
-            env->DeleteLocalRef(activity_class);
-            return false;
-        }
-
-        env->DeleteLocalRef(activity_class);
-        *value = (int32_t) result;
-        return true;
-    }
-
-    static bool AndroidCallDefoldVkQualityStaticString(const char* method_name, char* value_buffer, uint32_t value_buffer_size, char* error_buffer, uint32_t error_buffer_size)
-    {
-        dmAndroid::ThreadAttacher thread;
-        JNIEnv* env = thread.GetEnv();
-        if (!env)
-        {
-            dmSnPrintf(error_buffer, error_buffer_size, "JNI environment unavailable while calling DefoldVkQuality.%s", method_name);
-            return false;
-        }
-
-        jclass activity_class = 0;
-        if (!AndroidLoadDefoldVkQualityClass(env, &activity_class, error_buffer, error_buffer_size))
-        {
-            return false;
-        }
-
-        jmethodID method_id = env->GetStaticMethodID(activity_class, method_name, "()Ljava/lang/String;");
-        if (env->ExceptionCheck() || !method_id)
-        {
-            char message[128];
-            dmSnPrintf(message, sizeof(message), "Could not find DefoldVkQuality.%s()Ljava/lang/String;", method_name);
-            AndroidSetVkQualityJavaExceptionError(env, message, error_buffer, error_buffer_size);
-            env->DeleteLocalRef(activity_class);
-            return false;
-        }
-
-        jstring result = (jstring) env->CallStaticObjectMethod(activity_class, method_id);
-        if (env->ExceptionCheck())
-        {
-            char message[128];
-            dmSnPrintf(message, sizeof(message), "Exception while calling DefoldVkQuality.%s()Ljava/lang/String;", method_name);
-            AndroidSetVkQualityJavaExceptionError(env, message, error_buffer, error_buffer_size);
-            env->DeleteLocalRef(activity_class);
-            return false;
-        }
-
-        if (result)
-        {
-            const char* result_utf = env->GetStringUTFChars(result, 0);
-            dmSnPrintf(value_buffer, value_buffer_size, "%s", result_utf ? result_utf : "");
-            if (result_utf)
-            {
-                env->ReleaseStringUTFChars(result, result_utf);
-            }
-            env->DeleteLocalRef(result);
-        }
-        else if (value_buffer && value_buffer_size > 0)
-        {
-            value_buffer[0] = 0;
-        }
-
-        env->DeleteLocalRef(activity_class);
+        env->DeleteLocalRef(vkquality_class);
+        *recommendation = (int32_t) result;
         return true;
     }
 
     bool AndroidVulkanIsRecommended()
     {
-        bool is_recommended = true;
+        int32_t recommendation = VKQUALITY_RECOMMENDATION_ALLOW;
         char error_buffer[256];
-        if (!AndroidCallDefoldVkQualityStaticBoolean("isVulkanRecommended", &is_recommended, error_buffer, sizeof(error_buffer)))
+        if (!AndroidGetDefoldVkQualityRecommendation(&recommendation, error_buffer, sizeof(error_buffer)))
         {
             // MVP1 policy: missing or unavailable VkQuality must not disable Vulkan.
             // Warn and keep Defold's existing Vulkan support probe as the source of truth.
@@ -366,31 +267,17 @@ namespace dmGraphics
             return true;
         }
 
-        int32_t log_level = VKQUALITY_LOG_WARNING;
-        if (!AndroidCallDefoldVkQualityStaticInt("getLogLevel", &log_level, error_buffer, sizeof(error_buffer)))
+        if (recommendation == VKQUALITY_RECOMMENDATION_DENY)
         {
-            dmLogWarning("VkQuality log level unavailable (%s).", error_buffer);
+            return false;
         }
 
-        char message_buffer[256];
-        if (AndroidCallDefoldVkQualityStaticString("getRecommendationMessage", message_buffer, sizeof(message_buffer), error_buffer, sizeof(error_buffer)) &&
-            message_buffer[0] != 0)
+        if (recommendation != VKQUALITY_RECOMMENDATION_ALLOW)
         {
-            if (log_level == VKQUALITY_LOG_WARNING)
-            {
-                dmLogWarning("%s", message_buffer);
-            }
-            else
-            {
-                dmLogInfo("%s", message_buffer);
-            }
-        }
-        else
-        {
-            dmLogWarning("VkQuality recommendation message unavailable (%s).", error_buffer);
+            dmLogWarning("VkQuality returned unknown Vulkan recommendation (%d), allowing Vulkan support probe.", recommendation);
         }
 
-        return is_recommended;
+        return true;
     }
 
     VkResult CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
