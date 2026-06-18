@@ -118,6 +118,9 @@ extern uint32_t AMBIENCE_ADPCM_WAV_SIZE;
 #if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
 extern "C" int dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart();
 #endif
+#if defined(DM_PLATFORM_IOS)
+extern "C" int dmSoundTestConfigureIOSAudioSessionForPlayback();
+#endif
 
 struct TestParams
 {
@@ -260,7 +263,6 @@ struct TestParams2
     }
 };
 
-
 #define MAX_BUFFERS 32
 #define MAX_SOURCES 16
 
@@ -284,6 +286,12 @@ public:
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         ASSERT_EQ(dmSound::RESULT_OK, r);
+#if defined(DM_PLATFORM_IOS)
+        if (strcmp(m_DeviceName, "default") == 0)
+        {
+            ASSERT_EQ(0, dmSoundTestConfigureIOSAudioSessionForPlayback());
+        }
+#endif
     }
 
     void TearDown() override
@@ -489,6 +497,8 @@ static dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const void* 
 static uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
+
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(loopback->m_Mutex);
 
     uint32_t n = 0;
     for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
@@ -2222,7 +2232,8 @@ const TestParams2 params_mixer_test[] = {
                 2048,
                 false),
 
-    // Threaded
+#if !defined(DM_PLATFORM_IOS)
+    // Threaded loopback does not make forward progress on iOS device tests.
     TestParams2("loopback",
                 MONO_TONE_440_22050_44100_WAV,
                 MONO_TONE_440_22050_44100_WAV_SIZE,
@@ -2244,6 +2255,7 @@ const TestParams2 params_mixer_test[] = {
 
                 2048,
                 true)
+#endif
 };
 INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(params_mixer_test));
 #endif

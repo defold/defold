@@ -73,6 +73,26 @@ available iPhone simulator device. On Apple Silicon hosts, the current
     $ xcrun simctl list devices available
     $ python3 build_tools/build_ios.py list-simulators
 
+You can also install the iOS Simulator runtime from Xcode via Settings ->
+Components. After installing the runtime, list the available runtimes and device
+types:
+
+    $ xcrun simctl list runtimes available
+    $ xcrun simctl list devicetypes
+    $ xcrun simctl list devices available
+
+If no iPhone simulator device exists, create one using a device type id and
+runtime id from the previous commands:
+
+    $ xcrun simctl create "Defold iPhone" <device-type-id> <runtime-id>
+
+Start a simulator before running tests, or let the runner boot it when exactly
+one matching simulator is available:
+
+    $ open -a Simulator
+    $ xcrun simctl boot <simulator-udid-or-name>
+    $ xcrun simctl bootstatus <simulator-udid-or-name> -b
+
 If exactly one iOS simulator is available, the runner selects and boots it
 automatically. If multiple simulators are available, either boot the one you want
 first or pass `--test-device <simulator-udid-or-name>`.
