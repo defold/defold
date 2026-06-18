@@ -26,6 +26,7 @@ env:
   SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
   DOTNET_CHANNEL: 9.0.1xx
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
+  OPTION_SKIP_SIGN: ${{ case(github.event.client_payload.skip_sign, "--skip-sign", "" }}
 
 jobs:
   # ---- BUILD ENGINE VERSIONS ------------------
@@ -35,6 +36,7 @@ jobs:
         platform: [win32, x86_64-win32]
 
     runs-on: windows-2025-vs2026
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -54,14 +56,20 @@ jobs:
         shell: bash,
         run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
       },
-      { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
+      {
+        name: 'Install dependencies',
+        shell: bash,
+        run: 'ci/ci.sh install --platform=${{ matrix.platform }}'
+      },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         shell: bash,
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}" engine'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.OPTION_SKIP_SIGN }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
       },
-      { name: 'Stop Gradle Daemon', run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
+      {
+        name: 'Stop Gradle Daemon',
+        run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop'
+      },
       {
         name: 'Notify if build status changed',
         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
@@ -75,6 +83,7 @@ jobs:
       matrix:
         platform: [x86_64-macos, arm64-macos, arm64-ios, x86_64-ios]
     runs-on: macos-26
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -96,15 +105,16 @@ jobs:
       },
       {
         name: 'Install dependencies',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
+        run: 'ci/ci.sh install --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}"'
       },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.OPTION_SKIP_SIGN }}'
       },
-      { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
+      {
+        name: 'Stop Gradle Daemon',
+        run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop'
+      },
       {
         name: 'Notify if build status changed',
         uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
@@ -118,6 +128,7 @@ jobs:
       matrix:
         platform: [wasm-web, wasm_pthread-web]
     runs-on: ubuntu-22.04
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
     timeout-minutes: 45
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -133,8 +144,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs --skip-tests engine'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs --skip-tests'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
@@ -154,6 +164,7 @@ jobs:
           - platform: arm64-android
             skip_tests: true
     runs-on: ubuntu-latest
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -173,7 +184,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs engine'
+        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh engine --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
@@ -189,6 +200,7 @@ jobs:
       matrix:
         platform: [x86_64-linux]
     runs-on: ubuntu-22.04
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -211,8 +223,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive engine'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
@@ -228,6 +239,7 @@ jobs:
       matrix:
         platform: [arm64-linux]
     runs-on: ubuntu-22.04-arm
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
     timeout-minutes: 30
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -238,8 +250,7 @@ jobs:
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --verbose engine'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --verbose'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
@@ -255,6 +266,7 @@ jobs:
       matrix:
         platform: [arm64-nx64]
     runs-on: windows-2025-vs2026
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
     timeout-minutes: 60
     steps: [
       { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
@@ -267,9 +279,8 @@ jobs:
       { name: 'Install dependencies', if: *should_build_switch, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: steps.platform.outputs.should_build == 'true' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
         shell: bash,
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests'
       },
       { name: 'Stop Gradle Daemon', if: *should_build_switch, run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
       {
@@ -285,6 +296,7 @@ jobs:
       matrix:
         platform: [x86_64-ps4, x86_64-ps5]
     runs-on: windows-2025-vs2026
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
     timeout-minutes: 60
     steps: [
       { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
@@ -297,9 +309,8 @@ jobs:
       { name: 'Install dependencies', if: *should_build_ps, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: steps.platform.outputs.should_build == 'true' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
         shell: bash,
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests'
       },
       { name: 'Stop Gradle Daemon', if: *should_build_ps, run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
       {
@@ -316,6 +327,7 @@ jobs:
       matrix:
         platform: [x86_64-xbone]
     runs-on: windows-latest
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
     steps: [
       { name: 'Checkout CI scripts', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}', path: ci-check, sparse-checkout: 'ci' } }, # v6.0.2
       { name: 'Check platform support', id: platform, shell: bash, run: 'echo "should_build=$(python ci-check/ci/ci.py --platform=${{ matrix.platform }} should-build-platform)" >> "$GITHUB_OUTPUT"' },
@@ -327,9 +339,8 @@ jobs:
       { name: 'Install dependencies', if: *should_build_xbox, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
-        if: steps.platform.outputs.should_build == 'true' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))),
         shell: bash,
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests'
       },
       { name: 'Stop Gradle Daemon', if: *should_build_xbox, run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
       {
@@ -345,6 +356,7 @@ jobs:
   build-bob:
     needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps, bld-eng-xbox]
     runs-on: ubuntu-22.04
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
     timeout-minutes: 15
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -352,7 +364,6 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       {
         name: 'Build bob',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
         run: 'ci/ci.sh --skip-tests bob'
       },
       {
@@ -377,6 +388,7 @@ jobs:
   test-bob:
     needs: [build-bob]
     runs-on: ubuntu-22.04
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
     timeout-minutes: 15
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -385,7 +397,6 @@ jobs:
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       {
         name: 'Download bob jar',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
         with: {
           name: 'bob-jar',
@@ -394,7 +405,6 @@ jobs:
       },
       {
         name: 'Test bob',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true)),
         run: 'ci/ci.sh test-bob'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
@@ -419,6 +429,7 @@ jobs:
   build-sdk:
     needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps, bld-eng-xbox]
     runs-on: ubuntu-22.04
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true))
     timeout-minutes: 10
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v6.0.2
@@ -426,7 +437,6 @@ jobs:
       { name: 'Install libzip tools', run: 'sudo apt-get update && sudo apt-get install -y --no-install-recommends zipmerge' },
       {
         name: 'Build SDK',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
         run: 'ci/ci.sh sdk'
       },
       {
@@ -442,6 +452,7 @@ jobs:
   build-editor-linux:
     needs: [build-bob]
     runs-on: ubuntu-22.04
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
     steps: [
       {
@@ -467,12 +478,10 @@ jobs:
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
         run: 'ci/ci.sh build-editor --platform=x86_64-linux --skip-tests'
       },
       {
         name: 'Archive editor',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
         run: 'ci/ci.sh archive-editor --skip-install-ext --platform=x86_64-linux'
       },
       { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
@@ -488,6 +497,7 @@ jobs:
   test-editor-linux:
     needs: [build-bob, build-sdk]
     runs-on: ubuntu-22.04
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
     steps: [
       {
@@ -513,7 +523,6 @@ jobs:
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Test editor',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
         run: 'ci/ci.sh test-editor --platform=x86_64-linux'
       },
       { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
@@ -529,6 +538,7 @@ jobs:
   build-editor-macos:
     needs: [build-bob]
     runs-on: ${{ matrix.runner }}
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
     strategy:
       matrix:
@@ -560,17 +570,14 @@ jobs:
       },
       {
         name: 'Install dependencies',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
       },
       {
         name: 'Build editor',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh build-editor --skip-tests --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
+        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_SKIP_SIGN }} --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
       },
       {
         name: 'Archive editor',
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh archive-editor --skip-install-ext --platform=${{ matrix.platform }}'
       },
       { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
@@ -586,6 +593,7 @@ jobs:
   build-editor-windows:
     needs: [build-bob]
     runs-on: windows-2025-vs2026
+    if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
     strategy:
       matrix:
@@ -615,19 +623,16 @@ jobs:
       {
         name: 'Install dependencies',
         shell: bash,
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh install'
       },
       {
         name: 'Build editor',
         shell: bash,
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
-        run: 'ci/ci.sh build-editor --skip-tests --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
+        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_SKIP_SIGN }} --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
       },
       {
         name: 'Archive editor',
         shell: bash,
-        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh archive-editor --skip-install-ext --platform=${{ matrix.platform }}'
       },
       { name: 'Remove generated Bob artifact from Maven cache', shell: bash, run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
