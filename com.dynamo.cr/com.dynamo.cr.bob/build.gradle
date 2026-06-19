@@ -349,7 +349,7 @@ task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
     }
 }
 
-task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, createLuaJitShareZip]) {
+task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLibsLightJar, createLuaJitShareZip]) {
     archiveFileName = 'bob-light.jar'
     destinationDirectory = file("${project.bobDir}/dist")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
