@@ -12,7 +12,7 @@ def create_protoc_task(name, type):
                                     color='PINK')
 
 create_protoc_task('input_binding', 'dmInputDDF.InputBinding')
-create_protoc_task('gamepads', 'dmInputDDF.GamepadMaps')
+create_protoc_task('gamepads', 'dmInputDDF.GamepadMapsRuntime')
 
 @extension('.input_binding')
 def extension_cont_pb(self, node):

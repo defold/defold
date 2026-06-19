@@ -1406,6 +1406,7 @@ namespace dmEngine
         input_params.m_HidContext = engine->m_HidContext;
         input_params.m_RepeatDelay = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_delay", 0.5f);
         input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
+        input_params.m_GamepadDeadZone = dmConfigFile::GetFloat(engine->m_Config, "input.gamepad_deadzone", 0.2f);
         engine->m_InputContext = dmInput::NewContext(input_params);
 
         dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
@@ -2519,7 +2520,7 @@ bail:
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", 0);
         if (gamepads)
         {
-            dmInputDDF::GamepadMaps* gamepad_maps_ddf;
+            dmInputDDF::GamepadMapsRuntime* gamepad_maps_ddf;
             fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
             if (fact_error != dmResource::RESULT_OK)
                 return false;

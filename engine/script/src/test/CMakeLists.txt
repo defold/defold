@@ -93,7 +93,9 @@ function(script_configure_test target)
   add_dependencies(${target} script_test_lua_data)
   defold_register_test_target(${target} OFF "${SCRIPT_ROOT}"
     STAGE_FILES
-      "build/src/test/scripts" "build/src/test/scripts")
+      "build/src/test/scripts" "build/src/test/scripts"
+      "src/test/test.config" "src/test/test.config"
+      "src/test/test_resource.txt" "src/test/test_resource.txt")
 endfunction()
 
 function(script_add_test target)
@@ -147,7 +149,11 @@ defold_register_tests_with_server(script_tests "${TARGET_PLATFORM}"
   TARGETS ${SCRIPT_TEST_TARGETS}
   PORT 9001
   WORKDIR "${SCRIPT_ROOT}"
-  CONFIG_NAME unittest.cfg)
+  CONFIG_NAME unittest.cfg
+  STAGE_FILES
+    "build/src/test/scripts" "build/src/test/scripts"
+    "src/test/test.config" "src/test/test.config"
+    "src/test/test_resource.txt" "src/test/test_resource.txt")
 add_dependencies(run_script_tests_server script_test_lua_data)
 
 install(FILES "${SCRIPT_TEST_ROOT}/test_script.h" DESTINATION include/script)
