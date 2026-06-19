@@ -768,18 +768,6 @@ namespace dmGraphics
         return 0;
     }
 
-    static uint32_t DX12GetWidth(HContext _context)
-    {
-        DX12Context* context = (DX12Context*) _context;
-        return context->m_BaseContext.m_Width;
-    }
-
-    static uint32_t DX12GetHeight(HContext _context)
-    {
-        DX12Context* context = (DX12Context*) _context;
-        return context->m_BaseContext.m_Height;
-    }
-
     static void DX12SetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
@@ -798,13 +786,6 @@ namespace dmGraphics
         {
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
-    }
-
-    static void DX12GetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {
-        DX12Context* context = (DX12Context*) _context;
-        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void DX12Clear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -1609,7 +1590,7 @@ namespace dmGraphics
         }
 
         DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, data_size, data, state_before_copy);
-        device_buffer->m_DataSize = data_size;
+        device_buffer->m_Base.m_Size = data_size;
     }
 
     static void DeviceBufferUploadSubDataHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, const void* data)
@@ -1619,7 +1600,7 @@ namespace dmGraphics
             return;
         }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_DataSize, data, DM_DX12_RESOURCE_STATE_BUFFER_READ);
+        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_Base.m_Size, data, DM_DX12_RESOURCE_STATE_BUFFER_READ);
     }
 
     static void CreateConstantBuffer(DX12Context* context, DX12DeviceBuffer* buffer, uint32_t size)
@@ -1636,7 +1617,7 @@ namespace dmGraphics
         CHECK_HR_ERROR(hr);
 
         buffer->m_Resource->Map(0, NULL, (void**)&buffer->m_MappedDataPtr);
-        buffer->m_DataSize = aligned_size;
+        buffer->m_Base.m_Size = aligned_size;
     }
 
     static HUniformBuffer DX12NewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
@@ -1736,7 +1717,7 @@ namespace dmGraphics
         }
 
         DX12VertexBuffer* vx_buffer = (DX12VertexBuffer*) _buffer;
-        //if (size != vx_buffer->m_DeviceBuffer.m_DataSize)
+        //if (size != vx_buffer->m_DeviceBuffer.m_Base.m_Size)
         {
             DestroyResourceDeferred(g_DX12Context->m_FrameResources[g_DX12Context->m_CurrentFrameIndex], &vx_buffer->m_DeviceBuffer);
         }
@@ -1751,13 +1732,6 @@ namespace dmGraphics
 
         DX12VertexBuffer* vx_buffer = (DX12VertexBuffer*) buffer;
         DeviceBufferUploadSubDataHelper(g_DX12Context, &vx_buffer->m_DeviceBuffer, offset, size, data);
-    }
-
-    static uint32_t DX12GetVertexBufferSize(HVertexBuffer buffer)
-    {
-        assert(buffer != 0);
-        DX12VertexBuffer* buffer_ptr = (DX12VertexBuffer*) buffer;
-        return buffer_ptr->m_DeviceBuffer.m_DataSize;
     }
 
     static uint32_t DX12GetMaxElementsVertices(HContext context)
@@ -1813,16 +1787,6 @@ namespace dmGraphics
         assert(buffer != 0);
         DX12IndexBuffer* ix_buffer = (DX12IndexBuffer*) buffer;
         DeviceBufferUploadSubDataHelper(g_DX12Context, &ix_buffer->m_DeviceBuffer, offset, size, data);
-    }
-
-    static uint32_t DX12GetIndexBufferSize(HIndexBuffer buffer)
-    {
-        if (!buffer)
-        {
-            return 0;
-        }
-        DX12IndexBuffer* buffer_ptr = (DX12IndexBuffer*) buffer;
-        return buffer_ptr->m_DeviceBuffer.m_DataSize;
     }
 
     static bool DX12IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -2455,10 +2419,10 @@ namespace dmGraphics
             {
                 DX12VertexBuffer* current_vb = context->m_CurrentVertexBuffer[i];
                 assert(current_vb->m_DeviceBuffer.m_Resource);
-                assert(current_vb->m_DeviceBuffer.m_DataSize > 0);
+                assert(current_vb->m_DeviceBuffer.m_Base.m_Size > 0);
 
                 vx_buffer_views[num_vx_buffers].BufferLocation = current_vb->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
-                vx_buffer_views[num_vx_buffers].SizeInBytes    = current_vb->m_DeviceBuffer.m_DataSize;
+                vx_buffer_views[num_vx_buffers].SizeInBytes    = current_vb->m_DeviceBuffer.m_Base.m_Size;
                 vx_buffer_views[num_vx_buffers].StrideInBytes  = context->m_CurrentVertexDeclaration[i]->m_Stride;
                 num_vx_buffers++;
             }
@@ -2513,7 +2477,7 @@ namespace dmGraphics
         DX12IndexBuffer* ix_buffer   = (DX12IndexBuffer*) index_buffer;
         D3D12_INDEX_BUFFER_VIEW view = {};
         view.BufferLocation          = ix_buffer->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
-        view.SizeInBytes             = ix_buffer->m_DeviceBuffer.m_DataSize;
+        view.SizeInBytes             = ix_buffer->m_DeviceBuffer.m_Base.m_Size;
         view.Format                  = type == dmGraphics::TYPE_UNSIGNED_SHORT ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT;
         uint32_t index_offset        = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
 
@@ -2981,6 +2945,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
                 // Initial state (no mipmaps)
                 new_texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
+                new_texture_color->m_Base.m_Format      = color_buffer_params.m_Format;
+                SetTextureResourceSize(&new_texture_color->m_Base, sizeof(DX12Texture));
 
                 color_attachment_count++;
             }
@@ -3056,6 +3022,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             );
             CHECK_HR_ERROR(hr);
             texture_depth_stencil_ptr->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            texture_depth_stencil_ptr->m_Base.m_Format      = rt->m_Base.m_DepthStencilTextureParams.m_Format;
+            SetTextureResourceSize(&texture_depth_stencil_ptr->m_Base, sizeof(DX12Texture));
 
             // Create DSV descriptor heap
             D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc = {};
@@ -3125,12 +3093,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static void DX12SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
         dmLogOnceError("%s: Not implemented", __FUNCTION__);
-    }
-
-    static bool DX12IsTextureFormatSupported(HContext _context, TextureFormat format)
-    {
-        DX12Context* context = (DX12Context*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
     }
 
     static uint32_t DX12GetMaxTextureSize(HContext context)
@@ -3408,6 +3370,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         TextureBufferUploadHelper(g_DX12Context, tex, format_actual, format_actual, params, (uint8_t*) tex_data_ptr);
 
         tex->m_Base.m_Format = format_actual;
+        SetTextureResourceSize(&tex->m_Base, sizeof(DX12Texture));
 
         DX12SetTextureParamsInternal(g_DX12Context, tex, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
 
@@ -3415,11 +3378,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         {
             delete[] (uint8_t*)tex_data_ptr;
         }
-    }
-
-    static uint32_t DX12GetTextureResourceSize(HContext context, HTexture texture)
-    {
-        return 0;
     }
 
     static void DX12EnableTexture(HContext _context, uint32_t unit, uint8_t value_index, HTexture texture)
@@ -3605,15 +3563,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         return true;
     }
 
-    static uint8_t DX12GetTexturePageCount(HTexture texture)
-    {
-        // TODO: mutex is missed?
-        // ScopedLock lock(g_DX12Context->m_AssetHandleContainerMutex);
-        DX12Texture* tex = GetAssetFromContainer<DX12Texture>(g_DX12Context->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_Base.m_PageCount : 0;
-
-    }
-
     static uint32_t DX12GetNumSupportedExtensions(HContext context)
     {
         return 0;
@@ -3622,31 +3571,6 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static const char* DX12GetSupportedExtension(HContext context, uint32_t index)
     {
         return "";
-    }
-
-    static bool DX12IsContextFeatureSupported(HContext context, ContextFeature feature)
-    {
-        return true;
-    }
-
-    static bool DX12IsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-    {
-        assert(_context);
-        if (asset_handle == 0)
-        {
-            return false;
-        }
-        DX12Context* context = (DX12Context*) _context;
-        AssetType type       = GetAssetType(asset_handle);
-        if (type == ASSET_TYPE_TEXTURE)
-        {
-            return GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        return false;
     }
 
     static void DX12InvalidateGraphicsHandles(HContext context)

@@ -216,7 +216,7 @@ namespace dmGraphics
             device_buffer->m_Buffer->release();
             device_buffer->m_Buffer = 0;
         }
-        device_buffer->m_Size = 0;
+        device_buffer->m_Base.m_Size = 0;
         device_buffer->m_Destroyed = 0;
     }
 
@@ -553,7 +553,7 @@ namespace dmGraphics
         if (device_buffer->m_Destroyed || device_buffer->m_Buffer == 0x0)
         {
             device_buffer->m_Buffer = context->m_Device->newBuffer(size, GetResourceOptions(device_buffer->m_StorageMode));
-            device_buffer->m_Size = size;
+            device_buffer->m_Base.m_Size = size;
             device_buffer->m_Destroyed = 0;
         }
 
@@ -572,7 +572,7 @@ namespace dmGraphics
     {
         if (!CanAllocate(size))
         {
-            const uint32_t current_size = m_DeviceBuffer.m_Size;
+            const uint32_t current_size = m_DeviceBuffer.m_Base.m_Size;
             const uint32_t needed_size  = m_MappedDataCursor + size;
             const uint32_t new_size     = dmMath::Max(current_size ? current_size * 2 : needed_size, needed_size);
             DestroyResourceDeferred((MetalContext*) context, &m_DeviceBuffer);
@@ -671,15 +671,15 @@ namespace dmGraphics
     static void SetupSupportedTextureFormats(MetalContext* context)
     {
         // PVRTC is always supported on Apple GPUs
-        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
-        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
-        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
-        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
 
         // ETC2 support
         if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))  // A8+ class
         {
-            context->m_BaseContext.m_TextureFormatSupport |= (1ULL << TEXTURE_FORMAT_RGB_ETC1);
+            SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB_ETC1);
             // Leave TEXTURE_FORMAT_RGBA_ETC2 unsupported for now. Metal.hpp exposes
             // ETC2 RGB/RGB8A1 formats, but not the RGBA8 ETC2 variant this format expects.
         }
@@ -689,6 +689,7 @@ namespace dmGraphics
         {
             context->m_ASTCSupport = 1;
             context->m_ASTCArrayTextureSupport = 1;
+            SetContextASTCTextureFormatsSupported(&context->m_BaseContext);
         }
 
         // Common uncompressed formats
@@ -712,22 +713,22 @@ namespace dmGraphics
 
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(base_formats); ++i)
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << base_formats[i];
+            SetContextTextureFormatSupported(&context->m_BaseContext, base_formats[i]);
         }
 
         // RGB isn't supported as a texture format, but we still need to supply it to the engine
         // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
-        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB);
 
         // Render-target creation scripts rely on these being available from the graphics namespace.
-        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_DEPTH;
-        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_STENCIL;
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_DEPTH);
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_STENCIL);
 
 #if defined(DM_PLATFORM_MACOS)
-        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_BC1;
-        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC3;
-        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R_BC4;
-        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG_BC5;
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB_BC1);
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_BC3);
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_R_BC4);
+        SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RG_BC5);
 #endif
     }
 
@@ -1185,17 +1186,17 @@ namespace dmGraphics
         context->m_PolygonOffsetUnits  = 0.0f;
         context->m_PolygonOffsetChanged = true;
 
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_3D_TEXTURES;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX;
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
         // Storage buffers are deliberately not advertised: there is no user-facing
         // SSBO support path for Metal yet.
         if (context->m_ASTCArrayTextureSupport)
         {
-            context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES;
+            SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
         }
 
         // TODO: Make the requested Metal adapter version configurable from game.project.
@@ -1379,18 +1380,6 @@ namespace dmGraphics
         return 0;
     }
 
-    static uint32_t MetalGetWidth(HContext _context)
-    {
-        MetalContext* context = (MetalContext*) _context;
-        return context->m_BaseContext.m_Width;
-    }
-
-    static uint32_t MetalGetHeight(HContext _context)
-    {
-        MetalContext* context = (MetalContext*) _context;
-        return context->m_BaseContext.m_Height;
-    }
-
     static void MetalSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
@@ -1409,13 +1398,6 @@ namespace dmGraphics
         {
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
-    }
-
-    static void MetalGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {
-        MetalContext* context = (MetalContext*) _context;
-        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void EndRenderPass(MetalContext* context)
@@ -1916,7 +1898,7 @@ namespace dmGraphics
         {
             return;
         }
-        if (size != buffer->m_Size)
+        if (size != buffer->m_Base.m_Size)
         {
             DestroyResourceDeferred(context, buffer);
         }
@@ -1924,19 +1906,20 @@ namespace dmGraphics
         DeviceBufferUploadHelper(context, data, size, 0, buffer);
     }
 
-    static HUniformBuffer MetalNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer MetalNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         MetalContext* context      = (MetalContext*) _context;
         MetalUniformBuffer* ubo    = new MetalUniformBuffer();
         memset(ubo, 0, sizeof(MetalUniformBuffer));
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
         ubo->m_DeviceBuffer.m_StorageMode       = MTL::StorageModeShared;
 
-        if (layout.m_Size > 0)
+        if (size > 0)
         {
-            DeviceBufferUploadHelper(context, 0, layout.m_Size, 0, &ubo->m_DeviceBuffer);
+            DeviceBufferUploadHelper(context, 0, size, 0, &ubo->m_DeviceBuffer);
         }
 
         return (HUniformBuffer) ubo;
@@ -1946,12 +1929,12 @@ namespace dmGraphics
     {
         MetalContext* context       = (MetalContext*) _context;
         MetalUniformBuffer* ubo     = (MetalUniformBuffer*) uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
 
         if (ubo->m_DeviceBuffer.m_Buffer == 0x0)
         {
             ubo->m_DeviceBuffer.m_StorageMode = MTL::StorageModeShared;
-            DeviceBufferUploadHelper(context, 0, ubo->m_BaseUniformBuffer.m_Layout.m_Size, 0, &ubo->m_DeviceBuffer);
+            DeviceBufferUploadHelper(context, 0, ubo->m_BaseUniformBuffer.m_Size, 0, &ubo->m_DeviceBuffer);
         }
 
         memcpy(reinterpret_cast<uint8_t*>(ubo->m_DeviceBuffer.m_Buffer->contents()) + offset, data, size);
@@ -2018,18 +2001,8 @@ namespace dmGraphics
         DM_PROFILE(__FUNCTION__);
         assert(size > 0);
         MetalDeviceBuffer* buffer = (MetalDeviceBuffer*) _buffer;
-        assert(offset + size <= buffer->m_Size);
+        assert(offset + size <= buffer->m_Base.m_Size);
         DeviceBufferUploadHelper(g_MetalContext, data, size, offset, buffer);
-    }
-
-    static uint32_t MetalGetVertexBufferSize(HVertexBuffer _buffer)
-    {
-        if (!_buffer)
-        {
-            return 0;
-        }
-        MetalDeviceBuffer* buffer = (MetalDeviceBuffer*) _buffer;
-        return buffer->m_Size;
     }
 
     static uint32_t MetalGetMaxElementsVertices(HContext _context)
@@ -2090,18 +2063,8 @@ namespace dmGraphics
         DM_PROFILE(__FUNCTION__);
         assert(size > 0);
         MetalDeviceBuffer* buffer = (MetalDeviceBuffer*) _buffer;
-        assert(offset + size <= buffer->m_Size);
+        assert(offset + size <= buffer->m_Base.m_Size);
         DeviceBufferUploadHelper(g_MetalContext, data, size, offset, buffer);
-    }
-
-    static uint32_t MetalGetIndexBufferSize(HIndexBuffer _buffer)
-    {
-        if (!_buffer)
-        {
-            return 0;
-        }
-        MetalDeviceBuffer* buffer = (MetalDeviceBuffer*) _buffer;
-        return buffer->m_Size;
     }
 
     static bool MetalIsIndexBufferFormatSupported(HContext _context, IndexBufferFormat format)
@@ -2768,12 +2731,12 @@ namespace dmGraphics
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (bound_ubo->m_BaseUniformBuffer.m_Layout != *pgm_layout)
                         {
-                            dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                            dmLogWarning("Uniform buffer with hash %u has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%u)",
+                                bound_ubo->m_BaseUniformBuffer.m_Layout,
                                 res->m_Name,
-                                pgm_layout->m_Hash);
+                                *pgm_layout);
                             bound_ubo = 0;
                         }
                     }
@@ -3784,6 +3747,7 @@ namespace dmGraphics
         texture->m_Base.m_Depth       = 1;
         texture->m_Base.m_MipMapCount = 1;
         texture->m_LayerCount  = 1; // TODO: Move to base texture
+        SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture));
     }
 
     static void CreateMetalTexture(MetalContext* context, MetalTexture* texture, const TextureParams& params, MTL::TextureUsage usage)
@@ -3859,6 +3823,7 @@ namespace dmGraphics
         texture->m_Base.m_Format      = params.m_Format;
         texture->m_Base.m_MipMapCount = tex_mip_count;
         texture->m_LayerCount         = tex_layer_count;
+        SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture));
     }
 
     static HRenderTarget MetalNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
@@ -4086,12 +4051,6 @@ namespace dmGraphics
         context->m_ScissorChanged = 1;
     }
 
-    static bool MetalIsTextureFormatSupported(HContext _context, TextureFormat format)
-    {
-        MetalContext* context = (MetalContext*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
-    }
-
     static inline MTL::ResourceUsage GetMetalUsageFromHints(uint8_t hints)
     {
         MTL::ResourceUsage usage = MTL::ResourceUsageRead;
@@ -4119,6 +4078,8 @@ namespace dmGraphics
         tex->m_Base.m_MipMapCount    = params.m_MipMapCount;
         tex->m_Base.m_UsageHintFlags = params.m_UsageHintBits;
         tex->m_Base.m_PageCount      = params.m_LayerCount;
+        tex->m_Base.m_ResourceSize   = 0;
+        tex->m_Base.m_Mip0ResourceSize = 0;
         tex->m_Base.m_DataState      = 0;
         tex->m_Base.m_NumTextureIds  = 1;
         tex->m_LayerCount            = dmMath::Max((uint8_t)1, params.m_LayerCount);
@@ -4574,6 +4535,7 @@ namespace dmGraphics
         }
 
         MetalUploadTextureData(context, texture, params);
+        SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture), params.m_MipMap == 0 ? params.m_DataSize : 0, true);
     }
 
     static void MetalSetTexture(HContext _context, HTexture texture, const TextureParams& params)
@@ -4674,6 +4636,7 @@ namespace dmGraphics
                 int32_t data_state = dmAtomicGet32(&tex->m_Base.m_DataState);
                 data_state &= ~(1 << ap.m_Params.m_MipMap);
                 dmAtomicStore32(&tex->m_Base.m_DataState, data_state);
+                SetTextureResourceSize(&tex->m_Base, sizeof(MetalTexture), ap.m_Params.m_MipMap == 0 ? ap.m_Params.m_DataSize : 0, true);
             }
         }
 
@@ -4749,29 +4712,6 @@ namespace dmGraphics
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
         MetalSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
-    }
-
-    static uint32_t MetalGetTextureResourceSize(HContext _context, HTexture texture)
-    {
-        MetalContext* context = (MetalContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
-        if (!tex)
-        {
-            return 0;
-        }
-        uint32_t size_total = 0;
-        uint32_t size = tex->m_Base.m_Width * tex->m_Base.m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_Base.m_Format)/8);
-        for(uint32_t i = 0; i < tex->m_Base.m_MipMapCount; ++i)
-        {
-            size_total += size;
-            size >>= 2;
-        }
-        if (tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            size_total *= 6;
-        }
-        return size_total + sizeof(MetalTexture);
     }
 
     static void MetalEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
@@ -4962,50 +4902,10 @@ namespace dmGraphics
         return 0;
     }
 
-    static bool MetalIsContextFeatureSupported(HContext _context, ContextFeature feature)
-    {
-        MetalContext* context = (MetalContext*) _context;
-        assert(context);
-        if (feature >= MAX_CONTEXT_FEATURE_COUNT)
-        {
-            return false;
-        }
-        return (context->m_ContextFeatures & (1 << feature)) != 0;
-    }
-
     static PipelineState MetalGetPipelineState(HContext _context)
     {
         MetalContext* context = (MetalContext*)_context;
         return context->m_PipelineState;
-    }
-
-    static uint8_t MetalGetTexturePageCount(HTexture texture)
-    {
-        DM_MUTEX_SCOPED_LOCK(g_MetalContext->m_BaseContext.m_AssetHandleContainerMutex);
-        MetalTexture* tex = GetAssetFromContainer<MetalTexture>(g_MetalContext->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_Base.m_PageCount : 0;
-    }
-
-    static bool MetalIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-    {
-        if (asset_handle == 0)
-        {
-            return false;
-        }
-
-        MetalContext* context = (MetalContext*) _context;
-        AssetType type         = GetAssetType(asset_handle);
-
-        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        if (type == ASSET_TYPE_TEXTURE)
-        {
-            return GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            return GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        return false;
     }
 
     static void MetalInvalidateGraphicsHandles(HContext _context)

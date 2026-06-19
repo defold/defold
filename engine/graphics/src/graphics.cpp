@@ -2034,11 +2034,13 @@ namespace dmGraphics
     }
     uint32_t GetWidth(HContext context)
     {
-        return g_functions.m_GetWidth(context);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return gc->m_Width;
     }
     uint32_t GetHeight(HContext context)
     {
-        return g_functions.m_GetHeight(context);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return gc->m_Height;
     }
     void SetWindowSize(HContext context, uint32_t width, uint32_t height)
     {
@@ -2050,7 +2052,9 @@ namespace dmGraphics
     }
     void GetDefaultTextureFilters(HContext context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
     {
-        g_functions.m_GetDefaultTextureFilters(context, out_min_filter, out_mag_filter);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        out_min_filter = gc->m_DefaultTextureMinFilter;
+        out_mag_filter = gc->m_DefaultTextureMagFilter;
     }
     void BeginFrame(HContext context)
     {
@@ -2082,7 +2086,8 @@ namespace dmGraphics
     }
     uint32_t GetVertexBufferSize(HVertexBuffer buffer)
     {
-        return g_functions.m_GetVertexBufferSize(buffer);
+        Buffer* buffer_ptr = (Buffer*) buffer;
+        return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
     uint32_t GetMaxElementsVertices(HContext context)
     {
@@ -2106,7 +2111,8 @@ namespace dmGraphics
     }
     uint32_t GetIndexBufferSize(HIndexBuffer buffer)
     {
-        return g_functions.m_GetIndexBufferSize(buffer);
+        Buffer* buffer_ptr = (Buffer*) buffer;
+        return buffer_ptr ? buffer_ptr->m_Size : 0;
     }
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
@@ -2314,7 +2320,9 @@ namespace dmGraphics
     }
     bool IsTextureFormatSupported(HContext context, TextureFormat format)
     {
-        return g_functions.m_IsTextureFormatSupported(context, format);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        uint32_t format_index = (uint32_t) format;
+        return format_index < TEXTURE_FORMAT_COUNT && (gc->m_TextureFormatSupport & (1ULL << format_index)) != 0;
     }
     HTexture NewTexture(HContext context, const TextureCreationParams& params)
     {
@@ -2338,7 +2346,10 @@ namespace dmGraphics
     }
     uint32_t GetTextureResourceSize(HContext context, HTexture texture)
     {
-        return g_functions.m_GetTextureResourceSize(context, texture);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_ResourceSize : 0;
     }
     void EnableTexture(HContext context, uint32_t unit, uint8_t id_index, HTexture texture)
     {
@@ -2383,7 +2394,8 @@ namespace dmGraphics
             AdapterFamily family = GetInstalledAdapterFamily();
             return !(family == ADAPTER_FAMILY_NULL || family == ADAPTER_FAMILY_NONE);
         }
-        return g_functions.m_IsContextFeatureSupported(context, feature);
+        GraphicsContext* gc = (GraphicsContext*) context;
+        return feature < MAX_CONTEXT_FEATURE_COUNT && (gc->m_ContextFeatureSupport & (1 << feature)) != 0;
     }
     PipelineState GetPipelineState(HContext context)
     {
@@ -2391,12 +2403,32 @@ namespace dmGraphics
     }
     uint8_t GetTexturePageCount(HTexture texture)
     {
-        return g_functions.m_GetTexturePageCount(texture);
+        GraphicsContext* gc = (GraphicsContext*) GetInstalledContext();
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        return t ? t->m_PageCount : 0;
     }
     bool IsAssetHandleValid(HContext context, HAssetHandle asset_handle)
     {
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
-        return g_functions.m_IsAssetHandleValid(context, asset_handle);
+        if (asset_handle == 0)
+        {
+            return false;
+        }
+
+        GraphicsContext* gc = (GraphicsContext*) context;
+        AssetType type = GetAssetType(asset_handle);
+
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        switch(type)
+        {
+            case ASSET_TYPE_TEXTURE:
+                return GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, asset_handle) != 0;
+            case ASSET_TYPE_RENDER_TARGET:
+                return GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, asset_handle) != 0;
+            default:
+                return false;
+        }
     }
     void InvalidateGraphicsHandles(HContext context)
     {
