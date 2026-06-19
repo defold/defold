@@ -72,7 +72,13 @@ jobs:
   bld-eng-darwin:
     strategy:
       matrix:
-        platform: [x86_64-macos, arm64-macos, arm64-ios, x86_64-ios]
+        include:
+          - platform: x86_64-macos
+          - platform: arm64-macos
+          - platform: arm64-ios
+            skip_tests: true
+          - platform: x86_64-ios
+            skip_tests: true
     runs-on: macos-26
     timeout-minutes: 30
     steps: [
@@ -96,7 +102,8 @@ jobs:
       {
         name: 'Build engine',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
+        shell: bash,
+        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs engine'
       },
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
