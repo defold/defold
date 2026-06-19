@@ -22,10 +22,11 @@
             [editor.progress :as progress]
             [editor.system :as system]
             [service.log :as log]
+            [util.coll :as coll]
             [util.net :as net])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
-           [java.io File IOException]
+           [java.io ByteArrayOutputStream File IOException]
            [java.nio.file Files CopyOption StandardCopyOption]
            [java.nio.file.attribute FileAttribute]
            [java.util Timer TimerTask]
@@ -39,6 +40,92 @@
 
 (defn- update-url [archive-domain channel]
   (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
+
+(defonce dev-updater (atom nil))
+
+(defn release-notes->markdown
+  ^String
+  [release-notes]
+  (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
+        issue->closed-issues (fn [{:keys [closed_issues repository]}]
+                               (string/join ","
+                                            (into []
+                                                  (map (fn [issue-number]
+                                                         (let [issue-text (if (= "defold" repository)
+                                                                            (str "#" issue-number)
+                                                                            (str repository "#" issue-number))
+                                                               issue-url (format "https://github.com/defold/%s/issues/%s"
+                                                                                 repository
+                                                                                 issue-number)]
+                                                           (format "[%s](%s)" issue-text issue-url))))
+                                                  closed_issues)))
+        issue->markdown (fn [{:keys [author pr_number title type url] :as issue}]
+                          (let [closed-issues (issue->closed-issues issue)]
+                            (format "* __%s__: (%s) %s (by %s) (PR [#%s](%s))\n"
+                                    type
+                                    closed-issues
+                                    title
+                                    author
+                                    pr_number
+                                    url)))
+        summary-markdown (fn [sections]
+                           (reduce (fn [markdown issue-type]
+                                     (reduce (fn [markdown issues]
+                                               (reduce (fn [markdown issue]
+                                                         (if (and (= issue-type (:type issue))
+                                                                  (not (:duplicate issue)))
+                                                           (str markdown (issue->markdown issue))
+                                                           markdown))
+                                                       markdown
+                                                       issues))
+                                             markdown
+                                             sections))
+                                   ""
+                                   issue-types))
+        {:keys [version issues]} release-notes
+        {:keys [engine editor other]}
+        (reduce (fn [sections issue]
+                  (cond
+                    (not= "defold" (:repository issue))
+                    (update sections :other conj issue)
+
+                    (contains? (set (:labels issue)) "editor")
+                    (update sections :editor conj issue)
+
+                    :else
+                    (update sections :engine conj issue)))
+                {:engine []
+                 :editor []
+                 :other []}
+                issues)]
+    (str "# Defold Release Summary - Version " version "\n"
+         "\nFor release notes, please visit our forum at https://forum.defold.com/t/defold-"
+         (string/replace version "." "-") "-has-been-released/"
+         "\n" (summary-markdown [engine editor other]))))
+
+(defn fetch-release-notes!
+  "Downloads the release notes payload for the available update. Returns a map
+  with markdown and parsed JSON notes, or nil if the request fails."
+  []
+  ;; TODO: the update server (update-v4.json) only reports a sha1, not a
+  ;; version, so the release notes version is hardcoded for now. Wire this up to
+  ;; the actual update version once the server exposes it.
+  (let [url "https://raw.githubusercontent.com/defold/defold/refs/heads/dev/releasenotes/1.12.4.md"
+        the-json  "https://raw.githubusercontent.com/defold/defold/refs/heads/dev/releasenotes/1.12.4.json"
+        notes-out (ByteArrayOutputStream.)
+        json-out (ByteArrayOutputStream.)]
+    (try
+      (let [[markdown json-text]
+            (coll/pmapv (fn [[url out]]
+                          (net/download! url out :read-timeout 10000 :connect-timeout 5000)
+                          (.toString out "UTF-8"))
+                        [[url notes-out]
+                         [the-json json-out]])]
+        {:markdown markdown
+         :json  (json/read-str json-text :key-fn keyword)})
+      (catch Exception e
+        (log/warn :message "Failed to fetch release notes" :url url :exception e)
+        nil))))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
@@ -106,6 +193,20 @@
               (:sha1 current-download)
               downloaded-sha1
               editor-sha1))))
+
+(defn release-notes
+  "Returns the in-memory release notes markdown for the available update, or nil
+  if they have not been fetched yet (or the fetch failed)."
+  ^String
+  [updater]
+  (let [updater (if @dev-updater @dev-updater updater)]
+    (some-> @(:state-atom updater) :release-notes :json release-notes->markdown)))
+
+(defn release-notes-ready?
+  "Returns true once the release notes for the available update are loaded in
+  memory and ready to display."
+  [updater]
+  (some? (release-notes updater)))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
@@ -307,7 +408,11 @@
               update-sha1 (:sha1 update)]
           (swap! state-atom assoc :server-sha1 update-sha1)
           (if (can-download-update? updater)
-            (log/info :message "New version found" :sha1 update-sha1)
+            (do
+              (log/info :message "New version found" :sha1 update-sha1)
+              ;; TODO: Make sure we're handling failures here correctly
+              (when-some [release-notes (fetch-release-notes!)]
+                (swap! state-atom assoc :release-notes release-notes)))
             (log/info :message "No update found"))))
       (catch IOException e
         ;; Disabled during tests to minimize log spam.
