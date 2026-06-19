@@ -188,14 +188,73 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
     outputs.file("${project.bobDir}/lib/luajit-share.zip")
 }
 
+def bobLightResourceRoot = file("${project.bobDir}/src")
+def bobLightResourceFiles = fileTree(bobLightResourceRoot) {
+    exclude '**/*.java'
+}
+def vkQualityNativeLibraries = [
+        'armv7-android/libvkquality.so',
+        'arm64-android/libvkquality.so'
+]
+
 task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
+    inputs.files(bobLightResourceFiles)
+    inputs.dir("${project.dynamoHome}/ext/bin")
+    inputs.dir("${project.dynamoHome}/ext/share/luajit")
+    inputs.files(fileTree("../../packages") {
+        include "luajit-2.1.0-3e223cb-*.tar.gz"
+    })
+    inputs.files(fileTree("${project.dynamoHome}/lib") {
+        include '**/*texc_shared*',
+                '**/*modelc_shared*',
+                '**/*shaderc_shared*'
+        exclude '**/*dSYM.zip'
+    })
+    inputs.file("${project.dynamoHome}/ext/share/java/bundletool-all.jar").optional()
+    inputs.files(fileTree("${project.dynamoHome}/ext/lib") {
+        include vkQualityNativeLibraries
+    })
+    outputs.dirs(
+            "${project.bobDir}/libexec",
+            "${project.bobDir}/lib/x86_64-macos",
+            "${project.bobDir}/lib/arm64-macos",
+            "${project.bobDir}/lib/x86_64-linux",
+            "${project.bobDir}/lib/arm64-linux",
+            "${project.bobDir}/lib/win32",
+            "${project.bobDir}/lib/x86_64-win32"
+    )
+    outputs.files(bobLightResourceFiles.collect { resource ->
+        file("${project.classesDir}/${bobLightResourceRoot.toPath().relativize(resource.toPath()).toString()}")
+    })
+
     doLast {
+        def missingVkQualityLibraries = vkQualityNativeLibraries.findAll { relativePath ->
+            !file("${project.dynamoHome}/ext/lib/${relativePath}").exists()
+        }
+        if (!missingVkQualityLibraries.isEmpty()) {
+            throw new RuntimeException("Required VkQuality native libraries are missing from DYNAMO_HOME: ${missingVkQualityLibraries.collect { "ext/lib/${it}" }.join(', ')}")
+        }
+
         def bundletoolJar = file("${project.dynamoHome}/ext/share/java/bundletool-all.jar")
         if (bundletoolJar.exists()) {
             copy {
                 from bundletoolJar
                 into "${project.bobDir}/libexec"
             }
+        }
+
+        copy {
+            from fileTree("${project.dynamoHome}/ext/lib") {
+                include vkQualityNativeLibraries
+            }
+            into "${project.bobDir}/libexec"
+        }
+
+        def missingPackagedVkQualityLibraries = vkQualityNativeLibraries.findAll { relativePath ->
+            !file("${project.bobDir}/libexec/${relativePath}").exists()
+        }
+        if (!missingPackagedVkQualityLibraries.isEmpty()) {
+            throw new RuntimeException("Required VkQuality native libraries were not copied into Bob: ${missingPackagedVkQualityLibraries.collect { "libexec/${it}" }.join(', ')}")
         }
 
         def platformFiles = [
@@ -371,6 +430,7 @@ def bobJarFileTree = fileTree(project.bobDir) {
             'lib/time_report_template.html',
             'lib/android.jar',
             'lib/classes.dex',
+            'lib/vkquality/**/*',
             'lib/*.zip'
     exclude '**/*dSYM.zip',
             'tmp/**'

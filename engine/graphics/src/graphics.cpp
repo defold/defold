@@ -68,17 +68,33 @@ namespace dmGraphics
 
             while(next)
             {
-                if (next->m_Family == family && next->m_IsSupportedCb())
+                if (next->m_Family == family)
                 {
-                    g_functions = next->m_RegisterCb();
-                    g_adapter   = next;
-                    return true;
+                    if (next->m_IsSupportedCb())
+                    {
+                        g_functions = next->m_RegisterCb();
+                        g_adapter   = next;
+                        return true;
+                    }
                 }
                 next = next->m_Next;
             }
         }
 
         return false;
+    }
+
+    uint32_t GetLinkedGraphicsAdapterCount()
+    {
+        uint32_t adapter_count = 0;
+        GraphicsAdapter* next = g_adapter_list;
+        while(next)
+        {
+            ++adapter_count;
+            next = next->m_Next;
+        }
+
+        return adapter_count;
     }
 
     static bool SelectAdapterByPriority()

@@ -602,6 +602,15 @@ public class BundlerTest {
             if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
                 expectedFiles.add("META-INF/BNDLTOOL.RSA");
             }
+            if (actualFiles.contains("assets/vkqualitydata.vkq")) {
+                expectedFiles.add("assets/vkqualitydata.vkq");
+            }
+            if (actualFiles.contains("lib/armeabi-v7a/libvkquality.so")) {
+                expectedFiles.add("lib/armeabi-v7a/libvkquality.so");
+            }
+            if (actualFiles.contains("lib/arm64-v8a/libvkquality.so")) {
+                expectedFiles.add("lib/arm64-v8a/libvkquality.so");
+            }
         }
         else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
         {

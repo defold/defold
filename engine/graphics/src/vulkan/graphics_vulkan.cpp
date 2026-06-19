@@ -30,6 +30,10 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+#if ANDROID
+#include "android/graphics_vulkan_android.h"
+#endif
+
 #include <platform/platform_window_vulkan.h>
 
 #ifdef __MACH__
@@ -1577,6 +1581,14 @@ bail:
 #else
 
     #if ANDROID
+        // VkQuality is only useful when Vulkan can fall back to another linked graphics adapter.
+        // If Vulkan is the only linked adapter, continue with the regular Vulkan support probe.
+        const bool only_linked_graphics_adapter = GetLinkedGraphicsAdapterCount() == 1;
+        if (!only_linked_graphics_adapter && !AndroidVulkanIsRecommended())
+        {
+            return false;
+        }
+
         if (!LoadVulkanLibrary())
         {
             dmLogError("Could not load Vulkan functions.");
