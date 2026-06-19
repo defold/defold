@@ -458,7 +458,7 @@ jobs:
           path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
         }
       },
-      { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
+      { name: 'Install dependencies', run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
@@ -504,7 +504,7 @@ jobs:
           path: '${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist'
         }
       },
-      { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
+      { name: 'Install dependencies', run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Test editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),

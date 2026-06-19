@@ -50,7 +50,6 @@ import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -86,7 +85,6 @@ public class GameProjectBuilder extends Builder {
     private static final Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
-        FileUtil.deleteOnExit(handle);
         RandomAccessFile file = new RandomAccessFile(handle, "rw");
         file.setLength(0);
         return file;
@@ -341,13 +339,12 @@ public class GameProjectBuilder extends Builder {
                 // Create output for the data archive
                 String platform = project.option("platform", "generic");
                 project.getPublisher().setPlatform(platform);
-                File archiveIndexHandle = File.createTempFile("defold.index_", ".arci");
+                File archiveIndexHandle = project.createTempFile("defold.index_", ".arci");
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
-                File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
+                File archiveDataHandle = project.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
 
                 // create the archive and manifest
-                project.getPublisher().start();
                 ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
                 createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
