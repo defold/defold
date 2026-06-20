@@ -3078,7 +3078,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             rt->m_DepthStencilDescriptorHeap = 0;
         }
 
-        ctx->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        ctx->m_BaseContext.m_AssetHandleContainer.Release(GetOpaqueHandle(render_target));
         delete rt;
     }
 
@@ -3139,7 +3139,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             return;
 
         DestroyTextureResourceDeferred(ctx, tex);
-        ctx->m_BaseContext.m_AssetHandleContainer.Release(texture);
+        ctx->m_BaseContext.m_AssetHandleContainer.Release(GetOpaqueHandle(texture));
         delete tex;
     }
 

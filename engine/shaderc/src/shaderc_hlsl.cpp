@@ -350,7 +350,13 @@ namespace dmShaderc
             break;
         }
 
-        HRESULT hr = D3DCompile(raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size(), NULL, NULL, NULL, "main", profile, D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_WARNINGS_ARE_ERRORS, 0, &shader_blob, &error_blob);
+        uint32_t compile_flags = D3DCOMPILE_ENABLE_STRICTNESS;
+        // SPIRV-Cross can generate harmless flow-control warnings that the Xbox One compiler promotes to errors.
+        if (options->m_TargetPlatform != SHADER_COMPILER_PLATFORM_XBONE)
+        {
+            compile_flags |= D3DCOMPILE_WARNINGS_ARE_ERRORS;
+        }
+        HRESULT hr = D3DCompile(raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size(), NULL, NULL, NULL, "main", profile, compile_flags, 0, &shader_blob, &error_blob);
         if (FAILED(hr))
         {
             if (error_blob)
@@ -408,7 +414,7 @@ namespace dmShaderc
             if (error_blob)
                 error_blob->Release();
 
-            HRESULT hr = D3DCompile(injected_source_buffer.Begin(), injected_source_buffer.Size(), NULL, NULL, NULL, "main", profile, D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_WARNINGS_ARE_ERRORS, 0, &shader_blob, &error_blob);
+            HRESULT hr = D3DCompile(injected_source_buffer.Begin(), injected_source_buffer.Size(), NULL, NULL, NULL, "main", profile, compile_flags, 0, &shader_blob, &error_blob);
             if (FAILED(hr))
             {
                 dmLogError("Failed to compile final hlsl");
