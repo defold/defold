@@ -82,6 +82,13 @@ def sign_windows_file(options, file):
     if not gcloud:
         sys.exit("No gcloud tool found")
 
+    # for some reason the following can be seen in the CI output even if Python is
+    # installed:
+    # To use the Google Cloud CLI, you must have Python installed and on your PATH.
+    # As an alternative, you may also set the CLOUDSDK_PYTHON environment variable
+    # to the location of your Python executable.
+    #
+    # Docs: https://docs.cloud.google.com/sdk/gcloud/reference/topic/startup
     env = os.environ.copy()
     env['CLOUDSDK_PYTHON'] = sys.executable
 
@@ -153,6 +160,8 @@ def sign_macos_file(options, file):
 
 def sign_file(platform, options, file):
     if _platform_is_windows(platform):
+        # Signing steps can run in parallel from the same build directory
+        # On Windows, gcloud.CMD is not safe in that situation and collides on tmpfile
         with ExclusiveFileLock(_codesigning_lock_path()):
             sign_windows_file(options, file)
 
