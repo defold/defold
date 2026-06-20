@@ -3581,7 +3581,6 @@ class Configuration(object):
         env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home
         env.setdefault('CMAKE_GENERATOR', 'Ninja')
-        env['DYNAMO_TARGET_PLATFORM'] = self.target_platform
 
         android_host = self.host
         if 'win32' in android_host:
