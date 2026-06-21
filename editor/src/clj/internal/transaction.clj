@@ -85,11 +85,11 @@
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
 (defn- mark-endpoints-activated
-  [ctx endpoints record-undo]
+  [ctx endpoints is-undo-significant]
   (if (:full-invalidation ctx)
     ctx
     (cond-> (update ctx :nodes-affected into endpoints)
-      record-undo (update :undo-nodes-affected into endpoints))))
+      is-undo-significant (assoc :is-undo-significant true))))
 
 (defn- mark-input-activated
   [ctx node-id input-label]
@@ -1150,11 +1150,11 @@
   TransactionChange
   (perform [_this ctx]
     (cond-> (assoc-in ctx [:basis :graphs graph-id :graph-values] new-graph-values)
-            (not (:full-invalidation ctx)) (update :graphs-modified conj graph-id)))
+            (not (:full-invalidation ctx)) (assoc :is-undo-significant true)))
 
   (revert [_this ctx]
     (cond-> (assoc-in ctx [:basis :graphs graph-id :graph-values] old-graph-values)
-            (not (:full-invalidation ctx)) (update :graphs-modified conj graph-id))))
+            (not (:full-invalidation ctx)) (assoc :is-undo-significant true))))
 
 (defonce/type CallbackTXS [callback-fn args opts]
   TransactionStep
@@ -1437,6 +1437,7 @@
   (let [is-non-undoable (non-undoable? tx-data)
         tx-data (cond-> tx-data is-non-undoable non-undoable-tx-data)
         outer-changes changes
+        outer-is-undo-significant (:is-undo-significant ctx)
 
         [ctx changes]
         (coll/reduce->
@@ -1465,29 +1466,18 @@
                         (throw e)))]
                 (pair (update ctx :completed-action-count inc) changes)))))]
 
-    (pair ctx (if is-non-undoable outer-changes changes))))
-
-(defn mark-nodes-modified
-  [{:keys [undo-nodes-affected] :as ctx}]
-  (assoc ctx
-    :nodes-modified
-    (into #{} (map gt/endpoint-node-id) undo-nodes-affected)))
-
-(defn apply-tx-label
-  [{:keys [label sequence-label] :as ctx}]
-  (update-in
-    ctx [:basis :graphs] coll/update-vals
-    coll/removing-assoc :tx-sequence-label sequence-label :tx-label label))
+    (pair (cond-> ctx
+                  is-non-undoable (assoc :is-undo-significant outer-is-undo-significant))
+          (if is-non-undoable outer-changes changes))))
 
 (def tx-report-keys
-  (cond-> [:basis :graphs-modified :nodes-added :nodes-modified :nodes-deleted :outputs-modified :label :sequence-label :changes]
+  (cond-> [:basis :is-undo-significant :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :changes]
           (du/metrics-enabled?) (conj :metrics)))
 
 (defn finalize-update
-  [{:keys [nodes-modified graphs-modified tx-data-context] :as ctx}]
+  [{:keys [tx-data-context] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
       (assoc :status (if (zero? (long (:completed-action-count ctx))) :empty :ok)
-             :graphs-modified (into graphs-modified (map gt/node-id->graph-id) nodes-modified)
              :tx-data-context-map (deref tx-data-context))))
 
 (defn new-transaction-context
@@ -1495,12 +1485,10 @@
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
-   :undo-nodes-affected #{}
+   :is-undo-significant false
    :nodes-added []
-   :nodes-modified #{}
    :nodes-deleted {}
    :outputs-modified #{}
-   :graphs-modified #{}
    :override-nodes-affected-seen #{}
    :override-nodes-affected-ordered []
    :successors-changed {}
@@ -1538,7 +1526,6 @@
 (defn finalize-applied-changes
   [ctx]
   (-> ctx
-      mark-nodes-modified
       update-successors
       trace-dependencies
       finalize-update))
@@ -1554,5 +1541,4 @@
         changes (if changes (persistent! changes) [])]
     (-> ctx
         (assoc :changes changes)
-        finalize-applied-changes
-        apply-tx-label)))
+        finalize-applied-changes)))

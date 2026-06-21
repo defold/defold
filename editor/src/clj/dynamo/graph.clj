@@ -318,7 +318,7 @@
     (swap! *the-system*
            is/merge-graphs
            (get-in tx-result [:basis :graphs])
-           (:graphs-modified tx-result)
+           (:is-undo-significant tx-result)
            (:outputs-modified tx-result)
            (:nodes-deleted tx-result)
            (:changes tx-result)
@@ -368,11 +368,9 @@
     :status                :empty if no transaction steps completed, otherwise
                            :ok
     :basis                 transaction basis after applying the transaction
-    :graphs-modified       modified graph ids, most useful when full
-                           invalidation is disabled
+    :is-undo-significant   true if the transaction should be considered when
+                           appending realized changes to the undo stack
     :nodes-added           added node ids
-    :nodes-modified        modified node ids when full invalidation is
-                           disabled
     :nodes-deleted         deleted nodes by node id
     :outputs-modified      modified endpoints when full invalidation is
                            disabled
@@ -496,7 +494,7 @@
   (and (map? x)
        (contains? x :status)
        (contains? x :basis)
-       (contains? x :graphs-modified)
+       (contains? x :is-undo-significant)
        (contains? x :nodes-added)))
 
 (defn tx-nodes-added

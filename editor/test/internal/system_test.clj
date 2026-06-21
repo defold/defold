@@ -210,6 +210,20 @@
         (is (= "initial" (g/node-value root :where)))
         (is (= 42 (g/node-value root :touched))))))
 
+  (testing "nested non-undoable transaction data does not make labels undoable"
+    (ts/with-clean-system
+      (let [pgraph-id (g/make-graph!)
+            [root] (ts/tx-nodes (g/make-node pgraph-id Root :where "initial" :touched 0))]
+        (g/reset-undo! :undo/global)
+
+        (g/transact
+          [(g/operation-label "non-undoable touch")
+           (g/non-undoable
+             (g/set-property root :touched 42))])
+
+        (is (= 0 (g/undo-stack-count :undo/global)))
+        (is (= 42 (g/node-value root :touched))))))
+
   (testing "later non-undoable transactions to the same property are reverted"
     (ts/with-clean-system
       (let [pgraph-id (g/make-graph!)

@@ -22,6 +22,40 @@
 
 (set! *warn-on-reflection* true)
 
+(g/defnode NonOutputInvalidatingSourceNode
+  (output output g/Keyword
+          (g/fnk [] :value)))
+
+(g/defnode NonOutputInvalidatingTargetNode
+  (input input g/Keyword))
+
+(deftest non-output-invalidating-connection-is-undoable-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [source-node-id target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (concat
+                (g/make-node graph-id NonOutputInvalidatingSourceNode)
+                (g/make-node graph-id NonOutputInvalidatingTargetNode))))]
+
+      (g/reset-undo! :undo/global)
+
+      (testing "Transact."
+        (g/transact
+          (g/connect source-node-id :output target-node-id :input))
+        (is (= [[source-node-id :output]] (g/sources-of target-node-id :input)))
+        (is (= 1 (g/undo-stack-count :undo/global))))
+
+      (testing "Undo."
+        (g/undo! :undo/global)
+        (is (= [] (g/sources-of target-node-id :input))))
+
+      (testing "Redo."
+        (g/redo! :undo/global)
+        (is (= [[source-node-id :output]] (g/sources-of target-node-id :input)))))))
+
 (deftest introduce-connection-on-regular-input-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)

@@ -270,14 +270,12 @@
          :user-data {}}
         (attach-graph initial-graph))))
 
-(def ^:private meaningful-change? contains?)
-
 (defn- remember-change
   [system label sequence-label changes]
   (update-in system [:undo global-undo-key] merge-or-push-undo label sequence-label changes))
 
 (defn- prepare-transaction-graphs
-  [system post-tx-graphs significantly-modified-graphs]
+  [system post-tx-graphs]
   (reduce-kv (fn [post-tx-graphs graph-id graph]
                (let [start-tx (:tx-id graph -1)
                      sidereal-tx (graph-time system graph-id)]
@@ -285,26 +283,22 @@
                    ;; graph was modified concurrently by a different transaction.
                    (throw (ex-info "Concurrent modification of graph"
                                    {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx})))
-                 (let [graph-before (get-in system [:graphs graph-id])
-                       graph (if (not (meaningful-change? significantly-modified-graphs graph-id))
-                               (assoc graph :tx-sequence-label (:tx-sequence-label graph-before))
-                               graph)]
-                   (assoc post-tx-graphs graph-id graph))))
+                 (assoc post-tx-graphs graph-id graph)))
              {}
              post-tx-graphs))
 
 (defn- remember-transaction-changes
-  [system significantly-modified-graphs changes label sequence-label]
+  [system is-undo-significant changes label sequence-label]
   (cond-> system
-          (and (coll/not-empty changes)
-               (coll/not-empty significantly-modified-graphs))
+          (and is-undo-significant
+               (coll/not-empty changes))
           (remember-change label sequence-label changes)))
 
 (defn merge-graphs
-  [system post-tx-graphs significantly-modified-graphs outputs-modified nodes-deleted changes label sequence-label]
-  (let [post-tx-graphs (prepare-transaction-graphs system post-tx-graphs significantly-modified-graphs)]
+  [system post-tx-graphs is-undo-significant outputs-modified nodes-deleted changes label sequence-label]
+  (let [post-tx-graphs (prepare-transaction-graphs system post-tx-graphs)]
     (-> system
-        (remember-transaction-changes significantly-modified-graphs changes label sequence-label)
+        (remember-transaction-changes is-undo-significant changes label sequence-label)
         (commit-graph-states post-tx-graphs)
         (commit-transaction-effects outputs-modified nodes-deleted))))
 
