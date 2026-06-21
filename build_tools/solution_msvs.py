@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 # Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
@@ -24,7 +24,7 @@ from os.path import join, normpath, relpath
 
 
 def is_visual_studio_platform(platform):
-    return platform == 'win32' or platform.endswith('-win32') or platform.endswith('-xbone')
+    return platform == 'win32' or platform.endswith('-win32')
 
 
 def is_visual_studio_generator(generator):
@@ -477,3 +477,5 @@ def latest_windows_sdk_version():
         return versions[0]
 
     return None
+
+

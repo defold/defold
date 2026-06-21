@@ -35,6 +35,7 @@ import BuildUtility
 import http_cache
 import sdk_merge
 import solution_msvs
+import solution_msvs_xbox
 import solution_xcode
 from datetime import datetime
 from urllib.parse import urlparse
@@ -683,12 +684,6 @@ class Configuration(object):
         if tp == 'x86_64-xbone':
             if not private_root:
                 raise RuntimeError('make_solution: x86_64-xbone requires a configured private Xbox repo. Run add_private_repo with --platform=x86_64-xbone first.')
-            for required_path in [
-                    join(private_root, 'scripts', 'cmake', 'platform_xbone.cmake'),
-                    join(private_root, 'scripts', 'cmake', 'sdk_xbone.cmake'),
-                    join(private_root, 'scripts', 'build_xbone.py')]:
-                if not os.path.exists(required_path):
-                    raise RuntimeError('make_solution: x86_64-xbone private repo is missing %s' % required_path)
 
         build_type = self._find_cmake_build_type(self.waf_options)
         build_tests = 'OFF' if '--skip-build-tests' in self.waf_options else 'ON'
@@ -707,7 +702,7 @@ class Configuration(object):
 
         if tp.endswith('-macos') or tp.endswith('-ios'):
             generator = 'Xcode'
-        elif solution_msvs.is_visual_studio_platform(tp):
+        elif tp == 'x86_64-xbone' or solution_msvs.is_visual_studio_platform(tp):
             msvs_selection = solution_msvs.latest_selection(self._log)
             generator = msvs_selection['generator']
             msvs_instance = msvs_selection.get('instance')
@@ -800,7 +795,7 @@ class Configuration(object):
         if solution_msvs.is_visual_studio_generator(generator):
             if tp == 'x86_64-xbone':
                 solution_msvs.organize_solution(final_path, self.defold_root, self._log)
-                xbone_solution_path = solution_msvs.generate_xbone_solution(
+                xbone_solution_path = solution_msvs_xbox.generate_xbone_solution(
                     solution_output_dir or solution_build_dir,
                     build_dir,
                     target_name,
