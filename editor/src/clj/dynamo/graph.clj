@@ -317,6 +317,7 @@
              (= :ok (:status tx-result)))
     (swap! *the-system*
            is/merge-graphs
+           (or (:undo-key transact-opts) :undo/global)
            (get-in tx-result [:basis :graphs])
            (:outputs-modified tx-result)
            (:nodes-deleted tx-result)
@@ -351,6 +352,10 @@
               :undoable
                 Defaults to true. When false, commits graph changes without
                 appending the realized TransactionChanges to the undo stack.
+
+              :undo-key
+                Defaults to :undo/global. The undo stack where realized
+                TransactionChanges are appended.
 
               :tx-data-context-map
                 Initial transaction data context map. The final value is

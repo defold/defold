@@ -22,8 +22,7 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [internal.transaction TransactionChange]
-           [java.util.concurrent.atomic AtomicLong]))
+  (:import [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 
@@ -273,9 +272,12 @@
          :user-data {}}
         (attach-graph initial-graph))))
 
-(defn- remember-change
-  [system label sequence-label undoable-changes]
-  (update-in system [:undo global-undo-key] merge-or-push-undo label sequence-label undoable-changes))
+(defn- register-undoable-changes
+  [system undo-key label sequence-label undoable-changes]
+  (cond-> system
+          (coll/not-empty undoable-changes)
+          (update-in [:undo undo-key]
+                     #(merge-or-push-undo (or % (new-undo)) label sequence-label undoable-changes))))
 
 (defn- prepare-transaction-graphs
   [system post-tx-graphs]
@@ -291,11 +293,10 @@
              post-tx-graphs))
 
 (defn merge-graphs
-  [system post-tx-graphs outputs-modified nodes-deleted undoable-changes label sequence-label]
+  [system undo-key post-tx-graphs outputs-modified nodes-deleted undoable-changes label sequence-label]
   (let [post-tx-graphs (prepare-transaction-graphs system post-tx-graphs)]
-    (-> (cond-> system
-                (coll/not-empty undoable-changes)
-                (remember-change label sequence-label undoable-changes))
+    (-> system
+        (register-undoable-changes undo-key label sequence-label undoable-changes)
         (commit-graph-states post-tx-graphs)
         (commit-transaction-effects outputs-modified nodes-deleted))))
 

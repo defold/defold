@@ -119,6 +119,22 @@
 
       (is (= 0 (g/undo-stack-count :undo/global)))))
 
+  (testing "undo steps can be stored under a custom undo-key"
+    (ts/with-clean-system
+      (let [pgraph-id (g/make-graph!)
+            [root] (ts/tx-nodes (g/make-node pgraph-id Root :touched 0))]
+        (g/reset-undo! :undo/global)
+
+        (g/transact {:undo-key :undo/custom}
+          (g/set-property root :touched 42))
+
+        (is (= 0 (g/undo-stack-count :undo/global)))
+        (is (= 1 (g/undo-stack-count :undo/custom)))
+
+        (g/undo! :undo/custom)
+
+        (is (= 0 (g/node-value root :touched))))))
+
   (testing "has-undo? and has-redo?"
     (ts/with-clean-system
       (let [pgraph-id (g/make-graph!)]
