@@ -201,11 +201,7 @@ include(features)
 include(platform)
 
 defold_get_private_repo_root(DEFOLD_PRIVATE_REPO_ROOT "${TARGET_PLATFORM}")
-if(DEFOLD_PRIVATE_REPO_ROOT)
-  set(DEFOLD_BUILD_HOME "${DEFOLD_PRIVATE_REPO_ROOT}" CACHE PATH "Root for generated build directories for ${TARGET_PLATFORM}" FORCE)
-else()
-  set(DEFOLD_BUILD_HOME "${DEFOLD_HOME}" CACHE PATH "Root for generated build directories" FORCE)
-endif()
+set(DEFOLD_BUILD_HOME "${DEFOLD_HOME}" CACHE PATH "Root for generated build directories")
 
 if(CMAKE_CONFIGURATION_TYPES)
   set(_DEFOLD_BUILD_TYPE_DISPLAY "multi-config")

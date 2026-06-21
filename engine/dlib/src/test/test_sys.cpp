@@ -50,6 +50,27 @@ template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Re
 int     g_Argc = 0;
 char**  g_Argv = 0;
 
+static const char* MakeWritablePath(char* dst, uint32_t dst_len, const char* path)
+{
+#if defined(_GAMING_XBOX)
+    dmSys::Result r = dmSys::GetApplicationSupportPath("testing", dst, dst_len);
+    if (r == dmSys::RESULT_OK)
+    {
+        size_t len = strlen(dst);
+        if (len > 0 && dst[len - 1] != '/' && dst[len - 1] != '\\')
+        {
+            dmStrlCat(dst + len, "/", dst_len - len);
+            len = strlen(dst);
+        }
+        dmStrlCat(dst + len, path, dst_len - len);
+        dmPath::Normalize(dst, dst, dst_len);
+        return dst;
+    }
+#endif
+
+    return dmTestUtil::MakeHostPath(dst, dst_len, path);
+}
+
 #if defined(DM_TEST_WIN32_DESKTOP)
 static bool WidePathToUtf8(const wchar_t* src, char* dst, int dst_len)
 {
@@ -121,9 +142,20 @@ static void WriteWideDebugLine(const wchar_t* prefix, const wchar_t* value)
 TEST(dmTestUtil, MakeHostPath)
 {
     char path[128];
+    char expected[128];
 
     dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists");
-    ASSERT_STREQ(DM_HOSTFS "does_not_exists", path);
+
+    size_t len = dmStrlCpy(expected, DM_HOSTFS, sizeof(expected));
+    if (len > 0 && expected[len - 1] != '/')
+    {
+        dmStrlCat(expected + len, "/", sizeof(expected) - len);
+        len = strlen(expected);
+    }
+    dmStrlCat(expected + len, "does_not_exists", sizeof(expected) - len);
+    dmPath::Normalize(expected, expected, sizeof(expected));
+
+    ASSERT_STREQ(expected, path);
 }
 ///////////////////////////////////////////////////////////
 
@@ -164,7 +196,7 @@ TEST(dmSys, Mkdir)
     char path[128];
     dmSys::Result r;
 
-    dmTestUtil::MakeHostPath(path, sizeof(path), "testdir");
+    MakeWritablePath(path, sizeof(path), "testdir");
 
     if (dmSys::Exists(path)) {
         r = dmSys::RmTree(path);
@@ -178,16 +210,16 @@ TEST(dmSys, Mkdir)
     r = dmSys::Mkdir(path, 0777);
     ASSERT_EQ(dmSys::RESULT_EXIST, r);
 
-    dmTestUtil::MakeHostPath(path, sizeof(path), "not_exists");
+    MakeWritablePath(path, sizeof(path), "not_exists");
     ASSERT_EQ(dmSys::RESULT_NOENT, dmSys::IsDir(path));
 
-    r = dmSys::Mkdir(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/dir"), 0777);
+    r = dmSys::Mkdir(MakeWritablePath(path, sizeof(path), "testdir/dir"), 0777);
     ASSERT_EQ(dmSys::RESULT_OK, r);
 
-    r = dmSys::Mkdir(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/dir"), 0777);
+    r = dmSys::Mkdir(MakeWritablePath(path, sizeof(path), "testdir/dir"), 0777);
     ASSERT_EQ(dmSys::RESULT_EXIST, r);
 
-    r = dmSys::Rmdir(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/dir"));
+    r = dmSys::Rmdir(MakeWritablePath(path, sizeof(path), "testdir/dir"));
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
 #endif
@@ -197,15 +229,18 @@ TEST(dmSys, Unlink)
     char path[128];
 
     dmSys::Result r;
-    r = dmSys::Unlink(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/afile"));
+    r = dmSys::Mkdir(MakeWritablePath(path, sizeof(path), "testdir"), 0777);
+    ASSERT_TRUE(r == dmSys::RESULT_OK || r == dmSys::RESULT_EXIST);
+
+    r = dmSys::Unlink(MakeWritablePath(path, sizeof(path), "testdir/afile"));
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
     ASSERT_NE(dmSys::RESULT_OK, dmSys::IsDir(path));
 
-    FILE* f = fopen(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/afile"), "wb");
+    FILE* f = fopen(MakeWritablePath(path, sizeof(path), "testdir/afile"), "wb");
     ASSERT_NE((FILE*) 0, f);
     fclose(f);
 
-    r = dmSys::Unlink(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/afile"));
+    r = dmSys::Unlink(MakeWritablePath(path, sizeof(path), "testdir/afile"));
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
 
@@ -534,7 +569,7 @@ TEST(dmSys, LoadResourcePartial)
     ASSERT_EQ(dmSys::RESULT_INVAL, r);
 
     // Create a test file
-    const char* datapath = dmTestUtil::MakeHostPath(path, sizeof(path), "testdata");
+    const char* datapath = MakeWritablePath(path, sizeof(path), "testdata");
 
     uint8_t testdata[256];
     uint32_t testdatasize = sizeof(testdata);
@@ -561,6 +596,8 @@ TEST(dmSys, LoadResourcePartial)
         offset += nread;
     }
     ASSERT_EQ(testdatasize, offset);
+
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::Unlink(datapath));
 }
 
 int main(int argc, char **argv)

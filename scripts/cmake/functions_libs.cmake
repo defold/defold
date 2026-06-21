@@ -412,9 +412,17 @@ function(defold_resolve_private_source_paths out_var)
   set(_resolved)
   foreach(_arg IN LISTS ARGN)
     set(_resolved_arg "${_arg}")
+    set(_can_resolve_private_source_path TRUE)
+    if(IS_ABSOLUTE "${_arg}" AND TARGET_PLATFORM)
+      file(TO_CMAKE_PATH "${_arg}" _arg_cmake_path)
+      if(_arg_cmake_path MATCHES "/build/${TARGET_PLATFORM}(/|$)")
+        set(_can_resolve_private_source_path FALSE)
+      endif()
+    endif()
     if(DEFOLD_PRIVATE_REPO_ROOT
        AND IS_ABSOLUTE "${_arg}"
        AND NOT EXISTS "${_arg}"
+       AND _can_resolve_private_source_path
        AND NOT _arg MATCHES "^\\$<")
       file(RELATIVE_PATH _relative "${DEFOLD_HOME}" "${_arg}")
       if(NOT _relative MATCHES "^\\.\\."

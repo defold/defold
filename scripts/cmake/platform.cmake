@@ -86,10 +86,15 @@ target_compile_definitions(defold_sdk INTERFACE
 
 if(DEFOLD_MSVC_IDE_SOLUTION)
     target_compile_definitions(defold_sdk INTERFACE
-        JC_TEST_USE_COLORS=0
         DM_LOG_TO_DEBUGGER)
+    if(NOT DEFOLD_TEST_COLORS)
+        target_compile_definitions(defold_sdk INTERFACE JC_TEST_USE_COLORS=0)
+    endif()
 elseif(DEFINED ENV{GITHUB_WORKFLOW})
-    target_compile_definitions(defold_sdk INTERFACE GITHUB_CI JC_TEST_USE_COLORS=1)
+    target_compile_definitions(defold_sdk INTERFACE GITHUB_CI)
+    if(DEFOLD_TEST_COLORS)
+        target_compile_definitions(defold_sdk INTERFACE JC_TEST_USE_COLORS=1)
+    endif()
 endif()
 
 set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE ON)
@@ -114,6 +119,7 @@ if(MSVC_CL)
     target_compile_definitions(defold_sdk INTERFACE _HAS_EXCEPTIONS=0)
     if(TARGET_PLATFORM MATCHES "x86_64-xbone")
         target_compile_definitions(defold_sdk INTERFACE _ITERATOR_DEBUG_LEVEL=0)
+        target_compile_options(defold_sdk INTERFACE /FS)
     endif()
 
     # Match Waf: disable RTTI and C++ exception handling for engine code.
