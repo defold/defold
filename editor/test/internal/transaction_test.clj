@@ -234,9 +234,13 @@
                (set (g/successors (g/now) resource-b :b))))
 
         (let [graph-a-successors-before (graph-successors-cache graph-a)
-              graph-b-successors-before (graph-successors-cache graph-b)]
-          (g/transact {:full-invalidation true}
-            (g/set-property resource-a :marker (int 1)))
+              graph-b-successors-before (graph-successors-cache graph-b)
+              undo-stack-count-before (g/undo-stack-count :undo/global)
+              tx-result (g/transact {:full-invalidation true}
+                          (g/set-property resource-a :marker (int 1)))]
+          (testing "Does not collect undoable changes."
+            (is (= [] (:changes tx-result)))
+            (is (= undo-stack-count-before (g/undo-stack-count :undo/global))))
 
           (let [graph-a-successors-after (graph-successors-cache graph-a)
                 graph-b-successors-after (graph-successors-cache graph-b)]

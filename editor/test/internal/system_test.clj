@@ -111,6 +111,14 @@
           (is (= [(localization/message "operation.increment-touch-count")]
                  (mapv :label redos-after-undo)))))))
 
+  (testing "transaction labels alone do not create undo steps"
+    (ts/with-clean-system
+      (g/transact
+        [(g/operation-label "label only")
+         (g/operation-sequence :label-only)])
+
+      (is (= 0 (g/undo-stack-count :undo/global)))))
+
   (testing "has-undo? and has-redo?"
     (ts/with-clean-system
       (let [pgraph-id (g/make-graph!)]

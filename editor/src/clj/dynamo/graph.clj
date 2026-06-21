@@ -318,7 +318,6 @@
     (swap! *the-system*
            is/merge-graphs
            (get-in tx-result [:basis :graphs])
-           (:is-undo-significant tx-result)
            (:outputs-modified tx-result)
            (:nodes-deleted tx-result)
            (:changes tx-result)
@@ -368,8 +367,6 @@
     :status                :empty if no transaction steps completed, otherwise
                            :ok
     :basis                 transaction basis after applying the transaction
-    :is-undo-significant   true if the transaction should be considered when
-                           appending realized changes to the undo stack
     :nodes-added           added node ids
     :nodes-deleted         deleted nodes by node id
     :outputs-modified      modified endpoints when full invalidation is
@@ -398,7 +395,8 @@
          tx-result (do-strict-evaluation-context-scope-body
                      (it/transact* transaction-context
                                    txs
-                                   (when (:undoable opts true)
+                                   (when (and (:undoable opts true)
+                                              (not (:full-invalidation opts)))
                                      (transient []))))]
      (commit-tx-result! tx-result opts)
      tx-result)))
@@ -494,7 +492,7 @@
   (and (map? x)
        (contains? x :status)
        (contains? x :basis)
-       (contains? x :is-undo-significant)
+       (contains? x :changes)
        (contains? x :nodes-added)))
 
 (defn tx-nodes-added

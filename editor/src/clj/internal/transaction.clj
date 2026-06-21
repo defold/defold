@@ -85,11 +85,10 @@
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
 (defn- mark-endpoints-activated
-  [ctx endpoints is-undo-significant]
+  [ctx endpoints]
   (if (:full-invalidation ctx)
     ctx
-    (cond-> (update ctx :nodes-affected into endpoints)
-      is-undo-significant (assoc :is-undo-significant true))))
+    (update ctx :nodes-affected into endpoints)))
 
 (defn- mark-input-activated
   [ctx node-id input-label]
@@ -102,16 +101,16 @@
                          in/input-dependencies
                          (get input-label))
           endpoints (into [] (map #(gt/endpoint node-id %)) dirty-deps)]
-      (mark-endpoints-activated ctx endpoints true))))
+      (mark-endpoints-activated ctx endpoints))))
 
 (defn- mark-output-activated
   [ctx node-id output-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (mark-endpoints-activated ctx [(gt/endpoint node-id output-label)] true))
+  (mark-endpoints-activated ctx [(gt/endpoint node-id output-label)]))
 
 (defn- mark-output-invalidated
   [ctx node-id output-label]
-  (mark-endpoints-activated ctx [(gt/endpoint node-id output-label)] false))
+  (mark-endpoints-activated ctx [(gt/endpoint node-id output-label)]))
 
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
@@ -119,7 +118,7 @@
   (if (:full-invalidation ctx)
     ctx
     (let [endpoints (into [] (map #(gt/endpoint node-id %)) output-labels)]
-      (mark-endpoints-activated ctx endpoints true))))
+      (mark-endpoints-activated ctx endpoints))))
 
 (defn- mark-all-outputs-activated
   [ctx node-id]
@@ -131,7 +130,7 @@
                             gt/node-type
                             in/output-labels)
           endpoints (into [] (map #(gt/endpoint node-id %)) output-labels)]
-      (mark-endpoints-activated ctx endpoints true))))
+      (mark-endpoints-activated ctx endpoints))))
 
 (defn- mark-all-outputs-invalidated
   [ctx node-id]
@@ -142,7 +141,7 @@
                             gt/node-type
                             in/output-labels)
           endpoints (into [] (map #(gt/endpoint node-id %)) output-labels)]
-      (mark-endpoints-activated ctx endpoints false))))
+      (mark-endpoints-activated ctx endpoints))))
 
 (defn- next-node-id [ctx graph-id]
   (gt/next-node-id (:node-id-generators ctx) graph-id))
@@ -279,11 +278,7 @@
 
 (declare ->AddOverrideTXC
          ->DeleteNodeTXC
-         ->InvalidateOutputTXC
-         ->InvalidateTXC
-         ->LabelTXC
          ->OverrideNodeTXC
-         ->SequenceLabelTXC
          ->UpdateGraphValueTXC
          add-node
          realize-tx)
@@ -1149,12 +1144,10 @@
 (defonce/type UpdateGraphValueTXC [graph-id old-graph-values new-graph-values]
   TransactionChange
   (perform [_this ctx]
-    (cond-> (assoc-in ctx [:basis :graphs graph-id :graph-values] new-graph-values)
-            (not (:full-invalidation ctx)) (assoc :is-undo-significant true)))
+    (assoc-in ctx [:basis :graphs graph-id :graph-values] new-graph-values))
 
   (revert [_this ctx]
-    (cond-> (assoc-in ctx [:basis :graphs graph-id :graph-values] old-graph-values)
-            (not (:full-invalidation ctx)) (assoc :is-undo-significant true))))
+    (assoc-in ctx [:basis :graphs graph-id :graph-values] old-graph-values)))
 
 (defonce/type CallbackTXS [callback-fn args opts]
   TransactionStep
@@ -1326,15 +1319,7 @@
     nil)
 
   (realize [_this ctx changes]
-    (perform-and-conj-change ctx changes (->LabelTXC (:label ctx) label))))
-
-(defonce/type LabelTXC [old-label new-label]
-  TransactionChange
-  (perform [_this ctx]
-    (assoc ctx :label new-label))
-
-  (revert [_this ctx]
-    (assoc ctx :label old-label)))
+    (pair (assoc ctx :label label) changes)))
 
 (defn label
   [label]
@@ -1349,15 +1334,7 @@
     nil)
 
   (realize [_this ctx changes]
-    (perform-and-conj-change ctx changes (->SequenceLabelTXC (:sequence-label ctx) sequence-label))))
-
-(defonce/type SequenceLabelTXC [old-sequence-label new-sequence-label]
-  TransactionChange
-  (perform [_this ctx]
-    (assoc ctx :sequence-label new-sequence-label))
-
-  (revert [_this ctx]
-    (assoc ctx :sequence-label old-sequence-label)))
+    (pair (assoc ctx :sequence-label sequence-label) changes)))
 
 (defn sequence-label
   [sequence-label]
@@ -1372,15 +1349,7 @@
     node-id)
 
   (realize [_this ctx changes]
-    (perform-and-conj-change ctx changes (->InvalidateTXC node-id))))
-
-(defonce/type InvalidateTXC [node-id]
-  TransactionChange
-  (perform [_this ctx]
-    (ctx-invalidate ctx node-id))
-
-  (revert [_this ctx]
-    ctx))
+    (pair (ctx-invalidate ctx node-id) changes)))
 
 (defn invalidate
   [node-id]
@@ -1395,15 +1364,7 @@
     (pair node-id output-label))
 
   (realize [_this ctx changes]
-    (perform-and-conj-change ctx changes (->InvalidateOutputTXC node-id output-label))))
-
-(defonce/type InvalidateOutputTXC [node-id output-label]
-  TransactionChange
-  (perform [_this ctx]
-    (ctx-invalidate-output ctx node-id output-label))
-
-  (revert [_this ctx]
-    ctx))
+    (pair (ctx-invalidate-output ctx node-id output-label) changes)))
 
 (defn invalidate-output
   [node-id output-label]
@@ -1437,7 +1398,6 @@
   (let [is-non-undoable (non-undoable? tx-data)
         tx-data (cond-> tx-data is-non-undoable non-undoable-tx-data)
         outer-changes changes
-        outer-is-undo-significant (:is-undo-significant ctx)
 
         [ctx changes]
         (coll/reduce->
@@ -1466,12 +1426,10 @@
                         (throw e)))]
                 (pair (update ctx :completed-action-count inc) changes)))))]
 
-    (pair (cond-> ctx
-                  is-non-undoable (assoc :is-undo-significant outer-is-undo-significant))
-          (if is-non-undoable outer-changes changes))))
+    (pair ctx (if is-non-undoable outer-changes changes))))
 
 (def tx-report-keys
-  (cond-> [:basis :is-undo-significant :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :changes]
+  (cond-> [:basis :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :changes]
           (du/metrics-enabled?) (conj :metrics)))
 
 (defn finalize-update
@@ -1485,7 +1443,6 @@
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :nodes-affected #{}
-   :is-undo-significant false
    :nodes-added []
    :nodes-deleted {}
    :outputs-modified #{}

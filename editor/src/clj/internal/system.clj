@@ -288,17 +288,16 @@
              post-tx-graphs))
 
 (defn- remember-transaction-changes
-  [system is-undo-significant changes label sequence-label]
+  [system changes label sequence-label]
   (cond-> system
-          (and is-undo-significant
-               (coll/not-empty changes))
+          (coll/not-empty changes)
           (remember-change label sequence-label changes)))
 
 (defn merge-graphs
-  [system post-tx-graphs is-undo-significant outputs-modified nodes-deleted changes label sequence-label]
+  [system post-tx-graphs outputs-modified nodes-deleted changes label sequence-label]
   (let [post-tx-graphs (prepare-transaction-graphs system post-tx-graphs)]
     (-> system
-        (remember-transaction-changes is-undo-significant changes label sequence-label)
+        (remember-transaction-changes changes label sequence-label)
         (commit-graph-states post-tx-graphs)
         (commit-transaction-effects outputs-modified nodes-deleted))))
 
