@@ -22,7 +22,8 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [java.util.concurrent.atomic AtomicLong]))
+  (:import [internal.transaction TransactionChange]
+           [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 
@@ -40,14 +41,16 @@
   []
   (AtomicLong. 0))
 
-(defonce/record UndoState [label sequence-label changes])
+(defonce/record UndoState [label sequence-label undoable-changes])
 
 (defn- merge-into-top
   [tape new-state]
   (let [old-state (tape/ivalue tape)]
     (conj
       (tape/truncate (tape/iprev tape))
-      (assoc new-state :changes (into (:changes old-state) (:changes new-state))))))
+      (assoc new-state
+        :undoable-changes (into (:undoable-changes old-state)
+                                (:undoable-changes new-state))))))
 
 (defn- =*
   "Comparison operator that treats nil as not equal to anything."
@@ -59,8 +62,8 @@
   (tape/paper-tape maximum-undo-steps))
 
 (defn merge-or-push-undo
-  [paper-tape label sequence-label changes]
-  (let [new-state (->UndoState label sequence-label changes)
+  [paper-tape label sequence-label undoable-changes]
+  (let [new-state (->UndoState label sequence-label undoable-changes)
         tape-op (if (=* sequence-label (:sequence-label (tape/ivalue paper-tape)))
                   merge-into-top
                   conj)]
@@ -146,8 +149,8 @@
              system
              post-tx-graphs))
 
-(defn- replay-undo
-  [system changes change-fn]
+(defn- replay-changes
+  [system transaction-changes change-fn]
   (let [ctx (it/new-transaction-context
               (basis system)
               (id-generators system)
@@ -155,12 +158,12 @@
               {}
               nil
               false)
-        ctx (reduce (fn [ctx change]
+        ctx (reduce (fn [ctx transaction-change]
                       (-> ctx
-                          (change-fn change)
+                          (change-fn transaction-change)
                           (update :completed-action-count inc)))
                     ctx
-                    changes)
+                    transaction-changes)
         tx-result (it/finalize-applied-changes ctx)]
     (-> system
         (commit-graph-states (get-in tx-result [:basis :graphs]))
@@ -176,7 +179,7 @@
   (let [undo (undo system undo-key)]
     (if-let [state (tape/ivalue undo)]
       (-> system
-          (replay-undo (rseq (:changes state)) it/revert-change)
+          (replay-changes (rseq (:undoable-changes state)) it/revert-change)
           (update-undo undo-key (tape/iprev undo)))
       system)))
 
@@ -185,7 +188,7 @@
   (let [undo (undo system undo-key)]
     (if-let [state (clojure.core/peek (tape/after undo))]
       (-> system
-          (replay-undo (:changes state) it/perform-change)
+          (replay-changes (:undoable-changes state) it/perform-change)
           (update-undo undo-key (tape/inext undo)))
       system)))
 
@@ -204,7 +207,7 @@
         state (tape/ivalue undo)]
     (if (=* sequence-id (:sequence-label state))
       (-> system
-          (replay-undo (rseq (:changes state)) it/revert-change)
+          (replay-changes (rseq (:undoable-changes state)) it/revert-change)
           (update-undo undo-key (tape/drop-current undo)))
       system)))
 
@@ -271,8 +274,8 @@
         (attach-graph initial-graph))))
 
 (defn- remember-change
-  [system label sequence-label changes]
-  (update-in system [:undo global-undo-key] merge-or-push-undo label sequence-label changes))
+  [system label sequence-label undoable-changes]
+  (update-in system [:undo global-undo-key] merge-or-push-undo label sequence-label undoable-changes))
 
 (defn- prepare-transaction-graphs
   [system post-tx-graphs]
@@ -287,17 +290,12 @@
              {}
              post-tx-graphs))
 
-(defn- remember-transaction-changes
-  [system changes label sequence-label]
-  (cond-> system
-          (coll/not-empty changes)
-          (remember-change label sequence-label changes)))
-
 (defn merge-graphs
-  [system post-tx-graphs outputs-modified nodes-deleted changes label sequence-label]
+  [system post-tx-graphs outputs-modified nodes-deleted undoable-changes label sequence-label]
   (let [post-tx-graphs (prepare-transaction-graphs system post-tx-graphs)]
-    (-> system
-        (remember-transaction-changes changes label sequence-label)
+    (-> (cond-> system
+                (coll/not-empty undoable-changes)
+                (remember-change label sequence-label undoable-changes))
         (commit-graph-states post-tx-graphs)
         (commit-transaction-effects outputs-modified nodes-deleted))))
 

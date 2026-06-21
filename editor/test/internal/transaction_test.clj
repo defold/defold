@@ -239,7 +239,7 @@
               tx-result (g/transact {:full-invalidation true}
                           (g/set-property resource-a :marker (int 1)))]
           (testing "Does not collect undoable changes."
-            (is (= [] (:changes tx-result)))
+            (is (= [] (:undoable-changes tx-result)))
             (is (= undo-stack-count-before (g/undo-stack-count :undo/global))))
 
           (let [graph-a-successors-after (graph-successors-cache graph-a)

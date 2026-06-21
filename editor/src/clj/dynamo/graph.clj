@@ -320,7 +320,7 @@
            (get-in tx-result [:basis :graphs])
            (:outputs-modified tx-result)
            (:nodes-deleted tx-result)
-           (:changes tx-result)
+           (:undoable-changes tx-result)
            (:label tx-result)
            (:sequence-label tx-result))
     (when (:full-invalidation transact-opts)
@@ -350,7 +350,7 @@
 
               :undoable
                 Defaults to true. When false, commits graph changes without
-                appending the realized transaction changes to the undo stack.
+                appending the realized TransactionChanges to the undo stack.
 
               :tx-data-context-map
                 Initial transaction data context map. The final value is
@@ -371,6 +371,8 @@
     :nodes-deleted         deleted nodes by node id
     :outputs-modified      modified endpoints when full invalidation is
                            disabled
+    :undoable-changes      realized TransactionChanges that can be replayed for
+                           undo and redo
     :label                 transaction label, if any
     :sequence-label        transaction sequence label, if any
     :tx-data-context-map   final transaction context map
@@ -407,7 +409,7 @@
 
 (defn non-undoable
   "Marks a sequence of transaction steps so its effects are applied, but its
-  realized transaction changes are omitted from undo."
+  realized TransactionChanges are omitted from undo."
   ([tx-data]
    [(it/non-undoable tx-data)])
   ([tx-data & more]
@@ -492,7 +494,7 @@
   (and (map? x)
        (contains? x :status)
        (contains? x :basis)
-       (contains? x :changes)
+       (contains? x :undoable-changes)
        (contains? x :nodes-added)))
 
 (defn tx-nodes-added

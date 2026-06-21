@@ -31,11 +31,11 @@
 (defonce/interface TransactionStep
   (step_type []) ; Returns a keyword uniquely identifying the type of transaction step.
   (metrics_key []) ; Returns a key which identifies the subject of the transaction step in metrics reports.
-  (realize [ctx changes])) ; Returns [ctx changes], where ctx now has the changes applied and the TransactionChanges have been appended to the changes transient vector if supplied.
+  (realize [ctx undoable-changes])) ; Returns [ctx undoable-changes], where ctx now has the step applied and the TransactionChanges have been appended to the undoable-changes transient vector if supplied.
 
 (defonce/interface TransactionChange
-  (perform [ctx]) ; Returns a new ctx with changes applied.
-  (revert [ctx])) ; Returns a new ctx with changes reverted.
+  (perform [ctx]) ; Returns a new ctx with the change applied.
+  (revert [ctx])) ; Returns a new ctx with the change reverted.
 
 (defonce/type NonUndoable [tx-data])
 
@@ -71,15 +71,15 @@
   `(.revert ~(with-meta change {:tag `TransactionChange}) ~ctx))
 
 (definline ^:private conj-change
-  [changes change]
-  `(when-let [changes# ~changes]
-     (conj! changes# ~change)))
+  [undoable-changes ^TransactionChange transaction-change]
+  `(when-let [undoable-changes# ~undoable-changes]
+     (conj! undoable-changes# ~transaction-change)))
 
 (definline ^:private perform-and-conj-change
-  [ctx changes change]
-  `(let [change# ~change]
-     (pair (perform-change ~ctx change#)
-           (conj-change ~changes change#))))
+  [ctx undoable-changes ^TransactionChange transaction-change]
+  `(let [transaction-change# ~transaction-change]
+     (pair (perform-change ~ctx transaction-change#)
+           (conj-change ~undoable-changes transaction-change#))))
 
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
@@ -291,8 +291,8 @@
   (metrics-key [_this]
     root-id)
 
-  (realize [_this ctx changes]
-    (perform-and-conj-change ctx changes (->AddOverrideTXC override-id root-id traverse-fn init-props-fn))))
+  (realize [_this ctx undoable-changes]
+    (perform-and-conj-change ctx undoable-changes (->AddOverrideTXC override-id root-id traverse-fn init-props-fn))))
 
 (defonce/type AddOverrideTXC [override-id root-id traverse-fn init-props-fn]
   TransactionChange
@@ -314,8 +314,8 @@
   (metrics-key [_this]
     original-node-id)
 
-  (realize [_this ctx changes]
-    (perform-and-conj-change ctx changes (->OverrideNodeTXC original-node-id override-node-id))))
+  (realize [_this ctx undoable-changes]
+    (perform-and-conj-change ctx undoable-changes (->OverrideNodeTXC original-node-id override-node-id))))
 
 (defonce/type OverrideNodeTXC [original-node-id override-node-id]
   TransactionChange
@@ -332,7 +332,7 @@
   [(->OverrideNodeTXS original-node-id override-node-id)])
 
 (defn- realize-override
-  [ctx changes root-id traverse-fn init-props-fn init-fn properties-by-node-id]
+  [ctx undoable-changes root-id traverse-fn init-props-fn init-fn properties-by-node-id]
   (let [basis (:basis ctx)
         graph-id (gt/node-id->graph-id root-id)
         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
@@ -358,23 +358,23 @@
                                     node-ids
                                     override-node-ids))
         creation-tx-data (concat new-override-nodes-tx-data new-override-tx-data)
-        [ctx changes] (realize-tx ctx creation-tx-data changes)
+        [ctx undoable-changes] (realize-tx ctx creation-tx-data undoable-changes)
         init-fn-tx-data (init-fn (in/custom-evaluation-context {:basis (:basis ctx) :tx-data-context (:tx-data-context ctx)})
                                  original-node-id->override-node-id)]
-    (realize-tx ctx init-fn-tx-data changes)))
+    (realize-tx ctx init-fn-tx-data undoable-changes)))
 
 (defn- node-id->override-id [basis node-id]
   (->> node-id
        (gt/node-by-id-at basis)
        gt/override-id))
 
-(defn- realize-make-override-nodes [ctx changes override-id node-ids init-props-fn]
-  (coll/reduce-> node-ids (pair ctx changes)
-    (fn [[ctx changes] node-id]
+(defn- realize-make-override-nodes [ctx undoable-changes override-id node-ids init-props-fn]
+  (coll/reduce-> node-ids (pair ctx undoable-changes)
+    (fn [[ctx undoable-changes] node-id]
       (let [basis (:basis ctx)]
         (if (coll/some #(= override-id (node-id->override-id basis %))
                        (ig/get-overrides basis node-id))
-          (pair ctx changes)
+          (pair ctx undoable-changes)
           (let [graph-id (gt/node-id->graph-id node-id)
                 original-node (gt/node-by-id-at basis node-id)
                 node-type (gt/node-type original-node)
@@ -389,21 +389,21 @@
                                     properties)
                 tx-data [(add-node new-override-node)
                          (override-node node-id new-override-node-id)]]
-            (realize-tx ctx tx-data changes)))))))
+            (realize-tx ctx tx-data undoable-changes)))))))
 
-(defn- realize-populate-overrides [ctx changes node-id]
+(defn- realize-populate-overrides [ctx undoable-changes node-id]
   (let [basis (:basis ctx)
         override-node-ids (ig/get-overrides basis node-id)
         override-node-count (count override-node-ids)]
     (loop [override-node-index 0
            ctx ctx
-           changes changes
+           undoable-changes undoable-changes
            prev-traverse-fn nil
            prev-traverse-result nil]
       (if (>= override-node-index override-node-count)
-        (coll/reduce-> override-node-ids (pair ctx changes)
-          (fn [[ctx changes] override-node-id]
-            (realize-populate-overrides ctx changes override-node-id)))
+        (coll/reduce-> override-node-ids (pair ctx undoable-changes)
+          (fn [[ctx undoable-changes] override-node-id]
+            (realize-populate-overrides ctx undoable-changes override-node-id)))
         (let [override-node-id (override-node-ids override-node-index)
               override-id (node-id->override-id basis override-node-id)
               {:keys [init-props-fn traverse-fn]} (ig/override-by-id basis override-id)
@@ -419,19 +419,19 @@
                                                     (ig/get-overrides basis immediate-node-id)))))
                                             (coll/not-empty))]
                            (ig/pre-traverse basis source-node-ids traverse-fn)))
-              [ctx changes] (realize-make-override-nodes ctx changes override-id node-ids init-props-fn)]
+              [ctx undoable-changes] (realize-make-override-nodes ctx undoable-changes override-id node-ids init-props-fn)]
           (recur (inc override-node-index)
                  ctx
-                 changes
+                 undoable-changes
                  traverse-fn
                  node-ids))))))
 
 (defn realize-update-overrides
-  [{:keys [override-nodes-affected-ordered] :as ctx} changes]
+  [{:keys [override-nodes-affected-ordered] :as ctx} undoable-changes]
   (du/measuring (:metrics ctx) :update-overrides
-    (coll/reduce-> override-nodes-affected-ordered (pair ctx changes)
-      (fn [[ctx changes] node-id]
-        (realize-populate-overrides ctx changes node-id)))))
+    (coll/reduce-> override-nodes-affected-ordered (pair ctx undoable-changes)
+      (fn [[ctx undoable-changes] node-id]
+        (realize-populate-overrides ctx undoable-changes node-id)))))
 
 (defn- set-override-node-ids
   [basis original-id override-node-ids]
@@ -484,7 +484,7 @@
         (ctx-set-override-node-original override-node-id old-original-id))))
 
 (defn- realize-transfer-overrides
-  [ctx changes from-id->to-id]
+  [ctx undoable-changes from-id->to-id]
   ;; This method updates the existing override layer to use the to-id as the
   ;; root of the override layer. It also updates the "first level" (i.e. direct)
   ;; override nodes that have from-id as their original to instead have to-id as
@@ -529,32 +529,32 @@
         ;; Normally entries are removed from this mapping inside
         ;; basis-remove-node as nodes are deleted, but since we're transferring
         ;; overrides, we must do it manually here.
-        [ctx changes]
-        (coll/reduce-> (keys from-id->to-id) (pair ctx changes)
-          (fn [[ctx changes] from-id]
+        [ctx undoable-changes]
+        (coll/reduce-> (keys from-id->to-id) (pair ctx undoable-changes)
+          (fn [[ctx undoable-changes] from-id]
             (let [override-node-ids (ig/get-overrides basis from-id)]
               (if (coll/empty? override-node-ids)
-                (pair ctx changes)
-                (perform-and-conj-change ctx changes (->ClearOverrideNodesTXC from-id override-node-ids))))))
+                (pair ctx undoable-changes)
+                (perform-and-conj-change ctx undoable-changes (->ClearOverrideNodesTXC from-id override-node-ids))))))
 
         ;; Re-root overrides that used to have a from node id as root.
-        [ctx changes]
-        (coll/reduce-> overrides-to-fix (pair ctx changes)
-          (fn [[ctx changes] [override-id override]]
+        [ctx undoable-changes]
+        (coll/reduce-> overrides-to-fix (pair ctx undoable-changes)
+          (fn [[ctx undoable-changes] [override-id override]]
             (let [new-override (update override :root-id from-id->to-id)]
-              (perform-and-conj-change ctx changes (->ReplaceOverrideRootTXC override-id override new-override)))))
+              (perform-and-conj-change ctx undoable-changes (->ReplaceOverrideRootTXC override-id override new-override)))))
 
         ;; Delete old nodes.
-        [ctx changes]
+        [ctx undoable-changes]
         (if-let [change (make-delete-nodes-change ctx nodes-to-delete)]
-          (perform-and-conj-change ctx changes change)
-          (pair ctx changes))
+          (perform-and-conj-change ctx undoable-changes change)
+          (pair ctx undoable-changes))
 
         ;; * repoint the first level override nodes to use to-node as original
         ;; * add as override nodes of to-node
-        [ctx changes]
-        (coll/reduce-> override-node-ids (pair ctx changes)
-          (fn [[ctx changes] override-node-id]
+        [ctx undoable-changes]
+        (coll/reduce-> override-node-ids (pair ctx undoable-changes)
+          (fn [[ctx undoable-changes] override-node-id]
             (let [basis (:basis ctx)
                   override-node (gt/node-by-id-at basis override-node-id)
                   old-original-id (gt/original override-node)
@@ -563,12 +563,12 @@
                                                    old-original-id
                                                    new-original-id
                                                    (ig/get-overrides basis new-original-id))]
-              (perform-and-conj-change ctx changes change))))]
+              (perform-and-conj-change ctx undoable-changes change))))]
 
     ;; Populate the fresh override layers.
-    (coll/reduce-> (vals from-id->to-id) (pair ctx changes)
-      (fn [[ctx changes] to-id]
-        (realize-populate-overrides ctx changes to-id)))))
+    (coll/reduce-> (vals from-id->to-id) (pair ctx undoable-changes)
+      (fn [[ctx undoable-changes] to-id]
+        (realize-populate-overrides ctx undoable-changes to-id)))))
 
 (defn- property-default-setter
   [basis node-id node property new-value]
@@ -682,14 +682,14 @@
                                (gt/property-overridden? node property-label))))))
 
 (defn- realize-setter-actions
-  [ctx changes node-id node property-label old-value new-value]
+  [ctx undoable-changes node-id node property-label old-value new-value]
   (if-let [setter-fn (in/property-setter (gt/node-type node) property-label)]
     (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value new-value)]
-      (realize-tx ctx setter-actions changes))
-    (pair ctx changes)))
+      (realize-tx ctx setter-actions undoable-changes))
+    (pair ctx undoable-changes)))
 
 (defn- realize-set-property
-  [ctx changes node-id property-label new-value]
+  [ctx undoable-changes node-id property-label new-value]
   (if-let [node (gt/node-by-id-at (:basis ctx) node-id)]
     (let [evaluation-context (in/custom-evaluation-context {:basis (:basis ctx)
                                                             :tx-data-context (:tx-data-context ctx)})
@@ -697,58 +697,58 @@
           value-changed (not= old-value new-value)
           change (make-set-raw-property-change node-id node property-label new-value value-changed)
           ctx (perform-change ctx change)
-          changes (conj-change changes change)]
+          undoable-changes (conj-change undoable-changes change)]
       (if value-changed
-        (realize-setter-actions ctx changes node-id node property-label old-value new-value)
-        (pair ctx changes)))
-    (pair ctx changes)))
+        (realize-setter-actions ctx undoable-changes node-id node property-label old-value new-value)
+        (pair ctx undoable-changes)))
+    (pair ctx undoable-changes)))
 
 (defn- realize-update-property
-  [ctx changes node-id property-label update-fn args opts]
+  [ctx undoable-changes node-id property-label update-fn args opts]
   (let [basis (:basis ctx)
         node (gt/node-by-id-at basis node-id)]
     (if (nil? node)
-      (pair ctx changes)
+      (pair ctx undoable-changes)
       (let [evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
             old-value (in/node-property-value node property-label evaluation-context)
             new-value (if (:inject-evaluation-context opts)
                         (apply update-fn evaluation-context old-value args)
                         (apply update-fn old-value args))]
-        (realize-set-property ctx changes node-id property-label new-value)))))
+        (realize-set-property ctx undoable-changes node-id property-label new-value)))))
 
 (defn- realize-clear-property
-  [ctx changes node-id property-label]
+  [ctx undoable-changes node-id property-label]
   (if-let [change (make-clear-raw-property-change ctx node-id property-label)]
     (let [basis (:basis ctx)
           node (gt/node-by-id-at basis node-id)
           old-value (.-old-value ^ClearRawPropertyTXC change)
           ctx (perform-change ctx change)
-          changes (conj-change changes change)]
+          undoable-changes (conj-change undoable-changes change)]
       (if-let [_setter-fn (in/property-setter (gt/node-type node) property-label)]
-        (realize-setter-actions ctx changes node-id node property-label old-value nil)
-        (pair ctx changes)))
-    (pair ctx changes)))
+        (realize-setter-actions ctx undoable-changes node-id node property-label old-value nil)
+        (pair ctx undoable-changes)))
+    (pair ctx undoable-changes)))
 
 (defn- realize-defaults
-  [ctx changes node]
+  [ctx undoable-changes node]
   (let [node-id (gt/node-id node)
         node-type (gt/node-type node)
         ordered-property-setter-infos (in/ordered-property-setter-infos node-type)]
     (if (coll/empty? ordered-property-setter-infos)
-      (pair ctx changes)
+      (pair ctx undoable-changes)
       (let [assigned-properties (gt/assigned-properties node)
             value-fn (if (some? (gt/original node))
                        (fn override-node-value-fn [property-label _default-value]
                          (get assigned-properties property-label))
                        (fn regular-node-value-fn [property-label default-value]
                          (get assigned-properties property-label default-value)))]
-        (coll/reduce-> ordered-property-setter-infos (pair ctx changes)
-          (fn [[ctx changes] [property-label default-value setter-fn]]
+        (coll/reduce-> ordered-property-setter-infos (pair ctx undoable-changes)
+          (fn [[ctx undoable-changes] [property-label default-value setter-fn]]
             (if-some [property-value (value-fn property-label default-value)]
               (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value)
-                    [ctx changes] (realize-tx ctx setter-actions changes)]
-                (pair ctx changes))
-              (pair ctx changes))))))))
+                    [ctx undoable-changes] (realize-tx ctx setter-actions undoable-changes)]
+                (pair ctx undoable-changes))
+              (pair ctx undoable-changes))))))))
 
 (defn- ctx-add-node-raw [ctx node]
   (let [basis-after (gt/add-node (:basis ctx) node)
@@ -918,11 +918,11 @@
   (metrics-key [_this]
     (gt/node-id added-node))
 
-  (realize [_this ctx changes]
+  (realize [_this ctx undoable-changes]
     (let [change (->AddNodeTXC added-node)
           ctx (perform-change ctx change)
-          changes (conj-change changes change)]
-      (realize-defaults ctx changes added-node))))
+          undoable-changes (conj-change undoable-changes change)]
+      (realize-defaults ctx undoable-changes added-node))))
 
 (defn add-node
   "*transaction step* - Add a node to its corresponding graph."
@@ -1017,10 +1017,10 @@
   (metrics-key [_this]
     node-id)
 
-  (realize [_this ctx changes]
+  (realize [_this ctx undoable-changes]
     (if-let [change (make-delete-nodes-change ctx [node-id])]
-      (perform-and-conj-change ctx changes change)
-      (pair ctx changes))))
+      (perform-and-conj-change ctx undoable-changes change)
+      (pair ctx undoable-changes))))
 
 (defn delete-node
   "*transaction step* - Delete a node from its graph."
@@ -1035,8 +1035,8 @@
   (metrics-key [_this]
     root-id)
 
-  (realize [_this ctx changes]
-    (realize-override ctx changes root-id traverse-fn init-props-fn init-fn properties-by-node-id)))
+  (realize [_this ctx undoable-changes]
+    (realize-override ctx undoable-changes root-id traverse-fn init-props-fn init-fn properties-by-node-id)))
 
 (defn override
   "*transaction step* - Create a series of override nodes in a graph."
@@ -1055,8 +1055,8 @@
     (when (= 1 (count from-id->to-id))
       (second (first from-id->to-id))))
 
-  (realize [_this ctx changes]
-    (realize-transfer-overrides ctx changes from-id->to-id)))
+  (realize [_this ctx undoable-changes]
+    (realize-transfer-overrides ctx undoable-changes from-id->to-id)))
 
 (defn transfer-overrides [from-id->to-id]
   [(->TransferOverridesTXS from-id->to-id)])
@@ -1069,8 +1069,8 @@
   (metrics-key [_this]
     (pair node-id property-label))
 
-  (realize [_this ctx changes]
-    (realize-set-property ctx changes node-id property-label new-value)))
+  (realize [_this ctx undoable-changes]
+    (realize-set-property ctx undoable-changes node-id property-label new-value)))
 
 (defn set-property
   "*transaction step* - Sets a property value on a node."
@@ -1087,8 +1087,8 @@
   (metrics-key [_this]
     (pair node-id property-label))
 
-  (realize [_this ctx changes]
-    (realize-update-property ctx changes node-id property-label fn args opts)))
+  (realize [_this ctx undoable-changes]
+    (realize-update-property ctx undoable-changes node-id property-label fn args opts)))
 
 (defn update-property
   "*transaction step* - Expects a node-id, a property-label, and an update-fn
@@ -1112,8 +1112,8 @@
   (metrics-key [_this]
     (pair node-id property-label))
 
-  (realize [_this ctx changes]
-    (realize-clear-property ctx changes node-id property-label)))
+  (realize [_this ctx undoable-changes]
+    (realize-clear-property ctx undoable-changes node-id property-label)))
 
 (defn clear-property
   "*transaction step* - Clears a property on a node."
@@ -1128,10 +1128,10 @@
   (metrics-key [_this]
     graph-id)
 
-  (realize [_this ctx changes]
+  (realize [_this ctx undoable-changes]
     (let [old-graph-values (get-in ctx [:basis :graphs graph-id :graph-values])
           new-graph-values (apply fn old-graph-values args)]
-      (perform-and-conj-change ctx changes (->UpdateGraphValueTXC graph-id old-graph-values new-graph-values)))))
+      (perform-and-conj-change ctx undoable-changes (->UpdateGraphValueTXC graph-id old-graph-values new-graph-values)))))
 
 (defn update-graph-value
   "*transaction step* - Update a graph value."
@@ -1157,8 +1157,8 @@
   (metrics-key [_this]
     nil)
 
-  (realize [_this ctx changes]
-    [(ctx-callback ctx callback-fn args opts) changes]))
+  (realize [_this ctx undoable-changes]
+    (pair (ctx-callback ctx callback-fn args opts) undoable-changes)))
 
 (defn callback
   "*transaction step* - Call a function from within the transaction."
@@ -1200,7 +1200,7 @@
     (restore-disconnected-arc ctx source-id source-label target-id target-label source-arcs-before target-arcs-before)))
 
 (defn- realize-disconnect
-  [ctx changes source-id source-label target-id target-label]
+  [ctx undoable-changes source-id source-label target-id target-label]
   (let [basis (:basis ctx)
         disconnect-change (->DisconnectArcTXC source-id
                                              source-label
@@ -1216,34 +1216,34 @@
                                     target-id
                                     target-label)]
     (if (coll/empty? removed-override-node-ids)
-      (pair ctx (conj-change changes disconnect-change))
+      (pair ctx (conj-change undoable-changes disconnect-change))
       (if-let [delete-change (make-delete-nodes-change ctx removed-override-node-ids)]
         (let [ctx (perform-change ctx delete-change)
-              changes (conj-change (conj-change changes disconnect-change) delete-change)]
-          (pair ctx changes))
-        (pair ctx (conj-change changes disconnect-change))))))
+              undoable-changes (conj-change (conj-change undoable-changes disconnect-change) delete-change)]
+          (pair ctx undoable-changes))
+        (pair ctx (conj-change undoable-changes disconnect-change))))))
 
 (defn- realize-connect
-  [{:keys [basis] :as ctx} changes source-id source-label target-id target-label]
+  [{:keys [basis] :as ctx} undoable-changes source-id source-label target-id target-label]
   (if-let [source (gt/node-by-id-at basis source-id)]
     (if-let [target (gt/node-by-id-at basis target-id)]
       (let [target-node-type (gt/node-type target)
 
-            [ctx changes]
+            [ctx undoable-changes]
             (if (not= :one (in/input-cardinality target-node-type target-label))
-              (pair ctx changes)
+              (pair ctx undoable-changes)
               (reduce
-                (fn [[ctx changes] ^Arc arc]
-                  (realize-disconnect ctx changes (.source-id arc) (.source-label arc) (.target-id arc) (.target-label arc)))
-                (pair ctx changes)
+                (fn [[ctx undoable-changes] ^Arc arc]
+                  (realize-disconnect ctx undoable-changes (.source-id arc) (.source-label arc) (.target-id arc) (.target-label arc)))
+                (pair ctx undoable-changes)
                 (ig/explicit-arcs-by-target basis target-id target-label)))
 
             connect-change (->ConnectArcTXC source-id source-label target-id target-label)]
         (assert-type-compatible source-id source source-label target-id target target-label)
-        [(perform-change ctx connect-change)
-         (conj-change changes connect-change)])
-      (pair ctx changes))
-    (pair ctx changes)))
+        (pair (perform-change ctx connect-change)
+              (conj-change undoable-changes connect-change)))
+      (pair ctx undoable-changes))
+    (pair ctx undoable-changes)))
 
 (defonce/type ConnectTXS [source-id source-label target-id target-label]
   TransactionStep
@@ -1253,8 +1253,8 @@
   (metrics-key [_this]
     [source-id source-label target-id target-label])
 
-  (realize [_this ctx changes]
-    (realize-connect ctx changes source-id source-label target-id target-label)))
+  (realize [_this ctx undoable-changes]
+    (realize-connect ctx undoable-changes source-id source-label target-id target-label)))
 
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and
@@ -1270,14 +1270,14 @@
   (metrics-key [_this]
     nil)
 
-  (realize [_this ctx changes]
+  (realize [_this ctx undoable-changes]
     (let [tx-steps (if (:inject-evaluation-context opts)
                      (let [basis (:basis ctx)
                            tx-data-context (:tx-data-context ctx)
                            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
                        (apply tx-steps-fn evaluation-context args))
                      (apply tx-steps-fn args))]
-      (realize-tx ctx tx-steps changes))))
+      (realize-tx ctx tx-steps undoable-changes))))
 
 (defn expand
   "*transaction step* - Call a function and execute the returned transaction
@@ -1296,8 +1296,8 @@
   (metrics-key [_this]
     [source-id source-label target-id target-label])
 
-  (realize [_this ctx changes]
-    (realize-disconnect ctx changes source-id source-label target-id target-label)))
+  (realize [_this ctx undoable-changes]
+    (realize-disconnect ctx undoable-changes source-id source-label target-id target-label)))
 
 (defn disconnect
   "*transaction step* - The reverse of [[connect]]. Creates a transaction step
@@ -1318,8 +1318,9 @@
   (metrics-key [_this]
     nil)
 
-  (realize [_this ctx changes]
-    (pair (assoc ctx :label label) changes)))
+  (realize [_this ctx undoable-changes]
+    (pair (assoc ctx :label label)
+          undoable-changes)))
 
 (defn label
   [label]
@@ -1333,8 +1334,9 @@
   (metrics-key [_this]
     nil)
 
-  (realize [_this ctx changes]
-    (pair (assoc ctx :sequence-label sequence-label) changes)))
+  (realize [_this ctx undoable-changes]
+    (pair (assoc ctx :sequence-label sequence-label)
+          undoable-changes)))
 
 (defn sequence-label
   [sequence-label]
@@ -1348,8 +1350,9 @@
   (metrics-key [_this]
     node-id)
 
-  (realize [_this ctx changes]
-    (pair (ctx-invalidate ctx node-id) changes)))
+  (realize [_this ctx undoable-changes]
+    (pair (ctx-invalidate ctx node-id)
+          undoable-changes)))
 
 (defn invalidate
   [node-id]
@@ -1363,8 +1366,9 @@
   (metrics-key [_this]
     (pair node-id output-label))
 
-  (realize [_this ctx changes]
-    (pair (ctx-invalidate-output ctx node-id output-label) changes)))
+  (realize [_this ctx undoable-changes]
+    (pair (ctx-invalidate-output ctx node-id output-label)
+          undoable-changes)))
 
 (defn invalidate-output
   [node-id output-label]
@@ -1394,42 +1398,42 @@
               (.-target-label tx-step))))
 
 (defn realize-tx
-  [ctx tx-data changes]
+  [ctx tx-data undoable-changes]
   (let [is-non-undoable (non-undoable? tx-data)
         tx-data (cond-> tx-data is-non-undoable non-undoable-tx-data)
-        outer-changes changes
+        mutated-undoable-changes (if is-non-undoable nil undoable-changes)
 
-        [ctx changes]
+        [ctx mutated-undoable-changes]
         (coll/reduce->
           tx-data
-          (pair ctx (if is-non-undoable nil changes))
-          (fn [[ctx changes :as acc] ^TransactionStep tx-step]
+          (pair ctx mutated-undoable-changes)
+          (fn [[ctx mutated-undoable-changes :as acc] ^TransactionStep tx-step]
             (cond
               (nil? tx-step)
               acc
 
               (non-undoable? tx-step)
               (let [[ctx] (realize-tx ctx tx-step nil)]
-                (pair ctx changes))
+                (pair ctx mutated-undoable-changes))
 
               (sequential? tx-step)
-              (realize-tx ctx tx-step changes)
+              (realize-tx ctx tx-step mutated-undoable-changes)
 
               :else
-              (let [[ctx changes]
+              (let [[ctx mutated-undoable-changes]
                     (try
                       (du/measuring (:metrics ctx) (.step-type tx-step) (.metrics-key tx-step)
-                        (.realize tx-step ctx changes))
+                        (.realize tx-step ctx mutated-undoable-changes))
                       (catch Exception e
                         (when *tx-debug*
                           (println (txerrstr ctx "Transaction failed on " tx-step)))
                         (throw e)))]
-                (pair (update ctx :completed-action-count inc) changes)))))]
-
-    (pair ctx (if is-non-undoable outer-changes changes))))
+                (pair (update ctx :completed-action-count inc)
+                      mutated-undoable-changes)))))]
+    (pair ctx (or mutated-undoable-changes undoable-changes))))
 
 (def tx-report-keys
-  (cond-> [:basis :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :changes]
+  (cond-> [:basis :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :undoable-changes]
           (du/metrics-enabled?) (conj :metrics)))
 
 (defn finalize-update
@@ -1488,14 +1492,14 @@
       finalize-update))
 
 (defn transact*
-  [ctx tx-data changes]
+  [ctx tx-data undoable-changes]
   (when *tx-debug*
     (println (txerrstr ctx "tx-data" (if (non-undoable? tx-data)
                                        (non-undoable-tx-data tx-data)
                                        (seq tx-data)))))
-  (let [[ctx changes] (realize-tx ctx tx-data changes)
-        [ctx changes] (realize-update-overrides ctx changes)
-        changes (if changes (persistent! changes) [])]
+  (let [[ctx undoable-changes] (realize-tx ctx tx-data undoable-changes)
+        [ctx undoable-changes] (realize-update-overrides ctx undoable-changes)
+        undoable-changes (if undoable-changes (persistent! undoable-changes) [])]
     (-> ctx
-        (assoc :changes changes)
+        (assoc :undoable-changes undoable-changes)
         finalize-applied-changes)))
