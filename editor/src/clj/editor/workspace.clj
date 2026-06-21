@@ -601,17 +601,23 @@ ordinary paths."
 
 (defn- load-clojure-plugin! [workspace resource]
   (when-not (Boolean/getBoolean "defold.tests")
-    (log/info :message (str "Loading plugin " (resource/path resource))))
+    (log/info :message (str "Loading plugin: " (resource/path resource))))
   (try
-    ;; TODO(decouple-undo-from-graph): Throw if this creates any undo steps.
-    (if-let [plugin-fn (load-string (slurp resource))]
-      (do
-        (plugin-fn workspace)
-        (when-not (Boolean/getBoolean "defold.tests")
-          (log/info :message (str "Loaded plugin " (resource/path resource)))))
-      (log/error :message (str "Unable to load plugin " (resource/path resource))))
+    (let [plugin-fn (load-string (slurp resource))
+          undo-stack-count-before (g/undo-stack-count :undo/global)]
+      (when-not (ifn? plugin-fn)
+        (throw
+          (ex-info "Plugin must return a function."
+                   {:return-value plugin-fn})))
+      (plugin-fn workspace)
+      (when (not= undo-stack-count-before (g/undo-stack-count :undo/global))
+        (throw
+          (ex-info "Plugin must not create undo steps during load." {})))
+      (when-not (Boolean/getBoolean "defold.tests")
+        (log/info :message (str "Loaded plugin: " (resource/path resource)))))
     (catch Exception e
-      (log/error :message (str "Exception while loading plugin: " (.getMessage e))
+      (log/error :message (str "Exception while loading plugin: " (resource/path resource))
+                 :plugin-path (resource/path resource)
                  :exception e)
       (ui/run-later
         (dialogs/make-info-dialog
