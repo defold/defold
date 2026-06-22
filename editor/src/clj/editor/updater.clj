@@ -22,7 +22,6 @@
             [editor.progress :as progress]
             [editor.system :as system]
             [service.log :as log]
-            [util.coll :as coll]
             [util.net :as net])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
@@ -44,8 +43,7 @@
 (defonce dev-updater (atom nil))
 
 (defn release-notes->markdown
-  ^String
-  [release-notes]
+  ^String [release-notes]
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
         issue->closed-issues (fn [{:keys [closed_issues repository]}]
                                (string/join ","
@@ -99,30 +97,22 @@
                  :other []}
                 issues)]
     (str "# Defold Release Summary - Version " version "\n"
-         "\nFor release notes, please visit our forum at https://forum.defold.com/t/defold-"
-         (string/replace version "." "-") "-has-been-released/"
+         "\nFor release notes, please visit our forum at " (:external-link release-notes)
          "\n" (summary-markdown [engine editor other]))))
 
 (defn fetch-release-notes!
   "Downloads the release notes payload for the available update. Returns a map
   with markdown and parsed JSON notes, or nil if the request fails."
-  []
+  [archive-domain channel]
   ;; TODO: the update server (update-v4.json) only reports a sha1, not a
   ;; version, so the release notes version is hardcoded for now. Wire this up to
   ;; the actual update version once the server exposes it.
-  (let [url "https://raw.githubusercontent.com/defold/defold/refs/heads/dev/releasenotes/1.12.4.md"
-        the-json  "https://raw.githubusercontent.com/defold/defold/refs/heads/dev/releasenotes/1.12.4.json"
-        notes-out (ByteArrayOutputStream.)
-        json-out (ByteArrayOutputStream.)]
+  (let [url (format (get-in connection-properties [:updater :release-notes-url-template])
+                    archive-domain channel)
+        out (ByteArrayOutputStream.)]
     (try
-      (let [[markdown json-text]
-            (coll/pmapv (fn [[url out]]
-                          (net/download! url out :read-timeout 10000 :connect-timeout 5000)
-                          (.toString out "UTF-8"))
-                        [[url notes-out]
-                         [the-json json-out]])]
-        {:markdown markdown
-         :json  (json/read-str json-text :key-fn keyword)})
+      (net/download! url out :read-timeout 10000 :connect-timeout 5000)
+      (json/read-str (.toString out "UTF-8") :key-fn keyword)
       (catch Exception e
         (log/warn :message "Failed to fetch release notes" :url url :exception e)
         nil))))
@@ -200,7 +190,7 @@
   ^String
   [updater]
   (let [updater (if @dev-updater @dev-updater updater)]
-    (some-> @(:state-atom updater) :release-notes :json release-notes->markdown)))
+    (some-> @(:state-atom updater) :release-notes release-notes->markdown)))
 
 (defn release-notes-ready?
   "Returns true once the release notes for the available update are loaded in
@@ -411,7 +401,7 @@
             (do
               (log/info :message "New version found" :sha1 update-sha1)
               ;; TODO: Make sure we're handling failures here correctly
-              (when-some [release-notes (fetch-release-notes!)]
+              (when-some [release-notes (fetch-release-notes! archive-domain channel)]
                 (swap! state-atom assoc :release-notes release-notes)))
             (log/info :message "No update found"))))
       (catch IOException e
