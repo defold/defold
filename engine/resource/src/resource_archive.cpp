@@ -59,7 +59,7 @@ namespace dmResourceArchive
 
     DM_STATIC_ASSERT(sizeof(EntryData) == ENTRY_DATA_SIZE_V6, Invalid_Archive_EntryData_Size);
 
-    struct EntryDataV5
+    struct EntryData32
     {
         uint32_t m_ResourceDataOffset;
         uint32_t m_ResourceSize;
@@ -70,6 +70,18 @@ namespace dmResourceArchive
     static bool IsSupportedVersion(uint32_t version)
     {
         return version == VERSION_5 || version == VERSION_6;
+    }
+
+    static bool ArchiveIndexEntryDataUses64BitOffsets(const ArchiveIndex* archive_index)
+    {
+        uint32_t version = dmEndian::ToNetwork(archive_index->m_Version);
+        return version == VERSION_6;
+    }
+
+    static bool ArchiveIndexEntryDataNeedsNormalize(const ArchiveIndex* archive_index)
+    {
+        uint32_t version = dmEndian::ToNetwork(archive_index->m_Version);
+        return version == VERSION_5;
     }
 
     uint64_t PackEntryDataOffsetAndFlags(uint64_t resource_offset, uint32_t flags)
@@ -89,7 +101,7 @@ namespace dmResourceArchive
         return (uint32_t)(offset_and_flags >> ENTRY_DATA_FLAGS_SHIFT);
     }
 
-    static void ConvertEntryDataV5(const EntryDataV5* source, EntryData* target, uint32_t entry_count)
+    static void ConvertEntryData32(const EntryData32* source, EntryData* target, uint32_t entry_count)
     {
         for (uint32_t i = 0; i < entry_count; ++i)
         {
@@ -101,19 +113,19 @@ namespace dmResourceArchive
         }
     }
 
-    static Result ReadEntryData(FILE* file, uint32_t version, uint32_t entry_count, EntryData* entries)
+    static Result ReadEntryData(FILE* file, const ArchiveIndex* archive_index, uint32_t entry_count, EntryData* entries)
     {
-        if (version == VERSION_5)
+        if (!ArchiveIndexEntryDataUses64BitOffsets(archive_index))
         {
-            EntryDataV5* entries_v5 = new EntryDataV5[entry_count];
+            EntryData32* entries_32 = new EntryData32[entry_count];
             uint32_t entries_total_size = entry_count * ENTRY_DATA_SIZE_V5;
-            if (fread(entries_v5, 1, entries_total_size, file) != entries_total_size)
+            if (fread(entries_32, 1, entries_total_size, file) != entries_total_size)
             {
-                delete[] entries_v5;
+                delete[] entries_32;
                 return RESULT_IO_ERROR;
             }
-            ConvertEntryDataV5(entries_v5, entries, entry_count);
-            delete[] entries_v5;
+            ConvertEntryData32(entries_32, entries, entry_count);
+            delete[] entries_32;
             return RESULT_OK;
         }
 
@@ -125,7 +137,7 @@ namespace dmResourceArchive
         return RESULT_OK;
     }
 
-    static void NormalizeArchiveIndexV5(ArchiveIndexContainer* archive)
+    static void NormalizeArchiveIndex32(ArchiveIndexContainer* archive)
     {
         const uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
         const uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
@@ -136,8 +148,8 @@ namespace dmResourceArchive
         memcpy(file_index->m_Hashes, (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset), entry_count * dmResourceArchive::MAX_HASH);
 
         file_index->m_Entries = new EntryData[entry_count];
-        const EntryDataV5* entries_v5 = (const EntryDataV5*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-        ConvertEntryDataV5(entries_v5, file_index->m_Entries, entry_count);
+        const EntryData32* entries_32 = (const EntryData32*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
+        ConvertEntryData32(entries_32, file_index->m_Entries, entry_count);
     }
 
     static void ClearArchiveFileIndexLookup(ArchiveFileIndex* file_index)
@@ -175,7 +187,7 @@ namespace dmResourceArchive
         return (EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
     }
 
-    static FILE* OpenResourceData(const char* path)
+    static FILE* FileOpen64(const char* path)
     {
 #if defined(__ANDROID__)
         int fd = open(path, O_RDONLY | O_LARGEFILE);
@@ -198,7 +210,7 @@ namespace dmResourceArchive
 #endif
     }
 
-    static int SeekResourceData(FILE* file, uint64_t offset)
+    static int FileSeek64(FILE* file, uint64_t offset)
     {
 #if defined(_WIN32)
         return _fseeki64(file, (int64_t)offset, SEEK_SET);
@@ -291,7 +303,7 @@ namespace dmResourceArchive
 
         fseek(f_index, entry_offset, SEEK_SET);
         aic->m_ArchiveFileIndex->m_Entries = new EntryData[entry_count];
-        if (ReadEntryData(f_index, version, entry_count, aic->m_ArchiveFileIndex->m_Entries) != RESULT_OK)
+        if (ReadEntryData(f_index, ai, entry_count, aic->m_ArchiveFileIndex->m_Entries) != RESULT_OK)
         {
             CleanupResources(f_index, f_data, aic);
             return RESULT_IO_ERROR;
@@ -300,7 +312,7 @@ namespace dmResourceArchive
         // Mark that this archive was loaded from file, and not memory-mapped
         ai->m_Userdata = FILE_LOADED_INDICATOR;
 
-        f_data = OpenResourceData(data_file_path);
+        f_data = FileOpen64(data_file_path);
 
         if (!f_data)
         {
@@ -340,9 +352,9 @@ namespace dmResourceArchive
         (*archive)->m_ArchiveIndex = a;
         (*archive)->m_ArchiveIndexSize = index_buffer_size;
 
-        if (version == VERSION_5)
+        if (ArchiveIndexEntryDataNeedsNormalize(a))
         {
-            NormalizeArchiveIndexV5(*archive);
+            NormalizeArchiveIndex32(*archive);
         }
 
         return RESULT_OK;
@@ -466,7 +478,7 @@ namespace dmResourceArchive
         {
             // we need to read from the file on disc
             FILE* resource_file = afi->m_FileResourceData;
-            if (SeekResourceData(resource_file, resource_offset) != 0)
+            if (FileSeek64(resource_file, resource_offset) != 0)
             {
                 return dmResourceArchive::RESULT_IO_ERROR;
             }
@@ -591,7 +603,7 @@ namespace dmResourceArchive
         {
             // we need to read from the file on disc
             FILE* resource_file = afi->m_FileResourceData;
-            if (SeekResourceData(resource_file, resource_offset + offset) != 0)
+            if (FileSeek64(resource_file, resource_offset + offset) != 0)
             {
                 return RESULT_IO_ERROR;
             }
@@ -632,9 +644,9 @@ namespace dmResourceArchive
         // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
         archive_container->m_IsMemMapped = mem_mapped;
 
-        if (dmEndian::ToNetwork(new_index->m_Version) == VERSION_5)
+        if (ArchiveIndexEntryDataNeedsNormalize(new_index))
         {
-            NormalizeArchiveIndexV5(archive_container);
+            NormalizeArchiveIndex32(archive_container);
         }
     }
 

@@ -242,12 +242,12 @@ public class ArchiveBuilder {
     private void writeArchiveIndex(RandomAccessFile archiveIndex, List<ArchiveEntry> archiveEntries) throws IOException {
         TimeProfiler.start("writeArchiveIndex");
 
-        int version = archiveIndexVersion(archiveEntries);
+        int version = VERSION;
 
         // INDEX
         archiveIndex.writeInt(version); // Version
         archiveIndex.writeInt(0); // Pad
-        archiveIndex.writeLong(0); // UserData, used in runtime to distinguish between if the index and resources are memory mapped or loaded from disk
+        archiveIndex.writeLong(0); // UserData. Runtime reuses this field after loading.
         archiveIndex.writeInt(0); // EntryCount
         archiveIndex.writeInt(0); // EntryOffset
         archiveIndex.writeInt(0); // HashOffset
@@ -270,16 +270,9 @@ public class ArchiveBuilder {
 
         ByteBuffer indexBuffer = ByteBuffer.allocate(getArchiveEntryDataSize(version) * archiveEntries.size());
         for (ArchiveEntry entry : archiveEntries) {
-            if (version == VERSION_5) {
-                indexBuffer.putInt((int) entry.getResourceOffset());
-                indexBuffer.putInt(entry.getSize());
-                indexBuffer.putInt(entry.getCompressedSize());
-                indexBuffer.putInt(entry.getFlags());
-            } else {
-                indexBuffer.putLong(packArchiveEntryOffsetAndFlags(entry));
-                indexBuffer.putInt(entry.getSize());
-                indexBuffer.putInt(entry.getCompressedSize());
-            }
+            indexBuffer.putLong(packArchiveEntryOffsetAndFlags(entry));
+            indexBuffer.putInt(entry.getSize());
+            indexBuffer.putInt(entry.getCompressedSize());
         }
         archiveIndex.write(indexBuffer.array());
 
@@ -310,15 +303,6 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
-    private int archiveIndexVersion(List<ArchiveEntry> archiveEntries) {
-        for (ArchiveEntry entry : archiveEntries) {
-            if (entry.getResourceOffset() > MAX_UNSIGNED_INT_OFFSET) {
-                return VERSION_6;
-            }
-        }
-        return VERSION_5;
-    }
-
     public static int getArchiveEntryDataSize(int version) {
         return 16;
     }
@@ -344,8 +328,8 @@ public class ArchiveBuilder {
     //                                            ↓
     //                    Archive Index: if found, use index to get Entry from parallel EntryData array
     //                                            ↓
-    //                    v5 EntryData = { offset, size, compressed_size, flags }
-    //                    v6 EntryData = { offset_and_flags, size, compressed_size }
+    //                    32-bit EntryData = { offset, size, compressed_size, flags }
+    //                    64-bit EntryData = { offset_and_flags, size, compressed_size }
     //                                            ↓
     //                    Read bytes from .arcd (using offset via fseek or mmap)
     //                                            ↓

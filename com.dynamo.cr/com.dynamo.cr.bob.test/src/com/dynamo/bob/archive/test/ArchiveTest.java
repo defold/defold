@@ -146,11 +146,12 @@ public class ArchiveTest {
         outFileIndex.close();
         outFileData.close();
 
-        // A normal tiny archive does not need 64-bit offsets, so the builder should keep
-        // emitting v5 to preserve old-engine compatibility. The first index header field
-        // is the archive version, which proves the conditional rollout decision.
+        // A normal tiny archive now emits v6 and uses the packed entry layout even when
+        // offsets fit in 32 bits.
         try (RandomAccessFile index = new RandomAccessFile(outputIndex, "r")) {
-            assertEquals(ArchiveBuilder.VERSION_5, index.readInt());
+            assertEquals(ArchiveBuilder.VERSION_6, index.readInt());
+            index.readInt(); // Pad
+            assertEquals(0L, index.readLong());
         }
 
         // Read
@@ -255,10 +256,8 @@ public class ArchiveTest {
         }
     }
 
-    // The rollout keeps small archives on v5 and switches to v6 only when an offset no
-    // longer fits in uint32. Pre-seeking the data file past 0xffffffff before writing one
-    // tiny resource forces that condition, then the test verifies the v6 header, stored
-    // offset, and readable payload.
+    // The builder always emits v6. Pre-seeking the data file past 0xffffffff before writing
+    // one tiny resource verifies the packed offset and readable payload.
     @Test
     public void testBuilderWritesVersion6ForResourceOffsetAbove4GiB() throws IOException, CompileExceptionError {
         final long resourceOffset = ArchiveBuilder.MAX_UNSIGNED_INT_OFFSET + 1L;
@@ -277,6 +276,8 @@ public class ArchiveTest {
 
         try (RandomAccessFile index = new RandomAccessFile(outputIndex, "r")) {
             assertEquals(ArchiveBuilder.VERSION_6, index.readInt());
+            index.readInt(); // Pad
+            assertEquals(0L, index.readLong());
         }
 
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);

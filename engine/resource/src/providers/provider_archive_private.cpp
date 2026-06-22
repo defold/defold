@@ -61,8 +61,8 @@ namespace dmResourceProviderArchivePrivate
         uint8_t* hashes = 0;
         dmResourceArchive::EntryData* entries = 0;
 
-        // If archive is loaded from file, or a v5 memory mapped index was normalized,
-        // use the member arrays for hashes and entries. Otherwise read with memory offsets.
+        // If archive is loaded from file, or a 32-bit-layout memory mapped index was
+        // normalized, use the member arrays for hashes and entries. Otherwise read with memory offsets.
         if (archive->m_ArchiveFileIndex && archive->m_ArchiveFileIndex->m_Entries)
         {
             hashes = archive->m_ArchiveFileIndex->m_Hashes;

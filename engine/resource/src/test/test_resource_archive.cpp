@@ -229,14 +229,15 @@ static bool WriteArchiveIndexV6(const char* archive_path, const uint8_t* hash, u
     uint8_t hash_buffer[dmResourceArchive::MAX_HASH] = { 0 };
     memcpy(hash_buffer, hash, hash_len);
 
+    bool ok = fwrite(&header, 1, sizeof(header), file) == sizeof(header);
+    ok = ok && fwrite(hash_buffer, 1, sizeof(hash_buffer), file) == sizeof(hash_buffer);
+
     dmResourceArchive::EntryData entry;
     entry.m_ResourceDataOffsetAndFlags = dmEndian::ToNetwork(dmResourceArchive::PackEntryDataOffsetAndFlags(resource_offset, flags));
     entry.m_ResourceSize = dmEndian::ToNetwork(resource_size);
     entry.m_ResourceCompressedSize = dmEndian::ToNetwork(0xFFFFFFFFU);
-
-    bool ok = fwrite(&header, 1, sizeof(header), file) == sizeof(header);
-    ok = ok && fwrite(hash_buffer, 1, sizeof(hash_buffer), file) == sizeof(hash_buffer);
     ok = ok && fwrite(&entry, 1, sizeof(entry), file) == sizeof(entry);
+
     fclose(file);
     return ok;
 }
@@ -610,9 +611,9 @@ TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove2GiB)
 }
 
 // V6 exists to let .arcd data grow past the uint32 offset limit while keeping resource
-// sizes uint32. This hand-written v6 index packs the currently unused fourth flag bit
-// with an offset above 4 GiB, writes a tiny payload there in a sparse .arcd, and verifies
-// the decoded flags plus full and partial file-backed reads.
+// sizes uint32. The entry packs the currently unused fourth flag bit with an offset
+// above 4 GiB, writes a tiny payload there in a sparse .arcd, and verifies the decoded
+// flags plus full and partial file-backed reads.
 TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove4GiB)
 {
     const uint64_t resource_offset = 0x100000010ULL;

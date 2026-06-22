@@ -59,7 +59,7 @@ The hashes are a 64bit hash (using [dmHashString64()](https://defold.com/ref/sta
 
 The resource entry contains the archive data offset, resource size, compressed size (if it is compressed), and a set of flags with meta data, such as if the resource is compressed and/or obfuscated.
 
-Archive index version 5 uses 32-bit archive data offsets and a separate 32-bit flags field. Archive index version 6 packs the flags into the high 4 bits of a 64-bit entry word and uses the low 60 bits for the archive data offset, so a `.arcd` file can grow beyond 4 GiB without increasing the entry size. The builder still writes version 5 when all resource offsets fit in 32 bits, and only writes version 6 when at least one resource offset requires it. Resource sizes remain 32-bit in both versions.
+Archive index version 5 uses 32-bit archive data offsets and a separate 32-bit flags field. Archive index version 6 is the current writer version and always uses the packed 64-bit entry layout: flags are stored in the high 4 bits of a 64-bit entry word and the low 60 bits store the archive data offset, so a `.arcd` file can grow beyond 4 GiB without increasing the entry size. Resource sizes remain 32-bit in both versions.
 
 <pre>
 HEADER:

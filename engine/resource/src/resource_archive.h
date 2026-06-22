@@ -76,7 +76,7 @@ namespace dmResourceArchive
             m_ResourceSize(0),
             m_ResourceCompressedSize(0) {}
 
-        uint64_t m_ResourceDataOffsetAndFlags; // v6 packs 4 high flag bits and 60 low offset bits
+        uint64_t m_ResourceDataOffsetAndFlags; // Internal/64-bit layout packs 4 high flag bits and 60 low offset bits
         uint32_t m_ResourceSize;
         uint32_t m_ResourceCompressedSize;  // 0xFFFFFFFF if uncompressed
     };
@@ -92,7 +92,7 @@ namespace dmResourceArchive
 
         uint32_t m_Version;
         uint32_t :32;
-        uint64_t m_Userdata;
+        uint64_t m_Userdata; // Runtime may overwrite this after loading.
         uint32_t m_EntryDataCount;
         uint32_t m_EntryDataOffset;
         uint32_t m_HashOffset;

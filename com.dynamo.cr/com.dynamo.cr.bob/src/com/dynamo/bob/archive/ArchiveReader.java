@@ -82,7 +82,7 @@ public class ArchiveReader {
     private void readArchiveData(int indexVersion) throws IOException {
         // INDEX
         archiveIndexFile.readInt(); // Pad
-        archiveIndexFile.readLong(); // UserData, should be 0
+        archiveIndexFile.readLong(); // UserData
         entryCount = archiveIndexFile.readInt();
         entryOffset = archiveIndexFile.readInt();
         hashOffset = archiveIndexFile.readInt();
