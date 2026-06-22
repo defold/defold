@@ -60,7 +60,6 @@ public class ArchiveBuilder {
 
     private static Logger logger = Logger.getLogger(ArchiveBuilder.class.getName());
 
-    public static final int VERSION_5 = 5;
     public static final int VERSION_6 = 6;
     public static final int VERSION = VERSION_6;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
@@ -328,8 +327,7 @@ public class ArchiveBuilder {
     //                                            ↓
     //                    Archive Index: if found, use index to get Entry from parallel EntryData array
     //                                            ↓
-    //                    32-bit EntryData = { offset, size, compressed_size, flags }
-    //                    64-bit EntryData = { offset_and_flags, size, compressed_size }
+    //                    EntryData = { offset_and_flags, size, compressed_size }
     //                                            ↓
     //                    Read bytes from .arcd (using offset via fseek or mmap)
     //                                            ↓

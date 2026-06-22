@@ -177,7 +177,7 @@ static bool TestMarkFileSparse(FILE* file)
 #endif
 }
 
-static bool WriteArchiveIndexV5(const char* archive_path, const uint8_t* hash, uint32_t hash_len, uint32_t resource_offset, uint32_t resource_size)
+static bool WriteArchiveHeaderWithVersion(const char* archive_path, uint32_t version)
 {
     FILE* file = fopen(archive_path, "wb");
     if (!file)
@@ -187,25 +187,9 @@ static bool WriteArchiveIndexV5(const char* archive_path, const uint8_t* hash, u
 
     dmResourceArchive::ArchiveIndex header;
     memset(&header, 0, sizeof(header));
-    header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION_5);
-    header.m_EntryDataCount = dmEndian::ToNetwork(1U);
-    header.m_EntryDataOffset = dmEndian::ToNetwork((uint32_t)(sizeof(dmResourceArchive::ArchiveIndex) + dmResourceArchive::MAX_HASH));
-    header.m_HashOffset = dmEndian::ToNetwork((uint32_t)sizeof(dmResourceArchive::ArchiveIndex));
-    header.m_HashLength = dmEndian::ToNetwork(hash_len);
-
-    uint8_t hash_buffer[dmResourceArchive::MAX_HASH] = { 0 };
-    memcpy(hash_buffer, hash, hash_len);
-
-    uint32_t entry[4] = {
-        dmEndian::ToNetwork(resource_offset),
-        dmEndian::ToNetwork(resource_size),
-        dmEndian::ToNetwork(0xFFFFFFFFU),
-        dmEndian::ToNetwork(0U)
-    };
+    header.m_Version = dmEndian::ToNetwork(version);
 
     bool ok = fwrite(&header, 1, sizeof(header), file) == sizeof(header);
-    ok = ok && fwrite(hash_buffer, 1, sizeof(hash_buffer), file) == sizeof(hash_buffer);
-    ok = ok && fwrite(&entry, 1, sizeof(entry), file) == sizeof(entry);
     fclose(file);
     return ok;
 }
@@ -562,50 +546,26 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     dmResourceArchive::Delete(archive);
 }
 
-// Old v5 archives can place data above 2 GiB, so the v6 reader changes must keep treating
-// the 32-bit offset field as unsigned. This hand-written v5 index points at a sparse
-// .arcd payload at 0x80000010 and verifies both full and partial file-backed reads.
-TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove2GiB)
+// New builds no longer need v5 archive compatibility. This minimal v5 index
+// verifies the engine rejects the archive version before attempting to load
+// hashes or entries using the old layout.
+TEST(dmResourceArchive, LoadFromDisk_RejectsVersion5Archive)
 {
-    const uint32_t resource_offset = 0x80000010U;
-    const uint8_t hash[20] = {
-        0x90, 0x9b, 0x2f, 0x3a, 0x7d, 0x0e, 0x41, 0x87, 0xa1, 0x54,
-        0x98, 0x77, 0x65, 0x43, 0x21, 0x10, 0xca, 0xfe, 0xba, 0xbe
-    };
-    const uint8_t payload[] = { 0xde, 0xad, 0xbe, 0xef, 0x11, 0x22, 0x33, 0x44 };
-
     char archive_path[512];
     char resource_path[512];
-    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/large_offset_sparse.arci");
-    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/large_offset_sparse.arcd");
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/version5_unsupported.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/version5_unsupported.arcd");
 
     remove(archive_path);
     remove(resource_path);
 
-    ASSERT_TRUE(WriteArchiveIndexV5(archive_path, hash, sizeof(hash), resource_offset, sizeof(payload)));
-    ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, resource_offset, payload, sizeof(payload)));
+    ASSERT_TRUE(WriteArchiveHeaderWithVersion(archive_path, 5));
 
     dmResourceArchive::HArchiveIndexContainer archive = 0;
     dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(dmResourceArchive::RESULT_VERSION_MISMATCH, result);
+    ASSERT_EQ((dmResourceArchive::HArchiveIndexContainer)0, archive);
 
-    dmResourceArchive::EntryData* entry = 0;
-    result = dmResourceArchive::FindEntry(archive, hash, sizeof(hash), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-
-    uint8_t buffer[sizeof(payload)] = { 0 };
-    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_ARRAY_EQ_LEN(payload, buffer, sizeof(payload));
-
-    uint8_t partial_buffer[4] = { 0 };
-    uint32_t nread = 0;
-    result = dmResourceArchive::ReadEntryPartial(archive, entry, 2, sizeof(partial_buffer), partial_buffer, &nread);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ((uint32_t)sizeof(partial_buffer), nread);
-    ASSERT_ARRAY_EQ_LEN(payload + 2, partial_buffer, sizeof(partial_buffer));
-
-    dmResourceArchive::Delete(archive);
     remove(archive_path);
     remove(resource_path);
 }
@@ -674,7 +634,7 @@ TEST(dmResourceArchive, MountArchiveInternal_ResourceOffsetAbove4GiB)
     remove(resource_path);
 }
 
-// File-backed archives keep normalized hash/entry arrays for v5 indexes. Replacing the
+// File-backed archives keep hash/entry arrays beside the loaded index. Replacing the
 // active index must discard those arrays, otherwise lookups continue using the old index.
 TEST(dmResourceArchive, SetNewArchiveIndex_ClearsFileBackedLookupArrays)
 {
@@ -690,13 +650,13 @@ TEST(dmResourceArchive, SetNewArchiveIndex_ClearsFileBackedLookupArrays)
 
     char archive_path[512];
     char resource_path[512];
-    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/replace_index_v5.arci");
-    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/replace_index_v5.arcd");
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/replace_index_v6.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/replace_index_v6.arcd");
 
     remove(archive_path);
     remove(resource_path);
 
-    ASSERT_TRUE(WriteArchiveIndexV5(archive_path, old_hash, sizeof(old_hash), 0, sizeof(payload)));
+    ASSERT_TRUE(WriteArchiveIndexV6(archive_path, old_hash, sizeof(old_hash), 0, sizeof(payload), 0));
     ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, 0, payload, sizeof(payload)));
 
     dmResourceArchive::HArchiveIndexContainer archive = 0;

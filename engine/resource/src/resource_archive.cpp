@@ -59,29 +59,9 @@ namespace dmResourceArchive
 
     DM_STATIC_ASSERT(sizeof(EntryData) == ENTRY_DATA_SIZE_V6, Invalid_Archive_EntryData_Size);
 
-    struct EntryData32
-    {
-        uint32_t m_ResourceDataOffset;
-        uint32_t m_ResourceSize;
-        uint32_t m_ResourceCompressedSize;
-        uint32_t m_Flags;
-    };
-
     static bool IsSupportedVersion(uint32_t version)
     {
-        return version == VERSION_5 || version == VERSION_6;
-    }
-
-    static bool ArchiveIndexEntryDataUses64BitOffsets(const ArchiveIndex* archive_index)
-    {
-        uint32_t version = dmEndian::ToNetwork(archive_index->m_Version);
         return version == VERSION_6;
-    }
-
-    static bool ArchiveIndexEntryDataNeedsNormalize(const ArchiveIndex* archive_index)
-    {
-        uint32_t version = dmEndian::ToNetwork(archive_index->m_Version);
-        return version == VERSION_5;
     }
 
     uint64_t PackEntryDataOffsetAndFlags(uint64_t resource_offset, uint32_t flags)
@@ -101,55 +81,14 @@ namespace dmResourceArchive
         return (uint32_t)(offset_and_flags >> ENTRY_DATA_FLAGS_SHIFT);
     }
 
-    static void ConvertEntryData32(const EntryData32* source, EntryData* target, uint32_t entry_count)
+    static Result ReadEntryData(FILE* file, uint32_t entry_count, EntryData* entries)
     {
-        for (uint32_t i = 0; i < entry_count; ++i)
-        {
-            uint64_t resource_offset = dmEndian::ToNetwork(source[i].m_ResourceDataOffset);
-            uint32_t flags = dmEndian::ToNetwork(source[i].m_Flags);
-            target[i].m_ResourceDataOffsetAndFlags = dmEndian::ToNetwork(PackEntryDataOffsetAndFlags(resource_offset, flags));
-            target[i].m_ResourceSize = source[i].m_ResourceSize;
-            target[i].m_ResourceCompressedSize = source[i].m_ResourceCompressedSize;
-        }
-    }
-
-    static Result ReadEntryData(FILE* file, const ArchiveIndex* archive_index, uint32_t entry_count, EntryData* entries)
-    {
-        if (!ArchiveIndexEntryDataUses64BitOffsets(archive_index))
-        {
-            EntryData32* entries_32 = new EntryData32[entry_count];
-            uint32_t entries_total_size = entry_count * ENTRY_DATA_SIZE_V5;
-            if (fread(entries_32, 1, entries_total_size, file) != entries_total_size)
-            {
-                delete[] entries_32;
-                return RESULT_IO_ERROR;
-            }
-            ConvertEntryData32(entries_32, entries, entry_count);
-            delete[] entries_32;
-            return RESULT_OK;
-        }
-
         uint32_t entries_total_size = entry_count * ENTRY_DATA_SIZE_V6;
         if (fread(entries, 1, entries_total_size, file) != entries_total_size)
         {
             return RESULT_IO_ERROR;
         }
         return RESULT_OK;
-    }
-
-    static void NormalizeArchiveIndex32(ArchiveIndexContainer* archive)
-    {
-        const uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-        const uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-        const uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-
-        ArchiveFileIndex* file_index = archive->m_ArchiveFileIndex;
-        file_index->m_Hashes = new uint8_t[entry_count * dmResourceArchive::MAX_HASH];
-        memcpy(file_index->m_Hashes, (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset), entry_count * dmResourceArchive::MAX_HASH);
-
-        file_index->m_Entries = new EntryData[entry_count];
-        const EntryData32* entries_32 = (const EntryData32*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-        ConvertEntryData32(entries_32, file_index->m_Entries, entry_count);
     }
 
     static void ClearArchiveFileIndexLookup(ArchiveFileIndex* file_index)
@@ -232,6 +171,23 @@ namespace dmResourceArchive
 
     // *********************************************************************************
 
+    static void DeleteArchiveFileIndex(ArchiveFileIndex* afi)
+    {
+        if (afi != 0)
+        {
+            delete[] afi->m_Entries;
+            delete[] afi->m_Hashes;
+
+            if (afi->m_FileResourceData)
+            {
+                fclose(afi->m_FileResourceData);
+                afi->m_FileResourceData = 0;
+            }
+        }
+
+        delete afi;
+    }
+
     static void CleanupResources(FILE* index_file, FILE* data_file, ArchiveIndexContainer* archive)
     {
         if (index_file)
@@ -239,19 +195,28 @@ namespace dmResourceArchive
             fclose(index_file);
         }
 
-        if (data_file)
-        {
-            fclose(data_file);
-        }
-
         if (archive)
         {
+            bool archive_file_index_owns_data_file = data_file &&
+                archive->m_ArchiveFileIndex &&
+                archive->m_ArchiveFileIndex->m_FileResourceData == data_file;
+            DeleteArchiveFileIndex(archive->m_ArchiveFileIndex);
+            if (archive_file_index_owns_data_file)
+            {
+                data_file = 0;
+            }
+
             if (archive->m_ArchiveIndex)
             {
                 delete archive->m_ArchiveIndex;
             }
 
             delete archive;
+        }
+
+        if (data_file)
+        {
+            fclose(data_file);
         }
     }
 
@@ -282,7 +247,7 @@ namespace dmResourceArchive
         uint32_t version = dmEndian::ToNetwork(ai->m_Version);
         if(!IsSupportedVersion(version))
         {
-            dmLogError("Archive version differs. Expected %d or %d, but it was %d", VERSION_5, VERSION_6, version);
+            dmLogError("Archive version differs. Expected %d, but it was %d", VERSION_6, version);
             CleanupResources(f_index, f_data, aic);
             return RESULT_VERSION_MISMATCH;
         }
@@ -303,7 +268,7 @@ namespace dmResourceArchive
 
         fseek(f_index, entry_offset, SEEK_SET);
         aic->m_ArchiveFileIndex->m_Entries = new EntryData[entry_count];
-        if (ReadEntryData(f_index, ai, entry_count, aic->m_ArchiveFileIndex->m_Entries) != RESULT_OK)
+        if (ReadEntryData(f_index, entry_count, aic->m_ArchiveFileIndex->m_Entries) != RESULT_OK)
         {
             CleanupResources(f_index, f_data, aic);
             return RESULT_IO_ERROR;
@@ -338,7 +303,7 @@ namespace dmResourceArchive
         uint32_t version = dmEndian::ToNetwork(a->m_Version);
         if (!IsSupportedVersion(version))
         {
-            dmLogError("Archive version differs. Expected %d or %d, but it was %d", VERSION_5, VERSION_6, version);
+            dmLogError("Archive version differs. Expected %d, but it was %d", VERSION_6, version);
             delete *archive;
             *archive = 0;
             return RESULT_VERSION_MISMATCH;
@@ -352,29 +317,7 @@ namespace dmResourceArchive
         (*archive)->m_ArchiveIndex = a;
         (*archive)->m_ArchiveIndexSize = index_buffer_size;
 
-        if (ArchiveIndexEntryDataNeedsNormalize(a))
-        {
-            NormalizeArchiveIndex32(*archive);
-        }
-
         return RESULT_OK;
-    }
-
-    static void DeleteArchiveFileIndex(ArchiveFileIndex* afi)
-    {
-        if (afi != 0)
-        {
-            delete[] afi->m_Entries;
-            delete[] afi->m_Hashes;
-
-            if (afi->m_FileResourceData)
-            {
-                fclose(afi->m_FileResourceData);
-                afi->m_FileResourceData = 0;
-            }
-        }
-
-        delete afi;
     }
 
     void Delete(HArchiveIndexContainer &archive)
@@ -643,11 +586,6 @@ namespace dmResourceArchive
         archive_container->m_ArchiveIndex = new_index;
         // Since we store data sequentially when doing the deep-copy we want to access it in that fashion
         archive_container->m_IsMemMapped = mem_mapped;
-
-        if (ArchiveIndexEntryDataNeedsNormalize(new_index))
-        {
-            NormalizeArchiveIndex32(archive_container);
-        }
     }
 
     uint32_t GetEntryCount(HArchiveIndexContainer archive)

@@ -30,7 +30,6 @@ import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 
 public class ArchiveReader {
-    public static final int VERSION_5 = 5;
     public static final int VERSION_6 = 6;
     public static final int VERSION = VERSION_6;
     public static final int HASH_BUFFER_BYTESIZE = 64; // 512 bits
@@ -72,14 +71,14 @@ public class ArchiveReader {
 
         // Version
         int indexVersion = this.archiveIndexFile.readInt();
-        if (indexVersion == ArchiveReader.VERSION_5 || indexVersion == ArchiveReader.VERSION_6) {
-            readArchiveData(indexVersion);
+        if (indexVersion == ArchiveReader.VERSION_6) {
+            readArchiveData();
         } else {
             throw new IOException("Unsupported archive index version: " + indexVersion);
         }
     }
 
-    private void readArchiveData(int indexVersion) throws IOException {
+    private void readArchiveData() throws IOException {
         // INDEX
         archiveIndexFile.readInt(); // Pad
         archiveIndexFile.readLong(); // UserData
@@ -123,18 +122,11 @@ public class ArchiveReader {
         for (int i=0; i<entryCount; ++i) {
             ArchiveEntry e = entries.get(i);
 
-            if (indexVersion == ArchiveReader.VERSION_5) {
-                e.setResourceOffset(Integer.toUnsignedLong(archiveIndexFile.readInt()));
-                e.setSize(archiveIndexFile.readInt());
-                e.setCompressedSize(archiveIndexFile.readInt());
-                e.setFlags(archiveIndexFile.readInt());
-            } else {
-                long offsetAndFlags = archiveIndexFile.readLong();
-                e.setResourceOffset(offsetAndFlags & V6_OFFSET_MASK);
-                e.setSize(archiveIndexFile.readInt());
-                e.setCompressedSize(archiveIndexFile.readInt());
-                e.setFlags((int) (offsetAndFlags >>> V6_FLAGS_SHIFT));
-            }
+            long offsetAndFlags = archiveIndexFile.readLong();
+            e.setResourceOffset(offsetAndFlags & V6_OFFSET_MASK);
+            e.setSize(archiveIndexFile.readInt());
+            e.setCompressedSize(archiveIndexFile.readInt());
+            e.setFlags((int) (offsetAndFlags >>> V6_FLAGS_SHIFT));
         }
     }
 

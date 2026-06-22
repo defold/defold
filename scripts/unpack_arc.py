@@ -151,12 +151,9 @@ if __name__ == "__main__":
     entryOffset = struct.unpack_from(">I", arci, 20)[0]
     hashesOffset = struct.unpack_from(">I", arci, 24)[0]
     hashLength = struct.unpack_from(">I", arci, 28)[0]
-    if archiveVersion == 5:
-        entrySize = 16
-    elif archiveVersion == 6:
-        entrySize = 16
-    else:
+    if archiveVersion != 6:
         raise Exception("Unsupported archive index version: %d" % archiveVersion)
+    entrySize = 16
 
     def read_arcd(offset, size):
         if arcd_path:
@@ -193,17 +190,11 @@ if __name__ == "__main__":
         for url, h in hash_map.items():
             if hash == h:
                 currentEntryOffset = entryOffset + (i * entrySize)
-                if archiveVersion == 5:
-                    offset = struct.unpack_from(">I", arci, currentEntryOffset + 0)[0]
-                    uncompressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 4)[0]
-                    compressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 8)[0]
-                    flags = struct.unpack_from(">I", arci, currentEntryOffset + 12)[0]
-                else:
-                    offset_and_flags = struct.unpack_from(">Q", arci, currentEntryOffset + 0)[0]
-                    offset = offset_and_flags & ARCHIVE_V6_OFFSET_MASK
-                    flags = offset_and_flags >> ARCHIVE_V6_FLAGS_SHIFT
-                    uncompressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 8)[0]
-                    compressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 12)[0]
+                offset_and_flags = struct.unpack_from(">Q", arci, currentEntryOffset + 0)[0]
+                offset = offset_and_flags & ARCHIVE_V6_OFFSET_MASK
+                flags = offset_and_flags >> ARCHIVE_V6_FLAGS_SHIFT
+                uncompressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 8)[0]
+                compressed_size = struct.unpack_from(">I", arci, currentEntryOffset + 12)[0]
                 size = compressed_size
                 if compressed_size == 0xFFFFFFFF:
                     size = uncompressed_size

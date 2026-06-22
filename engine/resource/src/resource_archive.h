@@ -33,10 +33,8 @@ namespace dmResourceArchive
      * to check a manifest to ensure that it's compatible with the engine's
      * version of the archive format.
      */
-    const static uint32_t VERSION_5 = 5;
     const static uint32_t VERSION_6 = 6;
     const static uint32_t VERSION = VERSION_6;
-    const static uint32_t ENTRY_DATA_SIZE_V5 = 16;
     const static uint32_t ENTRY_DATA_SIZE_V6 = 16;
     const static uint32_t ENTRY_DATA_FLAGS_BITS = 4;
     const static uint32_t ENTRY_DATA_FLAGS_SHIFT = 64 - ENTRY_DATA_FLAGS_BITS;

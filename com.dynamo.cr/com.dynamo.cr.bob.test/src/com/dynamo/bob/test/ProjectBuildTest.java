@@ -511,20 +511,13 @@ public class ProjectBuildTest {
             input.readInt(); // HashOffset
             input.readInt(); // HashLength
             input.seek(entryOffset);
+            if (version != ArchiveBuilder.VERSION_6) {
+                throw new IOException("Unsupported archive index version: " + version);
+            }
             for (int i = 0; i < entryCount; ++i) {
-                long resourceOffset;
-                if (version == ArchiveBuilder.VERSION_5) {
-                    resourceOffset = Integer.toUnsignedLong(input.readInt());
-                    input.readInt(); // ResourceSize
-                    input.readInt(); // ResourceCompressedSize
-                    input.readInt(); // Flags
-                } else if (version == ArchiveBuilder.VERSION_6) {
-                    resourceOffset = input.readLong() & ArchiveBuilder.V6_OFFSET_MASK;
-                    input.readInt(); // ResourceSize
-                    input.readInt(); // ResourceCompressedSize
-                } else {
-                    throw new IOException("Unsupported archive index version: " + version);
-                }
+                long resourceOffset = input.readLong() & ArchiveBuilder.V6_OFFSET_MASK;
+                input.readInt(); // ResourceSize
+                input.readInt(); // ResourceCompressedSize
                 if (resourceOffset > TWO_GIB) {
                     return true;
                 }

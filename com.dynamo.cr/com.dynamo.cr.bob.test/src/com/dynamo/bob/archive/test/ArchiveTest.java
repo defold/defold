@@ -18,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -160,47 +161,24 @@ public class ArchiveTest {
         ar.close();
     }
 
-    // Existing v5 archives can contain offsets above Integer.MAX_VALUE. This hand-written
-    // v5 index points to a sparse .arcd payload at 0x80000010, which proves ArchiveReader
-    // converts the 32-bit field to an unsigned long before seeking and reading.
+    // New builds no longer need v5 archive compatibility. This minimal v5 index
+    // verifies ArchiveReader fails fast with the unsupported-version error instead
+    // of trying to parse the old entry layout.
     @Test
-    public void testReaderHandlesResourceOffsetAbove2GiB() throws IOException {
-        final int resourceOffset = 0x80000010;
-        final int hashLength = 20;
-        final int hashOffset = 48;
-        final int entryOffset = hashOffset + ArchiveReader.HASH_BUFFER_BYTESIZE;
-        byte[] hash = new byte[ArchiveReader.HASH_BUFFER_BYTESIZE];
-        for (int i = 0; i < hashLength; ++i) {
-            hash[i] = (byte) (i * 7 + 3);
-        }
-        byte[] payload = new byte[] { (byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef, 0x11, 0x22, 0x33, 0x44 };
-
+    public void testReaderRejectsVersion5Archive() throws IOException {
         try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
              RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
             index.setLength(0);
-            index.writeInt(ArchiveReader.VERSION_5);
-            index.writeInt(0); // Pad
-            index.writeLong(0); // UserData
-            index.writeInt(1); // EntryCount
-            index.writeInt(entryOffset);
-            index.writeInt(hashOffset);
-            index.writeInt(hashLength);
-            index.write(new byte[16]); // Archive index MD5
-            index.write(hash);
-            index.writeInt(resourceOffset);
-            index.writeInt(payload.length);
-            index.writeInt(ArchiveEntry.FLAG_UNCOMPRESSED);
-            index.writeInt(0); // Flags
-
+            index.writeInt(5);
             data.setLength(0);
-            data.seek(Integer.toUnsignedLong(resourceOffset));
-            data.write(payload);
         }
 
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
         try {
             ar.read();
-            assertArrayEquals(payload, ar.getEntryContent(ar.getEntries().get(0)));
+            fail("Expected v5 archives to be rejected.");
+        } catch (IOException e) {
+            assertTrue(e.getMessage().contains("Unsupported archive index version: 5"));
         } finally {
             ar.close();
         }
