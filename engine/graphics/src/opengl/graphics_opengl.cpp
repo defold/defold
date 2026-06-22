@@ -1967,8 +1967,14 @@ static void LogFrameBufferError(GLenum status)
 
             // GL has no separate "max vertex buffer bindings" before
             // GL 4.3 (GL_MAX_VERTEX_ATTRIB_BINDINGS); fall back to attrib count.
-        #ifdef GL_MAX_VERTEX_ATTRIB_BINDINGS
-            limits.m_MaxVertexBuffers = (uint32_t) OpenGLGetInteger(GL_MAX_VERTEX_ATTRIB_BINDINGS);
+            // Emscripten headers expose the define, but WebGL getParameter() support
+            // is not portable here and may report INVALID_ENUM, so keep the fallback.
+        #if defined(GL_MAX_VERTEX_ATTRIB_BINDINGS) && !defined(__EMSCRIPTEN__)
+            GLint max_vertex_attrib_bindings = OpenGLGetInteger(GL_MAX_VERTEX_ATTRIB_BINDINGS);
+            if (max_vertex_attrib_bindings > 0)
+            {
+                limits.m_MaxVertexBuffers = (uint32_t) max_vertex_attrib_bindings;
+            }
         #endif
 
         #if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
