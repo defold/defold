@@ -33,6 +33,7 @@ def run_bob(task):
     # Bob writes a dynamic output tree outside Waf's task graph. The declared
     # target is a stamp, so Waf can order and explicitly target this side-effect.
     for stamp in task.outputs:
+        stamp.parent.mkdir()
         stamp.write('')
 
 def build(bld):
