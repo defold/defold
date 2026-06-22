@@ -745,10 +745,21 @@ namespace dmGui
 
     static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, uint32_t image_type)
     {
-        if (info_array.Full())
-            return RESULT_OUT_OF_RESOURCES;
+        TextureInfo texture_info(texture_source, texture_type, original_width, original_height, image_type);
+        TextureInfo* existing_texture_info = info_array.Get(texture_name_hash);
 
-        info_array.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height, image_type));
+        if (existing_texture_info)
+        {
+            *existing_texture_info = texture_info;
+        }
+        else
+        {
+            if (info_array.Full())
+                return RESULT_OUT_OF_RESOURCES;
+
+            info_array.Put(texture_name_hash, texture_info);
+        }
+
         UpdateTexture(scene, texture_name_hash, texture_source, texture_type);
 
         return RESULT_OK;

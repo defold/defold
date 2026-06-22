@@ -2911,6 +2911,78 @@ TEST_F(GuiTest, TextureReloadRefreshesAtlasState)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies that atlas resources assigned through gui.set(msg.url(), "textures", ...)
+// can be replaced and then explicitly removed. This guards the component-owned
+// resource references so script-side resource.release() can fully destroy the
+// old and current runtime atlases.
+TEST_F(GuiTest, GuiSetNilRemovesRuntimeTextureMapping)
+{
+    const char* atlas_a_path = "/gui/set_texture_nil_a.texturesetc";
+    const char* atlas_b_path = "/gui/set_texture_nil_b.texturesetc";
+    const dmhash_t atlas_a_hash = dmHashString64(atlas_a_path);
+    const dmhash_t atlas_b_hash = dmHashString64(atlas_b_path);
+    const dmhash_t texture_a_hash = dmHashString64("/gui/set_texture_nil_a.texturec");
+    const dmhash_t texture_b_hash = dmHashString64("/gui/set_texture_nil_b.texturec");
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_set_texture_nil.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    uint32_t component_type_index        = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
+    dmGameSystem::GuiComponent* gui_comp = gui_world->m_Components[0];
+    dmGui::HNode box = dmGui::GetNodeById(gui_comp->m_Scene, "box");
+    ASSERT_NE(0, box);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+
+    dmGameSystem::TextureSetResource* atlas_a = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, atlas_a_path, (void**)&atlas_a));
+    ASSERT_NE((void*)0x0, atlas_a);
+    ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+
+    dmGui::NodeTextureType texture_type;
+    dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box, &texture_type);
+    ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, texture_type);
+    ASSERT_EQ((dmGui::HTextureSource) atlas_a, texture_source);
+
+    dmResource::Release(m_Factory, atlas_a);
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, atlas_b_hash));
+
+    dmGameSystem::TextureSetResource* atlas_b = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, atlas_b_path, (void**)&atlas_b));
+    ASSERT_NE((void*)0x0, atlas_b);
+    ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, atlas_b_hash));
+
+    texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box, &texture_type);
+    ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, texture_type);
+    ASSERT_EQ((dmGui::HTextureSource) atlas_b, texture_source);
+
+    dmResource::Release(m_Factory, atlas_b);
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, atlas_b_hash));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    lua_getglobal(L, "gui_set_texture_nil_done");
+    bool done = lua_toboolean(L, -1);
+    lua_pop(L, 1);
+    ASSERT_TRUE(done);
+
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, atlas_b_hash));
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, texture_a_hash));
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, texture_b_hash));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(GuiTest, AsyncTextureAutoSize)
 {
     dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
