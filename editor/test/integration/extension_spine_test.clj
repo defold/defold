@@ -487,7 +487,7 @@
       (is (contains? (set (property-value-choices spine-node :spine-default-animation)) "walk"))
       (test-util/prop! spine-node :spine-default-animation "missing")
       (is (g/error? (test-util/prop-error spine-node :spine-default-animation)))
-      (is (= "spineboy" (custom-property (g/node-value spine-node :node-msg) "spine_scene" :string))))))
+      (is (= "spineboy" (:spine-scene (g/node-value spine-node :node-msg)))))))
 
 (deftest legacy-template-child-spine-scene-override-builds-test
   (test-util/with-loaded-project project-path

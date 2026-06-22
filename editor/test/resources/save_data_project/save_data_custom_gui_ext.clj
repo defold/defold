@@ -64,7 +64,27 @@
                                      :protobuf-type :type-vector4})
             (dynamic edit-type (gui/layout-property-edit-type test-vector4 {:type editor.types/Vec4}))
             (value (gui/layout-property-getter test-vector4))
-            (set (gui/layout-property-setter test-vector4))))
+            (set (gui/layout-property-setter test-vector4)))
+
+  (output node-msg g/Any :cached
+          (g/fnk [shape-base-node-msg
+                  ^:raw slice9
+                  ^:raw test-boolean
+                  ^:raw test-hash
+                  ^:raw test-number
+                  ^:raw test-quat
+                  ^:raw test-string
+                  ^:raw test-vector3
+                  ^:raw test-vector4]
+            (assoc shape-base-node-msg
+              :slice9 slice9
+              :test-boolean test-boolean
+              :test-hash test-hash
+              :test-number test-number
+              :test-quat test-quat
+              :test-string test-string
+              :test-vector3 test-vector3
+              :test-vector4 test-vector4))))
 
 #_{:clj-kondo/ignore [:unused-private-var]}
 (defn- register-gui-resource-types! [workspace]

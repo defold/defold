@@ -381,6 +381,8 @@
 
 (def pb-field-index->pb-field (protobuf/fields-by-indices Gui$NodeDesc))
 
+(def ^:private node-desc-pb-fields (into #{} (map val) pb-field-index->pb-field))
+
 (def pb-field-index->prop-key
   (persistent!
     (reduce-kv (fn [pb-field-index->prop-key pb-field-index pb-field]
@@ -503,18 +505,6 @@
       (get custom-property value-field)
       (:default custom-property-info))))
 
-(defn- custom-properties->prop-value [type-info custom-properties include-custom-property-defaults]
-  (let [protobuf-id->custom-property-info (:custom-property-protobuf-id->info type-info)]
-    (into (if include-custom-property-defaults
-            (:custom-property-defaults type-info)
-            {})
-          (keep
-            (fn [{:keys [id] :as custom-property}]
-              (when-let [custom-property-info (protobuf-id->custom-property-info id)]
-                (pair (:id custom-property-info)
-                      (custom-property-prop-value custom-property-info custom-property)))))
-          custom-properties)))
-
 (defn- custom-property-entry->pb [type-info [id value] include-custom-property-defaults]
   (let [custom-property-info (get-in type-info [:custom-property-id->info id])
         default (:default custom-property-info)
@@ -548,16 +538,12 @@
                                  (keep
                                    (fn [{:keys [id] :as custom-property}]
                                      (when-let [custom-property-info (get-in type-info [:custom-property-protobuf-id->info id])]
-                                       (when-let [actual-pb-type (:type custom-property)]
-                                         (let [expected-pb-type (:protobuf-type custom-property-info)]
-                                           (when-not (= expected-pb-type actual-pb-type)
-                                             (throw (IllegalArgumentException.
-                                                      (format "GUI custom property '%s' has type %s, expected %s."
-                                                              id actual-pb-type expected-pb-type))))))
-                                       (custom-property-entry->pb type-info
-                                                                 [(:id custom-property-info)
-                                                                  (custom-property-prop-value custom-property-info custom-property)]
-                                                                 include-custom-property-defaults))))
+                                       (when (= (:protobuf-type custom-property-info)
+                                                (:type custom-property))
+                                         (custom-property-entry->pb type-info
+                                                                   [(:id custom-property-info)
+                                                                    (custom-property-prop-value custom-property-info custom-property)]
+                                                                   include-custom-property-defaults)))))
                                  (sort-by :id)
                                  vec)]
       (protobuf/assign-repeated node-desc :custom-properties custom-properties))))
@@ -569,6 +555,40 @@
                 (pair :custom-properties custom-properties))
               (prop-entry->pb-field-entry entry)))
           (collapse-custom-properties type-info prop->value include-custom-property-defaults)))
+
+(defn- strip-node-msg-decorations [node-msg]
+  (dissoc node-msg :layout->prop->override :layout->prop->value))
+
+(defn- graph-prop-map->node-desc [prop->value type-info include-custom-property-defaults]
+  (with-meta
+    (into {}
+          (prop->pb-field-entries-for-type type-info include-custom-property-defaults prop->value))
+    (meta prop->value)))
+
+(defn- clear-node-desc-defaults [node-desc]
+  (let [support-values (select-keys node-desc [:child-index])
+        pb-node-desc (dissoc node-desc :child-index)
+        type (:type node-desc)]
+    (with-meta
+      (cond-> (into support-values
+                    (comp (filter (fn [[pb-field]]
+                                    (contains? node-desc-pb-fields pb-field)))
+                          (protobuf/without-defaults-xform Gui$NodeDesc))
+                    pb-node-desc)
+              type
+              (assoc :type type))
+      (meta node-desc))))
+
+(defn- default-layout-overrides-for-template-save [overridden-properties layout->prop->value]
+  (let [default-layout-prop->value (or (get layout->prop->value "") {})]
+    (persistent!
+      (reduce-kv
+        (fn [overrides prop-key prop-value]
+          (if (= :layout->prop->override prop-key)
+            overrides
+            (assoc! overrides prop-key (get default-layout-prop->value prop-key prop-value))))
+        (transient {})
+        overridden-properties))))
 
 (defn- node->node-tree
   ([node]
@@ -808,10 +828,15 @@
                     (update-gui-resource-reference gui-resource-type evaluation-context gui-node old-name new-name)))))))))
 
 (defn- update-gui-resource-reference-impl [rename-fn evaluation-context node-id prop-kw old-name new-name]
-  (let [basis (:basis evaluation-context)]
+  (let [basis (:basis evaluation-context)
+        layout->prop->value (g/node-value node-id :layout->prop->value evaluation-context)
+        layout-property (contains? (get layout->prop->value "") prop-kw)
+        current-layout (get (g/node-value node-id :trivial-gui-scene-info evaluation-context) :current-layout "")]
     (assert (g/property-value-origin? basis node-id :layout->prop->override))
     (concat
-      (when (g/property-value-origin? basis node-id prop-kw)
+      (when (and (or (not layout-property)
+                     (str/blank? current-layout))
+                 (g/property-value-origin? basis node-id prop-kw))
         (let [old-value (g/node-value node-id prop-kw evaluation-context)
               new-value (rename-fn old-value old-name new-name)]
           (when (not= old-value new-value)
@@ -819,7 +844,10 @@
       (let [old-layout->prop->override
             (g/node-value node-id :layout->prop->override evaluation-context)
 
-            new-layout->prop->override
+            old-default-value
+            (get-in layout->prop->value ["" prop-kw] ::not-found)
+
+            renamed-layout->prop->override
             (reduce-kv
               (fn [layout->prop->override layout-name prop->override]
                 (let [old-value (prop->override prop-kw ::not-found)]
@@ -830,7 +858,15 @@
                               (not= old-value new-value)
                               (update layout-name assoc prop-kw new-value))))))
               old-layout->prop->override
-              old-layout->prop->override)]
+              old-layout->prop->override)
+
+            new-layout->prop->override
+            (case old-default-value
+              ::not-found renamed-layout->prop->override
+              (let [new-default-value (rename-fn old-default-value old-name new-name)]
+                (cond-> renamed-layout->prop->override
+                        (not= old-default-value new-default-value)
+                        (update "" assoc prop-kw new-default-value))))]
         (when-not (identical? old-layout->prop->override new-layout->prop->override)
           (g/set-property node-id :layout->prop->override new-layout->prop->override))))))
 
@@ -947,39 +983,31 @@
 
 (declare make-prop->value-for-default-layout)
 
-(g/defnk produce-gui-base-node-msg [_this type custom-type-name prop->value gui-node-type-registry child-index ^:raw position ^:raw rotation ^:raw scale id generated-id ^:raw color ^:raw alpha ^:raw inherit-alpha ^:raw enabled ^:raw layer parent]
+(g/defnk produce-gui-base-node-msg [_this type custom-type-name gui-node-type-registry child-index ^:raw position ^:raw rotation ^:raw scale id generated-id ^:raw color ^:raw alpha ^:raw inherit-alpha ^:raw enabled ^:raw layer parent]
   ;; Warning: This base output or any of the base outputs that derive from it
   ;; must not be cached due to overridden-fields reliance on _this. Only the
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
   ;; fine since such an output will have explicit dependencies on all the
   ;; property values it requires.
   (let [type-info (registered-node-type-info gui-node-type-registry (g/node-type _this))
-        custom-property-id->info (:custom-property-id->info type-info)
-        _ (count prop->value) ; Keep the prop->value dependency so custom property edits invalidate this output.
-        default-layout-prop->value (make-prop->value-for-default-layout _this)]
-    (-> (protobuf/make-map-without-defaults Gui$NodeDesc
-          :custom-type-name custom-type-name
-          :custom-properties (custom-properties-prop-value->pb
-                               type-info
-                               (select-keys default-layout-prop->value (keys custom-property-id->info))
-                               false)
-          :template-node-child false
-          :position (protobuf/vector3->vector4-zero position)
-          :rotation (clj-quat->euler-v4 rotation)
-          :scale (protobuf/vector3->vector4-one scale)
-          :id (if (g/node-override? _this) generated-id id)
-          :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
-          :alpha alpha
-          :inherit-alpha inherit-alpha
-          :enabled enabled
-          :layer layer
-          :parent parent
-          :overridden-fields (prop->overridden-pb-field-indices
-                                (gt/overridden-properties _this)
-                                custom-property-id->info))
-        (assoc
-          :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
-          :child-index child-index)))) ; Used to order sibling nodes in the SceneDesc.
+        custom-property-id->info (:custom-property-id->info type-info)]
+    {:custom-type-name custom-type-name
+     :template-node-child false
+     :position position
+     :rotation rotation
+     :scale scale
+     :id (if (g/node-override? _this) generated-id id)
+     :color color ; TODO: Not used by template (forced to [1.0 1.0 1.0 1.0]). Move?
+     :alpha alpha
+     :inherit-alpha inherit-alpha
+     :enabled enabled
+     :layer layer
+     :parent parent
+     :overridden-fields (prop->overridden-pb-field-indices
+                          (gt/overridden-properties _this)
+                          custom-property-id->info)
+     :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
+     :child-index child-index})) ; Used to order sibling nodes in the SceneDesc.
 
 ;; SDK api
 (defmacro layout-property-getter [prop-sym]
@@ -1405,8 +1433,8 @@
   (output node-ids NameNodeIds (g/fnk [_node-id id node-ids] (reduce coll/merge {id _node-id} node-ids)))
 
   (input node-overrides g/Any :array)
-  (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties]
-                                         (into {id (dissoc _overridden-properties :layout->prop->override)}
+  (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties layout->prop->value]
+                                         (into {id (default-layout-overrides-for-template-save _overridden-properties layout->prop->value)}
                                                node-overrides)))
   (output layout->prop->value g/Any :cached
           (g/fnk [^:unsafe _evaluation-context _this layout->prop->override trivial-gui-scene-info]
@@ -1452,48 +1480,47 @@
             ;; All layout-property-setters explicitly invalidate this output, so
             ;; it is safe to evaluate properties on ourselves and our override
             ;; originals here.
-            (let [basis (:basis _evaluation-context)
-                  current-layout (:current-layout trivial-gui-scene-info)]
-              (if (coll/not-empty current-layout)
-                (loop [node-id _node-id
-                       layout-names (:layout-names trivial-gui-scene-info)
-                       prop->value (get layout->prop->override current-layout)]
-                  (if-let [original-node-id (g/override-original basis node-id)]
-                    (let [trivial-gui-scene-info-for-original (g/node-value original-node-id :trivial-gui-scene-info _evaluation-context)]
-                      (if (g/error-value? trivial-gui-scene-info-for-original)
-                        trivial-gui-scene-info-for-original
+            (let [current-layout (:current-layout trivial-gui-scene-info)]
+              (when (coll/not-empty current-layout)
+                (let [basis (:basis _evaluation-context)]
+                  (loop [node-id _node-id
+                         layout-names (:layout-names trivial-gui-scene-info)
+                         prop->value (get layout->prop->override current-layout)]
+                    (if-let [original-node-id (g/override-original basis node-id)]
+                      (let [trivial-gui-scene-info-for-original (g/node-value original-node-id :trivial-gui-scene-info _evaluation-context)]
+                        (if (g/error-value? trivial-gui-scene-info-for-original)
+                          trivial-gui-scene-info-for-original
 
-                        ;; If our scene introduces the current-layout, we
-                        ;; don't need to consider any more layout overrides
-                        ;; from our override originals. Instead, anything not
-                        ;; overridden for the current-layout by this point
-                        ;; will use values from our default layout, or values
-                        ;; inherited from the default layout in our override
-                        ;; originals.
-                        (let [layout-names-for-original (:layout-names trivial-gui-scene-info-for-original)
-                              introduces-current-layout (and (contains? layout-names current-layout)
-                                                             (not (contains? layout-names-for-original current-layout)))]
-                          (if introduces-current-layout
-                            (coll/merge
-                              (make-recursive-prop->value-for-default-layout basis node-id)
-                              prop->value)
-                            (let [layout->prop->override-for-original (g/node-value original-node-id :layout->prop->override _evaluation-context)]
-                              (if (g/error-value? layout->prop->override-for-original)
-                                layout->prop->override-for-original
-                                (recur original-node-id
-                                       layout-names-for-original
-                                       (coll/merge
-                                         (get layout->prop->override-for-original current-layout)
-                                         prop->value))))))))
+                          ;; If our scene introduces the current-layout, we
+                          ;; don't need to consider any more layout overrides
+                          ;; from our override originals. Instead, anything not
+                          ;; overridden for the current-layout by this point
+                          ;; will use values from our default layout, or values
+                          ;; inherited from the default layout in our override
+                          ;; originals.
+                          (let [layout-names-for-original (:layout-names trivial-gui-scene-info-for-original)
+                                introduces-current-layout (and (contains? layout-names current-layout)
+                                                               (not (contains? layout-names-for-original current-layout)))]
+                            (if introduces-current-layout
+                              (coll/merge
+                                (make-recursive-prop->value-for-default-layout basis node-id)
+                                prop->value)
+                              (let [layout->prop->override-for-original (g/node-value original-node-id :layout->prop->override _evaluation-context)]
+                                (if (g/error-value? layout->prop->override-for-original)
+                                  layout->prop->override-for-original
+                                  (recur original-node-id
+                                         layout-names-for-original
+                                         (coll/merge
+                                           (get layout->prop->override-for-original current-layout)
+                                           prop->value))))))))
 
-                    ;; We've reached the override root. Anything not
-                    ;; overridden for the current-layout by this point will
-                    ;; use values from our default layout.
-                    (let [node (g/node-by-id basis node-id)]
-                      (coll/merge
-                        (make-prop->value-for-default-layout node)
-                        prop->value))))
-                (make-recursive-prop->value-for-default-layout basis _node-id)))))
+                      ;; We've reached the override root. Anything not
+                      ;; overridden for the current-layout by this point will
+                      ;; use values from our default layout.
+                      (let [node (g/node-by-id basis node-id)]
+                        (coll/merge
+                          (make-prop->value-for-default-layout node)
+                          prop->value)))))))))
   (output _properties g/Properties :cached
           (g/fnk [_declared-properties layout->prop->override trivial-gui-scene-info]
             ;; For layout properties, the :original-value of each property is
@@ -1672,15 +1699,14 @@
     (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 texture-message)))
 
 (g/defnk produce-visual-base-node-msg [gui-base-node-msg ^:raw visible ^:raw blend-mode ^:raw adjust-mode ^:raw material ^:raw pivot ^:raw x-anchor ^:raw y-anchor]
-  (merge gui-base-node-msg
-         (protobuf/make-map-without-defaults Gui$NodeDesc
-           :visible visible
-           :blend-mode blend-mode ; TODO: Not used by particlefx (forced to :blend-mode-alpha). Move?
-           :adjust-mode adjust-mode
-           :material material
-           :pivot pivot ; TODO: Not used by particlefx (forced to :pivot-center). Move?
-           :xanchor x-anchor
-           :yanchor y-anchor)))
+  (assoc gui-base-node-msg
+    :visible visible
+    :blend-mode blend-mode ; TODO: Not used by particlefx (forced to :blend-mode-alpha). Move?
+    :adjust-mode adjust-mode
+    :material material
+    :pivot pivot ; TODO: Not used by particlefx (forced to :pivot-center). Move?
+    :x-anchor x-anchor
+    :y-anchor y-anchor))
 
 (g/defnode VisualNode
   (inherits GuiNode)
@@ -1856,13 +1882,12 @@
 
 (g/defnk produce-shape-base-node-msg [visual-base-node-msg ^:raw manual-size ^:raw size-mode ^:raw texture ^:raw clipping-mode ^:raw clipping-visible ^:raw clipping-inverted]
   (-> visual-base-node-msg
-      (merge (protobuf/make-map-without-defaults Gui$NodeDesc
-               :size (protobuf/vector3->vector4-zero manual-size)
-               :size-mode size-mode
-               :texture texture
-               :clipping-mode clipping-mode
-               :clipping-visible clipping-visible
-               :clipping-inverted clipping-inverted))
+      (assoc :manual-size manual-size
+             :size-mode size-mode
+             :texture texture
+             :clipping-mode clipping-mode
+             :clipping-visible clipping-visible
+             :clipping-inverted clipping-inverted)
       (fixup-shape-base-node-size-overrides)))
 
 (defn- visible-size-property-label [size-mode texture]
@@ -2026,9 +2051,7 @@
 ;; Box nodes
 
 (g/defnk produce-box-node-msg [shape-base-node-msg ^:raw slice9]
-  (merge shape-base-node-msg
-         (protobuf/make-map-without-defaults Gui$NodeDesc
-           :slice9 slice9)))
+  (assoc shape-base-node-msg :slice9 slice9))
 
 (g/defnode BoxNode
   (inherits ShapeNode)
@@ -2070,12 +2093,11 @@
   (validation/prop-error :fatal node-id :perimeter-vertices validation/prop-outside-range? [perimeter-vertices-min perimeter-vertices-max] perimeter-vertices perimeter-vertices-message))
 
 (g/defnk produce-pie-node-msg [shape-base-node-msg ^:raw outer-bounds ^:raw inner-radius ^:raw perimeter-vertices ^:raw pie-fill-angle]
-  (merge shape-base-node-msg
-         (protobuf/make-map-without-defaults Gui$NodeDesc
-           :outer-bounds outer-bounds
-           :inner-radius inner-radius
-           :perimeter-vertices perimeter-vertices
-           :pie-fill-angle pie-fill-angle)))
+  (assoc shape-base-node-msg
+    :outer-bounds outer-bounds
+    :inner-radius inner-radius
+    :perimeter-vertices perimeter-vertices
+    :pie-fill-angle pie-fill-angle))
 
 (g/defnode PieNode
   (inherits ShapeNode)
@@ -2182,18 +2204,17 @@
 (def ^:private validate-font (partial validate-required-gui-resource-localized error-gui-font-not-found-in-scene-message-fn :font))
 
 (g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha]
-  (merge visual-base-node-msg
-         (protobuf/make-map-without-defaults Gui$NodeDesc
-           :size (protobuf/vector3->vector4-zero manual-size)
-           :text text
-           :line-break line-break
-           :font font
-           :text-leading text-leading
-           :text-tracking text-tracking
-           :outline outline
-           :outline-alpha outline-alpha
-           :shadow shadow
-           :shadow-alpha shadow-alpha)))
+  (assoc visual-base-node-msg
+    :manual-size manual-size
+    :text text
+    :line-break line-break
+    :font font
+    :text-leading text-leading
+    :text-tracking text-tracking
+    :outline outline
+    :outline-alpha outline-alpha
+    :shadow shadow
+    :shadow-alpha shadow-alpha))
 
 (g/defnode TextNode
   (inherits VisualNode)
@@ -2359,12 +2380,10 @@
                      #(update-in % [:renderable :tags] (fn [tags] (set (map (fn [tag] (get replacements tag tag)) tags))))))
 
 (g/defnk produce-template-node-msg [gui-base-node-msg template-resource]
-  (merge gui-base-node-msg
-         (protobuf/make-map-without-defaults Gui$NodeDesc
-           :template (resource/resource->proj-path template-resource)
-
-           ;; TODO: We should not have to overwrite the base properties here. Refactor?
-           :color [1.0 1.0 1.0 1.0])))
+  (assoc gui-base-node-msg
+    :template (resource/resource->proj-path template-resource)
+    ;; TODO: We should not have to overwrite the base properties here. Refactor?
+    :color [1.0 1.0 1.0 1.0]))
 
 (def ^:private override-gui-node-init-props {:layout->prop->override {}})
 
@@ -2496,8 +2515,8 @@
                                                       (assoc :template-node-child true)
                                                       (cond-> (empty? (:parent %)) (assoc :parent id))))
                                             scene-node-msgs))))
-  (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
-                                         (coll/merge {id (dissoc _overridden-properties :layout->prop->override)}
+  (output node-overrides g/Any :cached (g/fnk [id _overridden-properties layout->prop->value template-overrides]
+                                         (coll/merge {id (default-layout-overrides-for-template-save _overridden-properties layout->prop->value)}
                                                      template-overrides)))
   (output aabb g/Any (g/fnk [template-scene]
                        (if (some? template-scene)
@@ -2535,9 +2554,8 @@
 
 (g/defnk produce-particlefx-node-msg [visual-base-node-msg ^:raw particlefx]
   (-> visual-base-node-msg
-      (merge (protobuf/make-map-without-defaults Gui$NodeDesc
-               :particlefx particlefx
-               :size-mode :size-mode-auto))))
+      (assoc :particlefx particlefx
+             :size-mode :size-mode-auto)))
 
 
 (g/defnode ParticleFXNode
@@ -3405,21 +3423,26 @@
                (fn [{:keys [layout->prop->override] :as decorated-node-msg}]
                  {:pre [(map? layout->prop->override)]}
                  (when-some [prop->override (coll/not-empty (layout->prop->override layout-name))]
-                   (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
+                   (let [node-id (:id decorated-node-msg)
+                         node-parent (:parent decorated-node-msg)
+                         type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
                          custom-property-id->info (:custom-property-id->info type-info)
                          overridden-fields (prop->overridden-pb-field-indices prop->override custom-property-id->info)]
-                     (->> prop->override
-                          (prop->pb-field-entries-for-type type-info true)
-                          (reduce
-                            (fn [node-desc [pb-field pb-value]]
-                              (let [default-pb-value (default-node-desc-pb-field-values pb-field)]
-                                (if (= default-pb-value pb-value)
-                                  (dissoc node-desc pb-field)
-                                  (assoc node-desc pb-field pb-value))))
-                            (-> decorated-node-msg
-                                (dissoc :layout->prop->override :layout->prop->value)
-                                (protobuf/assign-repeated :overridden-fields overridden-fields)))
-                          (strip-unused-overridden-fields-from-node-desc)))))))))
+                     (-> decorated-node-msg
+                         (strip-node-msg-decorations)
+                         (as-> node-desc
+                               (apply dissoc node-desc (keys custom-property-id->info)))
+                         (graph-prop-map->node-desc type-info false)
+                         (into (prop->pb-field-entries-for-type type-info true prop->override))
+                         (clear-node-desc-defaults)
+                         (protobuf/assign-repeated :overridden-fields overridden-fields)
+                         (strip-unused-overridden-fields-from-node-desc)
+                         (cond-> node-id
+                           (assoc :id node-id)
+                           (not (str/blank? node-parent))
+                           (assoc :parent node-parent)
+                           (:template-node-child decorated-node-msg)
+                           (assoc :template-node-child true))))))))))
 
 (g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes max-dynamic-textures layer-msgs font-msgs texture-msgs material-msgs particlefx-resource-msgs resource-msgs]
   ;; Note: Both :layouts and :nodes are omitted here. They will be added to the
@@ -3438,7 +3461,25 @@
     :particlefxs particlefx-resource-msgs
     :resources resource-msgs))
 
-(g/defnk produce-save-value [layout-names node-msgs pb-msg gui-node-type-registry]
+(defn- node-msg->save-node-desc [gui-node-type-registry node-overrides decorated-node-msg]
+  (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
+        node-msg (strip-node-msg-decorations decorated-node-msg)
+        default-layout-prop->value (or (get-in decorated-node-msg [:layout->prop->value ""]) {})]
+    (if (:template-node-child node-msg)
+      (let [prop->override (dissoc (or (get node-overrides (:id node-msg)) {}) :custom-properties)]
+        (-> (select-keys node-msg [:type :custom-type-name :id :parent :template-node-child :child-index])
+            (coll/merge prop->override)
+            (graph-prop-map->node-desc type-info true)
+            (clear-node-desc-defaults)
+            (protobuf/assign-repeated :overridden-fields (:overridden-fields node-msg))
+            (strip-unused-overridden-fields-from-node-desc)))
+      (-> node-msg
+          (coll/merge default-layout-prop->value)
+          (graph-prop-map->node-desc type-info false)
+          (clear-node-desc-defaults)
+          (strip-redundant-size-from-node-desc)))))
+
+(g/defnk produce-save-value [layout-names node-msgs node-overrides pb-msg gui-node-type-registry]
   ;; Any Gui$NodeDescs in the resulting SceneDesc or its LayoutDescs should be
   ;; sparsely stored. Only field values that deviate from their originals should
   ;; be included, but ultimately it is the fields listed as :overridden-fields
@@ -3452,11 +3493,7 @@
 
         node-descs
         (coll/into-> node-msgs []
-          (map #(dissoc % :layout->prop->override :layout->prop->value))
-          (map (fn [node-desc]
-                 (if (:template-node-child node-desc)
-                   (strip-unused-overridden-fields-from-node-desc node-desc)
-                   (strip-redundant-size-from-node-desc node-desc)))))]
+          (map (partial node-msg->save-node-desc gui-node-type-registry node-overrides)))]
 
     (protobuf/assign-repeated pb-msg
       :layouts layout-descs
@@ -3520,16 +3557,10 @@
   (protobuf/sanitize-repeated node-desc :custom-properties custom-property->rt-custom-property))
 
 (defn- custom-property-override? [type-info prop->override]
-  (boolean (some (:custom-property-id->info type-info)
-                 (keys prop->override))))
-
-(defn- assoc-custom-properties-for-build [node-desc type-info prop->value include-custom-property-defaults]
-  (protobuf/assign-repeated
-    node-desc :custom-properties
-    (custom-properties-prop-value->pb
-      type-info
-      (select-keys prop->value (keys (:custom-property-id->info type-info)))
-      include-custom-property-defaults)))
+  (let [custom-property-id->info (:custom-property-id->info type-info)]
+    (coll/any? (fn [[prop-key]]
+                 (contains? custom-property-id->info prop-key))
+               prop->override)))
 
 (defn- node-desc->rt-node-desc [node-desc gui-node-type-registry layout-name]
   {:pre [(map? node-desc) ; Gui$NodeDesc in map format.
@@ -3615,7 +3646,6 @@
         (dissoc :overridden-fields))))
 
 (defn- make-rt-layout-desc [gui-node-type-registry layout-name decorated-node-msgs id->node-desc-for-default-layout]
-  {:pre [(map? id->node-desc-for-default-layout)]}
   (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
     :name layout-name
     :nodes (coll/into-> decorated-node-msgs []
@@ -3625,19 +3655,19 @@
                  (let [prop->value (layout->prop->value layout-name)
                        prop->override (get-in decorated-node-msg [:layout->prop->override layout-name])]
                    (assert (map? prop->value))
-                   (when-some [node-desc-for-layout
-                               (some->> (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
-                                              include-custom-property-defaults (custom-property-override? type-info prop->override)]
-                                          (-> decorated-node-msg
-                                              (dissoc :layout->prop->override :layout->prop->value)
-                                              (into (prop->pb-field-entries-for-type type-info include-custom-property-defaults prop->value))
-                                              (node-desc->rt-node-desc gui-node-type-registry layout-name)))
-                                        (protobuf/clear-defaults Gui$NodeDesc))]
-                     (let [id (:id node-desc-for-layout)
-                           node-desc-for-default-layout (id->node-desc-for-default-layout id)]
-                       (assert (map? node-desc-for-default-layout))
-                       (when (not= node-desc-for-default-layout node-desc-for-layout)
-                         node-desc-for-layout)))))))))
+                   (when-let [node-desc-for-layout
+                              (some-> (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
+                                            include-custom-property-defaults (custom-property-override? type-info prop->override)]
+                                        (-> decorated-node-msg
+                                            (strip-node-msg-decorations)
+                                            (coll/merge prop->value)
+                                            (graph-prop-map->node-desc type-info include-custom-property-defaults)
+                                            (clear-node-desc-defaults)
+                                            (node-desc->rt-node-desc gui-node-type-registry layout-name)))
+                                      (clear-node-desc-defaults))]
+                     (when (not= (id->node-desc-for-default-layout (:id node-desc-for-layout))
+                                 node-desc-for-layout)
+                       node-desc-for-layout))))))))
 
 (g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-names node-msgs gui-node-type-registry]
   ;; Built Gui$NodeDescs should be fully-formed, since no additional merging of
@@ -3659,13 +3689,18 @@
             (coll/into-> node-msgs []
               (keep
                 (fn [decorated-node-msg]
-                  (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)]
-                    (-> decorated-node-msg
-                        (dissoc :layout->prop->override :layout->prop->value)
-                        (assoc-custom-properties-for-build type-info (get-in decorated-node-msg [:layout->prop->value ""]) false)
-                        (node-desc->rt-node-desc gui-node-type-registry ""))))))
+                  (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
+                        default-layout-prop->value (or (get-in decorated-node-msg [:layout->prop->value ""]) {})]
+                    (some-> (-> decorated-node-msg
+                                (strip-node-msg-decorations)
+                                (coll/merge default-layout-prop->value)
+                                (graph-prop-map->node-desc type-info false)
+                                (clear-node-desc-defaults)
+                                (node-desc->rt-node-desc gui-node-type-registry ""))
+                            (clear-node-desc-defaults))))))
 
-            id->node-desc-for-default-layout (coll/pair-map-by :id rt-node-descs)
+            id->node-desc-for-default-layout
+            (coll/pair-map-by :id rt-node-descs)
 
             rt-layout-descs
             (mapv #(make-rt-layout-desc gui-node-type-registry % node-msgs id->node-desc-for-default-layout)
@@ -4188,30 +4223,32 @@
         (when (:layout user-data)
           (add-layout-options node-id evaluation-context))))))
 
-(defn- node-desc->node-properties
-  ([gui-node-type-registry node-desc]
-   (node-desc->node-properties gui-node-type-registry node-desc false))
-  ([gui-node-type-registry node-desc include-custom-property-defaults]
-   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
-   (let [type-info (node-desc->node-type-info gui-node-type-registry node-desc)]
-     (cond-> (persistent!
-               (reduce (fn [node-properties [pb-field pb-value]]
-                         (if (= :custom-properties pb-field)
-                           (reduce-kv assoc! node-properties (custom-properties->prop-value type-info pb-value include-custom-property-defaults))
-                           (if-some [[prop-key pb-value->prop-value] (pb-field-to-node-property-conversions pb-field)]
-                             (let [prop-value (pb-value->prop-value pb-value)]
-                               (-> node-properties
-                                   (dissoc! pb-field)
-                                   (assoc! prop-key prop-value)))
-                             node-properties)))
-                       (transient node-desc)
-                       node-desc))
-             (= :type-custom (:type node-desc))
-             (assoc :custom-type-name (:custom-type-name type-info))
-             (and include-custom-property-defaults
-                  (not (contains? node-desc :custom-properties))
-                  (not (coll/empty? (:custom-properties type-info))))
-             (coll/merge (:custom-property-defaults type-info))))))
+(defn- node-desc->node-properties [gui-node-type-registry node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (let [type-info (node-desc->node-type-info gui-node-type-registry node-desc)
+        protobuf-id->custom-property-info (:custom-property-protobuf-id->info type-info)]
+    (cond-> (persistent!
+              (reduce (fn [node-properties [pb-field pb-value]]
+                        (if (= :custom-properties pb-field)
+                          (reduce
+                            (fn [node-properties {:keys [id] :as custom-property}]
+                              (if-let [custom-property-info (protobuf-id->custom-property-info id)]
+                                (assoc! node-properties
+                                        (:id custom-property-info)
+                                        (custom-property-prop-value custom-property-info custom-property))
+                                node-properties))
+                            node-properties
+                            pb-value)
+                          (if-some [[prop-key pb-value->prop-value] (pb-field-to-node-property-conversions pb-field)]
+                            (let [prop-value (pb-value->prop-value pb-value)]
+                              (-> node-properties
+                                  (dissoc! pb-field)
+                                  (assoc! prop-key prop-value)))
+                            node-properties)))
+                      (transient node-desc)
+                      node-desc))
+            (= :type-custom (:type node-desc))
+            (assoc :custom-type-name (:custom-type-name type-info)))))
 
 (defn- sort-node-descs
   [node-descs]
@@ -4289,7 +4326,7 @@
                     (coll/not-empty layout->prop->override)
                     (assoc :layout->prop->override layout->prop->override))))
 
-        node-descs         (map #(node-desc->node-properties gui-node-type-registry % true) (:nodes scene)) ; TODO: These are really the properties of the GuiNode subtype. Rename to node-properties.
+        node-descs         (map #(node-desc->node-properties gui-node-type-registry %) (:nodes scene)) ; TODO: These are really the properties of the GuiNode subtype. Rename to node-properties.
         tmpl-node-descs    (into {}
                                  (comp (filter :template-node-child)
                                        (map (fn [{:keys [id parent] :as node-desc}]

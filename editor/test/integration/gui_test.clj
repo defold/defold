@@ -148,7 +148,33 @@
                                      :protobuf-type :type-number})
             (dynamic edit-type (gui/layout-property-edit-type test-colon {:type g/Num}))
             (value (gui/layout-property-getter test-colon))
-            (set (gui/layout-property-setter test-colon))))
+            (set (gui/layout-property-setter test-colon)))
+
+  (output node-msg g/Any :cached
+          (g/fnk [shape-base-node-msg
+                  ^:raw slice9
+                  ^:raw test-hash
+                  ^:raw test-number
+                  ^:raw test-quat
+                  ^:raw test-resource
+                  ^:raw test-vector3
+                  ^:raw test-vector4
+                  ^:raw test-dash
+                  ^:raw test-underscore
+                  ^:raw test-slash
+                  ^:raw test-colon]
+            (assoc shape-base-node-msg
+              :slice9 slice9
+              :test-hash test-hash
+              :test-number test-number
+              :test-quat test-quat
+              :test-resource test-resource
+              :test-vector3 test-vector3
+              :test-vector4 test-vector4
+              :test-dash test-dash
+              :test-underscore test-underscore
+              :test-slash test-slash
+              :test-colon test-colon))))
 
 (g/defnode TestGuiResourceNode
   (inherits outline/OutlineNode)
@@ -237,7 +263,7 @@
    :test-colon])
 
 (defn- test-custom-property-values [node-id]
-  (select-keys (g/node-value node-id :prop->value) test-custom-property-keys))
+  (select-keys (get (g/node-value node-id :layout->prop->value) "") test-custom-property-keys))
 
 (deftest load-gui
   (test-util/with-loaded-project
@@ -428,17 +454,17 @@
             IllegalStateException
             #"custom_type_name 'TestCustom' resolves to custom_type"
             (#'gui/sanitize-scene gui-node-type-registry {:nodes [mismatched-node]})))
-      (is (thrown-with-msg?
-            IllegalArgumentException
-            #"GUI custom property 'test_number' has type :type-string, expected :type-number"
-            (#'gui/sanitize-scene
-              gui-node-type-registry
-              {:nodes [{:type :type-custom
-                        :custom-type-name "TestCustom"
-                        :id "custom"
-                        :custom-properties [{:id "test_number"
-                                             :type :type-string
-                                             :string "wrong"}]}]})))
+      (let [sanitized-node (-> (#'gui/sanitize-scene
+                                 gui-node-type-registry
+                                 {:nodes [{:type :type-custom
+                                           :custom-type-name "TestCustom"
+                                           :id "custom"
+                                           :custom-properties [{:id "test_number"
+                                                                :type :type-string
+                                                                :string "wrong"}]}]})
+                               :nodes
+                               first)]
+        (is (not (contains? sanitized-node :custom-properties))))
       (let [sanitized-node (-> (#'gui/sanitize-scene gui-node-type-registry {:nodes [boxed-node-with-stale-custom-type-name]})
                                :nodes
                                first)]
@@ -1506,7 +1532,7 @@
         (testing "Properties panel exposes custom properties as real graph properties."
           (let [properties (:properties (g/node-value custom-node :_properties))]
             (is (= 2.0 (prop custom-node :test-number)))
-            (is (= 2.0 (:test-number (g/node-value custom-node :prop->value))))
+            (is (= 2.0 (:test-number (test-custom-property-values custom-node))))
             (is (contains? properties :test-number))
             (is (contains? properties :test-dash))
             (is (contains? properties :test-underscore))
@@ -3619,9 +3645,7 @@
       (is (= {"Default" {"imported_parent" {}
                          "imported/box" {:parent "imported_parent"}
                          "imported/box_child" {:parent "imported/box"}}
-              "Unaltered" {"imported_parent" {}
-                           "imported/box" {:parent "imported_parent"}
-                           "imported/box_child" {:parent "imported/box"}}}
+              "Unaltered" {}}
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value))))))
 
@@ -3722,17 +3746,10 @@
                          "enabled_off/box" {:enabled false}
                          "disabled_on/box" {:enabled false}
                          "enabled_on/box" {}}
-              "Unaltered" {"disabled_off/box" {:enabled false}
-                           "enabled_off/box" {:enabled false}
-                           "disabled_on/box" {:enabled false}
-                           "enabled_on/box" {}}
-              "Altered Parent" {"disabled_off/box" {:enabled false}
-                                "enabled_off/box" {:enabled false}
-                                "disabled_on/box" {}
+              "Unaltered" {}
+              "Altered Parent" {"disabled_on/box" {}
                                 "enabled_on/box" {:enabled false}}
-              "Altered Child" {"disabled_off/box" {:enabled false}
-                               "enabled_off/box" {}
-                               "disabled_on/box" {:enabled false}
+              "Altered Child" {"enabled_off/box" {}
                                "enabled_on/box" {:enabled false}}}
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value))))))
@@ -3807,10 +3824,8 @@
 
       (is (= {"Default" {"unlayered/box" {:layer "importing_layer"}
                          "layered/box" {:layer "imported_layer"}}
-              "Unaltered" {"unlayered/box" {:layer "importing_layer"}
-                           "layered/box" {:layer "imported_layer"}}
-              "Altered Parent" {"unlayered/box" {:layer "other_importing_layer"}
-                                "layered/box" {:layer "imported_layer"}}
+              "Unaltered" {}
+              "Altered Parent" {"unlayered/box" {:layer "other_importing_layer"}}
               "Altered Child" {"unlayered/box" {:layer "other_importing_layer"}
                                "layered/box" {:layer "other_importing_layer"}}}
              (-> (project/get-resource-node project "/importing.gui")
@@ -3882,10 +3897,8 @@
 
       (is (= {"Default" {"inheriting/box" {:alpha 0.25}
                          "forsaking/box" {:alpha 0.5}}
-              "Unaltered" {"inheriting/box" {:alpha 0.25}
-                           "forsaking/box" {:alpha 0.5}}
-              "Altered Parent" {"inheriting/box" {:alpha 0.375}
-                                "forsaking/box" {:alpha 0.5}}
+              "Unaltered" {}
+              "Altered Parent" {"inheriting/box" {:alpha 0.375}}
               "Altered Child" {"inheriting/box" {:alpha 0.375}
                                "forsaking/box" {:alpha 0.75}}}
              (-> (project/get-resource-node project "/importing.gui")
@@ -3978,10 +3991,7 @@
                          "not_inheriting/box" {}
                          "forsaking/box" {}
                          "not_forsaking/box" {:alpha 0.5}}
-              "Unaltered" {"inheriting/box" {:alpha 0.5}
-                           "not_inheriting/box" {}
-                           "forsaking/box" {}
-                           "not_forsaking/box" {:alpha 0.5}}
+              "Unaltered" {}
               "Altered Child" {"inheriting/box" {}
                                "not_inheriting/box" {:alpha 0.5}
                                "forsaking/box" {:alpha 0.5}
@@ -4079,12 +4089,7 @@
                          "untransformed/box" {:position [10.0 0.0 0.0 1.0]
                                               :rotation [0.0 0.0 90.0 0.0]
                                               :scale [2.0 2.0 1.0 1.0]}}
-              "Unaltered" {"transformed/box" {:position [10.0 20.0 0.0 1.0]
-                                              :rotation [0.0 0.0 180.0 0.0]
-                                              :scale [4.0 4.0 1.0 1.0]}
-                           "untransformed/box" {:position [10.0 0.0 0.0 1.0]
-                                                :rotation [0.0 0.0 90.0 0.0]
-                                                :scale [2.0 2.0 1.0 1.0]}}
+              "Unaltered" {}
               "Altered Parent" {"transformed/box" {:position [-10.0 0.0 0.0 1.0]
                                                    :rotation [0.0 0.0 -90.0 0.0]
                                                    :scale [6.0 6.0 1.0 1.0]}
