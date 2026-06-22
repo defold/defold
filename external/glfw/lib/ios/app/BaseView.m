@@ -17,6 +17,7 @@
 #import "AppDelegate.h"
 
 #import <Foundation/Foundation.h>
+#import <CoreMotion/CoreMotion.h>
 #import <UIKit/UIKit.h>
 
 #include "internal.h"
@@ -24,6 +25,7 @@
 
 static int                  g_AccelerometerEnabled = 0;
 static double               g_AccelerometerFrequency = 1.0 / 60.0;
+static CMMotionManager*     g_MotionManager = nil;
 
 // AppDelegate.m
 extern UIWindow*            g_ApplicationWindow;
@@ -579,6 +581,12 @@ void _glfwResetKeyboard( void )
 int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 {
     if (g_AccelerometerEnabled) {
+        CMAccelerometerData* data = g_MotionManager.accelerometerData;
+        if (data) {
+            _glfwInput.AccX = data.acceleration.x;
+            _glfwInput.AccY = data.acceleration.y;
+            _glfwInput.AccZ = data.acceleration.z;
+        }
         *x = _glfwInput.AccX;
         *y = _glfwInput.AccY;
         *z = _glfwInput.AccZ;
@@ -588,8 +596,13 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 
 GLFWAPI void glfwAccelerometerEnable()
 {
-    [[UIAccelerometer sharedAccelerometer] setUpdateInterval:g_AccelerometerFrequency];
-    [[UIAccelerometer sharedAccelerometer] setDelegate:_glfwWin.viewController];
+    if (!g_MotionManager)
+        g_MotionManager = [[CMMotionManager alloc] init];
+
+    if (g_MotionManager.accelerometerAvailable) {
+        g_MotionManager.accelerometerUpdateInterval = g_AccelerometerFrequency;
+        [g_MotionManager startAccelerometerUpdates];
+    }
     g_AccelerometerEnabled = 1;
 }
 
@@ -663,4 +676,3 @@ int _glfwPlatformGetWindowRefreshRate( void )
         return 0;
     }
 }
-

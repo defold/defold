@@ -83,6 +83,7 @@ namespace dmGraphics
         ADAPTER_FAMILY_PRIORITY_VENDOR   = 0,
         ADAPTER_FAMILY_PRIORITY_WEBGPU   = 0,
         ADAPTER_FAMILY_PRIORITY_DIRECTX  = 0,
+        ADAPTER_FAMILY_PRIORITY_METAL    = 0,
     };
 
     enum AssetType
@@ -315,6 +316,12 @@ namespace dmGraphics
      * @return The number of registered graphics adapters.
      */
     uint32_t GetRegisteredAdaptersCount();
+
+    /**
+     * Get the number of linked graphics adapters.
+     * @return The number of linked graphics adapters.
+     */
+    uint32_t GetLinkedGraphicsAdapterCount();
 
     /**
      * Gets a graphics adapter at a specific index.

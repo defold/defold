@@ -72,6 +72,8 @@ import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
+    private static final String DEFAULT_GAMEPAD_DATABASE = "/builtins/input/gamecontrollerdb.txt";
+
     static final String[][] ROOT_NODES = new String[][] {
             {"bootstrap", "main_collection", "/logic/main.collectionc"},
             {"bootstrap", "render", "/builtins/render/default.renderc"},
@@ -139,23 +141,33 @@ public class GameProjectBuilder extends Builder {
         TimeProfiler.stop();
 
         createSubTask(input, CopyCustomResourcesBuilder.class, builder);
-        index = 0;
-        for (String path : gameProjectDependencies) {
+        for (index = 0; index < gameProjectDependencies.length; index++) {
+            String path = gameProjectDependencies[index];
             // initial values already have 'c' in the end
             if (path != null && path.length() > 0) {
                 path = path.substring(0, path.length() - 1);
 
                 String field = "";
-                if (ROOT_NODES.length < index) {
+                if (index < ROOT_NODES.length) {
                     String[] tuples = ROOT_NODES[index];
                     field = String.format("%s.%s", tuples[0], tuples[1]);
                 }
 
                 IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, path);
                 res.disableMinifyPath();
-                createSubTask(res, builder);
+
+                if (field.equals("input.gamepads")) {
+                    String gamepadDbPath = project.getProjectProperties().getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE);
+                    IResource gamepadDb = null;
+                    if (gamepadDbPath.trim().length() > 0) {
+                        gamepadDb = BuilderUtil.checkResource(project, builder.firstInput(), "input.gamepad_database", gamepadDbPath);
+                        gamepadDb.disableMinifyPath();
+                    }
+                    builder.addInputsFromOutputs(project.createGamepadTask(gamepadDb, res));
+                } else {
+                    createSubTask(res, builder);
+                }
             }
-            index++;
         }
 
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles", "/builtins/graphics/default.texture_profiles");

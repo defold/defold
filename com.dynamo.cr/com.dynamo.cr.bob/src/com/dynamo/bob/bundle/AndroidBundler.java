@@ -47,6 +47,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
@@ -61,6 +62,7 @@ public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
     private static String stripToolName = "strip_android";
+    private static final String VKQUALITY_DATA_FILE = "vkqualitydata.vkq";
 
     private static Hashtable<Platform, String> platformToStripToolMap = new Hashtable<Platform, String>();
     static {
@@ -328,6 +330,50 @@ public class AndroidBundler implements IBundler {
         }
     }
 
+    private File getRequiredBobFile(String path) throws CompileExceptionError {
+        try {
+            return new File(Bob.getPath(path));
+        } catch (RuntimeException e) {
+            throw new CompileExceptionError("Required Android bundle file '" + path + "' is missing from Bob", e);
+        }
+    }
+
+    public static boolean usesVkQuality(Project project) {
+        String shaderAdapters = project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+        if (shaderAdapters == null) {
+            return true;
+        }
+        boolean hasVulkanAdapter = false;
+        boolean hasFallbackAdapter = false;
+        for (String shaderAdapter : shaderAdapters.split(",")) {
+            String adapter = shaderAdapter.trim();
+            if (ShaderCompilers.SHADER_ADAPTER_VULKAN.equals(adapter)) {
+                hasVulkanAdapter = true;
+            } else if (!adapter.isEmpty()) {
+                hasFallbackAdapter = true;
+            }
+        }
+        return hasVulkanAdapter && hasFallbackAdapter;
+    }
+
+    private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        File dataFile = getRequiredBobFile("lib/vkquality/" + VKQUALITY_DATA_FILE);
+        File dest = new File(assetsDir, VKQUALITY_DATA_FILE);
+        logger.info("Copying VkQuality data " + dataFile + " to " + dest);
+        FileUtils.copyFile(dataFile, dest);
+        BundleHelper.throwIfCanceled(canceled);
+    }
+
+    private void copyVkQualityLibrary(Platform architecture, File libDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        String architectureLibName = platformToLibMap.get(architecture);
+        File library = getRequiredBobFile(FilenameUtils.concat("libexec/" + architecture.getExtenderPair(), "libvkquality.so"));
+        File architectureDir = createDir(libDir, architectureLibName);
+        File dest = new File(architectureDir, library.getName());
+        logger.info("Copying VkQuality library " + library + " to " + dest);
+        FileUtils.copyFile(library, dest);
+        BundleHelper.throwIfCanceled(canceled);
+    }
+
     /**
     * Copy local Android resources such as icons and bundle resources
     */
@@ -514,6 +560,13 @@ public class AndroidBundler implements IBundler {
                 BundleHelper.throwIfCanceled(canceled);
             }
 
+            boolean vkQualityEnabled = usesVkQuality(project);
+            if (vkQualityEnabled) {
+                copyVkQualityDataFile(assetsDir, canceled);
+            } else {
+                logger.info("Skipping VkQuality data because Vulkan does not need runtime backend selection");
+            }
+
             // copy resources
             logger.info("Copying resources to " + resDir);
             FileUtils.copyDirectory(new File(apkUnzipDir, "res"), resDir);
@@ -527,6 +580,11 @@ public class AndroidBundler implements IBundler {
                 logger.info("Copying engine to " + dest);
                 copyEngineBinary(project, architecture, dest);
                 BundleHelper.throwIfCanceled(canceled);
+                if (vkQualityEnabled) {
+                    copyVkQualityLibrary(architecture, libDir, canceled);
+                } else {
+                    logger.info("Skipping VkQuality library for " + architecture + " because Vulkan does not need runtime backend selection");
+                }
             }
 
             // copy shared libraries (from dependency.aar/jni/<arch>/<name>.so)
@@ -706,6 +764,11 @@ public class AndroidBundler implements IBundler {
     private File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         BundleHelper.throwIfCanceled(canceled);
 
+        // Native extension builds provide compiledresources.apk and skip the local aapt2 path that
+        // normally initializes AndroidTools. Initialize explicitly so packed Android resources such
+        // as VkQuality data and native libraries are extracted before Bob.getPath() lookups below.
+        AndroidTools.init();
+
         final Platform platform = getFirstPlatform(project);
 
         File apk;
@@ -847,6 +910,13 @@ public class AndroidBundler implements IBundler {
         // We copy and resize the default icon in builtins if no other icons are set.
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
+        boolean vkQualityEnabled = usesVkQuality(project);
+        properties.put("defold.vkquality.enabled", vkQualityEnabled ? "true" : "false");
+
+        Map<String, Object> defoldProperties = propertiesMap.computeIfAbsent("defold", k -> new HashMap<String, Object>());
+        Map<String, Object> vkQualityProperties = new HashMap<String, Object>();
+        vkQualityProperties.put("enabled", vkQualityEnabled);
+        defoldProperties.put("vkquality", vkQualityProperties);
 
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);

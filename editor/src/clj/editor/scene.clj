@@ -797,9 +797,13 @@
                                       parent-world-scale
                                       parent-world-transform
                                       alloc-picking-id!)
-          preview-light-renderables (persistent! preview-light-renderables)]
+          preview-light-renderables (persistent! preview-light-renderables)
+          add-default-preview-lights? (empty? preview-light-renderables)
+          preview-light-data (cond-> (light/preview-light-data-from-renderables preview-light-renderables)
+                               add-default-preview-lights?
+                               light/with-default-preview-lights)]
       {:renderables (persist-pass-renderables! renderables)
-       :preview-light-data (light/preview-light-data-from-renderables preview-light-renderables)
+       :preview-light-data preview-light-data
        :scene-aabb (if (geom/null-aabb? scene-aabb)
                      geom/empty-bounding-box
                      scene-aabb)})))

@@ -304,8 +304,6 @@ namespace dmGraphics
 
 #endif
 
-static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format);
-
 static void OpenGLClearGLError()
 {
     GLint err = glGetError();
@@ -1212,26 +1210,6 @@ static void LogFrameBufferError(GLenum status)
         return context->m_Extensions[index];
     }
 
-    static bool OpenGLIsContextFeatureSupported(HContext _context, ContextFeature feature)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        switch (feature)
-        {
-            case CONTEXT_FEATURE_MULTI_TARGET_RENDERING: return context->m_MultiTargetRenderingSupport;
-            case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
-            case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
-            case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
-            case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
-            case CONTEXT_FEATURE_3D_TEXTURES:            return context->m_3DTextureSupport;
-            case CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES:    return context->m_ASTCArrayTextureSupport;
-            case CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX: return context->m_BlendEquationMinMaxSupport;
-            case MAX_CONTEXT_FEATURE_COUNT:
-            case CONTEXT_FEATURE_VSYNC:
-                break;
-        }
-        return false;
-    }
-
     static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, HContext _context)
     {
         HWindow window = GetWindow(_context);
@@ -1801,6 +1779,7 @@ static void LogFrameBufferError(GLenum status)
         {
             context->m_ASTCSupport = 1;
             context->m_ASTCArrayTextureSupport = astc_array_textures_supported;
+            SetContextASTCTextureFormatsSupported(&context->m_BaseContext);
         }
 
 #if defined (__EMSCRIPTEN__)
@@ -2019,6 +1998,15 @@ static void LogFrameBufferError(GLenum status)
         #endif
         }
 
+        if (context->m_MultiTargetRenderingSupport)      SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
+        if (context->m_TextureArraySupport)              SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
+        if (context->m_ComputeSupport)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        if (context->m_StorageBufferSupport)             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        if (context->m_InstancingSupport)                SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
+        if (context->m_3DTextureSupport)                 SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
+        if (context->m_ASTCArrayTextureSupport)          SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
+        if (context->m_BlendEquationMinMaxSupport)       SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
+
         // Adapter API version
         {
             GLint gl_major = 0, gl_minor = 0;
@@ -2128,20 +2116,6 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     }
 
-    static uint32_t OpenGLGetWidth(HContext _context)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        assert(context);
-        return context->m_BaseContext.m_Width;
-    }
-
-    static uint32_t OpenGLGetHeight(HContext _context)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        assert(context);
-        return context->m_BaseContext.m_Height;
-    }
-
     static void OpenGLSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
@@ -2162,13 +2136,6 @@ static void LogFrameBufferError(GLenum status)
         {
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
-    }
-
-    static void OpenGLGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void OpenGLClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -2341,7 +2308,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLBuffer* vertex_buffer = new OpenGLBuffer();
-        vertex_buffer->m_MemorySize = size;
+        vertex_buffer->m_Base.m_Size = size;
         GLuint handle = 0;
         glGenBuffersARB(1, &handle);
         vertex_buffer->m_Id = AddNewGLHandle(context, handle);
@@ -2373,7 +2340,7 @@ static void LogFrameBufferError(GLenum status)
             return;
         }
         OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
-        vertex_buffer->m_MemorySize = size;
+        vertex_buffer->m_Base.m_Size = size;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, GetGLHandle(g_Context, vertex_buffer->m_Id));
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
@@ -2398,16 +2365,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static uint32_t OpenGLGetVertexBufferSize(HVertexBuffer buffer)
-    {
-        if (!buffer)
-        {
-            return 0;
-        }
-        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
-        return vertex_buffer->m_MemorySize;
-    }
-
     static uint32_t OpenGLGetMaxElementsVertices(HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -2424,7 +2381,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
         OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
-        index_buffer->m_MemorySize = size;
+        index_buffer->m_Base.m_Size = size;
 
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, GetGLHandle(g_Context, index_buffer->m_Id));
         CHECK_GL_ERROR
@@ -2443,7 +2400,7 @@ static void LogFrameBufferError(GLenum status)
         index_buffer->m_Id = AddNewGLHandle(context, handle);
         CHECK_GL_ERROR
         OpenGLSetIndexBufferData((HIndexBuffer) index_buffer, size, data, buffer_usage);
-        index_buffer->m_MemorySize = size;
+        index_buffer->m_Base.m_Size = size;
         return (HIndexBuffer) index_buffer;
     }
 
@@ -2476,16 +2433,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
-    }
-
-    static uint32_t OpenGLGetIndexBufferSize(HIndexBuffer buffer)
-    {
-        if (!buffer)
-        {
-            return 0;
-        }
-        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
-        return index_buffer->m_MemorySize;
     }
 
     static bool OpenGLIsIndexBufferFormatSupported(HContext _context, IndexBufferFormat format)
@@ -4685,12 +4632,6 @@ static void LogFrameBufferError(GLenum status)
         ApplyRenderTargetAttachments(_context, rt, true);
     }
 
-    static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
-    }
-
     static uint32_t OpenGLGetMaxTextureSize(HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -4821,7 +4762,8 @@ static void LogFrameBufferError(GLenum status)
         tex->m_Base.m_OriginalDepth  = params.m_OriginalDepth;
         tex->m_Base.m_Format         = TEXTURE_FORMAT_RGBA;
         dmAtomicStore32(&tex->m_Base.m_DataState, 0);
-        tex->m_ResourceSize = 0;
+        tex->m_Base.m_ResourceSize = 0;
+        tex->m_Base.m_Mip0ResourceSize = 0;
 
         SetSampler(context, &tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
         tex->m_SamplerDirty = tex->m_Sampler;
@@ -4947,13 +4889,6 @@ static void LogFrameBufferError(GLenum status)
         }
 
         SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
-    }
-
-    static uint8_t OpenGLGetTexturePageCount(HTexture texture)
-    {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_Context->m_BaseContext.m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_Base.m_PageCount : 0;
     }
 
     // Called on worker thread
@@ -5102,10 +5037,7 @@ static void LogFrameBufferError(GLenum status)
                 tex->m_Base.m_Depth  = params.m_Depth;
             }
 
-            if (params.m_MipMap == 0)
-            {
-                tex->m_ResourceSize = params.m_DataSize;
-            }
+            SetTextureResourceSize(&tex->m_Base, sizeof(OpenGLTexture), params.m_MipMap == 0 ? params.m_DataSize : 0, true);
         }
 
         SetSampler(context, &tex->m_SamplerDirty, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
@@ -5332,28 +5264,6 @@ static void LogFrameBufferError(GLenum status)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR;
         }
-    }
-
-    // NOTE: This is an approximation
-    static uint32_t OpenGLGetTextureResourceSize(HContext _context, HTexture texture)
-    {
-        OpenGLContext* context = (OpenGLContext*) _context;
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
-        if (!tex)
-        {
-            return 0;
-        }
-
-        uint32_t size_total = 0;
-        uint32_t size = tex->m_ResourceSize; // Size for mip 0
-        for(uint32_t i = 0; i < tex->m_Base.m_MipMapCount; ++i)
-        {
-            size_total += size;
-            size >>= 2;
-        }
-        size_total *= dmMath::Max((uint16_t) 1, tex->m_Base.m_Depth);
-        return size_total + sizeof(OpenGLTexture);
     }
 
     static void OpenGLEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
@@ -5585,28 +5495,6 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         glPolygonOffset(factor, units);
         CHECK_GL_ERROR;
-    }
-
-    static bool OpenGLIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-    {
-        if (asset_handle == 0)
-        {
-            return false;
-        }
-
-        OpenGLContext* context = (OpenGLContext*) _context;
-        AssetType type         = GetAssetType(asset_handle);
-
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        if (type == ASSET_TYPE_TEXTURE)
-        {
-            return GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        return false;
     }
 
     // DMSDK

@@ -5703,8 +5703,9 @@ TEST_F(MiscComponentTest, DispatchBuffersTest)
         for (int i = 0; i < num_draws; ++i)
         {
             // TODO: Maybe validate index buffer here as well
-            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer->m_Buffers[i];
-            ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
+            dmGraphics::HVertexBuffer vx_buffer_handle = vx_buffer->m_Buffers[i];
+            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer_handle;
+            ASSERT_EQ(buffer_size, dmGraphics::GetVertexBufferSize(vx_buffer_handle));
 
             vs_format_a* written_sprite_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_sprite_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
@@ -5764,8 +5765,9 @@ TEST_F(MiscComponentTest, DispatchBuffersTest)
         for (int i = 0; i < num_draws; ++i)
         {
             // TODO: Maybe validate index buffer here as well
-            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer->m_Buffers[i];
-            ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
+            dmGraphics::HVertexBuffer vx_buffer_handle = vx_buffer->m_Buffers[i];
+            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer_handle;
+            ASSERT_EQ(buffer_size, dmGraphics::GetVertexBufferSize(vx_buffer_handle));
 
             vs_format_a* written_model_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_model_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
@@ -5818,8 +5820,9 @@ TEST_F(MiscComponentTest, DispatchBuffersTest)
 
         for (int i = 0; i < num_draws; ++i)
         {
-            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer->m_Buffers[i];
-            ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
+            dmGraphics::HVertexBuffer vx_buffer_handle = vx_buffer->m_Buffers[i];
+            dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer_handle;
+            ASSERT_EQ(buffer_size, dmGraphics::GetVertexBufferSize(vx_buffer_handle));
 
             vs_format_a* written_pfx_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_pfx_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
@@ -7917,9 +7920,10 @@ TEST_F(MaterialComponentTest, TextureTransformVertexBuffer)
         ASSERT_TRUE(sprite_vx_buffer->m_Buffers.Size() > 0);
 
         const uint32_t sprite_vertex_count = 4;
-        ASSERT_EQ(sprite_vertex_count * vertex_stride, ((dmGraphics::VertexBuffer*)sprite_vx_buffer->m_Buffers[0])->m_Size);
+        dmGraphics::HVertexBuffer sprite_vx_buffer_handle = sprite_vx_buffer->m_Buffers[0];
+        ASSERT_EQ(sprite_vertex_count * vertex_stride, dmGraphics::GetVertexBufferSize(sprite_vx_buffer_handle));
 
-        const char* sprite_vb_base = ((dmGraphics::VertexBuffer*)sprite_vx_buffer->m_Buffers[0])->m_Buffer;
+        const char* sprite_vb_base = ((dmGraphics::VertexBuffer*)sprite_vx_buffer_handle)->m_Buffer;
         for (int i = 0; i < 9; ++i)
         {
             ASSERT_NEAR(expected_sprite_tt[i], ReadUnalignedFloat(sprite_vb_base + tt_offset + i * sizeof(float)), EPSILON);
@@ -8008,9 +8012,10 @@ TEST_F(MaterialComponentTest, SpriteTextureTransformMultiAtlasVertexBuffer)
     ASSERT_TRUE(vx_buffer->m_Buffers.Size() > 0);
 
     const uint32_t vertex_count = 4;
-    ASSERT_EQ(vertex_count * vertex_stride, ((dmGraphics::VertexBuffer*)vx_buffer->m_Buffers[0])->m_Size);
+    dmGraphics::HVertexBuffer vx_buffer_handle = vx_buffer->m_Buffers[0];
+    ASSERT_EQ(vertex_count * vertex_stride, dmGraphics::GetVertexBufferSize(vx_buffer_handle));
 
-    const char* vb_base = ((dmGraphics::VertexBuffer*)vx_buffer->m_Buffers[0])->m_Buffer;
+    const char* vb_base = ((dmGraphics::VertexBuffer*)vx_buffer_handle)->m_Buffer;
     for (int i = 0; i < 9; ++i)
     {
         ASSERT_NEAR(expected_tt0[i], ReadUnalignedFloat(vb_base + tt0_offset + i * sizeof(float)), EPSILON);
@@ -9346,8 +9351,9 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsBatch)
     ASSERT_NE((dmRender::BufferedRenderBuffer*)0, instance_buffer);
     ASSERT_EQ(1u, instance_buffer->m_Buffers.Size());
 
-    dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) instance_buffer->m_Buffers[0];
-    ASSERT_EQ(2u * sizeof(MorphInstanceData), gfx_vx_buffer->m_Size);
+    dmGraphics::HVertexBuffer vx_buffer_handle = instance_buffer->m_Buffers[0];
+    dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer_handle;
+    ASSERT_EQ(2u * sizeof(MorphInstanceData), dmGraphics::GetVertexBufferSize(vx_buffer_handle));
 
     const MorphInstanceData* instances = (const MorphInstanceData*) gfx_vx_buffer->m_Buffer;
     bool found_a = false;

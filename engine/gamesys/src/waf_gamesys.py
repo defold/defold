@@ -415,6 +415,17 @@ def transform_sound(task, msg):
     msg.sound = msg.sound.replace('.ogg', '.oggc')
     return msg
 
+def transform_gamepads(task, msg):
+    import input_ddf_pb2
+    runtime_msg = input_ddf_pb2.GamepadMapsRuntime()
+    for driver in msg.driver:
+        mapping = runtime_msg.mappings.add()
+        mapping.device = driver.device
+        if driver.HasField('dead_zone'):
+            mapping.dead_zone = driver.dead_zone
+        mapping.map.extend(driver.map)
+    return runtime_msg
+
 def transform_rig_scene(task, msg):
     msg.skeleton = msg.skeleton.replace('.skeleton', '.skeletonc')
     msg.animation_set = msg.animation_set.replace('.animationset', '.animationsetc')
@@ -558,7 +569,7 @@ proto_compile_task('collisionobject',  'physics_ddf_pb2', 'CollisionObjectDesc',
 proto_compile_task('gui',  'gui_ddf_pb2', 'SceneDesc', '.gui', '.guic', transform_gui)
 proto_compile_task('camera', 'camera_ddf_pb2', 'CameraDesc', '.camera', '.camerac')
 proto_compile_task('input_binding', 'input_ddf_pb2', 'InputBinding', '.input_binding', '.input_bindingc')
-proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc')
+proto_compile_task('gamepads', 'input_ddf_pb2', 'GamepadMaps', '.gamepads', '.gamepadsc', transform_gamepads)
 proto_compile_task('factory', 'gamesys_ddf_pb2', 'FactoryDesc', '.factory', '.factoryc', transform_factory)
 proto_compile_task('collectionfactory', 'gamesys_ddf_pb2', 'CollectionFactoryDesc', '.collectionfactory', '.collectionfactoryc', transform_collectionfactory)
 proto_compile_task('label', 'label_ddf_pb2', 'LabelDesc', '.label', '.labelc', transform_label)

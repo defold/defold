@@ -266,6 +266,9 @@ dialog.quit-defold.header = 存在未保存的更改，您确定要退出吗？
 dialog.quit-defold.button.cancel = 取消并继续工作
 dialog.quit-defold.button.quit = 不保存退出
 
+# Restart Defold dialog
+
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = 无法安全升级文件格式
@@ -343,6 +346,9 @@ notification.fetch-libraries.problem.failed-http-request = 获取 (HTTP\:{status
 notification.fetch-libraries.problem.http-connect-timeout = 获取失败(连接超时)
 
 # Editor scripts notification
+
+
+# Reload plugins notification
 
 
 # Open custom editor notifications
@@ -1257,6 +1263,9 @@ property.label.size = 大小
 property.label.text = 文本
 property.label.tracking = 字距
 
+# Properties: light
+
+
 # Properties: mesh
 
 property.mesh.normal-stream = 法线流
@@ -2118,6 +2127,7 @@ form.label.sound.group = 分组
 form.label.sound.gain = 增益
 form.label.sound.pan = 声道平衡
 form.label.sound.speed = 速度
+
 
 form.label.liveupdate.liveupdate = 实时更新
 form.label.liveupdate.liveupdate.mode = 模式

@@ -33,13 +33,18 @@ if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
 endif()
 
 if(TOOLS_IS_DESKTOP)
-  if(NOT WITH_VULKAN)
-    defold_get_graphics_symbols(TOOLS_GDC_EXPORTS "${TARGET_PLATFORM}")
+  block()
+    # gdc creates an OpenGL window even when the engine build also enables Vulkan.
+    set(TOOLS_GDC_EXPORTS GraphicsAdapterOpenGL)
     set(TOOLS_GDC_EXPORT_FILE "${CMAKE_CURRENT_BINARY_DIR}/gdc_exported_symbols.cpp")
     defold_create_exported_symbols_file("${TOOLS_GDC_EXPORT_FILE}" "${TOOLS_GDC_EXPORTS}")
     defold_add_executable(gdc
       "${TOOLS_SRC_DIR}/gdc/main.cpp"
       "${TOOLS_GDC_EXPORT_FILE}")
+    target_include_directories(gdc PRIVATE "${DEFOLD_GRAPHICS_BINARY_DIR}")
+    if(TARGET graphics_proto_header)
+      add_dependencies(gdc graphics_proto_header)
+    endif()
     defold_target_link_libraries(gdc "${TARGET_PLATFORM}"
       hid
       input
@@ -47,10 +52,15 @@ if(TOOLS_IS_DESKTOP)
       dlib
       zip
       mbedtls
-      profile_null)
-    defold_target_link_platform(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
+      profile_null
+      graphics
+      image
+      graphics_transcoder_basisu
+      basis_transcoder
+      glfw3)
+    target_link_libraries(gdc PRIVATE platform)
     defold_target_link_app(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
-    defold_target_link_graphics(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_opengl(gdc "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(gdc "${TARGET_PLATFORM}" PRIVATE)
     if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos)$")
       target_link_libraries(gdc PRIVATE "-framework Metal" "-framework Foundation" "-framework IOSurface" "-framework GameController")
@@ -59,7 +69,7 @@ if(TOOLS_IS_DESKTOP)
       target_link_libraries(gdc PRIVATE Threads::Threads dl)
     endif()
     defold_install_targets(TARGETS gdc RUNTIME DESTINATION bin/${TARGET_PLATFORM})
-  endif()
+  endblock()
 
   set(TOOLS_LAUNCHER_SOURCES
     "${TOOLS_SRC_DIR}/launcher/launcher.cpp"
