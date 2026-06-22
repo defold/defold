@@ -23,7 +23,8 @@
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.bob.pipeline GamepadBuilder]
-           [com.dynamo.input.proto Input$GamepadMaps Input$GamepadMapsRuntime]))
+           [com.dynamo.input.proto Input$GamepadMaps Input$GamepadMapsRuntime]
+           [java.nio.charset StandardCharsets]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,6 +40,14 @@
   ^String []
   (.getPair (Platform/getHostPlatform)))
 
+(defn- string->bytes
+  ^bytes [^String string]
+  (.getBytes string StandardCharsets/UTF_8))
+
+(defn- gamepads->bytes
+  ^bytes [gamepads]
+  (string->bytes (protobuf/map->str Input$GamepadMaps gamepads)))
+
 (defn- existing-resource [resource]
   (when (and (some? resource)
              (resource/exists? resource))
@@ -46,42 +55,29 @@
 
 (defn- gamepad-database-user-data [gamepad-database-resource]
   (when-some [gamepad-database-resource (existing-resource gamepad-database-resource)]
-    {:gamepad-database-resource gamepad-database-resource
-     :gamepad-database-sha1 (resource/resource->path-inclusive-sha1-hex gamepad-database-resource)}))
-
-(defn- gamepad-database-path [user-data]
-  (some-> (:gamepad-database-resource user-data)
-          existing-resource
-          resource/proj-path))
-
-(defn- gamepad-database-bytes
-  ^bytes [user-data]
-  (some-> (:gamepad-database-resource user-data)
-          existing-resource
-          resource/resource->bytes))
+    {:gamepad-database-path (resource/proj-path gamepad-database-resource)
+     :gamepad-database-bytes (resource/resource->bytes gamepad-database-resource)}))
 
 (defn- build-gamepads [build-resource _dep-resources user-data]
   (let [gamepads-resource (:resource build-resource)]
     {:resource build-resource
      :content (GamepadBuilder/compile (resource/proj-path gamepads-resource)
-                                      (resource/resource->bytes gamepads-resource)
-                                      (gamepad-database-path user-data)
-                                      (gamepad-database-bytes user-data)
+                                      (gamepads->bytes (:pb user-data))
+                                      (:gamepad-database-path user-data)
+                                      (:gamepad-database-bytes user-data)
                                       (:platform user-data))}))
 
-(defn make-build-target
-  ([node-id resource]
-   (make-build-target node-id resource nil))
-  ([node-id resource gamepad-database-resource]
-   (bt/with-content-hash
-     {:node-id node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-gamepads
-      :user-data (merge {:platform (host-platform)}
-                        (gamepad-database-user-data gamepad-database-resource))})))
+(defn make-build-target [node-id resource pb gamepad-database-resource]
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource (workspace/make-build-resource resource)
+     :build-fn build-gamepads
+     :user-data (merge {:pb pb
+                        :platform (host-platform)}
+                       (gamepad-database-user-data gamepad-database-resource))}))
 
-(g/defnk produce-build-targets [_node-id resource]
-  [(make-build-target _node-id resource)])
+(g/defnk produce-build-targets [_node-id resource pb]
+  [(make-build-target _node-id resource pb nil)])
 
 (g/defnk produce-form-data [_node-id pb]
   (protobuf-forms/produce-form-data _node-id pb gamepads-def))
