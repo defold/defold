@@ -21,6 +21,7 @@
             [editor.form :as form]
             [editor.fs :as fs]
             [editor.game-project-core :as gpcore]
+            [editor.gamepads :as gamepads]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.pipeline :as pipeline]
@@ -119,12 +120,24 @@
    ["bootstrap" "render"] [[:build-targets :dep-build-targets]]
    ["graphics" "texture_profiles"] [[:build-targets :dep-build-targets]
                                     [:pb :texture-profiles-data]]
-   ["input" "gamepads"] [[:build-targets :dep-build-targets]]
+   ["input" "gamepads"] [[:resource :gamepads-resource]]
+   ["input" "gamepad_database"] [[:resource :gamepad-database-resource]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
-  (g/precluding-errors (some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
-     (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
+(defn- gamepad-database-error [_node-id gamepad-database-resource]
+  (when (and (some? gamepad-database-resource)
+             (resource/exists? gamepad-database-resource)
+             (not= "txt" (resource/ext gamepad-database-resource)))
+    (g/->error _node-id :build-targets :fatal gamepad-database-resource
+               "input.gamepad_database must reference a .txt file.")))
+
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets gamepads-resource gamepad-database-resource]
+  (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
+                        (gamepad-database-error _node-id gamepad-database-resource)]
+     (let [gamepads-build-target (when gamepads-resource
+                                   (gamepads/make-build-target _node-id gamepads-resource gamepad-database-resource))
+           dep-build-targets (cond-> (vec (into (flatten dep-build-targets) custom-build-targets))
+                                     gamepads-build-target (conj gamepads-build-target))
            deps-by-source (into {} (map
                                      (fn [build-target]
                                        (let [build-resource (:resource build-target)
@@ -132,8 +145,8 @@
                                          [source-resource build-resource]))
                                      dep-build-targets))
            path->built-resource-settings (into {} (keep (fn [resource-setting]
-                                                          (when (resource-setting-connections-template (:path resource-setting))
-                                                            [(:path resource-setting) (deps-by-source (:value resource-setting))]))
+                                                          (when-some [built-resource-setting (deps-by-source (:value resource-setting))]
+                                                            [(:path resource-setting) built-resource-setting]))
                                                         resource-settings))]
        [(bt/with-content-hash
           {:node-id _node-id
@@ -162,6 +175,9 @@
 
   (input raw-settings g/Any)
   (input resource-settings g/Any)
+
+  (input gamepads-resource resource/Resource)
+  (input gamepad-database-resource resource/Resource)
 
   (input resource-map g/Any)
   (input resource-snapshot g/Any)
