@@ -466,27 +466,6 @@
         type
         0))))
 
-(defn- validate-node-desc-custom-type-name! [type-info node-desc]
-  (let [type (:type node-desc default-pb-node-type)]
-    (when-let [custom-type-name (when (= :type-custom type)
-                                  (coll/not-empty (:custom-type-name node-desc)))]
-      (when-not (= type (:type type-info))
-        (throw (IllegalStateException.
-                 (format "GUI node custom_type_name '%s' belongs to node type %s, expected %s."
-                         custom-type-name (:type type-info) type))))
-      (when (and (contains? node-desc :custom-type)
-                 (not= (:custom-type type-info) (:custom-type node-desc)))
-        (throw (IllegalStateException.
-                 (format "GUI node custom_type_name '%s' resolves to custom_type %s, but the node specifies custom_type %s."
-                         custom-type-name (:custom-type type-info) (:custom-type node-desc))))))))
-
-(defn- sanitize-node-custom-type-name [node-desc type-info]
-  (if (= :type-custom (:type node-desc))
-    (-> node-desc
-        (assoc :custom-type-name (:custom-type-name type-info))
-        (dissoc :custom-type))
-    (dissoc node-desc :custom-type-name :custom-type)))
-
 (defn- node-desc->node-type [gui-node-type-registry node-desc]
   (:node-type (node-desc->node-type-info gui-node-type-registry node-desc)))
 
@@ -3430,8 +3409,7 @@
                          overridden-fields (prop->overridden-pb-field-indices prop->override custom-property-id->info)]
                      (-> decorated-node-msg
                          (strip-node-msg-decorations)
-                         (as-> node-desc
-                               (apply dissoc node-desc (keys custom-property-id->info)))
+                         (as-> $ (apply dissoc $ (keys custom-property-id->info)))
                          (graph-prop-map->node-desc type-info false)
                          (into (prop->pb-field-entries-for-type type-info true prop->override))
                          (clear-node-desc-defaults)
@@ -3461,24 +3439,6 @@
     :particlefxs particlefx-resource-msgs
     :resources resource-msgs))
 
-(defn- node-msg->save-node-desc [gui-node-type-registry node-overrides decorated-node-msg]
-  (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
-        node-msg (strip-node-msg-decorations decorated-node-msg)
-        default-layout-prop->value (or (get-in decorated-node-msg [:layout->prop->value ""]) {})]
-    (if (:template-node-child node-msg)
-      (let [prop->override (dissoc (or (get node-overrides (:id node-msg)) {}) :custom-properties)]
-        (-> (select-keys node-msg [:type :custom-type-name :id :parent :template-node-child :child-index])
-            (coll/merge prop->override)
-            (graph-prop-map->node-desc type-info true)
-            (clear-node-desc-defaults)
-            (protobuf/assign-repeated :overridden-fields (:overridden-fields node-msg))
-            (strip-unused-overridden-fields-from-node-desc)))
-      (-> node-msg
-          (coll/merge default-layout-prop->value)
-          (graph-prop-map->node-desc type-info false)
-          (clear-node-desc-defaults)
-          (strip-redundant-size-from-node-desc)))))
-
 (g/defnk produce-save-value [layout-names node-msgs node-overrides pb-msg gui-node-type-registry]
   ;; Any Gui$NodeDescs in the resulting SceneDesc or its LayoutDescs should be
   ;; sparsely stored. Only field values that deviate from their originals should
@@ -3492,8 +3452,24 @@
               layout-names)
 
         node-descs
-        (coll/into-> node-msgs []
-          (map (partial node-msg->save-node-desc gui-node-type-registry node-overrides)))]
+        (mapv (fn [decorated-node-msg]
+                (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
+                      node-msg (strip-node-msg-decorations decorated-node-msg)
+                      default-layout-prop->value (or (get-in decorated-node-msg [:layout->prop->value ""]) {})]
+                  (if (:template-node-child node-msg)
+                    (let [prop->override (dissoc (or (get node-overrides (:id node-msg)) {}) :custom-properties)]
+                      (-> (select-keys node-msg [:type :custom-type-name :id :parent :template-node-child :child-index])
+                          (coll/merge prop->override)
+                          (graph-prop-map->node-desc type-info true)
+                          (clear-node-desc-defaults)
+                          (protobuf/assign-repeated :overridden-fields (:overridden-fields node-msg))
+                          (strip-unused-overridden-fields-from-node-desc)))
+                    (-> node-msg
+                        (coll/merge default-layout-prop->value)
+                        (graph-prop-map->node-desc type-info false)
+                        (clear-node-desc-defaults)
+                        (strip-redundant-size-from-node-desc)))))
+              node-msgs)]
 
     (protobuf/assign-repeated pb-msg
       :layouts layout-descs
@@ -3542,25 +3518,20 @@
         (dissoc :custom-type-name))
     node-desc))
 
-(defn- custom-property->rt-custom-property [custom-property]
-  (let [hash-property (and (= :type-hash (:type custom-property))
-                           (contains? custom-property :string))]
-    (-> custom-property
-        (assoc :id-hash (murmur/hash64 (:id custom-property)))
-        (dissoc :id)
-        (cond-> hash-property
-          (assoc :hash (murmur/hash64 (:string custom-property))))
-        (cond-> hash-property
-          (dissoc :string)))))
-
 (defn- node-desc->rt-custom-properties [node-desc]
-  (protobuf/sanitize-repeated node-desc :custom-properties custom-property->rt-custom-property))
-
-(defn- custom-property-override? [type-info prop->override]
-  (let [custom-property-id->info (:custom-property-id->info type-info)]
-    (coll/any? (fn [[prop-key]]
-                 (contains? custom-property-id->info prop-key))
-               prop->override)))
+  (protobuf/sanitize-repeated
+    node-desc
+    :custom-properties
+    (fn [custom-property]
+      (let [hash-property (and (= :type-hash (:type custom-property))
+                               (contains? custom-property :string))]
+        (-> custom-property
+            (assoc :id-hash (murmur/hash64 (:id custom-property)))
+            (dissoc :id)
+            (cond-> hash-property
+              (assoc :hash (murmur/hash64 (:string custom-property))))
+            (cond-> hash-property
+              (dissoc :string)))))))
 
 (defn- node-desc->rt-node-desc [node-desc gui-node-type-registry layout-name]
   {:pre [(map? node-desc) ; Gui$NodeDesc in map format.
@@ -3657,7 +3628,10 @@
                    (assert (map? prop->value))
                    (when-let [node-desc-for-layout
                               (some-> (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
-                                            include-custom-property-defaults (custom-property-override? type-info prop->override)]
+                                            custom-property-id->info (:custom-property-id->info type-info)
+                                            include-custom-property-defaults (coll/any? (fn [[prop-key]]
+                                                                                         (contains? custom-property-id->info prop-key))
+                                                                                       prop->override)]
                                         (-> decorated-node-msg
                                             (strip-node-msg-decorations)
                                             (coll/merge prop->value)
@@ -4269,14 +4243,12 @@
       (transient {})
       default-node-desc-pb-field-values)))
 
-(defn- extract-custom-property-overrides [type-info node-properties]
-  (when (or (contains? node-properties :custom-properties)
-            (coll/any? #{custom-properties-pb-field-index} (:overridden-fields node-properties)))
-    (coll/not-empty
-      (select-keys node-properties (keys (:custom-property-id->info type-info))))))
-
 (defn- extract-overrides [type-info node-properties]
-  (let [custom-property-overrides (extract-custom-property-overrides type-info node-properties)
+  (let [custom-property-overrides
+        (when (contains? node-properties :custom-properties)
+          (coll/not-empty
+            (select-keys node-properties (keys (:custom-property-id->info type-info)))))
+
         regular-overrides (into {}
                                 (comp (remove #{custom-properties-pb-field-index})
                                       (map pb-field-index->prop-key)
@@ -4614,9 +4586,22 @@
                     (convert-fn node-type-info node-desc)
                     node-desc)
         node-type-info (node-desc->node-type-info gui-node-type-registry node-desc)]
-    (validate-node-desc-custom-type-name! node-type-info node-desc)
-    (-> node-desc
-        (sanitize-node-custom-type-name node-type-info)
+    (when-let [custom-type-name (when (= :type-custom (:type node-desc))
+                                  (coll/not-empty (:custom-type-name node-desc)))]
+      (when-not (= (:type node-desc) (:type node-type-info))
+        (throw (IllegalStateException.
+                 (format "GUI node custom_type_name '%s' belongs to node type %s, expected %s."
+                         custom-type-name (:type node-type-info) (:type node-desc)))))
+      (when (and (contains? node-desc :custom-type)
+                 (not= (:custom-type node-type-info) (:custom-type node-desc)))
+        (throw (IllegalStateException.
+                 (format "GUI node custom_type_name '%s' resolves to custom_type %s, but the node specifies custom_type %s."
+                         custom-type-name (:custom-type node-type-info) (:custom-type node-desc))))))
+    (-> (if (not= :type-custom (:type node-desc))
+          (dissoc node-desc :custom-type-name :custom-type)
+          (-> node-desc
+              (assoc :custom-type-name (:custom-type-name node-type-info))
+              (dissoc :custom-type)))
         (sanitize-custom-properties node-type-info include-custom-property-defaults)
         (sanitize-node-color :color :alpha)
         (sanitize-node-geometry)
