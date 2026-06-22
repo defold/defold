@@ -3102,6 +3102,60 @@ class Configuration(object):
         cmd = 'git push -f origin %s' % tag
         run.shell_command(cmd)
 
+    def _build_editor_release_notes(self):
+        # Builds the editor's release-notes.json payload from the committed
+        # releasenotes/<version>.json source (the output of
+        # releasenotes_github_projectv2.py), injecting the forum 'external-link'.
+        release_notes_path = os.path.join(self.defold_root, 'releasenotes', '%s.json' % self.version)
+        if not os.path.exists(release_notes_path):
+            return None
+        with open(release_notes_path) as f:
+            release_notes = json.load(f)
+        release_notes['external-link'] = 'https://forum.defold.com/t/defold-%s-has-been-released/' % self.version.replace('.', '-')
+        return json.dumps(release_notes)
+
+    def gen_editor_release_notes(self):
+        # Dev helper: writes the editor release-notes.json (the deployed shape,
+        # with the forum link injected) so the updater dialog can be tested
+        # locally without S3 credentials. Uses the committed
+        # releasenotes/<version>.json as its source.
+        notes_content = self._build_editor_release_notes()
+        if notes_content is None:
+            self._log("WARNING: no release notes found for version %s" % self.version)
+            return
+        out_path = os.path.join(self.defold_root, 'release-notes.json')
+        with open(out_path, 'w') as f:
+            f.write(notes_content)
+        self._log("Wrote editor release notes for %s -> %s" % (self.version, os.path.abspath(out_path)))
+
+    def upload_editor_release_notes(self):
+        # Uploads the editor release notes (.md + .json) for --version to
+        # editor2/channels/<channel>/release-notes.{md,json}, where the editor
+        # fetches them. The source files come from releasenotes_github_projectv2.py,
+        # which writes releasenotes/<version>.{md,json}; this reads them directly.
+        #
+        # Run separately from the release pipeline (_release_web_pages): release
+        # notes are produced on a slower cadence than releases, so their
+        # deployment is decoupled from the editor build.
+        #   ./scripts/build.py --channel beta --version 1.13.0 upload_editor_release_notes
+        if self.channel is None:
+            self._log("No channel specified! Pass --channel")
+            sys.exit(1)
+        json_content = self._build_editor_release_notes()
+        md_path = os.path.join(self.defold_root, 'releasenotes', '%s.md' % self.version)
+        if json_content is None or not os.path.exists(md_path):
+            self._log("WARNING: release notes for %s not found in releasenotes/, generate them first with releasenotes_github_projectv2.py" % self.version)
+            return
+        bucket = s3.get_bucket(urlparse(self.get_archive_path()).hostname)
+        json_obj = bucket.Object('editor2/channels/%s/release-notes.json' % self.channel)
+        self._log("Uploading release-notes.json for %s -> %s" % (self.version, json_obj.key))
+        json_obj.put(Body=json_content, ContentType='application/json')
+        with open(md_path) as f:
+            md_content = f.read()
+        md_obj = bucket.Object('editor2/channels/%s/release-notes.md' % self.channel)
+        self._log("Uploading release-notes.md for %s -> %s" % (self.version, md_obj.key))
+        md_obj.put(Body=md_content, ContentType='text/markdown')
+
     def _release_web_pages(self, releases):
         u = urlparse(self.get_archive_path())
         hostname = u.hostname
@@ -3733,6 +3787,8 @@ build_docs       - Build documentation
 build_builtins   - Build builtin content archive
 bump             - Bump version number
 release          - Release editor
+gen_editor_release_notes - Dev: write editor release-notes.json (deployed shape) to the repo root for local testing
+upload_editor_release_notes - Manual: upload editor release-notes.{md,json} for --version to S3 for --channel
 shell            - Start development shell
 add_private_repo - Add a private repo to .defold-platforms
 smoke_test       - Test editor and engine in combination
@@ -3984,7 +4040,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
-    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo']
+    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo', 'gen_editor_release_notes', 'upload_editor_release_notes']
     needs_dynamo_home = any(cmd not in commands_without_dynamo_home for cmd in args)
     if needs_dynamo_home:
         for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
