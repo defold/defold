@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,10 +30,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.dynamo.bob.fs.ResourceUtil;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
@@ -49,7 +48,9 @@ import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.fs.DefaultResource;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -302,118 +303,128 @@ public class GameProjectBuilder extends Builder {
         properties.putStringValue("project", "title_as_file_name", fileNameTitle);
     }
 
+    private static void setOutputContentFromFile(IResource output, File sourceFile) throws IOException {
+        // Archive temp files are fully written and closed before this point. For regular
+        // filesystem outputs we can move them directly and avoid streaming large archives
+        // through setContent(); the fallback stream owns its cleanup locally.
+        if (output instanceof DefaultResource) {
+            File destination = new File(output.getAbsPath());
+            File parent = destination.getParentFile();
+            if (parent != null) {
+                parent.mkdirs();
+            }
+            Files.move(sourceFile.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            return;
+        }
+
+        try (FileInputStream inputStream = new FileInputStream(sourceFile)) {
+            output.setContent(inputStream);
+        }
+    }
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
-        FileInputStream archiveIndexInputStream = null;
-        FileInputStream archiveDataInputStream = null;
-
         IResource input = task.input(0);
 
         BobProjectProperties properties = Project.loadProperties(project, input, project.getPropertyFiles(), true);
         final String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
 
-        try {
-            if (project.option("archive", "false").equals("true")) {
-                // create the resource graphs
-                // the full graph contains all resources in the project
-                TimeProfiler.start("Generate resource graph");
-                logger.info("Generating the resource graph");
-                long tstart = System.currentTimeMillis();
-                ResourceGraph resourceGraph = createResourceGraph(project);
-                long tend = System.currentTimeMillis();
-                logger.info("Generating the resource graph took %f s", (tend-tstart)/1000.0);
-                TimeProfiler.stop();
+        if (project.option("archive", "false").equals("true")) {
+            // create the resource graphs
+            // the full graph contains all resources in the project
+            TimeProfiler.start("Generate resource graph");
+            logger.info("Generating the resource graph");
+            long tstart = System.currentTimeMillis();
+            ResourceGraph resourceGraph = createResourceGraph(project);
+            long tend = System.currentTimeMillis();
+            logger.info("Generating the resource graph took %f s", (tend-tstart)/1000.0);
+            TimeProfiler.stop();
 
-                // create full list of resources including the custom resources
-                // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, or .resourcepack.zip
-                // also make sure to not archive the comp counter files
-                Set<IResource> resources = getCustomResources(project);
-                resources.addAll(resourceGraph.getResources());
-                for (IResource resource : task.getOutputs()) {
-                    resources.remove(resource);
-                }
-
-                TimeProfiler.start("Create excluded resources");
-                logger.info("Creation of the excluded resources list.");
-                tstart = System.currentTimeMillis();
-                boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
-                List<String> excludedResources;
-                if (shouldPublishLU) {
-                    excludedResources = resourceGraph.createExcludedResourcesList();
-                }
-                else {
-                    excludedResources = new ArrayList<String>();
-                }
-                tend = System.currentTimeMillis();
-                logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);
-                TimeProfiler.stop();
-
-                // Create output for the data archive
-                String platform = project.option("platform", "generic");
-                project.getPublisher().setPlatform(platform);
-                File archiveIndexHandle = project.createTempFile("defold.index_", ".arci");
-                RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
-                File archiveDataHandle = project.createTempFile("defold.data_", ".arcd");
-                RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
-
-                // create the archive and manifest
-                ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
-                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
-                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
-                byte[] fullManifestFile = manifestBuilder.buildManifest();
-                byte[] bundledManifestFile = manifestBuilder.buildManifest(true);
-                this.project.setArchiveBuilder(archiveBuilder);
-
-                // Write outputs to the build system
-                // game.arci
-                archiveIndexInputStream = new FileInputStream(archiveIndexHandle);
-                task.getOutputs().get(1).setContent(archiveIndexInputStream);
-
-                // game.arcd
-                archiveDataInputStream = new FileInputStream(archiveDataHandle);
-                task.getOutputs().get(2).setContent(archiveDataInputStream);
-
-                // game.dmanifest
-                task.getOutputs().get(3).setContent(bundledManifestFile);
-
-                // game.graph.json
-                resourceGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
-                logger.info("Writing the resource graph to json");
-                tstart = System.currentTimeMillis();
-                String resourceGraphJSON = resourceGraph.toJSON();
-                task.getOutputs().get(4).setContent(resourceGraphJSON.getBytes());
-                tend = System.currentTimeMillis();
-                logger.info("Writing the resource graph to json took %f s", (tend-tstart)/1000.0);
-
-                // Add copy of game.dmanifest to be published with liveupdate resources
-                File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
-                String liveupdateManifestFilename = "liveupdate.game.dmanifest";
-                File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
-                FileUtils.writeByteArrayToFile(manifestTmpFileHandle, fullManifestFile);
-
-                ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
-                project.getPublisher().publish(manifestArchiveEntry, manifestTmpFileHandle);
-                project.getPublisher().stop();
-
-                // Copy SSL public keys if specified
-                String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
-                if (sslCertificatesPath != null && !sslCertificatesPath.isEmpty())
-                {
-                    File source = new File(project.getRootDirectory(), sslCertificatesPath);
-                    File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
-                    File dist = new File(buildDir, BundleHelper.SSL_CERTIFICATES_NAME);
-                    FileUtils.copyFile(source, dist);
-                }
-
-                manifestTmpFileHandle.delete();
+            // create full list of resources including the custom resources
+            // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, or .resourcepack.zip
+            // also make sure to not archive the comp counter files
+            Set<IResource> resources = getCustomResources(project);
+            resources.addAll(resourceGraph.getResources());
+            for (IResource resource : task.getOutputs()) {
+                resources.remove(resource);
             }
 
-            transformGameProjectFile(properties);
-            task.getOutputs().get(0).setContent(properties.serialize().getBytes());
-        } finally {
-            IOUtils.closeQuietly(archiveIndexInputStream);
-            IOUtils.closeQuietly(archiveDataInputStream);
+            TimeProfiler.start("Create excluded resources");
+            logger.info("Creation of the excluded resources list.");
+            tstart = System.currentTimeMillis();
+            boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
+            List<String> excludedResources;
+            if (shouldPublishLU) {
+                excludedResources = resourceGraph.createExcludedResourcesList();
+            }
+            else {
+                excludedResources = new ArrayList<String>();
+            }
+            tend = System.currentTimeMillis();
+            logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);
+            TimeProfiler.stop();
+
+            // Create output for the data archive
+            String platform = project.option("platform", "generic");
+            project.getPublisher().setPlatform(platform);
+            File archiveIndexHandle = project.createTempFile("defold.index_", ".arci");
+            File archiveDataHandle = project.createTempFile("defold.data_", ".arcd");
+
+            // create the archive and manifest
+            ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
+            ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
+            try (RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
+                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle)) {
+                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
+            }
+            byte[] fullManifestFile = manifestBuilder.buildManifest();
+            byte[] bundledManifestFile = manifestBuilder.buildManifest(true);
+            this.project.setArchiveBuilder(archiveBuilder);
+
+            // Write outputs to the build system
+            // game.arci
+            setOutputContentFromFile(task.getOutputs().get(1), archiveIndexHandle);
+
+            // game.arcd
+            setOutputContentFromFile(task.getOutputs().get(2), archiveDataHandle);
+
+            // game.dmanifest
+            task.getOutputs().get(3).setContent(bundledManifestFile);
+
+            // game.graph.json
+            resourceGraph.setHexDigests(archiveBuilder.getCachedHexDigests());
+            logger.info("Writing the resource graph to json");
+            tstart = System.currentTimeMillis();
+            String resourceGraphJSON = resourceGraph.toJSON();
+            task.getOutputs().get(4).setContent(resourceGraphJSON.getBytes());
+            tend = System.currentTimeMillis();
+            logger.info("Writing the resource graph to json took %f s", (tend-tstart)/1000.0);
+
+            // Add copy of game.dmanifest to be published with liveupdate resources
+            File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
+            String liveupdateManifestFilename = "liveupdate.game.dmanifest";
+            File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
+            FileUtils.writeByteArrayToFile(manifestTmpFileHandle, fullManifestFile);
+
+            ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
+            project.getPublisher().publish(manifestArchiveEntry, manifestTmpFileHandle);
+            project.getPublisher().stop();
+
+            // Copy SSL public keys if specified
+            String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
+            if (sslCertificatesPath != null && !sslCertificatesPath.isEmpty())
+            {
+                File source = new File(project.getRootDirectory(), sslCertificatesPath);
+                File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
+                File dist = new File(buildDir, BundleHelper.SSL_CERTIFICATES_NAME);
+                FileUtils.copyFile(source, dist);
+            }
+
+            manifestTmpFileHandle.delete();
         }
+
+        transformGameProjectFile(properties);
+        task.getOutputs().get(0).setContent(properties.serialize().getBytes());
     }
 
     @Override

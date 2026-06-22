@@ -191,6 +191,32 @@ resource_archive(RESOURCE_LU_BASE_OUTPUTS luresources_base FALSE ${RESOURCE_ARCH
 resource_archive(RESOURCE_LU_COMPRESSED_OUTPUTS luresources_compressed TRUE ${RESOURCE_ARCHIVE_OUTPUTS})
 resource_archive(RESOURCE_PB_OUTPUTS resources_pb FALSE ${RESOURCE_PROTO_MESSAGE_OUTPUTS})
 
+set(RESOURCE_ARCHIVE_EMBED_INPUTS
+  "${RESOURCE_TEST_BUILD_DIR}/resources.arci"
+  "${RESOURCE_TEST_BUILD_DIR}/resources.arcd"
+  "${RESOURCE_TEST_BUILD_DIR}/resources.dmanifest"
+  "${RESOURCE_TEST_BUILD_DIR}/resources.manifest_hash"
+  "${RESOURCE_TEST_BUILD_DIR}/resources_compressed.arci"
+  "${RESOURCE_TEST_BUILD_DIR}/resources_compressed.arcd"
+  "${RESOURCE_TEST_BUILD_DIR}/resources_compressed.dmanifest"
+  "${RESOURCE_TEST_BUILD_DIR}/resources_no_lu.arci"
+  "${RESOURCE_TEST_BUILD_DIR}/resources_no_lu.arcd"
+  "${RESOURCE_TEST_BUILD_DIR}/resources_no_lu.dmanifest")
+
+set(RESOURCE_ARCHIVE_EMBED_SOURCES)
+foreach(_resource_archive_embed_input IN LISTS RESOURCE_ARCHIVE_EMBED_INPUTS)
+  get_filename_component(_resource_archive_embed_name "${_resource_archive_embed_input}" NAME)
+  set(_resource_archive_embed_h "${CMAKE_CURRENT_BINARY_DIR}/generated/embed/${_resource_archive_embed_name}.embed.h")
+  set(_resource_archive_embed_cpp "${CMAKE_CURRENT_BINARY_DIR}/generated/embed/${_resource_archive_embed_name}.embed.cpp")
+  defold_embed_to_header(
+    INPUT "${_resource_archive_embed_input}"
+    OUTPUT_HEADER "${_resource_archive_embed_h}"
+    OUTPUT_CPP "${_resource_archive_embed_cpp}")
+  list(APPEND RESOURCE_ARCHIVE_EMBED_SOURCES "${_resource_archive_embed_cpp}")
+endforeach()
+
+set_source_files_properties(${RESOURCE_ARCHIVE_EMBED_SOURCES} PROPERTIES GENERATED TRUE)
+
 set(RESOURCE_LU_OUTPUTS)
 foreach(_resource_ext IN ITEMS arci arcd dmanifest manifest_hash)
   set(_resource_lu_output "${RESOURCE_TEST_BUILD_DIR}/luresources.${_resource_ext}")
@@ -317,3 +343,9 @@ resource_configure_test(test_provider_multi ON ResourceProviderArchive ResourceP
 
 defold_add_executable(test_resource_chunk_cache "${RESOURCE_TEST_ROOT}/test_resource_chunk_cache.cpp")
 resource_configure_test(test_resource_chunk_cache ON ResourceProviderArchive)
+
+defold_add_executable(test_resource_archive
+  "${RESOURCE_TEST_ROOT}/test_resource_archive.cpp"
+  ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+resource_configure_test(test_resource_archive ON)
+defold_target_link_app(test_resource_archive "${TARGET_PLATFORM}" SCOPE PRIVATE)
