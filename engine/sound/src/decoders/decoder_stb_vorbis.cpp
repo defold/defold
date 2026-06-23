@@ -72,30 +72,22 @@ namespace dmSoundCodec
     {
         *input_dry = false;
 
-        if (streamInfo->m_DataBuffer.Full() && !GrowBuffer(streamInfo->m_DataBuffer))
-        {
+        if (streamInfo->m_DataBuffer.Full() && !GrowBuffer(streamInfo->m_DataBuffer)) {
             *input_dry = true;
             return RESULT_OK;
         }
 
         uint32_t read_size = 0;
         dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_StreamOffset, streamInfo->m_DataBuffer.Remaining(), streamInfo->m_DataBuffer.End(), &read_size);
-        if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA)
-        {
+        if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) {
             streamInfo->m_StreamOffset += read_size;
             streamInfo->m_DataBuffer.SetSize(streamInfo->m_DataBuffer.Size() + read_size);
-        }
-        else if (res == dmSound::RESULT_NO_DATA)
-        {
+        } else if (res == dmSound::RESULT_NO_DATA) {
             *input_dry = true;
-        }
-        else if (res == dmSound::RESULT_END_OF_STREAM)
-        {
+        } else if (res == dmSound::RESULT_END_OF_STREAM) {
             *input_dry = true;
             *end_of_stream = true;
-        }
-        else
-        {
+        } else {
             return RESULT_DECODE_ERROR;
         }
 
@@ -114,16 +106,14 @@ namespace dmSoundCodec
         bool bEOS = false;
         int error = VORBIS_need_more_data;
 
-        while (error == VORBIS_need_more_data)
-        {
+        while (error == VORBIS_need_more_data) {
             Result read_result = ReadMoreData(streamInfo, &bInputDry, &bEOS);
             if (read_result != RESULT_OK)
                 break;
 
             int consumed = 0;
             stb_vorbis *vorbis = stb_vorbis_open_pushdata(streamInfo->m_DataBuffer.Begin(), (int)streamInfo->m_DataBuffer.Size(), &consumed, &error, NULL);
-            if (vorbis)
-            {
+            if (vorbis) {
                 CleanupBuffer(streamInfo->m_DataBuffer, consumed);
 
                 dmSound::DecoderOutputSettings settings;
@@ -144,14 +134,12 @@ namespace dmSoundCodec
                 return RESULT_OK;
             }
 
-            if (error != VORBIS_need_more_data)
-            {
+            if (error != VORBIS_need_more_data) {
                 dmLogWarning("Vorbis data seems to be invalid!");
                 break;
             }
 
-            if (bInputDry)
-            {
+            if (bInputDry) {
                 dmLogWarning("Vorbis needs more data to be initialized than expected!");
                 break;
             }
