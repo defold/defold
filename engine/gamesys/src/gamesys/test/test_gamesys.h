@@ -173,7 +173,7 @@ protected:
     dmGui::HContext m_GuiContext;
     dmHID::HContext m_HidContext;
     dmInput::HContext m_InputContext;
-    dmInputDDF::GamepadMaps* m_GamepadMapsDDF;
+    dmInputDDF::GamepadMapsRuntime* m_GamepadMapsDDF;
     dmGameSystem::SpriteContext m_SpriteContext;
     dmGameSystem::CollectionProxyContext m_CollectionProxyContext;
     dmGameSystem::FactoryContext m_FactoryContext;
@@ -687,6 +687,7 @@ void GamesysTest<T>::SetUp()
     input_params.m_HidContext = m_HidContext;
     input_params.m_RepeatDelay = 0.3f;
     input_params.m_RepeatInterval = 0.1f;
+    input_params.m_GamepadDeadZone = 0.2f;
     m_InputContext = dmInput::NewContext(input_params);
 
     dmGameSystem::PhysicsContext* physics_context = 0;

@@ -732,6 +732,33 @@ TEST_F(dmGuiTest, DynamicTexture)
     dmGui::RenderScene(m_Scene, rp, &count);
 }
 
+// Verifies that replacing an existing dynamic texture is treated as an update
+// even when the table is already full. This prevents releasing the old backing
+// resource while leaving the old texture entry installed.
+TEST_F(dmGuiTest, DynamicTextureReplaceWhenFull)
+{
+    uint32_t dynamic_texture_capacity = m_Scene->m_DynamicTextures.Capacity();
+    ASSERT_NE(0U, dynamic_texture_capacity);
+
+    for (uint32_t i = 0; i < dynamic_texture_capacity; ++i)
+    {
+        char texture_name[32];
+        dmSnPrintf(texture_name, sizeof(texture_name), "texture_%u", i);
+        ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddDynamicTexture(m_Scene, dmHashString64(texture_name),
+                                                             (dmGui::HTextureSource)(uintptr_t)(i + 1),
+                                                             dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1));
+    }
+
+    ASSERT_TRUE(m_Scene->m_DynamicTextures.Full());
+
+    const dmhash_t replaced_texture = dmHashString64("texture_0");
+    const dmGui::HTextureSource replacement_texture_source = (dmGui::HTextureSource)(uintptr_t)(dynamic_texture_capacity + 1);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddDynamicTexture(m_Scene, replaced_texture, replacement_texture_source,
+                                                         dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 2, 2));
+    ASSERT_EQ(replacement_texture_source, dmGui::GetTexture(m_Scene, replaced_texture));
+    ASSERT_EQ(dynamic_texture_capacity, m_Scene->m_DynamicTextures.Size());
+}
+
 
 #define ASSERT_BUFFER(exp, act, count)\
     for (uint32_t i = 0; i < count; ++i) {\

@@ -39,8 +39,6 @@ import com.dynamo.ddf.proto.TestDDF.Simple01Repeated;
 import com.dynamo.ddf.proto.TestDDF.Simple02Repeated;
 import com.dynamo.ddf.proto.TestDDF.StringRepeated;
 import com.dynamo.ddf.proto.TestDDF.Mesh.Primitive;
-import com.dynamo.bob.util.FileUtil;
-
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.Message;
@@ -78,13 +76,16 @@ public class DDFLoaderTest
             throws IOException
     {
         File f = File.createTempFile("tmp_defold_", ".pb");
-        FileUtil.deleteOnExit(f);
-
-        FileWriter w = new FileWriter(f);
-        w.write(TextFormat.printToString(m));
-        w.close();
-
-        return DDF.loadTextFormat(new FileReader(f), klass);
+        try {
+            try (FileWriter w = new FileWriter(f)) {
+                w.write(TextFormat.printToString(m));
+            }
+            try (FileReader reader = new FileReader(f)) {
+                return DDF.loadTextFormat(reader, klass);
+            }
+        } finally {
+            f.delete();
+        }
     }
 
     @Test

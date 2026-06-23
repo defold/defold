@@ -528,6 +528,17 @@ static uint16_t GetLegacyButtonMask(GCController* controller)
     return button_mask;
 }
 
+static const char* GetMicrosoftGamepadNameFromGuid(const GamepadGuid& guid, const char* fallback_name)
+{
+    if (guid.m_Vendor != USB_VENDOR_MICROSOFT)
+        return fallback_name;
+
+    GamepadIdentity identity = {};
+    identity.m_Vendor = guid.m_Vendor;
+    identity.m_Product = guid.m_Product;
+    return GetGamepadIdentityName(identity, fallback_name);
+}
+
 #if TARGET_OS_OSX
 // Reads a numeric IOHID property into an unsigned integer.
 static bool GetDeviceNumberProperty(IOHIDDeviceRef device_ref, CFStringRef key, uint32_t* value)
@@ -569,6 +580,50 @@ static bool GetDeviceIdentity(IOHIDDeviceRef device_ref, uint32_t* vendor, uint3
 
 // Checks whether a candidate HID device identity is plausible for the supplied
 // GCController before we trust it as that controller's GUID source.
+static bool IsMicrosoftXbox360Product(uint32_t product)
+{
+    switch (product)
+    {
+    case USB_PRODUCT_XBOX360_XUSB_CONTROLLER:
+    case USB_PRODUCT_XBOX360_WIRED_CONTROLLER:
+    case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER:
+    case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY1:
+    case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY2:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool IsMicrosoftXboxOneOrLaterProduct(uint32_t product)
+{
+    switch (product)
+    {
+    case USB_PRODUCT_XBOX_ONE_ADAPTIVE:
+    case USB_PRODUCT_XBOX_ONE_ADAPTIVE_BLUETOOTH:
+    case USB_PRODUCT_XBOX_ONE_ADAPTIVE_BLE:
+    case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_1:
+    case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2:
+    case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2_BLUETOOTH:
+    case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2_BLE:
+    case USB_PRODUCT_XBOX_ONE_S:
+    case USB_PRODUCT_XBOX_ONE_S_REV1_BLUETOOTH:
+    case USB_PRODUCT_XBOX_ONE_S_REV2_BLUETOOTH:
+    case USB_PRODUCT_XBOX_ONE_S_REV2_BLE:
+    case USB_PRODUCT_XBOX_SERIES_X:
+    case USB_PRODUCT_XBOX_SERIES_X_BLE:
+    case USB_PRODUCT_XBOX_ONE_XBOXGIP_CONTROLLER:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool IsMicrosoftXboxProduct(uint32_t product)
+{
+    return IsMicrosoftXbox360Product(product) || IsMicrosoftXboxOneOrLaterProduct(product);
+}
+
 static bool MatchesControllerHIDDevice(GCController* controller, uint32_t vendor, uint32_t product)
 {
     if (IsControllerBackboneOne(controller))
@@ -589,10 +644,7 @@ static bool MatchesControllerHIDDevice(GCController* controller, uint32_t vendor
         return vendor == USB_VENDOR_SONY && (product == USB_PRODUCT_SONY_DS5 || product == USB_PRODUCT_SONY_DS5_EDGE);
 
     if (IsControllerXbox(controller))
-        return vendor == USB_VENDOR_MICROSOFT &&
-            (product == USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2_BLUETOOTH ||
-             product == USB_PRODUCT_XBOX_SERIES_X_BLE ||
-             product == USB_PRODUCT_XBOX_ONE_S_REV1_BLUETOOTH);
+        return vendor == USB_VENDOR_MICROSOFT && IsMicrosoftXboxProduct(product);
 
     if (IsControllerSwitchPro(controller))
         return vendor == USB_VENDOR_NINTENDO && product == USB_PRODUCT_NINTENDO_SWITCH_PRO;
@@ -1643,26 +1695,35 @@ static Gamepad* EnsureAllocatedGamepad(AppleGamepadDriver* driver, int gamepad_i
     new_device.m_Gamepad = gp;
     new_device.m_Controller = (__bridge GCController*) CFBridgingRetain(controller);
 
-    const char* name = 0;
+    const char* fallback_name = 0;
     if (controller.vendorName)
     {
-        name = controller.vendorName.UTF8String;
+        fallback_name = controller.vendorName.UTF8String;
     }
     else if (@available(macOS 10.15, iOS 13.0, tvOS 13.0, *))
     {
         if (controller.productCategory)
-            name = controller.productCategory.UTF8String;
+            fallback_name = controller.productCategory.UTF8String;
     }
 
-    if (!name)
-        name = "Game Controller";
+    if (!fallback_name)
+        fallback_name = "Game Controller";
 
-    dmStrlCpy(new_device.m_Name, name, sizeof(new_device.m_Name));
+    GamepadIdentity identity = {};
+    ClassifyController(controller, &identity);
+    const char* classified_name = GetGamepadIdentityName(identity, fallback_name);
 
-    if (!CreateGamePadGuid(driver, controller, new_device.m_Name, &new_device.m_Guid))
+    if (!CreateGamePadGuid(driver, controller, classified_name, &new_device.m_Guid))
     {
-        CreateAppleGameControllerGUID(controller, new_device.m_Name, SDL_HARDWARE_BUS_BLUETOOTH, &new_device.m_Guid);
+        uint16_t fallback_bus = SDL_HARDWARE_BUS_BLUETOOTH;
+#if TARGET_OS_OSX
+        fallback_bus = SDL_HARDWARE_BUS_USB;
+#endif
+        CreateAppleGameControllerGUID(controller, classified_name, fallback_bus, &new_device.m_Guid);
     }
+
+    const char* name = GetMicrosoftGamepadNameFromGuid(new_device.m_Guid, classified_name);
+    dmStrlCpy(new_device.m_Name, name, sizeof(new_device.m_Name));
 
     BuildDeviceRemap(&new_device, &new_device.m_Guid);
 

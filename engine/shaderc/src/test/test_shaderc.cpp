@@ -525,6 +525,37 @@ TEST(Shaderc, TestMetal)
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
     ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+    dmShaderc::DebugPrintReflection(reflection);
+
+    dmShaderc::FreeShaderCompileResult(dst);
+
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
+TEST(Shaderc, TestMetalCompute)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/compute_workgroups.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, data_size);
+
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_MSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version    = 22;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    ASSERT_EQ(2, dst->m_WorkGroupSizeX);
+    ASSERT_EQ(4, dst->m_WorkGroupSizeY);
+    ASSERT_EQ(8, dst->m_WorkGroupSizeZ);
+
     dmShaderc::FreeShaderCompileResult(dst);
 
     dmShaderc::DeleteShaderCompiler(compiler);

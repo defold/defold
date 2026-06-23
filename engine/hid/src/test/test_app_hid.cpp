@@ -46,7 +46,7 @@
 
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include "../hid.h"
+#include "../hid_private.h"
 
 #include <graphics/graphics.h>
 #include <platform/window.hpp>

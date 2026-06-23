@@ -331,7 +331,7 @@
                 (.glDrawArrays gl GL/GL_TRIANGLES 0 (count vbuf)))
               (finally
                 (gl/gl-disable gl GL/GL_BLEND)
-                (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_LINE))))
+                (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL))))
 
           pass/selection
           (let [vbuf (vbuf-push-light-icon-quads! (->selection-icon-vtx (* renderable-count 6)) camera viewport renderables light-icon-picking-color)

@@ -23,6 +23,7 @@ void main()
     // We need to premultiply the tint as well so tint alpha scales both color and alpha.
     vec4 tint_pm = vec4(tint.xyz * tint.w, tint.w);
     vec4 color = texture(tex0, var_texcoord0.xy) * tint_pm;
-    vec3 lighting = diffuse_lambert(normalize(var_normal), var_position.xyz);
-    out_fragColor = vec4(color.rgb * lighting, color.a);
+    vec3 ambient = ambient_light();
+    vec3 diffuse = diffuse_lambert(normalize(var_normal), var_position.xyz);
+    out_fragColor = vec4(color.rgb * (ambient + diffuse), color.a);
 }

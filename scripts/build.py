@@ -61,6 +61,7 @@ _CMAKE_FEATURE_FLAG_MAP = {
     '--with-vulkan': 'WITH_VULKAN',
     '--with-vulkan-validation': 'WITH_VULKAN_VALIDATION',
     '--with-dx12': 'WITH_DX12',
+    '--with-metal': 'WITH_METAL',
     '--with-opus': 'WITH_OPUS',
     '--with-webgpu': 'WITH_WEBGPU'
 }
@@ -355,6 +356,7 @@ PACKAGES_ANDROID=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
+    "vkquality-1.1-2642a0d",
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
@@ -370,6 +372,7 @@ PACKAGES_ANDROID_64=[
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
+    "vkquality-1.1-2642a0d",
     "harfbuzz-13.2.1",
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
@@ -440,7 +443,8 @@ BOB_TOOL_PACKAGE_PREFIXES = (
 BOB_TOOL_PACKAGES = ('codesign_allocate', 'strip', 'zipalign')
 
 BOB_EXTRA_PLATFORM_PACKAGES = {
-    'arm64-android': [sdk.ANDROID_PACKAGE]
+    'armv7-android': ["vkquality-1.1-2642a0d"],
+    'arm64-android': [sdk.ANDROID_PACKAGE, "vkquality-1.1-2642a0d"]
 }
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -466,7 +470,12 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
+EXTERNAL_WAF_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
+EXTERNAL_CMAKE_LIBS = "vkquality".split()
+EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
+EXTERNAL_PACKAGE_VERSIONS = {
+    "vkquality": "1.1-2642a0d",
+}
 
 def get_host_platform():
     return sdk.get_host_platform()
@@ -575,6 +584,7 @@ class Configuration(object):
                  no_colors = False,
                  archive_domain = None,
                  package_path = None,
+                 external_package = None,
                  set_version = None,
                  channel = None,
                  engine_artifacts = None,
@@ -629,6 +639,7 @@ class Configuration(object):
         self.archive_path = "s3://%s/archive" % (archive_domain)
         self.archive_domain = archive_domain
         self.package_path = package_path
+        self.external_package = external_package
         self.set_version = set_version
         self.channel = channel
         self.engine_artifacts = engine_artifacts
@@ -1539,7 +1550,7 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
                 # Android Jars (external)
-                external_jars = ("glfw_android.jar")
+                external_jars = ("glfw_android.jar", "vkquality.jar")
                 jardir = os.path.join(self.dynamo_home, 'ext/share/java')
                 paths = _findjars(jardir, external_jars)
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
@@ -2446,12 +2457,82 @@ class Configuration(object):
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
 
     def build_external(self):
-        flags = self._get_build_flags()
-        flags['prefix'] = join(self.defold_root, 'packages')
-        cmd = self._build_engine_cmd_waf(**flags)
-        args = cmd.split() + ['package']
-        for lib in EXTERNAL_LIBS:
-            self._build_engine_lib(args, lib, platform=self.target_platform, directory='external')
+        libs = EXTERNAL_LIBS
+        if self.external_package:
+            if self.external_package not in EXTERNAL_LIBS:
+                self.fatal("Unknown external package '%s'. Expected one of: %s" % (self.external_package, ', '.join(EXTERNAL_LIBS)))
+            libs = [self.external_package]
+
+        waf_libs = [lib for lib in libs if lib in EXTERNAL_WAF_LIBS]
+        if waf_libs:
+            flags = self._get_build_flags()
+            flags['prefix'] = join(self.defold_root, 'packages')
+            cmd = self._build_engine_cmd_waf(**flags)
+            args = cmd.split() + ['package']
+            for lib in waf_libs:
+                self._build_engine_lib(args, lib, platform=self.target_platform, directory='external')
+
+        for lib in [lib for lib in libs if lib in EXTERNAL_CMAKE_LIBS]:
+            if lib == 'vkquality' and self.target_platform not in ('armv7-android', 'arm64-android') and not self.external_package:
+                self._log("Skipping vkquality for non-Android platform: %s" % self.target_platform)
+                continue
+            self._build_external_lib_cmake(lib, self.target_platform)
+
+    def _build_external_lib_cmake(self, lib, platform):
+        version = EXTERNAL_PACKAGE_VERSIONS[lib]
+        package_name = '%s-%s' % (lib, version)
+        source_dir = join(self.defold_root, 'external', lib)
+        build_dir = join(source_dir, 'build', platform)
+        install_dir = join(self.dynamo_home, package_name)
+        package_dir = join(self.defold_root, 'packages')
+        package_path = join(package_dir, '%s-%s.tar.gz' % (package_name, platform))
+
+        if not os.path.exists(join(source_dir, 'CMakeLists.txt')):
+            self.fatal("CMake external package '%s' is missing CMakeLists.txt" % lib)
+
+        if os.path.exists(install_dir):
+            shutil.rmtree(install_dir)
+        os.makedirs(build_dir, exist_ok=True)
+        os.makedirs(package_dir, exist_ok=True)
+
+        build_type = self._find_cmake_build_type(self.waf_options)
+        configure_args = [
+            'cmake',
+            '-S', source_dir,
+            '-B', build_dir,
+            '-GNinja',
+            '-DCMAKE_BUILD_TYPE=%s' % build_type,
+            '-DTARGET_PLATFORM=%s' % platform,
+            '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
+            '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
+        ]
+        build_args = ['cmake', '--build', build_dir, '--target', 'install']
+        if self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options):
+            build_args.append('--verbose')
+
+        self.build_tracker.start_component(lib, platform)
+        try:
+            self.build_tracker.start_command('CMake configure external %s' % lib)
+            try:
+                run.env_command(self._form_env(), configure_args, cwd=source_dir)
+            finally:
+                self.build_tracker.end_command('CMake configure external %s' % lib)
+
+            self.build_tracker.start_command('CMake build external %s' % lib)
+            try:
+                run.env_command(self._form_env(), build_args, cwd=source_dir)
+            finally:
+                self.build_tracker.end_command('CMake build external %s' % lib)
+
+            package_command = ['tar', 'zcvf', os.path.normpath(package_path), 'include', 'lib', 'share']
+            self.build_tracker.start_command('Package external %s' % lib)
+            try:
+                run.command(package_command, cwd=install_dir)
+            finally:
+                self.build_tracker.end_command('Package external %s' % lib)
+            print("Installed to", package_path)
+        finally:
+            self.build_tracker.end_component(lib, platform)
 
     def archive_bob(self):
         sha1 = self._git_sha1()
@@ -2500,7 +2581,11 @@ class Configuration(object):
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']]])
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar'} # this should be the stripped one
+                         'ext/share/java/android.jar': 'lib/android.jar', # this should be the stripped one
+                         'ext/share/java/vkquality.jar': 'lib/vkquality.jar',
+                         'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
+                         'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
+                         'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so'}
 
         switch_files = {}
         win32_engine_platform = self._engine_artifact_platform('win32')
@@ -3629,6 +3714,7 @@ Commands:
 distclean        - Removes the DYNAMO_HOME folder
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
 install_ext      - Install external packages
+build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
 install_waf      - Install waf
@@ -3730,6 +3816,10 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
     parser.add_option('--package-path', dest='package_path',
                       default = default_package_path,
                       help = 'Either an url to a file server where the sdk packages are located, or a path to a local folder. Reads $DM_PACKAGES_URL. Default is %s.' % default_package_path)
+
+    parser.add_option('--package', dest='external_package',
+                      default = None,
+                      help = 'External package to build with build_external. Valid packages: %s' % ', '.join(EXTERNAL_LIBS))
 
     parser.add_option('--set-version', dest='set_version',
                       default = None,
@@ -3870,6 +3960,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       no_colors = options.no_colors,
                       archive_domain = options.archive_domain,
                       package_path = options.package_path,
+                      external_package = options.external_package,
                       set_version = options.set_version,
                       channel = options.channel,
                       engine_artifacts = options.engine_artifacts,
