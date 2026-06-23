@@ -79,7 +79,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Cache Defold downloads', uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } },
       { name: 'Free Disk Space', uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be, with: {tool-cache: false, haskell: true, dotnet: false, large-packages: false, docker-images: false, swap-storage: false} },
-      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} },
+      { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.2.0' } },
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0

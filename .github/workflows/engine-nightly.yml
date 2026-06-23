@@ -19,7 +19,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd },
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} },
-      { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.2.0' } },
+      { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle'} },
       { name: 'Install CMake', uses: lukka/get-cmake@b78306120111dc2522750771cfd09ee7ca723687 }, # v4.3.0
       {
