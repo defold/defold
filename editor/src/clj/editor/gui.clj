@@ -466,9 +466,6 @@
         type
         0))))
 
-(defn- node-desc->node-type [gui-node-type-registry node-desc]
-  (:node-type (node-desc->node-type-info gui-node-type-registry node-desc)))
-
 (def ^:private custom-property-pb-type->value-field
   {:type-boolean :boolean
    :type-hash :string
@@ -496,20 +493,6 @@
          :id (:custom-property-id custom-property-info)
          value-field value}))))
 
-(defn- custom-properties-prop-value->pb [type-info custom-properties include-custom-property-defaults]
-  (->> custom-properties
-       (keep #(custom-property-entry->pb type-info % include-custom-property-defaults))
-       (sort-by :id)
-       vec))
-
-(defn- collapse-custom-properties [type-info prop->value include-custom-property-defaults]
-  (let [custom-property-id->info (:custom-property-id->info type-info)
-        custom-properties (select-keys prop->value (keys custom-property-id->info))
-        regular-prop->value (apply dissoc prop->value (keys custom-properties))]
-    (cond-> regular-prop->value
-            (coll/not-empty custom-properties)
-            (assoc :custom-properties (custom-properties-prop-value->pb type-info custom-properties include-custom-property-defaults)))))
-
 (defn- sanitize-custom-properties [node-desc type-info include-custom-property-defaults]
   (if-not (contains? node-desc :custom-properties)
     node-desc
@@ -528,12 +511,15 @@
       (protobuf/assign-repeated node-desc :custom-properties custom-properties))))
 
 (defn- prop->pb-field-entries-for-type [type-info include-custom-property-defaults prop->value]
-  (e/keep (fn [[prop-key prop-value :as entry]]
-            (if (= :custom-properties prop-key)
-              (when-let [custom-properties (coll/not-empty prop-value)]
-                (pair :custom-properties custom-properties))
-              (prop-entry->pb-field-entry entry)))
-          (collapse-custom-properties type-info prop->value include-custom-property-defaults)))
+  (let [custom-property-keys (keys (:custom-property-id->info type-info))
+        regular-prop->value (apply dissoc prop->value custom-property-keys)
+        custom-property-pb-values (->> (select-keys prop->value custom-property-keys)
+                                       (keep #(custom-property-entry->pb type-info % include-custom-property-defaults))
+                                       (sort-by :id)
+                                       vec)]
+    (cond-> (e/keep prop-entry->pb-field-entry regular-prop->value)
+            (coll/not-empty custom-property-pb-values)
+            (e/conj (pair :custom-properties custom-property-pb-values)))))
 
 (defn- strip-node-msg-decorations [node-msg]
   (dissoc node-msg :layout->prop->override :layout->prop->value))
@@ -4268,9 +4254,9 @@
 
 (defn load-gui-scene [project self resource scene]
   {:pre [(map? scene)]} ; Gui$SceneDesc in map format.
-  (let [graph-id           (g/node-id->graph-id self)
-        workspace          (project/workspace project)
-        basis              (g/now)
+  (let [graph-id (g/node-id->graph-id self)
+        workspace (resource/workspace resource)
+        basis (g/now)
         resource-types (resource/resource-types-by-type-ext basis workspace :editable)
         gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
         gui-resource-kind-registry (gui-resource-kind-registry-from-resource-types resource-types)
@@ -4486,7 +4472,7 @@
                            all-tx-data []
                            child-index 0]
                       (if node-desc
-                        (let [node-type (node-desc->node-type gui-node-type-registry node-desc)
+                        (let [node-type (:node-type (node-desc->node-type-info gui-node-type-registry node-desc))
                               props (-> node-desc
                                         (assoc :child-index child-index)
                                         (select-keys (g/declared-property-labels node-type))
@@ -4807,10 +4793,10 @@
 (defn gui-resource-kind-node [basis gui-scene-node resource-kind]
   (coll/some
     (fn [arc]
-      (let [id (gt/source-id arc)]
-        (when (and (= GuiResourceKindNode (g/node-type* basis id))
-                   (= resource-kind (g/raw-property-value basis id :kind)))
-          id)))
+      (let [node-id (gt/source-id arc)]
+        (when (and (= GuiResourceKindNode (g/node-type* basis node-id))
+                   (= resource-kind (g/raw-property-value basis node-id :kind)))
+          node-id)))
     (g/explicit-arcs-by-target basis gui-scene-node :nodes)))
 
 ;; SDK api
@@ -4830,38 +4816,6 @@
   (let [resources-node (gui-resource-kind-node basis gui-scene-node resource-kind)
         attach-fn (g/raw-property-value basis resources-node :attach-fn)]
     (attach-fn gui-scene-node resources-node entry-node)))
-
-(defn- normalize-gui-resource-kind-info [resource-kind {:keys [label icon exts node-type resource-property attachment-property attach-fn] :as info}]
-  (ensure/argument resource-kind keyword?
-                   "Invalid %s argument: GUI resource kind must be a keyword. (resource-kind=%s)"
-                   resource-kind)
-  (ensure/argument label some?
-                   "Invalid %s argument: GUI resource kind does not specify :label. (resource-kind=%s)"
-                   resource-kind)
-  (ensure/argument icon string?
-                   "Invalid %s argument: GUI resource kind does not specify string :icon. (resource-kind=%s, icon=%s)"
-                   resource-kind icon)
-  (ensure/argument node-type g/node-type?
-                   "Invalid %s argument: GUI resource kind does not specify valid :node-type. (resource-kind=%s, node-type=%s)"
-                   resource-kind node-type)
-  (ensure/argument resource-property keyword?
-                   "Invalid %s argument: GUI resource kind does not specify keyword :resource-property. (resource-kind=%s, resource-property=%s)"
-                   resource-kind resource-property)
-  (ensure/argument attachment-property keyword?
-                   "Invalid %s argument: GUI resource kind does not specify keyword :attachment-property. (resource-kind=%s, attachment-property=%s)"
-                   resource-kind attachment-property)
-  (ensure/argument attach-fn ifn?
-                   "Invalid %s argument: GUI resource kind does not specify :attach-fn. (resource-kind=%s, attach-fn=%s)"
-                   resource-kind attach-fn)
-  (let [exts (cond
-               (string? exts) [exts]
-               (vector? exts) exts
-               :else nil)]
-    (ensure/argument exts #(and (coll/not-empty %)
-                                (not (coll/any? (complement string?) %)))
-                     "Invalid %s argument: GUI resource kind does not specify string or vector :exts. (resource-kind=%s, exts=%s)"
-                     resource-kind exts)
-    (assoc info :exts exts)))
 
 ;; SDK api
 (defn register-gui-resource-kind
@@ -4920,11 +4874,40 @@
        :attachment-property :spine-scenes
        :attach-fn connect-gui-resource-kind-entry})"
   [workspace resource-kind info]
-  (let [info (normalize-gui-resource-kind-info resource-kind info)]
+  (let [{:keys [label icon exts node-type resource-property attachment-property attach-fn] :as info} info
+        exts (cond
+               (string? exts) [exts]
+               (vector? exts) exts
+               :else nil)]
+    (ensure/argument resource-kind keyword?
+                     "Invalid %s argument: GUI resource kind must be a keyword. (resource-kind=%s)"
+                     resource-kind)
+    (ensure/argument label some?
+                     "Invalid %s argument: GUI resource kind does not specify :label. (resource-kind=%s)"
+                     resource-kind)
+    (ensure/argument icon string?
+                     "Invalid %s argument: GUI resource kind does not specify string :icon. (resource-kind=%s, icon=%s)"
+                     resource-kind icon)
+    (ensure/argument node-type g/node-type?
+                     "Invalid %s argument: GUI resource kind does not specify valid :node-type. (resource-kind=%s, node-type=%s)"
+                     resource-kind node-type)
+    (ensure/argument resource-property keyword?
+                     "Invalid %s argument: GUI resource kind does not specify keyword :resource-property. (resource-kind=%s, resource-property=%s)"
+                     resource-kind resource-property)
+    (ensure/argument attachment-property keyword?
+                     "Invalid %s argument: GUI resource kind does not specify keyword :attachment-property. (resource-kind=%s, attachment-property=%s)"
+                     resource-kind attachment-property)
+    (ensure/argument attach-fn ifn?
+                     "Invalid %s argument: GUI resource kind does not specify :attach-fn. (resource-kind=%s, attach-fn=%s)"
+                     resource-kind attach-fn)
+    (ensure/argument exts #(and (coll/not-empty %)
+                                (not (coll/any? (complement string?) %)))
+                     "Invalid %s argument: GUI resource kind does not specify string or vector :exts. (resource-kind=%s, exts=%s)"
+                     resource-kind exts)
     (concat
       (update-gui-resource-type-tx-data
         workspace
-        update :gui-resource-kind-registry assoc resource-kind info)
+        update :gui-resource-kind-registry assoc resource-kind (assoc info :exts exts))
       (attachment/register
         workspace GuiSceneNode (:attachment-property info)
         :add {(:node-type info) (partial g/expand-ec attach-gui-resource-kind-entry-to-gui-scene resource-kind)}
@@ -5346,7 +5329,6 @@
   (assoc custom-property-static
     :id prop-kw
     :custom-property-id id
-    :type (in/property-type node-type prop-kw)
     :default (get property-defaults prop-kw)))
 
 (defn- normalize-node-type-info [type-info]
@@ -5367,10 +5349,7 @@
                                            vec
                                            coll/not-empty)
         custom-property-id->info (coll/pair-map-by :id custom-properties)
-        custom-property-protobuf-id->info (coll/pair-map-by :custom-property-id custom-properties)
-        default-custom-properties (coll/into-> custom-properties {}
-                                    (map (fn [{:keys [id default]}]
-                                           (pair id default))))]
+        custom-property-protobuf-id->info (coll/pair-map-by :custom-property-id custom-properties)]
     (when duplicate-custom-property-ids
       (throw (IllegalArgumentException.
                (format "Plugin GUI node type %s custom property ids are not unique: %s"
@@ -5378,34 +5357,29 @@
                        (str/join ", " duplicate-custom-property-ids)))))
     (-> type-info
         (assoc
-          :custom-properties custom-properties
           :custom-property-id->info custom-property-id->info
-          :custom-property-protobuf-id->info custom-property-protobuf-id->info
-          :custom-property-defaults default-custom-properties))))
+          :custom-property-protobuf-id->info custom-property-protobuf-id->info))))
 
 (def ^:private base-node-type-registry
   (reduce add-node-type-info empty-node-type-registry (mapv normalize-node-type-info base-node-type-infos)))
 
-(defn- validate-node-type-info! [{:keys [custom-type-name node-type] :as type-info}]
-  (ensure/argument custom-type-name #(and (string? %)
-                                          (not (str/blank? %)))
-                   "Invalid %s argument: Plugin GUI node type %s does not specify a valid custom type name."
-                   (:name @node-type))
-  (ensure/argument node-type #(not (coll/not-empty (g/abstract-output-labels %)))
-                   "Invalid %s argument: Plugin GUI node type %s does not implement required outputs: %s"
-                   (:name @node-type)
-                   (->> (g/abstract-output-labels node-type)
-                        (sort)
-                        (map name)
-                        (str/join ", ")))
-  (ensure/argument type-info #(map? (:defaults %))
-                   "Invalid %s argument: Plugin GUI node type %s does not specify :defaults as a map of {:node-prop default-value}."
-                   (:name @node-type)))
-
 ;; SDK api (internal, extension-spine legacy file loading only; use register-custom-node-type-info for new custom GUI nodes)
 (defn register-node-type-info [workspace type-info]
-  (let [type-info (normalize-node-type-info type-info)]
-    (validate-node-type-info! type-info)
+  (let [{:keys [custom-type-name node-type] :as type-info} (normalize-node-type-info type-info)]
+    (ensure/argument custom-type-name #(and (string? %)
+                                            (not (str/blank? %)))
+                     "Invalid %s argument: Plugin GUI node type %s does not specify a valid custom type name."
+                     (:name @node-type))
+    (ensure/argument node-type #(not (coll/not-empty (g/abstract-output-labels %)))
+                     "Invalid %s argument: Plugin GUI node type %s does not implement required outputs: %s"
+                     (:name @node-type)
+                     (->> (g/abstract-output-labels node-type)
+                          (sort)
+                          (map name)
+                          (str/join ", ")))
+    (ensure/argument type-info #(map? (:defaults %))
+                     "Invalid %s argument: Plugin GUI node type %s does not specify :defaults as a map of {:node-prop default-value}."
+                     (:name @node-type))
     (update-gui-resource-type-tx-data
       workspace
       update :gui-node-type-registry add-node-type-info type-info)))
