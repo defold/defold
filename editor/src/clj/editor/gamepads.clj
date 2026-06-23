@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gamepads
-  (:require [dynamo.graph :as g]
+  (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.data :as data]
             [editor.localization :as localization]
@@ -21,7 +22,8 @@
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.defonce :as defonce])
   (:import [com.dynamo.bob Platform]
            [com.dynamo.bob.pipeline GamepadBuilder]
            [com.dynamo.input.proto Input$GamepadMaps Input$GamepadMapsRuntime]
@@ -39,37 +41,69 @@
    :pb-class Input$GamepadMaps
    :view-types [:cljfx-form-view :text]})
 
+(defonce/record GamepadDatabaseBuildResource [resource]
+  resource/Resource
+  (children [_] (resource/children resource))
+  (ext [_] (resource/ext resource))
+  (resource-type [_] (assoc (resource/resource-type resource) :build-ext "gamepadsc"))
+  (source-type [_] (resource/source-type resource))
+  (exists? [_] (resource/exists? resource))
+  (read-only? [_] (resource/read-only? resource))
+  (symlink? [_] (resource/symlink? resource))
+  (path [_] (resource/path resource))
+  (abs-path [_] (resource/abs-path resource))
+  (proj-path [_] (resource/proj-path resource))
+  (resource-name [_] (resource/resource-name resource))
+  (workspace [_] (resource/workspace resource))
+  (resource-hash [_] (resource/resource-hash resource))
+  (openable? [_] (resource/openable? resource))
+  (editable? [_] (resource/editable? resource))
+  (loaded? [_] (resource/loaded? resource))
+
+  io/IOFactory
+  (make-input-stream [_ opts] (io/input-stream resource))
+  (make-reader [_ opts] (io/reader resource))
+  (make-output-stream [_ opts] (io/output-stream resource))
+  (make-writer [_ opts] (io/writer resource)))
+
 (defn- gamepads->bytes
   ^bytes [gamepads]
   (let [gamepads-str (protobuf/map->str Input$GamepadMaps gamepads)]
     (.getBytes ^String gamepads-str StandardCharsets/UTF_8)))
 
 (defn- gamepad-database-user-data [gamepad-database-resource gamepad-database-lines]
-  (when-let [gamepad-database-resource (and (some? gamepad-database-lines)
-                                            (some? gamepad-database-resource)
-                                            (resource/exists? gamepad-database-resource)
-                                            gamepad-database-resource)]
+  (when (and gamepad-database-lines
+             gamepad-database-resource
+             (resource/exists? gamepad-database-resource))
     (with-open [input-stream (ReaderInputStream. (data/lines-reader gamepad-database-lines) StandardCharsets/UTF_8)]
       {:gamepad-database-path (resource/proj-path gamepad-database-resource)
        :gamepad-database-bytes (IOUtils/toByteArray input-stream)})))
 
 (defn- build-gamepads [build-resource _dep-resources user-data]
-  (let [gamepads-resource (:resource build-resource)]
+  (let [gamepads-resource (:gamepads-resource user-data)]
     {:resource build-resource
-     :content (GamepadBuilder/compile (resource/proj-path gamepads-resource)
-                                      (gamepads->bytes (:pb user-data))
+     :content (GamepadBuilder/compile (some-> gamepads-resource resource/proj-path)
+                                      (some-> (:pb user-data) gamepads->bytes)
                                       (:gamepad-database-path user-data)
                                       (:gamepad-database-bytes user-data)
                                       (:platform user-data))}))
 
 (defn make-build-target [node-id resource pb gamepad-database-resource gamepad-database-lines]
-  (bt/with-content-hash
-    {:node-id node-id
-     :resource (workspace/make-build-resource resource)
-     :build-fn build-gamepads
-     :user-data (merge {:pb pb
-                        :platform (.getPair (Platform/getHostPlatform))}
-                       (gamepad-database-user-data gamepad-database-resource gamepad-database-lines))}))
+  (when-let [build-resource (cond
+                              resource
+                              (workspace/make-build-resource resource)
+
+                              (and gamepad-database-resource
+                                   (resource/exists? gamepad-database-resource))
+                              (workspace/make-build-resource (->GamepadDatabaseBuildResource gamepad-database-resource)))]
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource build-resource
+       :build-fn build-gamepads
+       :user-data (merge {:gamepads-resource resource
+                          :pb pb
+                          :platform (.getPair (Platform/getHostPlatform))}
+                         (gamepad-database-user-data gamepad-database-resource gamepad-database-lines))})))
 
 (g/defnk produce-build-targets [_node-id resource pb]
   [(make-build-target _node-id resource pb nil nil)])

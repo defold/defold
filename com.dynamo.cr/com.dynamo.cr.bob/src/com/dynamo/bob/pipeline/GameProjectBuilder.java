@@ -72,14 +72,18 @@ import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
+    private static final int ROOT_NODE_INPUT_GAMEPADS_INDEX = 4;
+    private static final String DEFAULT_GAMEPADS = "/builtins/input/default.gamepadsc";
     private static final String DEFAULT_GAMEPAD_DATABASE = "/builtins/input/gamecontrollerdb.txt";
+    private static final String EXT_GAMEPADS = ".gamepads";
+    private static final String EXT_GAMEPADSC = ".gamepadsc";
 
     static final String[][] ROOT_NODES = new String[][] {
             {"bootstrap", "main_collection", "/logic/main.collectionc"},
             {"bootstrap", "render", "/builtins/render/default.renderc"},
             {"bootstrap", "debug_init_script", null},
             {"input", "game_binding", "/input/game.input_bindingc"},
-            {"input", "gamepads", "/builtins/input/default.gamepadsc"},
+            {"input", "gamepads", DEFAULT_GAMEPADS},
             {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
 
     static String[] gameProjectDependencies;
@@ -92,6 +96,41 @@ public class GameProjectBuilder extends Builder {
         return file;
     }
 
+    private static boolean isPathSet(String path) {
+        return path != null && path.trim().length() > 0;
+    }
+
+    private static String getGamepadsOutputPath(String gamepadsPath, String gamepadDbPath) {
+        if (isPathSet(gamepadsPath)) {
+            return ResourceUtil.replaceExt(gamepadsPath, EXT_GAMEPADS, EXT_GAMEPADSC);
+        } else if (isPathSet(gamepadDbPath)) {
+            return ResourceUtil.changeExt(gamepadDbPath, EXT_GAMEPADSC);
+        } else {
+            return "";
+        }
+    }
+
+    private void addGamepadTask(TaskBuilder builder) throws CompileExceptionError {
+        String gamepadsPath = project.getProjectProperties().getStringValue("input", "gamepads", DEFAULT_GAMEPADS);
+        String gamepadDbPath = project.getProjectProperties().getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE);
+
+        IResource gamepads = null;
+        if (isPathSet(gamepadsPath)) {
+            gamepads = BuilderUtil.checkResource(project, builder.firstInput(), "input.gamepads", ResourceUtil.replaceExt(gamepadsPath, EXT_GAMEPADSC, EXT_GAMEPADS));
+            gamepads.disableMinifyPath();
+        }
+
+        IResource gamepadDb = null;
+        if (isPathSet(gamepadDbPath)) {
+            gamepadDb = BuilderUtil.checkResource(project, builder.firstInput(), "input.gamepad_database", gamepadDbPath);
+            gamepadDb.disableMinifyPath();
+        }
+
+        if (gamepads != null || gamepadDb != null) {
+            builder.addInputsFromOutputs(project.createGamepadTask(gamepadDb, gamepads));
+        }
+    }
+
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         gameProjectDependencies = new String[ROOT_NODES.length + 1];
@@ -100,6 +139,9 @@ public class GameProjectBuilder extends Builder {
             gameProjectDependencies[index] = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
             index++;
         }
+        gameProjectDependencies[ROOT_NODE_INPUT_GAMEPADS_INDEX] = getGamepadsOutputPath(
+                project.getProjectProperties().getStringValue("input", "gamepads", DEFAULT_GAMEPADS),
+                project.getProjectProperties().getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE));
         // Editor debugger scripts
         if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
             gameProjectDependencies[index] = "/builtins/scripts/debugger.luac";
@@ -145,26 +187,18 @@ public class GameProjectBuilder extends Builder {
             String path = gameProjectDependencies[index];
             // initial values already have 'c' in the end
             if (path != null && path.length() > 0) {
-                path = path.substring(0, path.length() - 1);
-
                 String field = "";
                 if (index < ROOT_NODES.length) {
                     String[] tuples = ROOT_NODES[index];
                     field = String.format("%s.%s", tuples[0], tuples[1]);
                 }
 
-                IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, path);
-                res.disableMinifyPath();
-
                 if (field.equals("input.gamepads")) {
-                    String gamepadDbPath = project.getProjectProperties().getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE);
-                    IResource gamepadDb = null;
-                    if (gamepadDbPath.trim().length() > 0) {
-                        gamepadDb = BuilderUtil.checkResource(project, builder.firstInput(), "input.gamepad_database", gamepadDbPath);
-                        gamepadDb.disableMinifyPath();
-                    }
-                    builder.addInputsFromOutputs(project.createGamepadTask(gamepadDb, res));
+                    addGamepadTask(builder);
                 } else {
+                    path = path.substring(0, path.length() - 1);
+                    IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, path);
+                    res.disableMinifyPath();
                     createSubTask(res, builder);
                 }
             }
@@ -251,7 +285,7 @@ public class GameProjectBuilder extends Builder {
         ResourceGraph graph = new ResourceGraph(project);
 
         for (String path : gameProjectDependencies) {
-            if (path != null) {
+            if (path != null && path.length() > 0) {
                 IResource resource = project.getResource(path);
                 graph.add(resource);
             }
@@ -286,6 +320,9 @@ public class GameProjectBuilder extends Builder {
     // Used to transform an input game.project properties map to a game.projectc representation.
     // Can be used for doing build time properties' conversion.
     static public void transformGameProjectFile(BobProjectProperties properties) {
+        String gamepadsPath = properties.getStringValue("input", "gamepads", DEFAULT_GAMEPADS);
+        String gamepadDbPath = properties.getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE);
+
         properties.removePrivateFields();
 
         // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
@@ -300,6 +337,9 @@ public class GameProjectBuilder extends Builder {
         String title = properties.getStringValue("project", "title", "Unnamed");
         String fileNameTitle = BundleHelper.projectNameToBinaryName(title);
         properties.putStringValue("project", "title_as_file_name", fileNameTitle);
+
+        properties.putStringValue("input", "gamepads", getGamepadsOutputPath(gamepadsPath, gamepadDbPath));
+        properties.putStringValue("input", "gamepad_database", null);
     }
 
     @Override

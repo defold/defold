@@ -18,6 +18,7 @@
             [clojure.test :refer :all]
             [editor.localization :as localization]
             [editor.os :as os]
+            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]])
@@ -84,6 +85,13 @@
                                "gamepads = /input/default.gamepadsc\n"
                                "gamepad_database = " gamepad-database-path)))))
 
+(defn- clear-gamepads-setting! [^File project-directory]
+  (let [game-project-file (io/file project-directory "game.project")]
+    (spit game-project-file
+          (string/replace (slurp game-project-file)
+                          "gamepads = /input/default.gamepadsc"
+                          "gamepads = "))))
+
 (defn- mapping-by-device
   ^Input$GamepadMapRuntime [^Input$GamepadMapsRuntime maps device]
   (some (fn [^Input$GamepadMapRuntime mapping]
@@ -92,14 +100,18 @@
         (.getMappingsList maps)))
 
 (defn- read-built-gamepad-maps
-  ^Input$GamepadMapsRuntime [workspace]
-  (with-open [input-stream (io/input-stream (io/file (workspace/build-path workspace) "input/default.gamepadsc"))]
+  ^Input$GamepadMapsRuntime [workspace build-path]
+  (with-open [input-stream (io/input-stream (io/file (workspace/build-path workspace) build-path))]
     (Input$GamepadMapsRuntime/parseFrom input-stream)))
+
+(defn- read-built-game-project-settings [workspace]
+  (with-open [reader (io/reader (io/file (workspace/build-path workspace) "game.projectc"))]
+    (settings-core/parse-settings reader)))
 
 (defn- build-game-project-and-read-gamepad-maps
   ^Input$GamepadMapsRuntime [workspace game-project]
   (with-open [_ (test-util/build! game-project)]
-    (read-built-gamepad-maps workspace)))
+    (read-built-gamepad-maps workspace "input/default.gamepadsc")))
 
 (deftest game-project-builds-gamepadsc-from-gamepads-and-gamecontrollerdb
   (with-clean-system
@@ -113,7 +125,7 @@
       (let [project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
         (with-open [_ (test-util/build! game-project)]
-          (let [maps (read-built-gamepad-maps workspace)
+          (let [maps (read-built-gamepad-maps workspace "input/default.gamepadsc")
                 default-mapping (mapping-by-device maps (:default-gamepads-device platform-case))
                 gamepad-db-mapping (mapping-by-device maps (:gamepad-db-device platform-case))]
             (is (not (.exists (io/file (workspace/build-path workspace) "input/gamecontrollerdb.txt"))))
@@ -149,6 +161,41 @@
         (let [maps (build-game-project-and-read-gamepad-maps workspace game-project)]
           (is (nil? (mapping-by-device maps original-device)))
           (is (some? (mapping-by-device maps updated-device))))))))
+
+(deftest game-project-builds-gamepadsc-from-gamecontrollerdb-when-gamepads-is-empty
+  (with-clean-system
+    (let [platform-case (host-platform-case)
+          workspace (test-util/setup-scratch-workspace! world "test/resources/build_project/SideScroller")
+          project-directory (workspace/project-directory workspace)]
+      (write-gamepad-db! project-directory platform-case)
+      (add-gamepad-settings! project-directory "/input/gamecontrollerdb.txt")
+      (clear-gamepads-setting! project-directory)
+      (workspace/resource-sync! workspace)
+      (let [project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")]
+        (with-open [_ (test-util/build! game-project)]
+          (let [maps (read-built-gamepad-maps workspace "input/gamecontrollerdb.gamepadsc")
+                built-settings (read-built-game-project-settings workspace)]
+            (is (mapping-by-device maps (:gamepad-db-device platform-case)))
+            (is (= "/input/gamecontrollerdb.gamepadsc"
+                   (settings-core/get-setting built-settings ["input" "gamepads"])))
+            (is (nil? (settings-core/get-setting built-settings ["input" "gamepad_database"])))))))))
+
+(deftest game-project-keeps-gamepads-empty-when-gamepads-and-gamecontrollerdb-are-empty
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/build_project/SideScroller")
+          project-directory (workspace/project-directory workspace)]
+      (add-gamepad-settings! project-directory "")
+      (clear-gamepads-setting! project-directory)
+      (workspace/resource-sync! workspace)
+      (let [project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")]
+        (with-open [_ (test-util/build! game-project)]
+          (let [built-settings (read-built-game-project-settings workspace)]
+            (is (= "" (settings-core/get-setting built-settings ["input" "gamepads"])))
+            (is (nil? (settings-core/get-setting built-settings ["input" "gamepad_database"])))
+            (is (not (.exists (io/file (workspace/build-path workspace) "input/default.gamepadsc"))))
+            (is (not (.exists (io/file (workspace/build-path workspace) "input/gamecontrollerdb.gamepadsc"))))))))))
 
 (deftest game-project-requires-gamepad-database-txt-extension
   (with-clean-system

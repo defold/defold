@@ -2518,7 +2518,7 @@ bail:
         }
 
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", 0);
-        if (gamepads)
+        if (gamepads && gamepads[0] != '\0')
         {
             dmInputDDF::GamepadMapsRuntime* gamepad_maps_ddf;
             fact_error = dmResource::Get(engine->m_Factory, gamepads, (void**)&gamepad_maps_ddf);
