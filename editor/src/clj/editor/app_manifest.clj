@@ -715,6 +715,13 @@
 (def metal-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics_metal"])
+    (generic-contains-toggles vulkan-osx :engineLibs ["platform"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterMetal"])
+    (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def legacy-metal-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics_metal"])
     (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterMetal"])
     (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
 
@@ -725,7 +732,7 @@
 
 (def exclude-open-gl-osx-toggles
   (concat
-    (exclude-libs-toggles vulkan-osx ["graphics" "platform"])
+    (exclude-libs-toggles vulkan-osx ["graphics"])
     (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
 
 (def exclude-platform-osx-toggles
@@ -741,11 +748,13 @@
      :metal exclude-metal-osx-toggles
      :vulkan exclude-vulkan-osx-toggles}
     [;; Compatibility with manifests authored before the Metal choice existed.
+     :metal (concat legacy-metal-osx-toggles exclude-open-gl-osx-toggles exclude-platform-osx-toggles exclude-vulkan-osx-toggles)
      :open-gl (concat open-gl-osx-toggles exclude-vulkan-osx-toggles)
      :both (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
      :both (concat open-gl-osx-toggles explicit-vulkan-osx-toggles)
      :both (concat open-gl-osx-toggles exclude-metal-osx-toggles)
      :both open-gl-osx-toggles
+     :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-platform-osx-toggles)
      :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles)
      :vulkan (concat explicit-vulkan-osx-toggles exclude-platform-osx-toggles)
      :vulkan explicit-vulkan-osx-toggles]))

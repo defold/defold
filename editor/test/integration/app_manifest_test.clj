@@ -267,12 +267,13 @@
       (doseq [platform [:arm64-osx :x86_64-osx]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_metal"} (:libs context)))
+          (is (some #{"platform"} (:engineLibs context)))
           (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
           (is (some #{"Metal"} (:frameworks context)))
           (is (some #{"IOSurface"} (:frameworks context)))
           (is (some #{"QuartzCore"} (:frameworks context)))
           (is (some #{"graphics"} (:excludeLibs context)))
-          (is (some #{"platform"} (:excludeLibs context)))
+          (is (not-any? #{"platform"} (:excludeLibs context)))
           (is (some #{"graphics_vulkan"} (:excludeLibs context)))
           (is (some #{"platform_vulkan"} (:excludeLibs context)))
           (is (some #{"MoltenVK"} (:excludeLibs context)))
@@ -295,6 +296,7 @@
       (doseq [platform [:arm64-osx :x86_64-osx]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_metal"} (:libs context)))
+          (is (some #{"platform"} (:engineLibs context)))
           (is (not-any? #{"graphics_vulkan"} (:libs context)))
           (is (not-any? #{"platform_vulkan"} (:libs context)))
           (is (not-any? #{"MoltenVK"} (:libs context)))
