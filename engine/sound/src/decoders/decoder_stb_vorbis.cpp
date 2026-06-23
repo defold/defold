@@ -24,11 +24,13 @@
 #include "sound_decoder.h"
 
 #define STREAM_BLOCK_SIZE       (16 << 10)
-// Ogg pages are bounded to 65,307 bytes by the framing spec, so 64 KiB covers one
-// physical page. Vorbis packets may span pages, making this a pragmatic cap rather
-// than a complete upper bound for every valid packet.
+// Ogg pages are bounded to 65,307 bytes by the framing spec. stb_vorbis_open_pushdata()
+// needs the Vorbis identification and comment headers, then requires the whole setup
+// packet to be present before opening. 128 KiB covers the common worst case of a small
+// identification page plus a near-full comment page and a near-full setup page. Vorbis
+// packets may span pages, so this is a pragmatic cap rather than a complete upper bound.
 // https://xiph.org/ogg/doc/framing.html
-#define STREAM_MAX_BUFFER_SIZE  (64 << 10)
+#define STREAM_MAX_BUFFER_SIZE  (128 << 10)
 
 namespace dmSoundCodec
 {
