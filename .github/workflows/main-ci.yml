@@ -433,8 +433,43 @@ jobs:
 
   # ---- BUILD EDITOR ------------------
 
+  gen-release-notes:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps: [
+      {
+        name: 'Checkout',
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
+        with: {
+          ref: '${{env.BUILD_BRANCH}}'
+        }
+      },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
+      {
+        name: 'Generate release notes',
+        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
+        run: 'ci/ci.sh gen-release-notes'
+      },
+      {
+        name: 'Upload release notes artifact',
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
+        with: {
+          name: 'release-notes',
+          path: "releasenotes/*.md\nreleasenotes/*.json",
+          if-no-files-found: 'ignore'
+        }
+      },
+      {
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+      }
+    ]
+
   build-editor-linux:
-    needs: [build-bob]
+    needs: [build-bob, gen-release-notes]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps: [
@@ -459,6 +494,15 @@ jobs:
         }
       },
       { name: 'Install dependencies', run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
+      {
+        name: 'Download release notes',
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
+        continue-on-error: true,
+        with: {
+          name: 'release-notes',
+          path: 'releasenotes'
+        }
+      },
       {
         name: 'Build editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
@@ -521,7 +565,7 @@ jobs:
     ]
 
   build-editor-macos:
-    needs: [build-bob]
+    needs: [build-bob, gen-release-notes]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -558,6 +602,15 @@ jobs:
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
       },
       {
+        name: 'Download release notes',
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
+        continue-on-error: true,
+        with: {
+          name: 'release-notes',
+          path: 'releasenotes'
+        }
+      },
+      {
         name: 'Build editor',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh build-editor --skip-tests --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
@@ -578,7 +631,7 @@ jobs:
     ]
 
   build-editor-windows:
-    needs: [build-bob]
+    needs: [build-bob, gen-release-notes]
     runs-on: windows-2025-vs2026
     timeout-minutes: 60
     strategy:
@@ -611,6 +664,15 @@ jobs:
         shell: bash,
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sign != true)),
         run: 'ci/ci.sh install'
+      },
+      {
+        name: 'Download release notes',
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
+        continue-on-error: true,
+        with: {
+          name: 'release-notes',
+          path: 'releasenotes'
+        }
       },
       {
         name: 'Build editor',

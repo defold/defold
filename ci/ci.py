@@ -27,6 +27,7 @@ PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-maco
 
 SENSITIVE_OPTIONS = (
     '--github-token',
+    '--token',
     '--gcloud-service-key',
     '--notarization-password',
 )
@@ -430,6 +431,32 @@ def release(channel):
     cmd = ' '.join(args + opts)
     call(cmd)
 
+def gen_release_notes(channel):
+    # Release notes ship only on beta/stable.
+    if channel not in ("beta", "stable"):
+        print("Channel '%s' does not ship release notes - skipping" % channel)
+        return
+
+    version = open("VERSION").read().strip()
+    notes_md = os.path.join("releasenotes", "%s.md" % version)
+
+    # Manually-authored notes win: if a file is already on disk, use it as-is and
+    # don't hit the API or overwrite it.
+    if os.path.exists(notes_md):
+        print("%s already exists - using manually-authored notes as-is" % notes_md)
+        return
+
+    # --skip-audit: the git 'branch --contains' audit needs full history and the
+    # dev/beta branches, which a shallow CI checkout doesn't have. call() exits
+    # non-zero (failing the job) if the generator itself errors.
+    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --token %s --skip-audit generate' % (
+        sys.executable, version, get_github_token()))
+
+    # beta/stable must ship notes: a missing file here means generation produced
+    # nothing (no board / empty) - a release defect, so fail.
+    if not os.path.exists(notes_md):
+        raise Exception("No release notes produced for %s on channel '%s'" % (version, channel))
+
 def build_sdk(channel):
     args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     opts = []
@@ -482,7 +509,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -589,6 +616,8 @@ def main(argv):
                 engine_artifacts = engine_artifacts)
         elif command == "archive-editor":
             archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform, skip_install_ext = args.skip_install_ext)
+        elif command == "gen-release-notes":
+            gen_release_notes(channel)
         elif command == "bob":
             build_bob(channel, branch = branch, skip_tests = args.skip_tests)
         elif command == "test-bob":
