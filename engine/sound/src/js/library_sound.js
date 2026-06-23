@@ -52,6 +52,7 @@ var LibrarySoundDevice =
                 lastAheadSeconds: 0,
                 underrunCount: 0,
                 ignoreNextUnderrun: false,
+                copyToChannelNeedsSlice: null,
                 bufferCache: {},
                 arrayCache: {},
                 creatingTime: Date.now() / 1000,
@@ -68,6 +69,12 @@ var LibrarySoundDevice =
                         return this.lastTimeInSuspendedState - this.creatingTime;
                     }
                     return 0;
+                },
+                _needsCopyToChannelSlice: function(heapBuffer) {
+                    if (this.copyToChannelNeedsSlice === null) {
+                        this.copyToChannelNeedsSlice = typeof SharedArrayBuffer !== "undefined" && heapBuffer instanceof SharedArrayBuffer;
+                    }
+                    return this.copyToChannelNeedsSlice;
                 },
                 _updateEffectiveBufferCount: function() {
                     if (this.bufferDuration <= 0) {
@@ -130,10 +137,12 @@ var LibrarySoundDevice =
                     var buf = shared.audioCtx.createBuffer(2, frame_count, this.sampleRate);
 
                     // Copy data from WASM memory
+                    var heapBuffer = HEAPF32.buffer;
+                    var needsCopy = this._needsCopyToChannelSlice(heapBuffer);
                     for(var c=0;c<2;c++) {
-                        var input = new Float32Array(HEAPF32.buffer, samples, frame_count);
-                        // "double copy" - in threaded mode we will get a SharedArrayBuffer as the basis of HEAPF32. copyToChannel cannot handle shared buffers, hence we make a copy (which is no longer shared)
-                        buf.copyToChannel(input.slice(), c);
+                        var input = new Float32Array(heapBuffer, samples, frame_count);
+                        // copyToChannel cannot handle SharedArrayBuffer views, so threaded builds need a non-shared copy.
+                        buf.copyToChannel(needsCopy ? input.slice() : input, c);
                         samples += frame_count * 4; // 4 bytes = sizeof(float)
                     }
                     var source = shared.audioCtx.createBufferSource();
