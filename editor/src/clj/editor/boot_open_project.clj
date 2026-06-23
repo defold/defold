@@ -53,6 +53,7 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
+            [editor.system :as system]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
@@ -409,6 +410,15 @@
             (when-some [readme-resource (workspace/find-resource (g/now) workspace "/README.md")]
               (open-resource readme-resource))
             (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project))
+
+          ;; The first time a given editor version is opened, surface its bundled
+          ;; release notes (once per version; the set tracks every opened version).
+          (let [version (system/defold-version)
+                opened (prefs/get prefs [:opened-versions])]
+            (when (and version (not (contains? opened version)))
+              (when-some [notes (workspace/find-resource (g/now) workspace (str "/_defold/releasenotes/" version ".md"))]
+                (open-resource notes))
+              (prefs/set! prefs [:opened-versions] (conj opened version))))
 
           (breakpoints-view/restore-breakpoints! project prefs)
 
