@@ -1012,6 +1012,7 @@ command.help.report-issue = Report Issue
 command.help.report-suggestion = Report Suggestion
 command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
+command.help.open-release-notes = Release Notes
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert

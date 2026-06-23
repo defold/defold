@@ -2003,6 +2003,8 @@
                menu-items/separator
                {:label (localization/message "command.help.open-documentation")
                 :command :help.open-documentation}
+               {:label (localization/message "command.help.open-release-notes")
+                :command :help.open-release-notes}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
                {:label (localization/message "command.help.open-editor-server")
@@ -2578,6 +2580,16 @@
    (-> (g/with-auto-evaluation-context evaluation-context
          (make-open-resource-plan app-view prefs project resource opts evaluation-context))
        (perform-open-resource-plan! localization))))
+
+(defn- release-notes-resource [project]
+  (when project
+    (workspace/find-resource (project/workspace project)
+                             (str "/_defold/releasenotes/" (system/defold-version) ".md"))))
+
+(handler/defhandler :help.open-release-notes :global
+  (enabled? [project] (some? (release-notes-resource project)))
+  (run [app-view prefs localization project]
+    (open-resource! app-view prefs localization project (release-notes-resource project))))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

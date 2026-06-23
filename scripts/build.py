@@ -3129,32 +3129,19 @@ class Configuration(object):
         self._log("Wrote editor release notes for %s -> %s" % (self.version, os.path.abspath(out_path)))
 
     def upload_editor_release_notes(self):
-        # Uploads the editor release notes (.md + .json) for --version to
-        # editor2/channels/<channel>/release-notes.{md,json}, where the editor
-        # fetches them. The source files come from releasenotes_github_projectv2.py,
-        # which writes releasenotes/<version>.{md,json}; this reads them directly.
-        #
-        # Run separately from the release pipeline (_release_web_pages): release
-        # notes are produced on a slower cadence than releases, so their
-        # deployment is decoupled from the editor build.
+        # Uploads release-notes.json for the update dialog.
         #   ./scripts/build.py --channel beta --version 1.13.0 upload_editor_release_notes
         if self.channel is None:
             self._log("No channel specified! Pass --channel")
             sys.exit(1)
         json_content = self._build_editor_release_notes()
-        md_path = os.path.join(self.defold_root, 'releasenotes', '%s.md' % self.version)
-        if json_content is None or not os.path.exists(md_path):
+        if json_content is None:
             self._log("WARNING: release notes for %s not found in releasenotes/, generate them first with releasenotes_github_projectv2.py" % self.version)
             return
         bucket = s3.get_bucket(urlparse(self.get_archive_path()).hostname)
         json_obj = bucket.Object('editor2/channels/%s/release-notes.json' % self.channel)
         self._log("Uploading release-notes.json for %s -> %s" % (self.version, json_obj.key))
         json_obj.put(Body=json_content, ContentType='application/json')
-        with open(md_path) as f:
-            md_content = f.read()
-        md_obj = bucket.Object('editor2/channels/%s/release-notes.md' % self.channel)
-        self._log("Uploading release-notes.md for %s -> %s" % (self.version, md_obj.key))
-        md_obj.put(Body=md_content, ContentType='text/markdown')
 
     def _release_web_pages(self, releases):
         u = urlparse(self.get_archive_path())
