@@ -42,6 +42,10 @@
 
 (def vulkan-osx #{:x86_64-osx :arm64-osx})
 
+(def vulkan-ios #{:arm64-ios})
+
+(def metal-ios #{:arm64-ios :x86_64-ios})
+
 (def all-platforms
   #{;; ios
     :armv7-ios :arm64-ios :x86_64-ios
@@ -660,6 +664,37 @@
     :vulkan vulkan-android-toggles
     :both))
 
+(def apple-graphics-choice-options
+  [[:open-gl "OpenGL"]
+   [:metal "Metal"]
+   [:vulkan "Vulkan"]
+   [:open-gl-metal "OpenGL & Metal"]
+   [:both "OpenGL & Vulkan"]])
+
+(def ^:private apple-adapter-ids [:open-gl :metal :vulkan])
+
+(def ^:private apple-graphics-choice-selections
+  [[:open-gl #{:open-gl}]
+   [:metal #{:metal}]
+   [:vulkan #{:vulkan}]
+   [:open-gl-metal #{:open-gl :metal}]
+   [:both #{:open-gl :vulkan}]])
+
+(defn- adapter-selection-toggles [adapter-toggles exclude-toggles selection]
+  (let [selected? (set selection)]
+    (concat
+      (mapcat adapter-toggles selection)
+      (mapcat exclude-toggles (remove selected? apple-adapter-ids)))))
+
+(defn- make-adapter-selection-setting [default adapter-toggles exclude-toggles compatibility-id+toggles]
+  (apply make-choice-setting
+         (concat
+           (mapcat (fn [[choice-id selection]]
+                     [choice-id (adapter-selection-toggles adapter-toggles exclude-toggles selection)])
+                   apple-graphics-choice-selections)
+           compatibility-id+toggles
+           [default])))
+
 (def open-gl-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics" "platform"])
@@ -697,38 +732,70 @@
   (exclude-libs-toggles vulkan-osx ["platform"]))
 
 (def graphics-setting-osx
-  (make-choice-setting
-    :open-gl (concat
-               open-gl-osx-toggles
-               exclude-vulkan-osx-toggles
-               exclude-metal-osx-toggles)
-    ;; Compatibility with manifests authored before the Metal choice existed.
-    :open-gl (concat
-               open-gl-osx-toggles
-               exclude-vulkan-osx-toggles)
-    :metal (concat
-             metal-osx-toggles
-             exclude-open-gl-osx-toggles
-             exclude-vulkan-osx-toggles)
-    :both (concat
-            open-gl-osx-toggles
-            explicit-vulkan-osx-toggles
-            exclude-metal-osx-toggles)
-    :both (concat
-            open-gl-osx-toggles
-            explicit-vulkan-osx-toggles)
-    :both (concat
-            open-gl-osx-toggles
-            exclude-metal-osx-toggles)
-    :both open-gl-osx-toggles
-    :vulkan (concat
-              explicit-vulkan-osx-toggles
-              exclude-open-gl-osx-toggles)
-    :vulkan (concat
-              explicit-vulkan-osx-toggles
-              exclude-platform-osx-toggles)
-    :vulkan explicit-vulkan-osx-toggles
-    :vulkan))
+  (make-adapter-selection-setting
+    :vulkan
+    {:open-gl open-gl-osx-toggles
+     :metal metal-osx-toggles
+     :vulkan explicit-vulkan-osx-toggles}
+    {:open-gl exclude-open-gl-osx-toggles
+     :metal exclude-metal-osx-toggles
+     :vulkan exclude-vulkan-osx-toggles}
+    [;; Compatibility with manifests authored before the Metal choice existed.
+     :open-gl (concat open-gl-osx-toggles exclude-vulkan-osx-toggles)
+     :both (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
+     :both (concat open-gl-osx-toggles explicit-vulkan-osx-toggles)
+     :both (concat open-gl-osx-toggles exclude-metal-osx-toggles)
+     :both open-gl-osx-toggles
+     :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles)
+     :vulkan (concat explicit-vulkan-osx-toggles exclude-platform-osx-toggles)
+     :vulkan explicit-vulkan-osx-toggles]))
+
+(def open-gl-ios-toggles [])
+
+(def explicit-vulkan-ios-toggles
+  (concat
+    (libs-toggles vulkan-ios ["graphics_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-ios :symbols ["GraphicsAdapterVulkan"])
+    (generic-contains-toggles vulkan-ios :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-vulkan-ios-toggles
+  (concat
+    (exclude-libs-toggles vulkan-ios ["graphics_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-ios :excludeSymbols ["GraphicsAdapterVulkan"])))
+
+(def metal-ios-toggles
+  (concat
+    (libs-toggles metal-ios ["graphics_metal"])
+    (generic-contains-toggles metal-ios :symbols ["GraphicsAdapterMetal"])
+    (generic-contains-toggles metal-ios :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-metal-ios-toggles
+  (concat
+    (exclude-libs-toggles metal-ios ["graphics_metal"])
+    (generic-contains-toggles metal-ios :excludeSymbols ["GraphicsAdapterMetal"])))
+
+(def exclude-open-gl-ios-toggles
+  (concat
+    (exclude-libs-toggles ios ["graphics"])
+    (generic-contains-toggles ios :excludeSymbols ["GraphicsAdapterOpenGL"])))
+
+(def exclude-open-gl-vulkan-ios-toggles
+  (concat
+    (exclude-libs-toggles vulkan-ios ["graphics"])
+    (generic-contains-toggles vulkan-ios :excludeSymbols ["GraphicsAdapterOpenGL"])))
+
+(def graphics-setting-ios
+  (make-adapter-selection-setting
+    :open-gl
+    {:open-gl open-gl-ios-toggles
+     :metal metal-ios-toggles
+     :vulkan explicit-vulkan-ios-toggles}
+    {:open-gl exclude-open-gl-ios-toggles
+     :metal exclude-metal-ios-toggles
+     :vulkan exclude-vulkan-ios-toggles}
+    [;; Compatibility with older manifests where iOS Vulkan came from the generic graphics selector.
+     :vulkan (concat explicit-vulkan-ios-toggles exclude-open-gl-vulkan-ios-toggles)
+     :vulkan explicit-vulkan-ios-toggles]))
 
 (def webgpu-toggles
   (concat
@@ -919,12 +986,16 @@
             (dynamic label (properties/label-dynamic :appmanifest :graphics-osx))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-osx))
             (dynamic edit-type (g/constantly {:type :choicebox
-                                              :options [[:vulkan "Vulkan"]
-                                                        [:metal "Metal"]
-                                                        [:open-gl "OpenGL"]
-                                                        [:both "OpenGL & Vulkan"]]}))
+                                              :options apple-graphics-choice-options}))
             (value (setting-property-getter graphics-setting-osx))
             (set (setting-property-setter graphics-setting-osx)))
+  (property graphics-ios g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :graphics-ios))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-ios))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options apple-graphics-choice-options}))
+            (value (setting-property-getter graphics-setting-ios))
+            (set (setting-property-setter graphics-setting-ios)))
   (property graphics-android g/Any
             (dynamic label (properties/label-dynamic :appmanifest :graphics-android))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-android))
