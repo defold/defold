@@ -51,24 +51,13 @@ var LibrarySoundDevice =
                 bufferedTo: 0,
                 bufferDuration: 0,
                 effectiveBufferCount: bufferCount,
-                baseQueueSeconds: 0,
-                queueTargetSeconds: 0,
                 latencyQueueFloorSeconds: 0,
-                adaptiveQueueFloorSeconds: 0,
                 learnedQueueFloorSeconds: 0,
                 adaptiveQueueSeconds: 0,
-                outputLatency: 0,
-                baseLatency: 0,
-                lastAheadSeconds: 0,
-                underrunCount: 0,
                 lastUnderrunTime: 0,
                 lastQueueDecayTime: 0,
                 ignoreNextUnderrun: false,
                 copyToChannelNeedsSlice: null,
-                // Enable locally when tuning browser-specific HTML5 audio queue behavior.
-                debugQueueResizing: false,
-                bufferCache: {},
-                arrayCache: {},
                 creatingTime: Date.now() / 1000,
                 lastTimeInSuspendedState: Date.now() / 1000,
                 suspendedBufferedTo: 0,
@@ -90,32 +79,35 @@ var LibrarySoundDevice =
                     }
                     return this.copyToChannelNeedsSlice;
                 },
-                _logQueueResize: function(reason, previousBufferCount, newBufferCount, previousSeconds, seconds) {
-                    if (!this.debugQueueResizing) {
-                        return;
-                    }
+                _debugLogQueueResize: function(reason, previousBufferCount, newBufferCount, previousSeconds, seconds) {
+                    // Uncomment while tuning browser-specific HTML5 audio queue behavior.
+                    /*
+                    var floorSeconds = this._getAdaptiveQueueFloorSeconds();
                     console.log("sound queue resize (" + reason + "): buffers " +
                         previousBufferCount + " -> " + newBufferCount +
                         ", seconds " + previousSeconds.toFixed(3) + " -> " +
                         seconds.toFixed(3) +
-                        ", target " + this.queueTargetSeconds.toFixed(3) +
                         ", latency floor " + this.latencyQueueFloorSeconds.toFixed(3) +
-                        ", floor " + this.adaptiveQueueFloorSeconds.toFixed(3) +
+                        ", floor " + floorSeconds.toFixed(3) +
                         ", learned " + this.learnedQueueFloorSeconds.toFixed(3) +
                         ", buffer " + this.bufferDuration.toFixed(3));
+                    */
                 },
                 _resetQueueDecay: function(audioTime) {
                     this.lastUnderrunTime = audioTime;
                     this.lastQueueDecayTime = audioTime;
                 },
                 _queueSecondsToBufferCount: function(seconds) {
+                    if (this.bufferDuration <= 0) {
+                        return bufferCount;
+                    }
                     return Math.max(
                         bufferCount,
                         Math.ceil(seconds / this.bufferDuration)
                     );
                 },
-                _updateAdaptiveQueueFloor: function() {
-                    this.adaptiveQueueFloorSeconds = Math.max(
+                _getAdaptiveQueueFloorSeconds: function() {
+                    return Math.max(
                         this.latencyQueueFloorSeconds,
                         this.learnedQueueFloorSeconds
                     );
@@ -130,7 +122,7 @@ var LibrarySoundDevice =
                     this.adaptiveQueueSeconds = Math.min(this.adaptiveQueueSeconds, maxAdaptiveQueueSeconds);
                     this.effectiveBufferCount = this._queueSecondsToBufferCount(this.adaptiveQueueSeconds);
                     if (this.effectiveBufferCount != previousEffectiveBufferCount) {
-                        this._logQueueResize(
+                        this._debugLogQueueResize(
                             reason,
                             previousEffectiveBufferCount,
                             this.effectiveBufferCount,
@@ -141,32 +133,32 @@ var LibrarySoundDevice =
                 },
                 _updateQueueTarget: function() {
                     var audioCtx = shared.audioCtx;
-                    this.outputLatency = audioCtx.outputLatency || 0;
-                    this.baseLatency = audioCtx.baseLatency || 0;
-
-                    this.baseQueueSeconds = bufferCount * this.bufferDuration;
-
-                    var reportedLatency = Math.max(this.outputLatency, this.baseLatency);
+                    var reportedLatency = Math.max(audioCtx.outputLatency || 0, audioCtx.baseLatency || 0);
                     var latencyQueueSeconds = reportedLatency > 0 ? reportedLatency * outputLatencyQueueScale : 0;
-                    var targetQueueSeconds = Math.max(this.baseQueueSeconds, latencyQueueSeconds);
-                    this.queueTargetSeconds = Math.min(targetQueueSeconds, maxAdaptiveQueueSeconds);
-                    this.latencyQueueFloorSeconds = Math.max(this.latencyQueueFloorSeconds, this.queueTargetSeconds);
-                    this._updateAdaptiveQueueFloor();
+                    var targetQueueSeconds = Math.min(
+                        Math.max(bufferCount * this.bufferDuration, latencyQueueSeconds),
+                        maxAdaptiveQueueSeconds
+                    );
+                    this.latencyQueueFloorSeconds = Math.max(this.latencyQueueFloorSeconds, targetQueueSeconds);
 
                     var previousAdaptiveQueueSeconds = this.adaptiveQueueSeconds;
                     this.adaptiveQueueSeconds = Math.max(
                         this.adaptiveQueueSeconds,
-                        this.adaptiveQueueFloorSeconds
+                        this._getAdaptiveQueueFloorSeconds()
                     );
                     this._updateEffectiveBufferCount("target", previousAdaptiveQueueSeconds);
                 },
-                _raiseQueueFloorAfterUnderrun: function(previousEffectiveBufferCount) {
+                _growQueueAfterUnderrun: function(audioTime) {
+                    this._resetQueueDecay(audioTime);
                     if (this.bufferDuration <= 0) {
                         return;
                     }
 
-                    var previousFloorSeconds = this.adaptiveQueueFloorSeconds;
-                    var previousFloorBufferCount = this._queueSecondsToBufferCount(this.adaptiveQueueFloorSeconds);
+                    var previousEffectiveBufferCount = this.effectiveBufferCount;
+                    var previousAdaptiveQueueSeconds = this.adaptiveQueueSeconds;
+                    var previousFloorSeconds = this._getAdaptiveQueueFloorSeconds();
+                    var previousFloorBufferCount = this._queueSecondsToBufferCount(previousFloorSeconds);
+
                     this.learnedQueueFloorSeconds = Math.min(
                         maxAdaptiveQueueSeconds,
                         Math.max(
@@ -174,25 +166,18 @@ var LibrarySoundDevice =
                             (previousEffectiveBufferCount + 1) * this.bufferDuration
                         )
                     );
-                    this._updateAdaptiveQueueFloor();
 
-                    if (this.adaptiveQueueFloorSeconds != previousFloorSeconds) {
-                        var floorBufferCount = this._queueSecondsToBufferCount(this.adaptiveQueueFloorSeconds);
-                        this._logQueueResize(
+                    var floorSeconds = this._getAdaptiveQueueFloorSeconds();
+                    if (floorSeconds != previousFloorSeconds) {
+                        this._debugLogQueueResize(
                             "floor",
                             previousFloorBufferCount,
-                            floorBufferCount,
+                            this._queueSecondsToBufferCount(floorSeconds),
                             previousFloorSeconds,
-                            this.adaptiveQueueFloorSeconds
+                            floorSeconds
                         );
                     }
-                },
-                _growQueueAfterUnderrun: function(audioTime) {
-                    this.underrunCount++;
-                    this._resetQueueDecay(audioTime);
-                    var previousEffectiveBufferCount = this.effectiveBufferCount;
-                    var previousAdaptiveQueueSeconds = this.adaptiveQueueSeconds;
-                    this._raiseQueueFloorAfterUnderrun(previousEffectiveBufferCount);
+
                     this.adaptiveQueueSeconds = Math.min(
                         maxAdaptiveQueueSeconds,
                         Math.max(
@@ -203,7 +188,8 @@ var LibrarySoundDevice =
                     this._updateEffectiveBufferCount("underrun", previousAdaptiveQueueSeconds);
                 },
                 _decayQueueAfterStablePlayback: function(audioTime) {
-                    if (this.bufferDuration <= 0 || this.adaptiveQueueSeconds <= this.adaptiveQueueFloorSeconds) {
+                    var floorSeconds = this._getAdaptiveQueueFloorSeconds();
+                    if (this.bufferDuration <= 0 || this.adaptiveQueueSeconds <= floorSeconds) {
                         return;
                     }
 
@@ -220,7 +206,7 @@ var LibrarySoundDevice =
                     var decay = elapsed * this.bufferDuration * queueDecayBufferRate;
                     var previousAdaptiveQueueSeconds = this.adaptiveQueueSeconds;
                     this.adaptiveQueueSeconds = Math.max(
-                        this.adaptiveQueueFloorSeconds,
+                        floorSeconds,
                         this.adaptiveQueueSeconds - decay
                     );
                     this.lastQueueDecayTime = audioTime;
@@ -264,7 +250,6 @@ var LibrarySoundDevice =
                     var firstBuffer = lastBufferDuration == 0.0;
                     var bufferedToSeconds = this.bufferedTo / this.sampleRate;
                     var underrun = !firstBuffer && bufferedToSeconds <= t;
-                    this.lastAheadSeconds = bufferedToSeconds - t;
 
                     if (underrun) {
                         // Suppress expected gaps after suspend/resume. Other underruns are
@@ -309,7 +294,6 @@ var LibrarySoundDevice =
                         // and start using audioCtx.currentTime
                         ahead = this.suspendedBufferedTo - this._getCurrentSuspendedTime();
                     }
-                    this.lastAheadSeconds = ahead;
                     var inqueue = Math.ceil(ahead / this.bufferDuration);
                     if (inqueue < 0) {
                         inqueue = 0;
