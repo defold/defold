@@ -16,19 +16,19 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
+            [editor.os :as os]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]])
-  (:import [com.dynamo.bob Platform]
-           [com.dynamo.input.proto Input$GamepadMapRuntime Input$GamepadMapsRuntime]
+  (:import [com.dynamo.input.proto Input$GamepadMapRuntime Input$GamepadMapsRuntime]
            [java.io File]))
 
 (set! *warn-on-reflection* true)
 
 (defn- host-platform-case []
-  (let [platform (.getPair (Platform/getHostPlatform))]
-    (cond
-      (string/ends-with? platform "-macos")
+  (let [host-os (os/os)]
+    (case host-os
+      :macos
       {:gamepad-db-platform "Mac OS X"
        :gamepad-db-device "Editor SDL Mac Pad"
        :ignored-gamepad-db-platform "Linux"
@@ -36,7 +36,7 @@
        :default-gamepads-device "PLAYSTATION(R)3 Controller"
        :ignored-default-gamepads-device "Microsoft X-Box 360 pad"}
 
-      (string/ends-with? platform "-linux")
+      :linux
       {:gamepad-db-platform "Linux"
        :gamepad-db-device "Editor SDL Linux Pad"
        :ignored-gamepad-db-platform "Mac OS X"
@@ -44,7 +44,7 @@
        :default-gamepads-device "Microsoft X-Box 360 pad"
        :ignored-default-gamepads-device "PLAYSTATION(R)3 Controller"}
 
-      (string/ends-with? platform "-win32")
+      :win32
       {:gamepad-db-platform "Windows"
        :gamepad-db-device "Editor SDL Windows Pad"
        :ignored-gamepad-db-platform "Linux"
@@ -52,9 +52,8 @@
        :default-gamepads-device "cp"
        :ignored-default-gamepads-device "Microsoft X-Box 360 pad"}
 
-      :else
-      (throw (ex-info (str "Unsupported test platform: " platform)
-                      {:platform platform})))))
+      (throw (ex-info (str "Unsupported test platform: " host-os)
+                      {:platform host-os})))))
 
 (defn- gamepad-db-content [{:keys [gamepad-db-platform gamepad-db-device ignored-gamepad-db-platform ignored-gamepad-db-device]}]
   (format (str "03000000000000000000000000000001,%s,a:b0,platform:%s,\n"
@@ -96,6 +95,11 @@
   (with-open [input-stream (io/input-stream (io/file (workspace/build-path workspace) "input/default.gamepadsc"))]
     (Input$GamepadMapsRuntime/parseFrom input-stream)))
 
+(defn- build-game-project-and-read-gamepad-maps
+  ^Input$GamepadMapsRuntime [workspace game-project]
+  (with-open [_ (test-util/build! game-project)]
+    (read-built-gamepad-maps workspace)))
+
 (deftest game-project-builds-gamepadsc-from-gamepads-and-gamecontrollerdb
   (with-clean-system
     (let [platform-case (host-platform-case)
@@ -121,6 +125,29 @@
             (is (not-any? (fn [^Input$GamepadMapRuntime mapping]
                             (zero? (.getMapCount mapping)))
                           (.getMappingsList maps)))))))))
+
+(deftest game-project-rebuilds-gamepadsc-when-gamecontrollerdb-content-changes
+  (with-clean-system
+    (let [platform-case (host-platform-case)
+          updated-platform-case (assoc platform-case :gamepad-db-device "Editor SDL Updated Pad")
+          workspace (test-util/setup-scratch-workspace! world "test/resources/build_project/SideScroller")
+          project-directory (workspace/project-directory workspace)
+          original-device (:gamepad-db-device platform-case)
+          updated-device (:gamepad-db-device updated-platform-case)]
+      (write-default-gamepads! project-directory)
+      (write-gamepad-db! project-directory platform-case)
+      (add-gamepad-settings! project-directory "/input/gamecontrollerdb.txt")
+      (workspace/resource-sync! workspace)
+      (let [project (test-util/setup-project! workspace)
+            game-project (test-util/resource-node project "/game.project")]
+        (let [maps (build-game-project-and-read-gamepad-maps workspace game-project)]
+          (is (some? (mapping-by-device maps original-device)))
+          (is (nil? (mapping-by-device maps updated-device))))
+        (write-gamepad-db! project-directory updated-platform-case)
+        (workspace/resource-sync! workspace)
+        (let [maps (build-game-project-and-read-gamepad-maps workspace game-project)]
+          (is (nil? (mapping-by-device maps original-device)))
+          (is (some? (mapping-by-device maps updated-device))))))))
 
 (deftest game-project-requires-gamepad-database-txt-extension
   (with-clean-system

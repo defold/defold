@@ -123,7 +123,8 @@
    ["input" "gamepads"] [[:build-targets :gamepads-build-targets]
                          [:resource :gamepads-resource]
                          [:pb :gamepads-pb]]
-   ["input" "gamepad_database"] [[:resource :gamepad-database-resource]]
+   ["input" "gamepad_database"] [[:resource :gamepad-database-resource]
+                                  [:lines :gamepad-database-lines]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
 (defn- gamepad-database-error [_node-id gamepad-database-resource]
@@ -133,14 +134,15 @@
     (g/->error _node-id :build-targets :fatal gamepad-database-resource
                "input.gamepad_database must reference a .txt file.")))
 
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource]
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
                         gamepads-build-targets
                         gamepads-pb
+                        gamepad-database-lines
                         (gamepad-database-error _node-id gamepad-database-resource)]
      (let [gamepads-node-id (or (some-> gamepads-build-targets flatten first :node-id) _node-id)
            gamepads-build-target (when gamepads-resource
-                                   (gamepads/make-build-target gamepads-node-id gamepads-resource gamepads-pb gamepad-database-resource))
+                                   (gamepads/make-build-target gamepads-node-id gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines))
            dep-build-targets (cond-> (vec (into (flatten dep-build-targets) custom-build-targets))
                                      gamepads-build-target (conj gamepads-build-target))
            deps-by-source (into {} (map
@@ -185,6 +187,7 @@
   (input gamepads-build-targets g/Any)
   (input gamepads-pb g/Any)
   (input gamepad-database-resource resource/Resource)
+  (input gamepad-database-lines g/Any)
 
   (input resource-map g/Any)
   (input resource-snapshot g/Any)
