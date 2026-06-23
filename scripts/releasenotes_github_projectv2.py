@@ -24,6 +24,7 @@ import json
 import time
 import subprocess
 import math
+from concurrent.futures import ThreadPoolExecutor
 
 token = None
 
@@ -62,6 +63,9 @@ QUERY_ISSUE = r"""
                 ... on PullRequest {
                   number
                   merged
+                  repository {
+                    name
+                  }
                 }
               }
             }
@@ -221,28 +225,62 @@ def _print_errors(response):
     for error in response['errors']:
         print(error['message'])
 
-def github_query(query):
-    response = github.query(query, token)
-    if 'errors' in response:
-        print(response)
-        _print_errors(response)
-        sys.exit(1)
-    return response["data"]
+def github_query(query, max_retries = 6):
+    # Retries with exponential backoff so parallel callers ride out GitHub's rate
+    # limits instead of failing: a primary GraphQL limit surfaces as a RATE_LIMITED
+    # error, a secondary (concurrency/abuse) limit as a 403 that github.query
+    # swallows into a None response.
+    for attempt in range(max_retries):
+        response = github.query(query, token)
+        if response is None:
+            time.sleep(min(60, 2 ** attempt))
+            continue
+        if 'errors' in response:
+            errors = response['errors']
+            if any(error.get('type') == 'RATE_LIMITED' for error in errors):
+                time.sleep(min(60, 5 * 2 ** attempt))
+                continue
+            # NOT_FOUND usually means a cross-repo reference queried in the wrong
+            # repo. Non-fatal: return the (null-leaf) data so the caller can skip
+            # it. Any other error type stays fatal.
+            if all(error.get('type') == 'NOT_FOUND' for error in errors):
+                return response.get("data")
+            print(response)
+            _print_errors(response)
+            sys.exit(1)
+        return response["data"]
+    print("github_query: giving up after %d retries (rate limited or network errors)" % max_retries)
+    sys.exit(1)
 
 def get_project(name):
     data = github_query(QUERY_PROJECT_NUMBER % name)
-    return data["organization"]["projectsV2"]["nodes"][0]
+    nodes = data["organization"]["projectsV2"]["nodes"]
+    # Empty when no board matches (e.g. a past release's board was archived, or the
+    # token lacks read:project / org SSO). Let the caller report it cleanly.
+    return nodes[0] if nodes else None
+
+def _entity(data, key):
+    # Safely dig out organization.repository.<key>; any level is null on NOT_FOUND.
+    return (((data or {}).get("organization") or {}).get("repository") or {}).get(key)
 
 def get_issue(number, repository = "defold"):
     data = github_query(QUERY_ISSUE % (repository, number))
-    return data["organization"]["repository"]["issue"]
+    issue = _entity(data, "issue")
+    if issue is None:
+        print("  WARNING: issue #%s not found in defold/%s (likely a cross-repo reference)" % (number, repository))
+    return issue
 
 def get_pullrequest(number, repository = "defold"):
     data = github_query(QUERY_PULLREQUEST % (repository, number))
-    pr = data["organization"]["repository"]["pullRequest"]
+    pr = _entity(data, "pullRequest")
+    if pr is None:
+        print("  WARNING: PR #%s not found in defold/%s (likely a cross-repo reference)" % (number, repository))
+        return None
     if find_merge_commit(pr) is None and len(find_reference_commits(pr)) == 0:
         timeline_data = github_query(QUERY_PULLREQUEST_TIMELINE_EVENTS % (repository, number))
-        pr["timelineItems"] = timeline_data["organization"]["repository"]["pullRequest"]["timelineItems"]
+        timeline_pr = _entity(timeline_data, "pullRequest")
+        if timeline_pr is not None:
+            pr["timelineItems"] = timeline_pr["timelineItems"]
     return pr
 
 def get_issues_and_prs(project):
@@ -272,19 +310,27 @@ def get_closing_issue(pr):
     for node in reversed(pr["closingIssuesReferences"]["nodes"]):
         issue_number = node["number"]
         repository = node["repository"]["name"]
-        return get_issue(issue_number, repository)
+        issue = get_issue(issue_number, repository)
+        if issue is not None:
+            return issue
     return pr
 
 def get_closing_pr(issue):
-    repository = issue.get("repository").get("name")
+    issue_repository = issue.get("repository").get("name")
     # an issue may reference multiple merged items on the
     # timeline - pick the last one! (ie newest)
     for node in reversed(issue["timelineItems"]["nodes"]):
         if not node["__typename"] == "CrossReferencedEvent":
             continue
-        if node["source"].get("merged") == True:
-            closing_number = node["source"]["number"]
-            return get_pullrequest(closing_number, repository)
+        source = node["source"]
+        if source.get("merged") == True:
+            closing_number = source["number"]
+            # The closing PR can live in a different repo (e.g. an extension), so
+            # use the source's own repository when present; fall back otherwise.
+            repository = (source.get("repository") or {}).get("name") or issue_repository
+            pr = get_pullrequest(closing_number, repository)
+            if pr is not None:
+                return pr
     return issue
 
 def find_merge_commit(pr):
@@ -347,6 +393,44 @@ def issue_to_markdown(issue, hide_details = True, title_only = False):
     return md
 
 
+def fetch_item(item):
+    # Network-heavy, parallelizable: resolves an item to its (issue, pr, labels)
+    # via 2-3 serial GraphQL calls and does the per-item skip checks. No shared
+    # state and github.query is a stateless requests.post, so this is thread-safe.
+    # Returns a record consumed serially by parse_github_project (which keeps the
+    # order-dependent dedup/assembly single-threaded).
+    content = item.get("content")
+    if not content:
+        return None
+
+    repository = content.get("repository").get("name")
+    record = {"type": item.get("type"), "repository": repository, "number": content.get("number")}
+    if content.get("merged", False) == False and content.get("closed", False) == False:
+        return dict(record, status = "ignored", reason = "not closed/merged")
+
+    if item.get("type") == "ISSUE":
+        issue = get_issue(content.get("number"), repository = repository)
+        if issue is None:
+            return dict(record, status = "ignored", reason = "issue #%s not resolvable in %s" % (content.get("number"), repository))
+        pr = get_closing_pr(issue)
+    elif item.get("type") == "PULL_REQUEST":
+        pr = get_pullrequest(content.get("number"), repository = repository)
+        if pr is None:
+            return dict(record, status = "ignored", reason = "PR #%s not resolvable in %s" % (content.get("number"), repository))
+        issue = get_closing_issue(pr)
+        issue_number_matching = pr.get("number") == issue.get("number")
+        repository_matching = pr.get("repository").get("name") == issue.get("repository").get("name")
+        if repository_matching and not issue_number_matching:
+            return dict(record, status = "ignored", reason = "both PR and issue #%s added to the project" % issue.get("number"))
+    else:
+        return None
+
+    labels = get_labels(issue, pr)
+    if "skip release notes" in labels:
+        return dict(record, status = "ignored", reason = "skip release notes")
+
+    return dict(record, status = "ok", issue = issue, pr = pr, labels = labels)
+
 def parse_github_project(version):
     project = get_project(version)
     if not project:
@@ -357,41 +441,25 @@ def parse_github_project(version):
     print("Parsing GitHub project for version %s" % version)
     issues = []
     items = get_issues_and_prs(project)
-    for item in items:
-        content = item.get("content")
-        if not content:
+    # Resolve every item's issue/PR in parallel (the slow part); assemble serially
+    # below. 8 workers stays well under GitHub's point-based GraphQL budget and its
+    # secondary concurrency limit, and github_query backs off on either.
+    print("Fetching %d items..." % len(items))
+    with ThreadPoolExecutor(max_workers = 8) as executor:
+        records = list(executor.map(fetch_item, items))
+
+    for record in records:
+        if record is None:
             continue
 
-        # if content.get("number") not in [11377,11412]: continue
-        # pprint(content)
-        # pprint(item)
-
-        repository = content.get("repository").get("name")
-        print("  %12s %-12s #%-8s - " % (item.get("type"), repository, content.get("number")), end = "")
-        if content.get("merged", False) == False and content.get("closed", False) == False:
-            yellow("IGNORED (not closed/merged)")
+        print("  %12s %-12s #%-8s - " % (record["type"], record["repository"], record["number"]), end = "")
+        if record["status"] == "ignored":
+            yellow("IGNORED (%s)" % record["reason"])
             continue
 
-        issue = None
-        pr = None
-        if item.get("type") == "ISSUE":
-            issue = get_issue(content.get("number"), repository = repository)
-            pr = get_closing_pr(issue)
-        elif item.get("type") == "PULL_REQUEST":
-            pr = get_pullrequest(content.get("number"), repository = repository)
-            issue = get_closing_issue(pr)
-            issue_number_matching = pr.get("number") == issue.get("number")
-            repository_matching = pr.get("repository").get("name") == issue.get("repository").get("name")
-            if repository_matching and not issue_number_matching:
-                yellow("IGNORED (both PR and issue #%s added to the project)" % issue.get("number"))
-                continue
-
-        labels = get_labels(issue, pr)
-
-        # skip release notes if label is set
-        if "skip release notes" in labels:
-            yellow("IGNORED (skip release notes)")
-            continue
+        issue = record["issue"]
+        pr = record["pr"]
+        labels = record["labels"]
 
         # Make sure to ignore duplicates
         duplicate = False
@@ -591,6 +659,9 @@ def generate_json(version, issues):
     output = {
         "version": version,
         "timestamp": time.time(),
+        # Link to the release announcement thread (deterministic from the version);
+        # the editor's update dialog reads this rather than hard-coding the URL.
+        "external-link": "https://forum.defold.com/t/defold-%s-has-been-released/" % version.replace(".", "-"),
         "issues": issues
     }
 

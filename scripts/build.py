@@ -3103,21 +3103,18 @@ class Configuration(object):
         run.shell_command(cmd)
 
     def _build_editor_release_notes(self):
-        # Builds the editor's release-notes.json payload from the committed
-        # releasenotes/<version>.json source (the output of
-        # releasenotes_github_projectv2.py), injecting the forum 'external-link'.
+        # Returns the editor's release-notes.json as produced by
+        # releasenotes_github_projectv2.py (which already includes the forum
+        # 'external-link'). None if it hasn't been generated yet.
         release_notes_path = os.path.join(self.defold_root, 'releasenotes', '%s.json' % self.version)
         if not os.path.exists(release_notes_path):
             return None
         with open(release_notes_path) as f:
-            release_notes = json.load(f)
-        release_notes['external-link'] = 'https://forum.defold.com/t/defold-%s-has-been-released/' % self.version.replace('.', '-')
-        return json.dumps(release_notes)
+            return f.read()
 
     def gen_editor_release_notes(self):
-        # Dev helper: writes the editor release-notes.json (the deployed shape,
-        # with the forum link injected) so the updater dialog can be tested
-        # locally without S3 credentials. Uses the committed
+        # Dev helper: writes the editor release-notes.json so the updater dialog
+        # can be tested locally without S3 credentials. Uses the committed
         # releasenotes/<version>.json as its source.
         notes_content = self._build_editor_release_notes()
         if notes_content is None:
