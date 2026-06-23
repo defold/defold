@@ -671,14 +671,21 @@ def generate_json(version, issues):
         print("Wrote %s" % file)
 
 
-def generate(version, hide_details = False):
+def generate(version, hide_details = False, skip_audit = False):
     print("Generating release notes for %s" % version)
 
     issues = parse_github_project(version)
-    if issues is None:
+    if not issues:
+        # No board (e.g. an alpha version ahead of any open release board) or an
+        # empty one - nothing to generate. Exit 0 and leave no file behind.
+        print("No release notes found for %s - skipping" % version)
         return
-    
-    check_issue_commits(issues)
+
+    # The commit audit shells out to `git branch --contains`, which needs full
+    # history and the dev/beta branches locally. It's purely diagnostic (its
+    # result isn't used below), so CI on a shallow clone skips it via --skip-audit.
+    if not skip_audit:
+        check_issue_commits(issues)
     generate_markdown(version, issues, hide_details)
     generate_json(version, issues)
 
@@ -705,6 +712,11 @@ generate - Generate release notes
                       action = "store_true",
                       help = 'Hide details for each entry')
 
+    parser.add_option('--skip-audit', dest='skip_audit',
+                      default = False,
+                      action = "store_true",
+                      help = 'Skip the git commit audit (needs full history + dev/beta branches; not available on shallow CI clones)')
+
 
     options, args = parser.parse_args()
 
@@ -725,7 +737,7 @@ generate - Generate release notes
     token = options.token
     for cmd in args:
         if cmd == "generate":
-            generate(options.version, options.hide_details)
+            generate(options.version, options.hide_details, options.skip_audit)
 
 
     print('Done')
