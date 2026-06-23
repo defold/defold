@@ -334,6 +334,22 @@
         (is (some #{"MoltenVK"} (:excludeLibs context)))
         (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
         (is (some #{"GraphicsAdapterVulkan"} (:excludeSymbols context))))))
+  (testing "Vulkan-only iOS keeps the simulator OpenGL fallback"
+    (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :vulkan)
+          arm64-context (get-in manifest [:platforms :arm64-ios :context])
+          simulator-context (get-in manifest [:platforms :x86_64-ios :context])]
+      (is (= :vulkan (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
+      (is (some #{"graphics_vulkan"} (:libs arm64-context)))
+      (is (some #{"MoltenVK"} (:libs arm64-context)))
+      (is (some #{"GraphicsAdapterVulkan"} (:symbols arm64-context)))
+      (is (some #{"graphics"} (:excludeLibs arm64-context)))
+      (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols arm64-context)))
+      (is (not-any? #{"graphics"} (:excludeLibs simulator-context)))
+      (is (not-any? #{"GraphicsAdapterOpenGL"} (:excludeSymbols simulator-context)))
+      (is (not-any? #{"graphics_vulkan"} (:libs simulator-context)))
+      (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols simulator-context)))
+      (is (not-any? #{"graphics_metal"} (:libs simulator-context)))
+      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context)))))
   (testing "legacy explicit iOS Vulkan manifests still read as Vulkan"
     (let [explicit-vulkan-manifest {:platforms {:arm64-ios {:context {:excludeLibs ["graphics"]
                                                                       :excludeSymbols ["GraphicsAdapterOpenGL"]
