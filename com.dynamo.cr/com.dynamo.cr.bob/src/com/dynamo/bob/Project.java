@@ -1588,6 +1588,8 @@ public class Project implements AutoCloseable {
                 return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
                 return ShaderCompilers.SHADER_ADAPTER_VULKAN;
+            case "graphics_metal":
+                return ShaderCompilers.SHADER_ADAPTER_METAL;
             case "graphics_opengles":
             case "graphics_gles":
                 return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
