@@ -230,10 +230,10 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_26_CLANG_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_CLANG_VERSION}}"
         MACOS_VERSION:          "{{env.MACOS_VERSION}}"
         MACOS_VERSION_MIN:      "{{env.MACOS_VERSION_MIN}}"
-        SWIFT_VERSION:          "{{env.SWIFT_6_2_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_VERSION}}"
         SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_VERSION}}.sdk"
     context:
         frameworks:     ["Foundation", "AppKit", "Cocoa", "Metal", "IOSurface", "OpenAL", "IOKit", "GameController", "Carbon", "CoreVideo", "QuartzCore", "AVFoundation", "CFNetwork", "Security"]
@@ -308,8 +308,8 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_26_CLANG_VERSION}}"
-        SWIFT_VERSION:          "{{env.SWIFT_6_2_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_CLANG_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_VERSION}}"
         IOS_VERSION:            "{{env.IOS_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
 
