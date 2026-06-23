@@ -693,6 +693,9 @@
     (exclude-libs-toggles vulkan-osx ["graphics" "platform"])
     (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
 
+(def exclude-platform-osx-toggles
+  (exclude-libs-toggles vulkan-osx ["platform"]))
+
 (def graphics-setting-osx
   (make-choice-setting
     :open-gl (concat
@@ -721,6 +724,9 @@
     :vulkan (concat
               explicit-vulkan-osx-toggles
               exclude-open-gl-osx-toggles)
+    :vulkan (concat
+              explicit-vulkan-osx-toggles
+              exclude-platform-osx-toggles)
     :vulkan explicit-vulkan-osx-toggles
     :vulkan))
 
