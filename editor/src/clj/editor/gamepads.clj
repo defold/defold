@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gamepads
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.data :as data]
             [editor.localization :as localization]
@@ -26,8 +25,8 @@
   (:import [com.dynamo.bob Platform]
            [com.dynamo.bob.pipeline GamepadBuilder]
            [com.dynamo.input.proto Input$GamepadMaps Input$GamepadMapsRuntime]
-           [java.io ByteArrayOutputStream]
            [java.nio.charset StandardCharsets]
+           [org.apache.commons.io IOUtils]
            [org.apache.commons.io.input ReaderInputStream]))
 
 (set! *warn-on-reflection* true)
@@ -40,35 +39,19 @@
    :pb-class Input$GamepadMaps
    :view-types [:cljfx-form-view :text]})
 
-(defn- host-platform
-  ^String []
-  (.getPair (Platform/getHostPlatform)))
-
-(defn- string->bytes
-  ^bytes [^String string]
-  (.getBytes string StandardCharsets/UTF_8))
-
 (defn- gamepads->bytes
   ^bytes [gamepads]
-  (string->bytes (protobuf/map->str Input$GamepadMaps gamepads)))
-
-(defn- existing-resource [resource]
-  (when (and (some? resource)
-             (resource/exists? resource))
-    resource))
-
-(defn- lines->bytes
-  ^bytes [lines]
-  (with-open [input-stream (ReaderInputStream. (data/lines-reader lines) StandardCharsets/UTF_8)
-              output-stream (ByteArrayOutputStream.)]
-    (io/copy input-stream output-stream)
-    (.toByteArray output-stream)))
+  (let [gamepads-str (protobuf/map->str Input$GamepadMaps gamepads)]
+    (.getBytes ^String gamepads-str StandardCharsets/UTF_8)))
 
 (defn- gamepad-database-user-data [gamepad-database-resource gamepad-database-lines]
   (when-let [gamepad-database-resource (and (some? gamepad-database-lines)
-                                            (existing-resource gamepad-database-resource))]
-    {:gamepad-database-path (resource/proj-path gamepad-database-resource)
-     :gamepad-database-bytes (lines->bytes gamepad-database-lines)}))
+                                            (some? gamepad-database-resource)
+                                            (resource/exists? gamepad-database-resource)
+                                            gamepad-database-resource)]
+    (with-open [input-stream (ReaderInputStream. (data/lines-reader gamepad-database-lines) StandardCharsets/UTF_8)]
+      {:gamepad-database-path (resource/proj-path gamepad-database-resource)
+       :gamepad-database-bytes (IOUtils/toByteArray input-stream)})))
 
 (defn- build-gamepads [build-resource _dep-resources user-data]
   (let [gamepads-resource (:resource build-resource)]
@@ -85,7 +68,7 @@
      :resource (workspace/make-build-resource resource)
      :build-fn build-gamepads
      :user-data (merge {:pb pb
-                        :platform (host-platform)}
+                        :platform (.getPair (Platform/getHostPlatform))}
                        (gamepad-database-user-data gamepad-database-resource gamepad-database-lines))}))
 
 (g/defnk produce-build-targets [_node-id resource pb]

@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
+            [editor.localization :as localization]
             [editor.os :as os]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -163,5 +164,5 @@
       (let [project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")
             build-error (test-util/build-error! game-project)]
-        (is (some #{"input.gamepad_database must reference a .txt file."}
+        (is (some #{(localization/message "error.game-project.gamepad-database-must-be-txt")}
                   (keep :message (tree-seq :causes :causes build-error))))))))
