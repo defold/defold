@@ -1,0 +1,17 @@
+platforms:
+  arm64-osx:
+    context:
+      excludeLibs: [graphics, platform, graphics_vulkan, platform_vulkan, MoltenVK]
+      excludeSymbols: [GraphicsAdapterOpenGL, GraphicsAdapterVulkan]
+      symbols: [GraphicsAdapterMetal]
+      libs: [graphics_metal]
+      frameworks: [Metal, IOSurface, QuartzCore]
+      linkFlags: []
+  x86_64-osx:
+    context:
+      excludeLibs: [graphics, platform, graphics_vulkan, platform_vulkan, MoltenVK]
+      excludeSymbols: [GraphicsAdapterOpenGL, GraphicsAdapterVulkan]
+      symbols: [GraphicsAdapterMetal]
+      libs: [graphics_metal]
+      frameworks: [Metal, IOSurface, QuartzCore]
+      linkFlags: []

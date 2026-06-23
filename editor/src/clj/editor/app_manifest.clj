@@ -666,13 +666,62 @@
     (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
     (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"])))
 
+(def explicit-vulkan-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"])
+    (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-vulkan-osx-toggles
+  (concat
+    (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"])))
+
+(def metal-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics_metal"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterMetal"])
+    (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-metal-osx-toggles
+  (concat
+    (exclude-libs-toggles vulkan-osx ["graphics_metal"])
+    (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterMetal"])))
+
+(def exclude-open-gl-osx-toggles
+  (concat
+    (exclude-libs-toggles vulkan-osx ["graphics" "platform"])
+    (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
+
 (def graphics-setting-osx
   (make-choice-setting
     :open-gl (concat
                open-gl-osx-toggles
-               (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
-               (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"]))
+               exclude-vulkan-osx-toggles
+               exclude-metal-osx-toggles)
+    ;; Compatibility with manifests authored before the Metal choice existed.
+    :open-gl (concat
+               open-gl-osx-toggles
+               exclude-vulkan-osx-toggles)
+    :metal (concat
+             metal-osx-toggles
+             exclude-open-gl-osx-toggles
+             exclude-vulkan-osx-toggles)
+    :both (concat
+            open-gl-osx-toggles
+            explicit-vulkan-osx-toggles
+            exclude-metal-osx-toggles)
+    :both (concat
+            open-gl-osx-toggles
+            explicit-vulkan-osx-toggles)
+    :both (concat
+            open-gl-osx-toggles
+            exclude-metal-osx-toggles)
     :both open-gl-osx-toggles
+    :vulkan (concat
+              explicit-vulkan-osx-toggles
+              exclude-open-gl-osx-toggles)
+    :vulkan explicit-vulkan-osx-toggles
     :vulkan))
 
 (def webgpu-toggles
@@ -865,6 +914,7 @@
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-osx))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:vulkan "Vulkan"]
+                                                        [:metal "Metal"]
                                                         [:open-gl "OpenGL"]
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting-osx))
