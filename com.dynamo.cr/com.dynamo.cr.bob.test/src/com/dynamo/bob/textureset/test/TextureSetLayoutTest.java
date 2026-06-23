@@ -333,4 +333,17 @@ public class TextureSetLayoutTest {
         assertEquals(layout.getWidth(), 2048);
         assertEquals(layout.getHeight(), 1024);
     }
+
+    @Test
+    public void testMixedOrientationFit() throws CompileExceptionError {
+        List<Rect> rectangles
+            = Arrays.asList(rect("0", 0, 1089, 417),
+                            rect("1", 1, 369, 1080));
+        List<Layout> layouts = packedLayout(0, rectangles);
+        assertEquals(1, layouts.size());
+
+        Layout layout = layouts.get(0);
+        assertEquals(2048, layout.getWidth());
+        assertEquals(1024, layout.getHeight());
+    }
 }

@@ -103,6 +103,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         int minHeight = Integer.MAX_VALUE;
         int maxRectWidth = 0;
         int maxRectHeight = 0;
+        int maxMinSide = 0;
+        int maxMaxSide = 0;
         long totalRectArea = 0L;
         for (int i = 0, nn = inputRects.size(); i < nn; i++) {
             Rect rect = inputRects.get(i).rect;
@@ -110,6 +112,8 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             minHeight = Math.min(minHeight, rect.getHeight());
             maxRectWidth = Math.max(maxRectWidth, rect.getWidth());
             maxRectHeight = Math.max(maxRectHeight, rect.getHeight());
+            maxMinSide = Math.max(maxMinSide, Math.min(rect.getWidth(), rect.getHeight()));
+            maxMaxSide = Math.max(maxMaxSide, Math.max(rect.getWidth(), rect.getHeight()));
             totalRectArea += (long)rect.getWidth() * (long)rect.getHeight();
             if (settings.rotation) {
                 if ((rect.getWidth() > settings.maxPageWidth - settings.paddingX || rect.getHeight() > settings.maxPageHeight - settings.paddingY)
@@ -130,7 +134,7 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
         }
         minWidth = Math.max(minWidth + settings.paddingX, settings.minPageWidth);
         minHeight = Math.max(minHeight + settings.paddingY, settings.minPageHeight);
-        RectStats rectStats = new RectStats(maxRectWidth, maxRectHeight, totalRectArea);
+        RectStats rectStats = new RectStats(maxRectWidth, maxRectHeight, maxMinSide, maxMaxSide, totalRectArea);
 
         // Find the minimal page size that fits all rects.
         Page bestResult = null;
@@ -239,9 +243,11 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
             return width >= stats.maxWidth && height >= stats.maxHeight;
         }
 
-        boolean fitsUpright = width >= stats.maxWidth && height >= stats.maxHeight;
-        boolean fitsRotated = width >= stats.maxHeight && height >= stats.maxWidth;
-        return fitsUpright || fitsRotated;
+        // Rotation allows each rect to orient its shorter side along the page's
+        // shorter side and its longer side along the page's longer side.
+        int pageMinSide = Math.min(width, height);
+        int pageMaxSide = Math.max(width, height);
+        return pageMinSide >= stats.maxMinSide && pageMaxSide >= stats.maxMaxSide;
     }
 
     static class BinarySearch {
@@ -308,11 +314,15 @@ public class MaxRectsLayoutStrategy implements TextureSetLayoutStrategy {
     static class RectStats {
         final int maxWidth;
         final int maxHeight;
+        final int maxMinSide;
+        final int maxMaxSide;
         final long totalArea;
 
-        RectStats(int maxWidth, int maxHeight, long totalArea) {
+        RectStats(int maxWidth, int maxHeight, int maxMinSide, int maxMaxSide, long totalArea) {
             this.maxWidth = maxWidth;
             this.maxHeight = maxHeight;
+            this.maxMinSide = maxMinSide;
+            this.maxMaxSide = maxMaxSide;
             this.totalArea = totalArea;
         }
     }
