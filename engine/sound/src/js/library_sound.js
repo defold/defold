@@ -73,12 +73,14 @@ var LibrarySoundDevice =
                     }
                     return 0;
                 },
+                // Cache whether WebAudio needs a non-shared copy from WASM memory.
                 _needsCopyToChannelSlice: function(heapBuffer) {
                     if (this.copyToChannelNeedsSlice === null) {
                         this.copyToChannelNeedsSlice = typeof SharedArrayBuffer !== "undefined" && heapBuffer instanceof SharedArrayBuffer;
                     }
                     return this.copyToChannelNeedsSlice;
                 },
+                // Disabled-by-default trace hook for tuning browser-specific queue behavior.
                 _debugLogQueueResize: function(reason, previousBufferCount, newBufferCount, previousSeconds, seconds) {
                     // Uncomment while tuning browser-specific HTML5 audio queue behavior.
                     /*
@@ -93,10 +95,12 @@ var LibrarySoundDevice =
                         ", buffer " + this.bufferDuration.toFixed(3));
                     */
                 },
+                // Restart the stable-playback timer after underruns or context state changes.
                 _resetQueueDecay: function(audioTime) {
                     this.lastUnderrunTime = audioTime;
                     this.lastQueueDecayTime = audioTime;
                 },
+                // Convert a target queue duration into the buffer count reported to native code.
                 _queueSecondsToBufferCount: function(seconds) {
                     if (this.bufferDuration <= 0) {
                         return bufferCount;
@@ -106,12 +110,14 @@ var LibrarySoundDevice =
                         Math.ceil(seconds / this.bufferDuration)
                     );
                 },
+                // Keep the queue from decaying below browser latency or observed underrun needs.
                 _getAdaptiveQueueFloorSeconds: function() {
                     return Math.max(
                         this.latencyQueueFloorSeconds,
                         this.learnedQueueFloorSeconds
                     );
                 },
+                // Recompute the effective buffer count used by _freeBufferSlots().
                 _updateEffectiveBufferCount: function(reason, previousAdaptiveQueueSeconds) {
                     var previousEffectiveBufferCount = this.effectiveBufferCount;
                     if (this.bufferDuration <= 0) {
@@ -131,6 +137,7 @@ var LibrarySoundDevice =
                         );
                     }
                 },
+                // Raise the queue target from browser-reported latency without shrinking it.
                 _updateQueueTarget: function() {
                     var audioCtx = shared.audioCtx;
                     var reportedLatency = Math.max(audioCtx.outputLatency || 0, audioCtx.baseLatency || 0);
@@ -148,6 +155,7 @@ var LibrarySoundDevice =
                     );
                     this._updateEffectiveBufferCount("target", previousAdaptiveQueueSeconds);
                 },
+                // Increase the queue after active-playback starvation and remember the new floor.
                 _growQueueAfterUnderrun: function(audioTime) {
                     this._resetQueueDecay(audioTime);
                     if (this.bufferDuration <= 0) {
@@ -187,6 +195,7 @@ var LibrarySoundDevice =
                     );
                     this._updateEffectiveBufferCount("underrun", previousAdaptiveQueueSeconds);
                 },
+                // Slowly reduce the queue after sustained playback, down to the current floor.
                 _decayQueueAfterStablePlayback: function(audioTime) {
                     var floorSeconds = this._getAdaptiveQueueFloorSeconds();
                     if (this.bufferDuration <= 0 || this.adaptiveQueueSeconds <= floorSeconds) {
