@@ -729,6 +729,16 @@ jobs:
       { name: 'Install Python', if: *should_release, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Setup git user', if: *should_release, run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
+        name: 'Download release notes',
+        if: *should_release,
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
+        continue-on-error: true,
+        with: {
+          name: 'release-notes',
+          path: 'releasenotes'
+        }
+      },
+      {
         name: 'Release',
         if: *should_release,
         run: 'ci/ci.sh release'

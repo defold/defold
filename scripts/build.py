@@ -3125,20 +3125,26 @@ class Configuration(object):
             f.write(notes_content)
         self._log("Wrote editor release notes for %s -> %s" % (self.version, os.path.abspath(out_path)))
 
+    def _upload_editor_release_notes(self, bucket):
+        # Publishes release-notes.json (the update dialog's source) for the
+        # current channel. Best-effort: if no notes file was produced, upload
+        # nothing - the dialog simply has none for this version.
+        json_content = self._build_editor_release_notes()
+        if json_content is None:
+            self._log("No release-notes.json for %s in releasenotes/; skipping upload" % self.version)
+            return
+        json_obj = bucket.Object('editor2/channels/%s/release-notes.json' % self.channel)
+        self._log("Uploading release-notes.json for %s -> %s" % (self.version, json_obj.key))
+        json_obj.put(Body=json_content, ContentType='application/json')
+
     def upload_editor_release_notes(self):
-        # Uploads release-notes.json for the update dialog.
+        # Manual: upload release-notes.json for --version to S3 for --channel.
         #   ./scripts/build.py --channel beta --version 1.13.0 upload_editor_release_notes
         if self.channel is None:
             self._log("No channel specified! Pass --channel")
             sys.exit(1)
-        json_content = self._build_editor_release_notes()
-        if json_content is None:
-            self._log("WARNING: release notes for %s not found in releasenotes/, generate them first with releasenotes_github_projectv2.py" % self.version)
-            return
         bucket = s3.get_bucket(urlparse(self.get_archive_path()).hostname)
-        json_obj = bucket.Object('editor2/channels/%s/release-notes.json' % self.channel)
-        self._log("Uploading release-notes.json for %s -> %s" % (self.version, json_obj.key))
-        json_obj.put(Body=json_content, ContentType='application/json')
+        self._upload_editor_release_notes(bucket)
 
     def _release_web_pages(self, releases):
         u = urlparse(self.get_archive_path())
@@ -3172,6 +3178,10 @@ class Configuration(object):
         self._log("Updating channel '%s' for update-v4.json: %s" % (self.channel, v4_obj.key))
         v4_content = json.dumps({'sha1': release_sha1})
         v4_obj.put(Body=v4_content, ContentType='application/json')
+
+        # Editor release-notes.json (the update dialog's source), published
+        # alongside update-v4.json so the notes and the update land together.
+        self._upload_editor_release_notes(bucket)
 
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
         # Used by www.defold.com/download
