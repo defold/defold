@@ -906,15 +906,16 @@
     (ctx-add-node-raw ctx added-node))
 
   (revert [_this ctx]
-    (let [ctx (ctx-delete-node ctx (gt/node-id added-node))]
-      (if-let [original-id (gt/original added-node)]
-        (update-in ctx
-                   [:basis :graphs (gt/node-id->graph-id original-id) :node->overrides]
-                   (fn [node->overrides]
-                     (if (coll/empty? (get node->overrides original-id))
-                       (dissoc node->overrides original-id)
-                       node->overrides)))
-        ctx))))
+    (let [ctx (ctx-delete-node ctx (gt/node-id added-node))
+          original-id (gt/original added-node)]
+      (cond-> ctx
+        original-id
+        (update-in
+          [:basis :graphs (gt/node-id->graph-id original-id) :node->overrides]
+          (fn [node->overrides]
+            (if (coll/empty? (get node->overrides original-id))
+              (dissoc node->overrides original-id)
+              node->overrides)))))))
 
 (defonce/type AddNodeTXS [added-node]
   TransactionStep
@@ -1011,22 +1012,28 @@
                          ctx
                          node->overrides)
           ctx (reduce (fn [ctx ^Arc arc]
-                        (let [basis (:basis ctx)
-                              source-id (.source-id arc)
+                        (let [source-id (.source-id arc)
                               source-label (.source-label arc)
                               target-id (.target-id arc)
                               target-label (.target-label arc)]
                           (-> ctx
                               (mark-input-activated target-id target-label)
-                              (update :basis gt/connect source-id source-label target-id target-label)
-                              (cond-> (not (:full-invalidation ctx))
-                                (flag-successors-changed
-                                  (e/cons
-                                    (pair source-id source-label)
-                                    (e/map #(pair % source-label)
-                                           (ig/get-overrides basis source-id))))))))
+                              (update :basis gt/connect source-id source-label target-id target-label))))
                       ctx
-                      arcs)]
+                      arcs)
+          ctx (if (:full-invalidation ctx)
+                ctx
+                (let [basis (:basis ctx)]
+                  (flag-successors-changed
+                    ctx
+                    (coll/into-> arcs :eduction
+                      (map #(pair (gt/source-id %) (gt/source-label %)))
+                      (distinct)
+                      (mapcat (fn [[source-id source-label :as source]]
+                                (e/cons
+                                  source
+                                  (e/map #(pair % source-label)
+                                         (ig/get-overrides basis source-id)))))))))]
       (reduce mark-all-outputs-activated ctx (keys nodes-by-id)))))
 
 (defonce/type DeleteNodeTXS [node-id]
