@@ -242,9 +242,40 @@ def install(args):
     elif system == "Darwin":
         install_macos(args)
 
-def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
-                with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
-                skip_docs = False, skip_builtins = False, archive = False, verbose = False):
+def create_gcloud_options(gcloud_service_key):
+    gcloud_certfile = None
+    gcloud_keyfile = None
+    if gcloud_service_key:
+        gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
+        gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
+        b64decode_to_file(gcloud_service_key, gcloud_keyfile)
+
+    opts = []
+    # windows EV Code Signing with key in Google Cloud KMS
+    if gcloud_keyfile and gcloud_certfile:
+        opts.append("--gcloud-location=europe-west3")
+        opts.append("--gcloud-keyname=ev-windows-key")
+        opts.append("--gcloud-keyringname=ev-key-ring")
+        opts.append("--gcloud-projectid=defold-editor")
+
+        gcloud_keyfile = os.path.abspath(gcloud_keyfile)
+        if not os.path.exists(gcloud_keyfile):
+            print("Google Cloud key file not found:", gcloud_keyfile)
+            sys.exit(1)
+
+        print("Using Google Cloud key file", gcloud_keyfile)
+        opts.append('--gcloud-keyfile=%s' % gcloud_keyfile)
+
+        gcloud_certfile = os.path.abspath(gcloud_certfile)
+        if not os.path.exists(gcloud_certfile):
+            print("Google Cloud certificate not found:", gcloud_certfile)
+            sys.exit(1)
+
+        print("Using Google Cloud certificate ", gcloud_certfile)
+        opts.append('--gcloud-certfile=%s' % gcloud_certfile)
+    return opts
+
+def build_engine(channel, platform, args):
 
     install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
@@ -260,51 +291,53 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
                     'arm64-android'):
         install_sdk = ''
 
-    args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()
+    cmd_args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()
 
-    opts = []
+    cmd_opts = []
     waf_opts = []
 
-    opts.append('--platform=%s' % platform)
+    cmd_opts.append('--platform=%s' % platform)
     # ccache isn't needed on CI
-    opts.append('--disable-ccache')
-    if verbose:
-        opts.append('--verbose')
+    cmd_opts.append('--disable-ccache')
+    if args.verbose:
+        cmd_opts.append('--verbose')
 
-    args.append('build_engine')
+    cmd_args.append('build_engine')
 
     if channel:
-        opts.append('--channel=%s' % channel)
+        cmd_opts.append('--channel=%s' % channel)
 
-    if archive:
-        args.append('archive_engine')
+    if args.archive:
+        cmd_args.append('archive_engine')
 
-    if skip_codesign:
-        opts.append('--skip-codesign')
-    if skip_docs:
-        opts.append('--skip-docs')
-    if skip_builtins:
-        opts.append('--skip-builtins')
-    if skip_tests:
-        opts.append('--skip-tests')
-    if skip_build_tests:
+    if args.skip_codesign:
+        cmd_opts.append('--skip-codesign')
+    if args.skip_docs:
+        cmd_opts.append('--skip-docs')
+    if args.skip_builtins:
+        cmd_opts.append('--skip-builtins')
+    if args.skip_tests:
+        cmd_opts.append('--skip-tests')
+    if args.skip_build_tests:
         waf_opts.append('--skip-build-tests')
+    if args.gcloud_service_key:
+        cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
 
-    if with_valgrind:
+    if args.with_valgrind:
         waf_opts.append('--with-valgrind')
-    if with_asan:
+    if args.with_asan:
         waf_opts.append('--with-asan')
-    if with_ubsan:
+    if args.with_ubsan:
         waf_opts.append('--with-ubsan')
-    if with_tsan:
+    if args.with_tsan:
         waf_opts.append('--with-tsan')
-    if with_vanilla_lua:
+    if args.with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
 
     if platform == 'x86_64-linux':
-        args.append('build_sdk_headers') # gather headers after a successful build
+        cmd_args.append('build_sdk_headers') # gather headers after a successful build
 
-    cmd = ' '.join(args + opts)
+    cmd = ' '.join(cmd_args + cmd_opts)
 
     # Add arguments to waf after a double-dash
     if waf_opts:
@@ -312,105 +345,90 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
 
     call(cmd)
 
-
-def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False, notarization_username = None, notarization_password = None, notarization_itc_provider = None, gcloud_keyfile = None, gcloud_certfile = None):
+def build_editor2(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor build: %s" % platform)
 
-    opts = []
+    cmd_args = ('"%s" scripts/build.py distclean install_ext build_editor2' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append('--channel=%s' % channel)
+    cmd_opts.append('--platform=%s' % platform)
 
-    if engine_artifacts:
-        opts.append('--engine-artifacts=%s' % engine_artifacts)
-    if notarization_username:
-        opts.append('--notarization-username="%s"' % notarization_username)
-    if notarization_password:
-        opts.append('--notarization-password="%s"' % notarization_password)
-    if notarization_itc_provider:
-        opts.append('--notarization-itc-provider="%s"' % notarization_itc_provider)
+    if args.engine_artifacts:
+        cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
+    if args.notarization_username:
+        cmd_opts.append('--notarization-username="%s"' % args.notarization_username)
+    if args.notarization_password:
+        cmd_opts.append('--notarization-password="%s"' % args.notarization_password)
+    if args.notarization_itc_provider:
+        cmd_opts.append('--notarization-itc-provider="%s"' % args.notarization_itc_provider)
+    if args.gcloud_service_key:
+        cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
+    if args.skip_tests:
+        cmd_opts.append('--skip-tests')
 
-    # windows EV Code Signing with key in Google Cloud KMS
-    if gcloud_keyfile and gcloud_certfile:
-        opts.append("--gcloud-location=europe-west3")
-        opts.append("--gcloud-keyname=ev-windows-key")
-        opts.append("--gcloud-keyringname=ev-key-ring")
-        opts.append("--gcloud-projectid=defold-editor")
+    cmd = ' '.join(cmd_args + cmd_opts)
+    call(cmd)
 
-        gcloud_keyfile = os.path.abspath(gcloud_keyfile)
-        if not os.path.exists(gcloud_keyfile):
-            print("Google Cloud key file not found:", gcloud_keyfile)
-            sys.exit(1)
-        print("Using Google Cloud key file", gcloud_keyfile)
-        opts.append('--gcloud-keyfile=%s' % gcloud_keyfile)
-
-        gcloud_certfile = os.path.abspath(gcloud_certfile)
-        if not os.path.exists(gcloud_certfile):
-            print("Google Cloud certificate not found:", gcloud_certfile)
-            sys.exit(1)
-        print("Using Google Cloud certificate ", gcloud_certfile)
-        opts.append('--gcloud-certfile=%s' % gcloud_certfile)
-
-    opts.append('--channel=%s' % channel)
-
-    if skip_tests:
-        opts.append('--skip-tests')
-
-    opts_string = ' '.join(opts)
-
-    call('"%s" scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
-
-def test_editor(channel, platform, engine_artifacts = None):
+def test_editor(channel, platform, args):
     if not platform in PLATFORMS_DESKTOP:
         raise Exception("Unsupported platform for editor tests: %s" % platform)
 
-    opts = []
+    cmd_args = ('"%s" scripts/build.py distclean install_ext test_editor2' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append('--channel=%s' % channel)
+    cmd_opts.append('--platform=%s' % platform)
 
-    opts.append('--channel=%s' % channel)
+    if args.engine_artifacts:
+        cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
 
-    if engine_artifacts:
-        opts.append('--engine-artifacts=%s' % engine_artifacts)
+    cmd = ' '.join(cmd_args + cmd_opts)
+    call(cmd)
 
-    opts_string = ' '.join(opts)
-
-    call('python scripts/build.py distclean install_ext test_editor2 --platform=%s %s' % (platform, opts_string))
-
-def archive_editor2(channel, engine_artifacts = None, platform = None, skip_install_ext = False):
+def archive_editor2(channel, platform, args):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
         platforms = [platform]
 
-    opts = []
-    opts.append("--channel=%s" % channel)
+    if args.skip_install_ext:
+        cmd_args = ('"%s" scripts/build.py archive_editor2' % sys.executable).split()
+    else:
+        cmd_args = ('"%s" scripts/build.py install_ext archive_editor2' % sys.executable).split()
 
-    if engine_artifacts:
-        opts.append('--engine-artifacts=%s' % engine_artifacts)
-
-    opts_string = ' '.join(opts)
     for platform in platforms:
-        if skip_install_ext:
-            call('"%s" scripts/build.py archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
-        else:
-            call('"%s" scripts/build.py install_ext archive_editor2 --platform=%s %s' % (sys.executable, platform, opts_string))
+        cmd_opts = []
+        cmd_opts.append("--channel=%s" % channel)
+        cmd_opts.append('--platform=%s' % platform)
+
+        if args.engine_artifacts:
+            cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
+
+        cmd = ' '.join(cmd_args + cmd_opts)
+        call(cmd)
 
 def distclean():
     call('"%s" scripts/build.py distclean' % sys.executable)
 
 
 def install_ext(platform = None):
-    opts = []
+    cmd_args = ('"%s" scripts/build.py install_ext' % sys.executable).split()
+    cmd_opts = []
     if platform:
-        opts.append('--platform=%s' % platform)
+        cmd_opts.append('--platform=%s' % platform)
 
-    call('"%s" scripts/build.py install_ext %s' % (sys.executable, ' '.join(opts)))
+    cmd = ' '.join(cmd_args + cmd_opts)
+    call(cmd)
 
-def build_bob(channel, branch = None, skip_tests = False):
-    args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
-    opts = []
-    opts.append("--channel=%s" % channel)
-    if skip_tests:
-        opts.append("--skip-tests")
 
-    cmd = ' '.join(args + opts)
+def build_bob(channel, branch, args):
+    cmd_args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append("--channel=%s" % channel)
+    if args.skip_tests:
+        cmd_opts.append("--skip-tests")
+
+    cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 def test_bob(channel):
@@ -419,23 +437,23 @@ def test_bob(channel):
 
 
 def release(channel):
-    args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
-    opts = []
-    opts.append("--channel=%s" % channel)
+    cmd_args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append("--channel=%s" % channel)
 
     token = get_github_token()
     if token:
-        opts.append("--github-token=%s" % token)
+        cmd_opts.append("--github-token=%s" % token)
 
-    cmd = ' '.join(args + opts)
+    cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 def build_sdk(channel):
-    args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
-    opts = []
-    opts.append("--channel=%s" % channel)
+    cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append("--channel=%s" % channel)
 
-    cmd = ' '.join(args + opts)
+    cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 
@@ -464,17 +482,17 @@ def get_branch():
 
     return branch
 
-def release_settings_for_branch(branch, engine_artifacts):
+def release_settings_for_branch(branch):
     if branch == "master":
-        return "stable", True, engine_artifacts or "archived"
+        return "stable", True
     if branch == "beta":
-        return "beta", True, engine_artifacts or "archived"
+        return "beta", True
     if branch == "dev":
-        return "alpha", True, engine_artifacts or "archived"
-    return "dev", False, engine_artifacts or "archived"
+        return "alpha", True
+    return "dev", False
 
 def should_release_branch(branch):
-    return release_settings_for_branch(branch, None)[1]
+    return release_settings_for_branch(branch)[1]
 
 def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
@@ -494,8 +512,9 @@ def main(argv):
     parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
+    parser.add_argument("--skip-codesign", dest="skip_codesign", action='store_true', help="")
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
-    parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
@@ -538,59 +557,28 @@ def main(argv):
         print("true" if should_release_branch(branch) else "false")
         return
 
-    channel, make_release, engine_artifacts = release_settings_for_branch(branch, args.engine_artifacts)
+    channel, make_release = release_settings_for_branch(branch)
 
-    print(f"Using branch={branch} channel={channel} engine_artifacts={engine_artifacts}")
+    print(f"Using branch={branch} channel={channel} engine_artifacts={args.engine_artifacts}")
 
     # execute commands
     for command in args.commands:
         if command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
-            build_engine(
-                platform,
-                channel,
-                with_valgrind = args.with_valgrind,
-                with_asan = args.with_asan,
-                with_ubsan = args.with_ubsan,
-                with_tsan = args.with_tsan,
-                with_vanilla_lua = args.with_vanilla_lua,
-                archive = args.archive,
-                skip_tests = args.skip_tests,
-                skip_build_tests = args.skip_build_tests,
-                skip_builtins = args.skip_builtins,
-                skip_docs = args.skip_docs,
-                verbose = args.verbose)
+            build_engine(channel, platform, args)
         elif command == "build-editor":
             if not platform:
                 raise Exception("No --platform specified.")
-            gcloud_certfile = None
-            gcloud_keyfile = None
-            if args.gcloud_service_key:
-                gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
-                gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
-                b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
-            build_editor2(
-                channel,
-                platform,
-                engine_artifacts = engine_artifacts, 
-                skip_tests = args.skip_tests,
-                notarization_username = args.notarization_username,
-                notarization_password = args.notarization_password,
-                notarization_itc_provider = args.notarization_itc_provider,
-                gcloud_keyfile = gcloud_keyfile, 
-                gcloud_certfile = gcloud_certfile)
+            build_editor2(channel, platform, args)
         elif command == "test-editor":
             if not platform:
                 raise Exception("No --platform specified.")
-            test_editor(
-                channel,
-                platform,
-                engine_artifacts = engine_artifacts)
+            test_editor(channel, platform, args)
         elif command == "archive-editor":
-            archive_editor2(channel, engine_artifacts = engine_artifacts, platform = platform, skip_install_ext = args.skip_install_ext)
+            archive_editor2(channel, platform, args)
         elif command == "bob":
-            build_bob(channel, branch = branch, skip_tests = args.skip_tests)
+            build_bob(channel, branch, args)
         elif command == "test-bob":
             test_bob(channel)
         elif command == "sdk":

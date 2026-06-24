@@ -22,6 +22,7 @@ import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import build_android
+import codesigning
 import run
 import s3
 import sdk
@@ -2269,7 +2270,15 @@ class Configuration(object):
             f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
-            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}'
+            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}',
+            f'-DDEFOLD_SKIP_CODESIGN:BOOL={"ON" if self.skip_codesign else "OFF"}',
+            f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
+            f'-DDEFOLD_GCLOUD_PROJECTID:STRING={self.gcloud_projectid or ""}',
+            f'-DDEFOLD_GCLOUD_LOCATION:STRING={self.gcloud_location or ""}',
+            f'-DDEFOLD_GCLOUD_KEYRINGNAME:STRING={self.gcloud_keyringname or ""}',
+            f'-DDEFOLD_GCLOUD_KEYNAME:STRING={self.gcloud_keyname or ""}',
+            f'-DDEFOLD_GCLOUD_CERTFILE:STRING={self.gcloud_certfile or ""}',
+            f'-DDEFOLD_GCLOUD_KEYFILE:STRING={self.gcloud_keyfile or ""}'
         ]
         cmake_configure_args += self._cmake_feature_defines()
         cmake_configure_state = self._cmake_configure_state(builddir, cmake_configure_args)
@@ -3871,7 +3880,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       help = 'Version to use instead of from VERSION file')
 
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
-                      default = None,
+                      default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help = 'Codesigning identity for macOS version of the editor')
 
     parser.add_option('--gcloud-projectid', dest='gcloud_projectid',
