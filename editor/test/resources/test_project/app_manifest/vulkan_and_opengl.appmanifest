@@ -3,8 +3,8 @@
 platforms:
     arm64-osx:
         context:
-            excludeLibs: ["graphics", "graphics_metal"]
-            excludeSymbols: ["GraphicsAdapterOpenGL", "GraphicsAdapterMetal"]
+            excludeLibs: ["platform"]
+            excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK"]
             frameworks: ["Metal","IOSurface","QuartzCore"]
@@ -12,8 +12,8 @@ platforms:
 
     x86_64-osx:
         context:
-            excludeLibs: ["graphics", "graphics_metal"]
-            excludeSymbols: ["GraphicsAdapterOpenGL", "GraphicsAdapterMetal"]
+            excludeLibs: ["platform"]
+            excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK"]
             frameworks: ["Metal","IOSurface","QuartzCore"]
@@ -106,8 +106,8 @@ platforms:
 
     arm64-ios:
         context:
-            excludeLibs: ["graphics", "graphics_metal"]
-            excludeSymbols: ["GraphicsAdapterOpenGL", "GraphicsAdapterMetal"]
+            excludeLibs: []
+            excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan","MoltenVK"]
             frameworks: ["Metal","IOSurface","QuartzCore"]
@@ -115,8 +115,8 @@ platforms:
 
     x86_64-ios:
         context:
-            excludeLibs: ["graphics_metal"]
-            excludeSymbols: ["GraphicsAdapterMetal"]
+            excludeLibs: []
+            excludeSymbols: []
             symbols: []
             libs: []
             frameworks: []

@@ -488,8 +488,8 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :both (g/node-value manifest :graphics)))
-        (is (= :vulkan (g/node-value manifest :graphics-osx)))
-        (is (= :vulkan (g/node-value manifest :graphics-ios)))
+        (is (nil? (g/node-value manifest :graphics-osx)))
+        (is (nil? (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/opengl_osx.appmanifest"
