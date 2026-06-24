@@ -54,6 +54,7 @@ context:
                 "rig", "rig.lib", "librig.lib",
                 "rig_null", "rig_null.lib", "librig_null.lib",
                 "graphics", "graphics.lib", "libgraphics.lib",
+                "graphics_metal", "graphics_metal.lib", "libgraphics_metal.lib",
                 "graphics_opengles", "graphics_opengles.lib", "libgraphics_opengles.lib",
                 "graphics_webgpu", "graphics_webgpu.lib", "libgraphics_webgpu.lib",
                 "graphics_webgpu_wagyu", "graphics_webgpu_wagyu.lib", "libgraphics_webgpu_wagyu.lib",
@@ -111,7 +112,7 @@ context:
                 "tremolo", "libtremolo.lib",
                 "vpx", "vpx.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "AudioDecoderOpus", "GraphicsAdapterWebGPU",
-                    "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
+                    "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterMetal", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt",
                     "ScriptFont", "ResourceTypeFont", "ResourceTypeTTF",
                     "ResourceTypeOgg", "ResourceTypeWav", "ResourceTypeOpus"]
