@@ -148,7 +148,11 @@
   (output library-reload-signature g/Int :cached produce-library-reload-signature))
 
 (defn make [graph]
-  (first (g/tx-nodes-added (g/transact (g/make-node graph EditorExtensions)))))
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node graph EditorExtensions)))))
 
 ;; region script API
 

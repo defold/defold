@@ -117,8 +117,9 @@
 (defonce ^:private full-invalidation-transact true)
 
 (defonce ^:private transact-opts
-  {:metrics transaction-metrics
-   :full-invalidation full-invalidation-transact})
+  {:full-invalidation full-invalidation-transact
+   :metrics transaction-metrics
+   :undoable false})
 
 (defn- measure-task-impl! [task-key task-fn]
   (let [task-label (name task-key)]
@@ -151,8 +152,8 @@
   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
         workspace (workspace/make-workspace workspace-graph-id project-path {} workspace-config localization)]
     (g/transact
-      (concat
-        (scene/register-view-types workspace)))
+      {:undoable false}
+      (scene/register-view-types workspace))
     (resource-types/register-resource-types! workspace)
     workspace))
 
@@ -266,8 +267,6 @@
         (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
 
     migrated-resource-node-ids))
-
-(defonce ^:private -reset-undo- (g/reset-undo! :undo/global))
 
 (defonce build-results
   (g/with-auto-evaluation-context evaluation-context

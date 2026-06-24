@@ -996,11 +996,12 @@
          total-progress (progress/advance total-progress read-progress-span)
 
          ;; We can use full invalidation on the initial load since we have
-         ;; nothing in the cache and will reset undo afterward.
+         ;; nothing in the cache, and the transaction is not undoable.
          full-invalidation-transact true
 
-         transact-opts {:metrics transaction-metrics
-                        :full-invalidation full-invalidation-transact}
+         transact-opts {:full-invalidation full-invalidation-transact
+                        :metrics transaction-metrics
+                        :undoable false}
 
          prelude-tx-data
          (e/concat
@@ -1796,10 +1797,12 @@
               {:undoable false}
               (g/make-nodes plugin-graph [code-transpilers code.transpilers/CodeTranspilersNode]
                 (g/connect code-preprocessors :lua-preprocessors code-transpilers :lua-preprocessors)))))
+
         project-id
         (second
           (g/tx-nodes-added
             (g/transact
+              {:undoable false}
               (g/make-nodes graph
                   [script-intelligence si/ScriptIntelligenceNode
                    project [Project :workspace workspace-id]
@@ -1816,9 +1819,9 @@
                 (g/set-graph-value graph :project-id project)
                 (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
                 (g/set-graph-value graph :code-transpilers transpilers-id)))))]
+
     (reload-plugins! project-id (g/node-value project-id :resources))
     (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
-    (g/reset-undo! :undo/global)
     project-id))
 
 (defn read-dependencies [game-project-resource]

@@ -448,5 +448,4 @@
       (ui/run-now
         (icons/initialize! workspace)
         (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
-      (g/reset-undo! :undo/global)
       (log/info :message "project loaded"))))
