@@ -1261,25 +1261,31 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    static void SetInstancePlaying(SoundSystem* sound, HSoundInstance sound_instance, bool playing)
+    {
+        if (sound_instance->m_Playing == (uint8_t)playing)
+        {
+            return;
+        }
+
+        sound_instance->m_Playing = (uint8_t)playing;
+        if (playing)
+            sound->m_PlayingInstanceCount++;
+        else
+            sound->m_PlayingInstanceCount--;
+    }
+
     Result Play(HSoundInstance sound_instance)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-        if (!sound_instance->m_Playing)
-        {
-            sound_instance->m_Playing = 1;
-            g_SoundSystem->m_PlayingInstanceCount++;
-        }
+        SetInstancePlaying(g_SoundSystem, sound_instance, true);
         return RESULT_OK;
     }
 
     static void StopNoLock(SoundSystem* sound, HSoundInstance sound_instance)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-        if (sound_instance->m_Playing)
-        {
-            sound_instance->m_Playing = 0;
-            sound->m_PlayingInstanceCount--;
-        }
+        SetInstancePlaying(sound, sound_instance, false);
         dmSoundCodec::Reset(sound->m_CodecContext, sound_instance->m_Decoder);
         ResetInstanceMixState(sound_instance);
     }
@@ -1296,16 +1302,7 @@ namespace dmSound
         if (!g_SoundSystem)
             return RESULT_OK;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-        if (pause && sound_instance->m_Playing)
-        {
-            sound_instance->m_Playing = 0;
-            g_SoundSystem->m_PlayingInstanceCount--;
-        }
-        else if (!pause && !sound_instance->m_Playing)
-        {
-            sound_instance->m_Playing = 1;
-            g_SoundSystem->m_PlayingInstanceCount++;
-        }
+        SetInstancePlaying(g_SoundSystem, sound_instance, !pause);
         return RESULT_OK;
     }
 
@@ -1614,8 +1611,7 @@ namespace dmSound
         bool correct_num_channels = info.m_Channels == 1 || info.m_Channels == 2;
         if (!correct_bit_depth || !correct_num_channels) {
             dmLogError("Only mono/stereo with 8/16/32 bits per sample is supported (%s): %u bpp %u ch", GetSoundName(sound, instance), (uint32_t)info.m_BitsPerSample, (uint32_t)info.m_Channels);
-            instance->m_Playing = 0;
-            sound->m_PlayingInstanceCount--;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1643,8 +1639,7 @@ namespace dmSound
         if (required_decoder_frame_capacity > 0xffffffffU)
         {
             dmLogError("Decoder scratch buffer too large for '%s'", GetSoundName(sound, instance));
-            instance->m_Playing = 0;
-            sound->m_PlayingInstanceCount--;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1652,8 +1647,7 @@ namespace dmSound
         if (capacity_result != RESULT_OK)
         {
             dmLogError("Failed to grow decoder scratch buffer for '%s': %d", GetSoundName(sound, instance), capacity_result);
-            instance->m_Playing = 0;
-            sound->m_PlayingInstanceCount--;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1661,8 +1655,7 @@ namespace dmSound
         if (required_state_frame_capacity > 0xffffffffU)
         {
             dmLogError("Instance frame buffer too large for '%s'", GetSoundName(sound, instance));
-            instance->m_Playing = 0;
-            sound->m_PlayingInstanceCount--;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1670,8 +1663,7 @@ namespace dmSound
         if (capacity_result != RESULT_OK)
         {
             dmLogError("Failed to grow instance frame buffer for '%s': %d", GetSoundName(sound, instance), capacity_result);
-            instance->m_Playing = 0;
-            sound->m_PlayingInstanceCount--;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1770,8 +1762,7 @@ namespace dmSound
             if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
             {
                 dmLogWarning("Unable to decode file '%s': %s %d", GetSoundName(sound, instance), dmSoundCodec::ResultToString(r), r);
-                instance->m_Playing = 0;
-                sound->m_PlayingInstanceCount--;
+                SetInstancePlaying(sound, instance, false);
                 return;
             }
         }
@@ -1869,8 +1860,7 @@ namespace dmSound
         }
 
         if (instance->m_EndOfStream) {
-            instance->m_Playing = 0;
-            sound->m_PlayingInstanceCount--;
+            SetInstancePlaying(sound, instance, false);
         }
     }
 
@@ -2081,9 +2071,7 @@ namespace dmSound
         }
 
         #if defined(__EMSCRIPTEN__)
-        // Allocated sound instances can be paused or stopped without being deleted.
-        // Stop the JS device when playback is idle so WebAudio doesn't learn that
-        // intentional silence as an underrun and grow the adaptive queue.
+        // Paused/stopped HTML5 instances can stay allocated; don't let that idle gap grow the JS queue.
         if (playing_instance_count == 0)
         {
             if (sound->m_IsDeviceStarted)
