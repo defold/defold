@@ -595,37 +595,26 @@
     :model))
 
 
-(def vulkan-toggles
-  (concat
-    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
-    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
-    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
-    (libs-toggles android ["graphics_vulkan"])
-    (libs-toggles windows ["graphics_vulkan" "vulkan"])
-    (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
-    (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
-    (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
+(def generic-vulkan
+  (disj vulkan :armv7-android :arm64-android :arm64-ios))
 
-(def vulkan-toggles-no-android
+(def generic-vulkan-toggles
   (concat
     (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
     (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
-    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
-    (generic-contains-toggles (disj vulkan :armv7-android :arm64-android) :symbols ["GraphicsAdapterVulkan"])))
+    (generic-contains-toggles generic-vulkan :symbols ["GraphicsAdapterVulkan"])))
 
 (def graphics-setting
   (make-choice-setting
     :vulkan (concat
-              vulkan-toggles-no-android
-              (exclude-libs-toggles (disj vulkan :armv7-android :arm64-android) ["graphics"])
-              (generic-contains-toggles (disj vulkan :arm64-linux :armv7-android :arm64-android) :excludeSymbols ["GraphicsAdapterOpenGL"])
+              generic-vulkan-toggles
+              (exclude-libs-toggles generic-vulkan ["graphics"])
+              (generic-contains-toggles (disj generic-vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
               [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
-    :both vulkan-toggles-no-android
+    :both generic-vulkan-toggles
     :open-gl))
 
 (def open-gl-android-toggles

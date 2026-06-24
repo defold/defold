@@ -350,7 +350,20 @@
       (is (not-any? #{"graphics_vulkan"} (:libs simulator-context)))
       (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols simulator-context)))
       (is (not-any? #{"graphics_metal"} (:libs simulator-context)))
-      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context))))))
+      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context)))))
+  (testing "Generic graphics changes do not clear iOS graphics"
+    (let [manifest (-> {}
+                       (app-manifest/set-setting-value app-manifest/graphics-setting-ios :metal)
+                       (app-manifest/set-setting-value app-manifest/graphics-setting :open-gl))]
+      (is (= :open-gl (app-manifest/get-setting-value manifest app-manifest/graphics-setting)))
+      (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))))
+  (testing "iOS graphics changes do not clear generic graphics"
+    (doseq [selection [:metal :vulkan :open-gl-metal :open-gl-vulkan]]
+      (let [manifest (-> {}
+                         (app-manifest/set-setting-value app-manifest/graphics-setting :open-gl)
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-ios selection))]
+        (is (= :open-gl (app-manifest/get-setting-value manifest app-manifest/graphics-setting)))
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))))))
 
 (deftest manifestation-compatibility-test
   (test-util/with-loaded-project
