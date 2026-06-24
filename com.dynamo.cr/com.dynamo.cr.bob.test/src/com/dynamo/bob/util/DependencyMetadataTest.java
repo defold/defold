@@ -17,6 +17,7 @@ package com.dynamo.bob.util;
 import org.junit.Test;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -51,5 +52,11 @@ public class DependencyMetadataTest {
                 DependencyMetadata.firstSha1("commit 0123456789ABCDEF0123456789abcdef01234567 second fedcba9876543210fedcba9876543210fedcba98"));
         assertNull(DependencyMetadata.firstSha1("no sha1 here"));
         assertNull(DependencyMetadata.firstSha1("0123456789abcdef0123456789abcdef0123456789"));
+    }
+
+    @Test
+    public void testMinifyJson() {
+        byte[] minified = DependencyMetadata.minifyJson("[ {\n  \"url\" : \"https://example.com/library.zip\"\n} ]".getBytes(StandardCharsets.UTF_8));
+        assertEquals("[{\"url\":\"https://example.com/library.zip\"}]", new String(minified, StandardCharsets.UTF_8));
     }
 }

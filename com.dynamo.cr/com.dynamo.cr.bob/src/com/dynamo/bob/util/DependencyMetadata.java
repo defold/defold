@@ -65,6 +65,28 @@ public final class DependencyMetadata {
         return libDir.resolve(DATA_FILE_NAME);
     }
 
+    public static byte[] minifyJson(byte[] json) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            Object data = mapper.readValue(json, Object.class);
+            return mapper.writeValueAsBytes(data);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to minify dependencies JSON", e);
+        }
+    }
+
+    public static void minifyJson(Path input, Path output) {
+        try {
+            Path parent = output.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.write(output, minifyJson(Files.readAllBytes(input)));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to minify dependencies JSON", e);
+        }
+    }
+
     public static List<Map<String, String>> collect(Collection<Library.Result> dependencies) {
         var dependencyEntries = new ArrayList<Map<String, String>>();
         if (dependencies == null) {

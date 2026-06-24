@@ -182,6 +182,8 @@ namespace dmEngine
         bool                                        m_ThrottleEnabled;
 
         RecordData                                  m_RecordData;
+        void*                                       m_DependenciesJsonResource;
+        uint32_t                                    m_DependenciesJsonSize;
         uint8_t                                     m_GuiSafeAreaMode;
     };
 

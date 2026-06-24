@@ -79,7 +79,6 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -1967,7 +1966,7 @@ public class Project implements AutoCloseable {
         if (buildMetadataParent != null) {
             Files.createDirectories(buildMetadataParent.toPath());
         }
-        Files.copy(sourceMetadataFile.toPath(), buildMetadataFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        DependencyMetadata.minifyJson(sourceMetadataFile.toPath(), buildMetadataFile.toPath());
         Files.deleteIfExists(legacyBuildMetadataFile.toPath());
     }
 

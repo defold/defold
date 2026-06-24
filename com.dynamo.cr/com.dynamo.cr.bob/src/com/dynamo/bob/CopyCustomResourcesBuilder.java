@@ -82,8 +82,14 @@ public class CopyCustomResourcesBuilder extends Builder {
         final List<IResource> outputs = task.getOutputs();
         final List<IResource> inputs = task.getInputs();
         final int n = inputs.size();
+        final String dependencyMetadataOutputPath = getDependencyMetadataOutputResource(this.project).getPath();
         for (int i = 0; i < n; i++) {
-            outputs.get(i).setContent(inputs.get(i).getContent());
+            IResource output = outputs.get(i);
+            byte[] content = inputs.get(i).getContent();
+            if (dependencyMetadataOutputPath.equals(output.getPath())) {
+                content = DependencyMetadata.minifyJson(content);
+            }
+            output.setContent(content);
         }
     }
 }
