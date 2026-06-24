@@ -16,34 +16,63 @@ package com.dynamo.bob;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+
+import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.DependencyMetadata;
 
 public class CopyCustomResourcesBuilder extends Builder {
-    @Override
-    public Task create(IResource input) throws CompileExceptionError {
-        BobProjectProperties properties = this.project.getProjectProperties();
+    public static List<String> getCustomResourcePaths(Project project) {
+        BobProjectProperties properties = project.getProjectProperties();
+        Set<String> paths = new LinkedHashSet<>();
 
         String[] resources = properties.getStringArrayValue("project", "custom_resources", new String[0]);
-
-        TaskBuilder b = Task.newBuilder(this)
-                .setName("Copy Custom Resources");
-
         for (String s : resources) {
             s = s.trim();
             if (s.length() > 0) {
-                // Could be directory or file; use findResourcePaths to traverse & grab all.
-                ArrayList<String> paths = new ArrayList<String>();
-                this.project.findResourcePaths(s, paths);
-                for (String path : paths) {
-                    IResource r = this.project.getResource(path);
-                    b.addInput(r);
-                    b.addOutput(r.output());
-                }
+                // Could be directory or file; use findResourcePaths to traverse and grab all.
+                project.findResourcePaths(s, paths);
             }
+        }
+
+        return new ArrayList<>(paths);
+    }
+
+    public static IResource getDependencyMetadataInputResource(Project project) {
+        BobProjectProperties properties = project.getProjectProperties();
+        if (properties.getBooleanValue("project", "dependencies_metadata", true)) {
+            IResource dependenciesMetadata = project.getResource(DependencyMetadata.PROJECT_PATH);
+            if (dependenciesMetadata.exists()) {
+                return dependenciesMetadata;
+            }
+        }
+        return null;
+    }
+
+    public static IResource getDependencyMetadataOutputResource(Project project) {
+        return project.getResource(FilenameUtils.concat(project.getBuildDirectory(), DependencyMetadata.OUTPUT_PATH));
+    }
+
+    @Override
+    public Task create(IResource input) throws CompileExceptionError {
+        TaskBuilder b = Task.newBuilder(this)
+                .setName("Copy Custom Resources");
+
+        for (String path : getCustomResourcePaths(this.project)) {
+            IResource r = this.project.getResource(path);
+            b.addInput(r);
+            b.addOutput(r.output());
+        }
+        IResource dependenciesMetadata = getDependencyMetadataInputResource(this.project);
+        if (dependenciesMetadata != null) {
+            b.addInput(dependenciesMetadata);
+            b.addOutput(getDependencyMetadataOutputResource(this.project));
         }
         return b.build();
     }

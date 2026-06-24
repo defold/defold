@@ -26,6 +26,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,6 +72,7 @@ import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
 @RunWith(Parameterized.class)
@@ -79,6 +81,8 @@ public class BundlerTest {
     private String contentRoot;
     private String outputDir;
     private String contentRootUnused;
+    private File buildReportJsonFile;
+    private File buildReportHtmlFile;
     private Platform platform;
 
     private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
@@ -342,6 +346,12 @@ public class BundlerTest {
             project.scan(scanner, "com.dynamo.bob.pipeline");
 
             setProjectProperties(project);
+            if (buildReportJsonFile != null) {
+                project.setOption("build-report-json", buildReportJsonFile.getAbsolutePath());
+            }
+            if (buildReportHtmlFile != null) {
+                project.setOption("build-report-html", buildReportHtmlFile.getAbsolutePath());
+            }
 
             List<TaskResult> result = project.build(Progress.discarding(), "clean", "build", "bundle");
             for (TaskResult taskResult : result) {
@@ -349,6 +359,24 @@ public class BundlerTest {
             }
 
             verifyEngineBinaries();
+        }
+    }
+
+    void buildContent(boolean archive) throws IOException, CompileExceptionError, MultipleCompileException {
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
+
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
+
+            setProjectProperties(project);
+            project.setOption("archive", archive ? "true" : "false");
+
+            List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
+            for (TaskResult taskResult : result) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
         }
     }
 
@@ -382,6 +410,31 @@ public class BundlerTest {
 
         archiveIndex.close();
         return entries;
+    }
+
+    private boolean archiveContainsContent(String content) throws IOException, NoSuchAlgorithmException {
+        final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(content.getBytes(StandardCharsets.UTF_8), HashAlgorithm.HASH_SHA1);
+        final int hlen = ManifestBuilder.CryptographicOperations.getHashSize(HashAlgorithm.HASH_SHA1);
+        Set<byte[]> entries = readDarcEntries(contentRoot);
+        for (byte[] entry : entries) {
+            boolean matches = true;
+            for (int i = 0; i < hlen; ++i) {
+                if (expectedHash[i] != entry[i]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void writeDependenciesMetadata(String content) throws IOException {
+        File metadataFile = new File(contentRoot, DependencyMetadata.PROJECT_PATH);
+        Files.createDirectories(metadataFile.getParentFile().toPath());
+        Files.write(metadataFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
     }
 
     // Returns the number of files that will be put into the DARC file
@@ -540,6 +593,50 @@ public class BundlerTest {
             }
         }
         assertTrue(found);
+    }
+
+    @Test
+    public void testDependenciesMetadataResource() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, NoSuchAlgorithmException {
+        final String expectedData = "[{\"url\":\"https://example.com/library.zip\",\"payload-md5\":\"0123456789ABCDEF0123456789ABCDEF\"}]";
+        createDefaultFiles(contentRoot);
+        createFile(contentRoot, "game.project", "[project]\ndependencies_metadata=1\ncompress_archive=0\n[display]\nwidth=640\nheight=480\n");
+        writeDependenciesMetadata(expectedData);
+        buildReportJsonFile = new File(contentRoot, "report.json");
+        buildReportHtmlFile = new File(contentRoot, "report.html");
+
+        build();
+
+        assertTrue(archiveContainsContent(expectedData));
+        assertTrue(new String(Files.readAllBytes(buildReportJsonFile.toPath()), StandardCharsets.UTF_8).contains(DependencyMetadata.OUTPUT_PATH));
+        assertTrue(new String(Files.readAllBytes(buildReportHtmlFile.toPath()), StandardCharsets.UTF_8).contains(DependencyMetadata.OUTPUT_PATH));
+
+        createFile(contentRoot, "game.project", "[project]\ndependencies_metadata=0\ncompress_archive=0\n[display]\nwidth=640\nheight=480\n");
+        build();
+
+        assertFalse(archiveContainsContent(expectedData));
+    }
+
+    @Test
+    public void testDependenciesMetadataCopiedToContentBuildDirectory() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        final String expectedData = "[{\"url\":\"https://example.com/library.zip\",\"payload-md5\":\"0123456789ABCDEF0123456789ABCDEF\"}]";
+        File buildMetadataFile = new File(contentRoot, "build/" + DependencyMetadata.OUTPUT_PATH);
+        File legacyBuildMetadataFile = new File(contentRoot, "build/" + DependencyMetadata.PROJECT_PATH);
+
+        createDefaultFiles(contentRoot);
+        createFile(contentRoot, "game.project", "[project]\ndependencies_metadata=1\n[display]\nwidth=640\nheight=480\n");
+        writeDependenciesMetadata(expectedData);
+
+        buildContent(false);
+
+        assertTrue(buildMetadataFile.exists());
+        assertFalse(legacyBuildMetadataFile.exists());
+        assertEquals(expectedData, new String(Files.readAllBytes(buildMetadataFile.toPath()), StandardCharsets.UTF_8));
+
+        createFile(contentRoot, "game.project", "[project]\ndependencies_metadata=0\n[display]\nwidth=640\nheight=480\n");
+        buildContent(false);
+
+        assertFalse(buildMetadataFile.exists());
+        assertFalse(legacyBuildMetadataFile.exists());
     }
 
     static HashSet<String> getExpectedFilesForPlatform(Platform platform, HashSet<String> actualFiles)

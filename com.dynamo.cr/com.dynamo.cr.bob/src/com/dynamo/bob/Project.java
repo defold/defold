@@ -53,6 +53,7 @@ import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.ReportGenerator;
@@ -78,6 +79,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -852,20 +854,23 @@ public class Project implements AutoCloseable {
             }
         }
 
-        if (!libUrls.isEmpty() && !Files.isDirectory(Paths.get(getLibPath()))) {
+        Path libPath = Paths.get(getLibPath());
+        if (!libUrls.isEmpty() && !Files.isDirectory(libPath)) {
             throw new CompileExceptionError("Missing libraries folder. You need to run the 'resolve' command first!");
         }
-        Map<String, File> libFiles = new HashMap<>();
-
         for (var dependency : dependencies) {
             var archive = dependency.archive();
             var file = archive == null ? null : archive.path().toFile();
-            libFiles.put(dependency.uri().toString(), file);
             if (file != null && file.exists()) {
                 this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, archive));
             }
         }
-        BuildInputDataCollector.setDependencies(libFiles);
+        boolean includeDependenciesMetadata = projectProperties.getBooleanValue("project", "dependencies_metadata", true);
+        if (!dependencies.isEmpty() && includeDependenciesMetadata) {
+            DependencyMetadata.saveAsJson(libPath, dependencies);
+        } else {
+            DependencyMetadata.deleteJson(libPath);
+        }
 
         var problematicResults = dependencies.stream().filter(x -> x.problem() != null).toList();
         if (!problematicResults.isEmpty()) {
@@ -981,7 +986,7 @@ public class Project implements AutoCloseable {
             bundleDir.mkdirs();
             bundler.bundleApplication(this, platform, bundleDir, progress);
             String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
-            BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk);
+            BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk, new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME));
             if (ResourceUtil.isMinificationEnabled()) {
                 MinifyPathCollector.saveAsJson(bundleDir);
             }
@@ -1870,6 +1875,7 @@ public class Project implements AutoCloseable {
                 TimeProfiler.stop();
                 TimeProfiler.start("Create tasks");
                 BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
+                syncDependencyMetadataToBuildDirectory();
                 createTasks();
                 validateBuildResourceMapping();
                 TimeProfiler.addData("TasksCount", tasks.size());
@@ -1939,6 +1945,30 @@ public class Project implements AutoCloseable {
             BundleHelper.throwIfCanceled(progress);
             FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
         }
+    }
+
+    private void syncDependencyMetadataToBuildDirectory() throws IOException {
+        File buildMetadataFile = new File(FilenameUtils.concat(
+                FilenameUtils.concat(rootDirectory, buildDirectory),
+                DependencyMetadata.OUTPUT_PATH));
+        File legacyBuildMetadataFile = new File(FilenameUtils.concat(
+                FilenameUtils.concat(rootDirectory, buildDirectory),
+                DependencyMetadata.PROJECT_PATH));
+
+        boolean includeDependenciesMetadata = projectProperties.getBooleanValue("project", "dependencies_metadata", true);
+        File sourceMetadataFile = new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        if (!includeDependenciesMetadata || !sourceMetadataFile.exists()) {
+            Files.deleteIfExists(buildMetadataFile.toPath());
+            Files.deleteIfExists(legacyBuildMetadataFile.toPath());
+            return;
+        }
+
+        File buildMetadataParent = buildMetadataFile.getParentFile();
+        if (buildMetadataParent != null) {
+            Files.createDirectories(buildMetadataParent.toPath());
+        }
+        Files.copy(sourceMetadataFile.toPath(), buildMetadataFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        Files.deleteIfExists(legacyBuildMetadataFile.toPath());
     }
 
     private List<TaskResult> doBuild(IProgress progress, String... commands) throws Throwable {

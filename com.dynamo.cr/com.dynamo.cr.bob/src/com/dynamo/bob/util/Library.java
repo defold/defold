@@ -273,7 +273,7 @@ public final class Library {
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(stagedPath, targetPath, StandardCopyOption.REPLACE_EXISTING);
             }
-            var installedArchive = new Archive(targetPath, stagedArchive.baseDir(), stagedArchive.includeDirs());
+            var installedArchive = new Archive(targetPath, stagedArchive.baseDir(), stagedArchive.includeDirs(), stagedArchive.zipComment());
             purgeOldVersions(uri, targetPath);
             return new Result(uri, installedArchive, null);
         } catch (IOException e) {
@@ -330,7 +330,7 @@ public final class Library {
             } catch (ParseException e) {
                 return new ArchiveInspection(null, new Problem.InvalidArchive());
             }
-            return new ArchiveInspection(new Archive(archivePath, baseDir, Collections.unmodifiableSet(includeDirs)), null);
+            return new ArchiveInspection(new Archive(archivePath, baseDir, Collections.unmodifiableSet(includeDirs), archive.getComment()), null);
         } catch (IOException e) {
             return new ArchiveInspection(null, new Problem.InvalidArchive());
         }
@@ -513,7 +513,8 @@ public final class Library {
     /// @param path        installed archive path
     /// @param baseDir     archive-relative directory containing `game.project`
     /// @param includeDirs archive-relative include directories
-    public record Archive(Path path, String baseDir, Set<String> includeDirs) {
+    /// @param zipComment  archive comment, or `null` if the archive has none
+    public record Archive(Path path, String baseDir, Set<String> includeDirs, String zipComment) {
     }
 
     /// Structured dependency problem.
