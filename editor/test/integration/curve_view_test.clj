@@ -69,8 +69,18 @@
     (mapv last)))
 
 (defn- make-curve-view! [app-view width height]
-  (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
-    (g/set-property! :viewport (types/->Region 0 width 0 height))))
+  (let [curve-view (curve-view/make-view!
+                     app-view
+                     (test-util/make-view-graph!)
+                     nil
+                     nil
+                     test-util/localization
+                     {}
+                     false)]
+    (g/transact
+      {:undoable false}
+      (g/set-property curve-view :viewport (types/->Region 0 width 0 height)))
+    curve-view))
 
 (deftest selection
   (test-util/with-loaded-project

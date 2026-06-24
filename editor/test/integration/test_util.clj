@@ -546,7 +546,9 @@
         view (get views-by-node-id node-id)]
     (if view
       (do
-        (g/set-property! app-view :active-view view)
+        (g/transact
+          {:undoable false}
+          (g/set-property app-view :active-view view))
         [node-id view])
       (let [view-graph (g/make-graph! :volatility 2)
             view (make-view-fn! view-graph node-id)]

@@ -75,6 +75,13 @@
             (swap! counter inc)
             outline)))
 
+(defn- make-outline-view-simulator! [view-graph]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node view-graph OutlineViewSimulator :counter (atom 0))))))
+
 (defn remove-fns
   "Dynamic functions are never equal. Strip them out of the outline"
   [outline]
@@ -109,7 +116,7 @@
    (let [proj-graph (g/node-id->graph-id project)
          view-graph (g/node-id->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
-         outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))
+         outline-id (make-outline-view-simulator! view-graph)
          component  (add-component! project go-node (fn [node-ids] (app-view/select app-view node-ids)))]
 
      (g/transact (g/connect go-node :node-outline outline-id :outline))
@@ -159,7 +166,7 @@
    (let [proj-graph (g/node-id->graph-id project)
          view-graph (g/node-id->graph-id app-view)
          go-node    (test-util/resource-node project "/switcher/test.go")
-         outline-id (g/make-node! view-graph OutlineViewSimulator :counter (atom 0))]
+         outline-id (make-outline-view-simulator! view-graph)]
      (g/transact (g/connect go-node :node-outline outline-id :outline))
      (is (= 1 (child-count outline-id)))
      (let [component (add-component! project go-node (fn [node-ids] (app-view/select app-view node-ids)))]

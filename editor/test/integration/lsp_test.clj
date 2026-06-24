@@ -230,6 +230,13 @@
   (property document-symbols g/Any (default []))
   (property completion-trigger-characters g/Any (default #{})))
 
+(defn- make-lsp-view-node! [app-view]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node (g/node-id->graph-id app-view) LSPViewNode)))))
+
 (deftest start-open-order-test
   (with-scratch-project "test/resources/lsp_project"
     (let [lsp (lsp/get-node-lsp project)]
@@ -238,7 +245,7 @@
               _ (set-servers! lsp #{{:languages #{"json"}
                                      :launcher (make-test-server-launcher default-handlers)}})
               ;; open view
-              view-node (g/make-node! (g/node-id->graph-id app-view) LSPViewNode)
+              view-node (make-lsp-view-node! app-view)
               _ (open-view! lsp view-node (test-util/resource workspace "/foo.json") foo-json-lines)]
           (is (await= [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
                          :type :diagnostic :hoverable true :messages ["It's a bad start!"] :severity :error)]
@@ -246,7 +253,7 @@
           (close-view! lsp view-node)))
       (testing "Open resource + start server -> should receive diagnostics"
         (let [;; open view
-              view-node (g/make-node! (g/node-id->graph-id app-view) LSPViewNode)
+              view-node (make-lsp-view-node! app-view)
               _ (open-view! lsp view-node (test-util/resource workspace "/foo.json") foo-json-lines)
               ;; set servers
               _ (set-servers! lsp #{{:languages #{"json"}
@@ -277,7 +284,7 @@
                      :launcher (make-test-server-launcher (make-handlers lsp.server/lsp-text-document-sync-kind-full))}
                     {:languages #{"json"}
                      :launcher (make-test-server-launcher (make-handlers lsp.server/lsp-text-document-sync-kind-none))}})
-              view-node (g/make-node! (g/node-id->graph-id app-view) LSPViewNode)
+              view-node (make-lsp-view-node! app-view)
               foo-resource (test-util/resource workspace "/foo.json")
               foo-node (test-util/resource-node project "/foo.json")
               lines (g/node-value foo-node :lines)
@@ -358,7 +365,7 @@
         (let [_ (set-servers!
                   lsp #{{:languages #{"json"}
                          :launcher (make-test-server-launcher handlers)}})
-              view-node (g/make-node! (g/node-id->graph-id app-view) LSPViewNode)
+              view-node (make-lsp-view-node! app-view)
               foo-resource (test-util/resource workspace "/foo.json")
               foo-resource-uri (lsp.server/resource-uri foo-resource)
               ;; open view
@@ -372,7 +379,7 @@
                   lsp
                   #{{:languages #{"json"}
                      :launcher (make-test-server-launcher handlers)}})
-              view-node (g/make-node! (g/node-id->graph-id app-view) LSPViewNode)
+              view-node (make-lsp-view-node! app-view)
               foo-resource (test-util/resource workspace "/foo.json")
               foo-resource-node (test-util/resource-node project "/foo.json")
               foo-resource-uri (lsp.server/resource-uri foo-resource)
@@ -437,7 +444,7 @@
                 lsp
                 #{{:languages #{"json"}
                    :launcher (make-test-server-launcher handlers)}})
-            view-node (g/make-node! (g/node-id->graph-id app-view) LSPViewNode)
+            view-node (make-lsp-view-node! app-view)
             foo-resource (test-util/resource workspace "/foo.json")
             old-foo-content (slurp foo-resource)
             foo-resource-node (test-util/resource-node project "/foo.json")

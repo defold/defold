@@ -188,11 +188,15 @@
             tool-controller (ffirst (g/sources-of view :preview-overrides))
             initial-position (g/node-value go-node :position)
             initial-camera (g/node-value view :camera)]
-        (g/set-property! tool-controller :preview-overrides {go-node {:position [0.0 0.0 -1000.0]}})
+        (g/transact
+          {:undoable false}
+          (g/set-property tool-controller :preview-overrides {go-node {:position [0.0 0.0 -1000.0]}}))
         (let [preview-camera (g/node-value view :camera)]
           (is (< (:z-far initial-camera) (:z-far preview-camera)))
           (is (= initial-position (g/node-value go-node :position))))
-        (g/set-property! tool-controller :preview-overrides nil)
+        (g/transact
+          {:undoable false}
+          (g/set-property tool-controller :preview-overrides nil))
         (is (= initial-position (g/node-value go-node :position)))))))
 
 (deftest delete-undo-delete-selection
