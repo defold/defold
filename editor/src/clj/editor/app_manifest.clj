@@ -669,7 +669,7 @@
    [:metal "Metal"]
    [:vulkan "Vulkan"]
    [:open-gl-metal "OpenGL & Metal"]
-   [:both "OpenGL & Vulkan"]])
+   [:open-gl-vulkan "OpenGL & Vulkan"]])
 
 (def open-gl-osx-toggles
   (concat
@@ -711,7 +711,7 @@
     :metal (concat metal-osx-toggles exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles)
     :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-metal-osx-toggles)
     :open-gl-metal (concat open-gl-osx-toggles metal-osx-toggles exclude-vulkan-osx-toggles)
-    :both (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
+    :open-gl-vulkan (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
     :vulkan))
 
 (def open-gl-ios-toggles [])
@@ -754,7 +754,7 @@
     :metal (concat metal-ios-toggles exclude-open-gl-metal-ios-toggles exclude-vulkan-ios-toggles)
     :vulkan (concat explicit-vulkan-ios-toggles exclude-open-gl-vulkan-ios-toggles exclude-metal-ios-toggles)
     :open-gl-metal (concat open-gl-ios-toggles metal-ios-toggles exclude-vulkan-ios-toggles)
-    :both (concat open-gl-ios-toggles explicit-vulkan-ios-toggles exclude-metal-ios-toggles)
+    :open-gl-vulkan (concat open-gl-ios-toggles explicit-vulkan-ios-toggles exclude-metal-ios-toggles)
     :open-gl))
 
 (def webgpu-toggles

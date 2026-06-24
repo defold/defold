@@ -252,7 +252,7 @@
           (is (some #{"GLESv2"} (:excludeDynamicLibs context))))))))
 
 (def apple-graphics-selections
-  [:open-gl :metal :vulkan :open-gl-metal :both])
+  [:open-gl :metal :vulkan :open-gl-metal :open-gl-vulkan])
 
 (deftest osx-graphics-setting-test
   (testing "OSX supports every OpenGL/Metal/Vulkan selection"
@@ -302,7 +302,7 @@
           (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
           (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols context)))))))
   (testing "OSX selections without Metal do not keep Metal leftovers"
-    (doseq [selection [:open-gl :both :vulkan]]
+    (doseq [selection [:open-gl :open-gl-vulkan :vulkan]]
       (let [manifest (-> {}
                          (app-manifest/set-setting-value app-manifest/graphics-setting-osx :metal)
                          (app-manifest/set-setting-value app-manifest/graphics-setting-osx selection))]
@@ -519,7 +519,7 @@
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
         (is (= :open-gl (g/node-value manifest :graphics)))
-        (is (= :both (g/node-value manifest :graphics-osx)))
+        (is (= :open-gl-vulkan (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
     (testing "/app_manifest/metal_osx.appmanifest"
