@@ -4179,30 +4179,37 @@
         (when (:layout user-data)
           (add-layout-options node-id evaluation-context))))))
 
+(defn- node-desc->regular-node-properties [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (persistent!
+    (reduce (fn [node-properties [pb-field pb-value]]
+              (if-let [[prop-key pb-value->prop-value] (pb-field-to-node-property-conversions pb-field)]
+                (let [prop-value (pb-value->prop-value pb-value)]
+                  (-> node-properties
+                      (dissoc! pb-field)
+                      (assoc! prop-key prop-value)))
+                node-properties))
+            (transient node-desc)
+            node-desc)))
+
 (defn- node-desc->node-properties [gui-node-type-registry node-desc]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
   (let [type-info (node-desc->node-type-info gui-node-type-registry node-desc)
-        protobuf-id->custom-property-info (:custom-property-protobuf-id->info type-info)]
-    (cond-> (persistent!
-              (reduce (fn [node-properties [pb-field pb-value]]
-                        (if (= :custom-properties pb-field)
-                          (reduce
-                            (fn [node-properties {:keys [id] :as custom-property}]
-                              (if-let [custom-property-info (protobuf-id->custom-property-info id)]
-                                (assoc! node-properties
-                                        (:id custom-property-info)
-                                        (custom-property-prop-value custom-property-info custom-property))
-                                node-properties))
-                            node-properties
-                            pb-value)
-                          (if-some [[prop-key pb-value->prop-value] (pb-field-to-node-property-conversions pb-field)]
-                            (let [prop-value (pb-value->prop-value pb-value)]
-                              (-> node-properties
-                                  (dissoc! pb-field)
-                                  (assoc! prop-key prop-value)))
-                            node-properties)))
-                      (transient node-desc)
-                      node-desc))
+        protobuf-id->custom-property-info (:custom-property-protobuf-id->info type-info)
+        node-properties (node-desc->regular-node-properties node-desc)
+        node-properties (if-not (contains? node-properties :custom-properties)
+                          node-properties
+                          (persistent!
+                            (reduce
+                              (fn [node-properties {:keys [id] :as custom-property}]
+                                (if-let [custom-property-info (protobuf-id->custom-property-info id)]
+                                  (assoc! node-properties
+                                          (:id custom-property-info)
+                                          (custom-property-prop-value custom-property-info custom-property))
+                                  node-properties))
+                              (transient node-properties)
+                              (:custom-properties node-properties))))]
+    (cond-> node-properties
             (= :type-custom (:type node-desc))
             (assoc :custom-type-name (:custom-type-name type-info)))))
 
@@ -4216,14 +4223,7 @@
 (def ^:private non-overridable-properties #{:template :id :parent})
 
 (def ^:private node-property-defaults
-  (persistent!
-    (reduce-kv
-      (fn [node-property-defaults pb-field pb-value]
-        (if-some [[prop-key pb-value->prop-value] (pb-field-to-node-property-conversions pb-field)]
-          (assoc! node-property-defaults prop-key (pb-value->prop-value pb-value))
-          (assoc! node-property-defaults pb-field pb-value)))
-      (transient {})
-      default-node-desc-pb-field-values)))
+  (node-desc->regular-node-properties default-node-desc-pb-field-values))
 
 (defn- extract-overrides [type-info node-properties]
   (let [custom-property-overrides
@@ -4236,11 +4236,10 @@
                                       (map pb-field-index->prop-key)
                                       (remove non-overridable-properties)
                                       (map (fn [prop-key]
-                                             (let [prop-value (node-properties prop-key ::not-found)]
-                                               (pair prop-key
-                                                     (if (= ::not-found prop-value)
-                                                       (node-property-defaults prop-key)
-                                                       prop-value))))))
+                                             (pair prop-key
+                                                   (if (contains? node-properties prop-key)
+                                                     (node-properties prop-key)
+                                                     (node-property-defaults prop-key))))))
                                 (:overridden-fields node-properties))]
     (cond-> regular-overrides
             custom-property-overrides
@@ -4625,6 +4624,10 @@
         (update :material fn/or default-material-proj-path))))
 
 (defn- make-gui-read-fn [gui-node-type-registry]
+  ;; `:sanitize-fn` is folded into the read-fn at registration time;
+  ;; resource types do not keep a separate sanitize-fn we can update. Since
+  ;; sanitize-scene depends on gui-node-type-registry, registry changes require
+  ;; rebuilding read-fn.
   (comp (partial sanitize-scene gui-node-type-registry)
         (partial protobuf/read-map-without-defaults (:pb-class pb-def))))
 
@@ -4815,7 +4818,7 @@
 
 ;; SDK api
 (defn register-gui-resource-kind
-  "Create transaction steps that register a GUI resource kind
+  "Create transaction steps that register a GUI resource kind.
 
   A GUI resource kind creates an outline section for extension-defined GUI
   resources and exposes their names to custom GUI node resource properties.
@@ -5143,16 +5146,11 @@
           (update :node-type->type-info assoc node-type type-info)
           (and (not deprecated) custom-type-name) (assoc-in [:custom-type-name->type-info custom-type-name] type-info)))))
 
-(defn- gui-resource-type-from-resource-types [resource-types]
-  (or (get resource-types (:ext pb-def))
-      (throw (IllegalStateException.
-               (format "Unable to locate GUI resource type. (ext=%s)" (:ext pb-def))))))
-
 (defn- gui-node-type-registry-from-resource-types [resource-types]
-  (:gui-node-type-registry (gui-resource-type-from-resource-types resource-types)))
+  (:gui-node-type-registry (get resource-types (:ext pb-def))))
 
 (defn- gui-resource-kind-registry-from-resource-types [resource-types]
-  (:gui-resource-kind-registry (gui-resource-type-from-resource-types resource-types)))
+  (:gui-resource-kind-registry (get resource-types (:ext pb-def))))
 
 (defn- update-gui-resource-type [resource-type f & args]
   (assert (map? resource-type)
@@ -5160,8 +5158,6 @@
   (let [resource-type (apply f resource-type args)
         gui-node-type-registry (:gui-node-type-registry resource-type)]
     (assoc resource-type
-      ;; GUI read-time sanitization resolves custom node types, so the read-fn
-      ;; must be rebuilt whenever extensions update the node type registry.
       :read-fn (make-gui-read-fn gui-node-type-registry))))
 
 (defn- update-gui-resource-type-map [resource-types f & args]

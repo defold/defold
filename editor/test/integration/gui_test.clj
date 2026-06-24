@@ -1576,6 +1576,18 @@
             (is (= 1.0 (prop custom-node :test-number)))
             (is (test-util/prop-overridden? custom-node :test-number))))
 
+        (testing "Changing visible layout does not affect custom-property save/build output."
+          (let [default-output (with-visible-layout! gui-scene ""
+                                 {:save-value (g/node-value gui-scene :save-value)
+                                  :build-pb (get-in (g/valid-node-value gui-scene :build-targets)
+                                                    [0 :user-data :pb])})
+
+                landscape-output (with-visible-layout! gui-scene "Landscape"
+                                   {:save-value (g/node-value gui-scene :save-value)
+                                    :build-pb (get-in (g/valid-node-value gui-scene :build-targets)
+                                                      [0 :user-data :pb])})]
+            (is (= default-output landscape-output))))
+
         (testing "Default layout edits update nested graph storage."
           (prop! custom-node :test-number 3.0)
           (is (= {:test-hash ""
