@@ -548,3 +548,24 @@
       (testing "Redo."
         (g/redo! :undo/global)
         (ensure-after!)))))
+
+(deftest undo-override-node-creation-invalidates-original-successors-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [original-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-node graph-id helpers/OverrideTestNode)))]
+
+      (g/transact
+        (g/override original-node-id))
+
+      (let [[override-node-id] (g/overrides (g/now) original-node-id)]
+        (is (= #{(g/endpoint override-node-id :property-output)}
+               (set (g/successors (g/now) original-node-id :property-output))))
+
+        (g/undo! :undo/global)
+
+        (is (= #{}
+               (set (g/successors (g/now) original-node-id :property-output))))))))

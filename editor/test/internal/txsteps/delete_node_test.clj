@@ -17,6 +17,7 @@
             [clojure.test :refer [deftest is testing]]
             [dynamo.graph :as g]
             [internal.graph.types :as gt]
+            [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support]
             [util.coll :as coll]))
 
@@ -371,3 +372,60 @@
       (testing "User data is not restored by undo."
         (g/undo! :undo/global)
         (ensure-user-data-absent-from-system!)))))
+
+(deftest undo-node-deletion-invalidates-restored-source-successors-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [source-node-id target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id [source-node-id helpers/ConnectionSourceNode
+                                      target-node-id helpers/ConnectionTargetNode]
+                (g/connect source-node-id :property-output target-node-id :regular-input))))
+
+          successor-endpoint (g/endpoint target-node-id :regular-output)]
+
+      (is (= #{successor-endpoint}
+             (set (g/successors (g/now) source-node-id :property-output))))
+
+      (g/transact
+        (g/delete-node target-node-id))
+
+      (is (= #{}
+             (set (g/successors (g/now) source-node-id :property-output))))
+
+      (g/undo! :undo/global)
+
+      (is (= #{successor-endpoint}
+             (set (g/successors (g/now) source-node-id :property-output)))))))
+
+(deftest delete-override-node-invalidates-original-successors-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [original-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-node graph-id helpers/OverrideTestNode)))
+
+          [override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override original-node-id)))
+
+          override-successor-endpoint (g/endpoint override-node-id :property-output)]
+
+      (is (= #{override-successor-endpoint}
+             (set (g/successors (g/now) original-node-id :property-output))))
+
+      (g/transact
+        (g/delete-node override-node-id))
+
+      (is (= #{}
+             (set (g/successors (g/now) original-node-id :property-output))))
+
+      (g/undo! :undo/global)
+
+      (is (= #{override-successor-endpoint}
+             (set (g/successors (g/now) original-node-id :property-output)))))))
