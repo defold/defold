@@ -214,10 +214,37 @@ namespace dmGameSystem
         return 2;
     }
 
+    static int CollectionProxy_Load(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0)
+        CollectionProxyWorld* world;
+        CollectionProxyComponent* component;
+        dmMessage::URL url; // for reporting errors only
+        dmScript::GetComponentFromLua(L, 1, COLLECTION_PROXY_EXT, (void**)&world, (void**)&component, &url);
+
+        int functionref = 0;
+        if (lua_isfunction(L, 2))
+        {
+            lua_pushvalue(L, 2);
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
+            functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+        }
+
+        dmGameSystemDDF::PlayAnimation msg;
+        msg.m_Id = id_hash;
+        msg.m_Offset = offset;
+        msg.m_PlaybackRate = playback_rate;
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+
+        return 0;
+    }
+
     static const luaL_reg Module_methods[] =
     {
         {"get_resources", CollectionProxy_GetResources},
         {"set_collection", CollectionProxy_SetCollection},
+        {"load", CollectionProxy_Load},
         {0, 0}
     };
 
