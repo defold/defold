@@ -16,6 +16,7 @@
  :extra-indents {cljfx.composite/props [[:inner 0]]
                  clojure.core.cache/defcache [[:inner 0]]
                  clojure.core/assoc! [[:inner 0]]
+                 clojure.core/cond-> [[:inner 0]]
                  clojure.core/defmulti [[:inner 0]]
                  clojure.core/defonce [[:inner 0]]
                  clojure.core/vector-of [[:inner 0]]

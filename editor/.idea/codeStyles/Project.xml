@@ -11,6 +11,7 @@
           <entry key="cljfx.composite/props" value="-1" />
           <entry key="clojure.core.cache/defcache" value="-1" />
           <entry key="clojure.core/assoc!" value="1" />
+          <entry key="clojure.core/cond-&gt;" value="-1" />
           <entry key="clojure.core/defmulti" value="-1" />
           <entry key="clojure.core/defonce" value="-1" />
           <entry key="clojure.core/vector-of" value="-1" />
