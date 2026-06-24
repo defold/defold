@@ -2708,6 +2708,20 @@ namespace dmGameSystem
         return dmHashString64(buffer);
     }
 
+    static bool ReleaseResourcePropertyPointer(GuiComponent* component, dmResource::HFactory factory, void* resource)
+    {
+        for (uint32_t i = 0; i < component->m_ResourcePropertyPointers.Size(); ++i)
+        {
+            if (component->m_ResourcePropertyPointers[i] == resource)
+            {
+                component->m_ResourcePropertyPointers.EraseSwap(i);
+                dmResource::Release(factory, resource);
+                return true;
+            }
+        }
+        return false;
+    }
+
     static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height,
                                                             dmImage::Type type, dmImage::CompressionType compression_type, const void* data, uint32_t data_size)
     {
@@ -2766,9 +2780,14 @@ namespace dmGameSystem
     static void DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        dmResource::HFactory factory = dmGameObject::GetFactory(component->m_Instance);
+        if (ReleaseResourcePropertyPointer(component, factory, (void*)(uintptr_t) texture_source))
+        {
+            return;
+        }
+
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
-        dmResource::HFactory factory = dmGameObject::GetFactory(component->m_Instance);
         ResourceDescriptor* rd = dmResource::FindByHash(factory, resolved_path_hash);
         if (rd)
         {
@@ -3327,6 +3346,7 @@ namespace dmGameSystem
                 if (r != dmGui::RESULT_OK)
                 {
                     dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(key),  r);
+                    dmResource::Release(factory, texture_source);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
                 if(gui_component->m_ResourcePropertyPointers.Full())

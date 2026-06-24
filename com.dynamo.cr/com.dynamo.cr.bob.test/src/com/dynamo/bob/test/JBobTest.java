@@ -284,7 +284,7 @@ public class JBobTest {
             }
 
             try {
-                Bob.extractToFolder(zipPath.toUri().toURL(), targetDir.toFile(), false);
+                Bob.extractToFolder(zipPath.toUri().toURL(), targetDir.toFile());
                 fail("Expected IOException");
             } catch (IOException exception) {
                 assertTrue(exception.getMessage(), exception.getMessage().contains("resolves outside"));

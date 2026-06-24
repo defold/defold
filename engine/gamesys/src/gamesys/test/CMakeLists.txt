@@ -466,5 +466,10 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
     STAGE_FILES
       "build/src/gamesys/test" "build/src/gamesys/test"
       ${_GS_HOST_TEST_STAGE_FILES})
-  defold_register_test_with_server(test_gamesys_http ${TARGET_PLATFORM} PORT 9001 WORKDIR "${GS_TEST_RUN_DIR}")
+  defold_register_test_with_server(test_gamesys_http ${TARGET_PLATFORM}
+    PORT 9001
+    WORKDIR "${GS_TEST_RUN_DIR}"
+    STAGE_FILES
+      "build/src/gamesys/test" "build/src/gamesys/test"
+      ${_GS_HOST_TEST_STAGE_FILES})
 endif()

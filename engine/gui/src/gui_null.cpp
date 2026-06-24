@@ -175,6 +175,11 @@ namespace dmGui
         return RESULT_OK;
     }
 
+    Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, dmGui::HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    {
+        return RESULT_OK;
+    }
+
     void RemoveTexture(HScene scene, dmhash_t texture_name_hash)
     {
     }

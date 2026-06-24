@@ -199,6 +199,11 @@ namespace dmHID
 
     static void RemapGamepadAxis(GLFWGamepadDevice* glfw_gamepad, float* axis, uint8_t* buttons)
     {
+        if (!glfw_gamepad->m_Gamepad->m_LayoutLegacy)
+        {
+            return;
+        }
+
         if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT &&
             glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_LINUX)
         {
@@ -266,6 +271,11 @@ namespace dmHID
 
     static uint8_t* RemapGamepadButtons(GLFWGamepadDevice* glfw_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
     {
+        if (!glfw_gamepad->m_Gamepad->m_LayoutLegacy)
+        {
+            return buttons;
+        }
+
         if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT &&
             glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
         {

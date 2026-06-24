@@ -9,6 +9,7 @@
 /gui/draw_count_test2.go
 /gui/get_set_material_constants.go
 /gui/goscript.go
+/gui/gui_set_texture_nil.go
 /gui/gui_flipbook_anim.go
 /gui/gui_flipbook_cursor.go
 /gui/gui_max_dynamic_textures.go

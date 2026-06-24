@@ -37,6 +37,8 @@ extern "C"
 
 namespace dmGui
 {
+    static const dmhash_t GUI_PROP_TEXTURES = dmHashString64("textures");
+
     /*# GUI API documentation
      *
      * GUI core hooks, functions, messages, properties and constants for
@@ -822,7 +824,7 @@ namespace dmGui
      * @name gui.set
      * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
      * @param property [type:string|hash|constant] the property to set
-     * @param value [type:number|vector4|vector3|quaternion] the property to set
+     * @param value [type:number|vector4|vector3|quaternion|nil] the property to set. `nil` is only supported for removing runtime texture mappings with `gui.set(msg.url(), "textures", nil, {key = ...})`.
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:number] index into array property (1 based)
      * - `key` [type:hash] name of internal property
@@ -883,6 +885,18 @@ namespace dmGui
      *    end
      * end
      * ```
+     *
+     * Remove a named runtime texture resource mapping:
+     *
+     * ```lua
+     * local atlas_id = resource.create_atlas("/runtime.texturesetc", atlas_params)
+     * gui.set(msg.url(), "textures", atlas_id, {key = "runtime_texture"})
+     * gui.set_texture(gui.get_node("box"), "runtime_texture")
+     *
+     * -- Later, remove the GUI mapping before releasing the atlas resource.
+     * gui.set(msg.url(), "textures", nil, {key = "runtime_texture"})
+     * resource.release(atlas_id)
+     * ```
      */
     static int LuaSet(lua_State* L)
     {
@@ -893,19 +907,55 @@ namespace dmGui
         dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
 
+        dmGameObject::LuaToPropertyOptionsResult options_result = {};
+
+        if (lua_gettop(L) > 3)
+        {
+            dmGameObject::LuaToPropertyOptions(L, 4, &options_result);
+        }
+
+        if (lua_isnil(L, 3))
+        {
+            if (!dmScript::IsURL(L, 1) || property_hash != GUI_PROP_TEXTURES)
+            {
+                return DM_LUA_ERROR("'gui.set()' only supports nil for gui.set(msg.url(), \"textures\", nil, {key = ...})");
+            }
+
+            dmMessage::URL sender;
+            dmScript::GetURL(L, &sender);
+            dmMessage::URL target;
+            dmScript::ResolveURL(L, 1, &target, &sender);
+            bool is_self = (sender.m_Socket == target.m_Socket) &&
+                           (sender.m_Path == target.m_Path) &&
+                           (sender.m_Fragment == target.m_Fragment);
+            if (!is_self)
+            {
+                return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
+            }
+
+            dmGameObject::HInstance instance = (dmGameObject::HInstance)scene->m_Context->m_GetUserDataCallback(scene);
+
+            dmhash_t key = 0;
+            if (dmGameObject::GetPropertyOptionsKey((dmGameObject::HPropertyOptions)&options_result.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
+            {
+                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, property_hash, instance, target, options_result.m_Options);
+            }
+
+            Result r = DeleteDynamicTexture(scene, key);
+            if (r != RESULT_OK)
+            {
+                return DM_LUA_ERROR("failed to delete texture '%s' (result = %d)", dmHashReverseSafe64(key), r);
+            }
+
+            return 0;
+        }
+
         dmGameObject::PropertyVar property_var;
         dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
 
         if (result != dmGameObject::PROPERTY_RESULT_OK)
         {
             return DM_LUA_ERROR("Property '%s' has an unsupported type", dmHashReverseSafe64(property_hash));
-        }
-
-        dmGameObject::LuaToPropertyOptionsResult options_result = {};
-
-        if (lua_gettop(L) > 3)
-        {
-            dmGameObject::LuaToPropertyOptions(L, 4, &options_result);
         }
 
         if (dmScript::IsURL(L, 1))

@@ -172,7 +172,7 @@ GamepadGuid CreateGUID(uint16_t bus, uint16_t vendor, uint16_t product, uint16_t
     return guid;
 }
 
-static const char* GetSDLCompatibleControllerName(const GamepadIdentity& identity, const char* fallback_name)
+const char* GetGamepadIdentityName(const GamepadIdentity& identity, const char* fallback_name)
 {
     if (identity.m_Vendor == USB_VENDOR_NINTENDO)
     {
@@ -204,11 +204,22 @@ static const char* GetSDLCompatibleControllerName(const GamepadIdentity& identit
     {
         switch (identity.m_Product)
         {
-            case USB_PRODUCT_XBOX360_WIRED_CONTROLLER:          return "Xbox 360 Controller";
-            case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER:         return "Xbox 360 Controller";
+            case USB_PRODUCT_XBOX360_XUSB_CONTROLLER:
+            case USB_PRODUCT_XBOX360_WIRED_CONTROLLER:
+            case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER:
+            case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY1:
+            case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY2:
+                return "Xbox 360 Controller";
+            case USB_PRODUCT_XBOX_ONE_ADAPTIVE:                 return "Xbox Adaptive Controller";
+            case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_1:           return "Xbox Elite Wireless Controller";
+            case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2:           return "Xbox Elite Wireless Controller Series 2";
             case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2_BLUETOOTH: return "Xbox Elite Wireless Controller Series 2";
+            case USB_PRODUCT_XBOX_ONE_S:                        return "Xbox Wireless Controller";
+            case USB_PRODUCT_XBOX_ONE_S_REV2_BLUETOOTH:         return "Xbox Wireless Controller";
+            case USB_PRODUCT_XBOX_SERIES_X:                     return "Xbox Wireless Controller";
             case USB_PRODUCT_XBOX_SERIES_X_BLE:                 return "Xbox Wireless Controller";
             case USB_PRODUCT_XBOX_ONE_S_REV1_BLUETOOTH:         return "Xbox Wireless Controller";
+            case USB_PRODUCT_XBOX_ONE_XBOXGIP_CONTROLLER:       return "Xbox Wireless Controller";
             default: break;
         }
     }
@@ -229,7 +240,7 @@ static const char* GetSDLCompatibleControllerName(const GamepadIdentity& identit
 
 GamepadGuid CreateGUIDFromIdentity(uint16_t bus, const GamepadIdentity& identity, const char* fallback_name, const char** axis_keys, uint32_t axis_count, const char** button_keys, uint32_t button_count, uint16_t button_mask)
 {
-    const char* name_for_guid = GetSDLCompatibleControllerName(identity, fallback_name);
+    const char* name_for_guid = GetGamepadIdentityName(identity, fallback_name);
     uint16_t signature = 0;
 
     if (axis_count > 0 || button_count > 0)
@@ -272,7 +283,7 @@ void GetGamepadDeviceNameSDL(HContext context, HGamepad gamepad, char device_nam
     identity.m_Vendor  = guid.m_Vendor;
     identity.m_Product = guid.m_Product;
 
-    const char* sdl_name = GetSDLCompatibleControllerName(identity, fallback_name);
+    const char* sdl_name = GetGamepadIdentityName(identity, fallback_name);
     dmStrlCpy(device_name, sdl_name, MAX_GAMEPAD_NAME_LENGTH);
 }
 

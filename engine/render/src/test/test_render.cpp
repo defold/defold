@@ -860,7 +860,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     // Turn off all context features (mostly for testing array textutes here)
-    null_context->m_ContextFeatures = 0;
+    null_context->m_BaseContext.m_ContextFeatureSupport = 0;
 
     dmGraphics::HTexture test_texture_0     = MakeDummyTexture(m_GraphicsContext);
     dmGraphics::HTexture test_texture_1     = MakeDummyTexture(m_GraphicsContext);
