@@ -27,7 +27,9 @@
                                               "beta" "https://build-stage.defold.com"}}
    :updater {:download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.zip"
              :update-url-template "https://%s/editor2/channels/%s/update-v4.json"
-             :release-notes-url-template "https://%s/editor2/channels/%s/release-notes.json"}})
+             :release-notes-url-template "https://%s/editor2/channels/%s/release-notes.json"
+             :release-notes-manifest-url-template "https://%s/editor2/channels/%s/release-notes/manifest.json"
+             :release-notes-version-url-template "https://%s/editor2/channels/%s/release-notes/%s.json"}})
 
 (defn defold-build-server-url []
   (or

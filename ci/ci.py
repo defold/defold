@@ -439,10 +439,13 @@ def gen_release_notes(channel):
 
     version = open("VERSION").read().strip()
     notes_md = os.path.join("releasenotes", "%s.md" % version)
+    notes_json = os.path.join("releasenotes", "%s.json" % version)
 
     # Manually-authored notes win: if a file is already on disk, use it as-is and
     # don't hit the API or overwrite it.
     if os.path.exists(notes_md):
+        if not os.path.exists(notes_json):
+            raise Exception("%s already exists, but matching %s is missing" % (notes_md, notes_json))
         print("%s already exists - using manually-authored notes as-is" % notes_md)
         return
 
@@ -456,6 +459,8 @@ def gen_release_notes(channel):
     # nothing (no board / empty) - a release defect, so fail.
     if not os.path.exists(notes_md):
         raise Exception("No release notes produced for %s on channel '%s'" % (version, channel))
+    if not os.path.exists(notes_json):
+        raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
 
 def build_sdk(channel):
     args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
@@ -503,13 +508,17 @@ def release_settings_for_branch(branch, engine_artifacts):
 def should_release_branch(branch):
     return release_settings_for_branch(branch, None)[1]
 
+def release_notes_required_for_branch(branch):
+    channel = release_settings_for_branch(branch, None)[0]
+    return channel in ("beta", "stable")
+
 def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
     return os.environ.get('GITHUB_BASE_REF', '')
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -563,6 +572,10 @@ def main(argv):
 
     if args.commands == ["should-release"]:
         print("true" if should_release_branch(branch) else "false")
+        return
+
+    if args.commands == ["requires-release-notes"]:
+        print("true" if release_notes_required_for_branch(branch) else "false")
         return
 
     channel, make_release, engine_artifacts = release_settings_for_branch(branch, args.engine_artifacts)

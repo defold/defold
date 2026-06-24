@@ -3125,17 +3125,68 @@ class Configuration(object):
             f.write(notes_content)
         self._log("Wrote editor release notes for %s -> %s" % (self.version, os.path.abspath(out_path)))
 
-    def _upload_editor_release_notes(self, bucket):
-        # Publishes release-notes.json (the update dialog's source) for the
-        # current channel. Best-effort: if no notes file was produced, upload
-        # nothing - the dialog simply has none for this version.
+    @staticmethod
+    def _parse_semver(version):
+        # "1.13.2" -> (1, 13, 2). Non-numeric parts sort lowest so a malformed
+        # entry never displaces real versions at the top of the manifest.
+        parts = []
+        for part in str(version).split('.'):
+            try:
+                parts.append(int(part))
+            except ValueError:
+                parts.append(-1)
+        return tuple(parts)
+
+    def _update_release_notes_manifest(self, bucket):
+        # The manifest is an ordered (newest first) JSON array of every version
+        # that has published notes on this channel. The editor reads it to work
+        # out which versions sit between the running version and the update, then
+        # fetches only those per-version files.
+        import botocore
+        key = 'editor2/channels/%s/release-notes/manifest.json' % self.channel
+        obj = bucket.Object(key)
+        versions = []
+        try:
+            versions = json.loads(obj.get()['Body'].read())
+        except botocore.exceptions.ClientError as e:
+            # First release on this channel -> no manifest yet. Any other error
+            # (auth, throttling, network) must NOT be swallowed, or we'd publish
+            # a manifest containing only this version and lose the channel history.
+            code = e.response.get('Error', {}).get('Code')
+            if code not in ('NoSuchKey', 'NoSuchBucket', '404'):
+                raise
+        if not isinstance(versions, list):
+            versions = []
+        versions = sorted(set(versions) | {self.version}, key=self._parse_semver, reverse=True)
+        self._log("Updating release notes manifest (%d versions) -> %s" % (len(versions), key))
+        obj.put(Body=json.dumps(versions), ContentType='application/json')
+
+    def _upload_editor_release_notes(self, bucket, required = False):
+        # Publishes the update dialog's release notes for the current channel:
+        #   - release-notes.json            legacy single file (older editors)
+        #   - release-notes/<version>.json  per-version, accumulates across releases
+        #   - release-notes/manifest.json   ordered version list the editor walks
+        # Alpha/dev builds don't ship notes, but beta/stable releases must fail
+        # before the channel pointer moves if notes are absent.
         json_content = self._build_editor_release_notes()
         if json_content is None:
-            self._log("No release-notes.json for %s in releasenotes/; skipping upload" % self.version)
+            message = "No release-notes.json for %s in releasenotes/" % self.version
+            if required:
+                self.fatal(message)
+            self._log("%s; skipping upload" % message)
             return
+
+        # Legacy single-file source (older editors read this path directly).
         json_obj = bucket.Object('editor2/channels/%s/release-notes.json' % self.channel)
         self._log("Uploading release-notes.json for %s -> %s" % (self.version, json_obj.key))
         json_obj.put(Body=json_content, ContentType='application/json')
+
+        # Per-version file (accumulates; one immutable file per release).
+        version_obj = bucket.Object('editor2/channels/%s/release-notes/%s.json' % (self.channel, self.version))
+        self._log("Uploading per-version release notes for %s -> %s" % (self.version, version_obj.key))
+        version_obj.put(Body=json_content, ContentType='application/json')
+
+        self._update_release_notes_manifest(bucket)
 
     def upload_editor_release_notes(self):
         # Manual: upload release-notes.json for --version to S3 for --channel.
@@ -3144,7 +3195,7 @@ class Configuration(object):
             self._log("No channel specified! Pass --channel")
             sys.exit(1)
         bucket = s3.get_bucket(urlparse(self.get_archive_path()).hostname)
-        self._upload_editor_release_notes(bucket)
+        self._upload_editor_release_notes(bucket, required = True)
 
     def _release_web_pages(self, releases):
         u = urlparse(self.get_archive_path())
@@ -3173,15 +3224,15 @@ class Configuration(object):
                                                  'sha1' : release_sha1})
         new_obj.put(Body=new_obj_content, ContentType='application/json')
 
+        # Editor release-notes.json (the update dialog's source) must land before
+        # update-v4.json points users at the new sha1.
+        self._upload_editor_release_notes(bucket, required = self.channel in ('beta', 'stable'))
+
         # Editor update-v4.json
         v4_obj = bucket.Object('editor2/channels/%s/update-v4.json' % self.channel)
         self._log("Updating channel '%s' for update-v4.json: %s" % (self.channel, v4_obj.key))
         v4_content = json.dumps({'sha1': release_sha1})
         v4_obj.put(Body=v4_content, ContentType='application/json')
-
-        # Editor release-notes.json (the update dialog's source), published
-        # alongside update-v4.json so the notes and the update land together.
-        self._upload_editor_release_notes(bucket)
 
         # Set redirect urls so the editor can always be downloaded without knowing the latest sha1.
         # Used by www.defold.com/download

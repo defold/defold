@@ -22,6 +22,7 @@
             [editor.progress :as progress]
             [editor.system :as system]
             [service.log :as log]
+            [util.coll :as coll]
             [util.net :as net])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
@@ -100,22 +101,78 @@
          "\nFor release notes, please visit our forum at " (:external-link release-notes)
          "\n" (summary-markdown [engine editor other]))))
 
-(defn fetch-release-notes!
-  "Downloads the release notes payload for the available update. Returns a map
-  with markdown and parsed JSON notes, or nil if the request fails."
-  [archive-domain channel]
-  ;; TODO: the update server (update-v4.json) only reports a sha1, not a
-  ;; version, so the release notes version is hardcoded for now. Wire this up to
-  ;; the actual update version once the server exposes it.
-  (let [url (format (get-in connection-properties [:updater :release-notes-url-template])
-                    archive-domain channel)
-        out (ByteArrayOutputStream.)]
+(def ^:private release-notes-range-limit
+  "When the user is several versions behind, show at most this many of the most
+  recent releases in the update dialog. Each shown release links to its full
+  notes online, so older ones stay reachable."
+  5)
+
+(defn- parse-version
+  "\"1.13.2\" -> [1 13 2]; nil or anything non-numeric -> nil. Equal-length int
+  vectors compare with clojure.core/compare exactly as semver expects."
+  [s]
+  (when (string? s)
+    (let [parts (string/split s #"\.")]
+      (when (and (seq parts) (every? #(re-matches #"\d+" %) parts))
+        (mapv #(Long/parseLong %) parts)))))
+
+(defn- versions-to-fetch
+  "From the channel manifest's version strings, picks the ones to show for the
+  running editor version: those strictly newer than `current-version`, newest
+  first, capped at `release-notes-range-limit`. Unparseable entries are dropped.
+  When `current-version` is unknown (e.g. dev builds) every version is a
+  candidate, so this yields the most recent N."
+  [manifest-versions current-version]
+  (let [current (parse-version current-version)]
+    (->> manifest-versions
+         (keep (fn [v] (when-some [parsed (parse-version v)] [v parsed])))
+         (filter (fn [[_ parsed]] (or (nil? current) (pos? (compare parsed current)))))
+         (sort-by second #(compare %2 %1)) ; newest first
+         (mapv first)
+         (into [] (take release-notes-range-limit)))))
+
+(defn- fetch-json!
+  "GETs `url` and parses the body as JSON with keyword keys, or nil on failure."
+  [url]
+  (let [out (ByteArrayOutputStream.)]
     (try
       (net/download! url out :read-timeout 10000 :connect-timeout 5000)
       (json/read-str (.toString out "UTF-8") :key-fn keyword)
       (catch Exception e
-        (log/warn :message "Failed to fetch release notes" :url url :exception e)
+        (log/warn :message "Failed to fetch release notes resource" :url url :exception e)
         nil))))
+
+(defn- fetch-manifest! [archive-domain channel]
+  (fetch-json! (format (get-in connection-properties [:updater :release-notes-manifest-url-template])
+                       archive-domain channel)))
+
+(defn- fetch-version-notes! [archive-domain channel version]
+  (fetch-json! (format (get-in connection-properties [:updater :release-notes-version-url-template])
+                       archive-domain channel version)))
+
+(defn- fetch-legacy-release-notes! [archive-domain channel]
+  (fetch-json! (format (get-in connection-properties [:updater :release-notes-url-template])
+                       archive-domain channel)))
+
+(defn fetch-release-notes!
+  "Downloads the release notes to show for the available update. Reads the
+  channel manifest, selects the versions between the running editor version and
+  the update (newest first, capped at `release-notes-range-limit`), and fetches
+  those per-version notes in parallel. Returns a vector of release-notes maps
+  (newest first), or nil if nothing could be fetched.
+
+  Falls back to the legacy single release-notes.json when the manifest is absent
+  (channels that predate per-version publishing)."
+  [archive-domain channel]
+  (or (when-some [manifest (fetch-manifest! archive-domain channel)]
+        (let [versions (versions-to-fetch (filter string? manifest) (system/defold-version))]
+          (-> (coll/pmapv #(fetch-version-notes! archive-domain channel %) versions)
+              (->> (filterv some?))
+              not-empty)))
+      ;; No manifest (channels predating per-version publishing), or it yielded
+      ;; nothing fetchable -> fall back to the legacy single latest file.
+      (when-some [notes (fetch-legacy-release-notes! archive-domain channel)]
+        [notes])))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
@@ -186,11 +243,15 @@
 
 (defn release-notes
   "Returns the in-memory release notes markdown for the available update, or nil
-  if they have not been fetched yet (or the fetch failed)."
+  if they have not been fetched yet (or the fetch failed). When the user is
+  several versions behind, the notes for each version in range are concatenated
+  newest first."
   ^String
   [updater]
-  (let [updater (if @dev-updater @dev-updater updater)]
-    (some-> @(:state-atom updater) :release-notes release-notes->markdown)))
+  (let [updater (if @dev-updater @dev-updater updater)
+        notes (:release-notes @(:state-atom updater))]
+    (when (seq notes)
+      (string/join "\n\n---\n\n" (map release-notes->markdown notes)))))
 
 (defn release-notes-ready?
   "Returns true once the release notes for the available update are loaded in

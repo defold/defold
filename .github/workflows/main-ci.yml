@@ -714,7 +714,7 @@ jobs:
       {
         name: 'Check release branch',
         id: release,
-        run: 'echo "should_release=$(python3 ci-check/ci/ci.py should-release)" >> "$GITHUB_OUTPUT"'
+        run: "echo \"should_release=$(python3 ci-check/ci/ci.py should-release)\" >> \"$GITHUB_OUTPUT\"\necho \"requires_release_notes=$(python3 ci-check/ci/ci.py requires-release-notes)\" >> \"$GITHUB_OUTPUT\""
       },
       {
         name: 'Checkout',
@@ -730,9 +730,8 @@ jobs:
       { name: 'Setup git user', if: *should_release, run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       {
         name: 'Download release notes',
-        if: *should_release,
+        if: steps.release.outputs.should_release == 'true' && steps.release.outputs.requires_release_notes == 'true',
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
-        continue-on-error: true,
         with: {
           name: 'release-notes',
           path: 'releasenotes'
