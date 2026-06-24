@@ -339,6 +339,84 @@ public class ProjectBuildTest {
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
     }
 
+    @Test
+    public void testGamepadSourceFieldCombinations() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createDefaultFiles();
+        createFile(contentRoot, "input/custom.gamepads", ""
+                + "driver {\n"
+                + "  device: \"Manual Project Pad\"\n"
+                + "  platform: \"macos\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Manual Project Pad\"\n"
+                + "  platform: \"linux\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Manual Project Pad\"\n"
+                + "  platform: \"windows\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n");
+        createFile(contentRoot, "input/gamecontrollerdb.txt", ""
+                + "03000000000000000000000000000001,SDL Only Pad,a:b1,platform:Mac OS X,\n"
+                + "03000000000000000000000000000002,SDL Only Pad,a:b1,platform:Linux,\n"
+                + "03000000000000000000000000000003,SDL Only Pad,a:b1,platform:Windows,\n");
+
+        checkGamepadSourceFieldCombination(
+                "/input/custom.gamepadsc", "/input/gamecontrollerdb.txt",
+                "/input/custom.gamepadsc", "input/custom.gamepadsc",
+                new String[]{"SDL Only Pad", "Manual Project Pad"});
+        checkGamepadSourceFieldCombination(
+                "/input/custom.gamepadsc", "",
+                "/input/custom.gamepadsc", "input/custom.gamepadsc",
+                new String[]{"Manual Project Pad"});
+        checkGamepadSourceFieldCombination(
+                "", "/input/gamecontrollerdb.txt",
+                "/input/gamecontrollerdb.gamepadsc", "input/gamecontrollerdb.gamepadsc",
+                new String[]{"SDL Only Pad"});
+        checkGamepadSourceFieldCombination("", "", "", null, new String[0]);
+    }
+
+    private void checkGamepadSourceFieldCombination(String gamepads,
+                                                    String gamepadDatabase,
+                                                    String expectedProjectGamepads,
+                                                    String expectedBuildPath,
+                                                    String[] expectedDevices) throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createFile(contentRoot, "game.project", ""
+                + "[display]\n"
+                + "width=640\n"
+                + "height=480\n"
+                + "[input]\n"
+                + "gamepads=" + gamepads + "\n"
+                + "gamepad_database=" + gamepadDatabase + "\n");
+
+        build();
+
+        BobProjectProperties outputProps = new BobProjectProperties();
+        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        checkProjectSetting(outputProps, "input", "gamepads", expectedProjectGamepads);
+        checkProjectSetting(outputProps, "input", "gamepad_database", null);
+
+        if (expectedBuildPath == null) {
+            assertFalse(new File(contentRoot, "build/input/custom.gamepadsc").exists());
+            assertFalse(new File(contentRoot, "build/input/gamecontrollerdb.gamepadsc").exists());
+            assertFalse(new File(contentRoot, "build/builtins/input/default.gamepadsc").exists());
+            assertFalse(new File(contentRoot, "build/builtins/input/gamecontrollerdb.gamepadsc").exists());
+        } else {
+            File output = new File(contentRoot, "build/" + expectedBuildPath);
+            assertTrue(output.exists());
+            GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(FileUtils.readFileToByteArray(output));
+            assertEquals(expectedDevices.length, maps.getMappingsCount());
+            for (int i = 0; i < expectedDevices.length; i++) {
+                assertEquals(expectedDevices[i], maps.getMappings(i).getDevice());
+            }
+        }
+    }
+
     static private void checkProjectSetting(BobProjectProperties properties, String category, String key, String expectedValue)
     {
         assertEquals(expectedValue, properties.getStringValue(category, key));

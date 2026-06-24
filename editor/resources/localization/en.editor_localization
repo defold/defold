@@ -2330,6 +2330,7 @@ error.sound.invalid-ogg-file = Invalid Ogg file.
 error.sound.invalid-ogg-file-details = Invalid Ogg file (oggz-validate):\n{output}
 error.sound.could-not-read-audio-file = Couldn't read audio file {resource}.
 error.unknown-source = Unknown source
+error.game-project.gamepad-database-must-be-txt = input.gamepad_database must reference a .txt file.
 error.unspecified-property = "{property}" must be specified.
 error.mesh.stream-must-be-specified-for-world-vertex-space = "{property}" must be specified when using a Material with a world-space "Vertex Space" setting.
 error.mesh.stream-not-found-in-buffer = Stream "{stream}" could not be found in the specified buffer.

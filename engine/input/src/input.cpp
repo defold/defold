@@ -297,6 +297,11 @@ namespace dmInput
 
     static GamepadBinding* NewGamepadBinding(HBinding binding, uint32_t gamepad_index)
     {
+        if (binding->m_Context->m_GamepadMaps.Size() == 0)
+        {
+            return 0x0;
+        }
+
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
 
         GamepadConfig* selected_config = 0;

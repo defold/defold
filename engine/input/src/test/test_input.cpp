@@ -507,6 +507,29 @@ TEST_F(InputTest, Gamepad)
     dmInput::DeleteBinding(binding);
 }
 
+TEST_F(InputTest, GamepadWithoutRegisteredMaps)
+{
+    dmInput::NewContextParams params;
+    params.m_HidContext = m_HidContext;
+    params.m_RepeatDelay = 0.5f;
+    params.m_RepeatInterval = 0.2f;
+    params.m_GamepadDeadZone = 0.2f;
+    dmInput::HContext context = dmInput::NewContext(params);
+
+    dmInput::HBinding binding = dmInput::NewBinding(context);
+    dmInput::SetBinding(binding, m_TestDDF);
+
+    ASSERT_EQ(0U, binding->m_GamepadBindings.Size());
+
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_EQ(0U, binding->m_GamepadBindings.Size());
+
+    dmInput::DeleteBinding(binding);
+    dmInput::DeleteContext(context);
+}
+
 TEST_F(InputTest, GamepadConnectedContainsGamepadName)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
