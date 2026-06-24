@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import org.junit.Test;
+import org.junit.Ignore;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.textureset.TextureSetLayout;
@@ -345,5 +346,53 @@ public class TextureSetLayoutTest {
         Layout layout = layouts.get(0);
         assertEquals(2048, layout.getWidth());
         assertEquals(1024, layout.getHeight());
+    }
+
+    // The 26 source images of issue #12593's 2.atlas (chars_01..26), unextruded.
+    private static final int[][] ISSUE_12593_CHARS = {
+        {227, 475}, {203, 434}, {265, 532}, {242, 521}, {236, 588}, {253, 567},
+        {305, 552}, {308, 551}, {289, 620}, {259, 615}, {363, 584}, {316, 626},
+        {264, 630}, {283, 507}, {193, 508}, {201, 500}, {322, 536}, {280, 514},
+        {224, 546}, {218, 520}, {260, 485}, {252, 486}, {246, 520}, {265, 495},
+        {319, 558}, {285, 497}
+    };
+
+    // Each image is inflated by 2*extrudeBorders before being packed, matching the
+    // editor (atlas->texture-set-data) and bob (AtlasUtil.generateTextureSet) paths.
+    private List<Rect> issue12593Chars(int extrudeBorders) {
+        int grow = 2 * extrudeBorders;
+        List<Rect> rects = new ArrayList<Rect>(ISSUE_12593_CHARS.length);
+        for (int i = 0; i < ISSUE_12593_CHARS.length; i++) {
+            rects.add(rect(Integer.toString(i), i,
+                           ISSUE_12593_CHARS[i][0] + grow,
+                           ISSUE_12593_CHARS[i][1] + grow));
+        }
+        return rects;
+    }
+
+    // Issue #12593: with extrudeBorders=2 the 26 images pack into a single 2048x2048
+    // page. Verified end-to-end against the live editor (atlas :layout-size = 2048x2048).
+    @Test
+    public void testIssue12593ExtrudeTwoSinglePage() throws CompileExceptionError {
+        List<Layout> layouts = packedLayout(0, issue12593Chars(2));
+        assertEquals(1, layouts.size());
+        assertEquals(2048, layouts.get(0).getWidth());
+        assertEquals(2048, layouts.get(0).getHeight());
+    }
+
+    // Issue #12593 phenomenon (B): with extrudeBorders=0 the same images (now SMALLER)
+    // packed to 4096x2048 instead of 2048x2048 -- counter-intuitively worse than the
+    // larger extrude=2 set above -- because the greedy MaxRects packer is non-monotonic:
+    // a single fixed seed ordering misses a packing that provably exists (it can be
+    // reconstructed from the extrude=2 solution by shrinking each placed rect). Fixed by
+    // the multi-seed-sort ensemble in createMaxRectsLayout, which also tries longest-side
+    // ordering and keeps the smaller result. Distinct from the #11541 canFitInPage
+    // regression covered by testMixedOrientationFit.
+    @Test
+    public void testIssue12593ExtrudeZeroSinglePage() throws CompileExceptionError {
+        List<Layout> layouts = packedLayout(0, issue12593Chars(0));
+        assertEquals(1, layouts.size());
+        assertEquals(2048, layouts.get(0).getWidth());
+        assertEquals(2048, layouts.get(0).getHeight());
     }
 }

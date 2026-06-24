@@ -340,21 +340,124 @@ public class TextureSetLayout {
      * @param rotate
      * @return
      */
-    public static List<Layout> createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
-        // Sort by area first, then longest side
-        Collections.sort(rectangles, new Comparator<Rect>() {
-            @Override
-            public int compare(Rect o1, Rect o2) {
-                int a1 = o1.getArea();
-                int a2 = o2.getArea();
-                if (a1 != a2) {
-                    return a2 - a1;
-                }
-                int n1 = Math.max(o1.rect.width, o1.rect.height);
-                int n2 = Math.max(o2.rect.width, o2.rect.height);
+    // Seed orderings for the greedy MaxRects packer. The packer is a greedy
+    // heuristic and is non-monotonic: a single fixed sort lands on a good packing
+    // for some inputs and a needlessly large one for others (issue #12593, e.g. the
+    // same image set packs to 2048x2048 with one ordering but 4096x2048 with
+    // another). We pack with area-descending first - the historical order, kept as
+    // the fast path so existing layouts are byte-for-byte unchanged - and only when
+    // that result is not already at the minimal page size do we retry with alternate
+    // orderings and keep the best.
+    private static final Comparator<Rect> SORT_AREA_DESC = new Comparator<Rect>() {
+        @Override
+        public int compare(Rect o1, Rect o2) {
+            int a1 = o1.getArea();
+            int a2 = o2.getArea();
+            if (a1 != a2) {
+                return a2 - a1;
+            }
+            int n1 = Math.max(o1.rect.width, o1.rect.height);
+            int n2 = Math.max(o2.rect.width, o2.rect.height);
+            return n2 - n1;
+        }
+    };
+
+    private static final Comparator<Rect> SORT_LONGSIDE_DESC = new Comparator<Rect>() {
+        @Override
+        public int compare(Rect o1, Rect o2) {
+            int n1 = Math.max(o1.rect.width, o1.rect.height);
+            int n2 = Math.max(o2.rect.width, o2.rect.height);
+            if (n1 != n2) {
                 return n2 - n1;
             }
-        });
+            return o2.getArea() - o1.getArea();
+        }
+    };
+
+    private static final Comparator<Rect> SORT_SHORTSIDE_DESC = new Comparator<Rect>() {
+        @Override
+        public int compare(Rect o1, Rect o2) {
+            int n1 = Math.min(o1.rect.width, o1.rect.height);
+            int n2 = Math.min(o2.rect.width, o2.rect.height);
+            if (n1 != n2) {
+                return n2 - n1;
+            }
+            return o2.getArea() - o1.getArea();
+        }
+    };
+
+    private static final Comparator<Rect> SORT_PERIMETER_DESC = new Comparator<Rect>() {
+        @Override
+        public int compare(Rect o1, Rect o2) {
+            int p1 = o1.rect.width + o1.rect.height;
+            int p2 = o2.rect.width + o2.rect.height;
+            if (p1 != p2) {
+                return p2 - p1;
+            }
+            return o2.getArea() - o1.getArea();
+        }
+    };
+
+    // Tried only when the area-descending fast path is sub-optimal.
+    private static final List<Comparator<Rect>> ALTERNATE_SORTS =
+        Arrays.asList(SORT_LONGSIDE_DESC, SORT_SHORTSIDE_DESC, SORT_PERIMETER_DESC);
+
+    // The smallest square power-of-two page that could conceivably hold all rects,
+    // bounded below by both the total area and the longest single side.
+    private static int minimumSquarePageSize(int margin, List<Rect> rectangles) {
+        int maxLengthScale = 0;
+        int area = 0;
+        for (Rect rect : rectangles) {
+            area += rect.getArea();
+            maxLengthScale = Math.max(maxLengthScale, rect.rect.width);
+            maxLengthScale = Math.max(maxLengthScale, rect.rect.height);
+        }
+        maxLengthScale += margin * 2;
+        return 1 << getExponentNextOrMatchingPowerOfTwo(Math.max((int)Math.sqrt(area), maxLengthScale));
+    }
+
+    // Ranks two candidate page-sets: fewer pages wins, then smaller page area.
+    // Strictly-better only, so an equal result keeps the incumbent (area-desc)
+    // layout and its exact rectangle positions.
+    private static boolean isBetterLayout(List<Layout> candidate, List<Layout> incumbent) {
+        if (candidate.size() != incumbent.size()) {
+            return candidate.size() < incumbent.size();
+        }
+        long ca = (long)candidate.get(0).getWidth() * (long)candidate.get(0).getHeight();
+        long ia = (long)incumbent.get(0).getWidth() * (long)incumbent.get(0).getHeight();
+        return ca < ia;
+    }
+
+    public static List<Layout> createMaxRectsLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
+        // Fast path: historical area-descending order. Preserves existing layouts.
+        List<Layout> best = layoutWithSort(margin, rectangles, rotate, maxPageSizeW, maxPageSizeH, SORT_AREA_DESC);
+
+        // Only retry alternate orderings when the fast path is not already optimal:
+        // a paged atlas that needed more than one page, or a single-page atlas that
+        // had to grow past the minimal square page. Keeps the common case at 1x cost.
+        boolean useMaxPageSize = maxPageSizeW > 0 && maxPageSizeH > 0;
+        boolean optimal;
+        if (useMaxPageSize) {
+            optimal = best.size() <= 1;
+        } else {
+            int floor = minimumSquarePageSize(margin, rectangles);
+            Layout page = best.get(0);
+            optimal = page.getWidth() <= floor && page.getHeight() <= floor;
+        }
+
+        if (!optimal) {
+            for (Comparator<Rect> comparator : ALTERNATE_SORTS) {
+                List<Layout> candidate = layoutWithSort(margin, rectangles, rotate, maxPageSizeW, maxPageSizeH, comparator);
+                if (isBetterLayout(candidate, best)) {
+                    best = candidate;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static List<Layout> layoutWithSort(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH, Comparator<Rect> comparator) throws CompileExceptionError {
+        Collections.sort(rectangles, comparator);
 
         boolean useMaxPageSize       = maxPageSizeW > 0 && maxPageSizeH > 0;
         final int defaultMinPageSize = 16;
@@ -401,17 +504,8 @@ public class TextureSetLayout {
 
             return layouts;
         } else {
-            // Calculate total area of rectangles and the max length of a rectangle
-            int maxLengthScale = 0;
-            int area = 0;
-            for (Rect rect : rectangles) {
-                area += rect.getArea();
-                maxLengthScale = Math.max(maxLengthScale, rect.rect.width);
-                maxLengthScale = Math.max(maxLengthScale, rect.rect.height);
-            }
-            maxLengthScale += margin * 2;
             // Ensure the longest length found in all of the images will fit within one page, irrespective of orientation.
-            final int defaultMaxPageSize = 1 << getExponentNextOrMatchingPowerOfTwo(Math.max((int)Math.sqrt(area), maxLengthScale));
+            final int defaultMaxPageSize = minimumSquarePageSize(margin, rectangles);
             MaxRectsLayoutStrategy.Settings settings = new MaxRectsLayoutStrategy.Settings();
             settings.maxPageHeight = defaultMaxPageSize;
             settings.maxPageWidth = defaultMaxPageSize;
