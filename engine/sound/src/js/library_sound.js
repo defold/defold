@@ -221,6 +221,18 @@ var LibrarySoundDevice =
                     this.lastQueueDecayTime = audioTime;
                     this._updateEffectiveBufferCount("decay", previousAdaptiveQueueSeconds);
                 },
+                _markPlaybackStarted: function() {
+                    var audioTime = shared.audioCtx.currentTime || 0;
+                    this.ignoreNextUnderrun = true;
+                    this._resetQueueDecay(audioTime);
+                },
+                _markPlaybackIdle: function() {
+                    // Mark idle so the next start doesn't learn the stale queue gap as an underrun.
+                    // Already scheduled WebAudio buffers are left to finish naturally.
+                    var audioTime = shared.audioCtx.currentTime || 0;
+                    this.ignoreNextUnderrun = true;
+                    this._resetQueueDecay(audioTime);
+                },
                 _queue: function(samples, frame_count) {
                     var lastBufferDuration = this.bufferDuration;
                     var len = frame_count / this.sampleRate;
@@ -261,8 +273,8 @@ var LibrarySoundDevice =
                     var underrun = !firstBuffer && bufferedToSeconds <= t;
 
                     if (underrun) {
-                        // Suppress expected gaps after suspend/resume. Other underruns are
-                        // active-playback starvation and should grow the adaptive queue.
+                        // Suppress expected gaps after suspend/resume or an idle restart.
+                        // Other underruns are active-playback starvation and should grow the adaptive queue.
                         if (this.ignoreNextUnderrun) {
                             this.ignoreNextUnderrun = false;
                             this._resetQueueDecay(t);
@@ -338,6 +350,18 @@ var LibrarySoundDevice =
     },
     dmDeviceJSOpen__proxy: 'sync',
     dmDeviceJSOpen__sig: 'ii',
+
+    dmDeviceJSPlaybackStarted: function(id) {
+        window._dmJSDeviceShared.devices[id]._markPlaybackStarted();
+    },
+    dmDeviceJSPlaybackStarted__proxy: 'sync',
+    dmDeviceJSPlaybackStarted__sig: 'vi',
+
+    dmDeviceJSPlaybackIdle: function(id) {
+        window._dmJSDeviceShared.devices[id]._markPlaybackIdle();
+    },
+    dmDeviceJSPlaybackIdle__proxy: 'sync',
+    dmDeviceJSPlaybackIdle__sig: 'vi',
 
     dmDeviceJSQueue: function(id, samples, sample_count) {
         window._dmJSDeviceShared.devices[id]._queue(samples, sample_count)
