@@ -61,6 +61,11 @@ DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 
 java_version = sdk.VERSION_EDITOR_JDK
 
+REQUIRED_ANDROID_VKQUALITY_FILES = (
+    "libexec/armv7-android/libvkquality.so",
+    "libexec/arm64-android/libvkquality.so",
+)
+
 platform_to_java = {'x86_64-linux': 'x64_linux',
                     'x86_64-macos': 'x64_mac',
                     'arm64-macos': 'aarch64_mac',
@@ -351,6 +356,10 @@ def remove_platform_files_from_archive(platform, jar, jdk=None):
             # don't remove the cross-platform bundletool-all.jar
             if "bundletool-all.jar" in file:
                 continue
+            # keep Android VkQuality native libraries; Bob needs these when bundling
+            # Vulkan-enabled Android apps from any desktop editor.
+            if file in REQUIRED_ANDROID_VKQUALITY_FILES:
+                continue
             # anything else should be removed
             files_to_remove.add(file)
         # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
@@ -419,6 +428,15 @@ def remove_platform_files_from_archive(platform, jar, jdk=None):
     rewrite_time = time.perf_counter() - rewrite_start_time
     log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
         (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
+
+
+def validate_android_vkquality_files(jar):
+    with zipfile.ZipFile(jar, 'r') as zf:
+        entries = set(zf.namelist())
+    missing = [file for file in REQUIRED_ANDROID_VKQUALITY_FILES if file not in entries]
+    if missing:
+        raise Exception("Editor Bob package is missing required Android VkQuality files: %s" %
+                        ", ".join(missing))
 
 
 def create_standalone_editor_jar(jdk, platform):
@@ -501,6 +519,7 @@ def create_bundle(jdk, platform, options):
 
     # strip tools and libs for the platforms we're not currently bundling
     remove_platform_files_from_archive(platform, defold_jar, jdk)
+    validate_android_vkquality_files(defold_jar)
 
     # copy editor executable (the launcher)
     launcher = launcher_path(options, platform, get_exe_suffix(platform))

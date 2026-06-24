@@ -27,6 +27,18 @@
 
 (def ^:const default-max-preview-lights 8)
 
+(def default-preview-ambient-light
+  (Vector3d. 0.2 0.2 0.2))
+
+(def default-preview-directional-light-entry
+  {:node-id-path [::default-preview-directional-light]
+   :world-translation math/zero-v3
+   :light-type :directional
+   :packed-light {:position (Vector4d. 0.0 0.0 0.0 1.0)
+                  :color (Vector4d. 1.0 1.0 1.0 1.0)
+                  :direction-range (Vector4d. 0.0 -1.0 0.0 0.0)
+                  :params (Vector4d. 0.0 1.0 0.0 0.0)}})
+
 (defn- engine-light-type-index
   ^double [light-type-kw]
   (case light-type-kw
@@ -172,6 +184,12 @@
          :directional-light-entries directional-light-entries
          :local-light-entries local-light-entries
          :local-light-budget local-light-budget}))))
+
+(defn with-default-preview-lights [preview-light-data]
+  (assoc preview-light-data
+    :ambient-light default-preview-ambient-light
+    :directional-light-entries [default-preview-directional-light-entry]
+    :local-light-budget (dec default-max-preview-lights)))
 
 (defn- preview-light-entry-distance-squared
   ^double [preview-light-entry ^Point3d position]

@@ -250,6 +250,7 @@ public class DefoldActivity extends NativeActivity {
     public static native void glfwSetPendingResizeBecauseOfInsets();
 
     protected void onCreate(Bundle savedInstanceState) {
+        DefoldVkQuality.runPreflight(this);
         super.onCreate(savedInstanceState);
         final DefoldActivity self = this;
 

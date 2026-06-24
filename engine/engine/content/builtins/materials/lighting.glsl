@@ -45,6 +45,11 @@ vec3 world_to_view_dir(vec3 d)
     return normalize((var_view * vec4(d, 0.0)).xyz);
 }
 
+vec3 ambient_light()
+{
+     return light_info.xyz;
+}
+
 vec3 diffuse_lambert(int index, vec3 normal, vec3 view_position)
 {
     int type = int(lights[index].params.x);
@@ -81,8 +86,7 @@ vec3 diffuse_lambert(int index, vec3 normal, vec3 view_position)
 
 vec3 diffuse_lambert(vec3 view_normal, vec3 view_position)
 {
-    // Apply accumulated ambient light as base.
-    vec3 total_light = light_info.xyz;
+    vec3 total_light = vec3(0.0);
     int light_count = int(light_info.w);
 
     for (int i = 0; i < MAX_LIGHT_COUNT; ++i)

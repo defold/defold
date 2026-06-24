@@ -27,6 +27,7 @@
 
         <meta-data android:name="android.max_aspect" android:value="2.1" />
         <meta-data android:name="android.notch_support" android:value="true"/>
+        <meta-data android:name="com.defold.vkquality.enabled" android:value="{{defold.vkquality.enabled}}"/>
 
         <activity android:name="com.dynamo.android.DefoldActivity"
                 android:label="{{project.title}}"

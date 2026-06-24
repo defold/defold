@@ -254,7 +254,7 @@ namespace dmGraphics
         {
             return VK_SUCCESS;
         }
-        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
+        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_Base.m_Size, 0, &m_MappedDataPtr);
     }
 
     void DeviceBuffer::UnmapMemory(VkDevice vk_device)
@@ -760,8 +760,8 @@ namespace dmGraphics
             return res;
         }
 
-        bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
-        bufferOut->m_Destroyed  = 0;
+        bufferOut->m_Base.m_Size = (uint32_t) vk_buffer_memory_req.size;
+        bufferOut->m_Destroyed   = 0;
 
         return VK_SUCCESS;
 bail:
@@ -912,7 +912,7 @@ bail:
             goto bail;
         }
 
-        device_buffer.m_MemorySize = vk_memory_req.size;
+        device_buffer.m_Base.m_Size = (uint32_t) vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));

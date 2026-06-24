@@ -44,12 +44,14 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.GamepadBuilder;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.MinifyPathCollector;
@@ -110,7 +112,7 @@ import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
  * @author Christian Murray
  *
  */
-public class Project {
+public class Project implements AutoCloseable {
 
     private static Logger logger = Logger.getLogger(Project.class.getName());
 
@@ -132,9 +134,10 @@ public class Project {
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
-    private HashMap<String, Task> tasks;
+    private HashMap<String, Task> tasks = new HashMap<String, Task>();
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
+    private volatile BobTempDirectory tempDirectory;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
@@ -184,7 +187,12 @@ public class Project {
 
     // For the editor
     public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+        this(loader, fileSystem, sourceRootDirectory, buildDirectory, null);
+    }
+
+    public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory, BobTempDirectory tempDirectory) {
         this.classLoader = loader;
+        this.tempDirectory = tempDirectory;
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
@@ -200,7 +208,41 @@ public class Project {
     }
 
     public void dispose() {
-        this.fileSystem.close();
+        try {
+            this.fileSystem.close();
+        } finally {
+            if (this.tempDirectory != null) {
+                this.tempDirectory.close();
+                this.tempDirectory = null;
+            }
+        }
+    }
+
+    @Override
+    public void close() {
+        dispose();
+    }
+
+    private BobTempDirectory getOrCreateTempDirectory() throws IOException {
+        BobTempDirectory directory = this.tempDirectory;
+        if (directory == null) {
+            synchronized (this) {
+                directory = this.tempDirectory;
+                if (directory == null) {
+                    directory = new BobTempDirectory();
+                    this.tempDirectory = directory;
+                }
+            }
+        }
+        return directory;
+    }
+
+    public File createTempFile(String prefix, String suffix) throws IOException {
+        return getOrCreateTempDirectory().createTempFile(prefix, suffix);
+    }
+
+    public File createTempDirectory(String prefix) throws IOException {
+        return getOrCreateTempDirectory().createTempDirectory(prefix);
     }
 
     public String getRootDirectory() {
@@ -522,6 +564,56 @@ public class Project {
         }
     }
 
+    public Task createGamepadTask(IResource gamepadDbInput, IResource gamepadsInput) throws CompileExceptionError {
+        if (gamepadDbInput == null && gamepadsInput == null) {
+            throw new CompileExceptionError("Gamepad task requires a .gamepads file or a gamecontrollerdb.txt file.");
+        }
+
+        String gamepadDbPath = gamepadDbInput != null ? gamepadDbInput.getPath() : "";
+        String gamepadsPath = gamepadsInput != null ? gamepadsInput.getPath() : "";
+        String key = gamepadDbPath + " " + gamepadsPath + " " + GamepadBuilder.class;
+        if (!circularDependencyChecker.add(key)) {
+            throw new CompileExceptionError(generateCircularDependencyErrorMessage(key), null);
+        }
+
+        Task task = tasks.get(key);
+        if (task != null) {
+            circularDependencyChecker.remove(key);
+            return task;
+        }
+
+        TimeProfiler.start();
+        TimeProfiler.addData("type", "createGamepadTask");
+        GamepadBuilder builder;
+        try {
+            builder = new GamepadBuilder();
+            builder.setProject(this);
+            Task.TaskBuilder taskBuilder = Task.newBuilder(builder)
+                    .setName(builder.getParams().name());
+            if (gamepadDbInput != null) {
+                taskBuilder.addInput(gamepadDbInput);
+            }
+            if (gamepadsInput != null) {
+                taskBuilder.addInput(gamepadsInput);
+            }
+            IResource outputAnchor = gamepadsInput != null ? gamepadsInput : gamepadDbInput;
+            task = taskBuilder
+                    .addOutput(outputAnchor.changeExt(builder.getParams().outExt()))
+                    .build();
+            if (task != null) {
+                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
+                TimeProfiler.addData("name", task.getName());
+                tasks.put(key, task);
+            }
+            circularDependencyChecker.remove(key);
+            return task;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            TimeProfiler.stop();
+        }
+    }
+
     private void createTasks() throws CompileExceptionError {
         circularDependencyChecker = new LinkedHashSet<>();
         tasks = new HashMap<String, Task>();
@@ -560,7 +652,7 @@ public class Project {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
-                        this.publisher = new ZipPublisher(getRootDirectory(), settings);
+                        this.publisher = new ZipPublisher(this, getRootDirectory(), settings);
                     } else if (PublisherSettings.PublishMode.Folder.equals(settings.getMode())) {
                         this.publisher = new FolderPublisher(getRootDirectory(), settings);
                     } else {

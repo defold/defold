@@ -24,6 +24,8 @@
 #include <dlib/dstrings.h>
 #include <dlib/endian.h>
 
+#include <platform/platform_window_constants.h>
+
 #if defined(ANDROID) || defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 #include <glfw/glfw.h>
 
@@ -118,6 +120,19 @@ TEST_F(HIDTest, Mouse)
 {
     dmHID::Update(m_Context);
     dmHID::MousePacket packet;
+
+    /* Intent: verify Defold mouse button aliases map to platform button slots.
+    ** Setup: compare HID mouse aliases and platform translation without device input.
+    ** Expected: numeric button 2 maps to right, numeric button 3 maps to middle,
+    ** and extended numeric buttons continue from platform button 4.
+    */
+    ASSERT_EQ(dmHID::MOUSE_BUTTON_LEFT, dmHID::MOUSE_BUTTON_1);
+    ASSERT_EQ(dmHID::MOUSE_BUTTON_RIGHT, dmHID::MOUSE_BUTTON_2);
+    ASSERT_EQ(dmHID::MOUSE_BUTTON_MIDDLE, dmHID::MOUSE_BUTTON_3);
+    ASSERT_EQ(dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT, dmHID::GetMouseButtonValue(dmHID::MOUSE_BUTTON_1));
+    ASSERT_EQ(dmPlatform::PLATFORM_MOUSE_BUTTON_RIGHT, dmHID::GetMouseButtonValue(dmHID::MOUSE_BUTTON_2));
+    ASSERT_EQ(dmPlatform::PLATFORM_MOUSE_BUTTON_MIDDLE, dmHID::GetMouseButtonValue(dmHID::MOUSE_BUTTON_3));
+    ASSERT_EQ(dmPlatform::PLATFORM_MOUSE_BUTTON_4, dmHID::GetMouseButtonValue(dmHID::MOUSE_BUTTON_4));
 
     ASSERT_TRUE(dmHID::GetMousePacket(m_Mouse, &packet));
 

@@ -45,8 +45,9 @@ protected:
         params.m_HidContext = m_HidContext;
         params.m_RepeatDelay = 0.5f;
         params.m_RepeatInterval = 0.2f;
+        params.m_GamepadDeadZone = 0.2f;
         m_Context = dmInput::NewContext(params);
-        dmInputDDF::GamepadMaps* gamepad_maps;
+        dmInputDDF::GamepadMapsRuntime* gamepad_maps;
 
         char buffer[128];
         #define HOSTPATH(_PATH) dmTestUtil::MakeHostPath(buffer, sizeof(buffer), _PATH)
@@ -57,7 +58,7 @@ protected:
             #define BUILD_DIR "build/src/test"
         #endif
 
-        dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.gamepadsc"), dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
+        dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.gamepadsc"), dmInputDDF::GamepadMapsRuntime::m_DDFDescriptor, (void**)&gamepad_maps);
 
         ASSERT_EQ(dmDDF::RESULT_OK, result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
@@ -105,6 +106,60 @@ TEST_F(InputTest, CreateContext)
     dmInput::SetBinding(binding, m_TestDDF);
     ASSERT_NE(dmInput::INVALID_BINDING, binding);
     dmInput::DeleteBinding(binding);
+}
+
+TEST_F(InputTest, GuidGamepadMapsAreNotRegisteredAsLegacyNames)
+{
+    dmInput::NewContextParams params;
+    params.m_HidContext = m_HidContext;
+    params.m_RepeatDelay = 0.5f;
+    params.m_RepeatInterval = 0.2f;
+    params.m_GamepadDeadZone = 0.2f;
+    dmInput::HContext context = dmInput::NewContext(params);
+
+    dmInputDDF::GamepadMapsRuntime gamepad_maps;
+    dmInputDDF::GamepadMapRuntime drivers[3];
+    uint8_t guid_data[3][sizeof(dmHID::GamepadGuid)] = {};
+    const uint8_t xbox_360_guid[sizeof(dmHID::GamepadGuid)] = {
+        0x03, 0x00, 0x00, 0x00, 0x5e, 0x04, 0x00, 0x00,
+        0x8e, 0x02, 0x00, 0x00, 0x14, 0x01, 0x00, 0x00
+    };
+    memset(&gamepad_maps, 0, sizeof(gamepad_maps));
+    memset(drivers, 0, sizeof(drivers));
+
+    gamepad_maps.m_Mappings.m_Data = drivers;
+    gamepad_maps.m_Mappings.m_Count = 3;
+
+    for (uint32_t i = 0; i < gamepad_maps.m_Mappings.m_Count; ++i)
+    {
+        drivers[i].m_Device = "duplicate_guid_device";
+        if (i == 2)
+        {
+            memcpy(guid_data[i], xbox_360_guid, sizeof(xbox_360_guid));
+        }
+        else
+        {
+            guid_data[i][0] = (uint8_t)(i + 1);
+            guid_data[i][4] = (uint8_t)(i + 2);
+            guid_data[i][8] = (uint8_t)(i + 3);
+        }
+        drivers[i].m_Guid.m_Data = guid_data[i];
+        drivers[i].m_Guid.m_Count = sizeof(guid_data[i]);
+    }
+
+    dmInput::RegisterGamepads(context, &gamepad_maps);
+
+    ASSERT_EQ(4U, context->m_GamepadMaps.Size());
+    ASSERT_EQ((void*)0x0, (void*)context->m_GamepadMaps.Get(dmHashString32("duplicate_guid_device")));
+    for (uint32_t i = 0; i < gamepad_maps.m_Mappings.m_Count; ++i)
+    {
+        const uint32_t guid_hash = dmHashBuffer32(guid_data[i], sizeof(guid_data[i]));
+        dmInput::GamepadConfig* config = context->m_GamepadMaps.Get(guid_hash);
+        ASSERT_NE((void*)0x0, (void*)config);
+        ASSERT_EQ(guid_hash, config->m_DeviceId);
+    }
+
+    dmInput::DeleteContext(context);
 }
 
 void TextInputCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
@@ -327,6 +382,46 @@ TEST_F(InputTest, Mouse)
     dmInput::DeleteBinding(binding);
 }
 
+TEST_F(InputTest, MouseButtonAliases)
+{
+    /* Intent: verify input bindings preserve Defold mouse button aliases.
+    ** Setup: bind semantic right/middle actions and numeric mouse button 2/3 actions.
+    ** Expected: right activates both right and button 2 actions, while middle activates
+    ** both middle and button 3 actions.
+    */
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
+
+    dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
+
+    dmhash_t mouse_right_id = dmHashString64("MOUSE_RIGHT");
+    dmhash_t mouse_middle_id = dmHashString64("MOUSE_MIDDLE");
+    dmhash_t mouse_2_id = dmHashString64("MOUSE_2");
+    dmhash_t mouse_3_id = dmHashString64("MOUSE_3");
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_RIGHT, true);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding, mouse_right_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding, mouse_2_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding, mouse_middle_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding, mouse_3_id));
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_RIGHT, false);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_MIDDLE, true);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding, mouse_right_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding, mouse_2_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding, mouse_middle_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding, mouse_3_id));
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_MIDDLE, false);
+    dmInput::DeleteBinding(binding);
+}
+
 TEST_F(InputTest, Gamepad)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
@@ -465,6 +560,7 @@ TEST_F(InputTest, Touch)
     input_params.m_HidContext = hid_context;
     input_params.m_RepeatDelay = 0.5f;
     input_params.m_RepeatInterval = 0.2f;
+    input_params.m_GamepadDeadZone = 0.2f;
     dmInput::HContext context = dmInput::NewContext(input_params);
 
     dmHID::HTouchDevice device = dmHID::GetTouchDevice(hid_context, 0);
@@ -576,6 +672,7 @@ TEST_F(InputTest, TouchPhases)
     input_params.m_HidContext = hid_context;
     input_params.m_RepeatDelay = 0.5f;
     input_params.m_RepeatInterval = 0.2f;
+    input_params.m_GamepadDeadZone = 0.2f;
     dmInput::HContext context = dmInput::NewContext(input_params);
 
     dmHID::HTouchDevice device = dmHID::GetTouchDevice(hid_context, 0);

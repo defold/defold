@@ -20,8 +20,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.Library.Result;
 import com.dynamo.bob.util.PackedResources;
@@ -181,7 +181,7 @@ public class Bob {
         return dstFile;
     }
 
-    public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
+    public static void extractToFolder(final URL url, File toFolder) throws IOException {
         TimeProfiler.start("extractToFolder %s", toFolder.toString());
         TimeProfiler.addData("url", url.toString());
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
@@ -193,8 +193,6 @@ public class Bob {
                 if (!entry.isDirectory()) {
 
                     File dstFile = resolveArchiveEntry(toFolder, entry.getName());
-                    if (deleteOnExit)
-                        FileUtil.deleteOnExit(dstFile);
                     dstFile.getParentFile().mkdirs();
 
                     OutputStream fileStream = null;
@@ -225,7 +223,7 @@ public class Bob {
     }
 
     public static void extract(final URL url, File toFolder) throws IOException {
-        extractToFolder(url, toFolder, true);
+        extractToFolder(url, toFolder);
     }
 
     public static void atomicExtractDirectory(final URL url, File toFolder, String directoryName) throws IOException {
@@ -237,7 +235,7 @@ public class Bob {
         toFolder.mkdirs();
         File tmpFolder = new File(toFolder, String.format(".%s_%d", directoryName, System.nanoTime()));
         try {
-            extractToFolder(url, tmpFolder, false);
+            extractToFolder(url, tmpFolder);
             File extracted = new File(tmpFolder, directoryName);
             if (!extracted.isDirectory()) {
                 throw new IOException(String.format("Archive '%s' did not contain directory '%s'", url, directoryName));
@@ -644,8 +642,8 @@ public class Bob {
         }
     }
 
-    private static Project createProject(ClassLoader classLoader, String rootDirectory, String buildDirectory, String email, String auth) {
-        Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
+    private static Project createProject(ClassLoader classLoader, String rootDirectory, String buildDirectory, String email, String auth) throws IOException {
+        Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory, new BobTempDirectory());
         project.setOption("email", email);
         project.setOption("auth", auth);
 
@@ -782,6 +780,7 @@ public class Bob {
                 TimeProfiler.init(reportFiles);
             }
 
+            Project project = null;
             try {
                 TimeProfiler.start("ParseCommandLine");
                 if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
@@ -824,7 +823,7 @@ public class Bob {
 
                 String email = getOptionsValue(cmd, 'e', null);
                 String auth = getOptionsValue(cmd, 'u', null);
-                Project project = createProject(classLoader, rootDirectory, buildDirectory, email, auth);
+                project = createProject(classLoader, rootDirectory, buildDirectory, email, auth);
                 EngineArtifactsProvider.setCacheBase(new File(project.getBuildCachePath()));
 
                 if (cmd.hasOption("settings")) {
@@ -1030,9 +1029,11 @@ public class Bob {
                     System.out.println("\nThe build failed for the following reasons:");
                     System.out.println(errors);
                 }
-                project.dispose();
                 return new InvocationResult(ret, result);
             } finally {
+                if (project != null) {
+                    project.dispose();
+                }
                 TimeProfiler.createReport();
             }
         }

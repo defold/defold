@@ -45,7 +45,7 @@ defold_protoc_encode(
   "${INPUT_TEST_BUILD_DIR}/test.gamepadsc"                         # OUT_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/test.gamepads"                       # SRC_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/input/input_ddf.proto"   # SCHEMA_PROTO
-  "dmInputDDF.GamepadMaps"                                          # MESSAGE_NAME
+  "dmInputDDF.GamepadMapsRuntime"                                   # MESSAGE_NAME
   INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/../../proto"
 )
 
