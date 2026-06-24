@@ -22,7 +22,6 @@ import optparse
 import github
 import json
 import time
-import subprocess
 import math
 from concurrent.futures import ThreadPoolExecutor
 
@@ -356,14 +355,32 @@ def find_reference_commits(pr):
             commits.append(node["commit"]["oid"])
     return commits
 
+# Branches a release-note issue's fix must be present on. Containment is asked
+# server-side via the GitHub "compare two commits" REST API (below), so the
+# audit needs no local git history and runs on shallow CI clones.
+AUDIT_BRANCHES = ["dev", "beta"]
+
+def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
+    # True when `branch` contains `commit` - i.e. the commit introduces nothing
+    # the branch is missing. GitHub's compare endpoint reports this as
+    # ahead_by == 0 for compare/<branch>...<commit>. A commit that exists but
+    # hasn't landed returns a normal response with ahead_by > 0 (fast False);
+    # only an unreachable repo / unknown sha yields a null response, which we
+    # retry with backoff like github_query. If it still can't be confirmed we
+    # fail closed (False) so the commit shows up as missing and blocks release.
+    url = "/repos/defold/%s/compare/%s...%s" % (repository, branch, commit)
+    for attempt in range(max_retries):
+        response = github.get(url, token)
+        if response is not None:
+            return response.get("ahead_by") == 0
+        time.sleep(min(60, 2 ** attempt))
+    red("    Could not verify commit %s against %s after %d attempts" % (commit[:8], branch, max_retries))
+    return False
+
 def get_commit_branches(commit):
-    # print("git branch --contains %s" % commit)
-    result = subprocess.run(["git", "branch", "--contains", commit], capture_output = True)
-    out = result.stdout.decode('utf-8')
-    if result.returncode == 0:
-        return [line.replace("*", "").strip() for line in out.splitlines()]
-    red(result.stderr.decode('utf-8'))
-    sys.exit(result.returncode)
+    # Which audited branches contain this commit. Replaces a local
+    # `git branch --contains`, which needs full history unavailable in CI.
+    return [branch for branch in AUDIT_BRANCHES if commit_in_branch(branch, commit)]
 
 def check_commit_branches(commit, branches):
     result = get_commit_branches(commit)
@@ -607,6 +624,12 @@ def check_issue_commits(issues):
     red("  %d issue(s) not present on beta" % missing_beta_count)
     red("  %d issue(s) not present on dev+beta" % missing_dev_beta_count)
 
+    total_missing = missing_dev_count + missing_beta_count + missing_dev_beta_count
+    if total_missing > 0:
+        red("\nRelease notes audit FAILED: %d issue(s) not present on dev and/or beta" % total_missing)
+        sys.exit(1)
+    green("\nRelease notes audit passed: all issues present on dev and beta")
+
 
 
 def generate_markdown(version, issues, hide_details = False):
@@ -671,7 +694,7 @@ def generate_json(version, issues):
         print("Wrote %s" % file)
 
 
-def generate(version, hide_details = False, skip_audit = False):
+def generate(version, hide_details = False):
     print("Generating release notes for %s" % version)
 
     issues = parse_github_project(version)
@@ -681,11 +704,10 @@ def generate(version, hide_details = False, skip_audit = False):
         print("No release notes found for %s - skipping" % version)
         return
 
-    # The commit audit shells out to `git branch --contains`, which needs full
-    # history and the dev/beta branches locally. It's purely diagnostic (its
-    # result isn't used below), so CI on a shallow clone skips it via --skip-audit.
-    if not skip_audit:
-        check_issue_commits(issues)
+    # The commit audit verifies every issue's fix is present on dev and beta via
+    # the GitHub compare API (no local history needed) and fails the run if any
+    # are missing, before we publish notes for an unreleased fix.
+    check_issue_commits(issues)
     generate_markdown(version, issues, hide_details)
     generate_json(version, issues)
 
@@ -712,12 +734,6 @@ generate - Generate release notes
                       action = "store_true",
                       help = 'Hide details for each entry')
 
-    parser.add_option('--skip-audit', dest='skip_audit',
-                      default = False,
-                      action = "store_true",
-                      help = 'Skip the git commit audit (needs full history + dev/beta branches; not available on shallow CI clones)')
-
-
     options, args = parser.parse_args()
 
     if not args:
@@ -737,7 +753,7 @@ generate - Generate release notes
     token = options.token
     for cmd in args:
         if cmd == "generate":
-            generate(options.version, options.hide_details, options.skip_audit)
+            generate(options.version, options.hide_details)
 
 
     print('Done')

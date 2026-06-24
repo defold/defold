@@ -449,10 +449,10 @@ def gen_release_notes(channel):
         print("%s already exists - using manually-authored notes as-is" % notes_md)
         return
 
-    # --skip-audit: the git 'branch --contains' audit needs full history and the
-    # dev/beta branches, which a shallow CI checkout doesn't have. call() exits
-    # non-zero (failing the job) if the generator itself errors.
-    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --token %s --skip-audit generate' % (
+    # The generator audits every issue's fix for presence on dev/beta via the
+    # GitHub compare API (no local history needed) and exits non-zero - failing
+    # the job - if any are missing or generation itself errors.
+    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --token %s generate' % (
         sys.executable, version, get_github_token()))
 
     # beta/stable must ship notes: a missing file here means generation produced
