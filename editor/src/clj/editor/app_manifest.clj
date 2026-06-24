@@ -738,11 +738,6 @@
     (exclude-libs-toggles metal-ios ["graphics_metal"])
     (generic-contains-toggles metal-ios :excludeSymbols ["GraphicsAdapterMetal"])))
 
-(def exclude-open-gl-ios-toggles
-  (concat
-    (exclude-libs-toggles ios ["graphics"])
-    (generic-contains-toggles ios :excludeSymbols ["GraphicsAdapterOpenGL"])))
-
 (def exclude-open-gl-vulkan-ios-toggles
   (concat
     (exclude-libs-toggles vulkan-ios ["graphics"])
