@@ -807,7 +807,12 @@ namespace dmEngine
     {
         HEngine engine = (HEngine)ctx;
 
-        if (engine->m_DependenciesJsonResource)
+        const uint32_t dependency_separator_size = 1;
+        const uint32_t dependency_terminator_size = 1;
+
+        if (engine->m_DependenciesJsonResource &&
+            buffersize >= dependency_separator_size + dependency_terminator_size &&
+            engine->m_DependenciesJsonSize <= buffersize - dependency_separator_size - dependency_terminator_size)
         {
             memcpy(buffer, engine->m_DependenciesJsonResource, engine->m_DependenciesJsonSize);
             buffer += engine->m_DependenciesJsonSize;
