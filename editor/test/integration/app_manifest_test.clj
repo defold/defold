@@ -291,7 +291,6 @@
                                                                        :libs ["graphics_vulkan" "platform_vulkan" "MoltenVK"]
                                                                        :frameworks ["Metal" "IOSurface" "QuartzCore"]}}}}
           manifest (app-manifest/set-setting-value explicit-vulkan-manifest app-manifest/graphics-setting-osx :metal)]
-      (is (= :vulkan (app-manifest/get-setting-value explicit-vulkan-manifest app-manifest/graphics-setting-osx)))
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
       (doseq [platform [:arm64-osx :x86_64-osx]]
         (let [context (get-in manifest [:platforms platform :context])]
@@ -351,14 +350,7 @@
       (is (not-any? #{"graphics_vulkan"} (:libs simulator-context)))
       (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols simulator-context)))
       (is (not-any? #{"graphics_metal"} (:libs simulator-context)))
-      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context)))))
-  (testing "legacy explicit iOS Vulkan manifests still read as Vulkan"
-    (let [explicit-vulkan-manifest {:platforms {:arm64-ios {:context {:excludeLibs ["graphics"]
-                                                                      :excludeSymbols ["GraphicsAdapterOpenGL"]
-                                                                      :symbols ["GraphicsAdapterVulkan"]
-                                                                      :libs ["graphics_vulkan" "MoltenVK"]
-                                                                      :frameworks ["Metal" "IOSurface" "QuartzCore"]}}}}]
-      (is (= :vulkan (app-manifest/get-setting-value explicit-vulkan-manifest app-manifest/graphics-setting-ios))))))
+      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context))))))
 
 (deftest manifestation-compatibility-test
   (test-util/with-loaded-project

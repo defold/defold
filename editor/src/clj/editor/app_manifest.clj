@@ -671,30 +671,6 @@
    [:open-gl-metal "OpenGL & Metal"]
    [:both "OpenGL & Vulkan"]])
 
-(def ^:private apple-adapter-ids [:open-gl :metal :vulkan])
-
-(def ^:private apple-graphics-choice-selections
-  [[:open-gl #{:open-gl}]
-   [:metal #{:metal}]
-   [:vulkan #{:vulkan}]
-   [:open-gl-metal #{:open-gl :metal}]
-   [:both #{:open-gl :vulkan}]])
-
-(defn- adapter-selection-toggles [adapter-toggles exclude-toggles selection]
-  (let [selected? (set selection)]
-    (concat
-      (mapcat adapter-toggles selection)
-      (mapcat exclude-toggles (remove selected? apple-adapter-ids)))))
-
-(defn- make-adapter-selection-setting [default adapter-toggles exclude-toggles compatibility-id+toggles]
-  (apply make-choice-setting
-         (concat
-           (mapcat (fn [[choice-id selection]]
-                     [choice-id (adapter-selection-toggles adapter-toggles exclude-toggles selection)])
-                   apple-graphics-choice-selections)
-           compatibility-id+toggles
-           [default])))
-
 (def open-gl-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics" "platform"])
@@ -729,27 +705,14 @@
     (exclude-libs-toggles vulkan-osx ["graphics"])
     (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
 
-(def exclude-platform-osx-toggles
-  (exclude-libs-toggles vulkan-osx ["platform"]))
-
 (def graphics-setting-osx
-  (make-adapter-selection-setting
-    :vulkan
-    {:open-gl open-gl-osx-toggles
-     :metal metal-osx-toggles
-     :vulkan explicit-vulkan-osx-toggles}
-    {:open-gl exclude-open-gl-osx-toggles
-     :metal exclude-metal-osx-toggles
-     :vulkan exclude-vulkan-osx-toggles}
-    [:open-gl (concat open-gl-osx-toggles exclude-vulkan-osx-toggles)
-     :both (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
-     :both (concat open-gl-osx-toggles explicit-vulkan-osx-toggles)
-     :both (concat open-gl-osx-toggles exclude-metal-osx-toggles)
-     :both open-gl-osx-toggles
-     :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-platform-osx-toggles)
-     :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles)
-     :vulkan (concat explicit-vulkan-osx-toggles exclude-platform-osx-toggles)
-     :vulkan explicit-vulkan-osx-toggles]))
+  (make-choice-setting
+    :open-gl (concat open-gl-osx-toggles exclude-metal-osx-toggles exclude-vulkan-osx-toggles)
+    :metal (concat metal-osx-toggles exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles)
+    :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-metal-osx-toggles)
+    :open-gl-metal (concat open-gl-osx-toggles metal-osx-toggles exclude-vulkan-osx-toggles)
+    :both (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
+    :vulkan))
 
 (def open-gl-ios-toggles [])
 
@@ -791,17 +754,13 @@
     (generic-contains-toggles metal-ios :excludeSymbols ["GraphicsAdapterOpenGL"])))
 
 (def graphics-setting-ios
-  (apply make-choice-setting
-         (concat
-           [:open-gl (concat exclude-metal-ios-toggles exclude-vulkan-ios-toggles)
-            :metal (concat metal-ios-toggles exclude-open-gl-metal-ios-toggles exclude-vulkan-ios-toggles)
-            :vulkan (concat explicit-vulkan-ios-toggles exclude-open-gl-vulkan-ios-toggles exclude-metal-ios-toggles)
-            :open-gl-metal (concat open-gl-ios-toggles metal-ios-toggles exclude-vulkan-ios-toggles)
-            :both (concat open-gl-ios-toggles explicit-vulkan-ios-toggles exclude-metal-ios-toggles)]
-           [;; Compatibility with older manifests where iOS Vulkan came from the generic graphics selector.
-            :vulkan (concat explicit-vulkan-ios-toggles exclude-open-gl-vulkan-ios-toggles)
-            :vulkan explicit-vulkan-ios-toggles]
-           [:open-gl])))
+  (make-choice-setting
+    :open-gl (concat exclude-metal-ios-toggles exclude-vulkan-ios-toggles)
+    :metal (concat metal-ios-toggles exclude-open-gl-metal-ios-toggles exclude-vulkan-ios-toggles)
+    :vulkan (concat explicit-vulkan-ios-toggles exclude-open-gl-vulkan-ios-toggles exclude-metal-ios-toggles)
+    :open-gl-metal (concat open-gl-ios-toggles metal-ios-toggles exclude-vulkan-ios-toggles)
+    :both (concat open-gl-ios-toggles explicit-vulkan-ios-toggles exclude-metal-ios-toggles)
+    :open-gl))
 
 (def webgpu-toggles
   (concat
