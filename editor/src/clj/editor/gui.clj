@@ -392,6 +392,7 @@
                (transient pb-field-index->pb-field)
                pb-field-index->pb-field)))
 
+;; SDK api
 (def prop-key->pb-field-index
   (persistent!
     (reduce-kv (fn [prop-key->pb-field-index pb-field-index prop-key]
@@ -3609,19 +3610,14 @@
              (keep
                (fn [{:keys [layout->prop->value] :as decorated-node-msg}]
                  {:pre [(map? layout->prop->value)]}
-                 (let [prop->value (layout->prop->value layout-name)
-                       prop->override (get-in decorated-node-msg [:layout->prop->override layout-name])]
+                 (let [prop->value (layout->prop->value layout-name)]
                    (assert (map? prop->value))
                    (when-let [node-desc-for-layout
-                              (some-> (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)
-                                            custom-property-id->info (:custom-property-id->info type-info)
-                                            include-custom-property-defaults (coll/any? (fn [[prop-key]]
-                                                                                         (contains? custom-property-id->info prop-key))
-                                                                                       prop->override)]
+                              (some-> (let [type-info (node-desc->node-type-info gui-node-type-registry decorated-node-msg)]
                                         (-> decorated-node-msg
                                             (strip-node-msg-decorations)
                                             (coll/merge prop->value)
-                                            (graph-prop-map->node-desc type-info include-custom-property-defaults)
+                                            (graph-prop-map->node-desc type-info true)
                                             (clear-node-desc-defaults)
                                             (node-desc->rt-node-desc gui-node-type-registry layout-name)))
                                       (clear-node-desc-defaults))]
@@ -3654,7 +3650,7 @@
                     (some-> (-> decorated-node-msg
                                 (strip-node-msg-decorations)
                                 (coll/merge default-layout-prop->value)
-                                (graph-prop-map->node-desc type-info false)
+                                (graph-prop-map->node-desc type-info true)
                                 (clear-node-desc-defaults)
                                 (node-desc->rt-node-desc gui-node-type-registry ""))
                             (clear-node-desc-defaults))))))
@@ -4664,7 +4660,7 @@
           (when-some [[resource-kind resource-kind-info]
                       (coll/some
                         (fn [[resource-kind {:keys [exts] :as resource-kind-info}]]
-                          (when (some #{ext} exts)
+                          (when-not (neg? (coll/index-of exts ext))
                             (pair resource-kind resource-kind-info)))
                         (g/node-value gui-scene :gui-resource-kind-registry evaluation-context))]
             (let [target-node (gui-resource-kind-node (:basis evaluation-context) gui-scene resource-kind)

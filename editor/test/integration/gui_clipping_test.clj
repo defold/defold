@@ -18,7 +18,6 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.gui :as gui]
-            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.fn :as fn]))
 
@@ -30,12 +29,12 @@
                    (into {}))]
     (id->node id)))
 
-(defn- gui-node-type-info [project node-type]
-  (get-in (get (workspace/get-resource-type-map (project/workspace project) :editable) "gui")
-          [:gui-node-type-registry :node-type->type-info node-type]))
-
 (defn- add-box! [project scene parent]
-  (gui/add-gui-node! project scene (or parent (g/node-value scene :node-tree)) (gui-node-type-info project gui/BoxNode) nil))
+  (gui/add-gui-node! project
+                     scene
+                     (or parent (g/node-value scene :node-tree))
+                     (test-util/gui-node-type-info (project/workspace project) gui/BoxNode)
+                     nil))
 
 (defn- add-clipper!
   ([project scene parent]

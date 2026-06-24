@@ -36,7 +36,7 @@ message Property
     {
         float          number       = 4;
         bool           boolean      = 5;
-        uint64         hash         = 6;
+        uint64         hash         = 6 [(runtime_only) = true];
         string         string       = 7;
         dmMath.Vector3 vector3      = 8;
         dmMath.Vector4 vector4      = 9;

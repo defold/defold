@@ -399,12 +399,36 @@
                   :custom-type custom-type
                   :id "custom"}
                  (select-keys built-node [:type :custom-type :custom-type-name :id])))
-          (is (= [{:id-hash (murmur/hash64 "test_hash")
+          (is (= [{:id-hash (murmur/hash64 "test-dash")
+                   :type :type-number
+                   :number 0.0}
+                  {:id-hash (murmur/hash64 "test/slash")
+                   :type :type-number
+                   :number 0.0}
+                  {:id-hash (murmur/hash64 "test:colon")
+                   :type :type-number
+                   :number 0.0}
+                  {:id-hash (murmur/hash64 "test_hash")
                    :type :type-hash
                    :hash (murmur/hash64 test-hash)}
                   {:id-hash (murmur/hash64 "test_number")
                    :type :type-number
-                   :number 42.0}]
+                   :number 42.0}
+                  {:id-hash (murmur/hash64 "test_quat")
+                   :type :type-quat
+                   :quat [0.0 0.0 0.0 1.0]}
+                  {:id-hash (murmur/hash64 "test_resource")
+                   :type :type-string
+                   :string ""}
+                  {:id-hash (murmur/hash64 "test_underscore")
+                   :type :type-number
+                   :number 0.0}
+                  {:id-hash (murmur/hash64 "test_vector3")
+                   :type :type-vector3
+                   :vector3 [0.0 0.0 0.0]}
+                  {:id-hash (murmur/hash64 "test_vector4")
+                   :type :type-vector4
+                   :vector4 [0.0 0.0 0.0 0.0]}]
                  built-custom-properties)))))))
 
 (deftest custom-gui-readable-custom-type-name-test
@@ -834,16 +858,16 @@
       (use 'editor.gui :reload)
       (is (= -100.0 (get-in (g/node-value template :_properties) [:properties :template :value :overrides "box" :position 0]))))))
 
-(defn- gui-node-type-info [workspace node-type]
-  (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
-          [:gui-node-type-registry :node-type->type-info node-type]))
-
 (deftest gui-template-add
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/scene.gui")
           super (test-util/resource-node project "/gui/super_scene.gui")
           parent (:node-id (test-util/outline node-id [0]))
-          new-tmpl (gui/add-gui-node! project node-id parent (gui-node-type-info workspace gui/TemplateNode) (fn [node-ids] (app-view/select app-view node-ids)))
+          new-tmpl (gui/add-gui-node! project
+                                      node-id
+                                      parent
+                                      (test-util/gui-node-type-info workspace gui/TemplateNode)
+                                      (fn [node-ids] (app-view/select app-view node-ids)))
           super-template (gui-node super "scene")]
       (is (= new-tmpl (gui-node node-id "template")))
       (is (not (contains? (:overrides (prop super-template :template)) "template/sub_box")))
@@ -869,7 +893,7 @@
     (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
 (defn- run-add-gui-node! [project scene app-view parent node-type]
-  (let [user-data (assoc (gui-node-type-info (project/workspace project) node-type)
+  (let [user-data (assoc (test-util/gui-node-type-info (project/workspace project) node-type)
                     :scene scene
                     :parent parent
                     :handler-fn gui/add-gui-node-handler)]
@@ -1693,7 +1717,11 @@
       (let [referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
             added-text-props {:id "added" :font "font" :text "button default"}
             referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
-            referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree (gui-node-type-info workspace gui/TextNode) added-text-props nil)]
+            referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene
+                                                                      referenced-scene-node-tree
+                                                                      (test-util/gui-node-type-info workspace gui/TextNode)
+                                                                      added-text-props
+                                                                      nil)]
 
         ;; Override the text property on the added node for the Landscape layout in the referenced scene.
         (with-visible-layout! referenced-scene "Landscape"
@@ -2709,7 +2737,11 @@
           ;; Add a new node to the referenced scene.
           (let [referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
                 added-text-props {:id "added" :font "font" :text "button default"}]
-            (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree (gui-node-type-info workspace gui/TextNode) added-text-props nil))
+            (gui/add-gui-node-with-props! referenced-scene
+                                          referenced-scene-node-tree
+                                          (test-util/gui-node-type-info workspace gui/TextNode)
+                                          added-text-props
+                                          nil))
 
           (testing "After adding a new text node to the referenced scene."
             (testing "Referenced scene."
@@ -2887,7 +2919,11 @@
           referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
           referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
           added-text-props {:id "added" :font "font" :text "button default"}
-          referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree (gui-node-type-info workspace gui/TextNode) added-text-props nil)
+          referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene
+                                                                    referenced-scene-node-tree
+                                                                    (test-util/gui-node-type-info workspace gui/TextNode)
+                                                                    added-text-props
+                                                                    nil)
           referencing-scene-added-text (get (scene-gui-node-map referencing-scene) "button/added")]
 
       ;; Delete the original text node from the referenced scene in order to

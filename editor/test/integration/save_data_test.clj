@@ -218,7 +218,6 @@
    ['dmGuiDDF.Property "[TYPE_NUMBER]"]
    {:default
     {"boolean" :unused
-     "hash" :unused
      "quat" :unused
      "string" :unused
      "type" :allowed-default
@@ -227,8 +226,7 @@
 
    ['dmGuiDDF.Property "[TYPE_BOOLEAN]"]
    {:default
-    {"hash" :unused
-     "number" :unused
+    {"number" :unused
      "quat" :unused
      "string" :unused
      "vector3" :unused
@@ -237,7 +235,6 @@
    ['dmGuiDDF.Property "[TYPE_HASH]"]
    {:default
     {"boolean" :unused
-     "hash" :runtime-only
      "number" :unused
      "quat" :unused
      "vector3" :unused
@@ -246,7 +243,6 @@
    ['dmGuiDDF.Property "[TYPE_STRING]"]
    {:default
     {"boolean" :unused
-     "hash" :unused
      "number" :unused
      "quat" :unused
      "vector3" :unused
@@ -255,7 +251,6 @@
    ['dmGuiDDF.Property "[TYPE_VECTOR3]"]
    {:default
     {"boolean" :unused
-     "hash" :unused
      "number" :unused
      "quat" :unused
      "string" :unused
@@ -264,7 +259,6 @@
    ['dmGuiDDF.Property "[TYPE_VECTOR4]"]
    {:default
     {"boolean" :unused
-     "hash" :unused
      "number" :unused
      "quat" :unused
      "string" :unused
@@ -273,7 +267,6 @@
    ['dmGuiDDF.Property "[TYPE_QUAT]"]
    {:default
     {"boolean" :unused
-     "hash" :unused
      "number" :unused
      "string" :unused
      "vector3" :unused
@@ -281,8 +274,7 @@
 
    'dmGuiDDF.NodeDesc
    {:default
-    {"custom_properties" :unused
-     "custom_type_name" :unused
+    {"custom_type_name" :unused
      "overridden_fields" :non-editable ; Not editable, but used to determine which fields are overridden when loading.
      "type" :non-overridable}
 
@@ -293,7 +285,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_BOX]"]
    {:default
-    {"custom_type" :unused
+    {"custom_properties" :unused
+     "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
      "line_break" :unused
@@ -319,7 +312,7 @@
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
     {"custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
-     "custom_properties" :non-editable
+     "custom_properties" :non-overridable ; Custom property entries signal overrides individually; the field itself is not listed among overridden_fields.
      "custom_type_name" :non-overridable
      "font" :unused
      "innerRadius" :unused
@@ -335,11 +328,11 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
-     "spine_create_bones" :deprecated
-     "spine_default_animation" :deprecated
-     "spine_scene" :deprecated
-     "spine_skin" :deprecated
-     "spine_node_child" :deprecated ; This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
+     "spine_create_bones" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_default_animation" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_scene" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_skin" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_node_child" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test. This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
      "template" :unused
      "template_node_child" :unused
      "text" :unused
@@ -353,6 +346,7 @@
      "clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -381,7 +375,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
-    {"custom_type" :unused
+    {"custom_properties" :unused
+     "custom_type" :unused
      "font" :unused
      "line_break" :unused
      "outline" :unused
@@ -408,6 +403,7 @@
      "clipping_mode" :unused
      "clipping_visible" :unused
      "color" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -447,6 +443,7 @@
     {"clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "innerRadius" :unused
      "outerBounds" :unused
@@ -795,7 +792,10 @@
       (let [legacy-spine-resources-gui (test-util/resource-node project "/silently_migrated/legacy_spine_resources.gui")]
         (is (= [{:name "first_spinescene"
                  :path "/checked.spinescene"}]
-               (g/node-value legacy-spine-resources-gui :resource-msgs)))))
+               (g/node-value legacy-spine-resources-gui :resource-msgs))))
+      (let [legacy-spine-fields-gui (test-util/resource-node project "/silently_migrated/legacy_spine_fields.gui")]
+        (is (= (g/node-value legacy-spine-fields-gui :source-value)
+               (g/node-value legacy-spine-fields-gui :save-value)))))
 
     (testing "material"
       (let [legacy-textures-material (project/get-resource-node project "/silently_migrated/legacy_textures.material")]

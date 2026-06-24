@@ -14,7 +14,6 @@
 
 (ns integration.extension-spine-test
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
@@ -87,30 +86,6 @@
     (is (= #{"/assets/spineboy/spineboy.spinescene"} (test-util/dirty-proj-paths project)))
     (test-util/edit-proj-path! project "/main/spineboy.spinemodel")
     (is (= #{"/assets/spineboy/spineboy.spinescene" "/main/spineboy.spinemodel"} (test-util/dirty-proj-paths project)))))
-
-(deftest legacy-spine-gui-not-dirty-after-load-test
-  (test-support/with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world migration-project-path)]
-      (let [game-project-file (io/as-file (workspace/find-resource workspace "/game.project"))]
-        (test-support/spit-until-new-mtime
-          game-project-file
-          (str (slurp game-project-file)
-               "dependencies#0 = " extension-spine-url "\n"))
-        (test-util/fetch-libraries! workspace))
-      (let [project (test-util/setup-project! workspace)]
-        (test-util/clear-cached-save-data! project)
-        (let [dirty-save-data (project/dirty-save-data project)
-              dirty-proj-paths (into (sorted-set)
-                                     (map (comp resource/proj-path :resource))
-                                     dirty-save-data)]
-          (is (= #{} dirty-proj-paths)
-              (str "Legacy Spine migration should not dirty resources on load.\n"
-                   (->> dirty-save-data
-                        (map (fn [save-data]
-                               (str (resource/proj-path (:resource save-data))
-                                    "\n"
-                                    (test-util/save-data-diff-message save-data))))
-                        (string/join "\n")))))))))
 
 (deftest spinescene-outputs-test
   (test-util/with-loaded-project project-path

@@ -6,8 +6,6 @@ Change GUI `node-msg` from a mostly protobuf-shaped map to a graph-property map.
 Producers return graph property keys and raw graph values; save/build boundaries convert
 that map to protobuf, clear defaults, and collapse custom properties.
 
-This is editor-only plumbing. Bob/engine stay out of scope.
-
 Important terms:
 
 - `selected-layout-values`: `GuiNode :prop->value`; current selected editor layout only.
@@ -24,8 +22,6 @@ We edit both Defold editor and extension-spine.
 Review context:
 - https://github.com/defold/extension-spine/pull/277
 - https://github.com/defold/defold/pull/12457
-
-Bob/engine review feedback is intentionally out of scope for this editor/extension-spine change.
 
 ## Core Design
 

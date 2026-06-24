@@ -104,10 +104,6 @@
                               (settings-core/settings-with-value)
                               (settings-core/settings->str game-project-core/meta-settings :multi-line-list)))))
 
-(defn- gui-node-type-info [workspace node-type]
-  (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
-          [:gui-node-type-registry :node-type->type-info node-type]))
-
 (deftest open-project
   (with-clean-system
     (test-util/with-ui-run-later-rebound
@@ -122,7 +118,11 @@
                 int-gui (test-util/resource-node project "/gui/empty.gui")]
             (is (some? ext-gui))
             (is (some? int-gui))
-            (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) (gui-node-type-info workspace gui/TemplateNode) nil)]
+            (let [template-node (gui/add-gui-node! project
+                                                   int-gui
+                                                   (:node-id (test-util/outline int-gui [0]))
+                                                   (test-util/gui-node-type-info workspace gui/TemplateNode)
+                                                   nil)]
               (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
                                                         :overrides {}}))
             (let [original (:node-id (test-util/outline ext-gui [0 0]))
