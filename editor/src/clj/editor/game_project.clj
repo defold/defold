@@ -138,7 +138,8 @@
    ["bootstrap" "render"] [[:build-targets :dep-build-targets]]
    ["graphics" "texture_profiles"] [[:build-targets :dep-build-targets]
                                     [:pb :texture-profiles-data]]
-   ["input" "gamepads"] [[:_node-id :gamepads-node-id]
+   ["input" "gamepads"] [[:build-targets :gamepads-build-targets]
+                         [:_node-id :gamepads-node-id]
                          [:resource :gamepads-resource]
                          [:pb :gamepads-pb]]
    ["input" "gamepad_database"] [[:resource :gamepad-database-resource]
@@ -152,9 +153,10 @@
     (g/->error _node-id :build-targets :fatal gamepad-database-resource
                (localization/message "error.game-project.gamepad-database-must-be-txt"))))
 
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map raw-settings meta-info custom-build-targets resource-settings dep-build-targets gamepads-node-id gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map raw-settings meta-info custom-build-targets resource-settings dep-build-targets gamepads-build-targets gamepads-node-id gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (let [gamepads-empty (explicit-empty-setting? raw-settings gamepads-setting-path)
         gamepad-database-empty (explicit-empty-setting? raw-settings gamepad-database-setting-path)
+        gamepads-build-targets (when-not gamepads-empty gamepads-build-targets)
         gamepads-resource (when-not gamepads-empty gamepads-resource)
         gamepads-pb (when-not gamepads-empty gamepads-pb)
         gamepad-database-resource (when-not gamepad-database-empty gamepad-database-resource)
@@ -163,7 +165,10 @@
                           gamepads-pb
                           gamepad-database-lines
                           (gamepad-database-error _node-id gamepad-database-resource)]
-     (let [gamepads-build-target (gamepads/make-build-target (or gamepads-node-id _node-id) gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines)
+     (let [gamepads-build-target (if (and gamepads-build-targets
+                                           (not gamepad-database-resource))
+                                    (peek gamepads-build-targets)
+                                    (gamepads/make-build-target (or gamepads-node-id _node-id) gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines))
            dep-build-targets (cond-> (vec (into (flatten dep-build-targets) custom-build-targets))
                                      gamepads-build-target (conj gamepads-build-target))
            deps-by-source (into {} (map (fn [{build-resource :resource}]
@@ -205,6 +210,7 @@
   (input resource-settings g/Any)
 
   (input gamepads-resource resource/Resource)
+  (input gamepads-build-targets g/Any)
   (input gamepads-node-id g/NodeID)
   (input gamepads-pb g/Any)
   (input gamepad-database-resource resource/Resource)
