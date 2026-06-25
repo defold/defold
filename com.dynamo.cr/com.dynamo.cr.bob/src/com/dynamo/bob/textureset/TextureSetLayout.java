@@ -340,14 +340,9 @@ public class TextureSetLayout {
      * @param rotate
      * @return
      */
-    // Seed orderings for the greedy MaxRects packer. The packer is a greedy
-    // heuristic and is non-monotonic: a single fixed sort lands on a good packing
-    // for some inputs and a needlessly large one for others (issue #12593, e.g. the
-    // same image set packs to 2048x2048 with one ordering but 4096x2048 with
-    // another). We pack with area-descending first - the historical order, kept as
-    // the fast path so existing layouts are byte-for-byte unchanged - and only when
-    // that result is not already at the minimal page size do we retry with alternate
-    // orderings and keep the best.
+    // Seed orderings for the greedy MaxRects packer. Area descending is the
+    // historical order and remains the fast path. Fallback orderings are used
+    // only when the fast path leaves room for a strictly smaller result.
     private static final Comparator<Rect> SORT_AREA_DESC = new Comparator<Rect>() {
         @Override
         public int compare(Rect o1, Rect o2) {
@@ -374,18 +369,6 @@ public class TextureSetLayout {
         }
     };
 
-    private static final Comparator<Rect> SORT_SHORTSIDE_DESC = new Comparator<Rect>() {
-        @Override
-        public int compare(Rect o1, Rect o2) {
-            int n1 = Math.min(o1.rect.width, o1.rect.height);
-            int n2 = Math.min(o2.rect.width, o2.rect.height);
-            if (n1 != n2) {
-                return n2 - n1;
-            }
-            return o2.getArea() - o1.getArea();
-        }
-    };
-
     private static final Comparator<Rect> SORT_PERIMETER_DESC = new Comparator<Rect>() {
         @Override
         public int compare(Rect o1, Rect o2) {
@@ -398,9 +381,9 @@ public class TextureSetLayout {
         }
     };
 
-    // Tried only when the area-descending fast path is sub-optimal.
+    // Fallback orderings for cases where the area-descending seed is not enough.
     private static final List<Comparator<Rect>> ALTERNATE_SORTS =
-        Arrays.asList(SORT_LONGSIDE_DESC, SORT_SHORTSIDE_DESC, SORT_PERIMETER_DESC);
+        Arrays.asList(SORT_LONGSIDE_DESC, SORT_PERIMETER_DESC);
 
     // The smallest square power-of-two page that could conceivably hold all rects,
     // bounded below by both the total area and the longest single side.
