@@ -5,7 +5,7 @@
                              :image "empty.svg"
                              :duration "Short"
                              :user-level "Beginner"
-                             :zip-url "https://github.com/defold/template-empty/archive/master.zip"
+                             :zip-url "https://github.com/defold/template-empty/archive/d2726f4d4dcd8d503d784ea5f9e4d88547918683.zip"
                              :bundle true
                              :skip-root? true}
 
@@ -14,7 +14,7 @@
                              :image "mobile.svg"
                              :duration "Medium"
                              :user-level "Advanced"
-                             :zip-url "https://github.com/defold/template-mobile/archive/master.zip"
+                             :zip-url "https://github.com/defold/template-mobile/archive/41a7e40da106ee75232bfa09f508c04ffb865e67.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.desktop-game.title"
@@ -22,7 +22,7 @@
                              :image "desktop.svg"
                              :duration "Long"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-desktop/archive/master.zip"
+                             :zip-url "https://github.com/defold/template-desktop/archive/66ad592e1c2544579105343e4359e29704cbbb9f.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.poki-html5-game.title"
@@ -30,7 +30,7 @@
                              :image "poki.svg"
                              :duration "Medium"
                              :user-level "Advanced"
-                             :zip-url "https://github.com/defold/template-html5-poki/archive/master.zip"
+                             :zip-url "https://github.com/defold/template-html5-poki/archive/608692a5dd4d61f78d53eb90109cfd34a6f10b61.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.native-extension.title"
@@ -38,7 +38,7 @@
                              :image "extension.svg"
                              :duration "Long"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-native-extension/archive/master.zip"
+                             :zip-url "https://github.com/defold/template-native-extension/archive/71a2310279ca36e5c8108866175e0c7033fccf68.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.basic-3d-project.title"
@@ -46,7 +46,7 @@
                              :image "3d.svg"
                              :duration "Short"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-basic-3d/archive/master.zip"
+                             :zip-url "https://github.com/defold/template-basic-3d/archive/3ff7694cc4147276febe2d19ce78b813e79b5bd2.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.platformer-game.title"
@@ -54,7 +54,7 @@
                              :image "platformer.svg"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/template-platformer/archive/main.zip"
+                             :zip-url "https://github.com/defold/template-platformer/archive/35ec11fc3ee63ff07265ee444a6d14efd187f170.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.rive-project.title"
@@ -62,7 +62,7 @@
                              :image "rive.svg"
                              :duration "Medium"
                              :user-level "Advanced"
-                             :zip-url "https://github.com/defold/template-rive/archive/master.zip"
+                             :zip-url "https://github.com/defold/template-rive/archive/33ee33e6737021ebc3fe159f7c5d29547fe67423.zip"
                              :skip-root? true}]}
 
                {:label "welcome.tab.tutorials"
@@ -71,7 +71,7 @@
                              :image "side-scroller.png"
                              :duration "Short"
                              :user-level "Beginner"
-                             :zip-url "https://github.com/defold/tutorial-side-scroller/archive/master.zip"
+                             :zip-url "https://github.com/defold/tutorial-side-scroller/archive/55d904bef26b0b39da7720a19e4e4e12e551e5fd.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.walking-astronaut-tutorial.title"
@@ -79,7 +79,7 @@
                              :image "topdown_movement.png"
                              :duration "Short"
                              :user-level "Beginner"
-                             :zip-url "https://github.com/defold/tutorial-astronaut/archive/master.zip"
+                             :zip-url "https://github.com/defold/tutorial-astronaut/archive/46454f64490f91be776e06c1aadf88b12a864512.zip"
                              :skip-root? true}
 
 
@@ -88,7 +88,7 @@
                              :image "movement.png"
                              :duration "Medium"
                              :user-level "Beginner"
-                             :zip-url "https://github.com/defold/tutorial-movement/archive/master.zip"
+                             :zip-url "https://github.com/defold/tutorial-movement/archive/3698de629b7612b9d32e32b847e8dce75010a4f0.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.war-battles-tutorial.title"
@@ -96,7 +96,7 @@
                              :image "war-battles.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/tutorial-war-battles/archive/master.zip"
+                             :zip-url "https://github.com/defold/tutorial-war-battles/archive/a90dc4941de4b4a15551e0ccd89ccd6e2d35e20a.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.colorslide-tutorial.title"
@@ -104,7 +104,7 @@
                              :image "colorslide.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/tutorial-colorslide/archive/master.zip"
+                             :zip-url "https://github.com/defold/tutorial-colorslide/archive/db86b2be3a52e6029a777cade42101767e044c9b.zip"
                              :skip-root? true}]}
 
                {:label "welcome.tab.samples"
@@ -113,7 +113,7 @@
                              :image "3d-third-person.png"
                              :duration "Short"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-third-person-playground/archive/master.zip"
+                             :zip-url "https://github.com/defold/sample-third-person-playground/archive/b0c22fb110b0975ebb29eb5c93873f67f120ac39.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.linker-sample-game.title"
@@ -121,7 +121,7 @@
                              :image "linker.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-linker/archive/master.zip"
+                             :zip-url "https://github.com/defold/sample-linker/archive/76c09f4354ff37ab704cf8f627c53ed26f8d56d3.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.roids-sample-game.title"
@@ -129,7 +129,7 @@
                              :image "roids.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-roids/archive/master.zip"
+                             :zip-url "https://github.com/defold/sample-roids/archive/3373f28ea4ec5cade454294d4897a2f9afe4f940.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.pixel-line-platformer.title"
@@ -137,7 +137,7 @@
                              :image "pixelline.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-pixel-line-platformer/archive/refs/heads/main.zip"
+                             :zip-url "https://github.com/defold/sample-pixel-line-platformer/archive/1dba8449b025178202ffeef29e4b2b3e147f7afa.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.main-menu-animation.title"
@@ -145,7 +145,7 @@
                              :image "screen_menu_animation.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-main-menu-animation/archive/refs/heads/master.zip"
+                             :zip-url "https://github.com/defold/sample-main-menu-animation/archive/8743c3dac8703f640a2bf1f061f79a0e294727bc.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.parallax.title"
@@ -153,7 +153,7 @@
                              :image "screen_parallax.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-parallax/archive/refs/heads/master.zip"
+                             :zip-url "https://github.com/defold/sample-parallax/archive/69e169f0c6b985652d8594bcb26ab8a571d5fd44.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.hud.title"
@@ -161,7 +161,7 @@
                              :image "screen_hud.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-hud/archive/refs/heads/master.zip"
+                             :zip-url "https://github.com/defold/sample-hud/archive/39f82bece5d8a38c8b78f06120c15c81ba5ae261.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.level-complete.title"
@@ -169,7 +169,7 @@
                              :image "screen_lvlcomplete.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-levelcomplete/archive/refs/heads/master.zip"
+                             :zip-url "https://github.com/defold/sample-levelcomplete/archive/91e89cd6c4ffeb1736c2ec53a700949155d4fa8d.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.rpg-map-sample.title"
@@ -177,7 +177,7 @@
                              :image "rpg-map.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-rpgmap/archive/master.zip"
+                             :zip-url "https://github.com/defold/sample-rpgmap/archive/58c029dd141f81c0cb88810bbeaf44af7bf0aa53.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.shadertoy-sample.title"
@@ -185,7 +185,7 @@
                              :image "shadertoy.png"
                              :duration "Short"
                              :user-level "Advanced"
-                             :zip-url "https://github.com/defold/sample-shadertoy/archive/master.zip"
+                             :zip-url "https://github.com/defold/sample-shadertoy/archive/22fd1e27889bd481c5ce5fbd3e0673edfc67a050.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.3d-treasure-scene.title"
@@ -193,7 +193,7 @@
                              :image "treasurescene.png"
                              :duration "Short"
                              :user-level "Advanced"
-                             :zip-url "https://github.com/FlexYourBrain/Basic3d_TreasureScene/archive/master.zip"
+                             :zip-url "https://github.com/FlexYourBrain/Basic3d_TreasureScene/archive/5876b8c4e0e91121e8f4effe568df055b43cceec.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.perspective-parallax.title"
@@ -201,7 +201,7 @@
                              :image "perspectiveparallax.png"
                              :duration "Short"
                              :user-level "Advanced"
-                             :zip-url "https://github.com/FlexYourBrain/sample-perspective_parallax/archive/master.zip"
+                             :zip-url "https://github.com/FlexYourBrain/sample-perspective_parallax/archive/b25504a97124bd9d8e574e48d5587fe7dbc0e92b.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.lightning-vfx.title"
@@ -209,5 +209,5 @@
                              :image "sample_lightningvfx.png"
                              :duration "Long"
                              :user-level "Advanced"
-                             :zip-url "https://github.com/FlexYourBrain/sample_LightningVFX/archive/master.zip"
+                             :zip-url "https://github.com/FlexYourBrain/sample_LightningVFX/archive/31dce2e0e35d250c8215277527e20de0d292880c.zip"
                              :skip-root? true}]}]}}
