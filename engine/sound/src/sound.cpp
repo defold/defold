@@ -251,6 +251,7 @@ namespace dmSound
         uint32_t                m_DeviceFrameCount;
         uint32_t                m_FrameCount; // Updated for each available buffer
         uint32_t                m_PlayCounter;
+        uint32_t                m_PlayingInstanceCount;
 
         void*                   m_DecoderTempOutput;
         float*                  m_DecoderOutput[SOUND_MAX_DECODE_CHANNELS];
@@ -474,6 +475,7 @@ namespace dmSound
         sound->m_Device = device;
         sound->m_DeviceParams = device_params; // Stash frame and buffer count for potential device reset
         sound->m_DeviceResetPending = false;
+        sound->m_PlayingInstanceCount = 0;
         dmSoundCodec::NewCodecContextParams codec_params;
         codec_params.m_MaxDecoders = params->m_MaxInstances;
         sound->m_CodecContext = dmSoundCodec::New(&codec_params);
@@ -1259,17 +1261,31 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    static void SetInstancePlaying(SoundSystem* sound, HSoundInstance sound_instance, bool playing)
+    {
+        if (sound_instance->m_Playing == (uint8_t)playing)
+        {
+            return;
+        }
+
+        sound_instance->m_Playing = (uint8_t)playing;
+        if (playing)
+            sound->m_PlayingInstanceCount++;
+        else
+            sound->m_PlayingInstanceCount--;
+    }
+
     Result Play(HSoundInstance sound_instance)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-        sound_instance->m_Playing = 1;
+        SetInstancePlaying(g_SoundSystem, sound_instance, true);
         return RESULT_OK;
     }
 
     static void StopNoLock(SoundSystem* sound, HSoundInstance sound_instance)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-        sound_instance->m_Playing = 0;
+        SetInstancePlaying(sound, sound_instance, false);
         dmSoundCodec::Reset(sound->m_CodecContext, sound_instance->m_Decoder);
         ResetInstanceMixState(sound_instance);
     }
@@ -1286,7 +1302,7 @@ namespace dmSound
         if (!g_SoundSystem)
             return RESULT_OK;
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-        sound_instance->m_Playing = (uint8_t)!pause;
+        SetInstancePlaying(g_SoundSystem, sound_instance, !pause);
         return RESULT_OK;
     }
 
@@ -1595,7 +1611,7 @@ namespace dmSound
         bool correct_num_channels = info.m_Channels == 1 || info.m_Channels == 2;
         if (!correct_bit_depth || !correct_num_channels) {
             dmLogError("Only mono/stereo with 8/16/32 bits per sample is supported (%s): %u bpp %u ch", GetSoundName(sound, instance), (uint32_t)info.m_BitsPerSample, (uint32_t)info.m_Channels);
-            instance->m_Playing = 0;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1623,7 +1639,7 @@ namespace dmSound
         if (required_decoder_frame_capacity > 0xffffffffU)
         {
             dmLogError("Decoder scratch buffer too large for '%s'", GetSoundName(sound, instance));
-            instance->m_Playing = 0;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1631,7 +1647,7 @@ namespace dmSound
         if (capacity_result != RESULT_OK)
         {
             dmLogError("Failed to grow decoder scratch buffer for '%s': %d", GetSoundName(sound, instance), capacity_result);
-            instance->m_Playing = 0;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1639,7 +1655,7 @@ namespace dmSound
         if (required_state_frame_capacity > 0xffffffffU)
         {
             dmLogError("Instance frame buffer too large for '%s'", GetSoundName(sound, instance));
-            instance->m_Playing = 0;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1647,7 +1663,7 @@ namespace dmSound
         if (capacity_result != RESULT_OK)
         {
             dmLogError("Failed to grow instance frame buffer for '%s': %d", GetSoundName(sound, instance), capacity_result);
-            instance->m_Playing = 0;
+            SetInstancePlaying(sound, instance, false);
             return;
         }
 
@@ -1746,7 +1762,7 @@ namespace dmSound
             if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
             {
                 dmLogWarning("Unable to decode file '%s': %s %d", GetSoundName(sound, instance), dmSoundCodec::ResultToString(r), r);
-                instance->m_Playing = 0;
+                SetInstancePlaying(sound, instance, false);
                 return;
             }
         }
@@ -1844,7 +1860,7 @@ namespace dmSound
         }
 
         if (instance->m_EndOfStream) {
-            instance->m_Playing = 0;
+            SetInstancePlaying(sound, instance, false);
         }
     }
 
@@ -1991,9 +2007,11 @@ namespace dmSound
         }
 
         uint16_t active_instance_count;
+        uint32_t playing_instance_count;
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
             active_instance_count = sound->m_InstancesPool.Size();
+            playing_instance_count = sound->m_PlayingInstanceCount;
         }
 
         bool currentIsAudioInterrupted = IsAudioInterrupted();
@@ -2028,6 +2046,13 @@ namespace dmSound
 
         if (active_instance_count == 0)
         {
+            #if defined(__EMSCRIPTEN__)
+            if (sound->m_IsDeviceStarted)
+            {
+                sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+                sound->m_IsDeviceStarted = false;
+            }
+            #endif
             #if defined(ANDROID)
             if (sound->m_IsDeviceStarted)
             {
@@ -2044,6 +2069,20 @@ namespace dmSound
             #endif
             return RESULT_NOTHING_TO_PLAY;
         }
+
+        #if defined(__EMSCRIPTEN__)
+        // Paused/stopped HTML5 instances can stay allocated; don't let that idle gap grow the JS queue.
+        if (playing_instance_count == 0)
+        {
+            if (sound->m_IsDeviceStarted)
+            {
+                sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+                sound->m_IsDeviceStarted = false;
+            }
+            return RESULT_OK;
+        }
+        #endif
+
         // DEF-3130 Don't start the device unless something is being played
         // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
 
