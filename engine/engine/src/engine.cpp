@@ -807,19 +807,20 @@ namespace dmEngine
     {
         HEngine engine = (HEngine)ctx;
 
-        const uint32_t dependency_separator_size = 1;
-        const uint32_t dependency_terminator_size = 1;
-
-        if (engine->m_DependenciesJsonResource &&
-            buffersize >= dependency_separator_size + dependency_terminator_size &&
-            engine->m_DependenciesJsonSize <= buffersize - dependency_separator_size - dependency_terminator_size)
+        if (engine->m_DependenciesJsonResource && buffersize > 0)
         {
-            memcpy(buffer, engine->m_DependenciesJsonResource, engine->m_DependenciesJsonSize);
-            buffer += engine->m_DependenciesJsonSize;
-            buffersize -= engine->m_DependenciesJsonSize;
-            *buffer++ = '\n';
-            --buffersize;
+            uint32_t dependencies_json_size = dmMath::Min(engine->m_DependenciesJsonSize, buffersize - 1);
+            memcpy(buffer, engine->m_DependenciesJsonResource, dependencies_json_size);
+            buffer += dependencies_json_size;
+            buffersize -= dependencies_json_size;
             *buffer = 0;
+
+            if (buffersize > 1)
+            {
+                *buffer++ = '\n';
+                --buffersize;
+                *buffer = 0;
+            }
         }
 
         if (engine->m_SharedScriptContext)
