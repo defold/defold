@@ -1,6 +1,6 @@
 defold_log("functions_codesigning.cmake:")
 
-function(defold_codesign_target target)
+function(defold_codesign_target target entitlements)
     if(NOT TARGET "${target}")
         message(FATAL_ERROR "defold_codesign_target: target not found: ${target}")
     endif()
@@ -41,6 +41,9 @@ function(defold_codesign_target target)
     endif()
     if(DEFOLD_GCLOUD_KEYFILE)
         list(APPEND _defold_codesign_args --gcloud-keyfile "${DEFOLD_GCLOUD_KEYFILE}")
+    endif()
+    if(entitlements)
+        list(APPEND _defold_codesign_args --entitlements "${entitlements}")
     endif()
 
     add_custom_command(TARGET "${target}" POST_BUILD
