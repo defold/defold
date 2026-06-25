@@ -31,6 +31,7 @@ add_library(vkquality SHARED
 target_include_directories(vkquality PRIVATE "${VKQUALITY_CPP_DIR}")
 target_compile_features(vkquality PRIVATE cxx_std_17)
 target_compile_options(vkquality PRIVATE -Os -Wall)
+target_link_options(vkquality PRIVATE -Wl,-z,max-page-size=16384)
 target_link_libraries(vkquality PRIVATE android EGL GLESv3 log dl)
 
 install(TARGETS vkquality
