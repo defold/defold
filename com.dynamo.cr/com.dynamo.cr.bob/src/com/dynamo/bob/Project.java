@@ -1950,15 +1950,11 @@ public class Project implements AutoCloseable {
         File buildMetadataFile = new File(FilenameUtils.concat(
                 FilenameUtils.concat(rootDirectory, buildDirectory),
                 DependencyMetadata.OUTPUT_PATH));
-        File legacyBuildMetadataFile = new File(FilenameUtils.concat(
-                FilenameUtils.concat(rootDirectory, buildDirectory),
-                DependencyMetadata.PROJECT_PATH));
 
         boolean includeDependenciesMetadata = projectProperties.getBooleanValue("project", "dependencies_metadata", true);
         File sourceMetadataFile = new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME);
         if (!includeDependenciesMetadata || !sourceMetadataFile.exists()) {
             Files.deleteIfExists(buildMetadataFile.toPath());
-            Files.deleteIfExists(legacyBuildMetadataFile.toPath());
             return;
         }
 
@@ -1967,7 +1963,6 @@ public class Project implements AutoCloseable {
             Files.createDirectories(buildMetadataParent.toPath());
         }
         DependencyMetadata.minifyJson(sourceMetadataFile.toPath(), buildMetadataFile.toPath());
-        Files.deleteIfExists(legacyBuildMetadataFile.toPath());
     }
 
     private List<TaskResult> doBuild(IProgress progress, String... commands) throws Throwable {

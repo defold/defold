@@ -30,7 +30,7 @@
             [support.test-support :as test-support :refer [spit-until-new-mtime with-clean-system]]
             [util.coll :as coll]
             [util.http-server :as http-server])
-  (:import [com.dynamo.bob.util Library$Archive Library$Problem$Missing Library$Result]
+  (:import [com.dynamo.bob.util DependencyMetadata Library$Archive Library$Problem$Missing Library$Result]
            [java.net URI]
            [org.apache.commons.io FileUtils]))
 
@@ -125,8 +125,12 @@
                   or (:node-id (test-util/outline int-gui [0 0 0]))]
               (is (= [or] (g/overrides original))))))))))
 
-(defn- fetch-libraries! [workspace library-uris render-fn]
-  (->> (library/fetch! (workspace/project-directory workspace) library-uris render-fn)
+(defn- fetch-libraries! [workspace library-uris render-fn include-dependencies-metadata]
+  (->> (library/fetch!
+         (workspace/project-directory workspace)
+         library-uris
+         render-fn
+         include-dependencies-metadata)
        (workspace/set-project-dependencies! workspace))
   (workspace/resource-sync! workspace))
 
@@ -134,17 +138,26 @@
   (with-clean-system
     (with-open [server (http-server/start! test-util/lib-server-handler)]
       (let [[workspace project] (log/without-logging (setup-scratch world))
+            dependency-metadata-file (.toFile
+                                       (DependencyMetadata/metadataPath
+                                         (library/directory (workspace/project-directory workspace))))
             uri (test-util/lib-server-uri server "lib_resource_project")
             game-project (project/get-resource-node project "/game.project")]
         ;; make sure we don't have library file to begin with
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (fetch-libraries! workspace (project/project-dependencies project) identity true)
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
+        (is (true? (.isFile dependency-metadata-file)))
+        (is (true? (.contains (slurp dependency-metadata-file) uri)))
+        ;; disable dependency metadata, fetch libraries, we should remove the metadata file
+        (game-project/set-setting! game-project ["project" "dependencies_metadata"] false)
+        (fetch-libraries! workspace (project/project-dependencies project) identity false)
+        (is (false? (.exists dependency-metadata-file)))
         ;; remove dependency again, fetch libraries, we should no longer have the file
         (game-project/set-setting! game-project ["project" "dependencies"] nil)
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (fetch-libraries! workspace (project/project-dependencies project) identity true)
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-library-archive-with-nesting
@@ -157,7 +170,7 @@
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (fetch-libraries! workspace (project/project-dependencies project) identity true)
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-local-extension-dir
@@ -173,7 +186,11 @@
       (System/setProperty (str property-prefix ".path") (.getCanonicalPath local-extension-dir))
       (try
         (write-deps! game-project-resource "{{defold.extension.test-local.url}}")
-        (let [results (library/fetch! project-directory (project/read-dependencies game-project-resource) progress/null-render-progress!)
+        (let [results (library/fetch!
+                        project-directory
+                        (project/read-dependencies game-project-resource)
+                        progress/null-render-progress!
+                        true)
               result ^Library$Result (first results)
               archive ^Library$Archive (.archive result)]
           (is (not= original-uri (.uri result)))

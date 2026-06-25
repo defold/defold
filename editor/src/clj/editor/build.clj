@@ -13,12 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.build
-  (:require [clojure.set :as set]
+  (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.code.transpilers :as code.transpilers]
             [editor.defold-project :as project]
+            [editor.library :as library]
             [editor.localization :as localization]
             [editor.pipeline :as pipeline]
             [editor.progress :as progress]
@@ -27,7 +29,9 @@
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [java.util ArrayDeque HashMap HashSet]))
+  (:import [com.dynamo.bob.util DependencyMetadata]
+           [java.nio.file Files]
+           [java.util ArrayDeque HashMap HashSet]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -209,12 +213,37 @@
         (render-progress! (progress/make-indeterminate (localization/message "progress.resolving-resource" {"resource" path})))))
     evaluation-context))
 
-(defn build-build-targets! [build-targets workspace old-artifact-map render-progress! evaluation-context]
+(defn- sync-dependency-metadata-to-build-dir! [project workspace evaluation-context]
+  (let [build-dir (workspace/build-path workspace)
+        source-metadata-file
+        (.toFile
+          (DependencyMetadata/metadataPath
+            (library/directory (workspace/project-directory workspace))))
+
+        build-metadata-file (io/file build-dir DependencyMetadata/OUTPUT_PATH)]
+    (if (and (project/include-dependencies-metadata? (project/settings project evaluation-context))
+             (.exists source-metadata-file))
+      (DependencyMetadata/minifyJson (.toPath source-metadata-file) (.toPath build-metadata-file))
+      (Files/deleteIfExists (.toPath build-metadata-file)))))
+
+(defn build-build-targets! [build-targets project workspace old-artifact-map render-progress! evaluation-context]
   {:pre [(ifn? render-progress!)]}
   (if (g/error? build-targets)
     {:error build-targets}
-    (let [build-dir (workspace/build-path workspace)]
-      (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make localization/empty-message 10 5 true) 5)))))
+    (let [build-dir (workspace/build-path workspace)
+          build-results
+          (pipeline/build!
+            build-targets
+            build-dir
+            old-artifact-map
+            evaluation-context
+            (progress/nest-render-progress
+              render-progress!
+              (progress/make localization/empty-message 10 5 true)
+              5))]
+      (when-not (:error build-results)
+        (sync-dependency-metadata-to-build-dir! project workspace evaluation-context))
+      build-results)))
 
 (defn build-project! [project node-id old-artifact-map opts evaluation-context]
   (let [workspace (project/workspace project evaluation-context)
@@ -225,4 +254,4 @@
         node-id->resource-path (make-node-id->resource-path project evaluation-context)
         node-build-targets (node-build-targets node-id node-id->resource-path cancellable-render-progress! task-cancelled? evaluation-context)
         build-targets (resolve-dependencies-with-progress [node-build-targets extra-build-targets] project node-id->resource-path cancellable-render-progress! evaluation-context)]
-    (build-build-targets! build-targets workspace old-artifact-map cancellable-render-progress! evaluation-context)))
+    (build-build-targets! build-targets project workspace old-artifact-map cancellable-render-progress! evaluation-context)))

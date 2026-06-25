@@ -67,6 +67,8 @@
 (defonce load-metrics-atom (du/when-metrics (atom nil)))
 (defonce resource-change-metrics-atom (du/when-metrics (atom nil)))
 
+(def ^:private dependencies-metadata-setting-path ["project" "dependencies_metadata"])
+
 (def ^:private TBreakpoint
   {:resource s/Any
    :row Long
@@ -1474,6 +1476,9 @@
    (when-let [settings (settings project evaluation-context)]
      (settings ["project" "dependencies"]))))
 
+(defn include-dependencies-metadata? [settings]
+  (not= false (get settings dependencies-metadata-setting-path true)))
+
 (defn update-fetch-libraries-notification
   "Create transaction steps for showing or hiding a 'Fetch Libraries' suggestion
   when the project dependency list differs from the currently installed
@@ -1824,6 +1829,14 @@
         (settings-core/get-setting ["project" "dependencies"])
         (library/parse-uris))))
 
+(defn read-dependencies-metadata-setting [game-project-resource]
+  (with-open [game-project-reader (io/reader game-project-resource)]
+    (let [settings (settings-core/parse-settings game-project-reader)
+          meta-setting (settings-core/get-meta-setting gpc/meta-settings dependencies-metadata-setting-path)]
+      (if-let [raw-value (settings-core/get-setting settings dependencies-metadata-setting-path)]
+        (settings-core/parse-setting-value meta-setting raw-value)
+        (:default meta-setting)))))
+
 (defn- project-resource-node? [basis node-id]
   (if-some [resource (resource-node/as-resource-original basis node-id)]
     (some? (resource/proj-path resource))
@@ -1889,10 +1902,15 @@
 
 (defn open-project! [graph extensions workspace-id game-project-resource render-progress!]
   (let [dependencies (read-dependencies game-project-resource)
+        include-dependencies-metadata (read-dependencies-metadata-setting game-project-resource)
         progress (atom (progress/make (localization/message "progress.updating-dependencies") 13 0))]
     (render-progress! @progress)
 
-    (->> (library/fetch! (workspace/project-directory workspace-id) dependencies (progress/nest-render-progress render-progress! @progress 4))
+    (->> (library/fetch!
+           (workspace/project-directory workspace-id)
+           dependencies
+           (progress/nest-render-progress render-progress! @progress 4)
+           include-dependencies-metadata)
          (workspace/set-project-dependencies! workspace-id))
 
     (render-progress! (swap! progress progress/advance 4 (localization/message "progress.syncing-resources")))

@@ -16,11 +16,12 @@
   (:require [editor.localization :as localization]
             [editor.progress :as progress]
             [editor.settings-core :as settings-core]
+            [util.coll :as coll]
             [util.path :as path])
   (:import [com.dynamo.bob Progress Progress$Reporter]
            [com.dynamo.bob Project]
            [com.dynamo.bob.archive EngineVersion]
-           [com.dynamo.bob.util Library Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
+           [com.dynamo.bob.util DependencyMetadata Library Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [java.nio.file Path]))
 
 (set! *warn-on-reflection* true)
@@ -70,14 +71,21 @@
 (defn cached [project-directory library-uris]
   (Library/cached (or library-uris []) (directory project-directory)))
 
-(defn fetch! [project-directory library-uris render-progress!]
-  (Library/fetch
-    (or library-uris [])
-    (directory project-directory)
-    nil
-    nil
-    (Progress.
-      (reify Progress$Reporter
-        (report [_ message fraction] (render-progress! (progress/bob message fraction)))
-        (close [_] (render-progress! progress/done))
-        (isCanceled [_] false)))))
+(defn fetch! [project-directory library-uris render-progress! include-dependencies-metadata]
+  (let [lib-dir (directory project-directory)
+        library-results
+        (Library/fetch
+          (or library-uris [])
+          lib-dir
+          nil
+          nil
+          (Progress.
+            (reify Progress$Reporter
+              (report [_ message fraction] (render-progress! (progress/bob message fraction)))
+              (close [_] (render-progress! progress/done))
+              (isCanceled [_] false))))]
+    (if (and include-dependencies-metadata
+             (coll/not-empty library-results))
+      (DependencyMetadata/saveAsJson lib-dir library-results)
+      (DependencyMetadata/deleteJson lib-dir))
+    library-results))

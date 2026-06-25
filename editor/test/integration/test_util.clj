@@ -391,8 +391,13 @@
 
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
-        dependencies (project/read-dependencies game-project-resource)]
-    (->> (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)
+        dependencies (project/read-dependencies game-project-resource)
+        include-dependencies-metadata (project/read-dependencies-metadata-setting game-project-resource)]
+    (->> (library/fetch!
+           (workspace/project-directory workspace)
+           dependencies
+           progress/null-render-progress!
+           include-dependencies-metadata)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
@@ -410,7 +415,11 @@
                   :else (throw (ex-info "library-uris contain invalid values."
                                         {:library-uris library-uris}))))
               library-uris)]
-    (->> (library/fetch! (workspace/project-directory workspace) library-uris progress/null-render-progress!)
+    (->> (library/fetch!
+           (workspace/project-directory workspace)
+           library-uris
+           progress/null-render-progress!
+           true)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 

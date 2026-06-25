@@ -808,7 +808,8 @@ resource exists after failed fetch: false
                                 (let [lib-results (library/fetch!
                                                     (workspace/project-directory workspace)
                                                     (project/project-dependencies project)
-                                                    progress/null-render-progress!)]
+                                                    progress/null-render-progress!
+                                                    (project/include-dependencies-metadata? (project/settings project)))]
                                   (ui/run-now
                                     (workspace/set-project-dependencies! workspace lib-results)
                                     (workspace/resource-sync! workspace [] progress/null-render-progress!))
