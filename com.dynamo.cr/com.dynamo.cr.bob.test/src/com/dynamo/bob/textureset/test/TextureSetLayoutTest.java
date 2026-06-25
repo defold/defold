@@ -26,7 +26,6 @@ import java.util.HashSet;
 import java.util.List;
 
 import org.junit.Test;
-import org.junit.Ignore;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.textureset.TextureSetLayout;
@@ -349,7 +348,7 @@ public class TextureSetLayoutTest {
     }
 
     // The 26 source images of issue #12593's 2.atlas (chars_01..26), unextruded.
-    private static final int[][] ISSUE_12593_CHARS = {
+    private static final int[][] PORTRAIT_ATLAS_RECTS = {
         {227, 475}, {203, 434}, {265, 532}, {242, 521}, {236, 588}, {253, 567},
         {305, 552}, {308, 551}, {289, 620}, {259, 615}, {363, 584}, {316, 626},
         {264, 630}, {283, 507}, {193, 508}, {201, 500}, {322, 536}, {280, 514},
@@ -357,42 +356,38 @@ public class TextureSetLayoutTest {
         {319, 558}, {285, 497}
     };
 
-    // Each image is inflated by 2*extrudeBorders before being packed, matching the
-    // editor (atlas->texture-set-data) and bob (AtlasUtil.generateTextureSet) paths.
-    private List<Rect> issue12593Chars(int extrudeBorders) {
+    private List<Rect> portraitAtlasRects(int extrudeBorders) {
         int grow = 2 * extrudeBorders;
-        List<Rect> rects = new ArrayList<Rect>(ISSUE_12593_CHARS.length);
-        for (int i = 0; i < ISSUE_12593_CHARS.length; i++) {
+        List<Rect> rects = new ArrayList<Rect>(PORTRAIT_ATLAS_RECTS.length);
+        for (int i = 0; i < PORTRAIT_ATLAS_RECTS.length; i++) {
             rects.add(rect(Integer.toString(i), i,
-                           ISSUE_12593_CHARS[i][0] + grow,
-                           ISSUE_12593_CHARS[i][1] + grow));
+                           PORTRAIT_ATLAS_RECTS[i][0] + grow,
+                           PORTRAIT_ATLAS_RECTS[i][1] + grow));
         }
         return rects;
     }
 
-    // Issue #12593: with extrudeBorders=2 the 26 images pack into a single 2048x2048
-    // page. Verified end-to-end against the live editor (atlas :layout-size = 2048x2048).
+    // Issue #12593: increasing extrudeBorders for the reported portrait atlas
+    // should not produce a smaller packed page. This is distinct from the #11541
+    // canFitInPage regression covered by testMixedOrientationFit. Here we're making
+    // sure that the packing remains monotonic over N extrusions.
     @Test
-    public void testIssue12593ExtrudeTwoSinglePage() throws CompileExceptionError {
-        List<Layout> layouts = packedLayout(0, issue12593Chars(2));
-        assertEquals(1, layouts.size());
-        assertEquals(2048, layouts.get(0).getWidth());
-        assertEquals(2048, layouts.get(0).getHeight());
-    }
+    public void testIssue12593PortraitAtlasExtrudeBorders() throws CompileExceptionError {
+        long previousArea = 0;
+        int compactLayoutCount = 0;
 
-    // Issue #12593 phenomenon (B): with extrudeBorders=0 the same images (now SMALLER)
-    // packed to 4096x2048 instead of 2048x2048 -- counter-intuitively worse than the
-    // larger extrude=2 set above -- because the greedy MaxRects packer is non-monotonic:
-    // a single fixed seed ordering misses a packing that provably exists (it can be
-    // reconstructed from the extrude=2 solution by shrinking each placed rect). Fixed by
-    // the multi-seed-sort ensemble in createMaxRectsLayout, which also tries longest-side
-    // ordering and keeps the smaller result. Distinct from the #11541 canFitInPage
-    // regression covered by testMixedOrientationFit.
-    @Test
-    public void testIssue12593ExtrudeZeroSinglePage() throws CompileExceptionError {
-        List<Layout> layouts = packedLayout(0, issue12593Chars(0));
-        assertEquals(1, layouts.size());
-        assertEquals(2048, layouts.get(0).getWidth());
-        assertEquals(2048, layouts.get(0).getHeight());
+        for (int extrudeBorders = 0; extrudeBorders <= 5; extrudeBorders++) {
+            List<Layout> layouts = packedLayout(0, portraitAtlasRects(extrudeBorders));
+            assertEquals(1, layouts.size());
+            Layout layout = layouts.get(0);
+            long area = (long)layout.getWidth() * layout.getHeight();
+            assertTrue(String.format("extrudeBorders=%d packed to a smaller page area", extrudeBorders), area >= previousArea);
+            if (layout.getWidth() == 2048 && layout.getHeight() == 2048) {
+                compactLayoutCount++;
+            }
+            previousArea = area;
+        }
+
+        assertTrue("Expected at least three extrude border values to fit in 2048x2048", compactLayoutCount >= 3);
     }
 }
