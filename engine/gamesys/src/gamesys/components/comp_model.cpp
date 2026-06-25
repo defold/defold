@@ -42,7 +42,6 @@
 #include "../resources/res_skeleton.h"
 #include "../resources/res_texture.h"
 #include "comp_private.h"
-#include "comp_model_pbr.h"
 
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
