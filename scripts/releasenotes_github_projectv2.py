@@ -695,13 +695,20 @@ def generate_markdown(version, issues, hide_details = False):
         print("Wrote %s" % file)
 
 
-def generate_json(version, issues):
+def release_announcement_url(version, channel):
+    slug = version.replace(".", "-")
+    if channel == "beta":
+        return "https://forum.defold.com/t/defold-%s-beta/" % slug
+    if channel == "stable":
+        return "https://forum.defold.com/t/defold-%s-has-been-released/" % slug
+    return "https://forum.defold.com/c/releasenotes/"
+
+
+def generate_json(version, issues, channel = None):
     output = {
         "version": version,
         "timestamp": time.time(),
-        # Link to the release announcement thread (deterministic from the version);
-        # the editor's update dialog reads this rather than hard-coding the URL.
-        "external-link": "https://forum.defold.com/t/defold-%s-has-been-released/" % version.replace(".", "-"),
+        "external-link": release_announcement_url(version, channel),
         "issues": issues
     }
 
@@ -727,7 +734,7 @@ def generate(version, hide_details = False, channel = None):
     # an unreleased fix.
     check_issue_commits(issues, audit_branches_for_channel(channel))
     generate_markdown(version, issues, hide_details)
-    generate_json(version, issues)
+    generate_json(version, issues, channel)
 
 
 
