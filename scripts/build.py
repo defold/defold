@@ -22,6 +22,7 @@ import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import build_android
+import build_ios
 import codesigning
 import run
 import s3
@@ -574,6 +575,10 @@ class Configuration(object):
                  target_platform = None,
                  skip_tests = False,
                  test_device = None,
+                 ios_identity = None,
+                 ios_mobileprovision = None,
+                 ios_team_id = None,
+                 ios_bundle_id_prefix = None,
                  keep_bob_uncompressed = False,
                  skip_codesign = False,
                  skip_docs = False,
@@ -628,6 +633,10 @@ class Configuration(object):
 
         self.skip_tests = skip_tests
         self.test_device = test_device
+        self.ios_identity = ios_identity
+        self.ios_mobileprovision = ios_mobileprovision
+        self.ios_team_id = ios_team_id
+        self.ios_bundle_id_prefix = ios_bundle_id_prefix
         self.keep_bob_uncompressed = keep_bob_uncompressed
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
@@ -698,6 +707,19 @@ class Configuration(object):
         if 'android' in tp:
             self._log('Android: Open the top-level CMakeLists.txt directly in Android Studio to create a project.')
             return
+        ios_signing_cmake_args = []
+        if tp == build_ios.IOS_DEVICE_PLATFORM:
+            try:
+                ios_signing_cmake_args = build_ios.xcode_solution_signing_cmake_args(
+                    identity=self.ios_identity,
+                    mobileprovision=self.ios_mobileprovision,
+                    team_id=self.ios_team_id,
+                    env=os.environ,
+                    log_fn=self._log)
+            except build_ios.IOSTestError as e:
+                self.fatal(str(e))
+            if not ios_signing_cmake_args:
+                self._warn(build_ios.IOS_XCODE_UNSIGNED_WARNING)
 
         # Choose generator
         generator = None
@@ -729,7 +751,12 @@ class Configuration(object):
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}'
         ]
+        cmake_cmd += build_ios.ios_test_cmake_args(
+            tp,
+            bundle_id_prefix=self.ios_bundle_id_prefix,
+            env=os.environ)
         cmake_cmd += self._cmake_feature_defines()
+        cmake_cmd += ios_signing_cmake_args
         if generator:
             cmake_cmd += ['-G', generator]
         if arch_args:
@@ -825,6 +852,14 @@ class Configuration(object):
         print(str(msg))
         sys.stdout.flush()
         sys.stderr.flush()
+
+    def _colorize(self, msg, color_code):
+        if self.no_colors or os.environ.get('NOCOLOR'):
+            return msg
+        return '\033[%sm%s\033[0m' % (color_code, msg)
+
+    def _warn(self, msg):
+        self._log(self._colorize(msg, '33'))
 
     def _remove_tree(self, path):
         if os.path.exists(path):
@@ -1866,6 +1901,28 @@ class Configuration(object):
                 supported_tests['arm64-macos'].extend(android_tests)
                 supported_tests['x86_64-linux'].extend(android_tests)
                 supported_tests['x86_64-win32'].extend(android_tests)
+
+        if build_ios.is_ios_test_platform(self.target_platform):
+            strict_ios_tests = not self.skip_tests and '--skip-build-tests' not in self.waf_options
+            try:
+                can_run_ios_tests = build_ios.can_run_tests_for_platform(
+                    self.target_platform,
+                    log_fn=self._log,
+                    env=self._form_env(),
+                    device=self.test_device,
+                    identity=self.ios_identity,
+                    mobileprovision=self.ios_mobileprovision,
+                    team_id=self.ios_team_id,
+                    bundle_id_prefix=self.ios_bundle_id_prefix,
+                    strict=strict_ios_tests)
+            except build_ios.IOSTestError as e:
+                self.fatal(str(e))
+            if self.test_device and not can_run_ios_tests:
+                self.fatal("Requested iOS test target '%s' is not available" % self.test_device)
+
+            if can_run_ios_tests:
+                supported_tests['x86_64-macos'].append(self.target_platform)
+                supported_tests['arm64-macos'].append(self.target_platform)
 
         if self.target_platform == 'x86_64-xbone':
             can_run_xbone_tests = build_private.can_run_tests(self.target_platform, self._log, self._form_env(), self.test_device)
@@ -3706,6 +3763,15 @@ class Configuration(object):
         elif self.test_device and self.target_platform == 'x86_64-xbone':
             env['XBOX_CONSOLE'] = self.test_device
 
+        build_ios.apply_build_options_to_env(
+            env,
+            self.target_platform,
+            test_device=self.test_device,
+            identity=self.ios_identity,
+            mobileprovision=self.ios_mobileprovision,
+            team_id=self.ios_team_id,
+            bundle_id_prefix=self.ios_bundle_id_prefix)
+
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in os.environ:
@@ -3769,7 +3835,23 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
 
     parser.add_option('--test-device', dest='test_device',
                       default = None,
-                      help = 'Android device serial to target when running Android tests')
+                      help = 'Device to target when running mobile tests. Android uses a device serial; iOS uses a physical device or simulator identifier, name, serial number or UDID')
+
+    parser.add_option('--ios-identity', dest='ios_identity',
+                      default = None,
+                      help = 'iOS code signing identity name or SHA-1 to use for device tests')
+
+    parser.add_option('--ios-mobileprovision', dest='ios_mobileprovision',
+                      default = None,
+                      help = 'Path to a .mobileprovision file to use for iOS device tests')
+
+    parser.add_option('--ios-team-id', dest='ios_team_id',
+                      default = None,
+                      help = 'Apple development team id to use when selecting iOS device-test provisioning profiles')
+
+    parser.add_option('--ios-bundle-id-prefix', dest='ios_bundle_id_prefix',
+                      default = None,
+                      help = 'Bundle id prefix for generated iOS device-test apps. Default is com.defold.tests')
 
     parser.add_option('--keep-bob-uncompressed', dest='keep_bob_uncompressed',
                     action = 'store_true',
@@ -3958,6 +4040,10 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
                       test_device = options.test_device,
+                      ios_identity = options.ios_identity,
+                      ios_mobileprovision = options.ios_mobileprovision,
+                      ios_team_id = options.ios_team_id,
+                      ios_bundle_id_prefix = options.ios_bundle_id_prefix,
                       keep_bob_uncompressed = options.keep_bob_uncompressed,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,

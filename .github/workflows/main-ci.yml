@@ -26,7 +26,7 @@ env:
   SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
   DOTNET_CHANNEL: 9.0.1xx
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
-  OPTION_SKIP_SIGN: ${{ case(github.event.client_payload.skip_sign == 'true', '--skip-sign', '') }}
+  OPTION_SKIP_SIGN: ${{ github.event.client_payload.skip_sign == true && '--skip-codesign' || '' }}
 
 jobs:
   # ---- BUILD ENGINE VERSIONS ------------------
@@ -81,7 +81,13 @@ jobs:
   bld-eng-darwin:
     strategy:
       matrix:
-        platform: [x86_64-macos, arm64-macos, arm64-ios, x86_64-ios]
+        include:
+          - platform: x86_64-macos
+          - platform: arm64-macos
+          - platform: arm64-ios
+            skip_tests: true
+          - platform: x86_64-ios
+            skip_tests: true
     runs-on: macos-26
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
     timeout-minutes: 30
@@ -109,7 +115,7 @@ jobs:
       },
       {
         name: 'Build engine',
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.OPTION_SKIP_SIGN }}'
+        run: 'extra_tests=""; if [ "${{ matrix.skip_tests }}" = "true" ]; then extra_tests="--skip-tests"; fi; ci/ci.sh engine --platform=${{ matrix.platform }} --archive ${extra_tests} --skip-builtins --skip-docs ${{ env.OPTION_SKIP_SIGN }}'
       },
       {
         name: 'Stop Gradle Daemon',

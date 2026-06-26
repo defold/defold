@@ -466,10 +466,14 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
     STAGE_FILES
       "build/src/gamesys/test" "build/src/gamesys/test"
       ${_GS_HOST_TEST_STAGE_FILES})
-  defold_register_test_with_server(test_gamesys_http ${TARGET_PLATFORM}
-    PORT 9001
-    WORKDIR "${GS_TEST_RUN_DIR}"
-    STAGE_FILES
-      "build/src/gamesys/test" "build/src/gamesys/test"
-      ${_GS_HOST_TEST_STAGE_FILES})
+  # Physical iOS devices cannot reliably reach a host-side test server in
+  # unattended runs because local network permission is granted interactively.
+  if(NOT TARGET_PLATFORM STREQUAL "arm64-ios")
+    defold_register_test_with_server(test_gamesys_http ${TARGET_PLATFORM}
+      PORT 9001
+      WORKDIR "${GS_TEST_RUN_DIR}"
+      STAGE_FILES
+        "build/src/gamesys/test" "build/src/gamesys/test"
+        ${_GS_HOST_TEST_STAGE_FILES})
+  endif()
 endif()
