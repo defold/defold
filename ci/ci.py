@@ -431,9 +431,11 @@ def release(channel):
     cmd = ' '.join(args + opts)
     call(cmd)
 
+# Channels that ship editor release notes.
+RELEASE_NOTES_CHANNELS = ("beta", "stable")
+
 def gen_release_notes(channel):
-    # Release notes ship only on beta/stable.
-    if channel not in ("beta", "stable"):
+    if channel not in RELEASE_NOTES_CHANNELS:
         print("Channel '%s' does not ship release notes - skipping" % channel)
         return
 
@@ -449,11 +451,12 @@ def gen_release_notes(channel):
         print("%s already exists - using manually-authored notes as-is" % notes_md)
         return
 
-    # The generator audits every issue's fix for presence on dev/beta via the
-    # GitHub compare API (no local history needed) and exits non-zero - failing
-    # the job - if any are missing or generation itself errors.
-    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --token %s generate' % (
-        sys.executable, version, get_github_token()))
+    # The generator audits every issue's fix for presence on the branch(es) this
+    # channel ships from (via the GitHub compare API, no local history needed)
+    # and exits non-zero - failing the job - if any are missing or generation
+    # itself errors.
+    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s generate' % (
+        sys.executable, version, channel, get_github_token()))
 
     # beta/stable must ship notes: a missing file here means generation produced
     # nothing (no board / empty) - a release defect, so fail.
@@ -510,7 +513,7 @@ def should_release_branch(branch):
 
 def release_notes_required_for_branch(branch):
     channel = release_settings_for_branch(branch, None)[0]
-    return channel in ("beta", "stable")
+    return channel in RELEASE_NOTES_CHANNELS
 
 def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.

@@ -553,8 +553,19 @@ def parse_github_project(version):
 
     return issues
 
-def check_issue_commits(issues):
-    print("\nChecking issue commits for dev and beta presence")
+def audit_branches_for_channel(channel):
+    # Which branches a note's fix must be present on, by release channel.
+    # beta/stable ship from beta with everything forward-merged -> require both.
+    # alpha (dev track) and custom validation channels build off dev / a feature
+    # branch, so requiring beta would fail them for fixes that simply haven't
+    # reached beta yet -> require dev only. Unknown channel (manual run with no
+    # --channel) keeps the strict default.
+    if channel in ("beta", "stable", None):
+        return ["dev", "beta"]
+    return ["dev"]
+
+def check_issue_commits(issues, required_branches = ("dev", "beta")):
+    print("\nChecking issue commits for presence on: %s" % ", ".join(required_branches))
     merge_dev_count = 0
     merge_beta_count = 0
     merge_dev_beta_count = 0
@@ -565,6 +576,7 @@ def check_issue_commits(issues):
     missing_dev_count = 0
     missing_beta_count = 0
     missing_dev_beta_count = 0
+    required_missing_count = 0
     for issue in issues:
         dev_ok = False
         beta_ok = False
@@ -612,6 +624,12 @@ def check_issue_commits(issues):
                 red("    Missing from beta")
                 missing_beta_count = missing_beta_count + 1
 
+        # Only the branches THIS channel ships from gate the release; the dev/beta
+        # tallies above stay for diagnostics.
+        branch_ok = {"dev": dev_ok, "beta": beta_ok}
+        if any(not branch_ok.get(b, False) for b in required_branches):
+            required_missing_count = required_missing_count + 1
+
     print("\nSummary (%d issues)" % len(issues))
     print("  %d issue(s) from external repositories not checked" % ignored_count)
     green("  %d issue(s) present on dev+beta via merge commits" % merge_dev_beta_count)
@@ -624,11 +642,10 @@ def check_issue_commits(issues):
     red("  %d issue(s) not present on beta" % missing_beta_count)
     red("  %d issue(s) not present on dev+beta" % missing_dev_beta_count)
 
-    total_missing = missing_dev_count + missing_beta_count + missing_dev_beta_count
-    if total_missing > 0:
-        red("\nRelease notes audit FAILED: %d issue(s) not present on dev and/or beta" % total_missing)
+    if required_missing_count > 0:
+        red("\nRelease notes audit FAILED: %d issue(s) missing from required branch(es): %s" % (required_missing_count, ", ".join(required_branches)))
         sys.exit(1)
-    green("\nRelease notes audit passed: all issues present on dev and beta")
+    green("\nRelease notes audit passed: all issues present on required branch(es): %s" % ", ".join(required_branches))
 
 
 
@@ -694,7 +711,7 @@ def generate_json(version, issues):
         print("Wrote %s" % file)
 
 
-def generate(version, hide_details = False):
+def generate(version, hide_details = False, channel = None):
     print("Generating release notes for %s" % version)
 
     issues = parse_github_project(version)
@@ -704,10 +721,11 @@ def generate(version, hide_details = False):
         print("No release notes found for %s - skipping" % version)
         return
 
-    # The commit audit verifies every issue's fix is present on dev and beta via
-    # the GitHub compare API (no local history needed) and fails the run if any
-    # are missing, before we publish notes for an unreleased fix.
-    check_issue_commits(issues)
+    # The commit audit verifies every issue's fix is present on the branch(es)
+    # this channel ships from (via the GitHub compare API, no local history
+    # needed) and fails the run if any are missing, before we publish notes for
+    # an unreleased fix.
+    check_issue_commits(issues, audit_branches_for_channel(channel))
     generate_markdown(version, issues, hide_details)
     generate_json(version, issues)
 
@@ -734,6 +752,10 @@ generate - Generate release notes
                       action = "store_true",
                       help = 'Hide details for each entry')
 
+    parser.add_option('--channel', dest='channel',
+                      default = None,
+                      help = 'Release channel; selects which branch(es) the commit audit requires')
+
     options, args = parser.parse_args()
 
     if not args:
@@ -753,7 +775,7 @@ generate - Generate release notes
     token = options.token
     for cmd in args:
         if cmd == "generate":
-            generate(options.version, options.hide_details)
+            generate(options.version, options.hide_details, options.channel)
 
 
     print('Done')
