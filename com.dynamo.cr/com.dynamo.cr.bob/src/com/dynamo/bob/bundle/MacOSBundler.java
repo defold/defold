@@ -197,14 +197,18 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (variant.equals(Bob.VARIANT_DEBUG))
-        {
-            logger.info("Adding debug entitlements");
-            File entitlementsFile = BundleHelper.copyResourceToTempFile(project, "resources/macos/entitlements-debug.plist");
-            Result r = Exec.execResult("codesign", "-f", "-s", "-", "--entitlements", entitlementsFile.getAbsolutePath(), appDir.getAbsolutePath());
-            if (r.ret != 0) {
-                throw new IOException(new String(r.stdOutErr));
-            }
+        logger.info("Adding entitlements");
+        File entitlementsFile = BundleHelper.copyResourceToTempFile(project, variant.equals(Bob.VARIANT_DEBUG) ? "resources/macos/entitlements-debug.plist" : "resources/macos/entitlements-release.plist");
+        Result r = Exec.execResult(
+            "codesign",
+            "--deep",
+            "--force",
+            "--options", "runtime",
+            "--entitlements", entitlementsFile.getAbsolutePath(),
+            "--sign", "-",
+            appDir.getAbsolutePath());
+        if (r.ret != 0) {
+            throw new IOException(new String(r.stdOutErr));
         }
 
         BundleHelper.throwIfCanceled(canceled);
