@@ -79,7 +79,7 @@ if(MODELC_IS_DESKTOP)
   defold_target_link_libraries(modelc_shared "${TARGET_PLATFORM}"
     ${MODELC_SHARED_DEPENDENCIES})
   defold_target_link_app(modelc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
-  defold_codesign_target(modelc_shared "")
+  defold_codesign_target(modelc_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   set(MODELC_JAR "${CMAKE_CURRENT_BINARY_DIR}/modelimporter.jar")
   set(MODELC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")

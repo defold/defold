@@ -141,36 +141,48 @@ def sign_macos_file(options, file):
         log("Codesigning certificate not found for signing identity %s" % codesigning_identity)
         sys.exit(1)
 
-    if file.endswith(".app"):
-        if not options.codesigning_entitlements:
-            log("No entitlements specified for signing %s" % file)
-            sys.exit(1)
-        run.command([
-            'codesign',
-            '--deep',
-            '--force',
-            '--options', 'runtime',
-            '--entitlements', options.codesigning_entitlements,
-            '--sign', certificate,
-            file])
-    elif os.path.basename(file).startswith("dmengine"):
-        if not options.codesigning_entitlements:
-            log("No entitlements specified for signing %s" % file)
-            sys.exit(1)
-        run.command([
-            'codesign',
-            '--force',
-            '--options', 'runtime',
-            '--entitlements', options.codesigning_entitlements,
-            '--sign', certificate,
-            file])
-    else:
-        run.command([
-            'codesign',
-            '--force',
-            '--options', 'runtime',
-            '--sign', certificate,
-            file])
+    if not options.codesigning_entitlements:
+        log("No entitlements specified for signing %s" % file)
+        sys.exit(1)
+    run.command([
+        'codesign',
+        '--deep',
+        '--force',
+        '--options', 'runtime',
+        '--entitlements', options.codesigning_entitlements,
+        '--sign', certificate,
+        file])
+
+    # if file.endswith(".app"):
+    #     if not options.codesigning_entitlements:
+    #         log("No entitlements specified for signing %s" % file)
+    #         sys.exit(1)
+    #     run.command([
+    #         'codesign',
+    #         '--deep',
+    #         '--force',
+    #         '--options', 'runtime',
+    #         '--entitlements', options.codesigning_entitlements,
+    #         '--sign', certificate,
+    #         file])
+    # elif os.path.basename(file).startswith("dmengine"):
+    #     if not options.codesigning_entitlements:
+    #         log("No entitlements specified for signing %s" % file)
+    #         sys.exit(1)
+    #     run.command([
+    #         'codesign',
+    #         '--force',
+    #         '--options', 'runtime',
+    #         '--entitlements', options.codesigning_entitlements,
+    #         '--sign', certificate,
+    #         file])
+    # else:
+    #     run.command([
+    #         'codesign',
+    #         '--force',
+    #         '--options', 'runtime',
+    #         '--sign', certificate,
+    #         file])
 
 def sign_file(platform, options, file):
     if _platform_is_windows(platform):
