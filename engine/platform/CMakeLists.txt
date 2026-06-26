@@ -39,10 +39,16 @@ if(DEFOLD_PLATFORM_WINDOW_SOURCES)
         ${DEFOLD_PLATFORM_WINDOW_SOURCES}
         ${_platform_private_extra_sources})
 elseif(DEFOLD_IS_PRIVATE_VENDOR)
-    # Private vendor (e.g., Switch): only include native window integration
-    set(_platform_glfw_sources
-        "${PLAT_SRC_DIR}/window.cpp"
-        "${PLAT_SRC_DIR}/nx64/platform_window_native.cpp")
+    if(TARGET_PLATFORM_OS STREQUAL "xbone")
+        set(_platform_glfw_sources
+            "${PLAT_SRC_DIR}/window.cpp"
+            "${PLAT_SRC_DIR}/xbox/platform_window_xbox.cpp")
+    else()
+        # Private vendor (e.g., Switch): only include native window integration
+        set(_platform_glfw_sources
+            "${PLAT_SRC_DIR}/window.cpp"
+            "${PLAT_SRC_DIR}/${TARGET_PLATFORM_OS}/platform_window_native.cpp")
+    endif()
 else()
     defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")
     if (_GLFW_VERSION EQUAL 3)

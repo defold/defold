@@ -16,9 +16,11 @@
 #define DMSDK_FILE_DESCRIPTOR_H
 
 #include <dmsdk/dlib/array.h>
-#if __has_include(<dmsdk/dlib/file_descriptor_vendor.h>)
+#if defined(DM_PLATFORM_VENDOR) && \
+    (defined(DM_PLATFORM_XBOX) || defined(DM_PLATFORM_PLAYSTATION) || defined(DM_PLATFORM_SWITCH)) && \
+    __has_include(<dmsdk/dlib/file_descriptor_vendor.h>)
     #include <dmsdk/dlib/file_descriptor_vendor.h>
-#elif defined(_WIN32)
+#elif defined(DM_PLATFORM_WINDOWS)
     #include <dmsdk/dlib/file_descriptor_win32.h>
 #else
     #include <dmsdk/dlib/file_descriptor_posix.h>

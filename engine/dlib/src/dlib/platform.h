@@ -23,24 +23,27 @@
 #define DM_PLATFORM_NAME_IOS 	 "ios"
 #define DM_PLATFORM_NAME_SWITCH  "switch"
 #define DM_PLATFORM_NAME_PLAYSTATION "playstation"
+#define DM_PLATFORM_NAME_XBOX    "xbox"
 
 // Note: DM_PLATFORM is used as a key in data files, e.g. ".gamepads"
 
-#if defined(ANDROID)
+#if defined(DM_PLATFORM_ANDROID) || defined(ANDROID)
 #define DM_PLATFORM DM_PLATFORM_NAME_ANDROID
-#elif defined(__linux__)
+#elif defined(DM_PLATFORM_LINUX) || defined(__linux__)
 #define DM_PLATFORM DM_PLATFORM_NAME_LINUX
 #elif defined(DM_PLATFORM_IOS)
 #define DM_PLATFORM DM_PLATFORM_NAME_IOS
 #elif defined(DM_PLATFORM_MACOS)
 #define DM_PLATFORM DM_PLATFORM_NAME_MACOS
-#elif defined(_WIN32)
+#elif defined(DM_PLATFORM_XBOX) || defined(_GAMING_XBOX)
+#define DM_PLATFORM DM_PLATFORM_NAME_XBOX
+#elif defined(DM_PLATFORM_WINDOWS)
 #define DM_PLATFORM DM_PLATFORM_NAME_WINDOWS
-#elif defined(__EMSCRIPTEN__)
+#elif defined(DM_PLATFORM_HTML5) || defined(__EMSCRIPTEN__)
 #define DM_PLATFORM DM_PLATFORM_NAME_WEB
-#elif defined(__NX__)
+#elif defined(DM_PLATFORM_SWITCH) || defined(__NX__)
 #define DM_PLATFORM DM_PLATFORM_NAME_SWITCH
-#elif defined(__SCE__)
+#elif defined(DM_PLATFORM_PLAYSTATION) || defined(__SCE__)
 #define DM_PLATFORM DM_PLATFORM_NAME_PLAYSTATION
 #else
 #error "Unsupported platform"

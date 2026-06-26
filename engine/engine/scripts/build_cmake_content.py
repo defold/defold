@@ -29,6 +29,11 @@ ARCHIVE_NAME_EXCLUDES = {
     "LICENSE",
 }
 
+BUILD_INPUT_NAME_EXCLUDES = {
+    "README.md",
+    "gamecontrollerdb.txt",
+}
+
 BOB_RELATIVE_DIRS = [
     "builtins/input",
     "builtins/render",
@@ -80,6 +85,8 @@ def iter_content_files(root):
 
 def should_build_input(path):
     if path.name in ARCHIVE_NAME_EXCLUDES:
+        return False
+    if path.name in BUILD_INPUT_NAME_EXCLUDES:
         return False
     if path.suffix in BUILD_INPUT_EXT_EXCLUDES:
         return False

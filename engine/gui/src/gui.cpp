@@ -4073,7 +4073,7 @@ namespace dmGui
         uint32_t n_animations = animations->Size();
 
         if (property_hash == 0)
-        { 
+        {
             // if property hash is 0 then cancels all ongoing animation of properties for node
             for (uint32_t i = 0; i < n_animations; ++i)
             {
@@ -4650,7 +4650,7 @@ namespace dmGui
         ResetTextLayout(&out_n->m_Node.m_TextLayout);
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
-        
+
         // Handle render constants - clone them if callback is available and source has them
         if (n->m_Node.m_RenderConstants && scene->m_CloneRenderConstantsCallback)
         {
@@ -4848,6 +4848,7 @@ namespace dmGui
 
         free((void*)script->m_SourceFileName);
         script->m_SourceFileName = strdup(source->m_Filename);
+
 bail:
         assert(top == lua_gettop(L));
         return res;

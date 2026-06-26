@@ -37,12 +37,13 @@ if(MODELC_IS_DESKTOP)
   set(MODELC_GENERATED_JAVA "${MODELC_JAVA_DIR}/com/dynamo/bob/pipeline/Modelimporter.java")
   set(MODELC_GENERATED_CPP "${MODELC_JNI_DIR}/Modelimporter_jni.cpp")
   set(MODELC_GENERATED_H "${MODELC_JNI_DIR}/Modelimporter_jni.h")
+  defold_java_bindings_env(MODELC_BINDINGS_ENV)
+  defold_java_bindings_defines(MODELC_BINDINGS_DEFINES)
 
   add_custom_command(
     OUTPUT "${MODELC_GENERATED_JAVA}" "${MODELC_GENERATED_CPP}" "${MODELC_GENERATED_H}"
     COMMAND "${CMAKE_COMMAND}" -E env
-            "DEFOLD_HOME=${DEFOLD_HOME}"
-            "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+            ${MODELC_BINDINGS_ENV}
             "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
             --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
             --header "${MODELC_SRC_DIR}/modelimporter.h"
@@ -50,6 +51,7 @@ if(MODELC_IS_DESKTOP)
             --package com.dynamo.bob.pipeline
             --java-outdir "${MODELC_JAVA_DIR}"
             --jni-outdir "${MODELC_JNI_DIR}"
+            ${MODELC_BINDINGS_DEFINES}
             --include "${MODELC_SRC_DIR}"
             --include "${DEFOLD_DMSDK_INCLUDE_DIR}"
             --include "${DEFOLD_INCLUDE_DIR}"

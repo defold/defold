@@ -33,6 +33,11 @@ import shutil
 import subprocess
 from collections import defaultdict
 
+try:
+    import sdk_vendor as repo_sdk_vendor
+except ImportError:
+    repo_sdk_vendor = None
+
 DYNAMO_HOME=os.environ.get('DYNAMO_HOME', os.path.join(os.getcwd(), 'tmp', 'dynamo_home'))
 
 SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
@@ -850,6 +855,8 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
 def _setup_info_from_windowsinfo(windowsinfo, platform):
 
     info = {}
+    info['sdk_root'] = windowsinfo['sdk_root']
+    info['sdk_version'] = windowsinfo['sdk_version']
     info[platform] = {}
     info[platform]['version'] = windowsinfo['sdk_version']
     info[platform]['path'] = windowsinfo['sdk_root']
@@ -1103,8 +1110,22 @@ class sdk_vendor(object):
         return module
 
     @classmethod
+    def _repo_module_for_platform(cls, platform):
+        if (repo_sdk_vendor is not None
+                and hasattr(repo_sdk_vendor, 'supports_platform')
+                and repo_sdk_vendor.supports_platform(platform)):
+            repo_sdk_vendor.SDKException = SDKException
+            return repo_sdk_vendor
+        return None
+
+    @classmethod
     def _call(cls, platform, name, default, *args):
         module = cls._module_for_platform(platform)
+        func = getattr(module, name, None) if module else None
+        if func:
+            return func(*args)
+
+        module = cls._repo_module_for_platform(platform)
         func = getattr(module, name, None) if module else None
         return func(*args) if func else default
 

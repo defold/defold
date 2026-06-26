@@ -15,15 +15,17 @@
 #ifndef DMSDK_SPINLOCKTYPES_H
 #define DMSDK_SPINLOCKTYPES_H
 
-#if __has_include("spinlocktypes_vendor.h")
+#if defined(DM_PLATFORM_VENDOR) && \
+    (defined(DM_PLATFORM_XBOX) || defined(DM_PLATFORM_PLAYSTATION) || defined(DM_PLATFORM_SWITCH)) && \
+    __has_include("spinlocktypes_vendor.h")
 #include "spinlocktypes_vendor.h"
-#elif defined(_MSC_VER) || defined(__EMSCRIPTEN__)
+#elif defined(DM_PLATFORM_WINDOWS) || defined(DM_PLATFORM_HTML5) || defined(__EMSCRIPTEN__)
 #include "spinlocktypes_atomic.h"
-#elif defined(ANDROID)
+#elif defined(DM_PLATFORM_ANDROID) || defined(ANDROID)
 #include "spinlocktypes_android.h"
-#elif defined(__linux__)
+#elif defined(DM_PLATFORM_LINUX) || defined(__linux__)
 #include "spinlocktypes_pthread.h"
-#elif defined(__MACH__)
+#elif defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS) || defined(__MACH__)
 #include "spinlocktypes_mach.h"
 #else
 #error "Unsupported platform"

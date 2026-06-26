@@ -42,12 +42,13 @@ if(TEXC_IS_DESKTOP)
   set(TEXC_GENERATED_JAVA "${TEXC_JAVA_DIR}/com/dynamo/bob/pipeline/Texc.java")
   set(TEXC_GENERATED_CPP "${TEXC_JNI_DIR}/Texc_jni.cpp")
   set(TEXC_GENERATED_H "${TEXC_JNI_DIR}/Texc_jni.h")
+  defold_java_bindings_env(TEXC_BINDINGS_ENV)
+  defold_java_bindings_defines(TEXC_BINDINGS_DEFINES)
 
   add_custom_command(
     OUTPUT "${TEXC_GENERATED_JAVA}" "${TEXC_GENERATED_CPP}" "${TEXC_GENERATED_H}"
     COMMAND "${CMAKE_COMMAND}" -E env
-            "DEFOLD_HOME=${DEFOLD_HOME}"
-            "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+            ${TEXC_BINDINGS_ENV}
             "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
             --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
             --header "${TEXC_SRC_DIR}/texc.h"
@@ -55,6 +56,7 @@ if(TEXC_IS_DESKTOP)
             --package com.dynamo.bob.pipeline
             --java-outdir "${TEXC_JAVA_DIR}"
             --jni-outdir "${TEXC_JNI_DIR}"
+            ${TEXC_BINDINGS_DEFINES}
             --include "${TEXC_SRC_DIR}"
             --include "${DEFOLD_DMSDK_INCLUDE_DIR}"
             --include "${DEFOLD_INCLUDE_DIR}"

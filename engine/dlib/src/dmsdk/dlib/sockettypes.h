@@ -15,9 +15,11 @@
 #ifndef DMSDK_SOCKETTYPES_H
 #define DMSDK_SOCKETTYPES_H
 
-#if __has_include("sockettypes_vendor.h")
+#if defined(DM_PLATFORM_VENDOR) && \
+    (defined(DM_PLATFORM_XBOX) || defined(DM_PLATFORM_PLAYSTATION) || defined(DM_PLATFORM_SWITCH)) && \
+    __has_include("sockettypes_vendor.h")
 #include "sockettypes_vendor.h"
-#elif defined(_MSC_VER)
+#elif defined(DM_PLATFORM_WINDOWS)
 #include "sockettypes_win32.h"
 #else
 #include "sockettypes_posix.h"

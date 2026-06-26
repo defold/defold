@@ -7,12 +7,13 @@ set(JNI_TEST_GENERATED_CPP "${JNI_TEST_JNI_DIR}/Testapi_jni.cpp")
 set(JNI_TEST_GENERATED_H "${JNI_TEST_JNI_DIR}/Testapi_jni.h")
 
 find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
+defold_java_bindings_env(JNI_TEST_BINDINGS_ENV)
+defold_java_bindings_defines(JNI_TEST_BINDINGS_DEFINES)
 
 add_custom_command(
   OUTPUT "${JNI_TEST_GENERATED_JAVA}" "${JNI_TEST_GENERATED_CPP}" "${JNI_TEST_GENERATED_H}"
   COMMAND "${CMAKE_COMMAND}" -E env
-          "DEFOLD_HOME=${DEFOLD_HOME}"
-          "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+          ${JNI_TEST_BINDINGS_ENV}
           "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
           --gen-java "${JNI_ROOT}/scripts/gen_java.py"
           --header "${JNI_TEST_DIR}/testapi.h"
@@ -20,6 +21,7 @@ add_custom_command(
           --package com.dynamo.bob.pipeline
           --java-outdir "${JNI_TEST_JAVA_DIR}"
           --jni-outdir "${JNI_TEST_JNI_DIR}"
+          ${JNI_TEST_BINDINGS_DEFINES}
           --include "${JNI_TEST_DIR}"
           --include "${JNI_SRC_DIR}"
           --include "${DEFOLD_DMSDK_INCLUDE_DIR}"

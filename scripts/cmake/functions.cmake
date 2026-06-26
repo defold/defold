@@ -21,6 +21,52 @@ function(defold_log MSG)
     endif()
 endfunction()
 
+function(defold_java_bindings_env OUT_VAR)
+    set(_env
+        "DEFOLD_HOME=${DEFOLD_HOME}"
+        "DYNAMO_HOME=${DEFOLD_SDK_ROOT}")
+
+    if(DEFOLD_BINDGEN_CLANG)
+        list(APPEND _env "CLANG=${DEFOLD_BINDGEN_CLANG}")
+    endif()
+    if(DEFOLD_BINDGEN_CLANGPP)
+        list(APPEND _env "CLANGPP=${DEFOLD_BINDGEN_CLANGPP}")
+    endif()
+
+    set(${OUT_VAR} ${_env} PARENT_SCOPE)
+endfunction()
+
+function(defold_java_bindings_defines OUT_VAR)
+    set(_defines)
+
+    if(TARGET_PLATFORM MATCHES "android$")
+        list(APPEND _defines "DM_PLATFORM_ANDROID")
+    elseif(TARGET_PLATFORM MATCHES "linux$")
+        list(APPEND _defines "DM_PLATFORM_LINUX")
+    elseif(TARGET_PLATFORM MATCHES "ios$")
+        list(APPEND _defines "DM_PLATFORM_IOS")
+    elseif(TARGET_PLATFORM MATCHES "macos$")
+        list(APPEND _defines "DM_PLATFORM_MACOS")
+    elseif(TARGET_PLATFORM MATCHES "xbone$")
+        list(APPEND _defines "DM_PLATFORM_VENDOR" "DM_PLATFORM_XBOX")
+    elseif(TARGET_PLATFORM MATCHES "win32$")
+        list(APPEND _defines "DM_PLATFORM_WINDOWS")
+    elseif(TARGET_PLATFORM MATCHES "web$")
+        list(APPEND _defines "DM_PLATFORM_HTML5")
+    elseif(TARGET_PLATFORM MATCHES "nx64$")
+        list(APPEND _defines "DM_PLATFORM_VENDOR" "DM_PLATFORM_SWITCH")
+    elseif(TARGET_PLATFORM MATCHES "ps4$|ps5$")
+        list(APPEND _defines "DM_PLATFORM_VENDOR" "DM_PLATFORM_PLAYSTATION")
+    endif()
+
+    set(_args)
+    foreach(_define IN LISTS _defines)
+        list(APPEND _args "--define" "${_define}")
+    endforeach()
+
+    set(${OUT_VAR} ${_args} PARENT_SCOPE)
+endfunction()
+
 # Collect packaged toolchain roots given DEFOLD_SDK_ROOT/ext/SDKs.
 # Adds the directory itself and its immediate child directories.
 # Usage:

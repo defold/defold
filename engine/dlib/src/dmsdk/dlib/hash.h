@@ -27,7 +27,9 @@
 #include "shared_library.h"
 #include "dalloca.h" // dmFixedMemAllocator
 
-#if __has_include(<dmsdk/dlib/hash_vendor.h>)
+#if defined(DM_PLATFORM_VENDOR) && \
+    (defined(DM_PLATFORM_XBOX) || defined(DM_PLATFORM_PLAYSTATION) || defined(DM_PLATFORM_SWITCH)) && \
+    __has_include(<dmsdk/dlib/hash_vendor.h>)
     #include <dmsdk/dlib/hash_vendor.h>
 #else
     #define DM_HASH_FMT "%016" PRIx64

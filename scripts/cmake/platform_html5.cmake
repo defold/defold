@@ -6,6 +6,7 @@ endif()
 
 # Common compile-time definitions (mirrors waf_dynamo for web)
 target_compile_definitions(defold_sdk INTERFACE
+  DM_PLATFORM_HTML5
   GL_ES_VERSION_2_0
   GOOGLE_PROTOBUF_NO_RTTI
   __STDC_LIMIT_MACROS

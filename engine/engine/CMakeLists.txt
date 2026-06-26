@@ -549,7 +549,7 @@ defold_install_targets(TARGETS dmengine dmengine_release dmengine_headless
   LIBRARY DESTINATION bin/${TARGET_PLATFORM}
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
-if(TARGET_PLATFORM MATCHES "win32")
+if(TARGET_PLATFORM MATCHES "(win32|xbone)$")
   foreach(_engine_pdb_target IN ITEMS dmengine dmengine_release dmengine_headless)
     install(FILES "$<TARGET_PDB_FILE:${_engine_pdb_target}>"
       DESTINATION bin/${TARGET_PLATFORM}

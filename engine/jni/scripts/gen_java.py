@@ -1232,7 +1232,7 @@ def make_package_dir(outdir, packagename):
     os.makedirs(out, exist_ok=True) # com.dynamo.bob.pipeline
     return out
 
-def generate(header_path, namespace, package_name, includes, java_outdir, jni_outdir):
+def generate(header_path, namespace, package_name, includes, java_outdir, jni_outdir, defines=None):
 
     module_name = os.path.basename(header_path)
     module_name = os.path.splitext(module_name)[0].capitalize()
@@ -1251,9 +1251,14 @@ def generate(header_path, namespace, package_name, includes, java_outdir, jni_ou
 
     print(f'  {source_path} => {module_name}')
     reset_globals()
-    ir = gen_ir.gen(source_path, includes, module_name, namespace, [])
+    ir = gen_ir.gen(source_path, includes, module_name, namespace, [], defines or [])
 
-    os.unlink(source_path)
+    try:
+        os.unlink(source_path)
+    except PermissionError:
+        # Some Windows environments keep temporary compile units locked briefly.
+        # This file is disposable, so continue if cleanup fails.
+        print(f"Warning: failed to delete temporary file: {source_path}")
 
     output_java_path = f"{package_dir}/{ir['module']}.java"
     output_jni_cpp_path = f"{jni_outdir}/{ir['module']}_jni.cpp"

@@ -209,24 +209,26 @@ def parse_inner_cpp(main_prefix, dep_prefixes, namespace, inp, outp):
                 outp['decls'].append(outp_decl)
 
 
-def clang(csrc_path, includes=[]):
+def clang(csrc_path, includes=[], defines=None):
     clang = os.environ.get('CLANG', 'clang')
     cmd = [clang, '-Xclang', '-ast-dump=json', '-c']
+    cmd.extend([ '-D%s' % define for define in (defines or [])])
     cmd.extend([ '-I%s' % include for include in includes])
     cmd.append(csrc_path)
     log('[exec] %s' % cmd)
     return subprocess.check_output(cmd)
 
-def clang_cpp(csrc_path, includes=[]):
+def clang_cpp(csrc_path, includes=[], defines=None):
     clangpp = os.environ.get('CLANGPP', 'clang++')
     cmd = [clangpp, '-Xclang', '-ast-dump=json', '-c']
+    cmd.extend([ '-D%s' % define for define in (defines or [])])
     cmd.extend([ '-I%s' % include for include in includes])
     cmd.append(csrc_path)
     log('[exec] %s' % cmd)
     return subprocess.check_output(cmd)
 
-def gen(source_path, includes, module, main_prefix, dep_prefixes):
-    ast = clang_cpp(source_path, includes)
+def gen(source_path, includes, module, main_prefix, dep_prefixes, defines=None):
+    ast = clang_cpp(source_path, includes, defines)
     inp = json.loads(ast)
     # with open(f'{module}.src.json', 'w') as f:
     #     f.write(json.dumps(inp, indent=2));

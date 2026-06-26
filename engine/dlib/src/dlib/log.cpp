@@ -299,26 +299,26 @@ static android_LogPriority ToAndroidPriority(LogSeverity severity)
 void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
 {
 #ifdef ANDROID
-        __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
+    __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
 
 // iOS
 #elif TARGET_OS_IOS==1
-        dmLog::__ios_log_print(severity, output);
+    dmLog::__ios_log_print(severity, output);
 #endif
 
 #ifdef __EMSCRIPTEN__
 
-        //Emscripten maps stderr to console.error and stdout to console.log.
-        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
-        {
-            EM_ASM_({
-                Module.printErr(UTF8ToString($0));
-            }, output);
-        } else {
-            EM_ASM_({
-                Module.print(UTF8ToString($0));
-            }, output);
-        }
+    //Emscripten maps stderr to console.error and stdout to console.log.
+    if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
+    {
+        EM_ASM_({
+            Module.printErr(UTF8ToString($0));
+        }, output);
+    } else {
+        EM_ASM_({
+            Module.print(UTF8ToString($0));
+        }, output);
+    }
 #else
     if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
     {

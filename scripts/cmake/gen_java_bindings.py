@@ -32,6 +32,7 @@ def main():
     parser.add_argument("--java-outdir", required=True)
     parser.add_argument("--jni-outdir", required=True)
     parser.add_argument("--include", action="append", default=[])
+    parser.add_argument("--define", action="append", default=[])
     args = parser.parse_args()
 
     gen_java_dir = os.path.dirname(os.path.abspath(args.gen_java))
@@ -54,7 +55,8 @@ def main():
         package_name=args.package,
         includes=includes,
         java_outdir=os.path.abspath(args.java_outdir),
-        jni_outdir=os.path.abspath(args.jni_outdir))
+        jni_outdir=os.path.abspath(args.jni_outdir),
+        defines=args.define)
 
 
 if __name__ == "__main__":

@@ -63,12 +63,13 @@ if(SHADERC_IS_DESKTOP)
   set(SHADERC_GENERATED_JAVA "${SHADERC_JAVA_DIR}/com/dynamo/bob/pipeline/Shaderc.java")
   set(SHADERC_GENERATED_CPP "${SHADERC_JNI_DIR}/Shaderc_jni.cpp")
   set(SHADERC_GENERATED_H "${SHADERC_JNI_DIR}/Shaderc_jni.h")
+  defold_java_bindings_env(SHADERC_BINDINGS_ENV)
+  defold_java_bindings_defines(SHADERC_BINDINGS_DEFINES)
 
   add_custom_command(
     OUTPUT "${SHADERC_GENERATED_JAVA}" "${SHADERC_GENERATED_CPP}" "${SHADERC_GENERATED_H}"
     COMMAND "${CMAKE_COMMAND}" -E env
-            "DEFOLD_HOME=${DEFOLD_HOME}"
-            "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+            ${SHADERC_BINDINGS_ENV}
             "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
             --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
             --header "${SHADERC_SRC_DIR}/shaderc.h"
@@ -76,6 +77,7 @@ if(SHADERC_IS_DESKTOP)
             --package com.dynamo.bob.pipeline
             --java-outdir "${SHADERC_JAVA_DIR}"
             --jni-outdir "${SHADERC_JNI_DIR}"
+            ${SHADERC_BINDINGS_DEFINES}
             --include "${SHADERC_SRC_DIR}"
             --include "${DEFOLD_DMSDK_INCLUDE_DIR}"
             --include "${DEFOLD_INCLUDE_DIR}"

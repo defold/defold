@@ -224,6 +224,9 @@ public class ShaderCompilers {
                 opts.splitTextureSamplers |= shaderLanguageRequiresSplitTextureSamplers(shaderLanguage);
             }
 
+            opts.remapVertexFragmentIOForHLSL = shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_50) ||
+                                                shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_51);
+
             ShaderCompilePipeline pipeline = null;
             try {
                 pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
@@ -238,6 +241,8 @@ public class ShaderCompilers {
 
                     boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
                     List<Shaderc.ShaderCompileResult> compiled_shaders = new ArrayList<>();
+                    List<ShaderDesc.ShaderType> compiled_shader_types = new ArrayList<>();
+                    List<Boolean> compiled_shader_variant_flags = new ArrayList<>();
 
                     for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
 
@@ -256,18 +261,43 @@ public class ShaderCompilers {
                             }
                         }
 
-                        ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(crossCompileResult, shaderLanguage, shaderModule.type);
-                        shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
-
-                        if (variantTextureArray) {
-                            builder.setVariantTextureArray(true);
-                        }
-
                         compiled_shaders.add(crossCompileResult);
+                        compiled_shader_types.add(shaderModule.type);
+                        compiled_shader_variant_flags.add(variantTextureArray);
                     }
 
                     if (create_hlsl_root_signature) {
                         hlslRootSignature = pipeline.createRootSignature(shaderLanguage, compiled_shaders);
+
+                        // Xbox precompiled validation compares runtime root signature against each emplaced shader signature.
+                        // Recompile all stages with the merged signature so both blobs carry the same emplaced signature.
+                        if (compiled_shaders.size() > 1 && hlslRootSignature.hLSLRootSignature != null && hlslRootSignature.hLSLRootSignature.length > 0) {
+                            String mergedRootSignatureText = ShadercJni.HLSLRootSignatureToString(hlslRootSignature.hLSLRootSignature);
+                            if (mergedRootSignatureText == null || mergedRootSignatureText.isEmpty()) {
+                                throw new CompileExceptionError("Failed to convert merged HLSL root signature to text for shared-root-signature recompile");
+                            }
+                            if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+                                mergedRootSignatureText = Win32ShaderCompiler.ensureInputAssemblerRootFlag(mergedRootSignatureText);
+                            }
+
+                            for (int i = 0; i < shaderModules.size(); ++i) {
+                                ShaderCompilePipeline.ShaderModuleDesc shaderModule = shaderModules.get(i);
+                                Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompile(shaderModule.type, shaderLanguage, mergedRootSignatureText);
+                                compiled_shaders.set(i, recompiledShader);
+                            }
+
+                            hlslRootSignature = pipeline.createRootSignature(shaderLanguage, compiled_shaders);
+                        }
+                    }
+
+                    // Build shader descs after root signature merge so any patched HLSL blobs are preserved.
+                    for (int i = 0; i < compiled_shaders.size(); ++i) {
+                        ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(compiled_shaders.get(i), shaderLanguage, compiled_shader_types.get(i));
+                        shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+
+                        if (compiled_shader_variant_flags.get(i)) {
+                            builder.setVariantTextureArray(true);
+                        }
                     }
                 }
 

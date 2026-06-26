@@ -25,9 +25,11 @@
 
 #include <stdint.h>
 
-#if __has_include("alloca_vendor.h")
+#if defined(DM_PLATFORM_VENDOR) && \
+    (defined(DM_PLATFORM_XBOX) || defined(DM_PLATFORM_PLAYSTATION) || defined(DM_PLATFORM_SWITCH)) && \
+    __has_include("alloca_vendor.h")
     #include "alloca_vendor.h"
-#elif defined(_WIN32)
+#elif defined(DM_PLATFORM_WINDOWS)
     #include <malloc.h>
     #if !defined(alloca)
         #define alloca(_SIZE) _alloca(_SIZE) // done in malloc.h if _CRT_INTERNAL_NONSTDC_NAMES is non-zero

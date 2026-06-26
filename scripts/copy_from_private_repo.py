@@ -70,24 +70,26 @@ def is_private_file(path):
     return False
 
 def is_git_tracked(path, cwd):
-    #oldcwd = os.getcwd()
-    #os.chdir(cwd)
-    cmd = 'git ls-files --error-unmatch %s' % path
-    #r = os.system(cmd)
-
-    process = subprocess.Popen(cmd.split(), cwd=cwd)
+    process = subprocess.Popen(
+        ['git', 'ls-files', '--error-unmatch', path],
+        cwd=cwd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL)
     process.wait()
-    #output = process.communicate()[0]
     return process.returncode == 0
-
-    #os.chdir(oldcwd)
-    #return r == 0
 
 def copy_file(src, tgt):
     dirname = os.path.dirname(tgt)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
-    shutil.copy2(src, tgt)
+    try:
+        shutil.copy2(src, tgt)
+    except OSError as e:
+        print("Failed to copy file:", file=sys.stderr)
+        print("  Source: %s" % src, file=sys.stderr)
+        print("  Target: %s" % tgt, file=sys.stderr)
+        print("  Error: %s" % e, file=sys.stderr)
+        raise
 
 def Usage():
     print("Usage: ./copy_from_private_repo.py <src> <tgt>")

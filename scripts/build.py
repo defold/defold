@@ -45,6 +45,11 @@ from queue import Queue
 from configparser import ConfigParser
 from BuildTimeTracker import BuildTimeTracker
 
+try:
+    import build_vendor
+except ImportError:
+    build_vendor = None
+
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
@@ -79,17 +84,35 @@ class build_private(object):
     _target_platform = None
 
     @classmethod
+    def _vendor_supports_platform(cls, platform):
+        return (build_vendor is not None
+                and platform
+                and hasattr(build_vendor, 'get_target_platforms')
+                and platform in build_vendor.get_target_platforms())
+
+    @classmethod
     def set_target_platform(cls, platform):
         cls._target_platform = platform
 
     @classmethod
     def _call(cls, platform, name, default, *args):
         platform = platform or cls._target_platform
-        return call_hook('build', platform, name, default, *args) if platform else default
+        if not platform:
+            return default
+        if has_hook_module('build', platform):
+            return call_hook('build', platform, name, default, *args)
+        if cls._vendor_supports_platform(platform):
+            func = getattr(build_vendor, name, None)
+            if func:
+                return func(*args)
+        return default
 
     @classmethod
     def get_target_platforms(cls):
-        return get_configured_platforms()
+        platforms = get_configured_platforms()
+        if build_vendor is not None and hasattr(build_vendor, 'get_target_platforms'):
+            platforms += build_vendor.get_target_platforms()
+        return list(dict.fromkeys(platforms))
 
     @classmethod
     def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
@@ -2348,7 +2371,13 @@ class Configuration(object):
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
         self.build_tracker.start_component(lib, platform)
-        self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
+
+        if lib in CMAKE_SUPPORT:
+            if platform == 'win32':
+                platform = 'x86-win32'
+            self._build_engine_lib_cmake(lib, platform, skip_tests, directory)
+        else:
+            self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
 
         self.build_tracker.end_component(lib, platform)
 
@@ -2361,6 +2390,28 @@ class Configuration(object):
             return join('.', 'gradlew.bat')
         else:  # Linux, macOS, or other Unix-like OS
             return join('.', 'gradlew')
+
+    def build_bob_plugins(self):
+        gradle = join('..', 'com.dynamo.cr.bob', os.name == 'nt' and 'gradlew.bat' or 'gradlew')
+        gradle_args = []
+        if self.verbose:
+            gradle_args += ['--info']
+
+        env = self._form_env()
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}'
+
+        for plugin_name in ('xbox', 'switch', 'playstation'):
+            plugin_dir = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.%s' % plugin_name)
+            if not os.path.isdir(plugin_dir):
+                continue
+
+            self.build_tracker.start_component('bob_plugin_%s' % plugin_name, self.host)
+
+            s = run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=plugin_dir, shell=True, env=env)
+            if self.verbose:
+                print(s)
+
+            self.build_tracker.end_component('bob_plugin_%s' % plugin_name, self.host)
 
     def _run_bob_copy_script(self):
         """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
@@ -2395,6 +2446,7 @@ class Configuration(object):
                 print (s)
         finally:
             self.build_tracker.end_component('bob_light', self.host)
+        self.build_bob_plugins()
 
     def build_engine(self):
         self.check_sdk()
@@ -2672,6 +2724,8 @@ class Configuration(object):
         else:
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
             run.command(" ".join([gradle] + flags + gradle_args + ['clean', 'install', 'testJar']), cwd = test_dir, shell = True, env = env, stdout = None)
+
+        self.build_bob_plugins()
 
     def test_bob(self):
         bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')

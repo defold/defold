@@ -138,6 +138,7 @@ public class ShaderProgramBuilder extends Builder {
         if(platformKey == null) {
             throw new CompileExceptionError("Unknown platform for shader program '" + resourceOutputPath + "'': " + platform);
         }
+        compileOptions.platform = platform;
 
         for (int i = 0; i < this.modulesDescs.size(); i++) {
             this.modulesDescs.get(i).source = this.modulePreprocessors.get(i).getCompiledSource();
@@ -646,6 +647,7 @@ public class ShaderProgramBuilder extends Builder {
             try (BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(outputPath))) {
 
                 IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+                compileOptions.platform = platform;
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
@@ -657,7 +659,7 @@ public class ShaderProgramBuilder extends Builder {
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
                 compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
 
-                if (platform.equals(Platform.X86_64PS4) || platform.equals(Platform.X86_64PS5))
+                if (outputPlatform == Platform.X86_64PS4 || outputPlatform == Platform.X86_64PS5)
                 {
                     compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_PSSL);
                 }
@@ -673,6 +675,7 @@ public class ShaderProgramBuilder extends Builder {
                     throw e;
                 }
             }
+            System.out.printf("Wrote '%s'\n", outputPath);
         }
     }
 }
