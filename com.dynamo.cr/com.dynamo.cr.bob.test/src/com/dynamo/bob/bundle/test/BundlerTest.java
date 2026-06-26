@@ -640,7 +640,9 @@ public class BundlerTest {
             expectedFiles.add("Contents/Resources/game.arci");
             expectedFiles.add("Contents/Resources/game.dmanifest");
             expectedFiles.add("Contents/Resources/game.projectc");
-            expectedFiles.add("Contents/_CodeSignature/CodeResources");
+            if (BundleHelper.isMacOS(Platform.getHostPlatform())) {
+                expectedFiles.add("Contents/_CodeSignature/CodeResources");
+            }
         }
         else if (platform == Platform.X86_64Linux)
         {

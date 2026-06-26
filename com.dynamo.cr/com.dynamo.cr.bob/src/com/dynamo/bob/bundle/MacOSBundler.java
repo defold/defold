@@ -199,21 +199,21 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        logger.info("Adding entitlements");
-        File entitlementsFile = BundleHelper.copyResourceToTempFile(project, variant.equals(Bob.VARIANT_DEBUG) ? "resources/macos/entitlements-debug.plist" : "resources/macos/entitlements-release.plist");
-        Result r = Exec.execResult(
-            "codesign",
-            "--deep",
-            "--force",
-            "--options", "runtime",
-            "--entitlements", entitlementsFile.getAbsolutePath(),
-            "--sign", "-",
-            appDir.getAbsolutePath());
-        if (r.ret != 0) {
-            logger.info("Error when adding entitlements: " + new String(r.stdOutErr));
-            throw new IOException(new String(r.stdOutErr));
+        if (BundleHelper.isMacOS(Platform.getHostPlatform())) {
+            logger.info("Adding entitlements");
+            File entitlementsFile = BundleHelper.copyResourceToTempFile(project, variant.equals(Bob.VARIANT_DEBUG) ? "resources/macos/entitlements-debug.plist" : "resources/macos/entitlements-release.plist");
+            Result r = Exec.execResult(
+                "codesign",
+                "--deep",
+                "--force",
+                "--options", "runtime",
+                "--entitlements", entitlementsFile.getAbsolutePath(),
+                "--sign", "-",
+                appDir.getAbsolutePath());
+            if (r.ret != 0) {
+                throw new IOException(new String(r.stdOutErr));
+            }
         }
-        logger.info("Added entitlements");
 
         BundleHelper.throwIfCanceled(canceled);
 
