@@ -451,12 +451,13 @@ jobs:
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
         run: 'ci/ci.sh gen-release-notes'
       },
+      { name: 'Read version', id: version, run: 'echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"' },
       {
         name: 'Upload release notes artifact',
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
         with: {
           name: 'release-notes',
-          path: "releasenotes/*.md\nreleasenotes/*.json",
+          path: "releasenotes/${{ steps.version.outputs.version }}.md\nreleasenotes/${{ steps.version.outputs.version }}.json",
           if-no-files-found: 'ignore'
         }
       },
