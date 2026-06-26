@@ -48,28 +48,10 @@ namespace dmGameSystem
     const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT                   = dmHashString64("pbrAlphaCutoffAndDoubleSidedAndIsUnlit");
     const dmhash_t PBR_COMMON_TEXTURES                                              = dmHashString64("pbrCommonTextures");
 
-    static const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_TEXTURE_SAMPLER         = dmHashString64("PbrMetallicRoughness_baseColorTexture");
-    static const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_ROUGHNESS_TEXTURE_SAMPLER = dmHashString64("PbrMetallicRoughness_metallicRoughnessTexture");
+    static dmRigDDF::Material g_DefaultMaterial;
+    static bool               g_DefaultMaterialInitialized = false;
 
-    static bool HasModelTexture(const MaterialInfo* material_info, dmhash_t sampler_name_hash)
-    {
-        if (!material_info)
-        {
-            return false;
-        }
-
-        for (uint32_t i = 0; i < material_info->m_TexturesCount; ++i)
-        {
-            if (material_info->m_Textures[i].m_SamplerNameHash == sampler_name_hash && material_info->m_Textures[i].m_Texture)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    static void InitDefaultPBRTextureView(dmRigDDF::TextureView& texture_view)
+    static inline void InitDefaultPBRTextureView(dmRigDDF::TextureView& texture_view)
     {
         texture_view.m_Texture.m_Index = -1;
         texture_view.m_Texcoord = -1;
@@ -117,6 +99,8 @@ namespace dmGameSystem
         material.m_Iridescence.m_Iridescencethicknessmin = 100.0f;
         material.m_Iridescence.m_Iridescencethicknessmax = 400.0f;
         material.m_Alphacutoff = 0.5f;
+
+        g_DefaultMaterialInitialized = true;
     }
 
     bool FillPBRConstants(ModelResource* resource, const MaterialInfo* material_info, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index)
@@ -130,9 +114,7 @@ namespace dmGameSystem
         }
 
         dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
-        dmRigDDF::Material default_material;
         const dmRigDDF::Material* ddf_material_ptr = 0;
-        bool using_default_material = false;
 
         if (material_index < mesh_set->m_Materials.m_Count)
         {
@@ -140,9 +122,13 @@ namespace dmGameSystem
         }
         else
         {
-            InitDefaultPBRMaterial(default_material);
-            ddf_material_ptr = &default_material;
-            using_default_material = true;
+            // If there is no material available from the glTF file,
+            // we need to use a default material so we can render at least something.
+            if (!g_DefaultMaterialInitialized)
+            {
+                InitDefaultPBRMaterial(g_DefaultMaterial);
+            }
+            ddf_material_ptr = &g_DefaultMaterial;
         }
 
         const dmRigDDF::Material& ddf_material = *ddf_material_ptr;
@@ -166,24 +152,16 @@ namespace dmGameSystem
             *     vec4 metallicRoughnessTextures;  // R: use baseColorTexture, G: use metallicRoughnessTexture
             * };
             *******************************************/
-            bool has_base_color_texture = ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index != -1;
-            bool has_metallic_roughness_texture = ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index != -1;
-
-            if (using_default_material)
-            {
-                has_base_color_texture = has_base_color_texture || HasModelTexture(material_info, PBR_METALLIC_ROUGHNESS_BASE_COLOR_TEXTURE_SAMPLER);
-                has_metallic_roughness_texture = has_metallic_roughness_texture || HasModelTexture(material_info, PBR_METALLIC_ROUGHNESS_METALLIC_ROUGHNESS_TEXTURE_SAMPLER);
-            }
-
             dmVMath::Vector4 metallic_roughness = dmVMath::Vector4(ddf_material.m_Pbrmetallicroughness.m_Metallicfactor, ddf_material.m_Pbrmetallicroughness.m_Roughnessfactor, 0.0f, 0.0f);
             dmGameSystem::SetRenderConstant(constants, PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, (dmVMath::Vector4*) &ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor, 1);
             dmGameSystem::SetRenderConstant(constants, PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, &metallic_roughness, 1);
 
-            if (has_base_color_texture || has_metallic_roughness_texture)
+            if (ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index != -1 ||
+                ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index != -1)
             {
                 dmVMath::Vector4 metallic_roughness_textures = dmVMath::Vector4(
-                    has_base_color_texture ? 1.0f : 0.0f,
-                    has_metallic_roughness_texture ? 1.0f : 0.0f, 0.0f, 0.0f);
+                    ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index != -1 ? 1.0f : 0.0f,
+                    ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index != -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
 
                 dmGameSystem::SetRenderConstant(constants, PBR_METALLIC_ROUGHNESS_TEXTURES, &metallic_roughness_textures, 1);
             }

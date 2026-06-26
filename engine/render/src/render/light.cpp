@@ -17,8 +17,8 @@
 
 namespace dmRender
 {
-    static const dmhash_t LIGHT_BUFFER_TYPE          = dmHashString64("LightBuffer");
-    static const dmhash_t LIGHT_MEMBER_TYPE          = dmHashString64("lights");
+    static const dmhash_t LIGHT_BUFFER_TYPE = dmHashString64("LightBuffer");
+    static const dmhash_t LIGHT_MEMBER_TYPE = dmHashString64("lights");
 
     static void CommitLightInstance(HRenderContext render_context, const LightInstance* instance, dmVMath::Point3 position, dmVMath::Vector3 direction, float scale);
     static void CommitLightInfo(HRenderContext render_context);
@@ -654,7 +654,7 @@ namespace dmRender
                                         light_buffer_binding);
     }
 
-    static void UnbindLightBuffer(HRenderContext render_context)
+    static inline void UnbindLightBuffer(HRenderContext render_context)
     {
         if (render_context->m_LightUniformBuffer)
         {
