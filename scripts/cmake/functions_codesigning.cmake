@@ -43,7 +43,11 @@ function(defold_codesign_target target entitlements)
         list(APPEND _defold_codesign_args --gcloud-keyfile "${DEFOLD_GCLOUD_KEYFILE}")
     endif()
     if(entitlements)
-        list(APPEND _defold_codesign_args --entitlements "${entitlements}")
+        if(IS_ABSOLUTE "${entitlements}")
+            list(APPEND _defold_codesign_args --codesigning_entitlements "${entitlements}")
+        else()
+            list(APPEND _defold_codesign_args --codesigning_entitlements "${CMAKE_CURRENT_SOURCE_DIR}/${entitlements}")
+        endif()
     endif()
 
     add_custom_command(TARGET "${target}" POST_BUILD
