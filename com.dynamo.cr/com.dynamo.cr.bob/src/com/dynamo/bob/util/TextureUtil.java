@@ -322,7 +322,12 @@ public class TextureUtil {
 
     // Called from bob and editor when building texture resources
     public static void writeGenerateResultToOutputStream(TextureGenerator.GenerateResult generateResult, OutputStream stream) throws IOException {
-        byte[] header = generateResult.textureImage.toByteArray();
+        writeGenerateResultToOutputStream(generateResult, stream, 1);
+    }
+
+    public static void writeGenerateResultToOutputStream(TextureGenerator.GenerateResult generateResult, OutputStream stream, int firstImageDataAlignment) throws IOException {
+        AlignedGenerateResult alignedGenerateResult = alignFirstImageData(generateResult, firstImageDataAlignment);
+        byte[] header = alignedGenerateResult.textureImage.toByteArray();
 
         ByteBuffer buffer = ByteBuffer.allocate(4);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
@@ -331,14 +336,22 @@ public class TextureUtil {
 
         stream.write(headerSizeInBytes);
         stream.write(header);
-        for (byte[] imageData : generateResult.imageDatas) {
+        if (alignedGenerateResult.prefixPadding.length > 0) {
+            stream.write(alignedGenerateResult.prefixPadding);
+        }
+        for (byte[] imageData : alignedGenerateResult.imageDatas) {
             stream.write(imageData);
         }
         stream.flush();
     }
 
     public static void writeGenerateResultToResource(TextureGenerator.GenerateResult generateResult, IResource resource) throws IOException {
-        byte[] header = generateResult.textureImage.toByteArray();
+        writeGenerateResultToResource(generateResult, resource, 1);
+    }
+
+    public static void writeGenerateResultToResource(TextureGenerator.GenerateResult generateResult, IResource resource, int firstImageDataAlignment) throws IOException {
+        AlignedGenerateResult alignedGenerateResult = alignFirstImageData(generateResult, firstImageDataAlignment);
+        byte[] header = alignedGenerateResult.textureImage.toByteArray();
 
         ByteBuffer buffer = ByteBuffer.allocate(4);
         buffer.order(ByteOrder.LITTLE_ENDIAN);
@@ -348,9 +361,59 @@ public class TextureUtil {
         resource.setContent(headerSizeInBytes);
         resource.appendContent(header);
 
-        for (byte[] imageData : generateResult.imageDatas) {
+        if (alignedGenerateResult.prefixPadding.length > 0) {
+            resource.appendContent(alignedGenerateResult.prefixPadding);
+        }
+        for (byte[] imageData : alignedGenerateResult.imageDatas) {
             resource.appendContent(imageData);
         }
+    }
+
+    private static class AlignedGenerateResult {
+        final TextureImage textureImage;
+        final ArrayList<byte[]> imageDatas;
+        final byte[] prefixPadding;
+
+        AlignedGenerateResult(TextureImage textureImage, ArrayList<byte[]> imageDatas, int prefixPaddingSize) {
+            this.textureImage = textureImage;
+            this.imageDatas = imageDatas;
+            this.prefixPadding = new byte[prefixPaddingSize];
+        }
+    }
+
+    private static AlignedGenerateResult alignFirstImageData(TextureGenerator.GenerateResult generateResult, int alignment) {
+        if (alignment <= 1 || generateResult.imageDatas.isEmpty() || generateResult.textureImage.getAlternativesCount() == 0) {
+            return new AlignedGenerateResult(generateResult.textureImage, generateResult.imageDatas, 0);
+        }
+
+        for (int padding = 0; padding < alignment; ++padding) {
+            TextureImage alignedTextureImage = addFirstImagePadding(generateResult.textureImage, padding);
+            int headerSize = alignedTextureImage.toByteArray().length;
+            int firstImageOffset = Integer.BYTES + headerSize + padding;
+            if (firstImageOffset % alignment == 0) {
+                return new AlignedGenerateResult(alignedTextureImage, generateResult.imageDatas, padding);
+            }
+        }
+
+        throw new IllegalStateException(String.format("Unable to align texture image data to %d bytes", alignment));
+    }
+
+    private static TextureImage addFirstImagePadding(TextureImage textureImage, int padding) {
+        if (padding == 0) {
+            return textureImage;
+        }
+
+        // The padding is part of the first alternative's data range; mip offsets skip over it at runtime.
+        TextureImage.Image firstImage = textureImage.getAlternatives(0);
+        TextureImage.Image.Builder firstImageBuilder = firstImage.toBuilder();
+        firstImageBuilder.setDataSize(firstImage.getDataSize() + padding);
+        for (int i = 0; i < firstImage.getMipMapOffsetCount(); ++i) {
+            firstImageBuilder.setMipMapOffset(i, firstImage.getMipMapOffset(i) + padding);
+        }
+
+        return textureImage.toBuilder()
+                .setAlternatives(0, firstImageBuilder)
+                .build();
     }
 
     public static TextureImage textureResourceBytesToTextureImage(byte[] content) throws InvalidProtocolBufferException {
