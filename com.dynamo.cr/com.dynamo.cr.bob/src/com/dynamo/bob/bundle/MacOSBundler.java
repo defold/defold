@@ -130,8 +130,9 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy bundle resources into .app folder
-        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+        // Copy bundle resources into the app's Resources folder. Files directly
+        // in the .app root are reported as unsealed contents by codesign.
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, resourcesDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -172,8 +173,9 @@ public class MacOSBundler implements IBundler {
         logger.info("Bundle binary: " + BundleHelper.getFileDescription(destExecutable));
 
         if (architectures.size() == 1) {
-            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
-            BundleHelper.copySharedLibraries(platform, binaryDir, macosDir);
+            Platform architecture = architectures.get(0);
+            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), architecture.getExtenderPair()));
+            BundleHelper.copySharedLibraries(architecture, binaryDir, macosDir);
         } else {
             BundleHelper.createFatLibrary(project, architectures, project.getBinaryOutputDirectory(), macosDir, canceled);
         }

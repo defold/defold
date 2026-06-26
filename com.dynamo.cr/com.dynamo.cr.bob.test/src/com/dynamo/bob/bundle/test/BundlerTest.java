@@ -139,6 +139,10 @@ public class BundlerTest {
         {
                 return String.format("Payload/%s.app/", projectName);
         }
+        else if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
+        {
+                return "Contents/Resources/";
+        }
         return "";
     }
 
@@ -636,6 +640,7 @@ public class BundlerTest {
             expectedFiles.add("Contents/Resources/game.arci");
             expectedFiles.add("Contents/Resources/game.dmanifest");
             expectedFiles.add("Contents/Resources/game.projectc");
+            expectedFiles.add("Contents/_CodeSignature/CodeResources");
         }
         else if (platform == Platform.X86_64Linux)
         {
