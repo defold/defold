@@ -558,6 +558,12 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
 
         dmGraphics::SetUniformBuffer(m_Context, ubo, 0, sizeof(ubo_data), &ubo_data);
         dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][0]);
+
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 1);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][1]);
 
         dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
         ASSERT_TRUE(null_ubo->m_UsedInDraw);
@@ -568,6 +574,10 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
         ASSERT_NEAR(written_floats[3], 8.0f, EPSILON);
 
         dmGraphics::DisableUniformBuffer(m_Context, ubo);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][1]);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundSet);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundBinding);
         dmGraphics::DisableProgram(m_Context);
         dmGraphics::DeleteUniformBuffer(m_Context, ubo);
     }
@@ -584,6 +594,9 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
 
         dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
         ASSERT_FALSE(null_ubo->m_UsedInDraw);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundSet);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundBinding);
 
         dmGraphics::DisableUniformBuffer(m_Context, ubo);
         dmGraphics::DisableProgram(m_Context);

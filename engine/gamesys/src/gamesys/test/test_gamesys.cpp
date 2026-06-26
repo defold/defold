@@ -8852,8 +8852,10 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material);
 
     dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) render_ctx->m_LightUniformBuffer;
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     ASSERT_NE((void*)0, ubo);
     ASSERT_NE((void*)0, ubo->m_Buffer);
+    ASSERT_EQ(ubo, null_context->m_UniformBuffers[material->m_LightBufferSet][material->m_LightBufferBinding]);
 
     Vector4 light_info_written;
     memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
@@ -8873,9 +8875,22 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
     ASSERT_EQ(4u, small_material->m_LightBufferCapacity);
 
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, small_material);
+    ASSERT_EQ(ubo, null_context->m_UniformBuffers[small_material->m_LightBufferSet][small_material->m_LightBufferBinding]);
     memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
     ASSERT_VEC4(Vector4(0.5f, 1.0f, 1.5f, 10.0f), light_info_written);
 
+    dmGameSystem::MaterialResource* unlit_material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/valid.materialc", (void**) &unlit_material_res));
+    ASSERT_NE((void*)0, unlit_material_res);
+    dmRender::HMaterial unlit_material = unlit_material_res->m_Material;
+    ASSERT_NE((void*)0, unlit_material);
+    ASSERT_FALSE(unlit_material->m_HasLightBuffer);
+
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, unlit_material);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[material->m_LightBufferSet][material->m_LightBufferBinding]);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[small_material->m_LightBufferSet][small_material->m_LightBufferBinding]);
+
+    dmResource::Release(m_Factory, (void*) unlit_material_res);
     dmResource::Release(m_Factory, (void*) small_material_res);
     dmResource::Release(m_Factory, (void*) material_res);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
