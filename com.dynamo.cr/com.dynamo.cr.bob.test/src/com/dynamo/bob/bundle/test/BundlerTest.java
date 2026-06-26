@@ -597,8 +597,8 @@ public class BundlerTest {
 
     @Test
     public void testDependenciesMetadataResource() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, NoSuchAlgorithmException {
-        final String sourceData = "[ {\n  \"url\" : \"https://example.com/library.zip\",\n  \"payload-md5\" : \"0123456789ABCDEF0123456789ABCDEF\"\n} ]";
-        final String expectedData = "[{\"url\":\"https://example.com/library.zip\",\"payload-md5\":\"0123456789ABCDEF0123456789ABCDEF\"}]";
+        final String sourceData = "[ {\n  \"url\" : \"https://example.com/library.zip\",\n  \"payload-sha1\" : \"0123456789abcdef0123456789abcdef01234567\"\n} ]";
+        final String expectedData = "[{\"url\":\"https://example.com/library.zip\",\"payload-sha1\":\"0123456789abcdef0123456789abcdef01234567\"}]";
         createDefaultFiles(contentRoot);
         createFile(contentRoot, "game.project", "[project]\ndependencies_metadata=1\ncompress_archive=0\n[display]\nwidth=640\nheight=480\n");
         writeDependenciesMetadata(sourceData);
@@ -619,8 +619,8 @@ public class BundlerTest {
 
     @Test
     public void testDependenciesMetadataCopiedToContentBuildDirectory() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        final String sourceData = "[ {\n  \"url\" : \"https://example.com/library.zip\",\n  \"payload-md5\" : \"0123456789ABCDEF0123456789ABCDEF\"\n} ]";
-        final String expectedData = "[{\"url\":\"https://example.com/library.zip\",\"payload-md5\":\"0123456789ABCDEF0123456789ABCDEF\"}]";
+        final String sourceData = "[ {\n  \"url\" : \"https://example.com/library.zip\",\n  \"payload-sha1\" : \"0123456789abcdef0123456789abcdef01234567\"\n} ]";
+        final String expectedData = "[{\"url\":\"https://example.com/library.zip\",\"payload-sha1\":\"0123456789abcdef0123456789abcdef01234567\"}]";
         File buildMetadataFile = new File(contentRoot, "build/" + DependencyMetadata.OUTPUT_PATH);
         File legacyBuildMetadataFile = new File(contentRoot, "build/" + DependencyMetadata.PROJECT_PATH);
 

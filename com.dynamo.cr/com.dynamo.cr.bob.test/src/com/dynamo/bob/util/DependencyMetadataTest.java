@@ -35,17 +35,6 @@ public class DependencyMetadataTest {
     }
 
     @Test
-    public void testReleaseVersion() {
-        assertEquals("3.10.0", DependencyMetadata.releaseVersion(URI.create("https://github.com/defold/extension-spine/archive/refs/tags/3.10.0.zip")));
-        assertEquals("v1.2.0", DependencyMetadata.releaseVersion(URI.create("https://github.com/defold/extension-simpledata/releases/download/v1.2.0/extension-simpledata.zip")));
-        assertEquals("8.4.1", DependencyMetadata.releaseVersion(URI.create("https://github.com/company/extension-name/releases/8.4.1.zip")));
-        assertEquals("Alpha_v2.2", DependencyMetadata.releaseVersion(URI.create("https://github.com/Jrayp/Moku/archive/Alpha_v2.2.zip")));
-        assertNull(DependencyMetadata.releaseVersion(URI.create("https://github.com/defold/extension-spine/releases/latest/download/extension-spine.zip")));
-        assertNull(DependencyMetadata.releaseVersion(URI.create("https://github.com/defold/template-empty/archive/master.zip")));
-        assertNull(DependencyMetadata.releaseVersion(URI.create("https://github.com/defold/template-empty/archive/refs/heads/main.zip")));
-    }
-
-    @Test
     public void testFirstSha1() {
         assertEquals(
                 "0123456789abcdef0123456789abcdef01234567",

@@ -220,7 +220,7 @@ public class ProjectTest {
     }
 
     @Test
-    public void testResolveHandlesMixedSuccessAndFailure() {
+    public void testResolveHandlesMixedSuccessAndFailure() throws Exception {
         var mixedLibraryUrls = new ArrayList<>(libraryUrls);
         var missingUri = URI.create("http://localhost:8081/missing.zip");
         mixedLibraryUrls.add(missingUri);
@@ -248,6 +248,15 @@ public class ProjectTest {
             }
         }
         assertTrue(missingSeen);
+
+        File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        assertTrue(metadataFile.exists());
+        ObjectMapper mapper = new ObjectMapper();
+        List<Map<String, String>> metadataDependencies = mapper.readValue(metadataFile, List.class);
+        Map<String, String> missingDependency = findDependency(metadataDependencies, "http://localhost:8081/missing.zip");
+        assertEquals("failed_http_request", missingDependency.get("problem"));
+        assertEquals("", missingDependency.get("commit-sha1"));
+        assertFalse(missingDependency.containsKey("payload-sha1"));
     }
 
     @Test
@@ -278,26 +287,27 @@ public class ProjectTest {
     }
 
     @Test
-    public void testMountWritesDependencyMetadata() throws Exception {
+    public void testResolveWritesDependencyMetadata() throws Exception {
         project.resolveLibUrls(Progress.discarding());
-        project.mount(new ClassLoaderResourceScanner());
 
         File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
         assertTrue(metadataFile.exists());
 
         ObjectMapper mapper = new ObjectMapper();
-        List<Map<String, String>> dependencies = mapper.readValue(metadataFile, List.class);
-        Map<String, String> testLib1 = findDependency(dependencies, "http://localhost:8081/test_lib1.zip");
-        assertEquals("", testLib1.get("version"));
+        List<Map<String, String>> metadataDependencies = mapper.readValue(metadataFile, List.class);
+        Map<String, String> testLib1 = findDependency(metadataDependencies, "http://localhost:8081/test_lib1.zip");
+        assertFalse(testLib1.containsKey("version"));
         assertNull(testLib1.get("zip_comment"));
         assertNull(testLib1.get("sha1"));
         assertEquals("0123456789abcdef0123456789abcdef01234567", testLib1.get("commit-sha1"));
-        assertNull(testLib1.get("payload_md5"));
-        assertNull(testLib1.get("md5"));
-        assertNotNull(testLib1.get("payload-md5"));
+        assertFalse(testLib1.containsKey("payload_md5"));
+        assertFalse(testLib1.containsKey("md5"));
+        assertFalse(testLib1.containsKey("payload-md5"));
+        assertNotNull(testLib1.get("payload-sha1"));
+        assertTrue(testLib1.get("payload-sha1").matches("[0-9a-f]{40}"));
 
-        Map<String, String> testLib5 = findDependency(dependencies, "http://localhost:8081/test_lib5.zip");
-        assertEquals("", testLib5.get("version"));
+        Map<String, String> testLib5 = findDependency(metadataDependencies, "http://localhost:8081/test_lib5.zip");
+        assertFalse(testLib5.containsKey("version"));
         assertNull(testLib5.get("zip_comment"));
         assertNull(testLib5.get("sha1"));
         assertEquals("", testLib5.get("commit-sha1"));
@@ -307,7 +317,7 @@ public class ProjectTest {
         try {
             BuildInputDataCollector.saveDataAsJson(project.getRootDirectory(), buildInputOutputDir, "test-sdk", metadataFile);
             Map<String, Object> buildInputData = mapper.readValue(new File(buildInputOutputDir, "build_input_data.json"), Map.class);
-            assertEquals(dependencies, buildInputData.get("dependencies"));
+            assertEquals(metadataDependencies, buildInputData.get("dependencies"));
             List<Map<String, String>> buildInputDependencies = (List<Map<String, String>>) buildInputData.get("dependencies");
             Map<String, String> buildInputTestLib1 = findDependency(buildInputDependencies, "http://localhost:8081/test_lib1.zip");
             assertNull(buildInputTestLib1.get("link"));
@@ -323,7 +333,19 @@ public class ProjectTest {
     }
 
     @Test
-    public void testMountRemovesDependencyMetadataWithoutDependencies() throws Exception {
+    public void testResolveRemovesDependencyMetadataWithoutDependencies() throws Exception {
+        project.setLibUrls(new ArrayList<URI>());
+        File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        Files.createDirectories(metadataFile.getParentFile().toPath());
+        Files.write(metadataFile.toPath(), "stale".getBytes());
+
+        project.resolveLibUrls(Progress.discarding());
+
+        assertFalse(metadataFile.exists());
+    }
+
+    @Test
+    public void testMountDoesNotRemoveDependencyMetadataWithoutDependencies() throws Exception {
         project.setLibUrls(new ArrayList<URI>());
         File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
         Files.createDirectories(metadataFile.getParentFile().toPath());
@@ -331,17 +353,16 @@ public class ProjectTest {
 
         project.mount(new ClassLoaderResourceScanner(), Library.cached(new ArrayList<URI>(), Paths.get(project.getLibPath())));
 
-        assertFalse(metadataFile.exists());
+        assertTrue(metadataFile.exists());
     }
 
     @Test
-    public void testMountRemovesDependencyMetadataWhenDisabled() throws Exception {
+    public void testResolveWritesDependencyMetadataWhenDisabled() throws Exception {
         project.getProjectProperties().putBooleanValue("project", "dependencies_metadata", false);
         project.resolveLibUrls(Progress.discarding());
-        project.mount(new ClassLoaderResourceScanner());
 
         File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
-        assertFalse(metadataFile.exists());
+        assertTrue(metadataFile.exists());
     }
 
     private Map<String, String> findDependency(List<Map<String, String>> dependencies, String url) {

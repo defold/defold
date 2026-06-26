@@ -24,11 +24,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -97,18 +97,12 @@ public final class DependencyMetadata {
             var dependencyEntry = new LinkedHashMap<String, String>();
             dependencyEntry.put("url", anonymizedUrl(dependency.uri()));
 
-            var version = releaseVersion(dependency.uri());
-            dependencyEntry.put("version", version == null ? "" : version);
-
             var archive = dependency.archive();
             var sha1 = archive == null ? null : firstSha1(archive.zipComment());
             dependencyEntry.put("commit-sha1", sha1 == null ? "" : sha1);
 
             if (archive != null) {
-                var md5 = fileMd5(archive.path());
-                if (md5 != null) {
-                    dependencyEntry.put("payload-md5", md5);
-                }
+                dependencyEntry.put("payload-sha1", fileSha1(archive.path()));
             }
 
             if (dependency.problem() != null) {
@@ -134,34 +128,6 @@ public final class DependencyMetadata {
         }
     }
 
-    static String releaseVersion(URI uri) {
-        var path = uri.getPath();
-        if (path == null || path.isBlank()) {
-            return null;
-        }
-
-        var segments = path.split("/");
-        for (var i = 0; i < segments.length; ++i) {
-            if (segments[i].equals("releases")) {
-                if (i + 2 < segments.length && segments[i + 1].equals("download")) {
-                    return releaseVersionSegment(segments[i + 2]);
-                }
-                if (i + 1 < segments.length) {
-                    return releaseVersionSegment(segments[i + 1]);
-                }
-            }
-            if (segments[i].equals("archive")) {
-                if (i + 3 < segments.length && segments[i + 1].equals("refs") && segments[i + 2].equals("tags")) {
-                    return releaseVersionSegment(segments[i + 3]);
-                }
-                if (i + 1 < segments.length) {
-                    return releaseVersionSegment(segments[i + 1]);
-                }
-            }
-        }
-        return null;
-    }
-
     static String firstSha1(String text) {
         if (text == null) {
             return null;
@@ -170,41 +136,10 @@ public final class DependencyMetadata {
         return matcher.find() ? matcher.group().toLowerCase() : null;
     }
 
-    private static String versionSegment(String segment) {
-        if (segment == null || segment.isBlank()) {
-            return null;
-        }
-        return stripArchiveExtension(segment);
-    }
-
-    private static String releaseVersionSegment(String segment) {
-        var version = versionSegment(segment);
-        return looksLikeVersion(version) ? version : null;
-    }
-
-    private static String stripArchiveExtension(String segment) {
-        if (segment.endsWith(".tar.gz")) {
-            return segment.substring(0, segment.length() - ".tar.gz".length());
-        }
-        if (segment.endsWith(".tgz")) {
-            return segment.substring(0, segment.length() - ".tgz".length());
-        }
-        if (segment.endsWith(".zip")) {
-            return segment.substring(0, segment.length() - ".zip".length());
-        }
-        return segment;
-    }
-
-    private static boolean looksLikeVersion(String version) {
-        return version != null && version.matches(".*\\d.*") && !version.matches("(?i)[0-9a-f]{40}");
-    }
-
-    private static String fileMd5(Path path) {
+    private static String fileSha1(Path path) {
         try {
-            byte[] fileBytes = Files.readAllBytes(path);
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            md.update(fileBytes);
-            return DatatypeConverter.printHexBinary(md.digest()).toUpperCase();
+            var sha1 = FileUtil.calculateSha1(path.toFile());
+            return DatatypeConverter.printHexBinary(sha1).toLowerCase(Locale.ROOT);
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate dependencies info", e);
         }

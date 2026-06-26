@@ -46,7 +46,7 @@ public class CopyCustomResourcesBuilder extends Builder {
 
     public static IResource getDependencyMetadataInputResource(Project project) {
         BobProjectProperties properties = project.getProjectProperties();
-        if (properties.getBooleanValue("project", "dependencies_metadata", true)) {
+        if (properties.getBooleanValue("project", "dependencies_metadata", false)) {
             IResource dependenciesMetadata = project.getResource(DependencyMetadata.PROJECT_PATH);
             if (dependenciesMetadata.exists()) {
                 return dependenciesMetadata;

@@ -391,13 +391,13 @@
 
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
-        dependencies (project/read-dependencies game-project-resource)
-        include-dependencies-metadata (project/read-dependencies-metadata-setting game-project-resource)]
+        project-directory (workspace/project-directory workspace)
+        dependencies (project/read-dependencies game-project-resource)]
     (->> (library/fetch!
-           (workspace/project-directory workspace)
+           project-directory
            dependencies
-           progress/null-render-progress!
-           include-dependencies-metadata)
+           progress/null-render-progress!)
+         (project/sync-dependencies-metadata! project-directory)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
@@ -406,7 +406,8 @@
        (workspace/set-project-dependencies! workspace)))
 
 (defn set-libraries! [workspace library-uris]
-  (let [library-uris
+  (let [project-directory (workspace/project-directory workspace)
+        library-uris
         (mapv (fn [value]
                 (cond
                   (instance? URI value) value
@@ -416,10 +417,10 @@
                                         {:library-uris library-uris}))))
               library-uris)]
     (->> (library/fetch!
-           (workspace/project-directory workspace)
+           project-directory
            library-uris
-           progress/null-render-progress!
-           true)
+           progress/null-render-progress!)
+         (project/sync-dependencies-metadata! project-directory)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 

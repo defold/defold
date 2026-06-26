@@ -906,9 +906,10 @@
       (.mkdirs (.getParentFile source-metadata-file))
       (spit source-metadata-file "[ {\n  \"url\" : \"https://example.com/library.zip\"\n} ]")
       (try
-        (is (nil? (:error (project-build! project game-project))))
-        (is (= "[{\"url\":\"https://example.com/library.zip\"}]"
-               (slurp build-metadata-file)))
+        (with-setting "project/dependencies_metadata" true
+          (is (nil? (:error (project-build! project game-project))))
+          (is (= "[{\"url\":\"https://example.com/library.zip\"}]"
+                 (slurp build-metadata-file))))
         (with-setting "project/dependencies_metadata" false
           (is (nil? (:error (project-build! project game-project))))
           (is (false? (.exists build-metadata-file))))

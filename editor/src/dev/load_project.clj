@@ -164,6 +164,7 @@
         game-project-file (io/file project-directory "game.project")
         dependencies (project/read-dependencies game-project-file)
         library-results (library/fetch! project-directory dependencies progress/null-render-progress!)]
+    (project/sync-dependencies-metadata! project-directory library-results)
     (workspace/set-project-dependencies! workspace library-results)))
 
 (defonce start-allocated-bytes (du/allocated-bytes runtime))
@@ -281,7 +282,7 @@
         (let [build-results
               (run-and-measure-task!
                 :build-build-targets
-                (build/build-build-targets! all-build-targets workspace {} progress/null-render-progress! evaluation-context))]
+                (build/build-build-targets! all-build-targets project workspace {} progress/null-render-progress! evaluation-context))]
           (when-some [error-value (:error build-results)]
             (doseq [error-line (string/split-lines (localization (g/error-message error-value)))]
               (log/error :message "build-failure" :cause error-line)))

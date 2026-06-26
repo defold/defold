@@ -125,13 +125,14 @@
                   or (:node-id (test-util/outline int-gui [0 0 0]))]
               (is (= [or] (g/overrides original))))))))))
 
-(defn- fetch-libraries! [workspace library-uris render-fn include-dependencies-metadata]
-  (->> (library/fetch!
-         (workspace/project-directory workspace)
-         library-uris
-         render-fn
-         include-dependencies-metadata)
-       (workspace/set-project-dependencies! workspace))
+(defn- fetch-libraries! [workspace library-uris render-fn]
+  (let [project-directory (workspace/project-directory workspace)]
+    (->> (library/fetch!
+           project-directory
+           library-uris
+           render-fn)
+         (project/sync-dependencies-metadata! project-directory)
+         (workspace/set-project-dependencies! workspace)))
   (workspace/resource-sync! workspace))
 
 (deftest fetch-libraries
@@ -147,17 +148,18 @@
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-libraries! workspace (project/project-dependencies project) identity true)
+        (fetch-libraries! workspace (project/project-dependencies project) identity)
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         (is (true? (.isFile dependency-metadata-file)))
         (is (true? (.contains (slurp dependency-metadata-file) uri)))
-        ;; disable dependency metadata, fetch libraries, we should remove the metadata file
+        ;; disable dependency metadata, fetch libraries, we should still update the metadata file
         (game-project/set-setting! game-project ["project" "dependencies_metadata"] false)
-        (fetch-libraries! workspace (project/project-dependencies project) identity false)
-        (is (false? (.exists dependency-metadata-file)))
+        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (is (true? (.isFile dependency-metadata-file)))
         ;; remove dependency again, fetch libraries, we should no longer have the file
         (game-project/set-setting! game-project ["project" "dependencies"] nil)
-        (fetch-libraries! workspace (project/project-dependencies project) identity true)
+        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (is (false? (.exists dependency-metadata-file)))
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-library-archive-with-nesting
@@ -170,7 +172,7 @@
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-libraries! workspace (project/project-dependencies project) identity true)
+        (fetch-libraries! workspace (project/project-dependencies project) identity)
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-local-extension-dir
@@ -189,10 +191,10 @@
         (let [results (library/fetch!
                         project-directory
                         (project/read-dependencies game-project-resource)
-                        progress/null-render-progress!
-                        true)
+                        progress/null-render-progress!)
               result ^Library$Result (first results)
               archive ^Library$Archive (.archive result)]
+          (project/sync-dependencies-metadata! project-directory results)
           (is (not= original-uri (.uri result)))
           (is (= "localhost" (.getHost ^URI (.uri result))))
           (is (not= (.toPath expected-library-file) (.path archive)))

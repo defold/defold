@@ -864,17 +864,20 @@ public class Project implements AutoCloseable {
                 this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, archive));
             }
         }
-        boolean includeDependenciesMetadata = projectProperties.getBooleanValue("project", "dependencies_metadata", true);
-        if (!dependencies.isEmpty() && includeDependenciesMetadata) {
-            DependencyMetadata.saveAsJson(libPath, dependencies);
-        } else {
-            DependencyMetadata.deleteJson(libPath);
-        }
 
         var problematicResults = dependencies.stream().filter(x -> x.problem() != null).toList();
         if (!problematicResults.isEmpty()) {
             logWarning("There are some problems with the libraries, using the resolve command to fetch them might help.");
             problematicResults.forEach(result -> logWarning("- %s", libraryResultMessage(result)));
+        }
+    }
+
+    private void syncDependencyMetadata(List<Library.Result> dependencies) {
+        Path libPath = Paths.get(getLibPath());
+        if (!dependencies.isEmpty()) {
+            DependencyMetadata.saveAsJson(libPath, dependencies);
+        } else {
+            DependencyMetadata.deleteJson(libPath);
         }
     }
 
@@ -1951,7 +1954,7 @@ public class Project implements AutoCloseable {
                 FilenameUtils.concat(rootDirectory, buildDirectory),
                 DependencyMetadata.OUTPUT_PATH));
 
-        boolean includeDependenciesMetadata = projectProperties.getBooleanValue("project", "dependencies_metadata", true);
+        boolean includeDependenciesMetadata = projectProperties.getBooleanValue("project", "dependencies_metadata", false);
         File sourceMetadataFile = new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME);
         if (!includeDependenciesMetadata || !sourceMetadataFile.exists()) {
             Files.deleteIfExists(buildMetadataFile.toPath());
@@ -2201,6 +2204,7 @@ public class Project implements AutoCloseable {
     public List<Library.Result> resolveLibUrls(IProgress progress) throws LibraryException {
         try (progress) {
             List<Library.Result> resolvedLibs = Library.fetch(libUrls, Paths.get(getLibPath()), this.options.get("email"), this.options.get("auth"), progress);
+            syncDependencyMetadata(resolvedLibs);
             for (var dependency : resolvedLibs) {
                 if (dependency.problem() != null) {
                     throw new LibraryException(libraryResultMessage(dependency));
