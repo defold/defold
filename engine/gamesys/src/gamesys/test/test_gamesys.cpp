@@ -9813,11 +9813,9 @@ TEST_F(ModelTest, PbrProperties)
     GetModelComponentRenderConstants(component, 0, &render_constants);
     ASSERT_NE((dmGameSystem::HComponentRenderConstants) 0, render_constants);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
-    values = dmRender::GetConstantValues(constant, &num_values);
-    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
-    ASSERT_VEC4(exp, values[0]);
-
+    // The no-material fallback uses default PBR material properties. Model-level texture
+    // bindings do not create PBR texture presence constants without glTF material entries.
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
     ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
