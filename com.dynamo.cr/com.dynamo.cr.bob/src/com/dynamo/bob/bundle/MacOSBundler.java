@@ -210,8 +210,10 @@ public class MacOSBundler implements IBundler {
             "--sign", "-",
             appDir.getAbsolutePath());
         if (r.ret != 0) {
+            logger.info("Error when adding entitlements: " + new String(r.stdOutErr));
             throw new IOException(new String(r.stdOutErr));
         }
+        logger.info("Added entitlements");
 
         BundleHelper.throwIfCanceled(canceled);
 
