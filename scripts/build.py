@@ -3163,23 +3163,17 @@ class Configuration(object):
 
     def _upload_editor_release_notes(self, bucket, required = False):
         # Publishes the update dialog's release notes for the current channel:
-        #   - release-notes.json            legacy single file (older editors)
         #   - release-notes/<version>.json  per-version, accumulates across releases
         #   - release-notes/manifest.json   ordered version list the editor walks
         # Alpha/dev builds don't ship notes, but beta/stable releases must fail
         # before the channel pointer moves if notes are absent.
         json_content = self._build_editor_release_notes()
         if json_content is None:
-            message = "No release-notes.json for %s in releasenotes/" % self.version
+            message = "No release notes for %s in releasenotes/" % self.version
             if required:
                 self.fatal(message)
             self._log("%s; skipping upload" % message)
             return
-
-        # Legacy single-file source (older editors read this path directly).
-        json_obj = bucket.Object('editor2/channels/%s/release-notes.json' % self.channel)
-        self._log("Uploading release-notes.json for %s -> %s" % (self.version, json_obj.key))
-        json_obj.put(Body=json_content, ContentType='application/json')
 
         # Per-version file (accumulates; one immutable file per release).
         version_obj = bucket.Object('editor2/channels/%s/release-notes/%s.json' % (self.channel, self.version))
@@ -3189,7 +3183,8 @@ class Configuration(object):
         self._update_release_notes_manifest(bucket)
 
     def upload_editor_release_notes(self):
-        # Manual: upload release-notes.json for --version to S3 for --channel.
+        # Manual: upload the editor release notes for --version to S3 for --channel
+        # (per-version file + manifest).
         #   ./scripts/build.py --channel beta --version 1.13.0 upload_editor_release_notes
         if self.channel is None:
             self._log("No channel specified! Pass --channel")
@@ -3251,7 +3246,7 @@ class Configuration(object):
                                                  'sha1' : release_sha1})
         new_obj.put(Body=new_obj_content, ContentType='application/json')
 
-        # Editor release-notes.json (the update dialog's source) must land before
+        # The editor release notes (the update dialog's source) must land before
         # update-v4.json points users at the new sha1.
         # DEV-ONLY (issue-7186 validation): 'release-notes-view' requires notes so
         # the disposable channel exercises the full path. Remove before merge.

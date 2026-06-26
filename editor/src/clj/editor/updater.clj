@@ -150,29 +150,18 @@
   (fetch-json! (format (get-in connection-properties [:updater :release-notes-version-url-template])
                        archive-domain channel version)))
 
-(defn- fetch-legacy-release-notes! [archive-domain channel]
-  (fetch-json! (format (get-in connection-properties [:updater :release-notes-url-template])
-                       archive-domain channel)))
-
 (defn fetch-release-notes!
   "Downloads the release notes to show for the available update. Reads the
   channel manifest, selects the versions between the running editor version and
   the update (newest first, capped at `release-notes-range-limit`), and fetches
   those per-version notes in parallel. Returns a vector of release-notes maps
-  (newest first), or nil if nothing could be fetched.
-
-  Falls back to the legacy single release-notes.json when the manifest is absent
-  (channels that predate per-version publishing)."
+  (newest first), or nil if nothing could be fetched."
   [archive-domain channel]
-  (or (when-some [manifest (fetch-manifest! archive-domain channel)]
-        (let [versions (versions-to-fetch (filter string? manifest) (system/defold-version))]
-          (-> (coll/pmapv #(fetch-version-notes! archive-domain channel %) versions)
-              (->> (filterv some?))
-              not-empty)))
-      ;; No manifest (channels predating per-version publishing), or it yielded
-      ;; nothing fetchable -> fall back to the legacy single latest file.
-      (when-some [notes (fetch-legacy-release-notes! archive-domain channel)]
-        [notes])))
+  (when-some [manifest (fetch-manifest! archive-domain channel)]
+    (let [versions (versions-to-fetch (filter string? manifest) (system/defold-version))]
+      (-> (coll/pmapv #(fetch-version-notes! archive-domain channel %) versions)
+          (->> (filterv some?))
+          not-empty))))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
