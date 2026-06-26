@@ -287,10 +287,6 @@ public class GameProjectBuilder extends Builder {
                 graph.add(resource);
             }
         }
-        for (String path : CopyCustomResourcesBuilder.getCustomResourcePaths(project)) {
-            IResource resource = project.getResource(path);
-            graph.add(resource);
-        }
         if (CopyCustomResourcesBuilder.getDependencyMetadataInputResource(project) != null) {
             graph.add(project.getResource(DependencyMetadata.OUTPUT_PATH));
         }
