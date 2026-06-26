@@ -142,6 +142,9 @@ def sign_macos_file(options, file):
         sys.exit(1)
 
     if file.endswith(".app"):
+        if not options.codesigning_entitlements:
+            log("No entitlements specified for signing %s" % file)
+            sys.exit(1)
         run.command([
             'codesign',
             '--deep',
@@ -150,7 +153,10 @@ def sign_macos_file(options, file):
             '--entitlements', options.codesigning_entitlements,
             '--sign', certificate,
             file])
-    elif file.startswith("dmengine"):
+    elif os.path.basename(file).startswith("dmengine"):
+        if not options.codesigning_entitlements:
+            log("No entitlements specified for signing %s" % file)
+            sys.exit(1)
         run.command([
             'codesign',
             '--force',
@@ -196,7 +202,7 @@ def _main():
                       help='Google Cloud certificate chain file')
     parser.add_option('--gcloud-keyfile', dest='gcloud_keyfile',
                       help='Google Cloud service account key file')
-    parser.add_option('--entitlements', dest='entitlements',
+    parser.add_option('--codesigning_entitlements', dest='codesigning_entitlements',
                       help='Apple codesigning entitlements')
 
     options, _args = parser.parse_args()
