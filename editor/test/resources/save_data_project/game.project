@@ -65,6 +65,7 @@ write_log = 1
 write_log_file = 1
 minimum_log_level = 2
 compress_archive = 1
+dependencies_metadata = 1
 custom_resources = /referenced/custom
 bundle_resources = /referenced/bundle
 bundle_exclude_resources = /referenced/bundle/log.txt
