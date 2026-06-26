@@ -3294,18 +3294,16 @@
   (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
-  (let [library-uris (project/project-dependencies project)
-        project-directory (workspace/project-directory workspace)]
+  (let [library-uris (project/project-dependencies project)]
     (future/io
       (try
         (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
           (let [lib-results (library/fetch!
-                              project-directory
+                              (workspace/project-directory workspace)
                               library-uris
                               render-fetch-progress!)
                 render-install-progress! (make-render-task-progress :resource-sync)]
             (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
-            (project/sync-dependencies-metadata! project-directory lib-results)
             (ui/run-now (workspace/set-project-dependencies! workspace lib-results))
             (if-not (let [reload-completed (promise)]
                       (disk/async-reload! render-install-progress! workspace [] changes-view reload-completed)

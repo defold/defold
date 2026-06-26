@@ -127,6 +127,7 @@ public final class Library {
                         results.add(new Result(uri, cachedByUri.get(uri).result().archive(), new Problem.FetchFailed()));
                     }
                 }
+                syncDependencyMetadata(libDir, results);
                 return results;
             } catch (InterruptedException | ExecutionException | IOException e) {
                 if (e instanceof InterruptedException) {
@@ -138,10 +139,19 @@ public final class Library {
                 for (var uri : uniqueUris) {
                     results.add(new Result(uri, cachedByUri.get(uri).result().archive(), fetchProblem(e)));
                 }
+                syncDependencyMetadata(libDir, results);
                 return results;
             } finally {
                 executor.shutdownNow();
             }
+        }
+    }
+
+    private static void syncDependencyMetadata(Path libDir, List<Result> dependencies) {
+        if (!dependencies.isEmpty()) {
+            DependencyMetadata.saveAsJson(libDir, dependencies);
+        } else {
+            DependencyMetadata.deleteJson(libDir);
         }
     }
 

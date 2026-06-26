@@ -164,7 +164,6 @@
         game-project-file (io/file project-directory "game.project")
         dependencies (project/read-dependencies game-project-file)
         library-results (library/fetch! project-directory dependencies progress/null-render-progress!)]
-    (project/sync-dependencies-metadata! project-directory library-results)
     (workspace/set-project-dependencies! workspace library-results)))
 
 (defonce start-allocated-bytes (du/allocated-bytes runtime))

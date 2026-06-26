@@ -872,15 +872,6 @@ public class Project implements AutoCloseable {
         }
     }
 
-    private void syncDependencyMetadata(List<Library.Result> dependencies) {
-        Path libPath = Paths.get(getLibPath());
-        if (!dependencies.isEmpty()) {
-            DependencyMetadata.saveAsJson(libPath, dependencies);
-        } else {
-            DependencyMetadata.deleteJson(libPath);
-        }
-    }
-
     /**
      * Match resource name by resource list. Comparison is case-insensitive and stripped by resource path and extension.
      * @param resource resource
@@ -2204,7 +2195,6 @@ public class Project implements AutoCloseable {
     public List<Library.Result> resolveLibUrls(IProgress progress) throws LibraryException {
         try (progress) {
             List<Library.Result> resolvedLibs = Library.fetch(libUrls, Paths.get(getLibPath()), this.options.get("email"), this.options.get("auth"), progress);
-            syncDependencyMetadata(resolvedLibs);
             for (var dependency : resolvedLibs) {
                 if (dependency.problem() != null) {
                     throw new LibraryException(libraryResultMessage(dependency));

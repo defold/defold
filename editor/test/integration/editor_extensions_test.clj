@@ -805,12 +805,10 @@ resource exists after failed fetch: false
           :display-output! #(doto out (.append %2) (.append \newline))
           :fetch-libraries! (fn fetch-libraries! []
                               (future/io
-                                (let [project-directory (workspace/project-directory workspace)
-                                      lib-results (library/fetch!
-                                                    project-directory
+                                (let [lib-results (library/fetch!
+                                                    (workspace/project-directory workspace)
                                                     (project/project-dependencies project)
                                                     progress/null-render-progress!)]
-                                  (project/sync-dependencies-metadata! project-directory lib-results)
                                   (ui/run-now
                                     (workspace/set-project-dependencies! workspace lib-results)
                                     (workspace/resource-sync! workspace [] progress/null-render-progress!))

@@ -58,8 +58,7 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.thread-util :as thread-util])
-  (:import [com.dynamo.bob.util DependencyMetadata]
-           [java.io File FileNotFoundException]
+  (:import [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))
 
@@ -1480,13 +1479,6 @@
 (defn include-dependencies-metadata? [settings]
   (true? (get settings dependencies-metadata-setting-path)))
 
-(defn sync-dependencies-metadata! [project-directory library-results]
-  (let [lib-dir (library/directory project-directory)]
-    (if (coll/not-empty library-results)
-      (DependencyMetadata/saveAsJson lib-dir library-results)
-      (DependencyMetadata/deleteJson lib-dir))
-    library-results))
-
 (defn update-fetch-libraries-notification
   "Create transaction steps for showing or hiding a 'Fetch Libraries' suggestion
   when the project dependency list differs from the currently installed
@@ -1902,15 +1894,13 @@
 
 (defn open-project! [graph extensions workspace-id game-project-resource render-progress!]
   (let [dependencies (read-dependencies game-project-resource)
-        project-directory (workspace/project-directory workspace-id)
         progress (atom (progress/make (localization/message "progress.updating-dependencies") 13 0))]
     (render-progress! @progress)
 
     (->> (library/fetch!
-           project-directory
+           (workspace/project-directory workspace-id)
            dependencies
            (progress/nest-render-progress render-progress! @progress 4))
-         (sync-dependencies-metadata! project-directory)
          (workspace/set-project-dependencies! workspace-id))
 
     (render-progress! (swap! progress progress/advance 4 (localization/message "progress.syncing-resources")))

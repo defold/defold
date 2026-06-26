@@ -126,13 +126,11 @@
               (is (= [or] (g/overrides original))))))))))
 
 (defn- fetch-libraries! [workspace library-uris render-fn]
-  (let [project-directory (workspace/project-directory workspace)]
-    (->> (library/fetch!
-           project-directory
-           library-uris
-           render-fn)
-         (project/sync-dependencies-metadata! project-directory)
-         (workspace/set-project-dependencies! workspace)))
+  (->> (library/fetch!
+         (workspace/project-directory workspace)
+         library-uris
+         render-fn)
+       (workspace/set-project-dependencies! workspace))
   (workspace/resource-sync! workspace))
 
 (deftest fetch-libraries
@@ -194,7 +192,6 @@
                         progress/null-render-progress!)
               result ^Library$Result (first results)
               archive ^Library$Archive (.archive result)]
-          (project/sync-dependencies-metadata! project-directory results)
           (is (not= original-uri (.uri result)))
           (is (= "localhost" (.getHost ^URI (.uri result))))
           (is (not= (.toPath expected-library-file) (.path archive)))
