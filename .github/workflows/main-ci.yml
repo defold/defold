@@ -445,6 +445,7 @@ jobs:
         }
       },
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
+      { name: 'Install Python dependencies', run: 'pip install requests' },
       {
         name: 'Generate release notes',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
