@@ -45,7 +45,7 @@
            [javafx.scene Node]
            [javafx.scene.control Label ScrollBar SelectionMode TextField ToggleButton TreeItem TreeView]
            [javafx.scene.image ImageView]
-           [javafx.scene.input Clipboard ContextMenuEvent DataFormat DragEvent KeyCode KeyCodeCombination KeyEvent MouseButton MouseEvent TransferMode]
+           [javafx.scene.input Clipboard ContextMenuEvent DataFormat DragEvent KeyCode KeyEvent MouseButton MouseEvent TransferMode]
            [javafx.scene.layout AnchorPane HBox Priority]))
 
 (set! *warn-on-reflection* true)
@@ -759,7 +759,7 @@
       ;; that uses it is set to false, so `:edit.rename :outline` handler will not work
       ;; for `F2`. Since the shortcut is customizable, we need to check if it exists.
       KeyCode/F2
-      (when (some #(= "F2" (.toString ^KeyCodeCombination %)) rename-shortcuts)
+      (when (some #(= "F2" (str %)) rename-shortcuts)
         (.consume event)
         (ui/run-command (.getSource event) :edit.rename))
 
