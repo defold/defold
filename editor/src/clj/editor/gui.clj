@@ -4611,8 +4611,10 @@
       (dissoc :spine-scene)
       (assoc :path (:spine-scene spine-scene-desc))))
 
-(defn- sanitize-scene [gui-node-type-registry scene]
-  (let [spine-scene-descs (mapv spine-scene-desc->resource-desc
+(defn- sanitize-scene [workspace scene]
+  (let [resource-types (workspace/get-resource-type-map workspace :editable)
+        gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
+        spine-scene-descs (mapv spine-scene-desc->resource-desc
                                 (:spine-scenes scene))
         merged-resource-descs (into spine-scene-descs
                                     (:resources scene))]
@@ -4622,14 +4624,6 @@
         (protobuf/sanitize-repeated :layouts (partial sanitize-layout gui-node-type-registry))
         (protobuf/assign-repeated :resources merged-resource-descs)
         (update :material fn/or default-material-proj-path))))
-
-(defn- make-gui-read-fn [gui-node-type-registry]
-  ;; `:sanitize-fn` is folded into the read-fn at registration time;
-  ;; resource types do not keep a separate sanitize-fn we can update. Since
-  ;; sanitize-scene depends on gui-node-type-registry, registry changes require
-  ;; rebuilding read-fn.
-  (comp (partial sanitize-scene gui-node-type-registry)
-        (partial protobuf/read-map-without-defaults (:pb-class pb-def))))
 
 (declare gui-resource-kind-node)
 
@@ -4692,7 +4686,7 @@
           :ddf-type (:pb-class def)
           :load-fn load-gui-scene
           :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.
-          :read-fn (make-gui-read-fn base-node-type-registry)
+          :sanitize-fn (partial sanitize-scene workspace)
           :icon (:icon def)
           :icon-class (:icon-class def)
           :category (localization/message "resource.category.components")
@@ -5152,16 +5146,8 @@
 (defn- gui-resource-kind-registry-from-resource-types [resource-types]
   (:gui-resource-kind-registry (get resource-types (:ext pb-def))))
 
-(defn- update-gui-resource-type [resource-type f & args]
-  (assert (map? resource-type)
-          (format "Unable to update GUI resource type before it has been registered. (ext=%s)" (:ext pb-def)))
-  (let [resource-type (apply f resource-type args)
-        gui-node-type-registry (:gui-node-type-registry resource-type)]
-    (assoc resource-type
-      :read-fn (make-gui-read-fn gui-node-type-registry))))
-
 (defn- update-gui-resource-type-map [resource-types f & args]
-  (apply update resource-types (:ext pb-def) update-gui-resource-type f args))
+  (apply update resource-types (:ext pb-def) f args))
 
 (defn- update-gui-resource-type-tx-data [workspace f & args]
   (concat

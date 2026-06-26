@@ -456,7 +456,6 @@
         (is (str/includes? source "custom_type_name: \"TestCustom\""))
         (is (not (str/includes? source "custom_type:")))))
     (let [gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
-          gui-node-type-registry (:gui-node-type-registry gui-resource-type)
           mismatched-node {:type :type-custom
                            :custom-type-name "TestCustom"
                            :custom-type (inc (murmur/hash32 "TestCustom"))
@@ -477,9 +476,9 @@
       (is (thrown-with-msg?
             IllegalStateException
             #"custom_type_name 'TestCustom' resolves to custom_type"
-            (#'gui/sanitize-scene gui-node-type-registry {:nodes [mismatched-node]})))
+            (#'gui/sanitize-scene workspace {:nodes [mismatched-node]})))
       (let [sanitized-node (-> (#'gui/sanitize-scene
-                                 gui-node-type-registry
+                                 workspace
                                  {:nodes [{:type :type-custom
                                            :custom-type-name "TestCustom"
                                            :id "custom"
@@ -489,7 +488,7 @@
                                :nodes
                                first)]
         (is (not (contains? sanitized-node :custom-properties))))
-      (let [sanitized-node (-> (#'gui/sanitize-scene gui-node-type-registry {:nodes [boxed-node-with-stale-custom-type-name]})
+      (let [sanitized-node (-> (#'gui/sanitize-scene workspace {:nodes [boxed-node-with-stale-custom-type-name]})
                                :nodes
                                first)]
         (is (= {:type :type-box

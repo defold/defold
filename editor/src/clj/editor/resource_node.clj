@@ -288,16 +288,15 @@
                :path (path-fn pb-map path)))
            (coll/search-with-path pb-map init-path match-fn)))))
 
-(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn read-fn sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
+(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
   {:pre [(protobuf/pb-class? ddf-type)
-         (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))
-         (not (and read-fn sanitize-fn))]}
+         (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
   (let [read-defaults (boolean read-defaults)
-        read-fn (or read-fn
-                    (cond->> (if read-defaults
-                               (partial protobuf/read-map-with-defaults ddf-type)
-                               (partial protobuf/read-map-without-defaults ddf-type))
-                             sanitize-fn (comp sanitize-fn)))
+        read-raw-fn (if read-defaults
+                      (partial protobuf/read-map-with-defaults ddf-type)
+                      (partial protobuf/read-map-without-defaults ddf-type))
+        read-fn (cond->> read-raw-fn
+                         (some? sanitize-fn) (comp sanitize-fn))
         write-fn (cond-> (partial protobuf/map->str ddf-type)
                          (some? pb-encode-fn) (comp pb-encode-fn))
         search-fn (or search-fn default-ddf-resource-search-fn)
