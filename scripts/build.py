@@ -3197,6 +3197,33 @@ class Configuration(object):
         bucket = s3.get_bucket(urlparse(self.get_archive_path()).hostname)
         self._upload_editor_release_notes(bucket, required = True)
 
+    def dev_publish_update_pointer(self):
+        # DEV-ONLY (issue-7186 validation): publish update-v4.json for --channel
+        # pointing at this commit's sha1, so a real editor on that channel sees
+        # an update and runs the full check->fetch-notes->dialog(->download)
+        # cycle. (Launch the test editor with -Ddefold.editor.sha1=<older> so it
+        # considers itself outdated against this sha1.) Remove before merge.
+        #   ./scripts/build.py --channel release-notes-view dev_publish_update_pointer
+        if self.channel is None:
+            self._log("No channel specified! Pass --channel")
+            sys.exit(1)
+        # Hard guard: this writes update-v4.json, which moves a channel's update
+        # pointer. Restrict to the disposable validation channel so it can never
+        # nudge stable/beta/alpha by accident.
+        if self.channel != "release-notes-view":
+            self.fatal("dev_publish_update_pointer is only allowed for the release-notes-view channel")
+        sha1 = self._git_sha1()
+        bucket = s3.get_bucket(urlparse(self.get_archive_path()).hostname)
+        v4_obj = bucket.Object('editor2/channels/%s/update-v4.json' % self.channel)
+        v4_obj.put(Body = json.dumps({'sha1': sha1}), ContentType = 'application/json')
+        self._log("Published update-v4.json for channel '%s' -> sha1 %s" % (self.channel, sha1))
+        # Print the exact URL the editor's updater will download, so it can be
+        # curl'd to confirm the artifact exists before relying on the cycle
+        # (get_single_release does NOT prove the editor zip was archived).
+        for pair in ('x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32'):
+            self._log("  updater will fetch: https://%s/archive/%s/%s/editor2/Defold-%s.zip" % (
+                self.archive_domain, sha1, self.channel, pair))
+
     def _release_web_pages(self, releases):
         u = urlparse(self.get_archive_path())
         hostname = u.hostname
@@ -3226,7 +3253,9 @@ class Configuration(object):
 
         # Editor release-notes.json (the update dialog's source) must land before
         # update-v4.json points users at the new sha1.
-        self._upload_editor_release_notes(bucket, required = self.channel in ('beta', 'stable'))
+        # DEV-ONLY (issue-7186 validation): 'release-notes-view' requires notes so
+        # the disposable channel exercises the full path. Remove before merge.
+        self._upload_editor_release_notes(bucket, required = self.channel in ('beta', 'stable', 'release-notes-view'))
 
         # Editor update-v4.json
         v4_obj = bucket.Object('editor2/channels/%s/update-v4.json' % self.channel)
@@ -4085,7 +4114,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
-    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo', 'gen_editor_release_notes', 'upload_editor_release_notes']
+    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo', 'gen_editor_release_notes', 'upload_editor_release_notes', 'dev_publish_update_pointer']
     needs_dynamo_home = any(cmd not in commands_without_dynamo_home for cmd in args)
     if needs_dynamo_home:
         for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:

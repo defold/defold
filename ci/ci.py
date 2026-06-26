@@ -434,6 +434,11 @@ def release(channel):
 # Channels that ship editor release notes.
 RELEASE_NOTES_CHANNELS = ("beta", "stable")
 
+# DEV-ONLY (issue-7186 validation): let the feature branch exercise the full
+# notes pipeline on a disposable channel. Delete this whole statement before
+# merging to dev.
+RELEASE_NOTES_CHANNELS = RELEASE_NOTES_CHANNELS + ("release-notes-view",)
+
 def gen_release_notes(channel):
     if channel not in RELEASE_NOTES_CHANNELS:
         print("Channel '%s' does not ship release notes - skipping" % channel)
@@ -506,6 +511,12 @@ def release_settings_for_branch(branch, engine_artifacts):
         return "beta", True, engine_artifacts or "archived"
     if branch == "dev":
         return "alpha", True, engine_artifacts or "archived"
+    # DEV-ONLY (issue-7186 validation): release this branch to a disposable
+    # custom channel so the full pipeline runs without touching production
+    # (no tags / no GitHub release / no production channel). Remove before
+    # merging to dev.
+    if branch == "issue-7186-release-notes-view":
+        return "release-notes-view", True, engine_artifacts or "archived"
     return "dev", False, engine_artifacts or "archived"
 
 def should_release_branch(branch):
