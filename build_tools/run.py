@@ -158,7 +158,7 @@ def shell_command(args, **kwargs):
 
 
 def env_command(env, args, **kwargs):
-    return _exec_command(args, shell = False, stdout = None, env = env, **kwargs)
+    return _exec_command(args, shell = False, env = env, **kwargs)
 
 def env_shell_command(env, args, **kwargs):
     return _exec_command(args, shell = True, env = env, **kwargs)

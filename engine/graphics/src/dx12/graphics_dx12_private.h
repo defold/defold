@@ -80,9 +80,9 @@ namespace dmGraphics
 
     struct DX12DeviceBuffer
     {
+        Buffer          m_Base;
         ID3D12Resource* m_Resource;
         uint8_t*        m_MappedDataPtr;
-        uint32_t        m_DataSize;
         uint32_t        m_Destroyed : 1;
     };
 

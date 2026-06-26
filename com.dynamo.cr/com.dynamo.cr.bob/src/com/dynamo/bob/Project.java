@@ -44,6 +44,7 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.GamepadBuilder;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
@@ -133,7 +134,7 @@ public class Project implements AutoCloseable {
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
-    private HashMap<String, Task> tasks;
+    private HashMap<String, Task> tasks = new HashMap<String, Task>();
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
     private volatile BobTempDirectory tempDirectory;
@@ -556,6 +557,56 @@ public class Project implements AutoCloseable {
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
             throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            TimeProfiler.stop();
+        }
+    }
+
+    public Task createGamepadTask(IResource gamepadDbInput, IResource gamepadsInput) throws CompileExceptionError {
+        if (gamepadDbInput == null && gamepadsInput == null) {
+            throw new CompileExceptionError("Gamepad task requires a .gamepads file or a gamecontrollerdb.txt file.");
+        }
+
+        String gamepadDbPath = gamepadDbInput != null ? gamepadDbInput.getPath() : "";
+        String gamepadsPath = gamepadsInput != null ? gamepadsInput.getPath() : "";
+        String key = gamepadDbPath + " " + gamepadsPath + " " + GamepadBuilder.class;
+        if (!circularDependencyChecker.add(key)) {
+            throw new CompileExceptionError(generateCircularDependencyErrorMessage(key), null);
+        }
+
+        Task task = tasks.get(key);
+        if (task != null) {
+            circularDependencyChecker.remove(key);
+            return task;
+        }
+
+        TimeProfiler.start();
+        TimeProfiler.addData("type", "createGamepadTask");
+        GamepadBuilder builder;
+        try {
+            builder = new GamepadBuilder();
+            builder.setProject(this);
+            Task.TaskBuilder taskBuilder = Task.newBuilder(builder)
+                    .setName(builder.getParams().name());
+            if (gamepadDbInput != null) {
+                taskBuilder.addInput(gamepadDbInput);
+            }
+            if (gamepadsInput != null) {
+                taskBuilder.addInput(gamepadsInput);
+            }
+            IResource outputAnchor = gamepadsInput != null ? gamepadsInput : gamepadDbInput;
+            task = taskBuilder
+                    .addOutput(outputAnchor.changeExt(builder.getParams().outExt()))
+                    .build();
+            if (task != null) {
+                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
+                TimeProfiler.addData("name", task.getName());
+                tasks.put(key, task);
+            }
+            circularDependencyChecker.remove(key);
+            return task;
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
@@ -1537,6 +1588,8 @@ public class Project implements AutoCloseable {
                 return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
                 return ShaderCompilers.SHADER_ADAPTER_VULKAN;
+            case "graphics_metal":
+                return ShaderCompilers.SHADER_ADAPTER_METAL;
             case "graphics_opengles":
             case "graphics_gles":
                 return ShaderCompilers.SHADER_ADAPTER_OPENGLES;

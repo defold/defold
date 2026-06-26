@@ -111,6 +111,7 @@ if(SHADERC_IS_DESKTOP)
     ${SHADERC_SHARED_DEPENDENCIES}
     ${SHADERC_EXTRA_LIBS})
   defold_target_link_app(shaderc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_codesign_target(shaderc_shared)
 
   set(SHADERC_JAR "${CMAKE_CURRENT_BINARY_DIR}/shaderc.jar")
   set(SHADERC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")

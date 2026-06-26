@@ -50,11 +50,11 @@ VERSION_EDITOR_JDK="25+36"
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="26.2" # we also use this to match version on Github Actions
-VERSION_XCODE_CLANG="17.0.0"
-VERSION_MACOSX="26.2"
-VERSION_IPHONEOS="26.2"
-VERSION_IPHONESIMULATOR="26.2"
+VERSION_XCODE="26.5" # we also use this to match version on Github Actions
+VERSION_XCODE_CLANG="21.0.0"
+VERSION_MACOSX="26.5"
+VERSION_IPHONEOS="26.5"
+VERSION_IPHONESIMULATOR="26.5"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files

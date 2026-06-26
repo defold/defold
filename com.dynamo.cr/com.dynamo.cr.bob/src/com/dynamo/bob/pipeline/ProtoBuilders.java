@@ -49,7 +49,6 @@ import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
-import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
@@ -170,19 +169,6 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = InputBinding.class, messageClass = InputBinding.class)
     @BuilderParams(name="InputBinding", inExts=".input_binding", outExt=".input_bindingc")
     public static class InputBindingBuilder extends ProtoBuilder<InputBinding.Builder> {}
-
-    @ProtoParams(srcClass = GamepadMaps.class, messageClass = GamepadMaps.class)
-    @BuilderParams(name="GamepadMaps", inExts=".gamepads", outExt=".gamepadsc")
-    public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {
-        @Override
-        public Task create(IResource input) throws IOException, CompileExceptionError {
-            Task.TaskBuilder taskBuilder = Task.newBuilder(this)
-                    .setName(params.name())
-                    .addInput(input)
-                    .addOutput(input.changeExt(params.outExt()));
-            return taskBuilder.build();
-        }
-    }
 
     @ProtoParams(srcClass = RenderTargetDesc.class, messageClass = RenderTargetDesc.class)
     @BuilderParams(name="RenderTarget", inExts=".render_target", outExt=".render_targetc")

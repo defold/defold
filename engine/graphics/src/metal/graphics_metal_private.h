@@ -81,9 +81,9 @@ namespace dmGraphics
 
     struct MetalDeviceBuffer
     {
+        Buffer           m_Base;
         MTL::Buffer*     m_Buffer;
         MTL::StorageMode m_StorageMode;
-        uint32_t         m_Size;
         uint8_t          m_Destroyed;
 
         const static MetalResourceType GetType()
@@ -105,7 +105,7 @@ namespace dmGraphics
 
         void EnsureSize(const MetalContext* context, uint32_t size);
 
-        inline bool CanAllocate(uint32_t size) { return size <= (m_DeviceBuffer.m_Size - m_MappedDataCursor); }
+        inline bool CanAllocate(uint32_t size) { return size <= (m_DeviceBuffer.m_Base.m_Size - m_MappedDataCursor); }
         inline void Rewind() { m_MappedDataCursor = 0; }
         inline void Advance(uint32_t size) { m_MappedDataCursor += size; }
     };
@@ -313,7 +313,6 @@ namespace dmGraphics
         MetalClearData                     m_ClearData;
         dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
         uint32_t                           m_SwapInterval;
-        uint32_t                           m_ContextFeatures;
         float                              m_PolygonOffsetFactor;
         float                              m_PolygonOffsetUnits;
 

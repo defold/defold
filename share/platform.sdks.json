@@ -7,8 +7,8 @@
     "x86-win32": ["winsdk", "2026_145136231"],
     "x86_64-linux": ["linux", "latest"],
     "arm64-linux": ["linux-arm64", "latest"],
-    "arm64-osx": ["osx", "xcode26"],
-    "x86_64-osx": ["osx", "xcode26"],
-    "arm64-ios": ["osx", "xcode26"],
-    "x86_64-ios": ["osx", "xcode26"]
+    "arm64-osx": ["osx", "xcode26_5"],
+    "x86_64-osx": ["osx", "xcode26_5"],
+    "arm64-ios": ["osx", "xcode26_5"],
+    "x86_64-ios": ["osx", "xcode26_5"]
 }

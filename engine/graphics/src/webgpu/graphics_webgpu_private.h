@@ -36,6 +36,8 @@ namespace dmGraphics
 
     struct WebGPUBuffer
     {
+        Buffer                     m_Base = {};
+
 #if defined(DM_GRAPHICS_WEBGPU2)
         WebGPUBuffer(WGPUBufferUsage usage) : m_Usage(usage) { }
         const WGPUBufferUsage m_Usage; // uint32_t
@@ -45,9 +47,6 @@ namespace dmGraphics
 #endif
 
         WGPUBuffer                 m_Buffer = NULL;
-
-
-        size_t                     m_Size = 0;
         size_t                     m_Used = 0;
         size_t                     m_LastRenderPass = 0;
     };
@@ -230,7 +229,6 @@ namespace dmGraphics
         uint32_t            m_OriginalWidth;
         uint32_t            m_OriginalHeight;
 
-        uint32_t            m_ContextFeatures : 9;
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_InitComplete : 1;
 

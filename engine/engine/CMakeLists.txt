@@ -137,7 +137,7 @@ endif()
 if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output hlsl)
 endif()
-if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output msl)
 endif()
 add_custom_command(
@@ -481,6 +481,7 @@ engine_configure_executable(dmengine debug engine engine_service graphics "${ENG
 defold_xcode_configure_ios_app(dmengine
   BUNDLE_ID "${DEFOLD_IOS_BUNDLE_IDENTIFIER}"
   VERSION "${ENGINE_VERSION}")
+defold_codesign_target(dmengine)
 
 set(ENGINE_RELEASE_SYMBOLS
   ${ENGINE_EXPORTED_SYMBOLS}
@@ -491,6 +492,7 @@ set(ENGINE_RELEASE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmeng
 defold_create_exported_symbols_file("${ENGINE_RELEASE_EXPORTS}" "${ENGINE_RELEASE_SYMBOLS}")
 engine_add_binary(dmengine_release ${ENGINE_MAIN_SOURCES} "${ENGINE_RELEASE_EXPORTS}")
 engine_configure_executable(dmengine_release release engine_release engine_service_null graphics "profile_null;profilerext_null" "ProfilerExt")
+defold_codesign_target(dmengine_release)
 
 set(ENGINE_HEADLESS_SYMBOLS
   LiveUpdateExt
@@ -503,19 +505,27 @@ set(ENGINE_HEADLESS_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmen
 defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADLESS_SYMBOLS}")
 engine_add_binary(dmengine_headless ${ENGINE_MAIN_SOURCES} "${ENGINE_HEADLESS_EXPORTS}")
 engine_configure_executable(dmengine_headless headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+defold_codesign_target(dmengine_headless)
 
 if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
   set_target_properties(dmengine dmengine_release dmengine_headless PROPERTIES
     PREFIX "lib"
     SUFFIX ".so")
 
+  set(ENGINE_ANDROID_JARS_INSTALL_CODE "
+      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\"")
+  list(LENGTH ENGINE_GRAPHICS_SYMBOLS ENGINE_GRAPHICS_SYMBOLS_COUNT)
+  if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS AND ENGINE_GRAPHICS_SYMBOLS_COUNT GREATER 1)
+    string(APPEND ENGINE_ANDROID_JARS_INSTALL_CODE "
+      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/vkquality.jar\"")
+  endif()
+
   install(CODE "
     set(_dex_dir \"\${CMAKE_INSTALL_PREFIX}/share/java/classes-dex\")
     set(_classes_dex \"\${_dex_dir}/classes.dex\")
-    set(_android_jars
-      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
-      \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
-      \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\")
+    set(_android_jars ${ENGINE_ANDROID_JARS_INSTALL_CODE})
     foreach(_android_jar IN LISTS _android_jars)
       if(NOT EXISTS \"\${_android_jar}\")
         message(FATAL_ERROR \"Android dex input is missing: \${_android_jar}\")

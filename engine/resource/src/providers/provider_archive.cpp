@@ -227,8 +227,13 @@ namespace dmResourceProviderArchive
         {
             if (buffer_len < dmEndian::ToNetwork(entry->m_ArchiveInfo->m_ResourceSize))
                 return dmResourceProvider::RESULT_INVAL_ERROR;
-            dmResourceArchive::ReadEntry(archive->m_ArchiveIndex, entry->m_ArchiveInfo, buffer);
-            return dmResourceProvider::RESULT_OK;
+
+            dmResourceArchive::Result result = dmResourceArchive::ReadEntry(archive->m_ArchiveIndex,
+                                                                            entry->m_ArchiveInfo,
+                                                                            buffer);
+            return result == dmResourceArchive::RESULT_OK
+                ? dmResourceProvider::RESULT_OK
+                : dmResourceProvider::RESULT_IO_ERROR;
         }
 
         return dmResourceProvider::RESULT_NOT_FOUND;
@@ -240,8 +245,15 @@ namespace dmResourceProviderArchive
         EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
         if (entry)
         {
-            dmResourceArchive::ReadEntryPartial(archive->m_ArchiveIndex, entry->m_ArchiveInfo, offset, size, buffer, nread);
-            return dmResourceProvider::RESULT_OK;
+            dmResourceArchive::Result result = dmResourceArchive::ReadEntryPartial(archive->m_ArchiveIndex,
+                                                                                   entry->m_ArchiveInfo,
+                                                                                   offset,
+                                                                                   size,
+                                                                                   buffer,
+                                                                                   nread);
+            return result == dmResourceArchive::RESULT_OK
+                ? dmResourceProvider::RESULT_OK
+                : dmResourceProvider::RESULT_IO_ERROR;
         }
 
         return dmResourceProvider::RESULT_NOT_FOUND;

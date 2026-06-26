@@ -53,12 +53,18 @@ finally:
 # defold/build_tools
 import run
 import http_cache
+import codesigning
 import sdk
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 
 java_version = sdk.VERSION_EDITOR_JDK
+
+REQUIRED_ANDROID_VKQUALITY_FILES = (
+    "libexec/armv7-android/libvkquality.so",
+    "libexec/arm64-android/libvkquality.so",
+)
 
 platform_to_java = {'x86_64-linux': 'x64_linux',
                     'x86_64-macos': 'x64_mac',
@@ -240,74 +246,6 @@ def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
 
-def mac_certificate(codesigning_identity):
-    if run.command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0:
-        return codesigning_identity
-    else:
-        return None
-
-def sign_file(platform, options, file):
-    if platform_is_windows(platform):
-        if not shutil.which('gcloud'):
-            sys.exit("No gcloud tool found")
-        gcloud = shutil.which('gcloud')
-        run.command([
-            gcloud,
-            'auth',
-            'activate-service-account',
-            '--key-file', options.gcloud_keyfile], silent = True)
-
-        # Capture the token ourselves so we can strip any stray lines emitted by the Windows
-        # Microsoft Store shim when `python.exe` is missing (it writes that warning to stdout).
-        token_proc = subprocess.run(
-            [gcloud, 'auth', 'print-access-token'],
-            stdout = subprocess.PIPE,
-            stderr = subprocess.PIPE,
-            check = False,
-            text = True)
-        if token_proc.returncode != 0:
-            log("gcloud auth print-access-token failed with exit code %d" % token_proc.returncode)
-            if token_proc.stderr:
-                log(token_proc.stderr.strip())
-            sys.exit(1)
-
-        token_lines = [line.strip() for line in token_proc.stdout.splitlines() if line.strip()]
-        if not token_lines:
-            log("Failed to read Google Cloud access token from gcloud output")
-            if token_proc.stderr:
-                log(token_proc.stderr.strip())
-            sys.exit(1)
-        storepass = token_lines[-1]
-
-        jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
-        keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
-        run.command([
-            'java', '-jar', jsign,
-            '--storetype', 'GOOGLECLOUD',
-            '--storepass', storepass,
-            '--keystore', keystore,
-            '--alias', options.gcloud_keyname,
-            '--certfile', options.gcloud_certfile,
-            '--tsmode', 'RFC3161',
-            '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
-            file], silent = True)
-
-    if platform_is_macos(platform):
-        codesigning_identity = options.codesigning_identity
-        certificate = mac_certificate(codesigning_identity)
-        if certificate is None:
-            log("Codesigning certificate not found for signing identity %s" % codesigning_identity)
-            sys.exit(1)
-
-        run.command([
-            'codesign',
-            '--deep',
-            '--force',
-            '--options', 'runtime',
-            '--entitlements', './scripts/entitlements.plist',
-            '-s', certificate,
-            file])
-
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
         return options.launcher
@@ -345,7 +283,7 @@ def get_jdk(platform):
 def invoke_lein(args, jdk_path=None, **kwargs):
     # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
     jdk_path = jdk_path or os.environ['JAVA_HOME']
-    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True, **kwargs)
+    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, **kwargs)
 
 def invoke_zip_parallel(args, jdk_path=None):
     return invoke_lein(['with-profile', 'zip-parallel', 'run', '-m', 'editor.zip-parallel'] + args, jdk_path=jdk_path)
@@ -418,6 +356,10 @@ def remove_platform_files_from_archive(platform, jar, jdk=None):
             # don't remove the cross-platform bundletool-all.jar
             if "bundletool-all.jar" in file:
                 continue
+            # keep Android VkQuality native libraries; Bob needs these when bundling
+            # Vulkan-enabled Android apps from any desktop editor.
+            if file in REQUIRED_ANDROID_VKQUALITY_FILES:
+                continue
             # anything else should be removed
             files_to_remove.add(file)
         # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
@@ -486,6 +428,15 @@ def remove_platform_files_from_archive(platform, jar, jdk=None):
     rewrite_time = time.perf_counter() - rewrite_start_time
     log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
         (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
+
+
+def validate_android_vkquality_files(jar):
+    with zipfile.ZipFile(jar, 'r') as zf:
+        entries = set(zf.namelist())
+    missing = [file for file in REQUIRED_ANDROID_VKQUALITY_FILES if file not in entries]
+    if missing:
+        raise Exception("Editor Bob package is missing required Android VkQuality files: %s" %
+                        ", ".join(missing))
 
 
 def create_standalone_editor_jar(jdk, platform):
@@ -568,6 +519,7 @@ def create_bundle(jdk, platform, options):
 
     # strip tools and libs for the platforms we're not currently bundling
     remove_platform_files_from_archive(platform, defold_jar, jdk)
+    validate_android_vkquality_files(defold_jar)
 
     # copy editor executable (the launcher)
     launcher = launcher_path(options, platform, get_exe_suffix(platform))
@@ -615,13 +567,13 @@ def sign(bundle_dir, platform, options):
         jdk_dir = "jdk-%s" % java_version
         jdk_path = os.path.join(bundle_dir, "Contents", "Resources", "packages", jdk_dir)
         for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-            sign_file(platform, options, exe)
+            codesigning.sign_file(platform, options, exe)
         for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-            sign_file(platform, options, lib)
-        sign_file(platform, options, os.path.join(jdk_path, "lib", "jspawnhelper"))
-        sign_file(platform, options, bundle_dir)
+            codesigning.sign_file(platform, options, lib)
+        codesigning.sign_file(platform, options, os.path.join(jdk_path, "lib", "jspawnhelper"))
+        codesigning.sign_file(platform, options, bundle_dir)
     elif platform_is_windows(platform):
-        sign_file(platform, options, os.path.join(bundle_dir, "Defold.exe"))
+        codesigning.sign_file(platform, options, os.path.join(bundle_dir, "Defold.exe"))
 
 def find_files(root_dir, file_pattern):
     matches = []
@@ -655,7 +607,7 @@ def create_dmg(bundle_dir, options, platform):
 
     # sign the dmg
     if not options.skip_codesign:
-        certificate = mac_certificate(options.codesigning_identity)
+        certificate = codesigning.mac_certificate(options.codesigning_identity)
         if certificate is None:
             error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
             sys.exit(1)
@@ -842,6 +794,10 @@ Commands:
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
                       default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help = 'Codesigning identity for macOS')
+
+    parser.add_option('--codesigning-entitlements', dest='codesigning_entitlements',
+                      default = './scripts/entitlements.plist',
+                      help = 'Codesigning entitlements for macOS')
 
     parser.add_option('--gcloud-projectid', dest='gcloud_projectid',
                       default = None,

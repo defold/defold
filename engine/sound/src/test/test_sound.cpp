@@ -31,6 +31,7 @@
 #include "../sound.h"
 #include "../sound_private.h"
 #include "../sound_codec.h"
+#include "../sound_decoder.h"
 #include "../sound_pfb.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
@@ -114,6 +115,196 @@ extern unsigned char MUSIC_ADPCM_WAV[];
 extern uint32_t MUSIC_ADPCM_WAV_SIZE;
 extern unsigned char AMBIENCE_ADPCM_WAV[];
 extern uint32_t AMBIENCE_ADPCM_WAV_SIZE;
+
+static uint32_t ReadLE32(const uint8_t* src)
+{
+    return src[0] | ((uint32_t)src[1] << 8) | ((uint32_t)src[2] << 16) | ((uint32_t)src[3] << 24);
+}
+
+static void WriteLE32(uint8_t* dst, uint32_t value)
+{
+    dst[0] = (uint8_t)value;
+    dst[1] = (uint8_t)(value >> 8);
+    dst[2] = (uint8_t)(value >> 16);
+    dst[3] = (uint8_t)(value >> 24);
+}
+
+static void PushLE32(dmArray<uint8_t>& out, uint32_t value)
+{
+    uint8_t bytes[4];
+    WriteLE32(bytes, value);
+    out.PushArray(bytes, sizeof(bytes));
+}
+
+static void PushPacketLacing(dmArray<uint8_t>& out, uint32_t packet_size)
+{
+    while (packet_size >= 255)
+    {
+        out.Push(255);
+        packet_size -= 255;
+    }
+    out.Push((uint8_t)packet_size);
+}
+
+static uint32_t OggCrcUpdate(uint32_t crc, uint8_t value)
+{
+    crc ^= (uint32_t)value << 24;
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        crc = (crc & 0x80000000) ? (crc << 1) ^ 0x04c11db7 : crc << 1;
+    }
+    return crc;
+}
+
+static uint32_t OggCrc(const uint8_t* data, uint32_t size)
+{
+    uint32_t crc = 0;
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        crc = OggCrcUpdate(crc, data[i]);
+    }
+    return crc;
+}
+
+static bool GetOggPage(const uint8_t* data, uint32_t size, uint32_t page_index, uint32_t* page_offset, uint32_t* page_size)
+{
+    uint32_t offset = 0;
+    for (uint32_t i = 0; offset + 27 <= size; ++i)
+    {
+        if (memcmp(data + offset, "OggS", 4) != 0)
+            return false;
+
+        uint32_t segment_count = data[offset + 26];
+        if (offset + 27 + segment_count > size)
+            return false;
+
+        uint32_t body_size = 0;
+        for (uint32_t s = 0; s < segment_count; ++s)
+        {
+            body_size += data[offset + 27 + s];
+        }
+
+        uint32_t total_size = 27 + segment_count + body_size;
+        if (offset + total_size > size)
+            return false;
+
+        if (i == page_index)
+        {
+            *page_offset = offset;
+            *page_size = total_size;
+            return true;
+        }
+
+        offset += total_size;
+    }
+
+    return false;
+}
+
+static bool MakeOggWithLargeVorbisComment(const uint8_t* src, uint32_t src_size, dmArray<uint8_t>& out)
+{
+    uint32_t page_offset;
+    uint32_t old_page_size;
+    if (!GetOggPage(src, src_size, 1, &page_offset, &old_page_size))
+        return false;
+
+    uint32_t old_segment_count = src[page_offset + 26];
+    const uint8_t* old_segments = src + page_offset + 27;
+
+    uint32_t first_packet_size = 0;
+    uint32_t first_packet_segment_count = 0;
+    for (uint32_t i = 0; i < old_segment_count; ++i)
+    {
+        first_packet_size += old_segments[i];
+        ++first_packet_segment_count;
+        if (old_segments[i] < 255)
+            break;
+    }
+
+    if (first_packet_segment_count == old_segment_count)
+        return false;
+
+    uint32_t old_body_size = old_page_size - 27 - old_segment_count;
+    uint32_t body_offset = page_offset + 27 + old_segment_count;
+    uint32_t comment_offset = body_offset;
+    uint32_t comment_end = comment_offset + first_packet_size;
+
+    if (comment_end > src_size || first_packet_size < 8 || src[comment_offset] != 3 || memcmp(src + comment_offset + 1, "vorbis", 6) != 0)
+        return false;
+
+    uint32_t cursor = comment_offset + 7;
+    uint32_t vendor_size = ReadLE32(src + cursor);
+    cursor += 4 + vendor_size;
+    if (cursor + 4 >= comment_end)
+        return false;
+
+    uint32_t comment_count_offset = cursor;
+    uint32_t comment_count = ReadLE32(src + comment_count_offset);
+    cursor += 4;
+
+    for (uint32_t i = 0; i < comment_count; ++i)
+    {
+        if (cursor + 4 >= comment_end)
+            return false;
+        uint32_t comment_size = ReadLE32(src + cursor);
+        cursor += 4 + comment_size;
+        if (cursor >= comment_end)
+            return false;
+    }
+
+    uint32_t framing_flag_offset = cursor;
+    if (framing_flag_offset + 1 != comment_end || src[framing_flag_offset] != 1)
+        return false;
+
+    const uint32_t large_comment_size = 20 * 1024;
+    const char* comment_prefix = "id3v2_priv.XMP=";
+    const uint32_t comment_prefix_size = (uint32_t)strlen(comment_prefix);
+
+    dmArray<uint8_t> comment_packet;
+    comment_packet.SetCapacity(first_packet_size + 4 + large_comment_size);
+    comment_packet.PushArray(src + comment_offset, comment_count_offset - comment_offset);
+    PushLE32(comment_packet, comment_count + 1);
+    comment_packet.PushArray(src + comment_count_offset + 4, framing_flag_offset - (comment_count_offset + 4));
+    PushLE32(comment_packet, large_comment_size);
+    for (uint32_t i = 0; i < large_comment_size; ++i)
+    {
+        comment_packet.Push(i < comment_prefix_size ? (uint8_t)comment_prefix[i] : (uint8_t)'x');
+    }
+    comment_packet.PushArray(src + framing_flag_offset, comment_end - framing_flag_offset);
+
+    dmArray<uint8_t> new_segments;
+    new_segments.SetCapacity(255);
+    PushPacketLacing(new_segments, comment_packet.Size());
+    for (uint32_t i = first_packet_segment_count; i < old_segment_count; ++i)
+    {
+        new_segments.Push(old_segments[i]);
+    }
+
+    if (new_segments.Size() > 255)
+        return false;
+
+    uint32_t new_page_size = 27 + new_segments.Size() + comment_packet.Size() + old_body_size - first_packet_size;
+    out.SetCapacity(src_size - old_page_size + new_page_size);
+    out.SetSize(0);
+    out.PushArray(src, page_offset);
+
+    uint32_t new_page_offset = out.Size();
+    out.PushArray(src + page_offset, 27);
+    out[new_page_offset + 22] = 0;
+    out[new_page_offset + 23] = 0;
+    out[new_page_offset + 24] = 0;
+    out[new_page_offset + 25] = 0;
+    out[new_page_offset + 26] = (uint8_t)new_segments.Size();
+    out.PushArray(new_segments.Begin(), new_segments.Size());
+    out.PushArray(comment_packet.Begin(), comment_packet.Size());
+    out.PushArray(src + body_offset + first_packet_size, old_body_size - first_packet_size);
+
+    uint32_t crc = OggCrc(out.Begin() + new_page_offset, new_page_size);
+    WriteLE32(out.Begin() + new_page_offset + 22, crc);
+
+    out.PushArray(src + page_offset + old_page_size, src_size - page_offset - old_page_size);
+    return true;
+}
 
 #if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
 extern "C" int dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart();
@@ -1331,6 +1522,46 @@ const TestParams params_verify_ogg_test[] = {TestParams("loopback",
                                             1)};
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
 #endif
+
+// Regression for Ogg/Vorbis files whose metadata pushes the setup headers past
+// the initial STB Vorbis input block.
+TEST(SoundDecoder, StbVorbisLargeStartupComment)
+{
+    dmArray<uint8_t> ogg;
+    ASSERT_TRUE(MakeOggWithLargeVorbisComment(MONO_RESAMPLE_FRAMECOUNT_16000_OGG, MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE, ogg));
+
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sound_data = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(ogg.Begin(), ogg.Size(), dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &sound_data, dmHashString64("large_startup_comment_ogg")));
+
+    const dmSoundCodec::DecoderInfo* decoder = dmSoundCodec::FindDecoderByName("VorbisDecoderStb");
+    ASSERT_NE((const dmSoundCodec::DecoderInfo*)0, decoder);
+
+    dmSoundCodec::HDecodeStream stream = 0;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_OpenStream(sound_data, &stream));
+
+    dmSoundCodec::Info info;
+    decoder->m_GetStreamInfo(stream, &info);
+    ASSERT_EQ((uint8_t)1, info.m_Channels);
+    ASSERT_EQ((uint32_t)16000, info.m_Rate);
+
+    float samples[64];
+    char* buffers[1] = {(char*)samples};
+    uint32_t decoded = 0;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, buffers, sizeof(samples), &decoded));
+    ASSERT_GT(decoded, 0U);
+
+    decoder->m_CloseStream(stream);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sound_data));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
 
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyOpusTest, Mix)
