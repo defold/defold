@@ -5,7 +5,7 @@ function(defold_codesign_target target entitlements)
         message(FATAL_ERROR "defold_codesign_target: target not found: ${target}")
     endif()
 
-    if(DEFOLD_SKIP_CODESIGN)
+    if(NOT DEFOLD_CODESIGN)
         return()
     endif()
     if(NOT TARGET_PLATFORM MATCHES "macos|win32$")

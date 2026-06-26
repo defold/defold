@@ -303,7 +303,7 @@ Update Android environment variables in [the extender's Dockerfile](https://gith
     $ ./scripts/build.py distclean
     $ ./scripts/build.py install_sdk --platform=arm64-android
     $ ./scripts/build.py install_ext --platform=arm64-android
-    $ ./scripts/build.py build_engine --platform=arm64-android --skip-docs --skip-codesign --skip-tests
+    $ ./scripts/build.py build_engine --platform=arm64-android --skip-docs --skip-tests
 
 ## Energy Consumption
 

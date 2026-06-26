@@ -26,7 +26,7 @@ env:
   SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
   DOTNET_CHANNEL: 9.0.1xx
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
-  OPTION_SKIP_SIGN: ${{ case(github.event.client_payload.skip_sign == 'true', '--skip-sign', '') }}
+  OPTION_CODESIGN: ${{ github.event.client_payload.skip_sign != true && github.event.client_payload.skip_sign != 'true' && '--codesign' || '' }}
 
 jobs:
   # ---- BUILD ENGINE VERSIONS ------------------
@@ -64,7 +64,7 @@ jobs:
       {
         name: 'Build engine',
         shell: bash,
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.OPTION_SKIP_SIGN }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.OPTION_CODESIGN }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
       },
       {
         name: 'Stop Gradle Daemon',
@@ -109,7 +109,7 @@ jobs:
       },
       {
         name: 'Build engine',
-        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.OPTION_SKIP_SIGN }}'
+        run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs ${{ env.OPTION_CODESIGN }}'
       },
       {
         name: 'Stop Gradle Daemon',
@@ -577,7 +577,7 @@ jobs:
       },
       {
         name: 'Build editor',
-        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_SKIP_SIGN }} --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
+        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
       },
       {
         name: 'Archive editor',
@@ -631,7 +631,7 @@ jobs:
       {
         name: 'Build editor',
         shell: bash,
-        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_SKIP_SIGN }} --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
+        run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
       },
       {
         name: 'Archive editor',
