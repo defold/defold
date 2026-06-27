@@ -665,6 +665,22 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     ASSERT_NE((const char*) 0, FindFirstOccurance(src, int_highp_block));
 
     dmShaderc::FreeShaderCompileResult(dst);
+
+    // Case 3: mediump float, mediump int
+    options.m_GlslEsDefaultFloatPrecision = dmShaderc::SHADER_PRECISION_MEDIUMP;
+    options.m_GlslEsDefaultIntPrecision   = dmShaderc::SHADER_PRECISION_MEDIUMP;
+
+    dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    src = (const char*) dst->m_Data.Begin();
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump float;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump int;"));
+    ASSERT_EQ((const char*) 0, FindFirstOccurance(src, "precision highp float;"));
+    ASSERT_EQ((const char*) 0, FindFirstOccurance(src, "precision highp int;"));
+
+    dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
     free(data);

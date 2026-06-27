@@ -370,6 +370,9 @@ public class ShaderCompilePipeline {
                 for (Long mergedResource : mergedResources) {
                     ShadercJni.SetResourceStageFlags(vertexModule.spirvContext, mergedResource, mergedStageFlags);
                 }
+                if (!mergedResources.isEmpty()) {
+                    vertexModule.spirvReflector = new SPIRVReflector(vertexModule.spirvContext, vertexModule.desc.type);
+                }
                 for (Long mergedResource : mergedResources) {
                     fragmentModule.spirvReflector.removeResourceByNameHash(mergedResource);
                 }

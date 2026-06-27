@@ -59,6 +59,27 @@ static bool ReadByteFieldSafe(JNIEnv* env, jobject obj, jclass cls, const char* 
     return true;
 }
 
+static bool ReadEnumFieldSafe(JNIEnv* env, jobject obj, jclass cls, const char* field_name, const char* signature,
+                              int32_t* out_value, bool required, int32_t default_value)
+{
+    *out_value = default_value;
+    jfieldID field = FindFieldIdSafe(env, cls, field_name, signature, required);
+    if (!field)
+        return !required;
+
+    jobject value_obj = env->GetObjectField(obj, field);
+    if (!value_obj)
+    {
+        if (required)
+            dmLogError("Required ShaderCompilerOptions enum field '%s' was null", field_name);
+        return !required;
+    }
+    env->DeleteLocalRef(value_obj);
+
+    *out_value = dmJNI::GetEnum(env, obj, field);
+    return true;
+}
+
 static bool ReadStringFieldSafe(JNIEnv* env, jobject obj, jclass cls, const char* field_name, char** out_value, bool required)
 {
     *out_value = 0;
@@ -139,8 +160,17 @@ static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmSh
     uint8_t no_420_pack = 0;
     uint8_t glsl_emit_ubo = 0;
     uint8_t glsl_es = 0;
+    int32_t glsl_es_default_float_precision = out_options->m_GlslEsDefaultFloatPrecision;
+    int32_t glsl_es_default_int_precision = out_options->m_GlslEsDefaultIntPrecision;
+    int32_t target_platform = out_options->m_TargetPlatform;
 
     ok = ok && ReadIntFieldSafe(env, options_obj, options_cls, "version", &version, true, 0);
+    ok = ok && ReadEnumFieldSafe(env, options_obj, options_cls, "glslEsDefaultFloatPrecision", "L" CLASS_NAME "$ShaderPrecision;",
+                                 &glsl_es_default_float_precision, false, glsl_es_default_float_precision);
+    ok = ok && ReadEnumFieldSafe(env, options_obj, options_cls, "glslEsDefaultIntPrecision", "L" CLASS_NAME "$ShaderPrecision;",
+                                 &glsl_es_default_int_precision, false, glsl_es_default_int_precision);
+    ok = ok && ReadEnumFieldSafe(env, options_obj, options_cls, "targetPlatform", "L" CLASS_NAME "$ShaderCompilerPlatform;",
+                                 &target_platform, false, target_platform);
     ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "removeUnusedVariables", &remove_unused, false, 0);
     ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "no420PackExtension", &no_420_pack, false, 0);
     ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "glslEmitUboAsPlainUniforms", &glsl_emit_ubo, false, 0);
@@ -151,6 +181,9 @@ static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmSh
     ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "rootSignatureOverride", (char**) &out_options->m_RootSignatureOverride, false);
 
     out_options->m_Version = (uint32_t) version;
+    out_options->m_GlslEsDefaultFloatPrecision = (dmShaderc::ShaderPrecision) glsl_es_default_float_precision;
+    out_options->m_GlslEsDefaultIntPrecision = (dmShaderc::ShaderPrecision) glsl_es_default_int_precision;
+    out_options->m_TargetPlatform = (dmShaderc::ShaderCompilerPlatform) target_platform;
     out_options->m_RemoveUnusedVariables = remove_unused;
     out_options->m_No420PackExtension = no_420_pack;
     out_options->m_GlslEmitUboAsPlainUniforms = glsl_emit_ubo;
