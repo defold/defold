@@ -26,8 +26,12 @@ if sys.platform == 'win32':
     msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
 
 from io import StringIO
-import dlib
 import functools
+
+try:
+    import dlib
+except Exception:
+    dlib = None
 
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.descriptor_pb2 import FileDescriptorSet
@@ -41,6 +45,70 @@ DDF_MAJOR_VERSION=1
 DDF_MINOR_VERSION=0
 
 DDF_POINTER_SIZE = 4
+
+def dm_hash_buffer64(buf):
+    if dlib:
+        return dlib.dmHashBuffer64(buf)
+    return dm_hash_buffer_no_reverse64(buf)
+
+def dm_hash_buffer_no_reverse64(buf):
+    # Keep in sync with dmHashBufferNoReverse64 in engine/dlib/src/dlib/hash.cpp.
+    data = buf.encode('ascii')
+    data_len = len(data)
+    remaining_len = data_len
+    offset = 0
+    mask = 0xffffffffffffffff
+    m = 0xc6a4a7935bd1e995
+    r = 47
+    h = 0
+
+    def mmix(h, k):
+        k = (k * m) & mask
+        k ^= k >> r
+        k = (k * m) & mask
+        h = (h * m) & mask
+        h ^= k
+        return h & mask
+
+    while remaining_len >= 8:
+        k = data[offset]
+        k |= data[offset + 1] << 8
+        k |= data[offset + 2] << 16
+        k |= data[offset + 3] << 24
+        k |= data[offset + 4] << 32
+        k |= data[offset + 5] << 40
+        k |= data[offset + 6] << 48
+        k |= data[offset + 7] << 56
+
+        h = mmix(h, k)
+
+        offset += 8
+        remaining_len -= 8
+
+    t = 0
+    if remaining_len >= 7:
+        t ^= data[offset + 6] << 48
+    if remaining_len >= 6:
+        t ^= data[offset + 5] << 40
+    if remaining_len >= 5:
+        t ^= data[offset + 4] << 32
+    if remaining_len >= 4:
+        t ^= data[offset + 3] << 24
+    if remaining_len >= 3:
+        t ^= data[offset + 2] << 16
+    if remaining_len >= 2:
+        t ^= data[offset + 1] << 8
+    if remaining_len >= 1:
+        t ^= data[offset]
+
+    h = mmix(h, t)
+    h = mmix(h, data_len)
+
+    h ^= h >> r
+    h = (h * m) & mask
+    h ^= h >> r
+
+    return h & mask
 
 type_to_ctype = { FieldDescriptor.TYPE_DOUBLE : "double",
                   FieldDescriptor.TYPE_FLOAT : "float",
@@ -428,7 +496,7 @@ def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespa
     pp_cpp.begin("dmDDF::Descriptor %s_%s_DESCRIPTOR = ", namespace, message_type.name)
     pp_cpp.p('%d, %d,', DDF_MAJOR_VERSION, DDF_MINOR_VERSION)
     pp_cpp.p('"%s",', to_lower_case(message_type.name))
-    pp_cpp.p('0x%016XULL,', dlib.dmHashBuffer64(to_lower_case(message_type.name)))
+    pp_cpp.p('0x%016XULL,', dm_hash_buffer64(to_lower_case(message_type.name)))
     pp_cpp.p('sizeof(%s::%s),', namespace.replace("_", "::"), message_type.name)
 
     # Descriptors
@@ -449,7 +517,7 @@ def to_cxx_descriptor(context, cpp_desc_map, pp_cpp, pp_h, message_type, namespa
     # TODO: This is not optimal. Hash value is sensitive on googles format string
     # Also dependent on type invariant values?
     hash_string = str(message_type).replace(" ", "").replace("\n", "").replace("\r", "")
-    pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XULL;' % ('::'.join(namespace_lst), message_type.name, dlib.dmHashBuffer64(hash_string)))
+    pp_cpp.p('const uint64_t %s::%s::m_DDFHash = 0x%016XULL;' % ('::'.join(namespace_lst), message_type.name, dm_hash_buffer64(hash_string)))
 
     registered_descriptors.append('%s_%s_DESCRIPTOR' % (namespace, message_type.name))
 

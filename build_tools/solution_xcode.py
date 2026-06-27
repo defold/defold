@@ -13,6 +13,10 @@ from os.path import join, relpath
 from xml.sax.saxutils import quoteattr
 
 _STALE_SHARED_SCHEME_NAMES = ('engine', 'all tests')
+_LAUNCHABLE_PRODUCT_TYPES = (
+    'com.apple.product-type.application',
+    'com.apple.product-type.tool',
+)
 
 
 def configure_project(xcode_project_path, build_configuration, target_platform, defold_home, defold_path, dynamo_home, log=None):
@@ -220,6 +224,14 @@ def _write_scheme_management(xcode_project_path, build_configuration, defold_hom
     for target in targets:
         if target['name'] in test_scheme_metadata:
             target.update(test_scheme_metadata[target['name']])
+        if target.get('ios_runner_platform'):
+            if target['product_type'] == 'com.apple.product-type.application':
+                _configure_ios_app_test_launch(target)
+            else:
+                _log(
+                    log,
+                    'Warning: iOS test target %s is not an app bundle; Xcode will not create a device-runnable scheme for it.' %
+                    target['name'])
     scheme_targets = _get_scheme_targets(targets)
 
     if scheme_targets:
@@ -248,14 +260,72 @@ def _read_test_scheme_metadata(xcode_project_path):
             line = line.rstrip('\n')
             if not line:
                 continue
-            parts = line.split('\t', 1)
-            if len(parts) != 2:
+            parts = line.split('\t')
+            if len(parts) < 2:
                 continue
-            target_name, working_directory = parts
-            metadata[target_name] = {
-                'working_directory': working_directory,
+            target_name = parts[0]
+            target_metadata = {
+                'working_directory': parts[1],
             }
+            if len(parts) >= 5:
+                stage_args = parts[5:]
+                stage_pairs = []
+                while len(stage_args) >= 2:
+                    stage_pairs.append((stage_args.pop(0), stage_args.pop(0)))
+                target_metadata.update({
+                    'target_platform': parts[2],
+                    'ios_runner_platform': parts[3],
+                    'configfile': parts[4],
+                    'stage_pairs': stage_pairs,
+                })
+            metadata[target_name] = target_metadata
     return metadata
+
+
+def _ios_test_library_name(working_directory):
+    library_name = os.path.basename(os.path.normpath(working_directory or ''))
+    return library_name or 'test'
+
+
+def _normalize_stage_target(source, destination):
+    destination = (destination or '').replace('\\', '/').lstrip('/')
+    if not destination:
+        destination = os.path.basename(os.path.normpath(source))
+    return destination
+
+
+def _ios_test_ready_paths(configfile, stage_pairs):
+    ready_paths = []
+    for source, destination in stage_pairs or []:
+        target = _normalize_stage_target(source, destination)
+        path_parts = [part for part in target.split('/') if part]
+        for i in range(1, len(path_parts) + 1):
+            ready_paths.append('/'.join(path_parts[:i]))
+    if configfile:
+        ready_paths.append('unittest.cfg')
+    return list(dict.fromkeys(path for path in ready_paths if path))
+
+
+def _configure_ios_app_test_launch(target):
+    configfile = target.get('configfile')
+    stage_pairs = target.get('stage_pairs', [])
+    working_directory = target.get('working_directory')
+    library_name = _ios_test_library_name(working_directory)
+
+    target['working_directory'] = ''
+    launch_arguments = []
+    if configfile:
+        launch_arguments.append('./unittest.cfg')
+    if launch_arguments:
+        target['launch_arguments'] = launch_arguments
+
+    if configfile or stage_pairs:
+        environment = list(target.get('environment') or [])
+        environment.append(('DEFOLD_TEST_WORKDIR', '@executable_path/defold-tests/%s' % library_name))
+        ready_paths = _ios_test_ready_paths(configfile, stage_pairs)
+        if ready_paths:
+            environment.append(('DEFOLD_TEST_READY_PATHS', ';'.join(ready_paths)))
+        target['environment'] = environment
 
 
 def _get_target_ids(pbxproj):
@@ -304,11 +374,11 @@ def _get_targets_in_section(pbxproj, section_name):
 def _get_scheme_targets(targets):
     dmengine_targets = [
         target for target in targets
-        if target['name'] == 'dmengine' and target['product_type'] == 'com.apple.product-type.tool'
+        if target['name'] == 'dmengine' and target['product_type'] in _LAUNCHABLE_PRODUCT_TYPES
     ]
     test_targets = sorted([
         target for target in targets
-        if target['name'].startswith('test_') and target['product_type'] == 'com.apple.product-type.tool'
+        if target['name'].startswith('test_') and target['product_type'] in _LAUNCHABLE_PRODUCT_TYPES
     ], key=lambda target: target['name'])
     run_tests_targets = [
         target for target in targets
@@ -424,6 +494,30 @@ def _scheme_environment_variables(indentation, defold_home, defold_path, dynamo_
     return '\n'.join(lines)
 
 
+def _command_line_arguments(indentation, args):
+    if not args:
+        return ''
+
+    lines = [f'{indentation}<CommandLineArguments>']
+    for arg in args:
+        lines.extend([
+            f'{indentation}   <CommandLineArgument',
+            f'{indentation}      argument = {quoteattr(arg)}',
+            f'{indentation}      isEnabled = "YES">',
+            f'{indentation}   </CommandLineArgument>',
+        ])
+    lines.append(f'{indentation}</CommandLineArguments>')
+    return '\n'.join(lines)
+
+
+def _macro_expansion(project_container, target, indentation):
+    return '\n'.join([
+        f'{indentation}<MacroExpansion>',
+        _buildable_reference(project_container, target, indentation + '   '),
+        f'{indentation}</MacroExpansion>',
+    ])
+
+
 def _build_action_entry(project_container, target):
     buildable_reference = _buildable_reference(project_container, target, '               ')
     return f'''         <BuildActionEntry
@@ -443,7 +537,9 @@ def _make_scheme(project_container, target, build_configuration, defold_home, de
     build_configuration_attr = quoteattr(build_configuration)
     parallelize_buildables = target.get('parallelize_buildables', 'YES')
     build_only = target.get('build_only', False)
-    is_runnable = target['product_type'] == 'com.apple.product-type.tool' and not build_only
+    uses_path_runnable = bool(target.get('launch_path')) and not build_only
+    is_runnable = target['product_type'] in _LAUNCHABLE_PRODUCT_TYPES and not build_only and not uses_path_runnable
+    has_launch_action = is_runnable or uses_path_runnable
     working_directory = target.get('working_directory')
     if working_directory:
         launch_working_directory_attributes = '\n'.join([
@@ -456,21 +552,17 @@ def _make_scheme(project_container, target, build_configuration, defold_home, de
         defold_home,
         defold_path,
         dynamo_home,
-        target.get('environment')) if is_runnable else ''
+        target.get('environment')) if has_launch_action else ''
+    command_line_arguments = _command_line_arguments('      ', target.get('launch_arguments')) if has_launch_action else ''
+    macro_expansion = _macro_expansion(project_container, target, '      ') if uses_path_runnable and target.get('macro_expansion') else ''
+    launch_debugger_identifier = 'Xcode.DebuggerFoundation.Debugger.LLDB'
+    launch_launcher_identifier = 'Xcode.DebuggerFoundation.Launcher.LLDB'
+    if uses_path_runnable:
+        launch_debugger_identifier = ''
+        launch_launcher_identifier = 'Xcode.IDEFoundation.Launcher.PosixSpawn'
     launch_runnable = ''
     profile_runnable = ''
-    if is_runnable:
-        launch_runnable = f'''      <BuildableProductRunnable
-         runnableDebuggingMode = "0">
-{runnable_reference}
-      </BuildableProductRunnable>
-'''
-        profile_runnable = f'''      <BuildableProductRunnable
-         runnableDebuggingMode = "0">
-{runnable_reference}
-      </BuildableProductRunnable>
-'''
-    elif target.get('launch_path'):
+    if uses_path_runnable:
         launch_path_attr = quoteattr(target['launch_path'])
         launch_runnable = f'''      <PathRunnable
          runnableDebuggingMode = "0"
@@ -482,12 +574,23 @@ def _make_scheme(project_container, target, build_configuration, defold_home, de
          FilePath = {launch_path_attr}>
       </PathRunnable>
 '''
+    elif is_runnable:
+        launch_runnable = f'''      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+{runnable_reference}
+      </BuildableProductRunnable>
+'''
+        profile_runnable = f'''      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+{runnable_reference}
+      </BuildableProductRunnable>
+'''
     launch_actions = ''
-    if not build_only:
+    if has_launch_action:
         launch_actions = f'''   <LaunchAction
       buildConfiguration = {build_configuration_attr}
-      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      selectedDebuggerIdentifier = {quoteattr(launch_debugger_identifier)}
+      selectedLauncherIdentifier = {quoteattr(launch_launcher_identifier)}
       launchStyle = "0"
 {launch_working_directory_attributes}
       ignoresPersistentStateOnLaunch = "NO"
@@ -495,7 +598,9 @@ def _make_scheme(project_container, target, build_configuration, defold_home, de
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
 {scheme_environment_variables}
+{macro_expansion}
 {launch_runnable.rstrip()}
+{command_line_arguments}
    </LaunchAction>
    <ProfileAction
       buildConfiguration = {build_configuration_attr}
@@ -504,7 +609,9 @@ def _make_scheme(project_container, target, build_configuration, defold_home, de
 {launch_working_directory_attributes}
       debugDocumentVersioning = "YES">
 {scheme_environment_variables}
+{macro_expansion}
 {profile_runnable.rstrip()}
+{command_line_arguments}
    </ProfileAction>
 '''
 
