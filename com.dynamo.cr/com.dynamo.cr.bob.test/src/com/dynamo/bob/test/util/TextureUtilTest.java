@@ -40,11 +40,11 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 public class TextureUtilTest {
 
-    /* Intent: verify that generated texture resources align embedded image payloads.
+    /* Intent: verify that generated texture resources align embedded typed image payloads.
     ** Setup: one small byte texture alternative and one RGBA32F texture alternative are
     ** written through the default texture resource path.
-    ** Expected: each serialized mip offset skips any inserted padding, each payload starts
-    ** on a 4-byte boundary, and the original image data is preserved.
+    ** Expected: the byte alternative is unchanged, the float alternative mip offset skips any
+    ** inserted padding so it starts on a 4-byte boundary, and both image payloads are preserved.
     */
     @Test
     public void testWriteGenerateResultCanAlignFirstImageData() throws Exception {
@@ -116,9 +116,9 @@ public class TextureUtilTest {
         int byteImageDataOffset = payloadOffset + alignedByteImage.getMipMapOffset(0);
         int floatImageDataOffset = payloadOffset + alignedByteImage.getDataSize() + alignedFloatImage.getMipMapOffset(0);
 
-        assertEquals(0, byteImageDataOffset % 4);
         assertEquals(0, floatImageDataOffset % 4);
-        assertEquals(byteImageData.length + alignedByteImage.getMipMapOffset(0), alignedByteImage.getDataSize());
+        assertEquals(0, alignedByteImage.getMipMapOffset(0));
+        assertEquals(byteImageData.length, alignedByteImage.getDataSize());
         assertEquals(floatImageData.length + alignedFloatImage.getMipMapOffset(0), alignedFloatImage.getDataSize());
 
         for (int i = 0; i < byteImageData.length; ++i) {

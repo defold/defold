@@ -49,7 +49,7 @@ import static com.dynamo.bob.util.MiscUtil.concatenateArrays;
 
 public class TextureUtil {
 
-    private static final int DEFAULT_FIRST_IMAGE_DATA_ALIGNMENT = 4;
+    private static final int MAX_IMAGE_DATA_ALIGNMENT = 4;
 
     static {
         TimeProfiler.start("ImageIO.setUseCache");
@@ -324,7 +324,7 @@ public class TextureUtil {
 
     // Called from bob and editor when building texture resources
     public static void writeGenerateResultToOutputStream(TextureGenerator.GenerateResult generateResult, OutputStream stream) throws IOException {
-        writeGenerateResultToOutputStream(generateResult, stream, DEFAULT_FIRST_IMAGE_DATA_ALIGNMENT);
+        writeGenerateResultToOutputStream(generateResult, stream, MAX_IMAGE_DATA_ALIGNMENT);
     }
 
     public static void writeGenerateResultToOutputStream(TextureGenerator.GenerateResult generateResult, OutputStream stream, int imageDataAlignment) throws IOException {
@@ -345,7 +345,7 @@ public class TextureUtil {
     }
 
     public static void writeGenerateResultToResource(TextureGenerator.GenerateResult generateResult, IResource resource) throws IOException {
-        writeGenerateResultToResource(generateResult, resource, DEFAULT_FIRST_IMAGE_DATA_ALIGNMENT);
+        writeGenerateResultToResource(generateResult, resource, MAX_IMAGE_DATA_ALIGNMENT);
     }
 
     public static void writeGenerateResultToResource(TextureGenerator.GenerateResult generateResult, IResource resource, int imageDataAlignment) throws IOException {
@@ -375,14 +375,25 @@ public class TextureUtil {
         }
     }
 
-    private static AlignedGenerateResult alignImageData(TextureGenerator.GenerateResult generateResult, int alignment) {
-        if (alignment <= 1 || generateResult.imageDatas.isEmpty() || generateResult.textureImage.getAlternativesCount() == 0) {
+    private static AlignedGenerateResult alignImageData(TextureGenerator.GenerateResult generateResult, int maxAlignment) {
+        if (maxAlignment <= 1 || generateResult.imageDatas.isEmpty() || generateResult.textureImage.getAlternativesCount() == 0) {
             return new AlignedGenerateResult(generateResult.textureImage, generateResult.imageDatas);
         }
 
         int alternativeCount = generateResult.textureImage.getAlternativesCount();
+        int[] alternativeAlignments = new int[alternativeCount];
         int[] alternativePaddings = new int[alternativeCount];
-        for (int attempt = 0; attempt < alternativeCount * alignment + 1; ++attempt) {
+        boolean needsAlignment = false;
+        for (int i = 0; i < alternativeCount; ++i) {
+            alternativeAlignments[i] = Math.min(maxAlignment, getTextureFormatDataAlignment(generateResult.textureImage.getAlternatives(i).getFormat()));
+            needsAlignment |= alternativeAlignments[i] > 1;
+        }
+
+        if (!needsAlignment) {
+            return new AlignedGenerateResult(generateResult.textureImage, generateResult.imageDatas);
+        }
+
+        for (int attempt = 0; attempt < alternativeCount * maxAlignment + 1; ++attempt) {
             TextureImage alignedTextureImage = addImagePadding(generateResult.textureImage, alternativePaddings);
             int headerSize = alignedTextureImage.toByteArray().length;
             int alternativeOffset = 0;
@@ -392,7 +403,8 @@ public class TextureUtil {
                 TextureImage.Image image = generateResult.textureImage.getAlternatives(i);
                 int firstMipOffset = image.getMipMapOffsetCount() > 0 ? image.getMipMapOffset(0) : 0;
                 int unpaddedImageOffset = Integer.BYTES + headerSize + alternativeOffset + firstMipOffset;
-                int padding = (alignment - (unpaddedImageOffset % alignment)) % alignment;
+                int alignment = alternativeAlignments[i];
+                int padding = alignment <= 1 ? 0 : (alignment - (unpaddedImageOffset % alignment)) % alignment;
                 if (alternativePaddings[i] != padding) {
                     alternativePaddings[i] = padding;
                     changed = true;
@@ -405,7 +417,26 @@ public class TextureUtil {
             }
         }
 
-        throw new IllegalStateException(String.format("Unable to align texture image data to %d bytes", alignment));
+        throw new IllegalStateException(String.format("Unable to align texture image data to %d bytes", maxAlignment));
+    }
+
+    private static int getTextureFormatDataAlignment(TextureImage.TextureFormat format) {
+        switch (format) {
+            case TEXTURE_FORMAT_RGB_16BPP:
+            case TEXTURE_FORMAT_RGBA_16BPP:
+            case TEXTURE_FORMAT_RGB16F:
+            case TEXTURE_FORMAT_RGBA16F:
+            case TEXTURE_FORMAT_R16F:
+            case TEXTURE_FORMAT_RG16F:
+                return 2;
+            case TEXTURE_FORMAT_RGB32F:
+            case TEXTURE_FORMAT_RGBA32F:
+            case TEXTURE_FORMAT_R32F:
+            case TEXTURE_FORMAT_RG32F:
+                return 4;
+            default:
+                return 1;
+        }
     }
 
     private static TextureImage addImagePadding(TextureImage textureImage, int[] alternativePaddings) {
