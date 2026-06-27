@@ -40,14 +40,41 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 public class TextureUtilTest {
 
+    /* Intent: verify that generated texture resources align embedded image payloads.
+    ** Setup: one small byte texture alternative and one RGBA32F texture alternative are
+    ** written through the default texture resource path.
+    ** Expected: each serialized mip offset skips any inserted padding, each payload starts
+    ** on a 4-byte boundary, and the original image data is preserved.
+    */
     @Test
     public void testWriteGenerateResultCanAlignFirstImageData() throws Exception {
-        byte[] imageData = new byte[16];
-        for (int i = 0; i < imageData.length; ++i) {
-            imageData[i] = (byte)i;
+        byte[] byteImageData = new byte[5];
+        for (int i = 0; i < byteImageData.length; ++i) {
+            byteImageData[i] = (byte)i;
         }
 
-        TextureImage.Image image = TextureImage.Image.newBuilder()
+        byte[] floatImageData = new byte[16];
+        for (int i = 0; i < floatImageData.length; ++i) {
+            floatImageData[i] = (byte)(i + 16);
+        }
+
+        TextureImage.Image byteImage = TextureImage.Image.newBuilder()
+                .setWidth(1)
+                .setHeight(1)
+                .setDepth(1)
+                .setOriginalWidth(1)
+                .setOriginalHeight(1)
+                .setOriginalDepth(1)
+                .setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA)
+                .addMipMapOffset(0)
+                .addMipMapSize(byteImageData.length)
+                .addMipMapSizeCompressed(byteImageData.length)
+                .addMipMapDimensions(1)
+                .addMipMapDimensions(1)
+                .setDataSize(byteImageData.length)
+                .build();
+
+        TextureImage.Image floatImage = TextureImage.Image.newBuilder()
                 .setWidth(1)
                 .setHeight(1)
                 .setDepth(1)
@@ -56,39 +83,49 @@ public class TextureUtilTest {
                 .setOriginalDepth(1)
                 .setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA32F)
                 .addMipMapOffset(0)
-                .addMipMapSize(imageData.length)
-                .addMipMapSizeCompressed(imageData.length)
+                .addMipMapSize(floatImageData.length)
+                .addMipMapSizeCompressed(floatImageData.length)
                 .addMipMapDimensions(1)
                 .addMipMapDimensions(1)
-                .setDataSize(imageData.length)
+                .setDataSize(floatImageData.length)
                 .build();
 
         TextureGenerator.GenerateResult generateResult = new TextureGenerator.GenerateResult();
         generateResult.textureImage = TextureImage.newBuilder()
-                .addAlternatives(image)
+                .addAlternatives(byteImage)
+                .addAlternatives(floatImage)
                 .setType(TextureImage.Type.TYPE_2D_ARRAY)
                 .setCount(1)
                 .build();
         generateResult.imageDatas = new ArrayList<>();
-        generateResult.imageDatas.add(imageData);
+        generateResult.imageDatas.add(byteImageData);
+        generateResult.imageDatas.add(floatImageData);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        TextureUtil.writeGenerateResultToOutputStream(generateResult, out, 4);
+        TextureUtil.writeGenerateResultToOutputStream(generateResult, out);
         byte[] textureBytes = out.toByteArray();
 
         ByteBuffer headerSizeBuffer = ByteBuffer.wrap(textureBytes, 0, Integer.BYTES);
         headerSizeBuffer.order(ByteOrder.LITTLE_ENDIAN);
         int headerSize = headerSizeBuffer.getInt();
         TextureImage textureImage = TextureImage.parseFrom(Arrays.copyOfRange(textureBytes, Integer.BYTES, Integer.BYTES + headerSize));
-        TextureImage.Image alignedImage = textureImage.getAlternatives(0);
+        TextureImage.Image alignedByteImage = textureImage.getAlternatives(0);
+        TextureImage.Image alignedFloatImage = textureImage.getAlternatives(1);
 
-        int mipOffset = alignedImage.getMipMapOffset(0);
-        int imageDataOffset = Integer.BYTES + headerSize + mipOffset;
-        assertEquals(0, imageDataOffset % 4);
-        assertEquals(imageData.length + mipOffset, alignedImage.getDataSize());
+        int payloadOffset = Integer.BYTES + headerSize;
+        int byteImageDataOffset = payloadOffset + alignedByteImage.getMipMapOffset(0);
+        int floatImageDataOffset = payloadOffset + alignedByteImage.getDataSize() + alignedFloatImage.getMipMapOffset(0);
 
-        for (int i = 0; i < imageData.length; ++i) {
-            assertEquals(imageData[i], textureBytes[imageDataOffset + i]);
+        assertEquals(0, byteImageDataOffset % 4);
+        assertEquals(0, floatImageDataOffset % 4);
+        assertEquals(byteImageData.length + alignedByteImage.getMipMapOffset(0), alignedByteImage.getDataSize());
+        assertEquals(floatImageData.length + alignedFloatImage.getMipMapOffset(0), alignedFloatImage.getDataSize());
+
+        for (int i = 0; i < byteImageData.length; ++i) {
+            assertEquals(byteImageData[i], textureBytes[byteImageDataOffset + i]);
+        }
+        for (int i = 0; i < floatImageData.length; ++i) {
+            assertEquals(floatImageData[i], textureBytes[floatImageDataOffset + i]);
         }
     }
 

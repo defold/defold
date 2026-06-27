@@ -169,8 +169,7 @@ public class MeshsetBuilder extends Builder  {
             ArrayList<ModelUtil.CollectedMorphTargetTexture> morphTargetTextures = morphTextureCollector.getTextures();
             ArrayList<IResource> morphTargetTextureOutputs = morphTextureCollector.getOutputs();
             for (int i = 0; i < morphTargetTextures.size(); ++i) {
-                // WebGL float texture uploads require the first image payload to be 4-byte aligned.
-                TextureUtil.writeGenerateResultToResource(morphTargetTextures.get(i).texture.toGenerateResult(), morphTargetTextureOutputs.get(i), 4);
+                TextureUtil.writeGenerateResultToResource(morphTargetTextures.get(i).texture.toGenerateResult(), morphTargetTextureOutputs.get(i));
             }
         }
 
