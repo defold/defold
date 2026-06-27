@@ -52,7 +52,7 @@ function(defold_get_graphics_symbols OUT_VAR PLATFORM)
     set(_use_vulkan   OFF)
 
     # Base selection per platform
-    if("${PLATFORM}" MATCHES "^(arm64-macos|x86_64-macos|arm64-nx64)$")
+    if("${PLATFORM}" MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64-nx64)$")
         set(_use_opengl ${_WITH_OPENGL})
         set(_use_vulkan ON)
     elseif("${PLATFORM}" MATCHES "^(arm64-linux)$")
@@ -241,7 +241,7 @@ function(defold_target_link_graphics target platform)
     set(_use_opengles OFF)
     set(_use_vulkan   OFF)
 
-    if("${platform}" MATCHES "^(arm64-macos|x86_64-macos|arm64-nx64)$")
+    if("${platform}" MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64-nx64)$")
         set(_use_opengl ${_WITH_OPENGL})
         set(_use_vulkan ON)
     elseif("${platform}" MATCHES "^(arm64-linux)$")

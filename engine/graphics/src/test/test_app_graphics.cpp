@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <testmain/testmain.h>
 
@@ -50,6 +51,16 @@ typedef void* (*EngineCreateFn)(int argc, char** argv);
 typedef void (*EngineDestroyFn)(void* engine);
 typedef UpdateResult (*EngineUpdateFn)(void* engine);
 typedef void (*EngineGetResultFn)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
+static const int TEST_APP_GRAPHICS_MAX_FRAME_COUNT = 200;
+static int      g_AppArgc = 0;
+static char**   g_AppArgv = 0;
+
+static bool ShouldAutoExit()
+{
+    const char* value = getenv("DEFOLD_TEST_AUTO_EXIT");
+    return value && value[0] != 0 && strcmp(value, "0") != 0 && !TestMainIsDebuggerAttached();
+}
 
 struct RunLoopParams
 {
@@ -86,6 +97,15 @@ static dmGraphics::HUniformLocation GetUniformLocation(dmGraphics::HProgram prog
 
 static int RunLoop(const RunLoopParams* params)
 {
+#if defined(DM_PLATFORM_IOS)
+    dmGraphics::AppBootstrap(params->m_Argc, params->m_Argv, params->m_AppCtx, (dmGraphics::EngineInit)params->m_AppCreate,
+                                                                              (dmGraphics::EngineExit)params->m_AppDestroy,
+                                                                              (dmGraphics::EngineCreate)params->m_EngineCreate,
+                                                                              (dmGraphics::EngineDestroy)params->m_EngineDestroy,
+                                                                              (dmGraphics::EngineUpdate)params->m_EngineUpdate,
+                                                                              (dmGraphics::EngineGetResult)params->m_EngineGetResult);
+    return 0;
+#else
     if (params->m_AppCreate)
         params->m_AppCreate(params->m_AppCtx);
 
@@ -128,6 +148,7 @@ static int RunLoop(const RunLoopParams* params)
         params->m_AppDestroy(params->m_AppCtx);
 
     return exit_code;
+#endif
 }
 
 
@@ -173,6 +194,7 @@ struct EngineCtx
 
     ITest* m_Test;
     bool m_WindowClosed;
+    bool m_Failed;
 
 } g_EngineCtx;
 
@@ -310,6 +332,11 @@ struct DrawTriangleTest : ITest
         // AddShaderResource(&shader_desc, "Test", dmGraphics::ShaderDesc::SHADER_TYPE_UNIFORM_BUFFER, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, 0);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, 0, 0);
+        if (!m_Program)
+        {
+            dmLogError("Failed to create draw triangle test program");
+            engine->m_Failed = true;
+        }
 
         DeleteShaderDesc(&shader_desc);
     }
@@ -737,6 +764,11 @@ struct UniformBufferTest : ITest
         AddShaderResource(&shader_desc, "LightData", 0, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, 0, 0);
+        if (!m_Program)
+        {
+            dmLogError("Failed to create uniform buffer test program");
+            engine->m_Failed = true;
+        }
 
         DeleteShaderDesc(&shader_desc);
 
@@ -747,6 +779,12 @@ struct UniformBufferTest : ITest
 
     void Execute(EngineCtx* engine) override
     {
+        if (!m_Program)
+        {
+            engine->m_Failed = true;
+            engine->m_Running = 0;
+            return;
+        }
         dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
         dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
         dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
@@ -898,25 +936,33 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_VerifyGraphicsCalls     = 1;
+#if defined(DM_VULKAN_VALIDATION)
     graphics_context_params.m_UseValidationLayers     = 1;
+#endif
     graphics_context_params.m_Window                  = engine->m_Window;
     graphics_context_params.m_Width                   = 512;
     graphics_context_params.m_Height                  = 512;
     graphics_context_params.m_JobContext              = engine->m_JobContext;
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+    if (!engine->m_GraphicsContext)
+    {
+        dmLogError("Failed to create graphics context");
+        engine->m_Failed = true;
+        return 0;
+    }
 
     //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();
     //engine->m_Test = new ReadPixelsTest();
-    //engine->m_Test = new ClearBackbufferTest();
     //engine->m_Test = new AsyncTextureUploadTest();
-    //engine->m_Test = new MslArgumentBuffersTest();
-    engine->m_Test = new UniformBufferTest();
+    //engine->m_Test = new ClearBackbufferTest();
+    dmLogInfo("test_app_graphics: running ClearBackbufferTest");
+    engine->m_Test = new ClearBackbufferTest();
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
-    engine->m_Running = 1;
+    engine->m_Running = engine->m_Failed ? 0 : 1;
     engine->m_TimeStart = dmTime::GetMonotonicTime();
 
     return &g_EngineCtx;
@@ -939,8 +985,8 @@ static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
     engine->m_WasRun++;
-    uint64_t t = dmTime::GetMonotonicTime();
     /*
+    uint64_t t = dmTime::GetMonotonicTime();
     float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
     if (elapsed > 3.0f)
         return RESULT_EXIT;
@@ -966,6 +1012,11 @@ static UpdateResult EngineUpdate(void* _engine)
 
     dmGraphics::Flip(engine->m_GraphicsContext);
 
+    if (ShouldAutoExit() && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
+    {
+        return RESULT_EXIT;
+    }
+
     return RESULT_OK;
 }
 
@@ -973,11 +1024,45 @@ static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int*
 {
     EngineCtx* ctx = (EngineCtx*)_engine;
     ctx->m_WasResultCalled++;
+    if (run_action)
+    {
+        *run_action = RESULT_EXIT;
+    }
+    if (exit_code)
+    {
+        *exit_code = ctx->m_Failed ? 1 : 0;
+    }
+}
+
+static dmGraphics::AdapterFamily GetDefaultAdapterFamily()
+{
+#if defined(DM_TEST_APP_GRAPHICS_DEFAULT_VULKAN)
+    return dmGraphics::ADAPTER_FAMILY_VULKAN;
+#elif defined(DM_TEST_APP_GRAPHICS_DEFAULT_METAL)
+    return dmGraphics::ADAPTER_FAMILY_METAL;
+#elif defined(DM_TEST_APP_GRAPHICS_DEFAULT_OPENGLES)
+    return dmGraphics::ADAPTER_FAMILY_OPENGLES;
+#else
+    return dmGraphics::ADAPTER_FAMILY_OPENGL;
+#endif
+}
+
+static const char* GetAdapterName(dmGraphics::AdapterFamily family)
+{
+    switch (family)
+    {
+        case dmGraphics::ADAPTER_FAMILY_OPENGL:   return "opengl";
+        case dmGraphics::ADAPTER_FAMILY_OPENGLES: return "opengles";
+        case dmGraphics::ADAPTER_FAMILY_VULKAN:   return "vulkan";
+        case dmGraphics::ADAPTER_FAMILY_METAL:    return "metal";
+        default: break;
+    }
+    return "unknown";
 }
 
 static void InstallAdapter(int argc, char **argv)
 {
-    dmGraphics::AdapterFamily family = dmGraphics::ADAPTER_FAMILY_VULKAN;
+    dmGraphics::AdapterFamily family = GetDefaultAdapterFamily();
 
     for (int i = 0; i < argc; ++i)
     {
@@ -985,13 +1070,24 @@ static void InstallAdapter(int argc, char **argv)
         {
             family = dmGraphics::ADAPTER_FAMILY_OPENGL;
         }
+        else if (strcmp(argv[i], "opengles") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_OPENGLES;
+        }
+        else if (strcmp(argv[i], "vulkan") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_VULKAN;
+        }
         else if (strcmp(argv[i], "metal") == 0)
         {
             family = dmGraphics::ADAPTER_FAMILY_METAL;
         }
     }
 
-    dmGraphics::InstallAdapter(family);
+    if (!dmGraphics::InstallAdapter(family))
+    {
+        dmLogFatal("Unable to install %s graphics adapter.", GetAdapterName(family));
+    }
 }
 
 TEST(App, Run)
@@ -1001,6 +1097,9 @@ TEST(App, Run)
     memset(&g_EngineCtx, 0, sizeof(g_EngineCtx));
 
     RunLoopParams params;
+    memset(&params, 0, sizeof(params));
+    params.m_Argc = g_AppArgc;
+    params.m_Argv = g_AppArgv;
     params.m_AppCtx = &ctx;
     params.m_AppCreate = AppCreate;
     params.m_AppDestroy = AppDestroy;
@@ -1030,6 +1129,8 @@ extern "C" void dmExportedSymbols();
 int main(int argc, char **argv)
 {
     TestMainPlatformInit();
+    g_AppArgc = argc;
+    g_AppArgv = argv;
     dmHashEnableReverseHash(true);
 
     dmExportedSymbols();

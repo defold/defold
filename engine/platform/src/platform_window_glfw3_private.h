@@ -74,9 +74,9 @@ namespace dmPlatform
     bool CanSetOpenGLCoreProfileHintNative(bool use_highest_version);
 #if defined(_WIN32)
     const char* GetJoystickDeviceGuidNative(HWindow window, uint32_t joystick_index, const char* glfw_guid);
+#endif
     void InstallWindowCloseHandlerNative(HWindow window);
     void UninstallWindowCloseHandlerNative(HWindow window);
-#endif
 }
 
 #endif // DM_PLATFORM_WINDOW_GLFW3_PRIVATE_H
