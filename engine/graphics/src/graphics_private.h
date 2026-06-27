@@ -18,10 +18,98 @@
 #include <stdint.h>
 #include <dlib/mutex.h>
 #include <dlib/index_pool.h>
+#include <dmsdk/dlib/atomic.h>
 #include "graphics.h"
 
 namespace dmGraphics
 {
+    // Shared texture metadata embedded as m_Base in each backend texture struct (OpenGLTexture, VulkanTexture, etc.).
+    // Each adapter keeps Texture as the first non-vtable member so the asset pointer aliases m_Base and
+    // GetAssetFromContainer<Texture>(container, handle) is valid alongside GetAssetFromContainer<BackendTexture>(...).
+    struct Texture
+    {
+        TextureType    m_Type;
+        TextureFormat  m_Format;
+        uint16_t       m_Width;
+        uint16_t       m_Height;
+        uint16_t       m_Depth;
+        uint16_t       m_OriginalWidth;
+        uint16_t       m_OriginalHeight;
+        uint16_t       m_OriginalDepth;
+        uint8_t        m_MipMapCount;
+        uint8_t        m_PageCount;
+        uint8_t        m_UsageHintFlags;
+        uint16_t       m_NumTextureIds;
+        uint32_t       m_ResourceSize;
+        uint32_t       m_Mip0ResourceSize;
+        int32_atomic_t m_DataState; // mip bits for upload pending; mutable so const Texture* can pass &m_DataState to atomics
+    };
+
+    struct Buffer
+    {
+        uint32_t m_Size;
+    };
+
+    static inline uint32_t EstimateTextureResourceDataSize(const Texture* texture, uint32_t mip0_size, bool multiply_depth)
+    {
+        uint32_t size_total = 0;
+        uint32_t size       = mip0_size;
+        if (size == 0)
+        {
+            size = texture->m_Mip0ResourceSize;
+            if (size == 0)
+            {
+                size = texture->m_Width * texture->m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(texture->m_Format) / 8);
+            }
+        }
+        for (uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+        {
+            size_total += size;
+            size >>= 2;
+        }
+        if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP || texture->m_Type == TEXTURE_TYPE_TEXTURE_CUBE)
+        {
+            size_total *= 6;
+        }
+        else if (multiply_depth)
+        {
+            size_total *= dmMath::Max((uint16_t) 1, texture->m_Depth);
+        }
+        return size_total;
+    }
+
+    static inline void SetTextureResourceSize(Texture* texture, uint32_t backend_texture_size, uint32_t mip0_size = 0, bool multiply_depth = false)
+    {
+        if (mip0_size != 0 || texture->m_Mip0ResourceSize == 0)
+        {
+            texture->m_Mip0ResourceSize = mip0_size;
+        }
+        texture->m_ResourceSize = EstimateTextureResourceDataSize(texture, mip0_size, multiply_depth) + backend_texture_size;
+    }
+
+    static inline void SetTextureResourceSizeExact(Texture* texture, uint32_t backend_texture_size, uint32_t data_size)
+    {
+        texture->m_ResourceSize = data_size + backend_texture_size;
+    }
+
+    // Shared render target metadata embedded as m_Base in each backend render target struct.
+    // Each adapter keeps RenderTarget as the first non-vtable member so the asset pointer aliases m_Base and
+    // GetAssetFromContainer<RenderTarget>(container, handle) is valid alongside GetAssetFromContainer<BackendRenderTarget>(...).
+    struct RenderTarget
+    {
+        TextureParams m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams m_DepthBufferParams;
+        TextureParams m_StencilBufferParams;
+        TextureParams m_DepthStencilTextureParams;
+        HTexture      m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture      m_TextureDepth;
+        HTexture      m_TextureStencil;
+        HTexture      m_TextureDepthStencil;
+        uint16_t      m_Id;
+        uint8_t       m_ColorAttachmentCount;
+        uint8_t       m_IsBound;
+    };
+
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
@@ -133,6 +221,62 @@ namespace dmGraphics
         dmArray<HTexture>              m_PostDeleteTextures;
     };
 
+    // Shared fields embedded as m_BaseContext (first member) in each backend context struct.
+    struct GraphicsContext
+    {
+        GraphicsContextLimits              m_Limits;
+        uint16_t                           m_AdapterVersionMajor;
+        uint16_t                           m_AdapterVersionMinor;
+        HWindow                            m_Window;
+        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+        dmMutex::HMutex                    m_AssetHandleContainerMutex;
+        uint64_t                           m_TextureFormatSupport;
+        TextureFilter                      m_DefaultTextureMinFilter;
+        TextureFilter                      m_DefaultTextureMagFilter;
+        uint32_t                           m_ContextFeatureSupport;
+        uint32_t                           m_Width;
+        uint32_t                           m_Height;
+        uint32_t                           m_VerifyGraphicsCalls : 1;
+        uint32_t                           m_PrintDeviceInfo     : 1;
+    };
+
+    static inline void SetContextFeatureSupported(GraphicsContext* context, ContextFeature feature)
+    {
+        assert(feature < MAX_CONTEXT_FEATURE_COUNT);
+        context->m_ContextFeatureSupport |= 1 << feature;
+    }
+
+    static inline void SetAllContextFeaturesSupported(GraphicsContext* context)
+    {
+        for (uint32_t i = 0; i < MAX_CONTEXT_FEATURE_COUNT; ++i)
+        {
+            SetContextFeatureSupported(context, (ContextFeature) i);
+        }
+    }
+
+    static inline void SetContextTextureFormatSupported(GraphicsContext* context, TextureFormat format)
+    {
+        context->m_TextureFormatSupport |= 1ULL << format;
+    }
+
+    static inline void SetContextASTCTextureFormatsSupported(GraphicsContext* context)
+    {
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_5X4);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_5X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_6X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_6X6);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_8X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_8X6);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_8X8);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X6);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X8);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X10);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_12X10);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_12X12);
+    }
+
     struct ProgramResourceBindingsInfo
     {
         uint32_t m_UniformBufferCount;
@@ -170,6 +314,7 @@ namespace dmGraphics
     struct UniformBuffer
     {
         UniformBufferLayout m_Layout;
+        uint32_t            m_Size;
         uint8_t             m_BoundBinding;
         uint8_t             m_BoundSet;
     };
@@ -221,7 +366,15 @@ namespace dmGraphics
         }
     };
 
+    struct TextureFormatCompressedBlockSize
+    {
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_ByteSize;
+    };
+
     uint32_t                   GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    bool                       GetTextureFormatCompressedBlockSize(TextureFormat format, TextureFormatCompressedBlockSize* out);
     uint32_t                   GetGraphicsTypeDataSize(Type type);
     void                       InstallAdapterVendor();
     PipelineState              GetDefaultPipelineState();

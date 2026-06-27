@@ -1,0 +1,317 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Multiple Functional tests
+description: Run functional tests
+
+inputs:
+  nix-shell:
+    description: Run in the specified Nix environment if exists
+    default: "ci"
+  custom_shell:
+    description: The shell to use. Only relevant if no nix-shell specified
+    default: "bash"
+  nix-cache:
+    description: Determine whether to enable nix cache
+    default: 'false'
+  nix-verbose:
+    description: Determine wether to suppress nix log or not
+    default: 'false'
+  gh_token:
+    description: Github access token to use
+    required: true
+  cflags:
+    description: CFLAGS to pass to compilation
+    default: ""
+  ldflags:
+    description: LDFLAGS to pass to linking
+    default: ""
+  compile_mode:
+    description: all | native | cross-x86_64 | cross-aarch64 | cross-riscv64 | cross-riscv32
+    default: "native"
+  opt:
+    description: all | opt | no_opt
+    default: "all"
+  func:
+    description: Determine whether to run functional test or not
+    default: "true"
+  kat:
+    description: Determine whether to run kat test or not
+    default: "true"
+  acvp:
+    description: Determine whether to run acvp test or not
+    default: "true"
+  examples:
+    description: Determine whether to run examples or not
+    default: "true"
+  unit:
+    description: Determine whether to run unit tests or not
+    default: "true"
+  check_namespace:
+    description: Determine whether to check namespacing or not
+    default: "true"
+  stack:
+    description: Determine whether to run stack analysis or not
+    default: "false"
+  alloc:
+    description: Determine whether to run alloc tests or not
+    default: "true"
+  rng_fail:
+    description: Determine whether to run rng fail tests or not
+    default: "true"
+  extra_args:
+    description: Additional arguments to pass to the tests script
+    default: ""
+  extra_env:
+    description: Additional environment variables to set when calling the tests script
+    default: ""
+runs:
+  using: composite
+  steps:
+      - name: Native Tests
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'native') }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: ${{ inputs.cflags }}
+          ldflags: ${{ inputs.ldflags }}
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+      - name: Cross x86_64 Tests
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'cross-x86_64') && (success() || failure()) }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: "${{ inputs.cflags }} -DMLD_FORCE_X86_64"
+          ldflags: ${{ inputs.ldflags }}
+          cross_prefix: x86_64-unknown-linux-gnu-
+          exec_wrapper: qemu-x86_64
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+      - name: Cross aarch64 Tests
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'cross-aarch64') && (success() || failure()) }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: "${{ inputs.cflags }} -DMLD_FORCE_AARCH64"
+          ldflags: ${{ inputs.ldflags }}
+          cross_prefix: aarch64-unknown-linux-gnu-
+          exec_wrapper: qemu-aarch64
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+      - name: Cross ppc64le Tests
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'cross-ppc64le') && (success() || failure()) }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: "${{ inputs.cflags }} -DMLD_FORCE_PPC64LE"
+          ldflags: ${{ inputs.ldflags }}
+          cross_prefix: powerpc64le-unknown-linux-gnu-
+          exec_wrapper: qemu-ppc64le
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+      - name: Cross aarch64_be Tests
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'cross-aarch64_be') && (success() || failure()) }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: "${{ inputs.cflags }} -DMLD_FORCE_AARCH64_EB"
+          ldflags: "${{ inputs.ldflags }} -static"
+          cross_prefix: aarch64_be-none-linux-gnu-
+          exec_wrapper: qemu-aarch64_be
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+      - name: Cross riscv64 Tests (RVV, VLEN=128)
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'cross-riscv64') && (success() || failure()) }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: "${{ inputs.cflags }} -DMLD_FORCE_RISCV64"
+          ldflags: ${{ inputs.ldflags }}
+          cross_prefix: riscv64-unknown-linux-gnu-
+          exec_wrapper: "qemu-riscv64 -cpu rv64,v=true,vlen=128"
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+      - name: Cross riscv64 Tests (RVV, VLEN=256)
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'cross-riscv64') && (success() || failure()) }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: "${{ inputs.cflags }} -DMLD_FORCE_RISCV64"
+          cross_prefix: riscv64-unknown-linux-gnu-
+          exec_wrapper: "qemu-riscv64 -cpu rv64,v=true,vlen=256"
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+      - name: Cross riscv64 Tests (RVV, VLEN=512)
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'cross-riscv64') && (success() || failure()) }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: "${{ inputs.cflags }} -DMLD_FORCE_RISCV64"
+          cross_prefix: riscv64-unknown-linux-gnu-
+          exec_wrapper: "qemu-riscv64 -cpu rv64,v=true,vlen=512"
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+      - name: Cross riscv64 Tests (RVV, VLEN=1024)
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'cross-riscv64') && (success() || failure()) }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: "${{ inputs.cflags }} -DMLD_FORCE_RISCV64"
+          cross_prefix: riscv64-unknown-linux-gnu-
+          exec_wrapper: "qemu-riscv64 -cpu rv64,v=true,vlen=1024"
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+      - name: Cross riscv32 Tests
+        if: ${{ (inputs.compile_mode == 'all' || inputs.compile_mode == 'cross-riscv32') && (success() || failure()) }}
+        uses: ./.github/actions/functest
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          custom_shell: ${{ inputs.custom_shell }}
+          cflags: "${{ inputs.cflags }} -DMLD_FORCE_RISCV32"
+          ldflags: ${{ inputs.ldflags }}
+          cross_prefix: riscv32-unknown-linux-gnu-
+          exec_wrapper: qemu-riscv32
+          opt: ${{ inputs.opt }}
+          func: ${{ inputs.func }}
+          kat: ${{ inputs.kat }}
+          unit: ${{ inputs.unit }}
+          acvp: ${{ inputs.acvp }}
+          examples: ${{ inputs.examples }}
+          check_namespace: ${{ inputs.check_namespace }}
+          stack: ${{ inputs.stack }}
+          alloc: ${{ inputs.alloc }}
+          rng_fail: ${{ inputs.rng_fail }}
+          extra_args: ${{ inputs.extra_args }}
+          extra_env: ${{ inputs.extra_env }}
+

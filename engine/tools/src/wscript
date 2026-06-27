@@ -13,3 +13,4 @@ def build(bld):
 
     bld.recurse('launcher')
     bld.recurse('texconvert')
+    bld.recurse('mouse_capture')

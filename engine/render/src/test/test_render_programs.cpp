@@ -251,7 +251,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceNotSupported)
 
     dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     // Turn off all context features manually
-    null_context->m_ContextFeatures = 0;
+    null_context->m_BaseContext.m_ContextFeatureSupport = 0;
 
     dmGraphics::ShaderDescBuilder shader_desc_builder;
     shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vs_src, strlen(vs_src));
@@ -401,11 +401,13 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
     dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
     ASSERT_EQ(attribute_overrides[2].m_Values.m_BinaryValues.m_Count, num_values);
     {
-        float* f_value = (float*) value_ptr;
-        float* f_exp   = (float*) attribute_overrides[2].m_Values.m_BinaryValues.m_Data;
         for (int i = 0; i < num_values / sizeof(float); ++i)
         {
-            ASSERT_NEAR(f_exp[i], f_value[i], ASSERT_EPS);
+            float f_value;
+            float f_exp;
+            memcpy(&f_value, value_ptr + i * sizeof(float), sizeof(float));
+            memcpy(&f_exp, attribute_overrides[2].m_Values.m_BinaryValues.m_Data + i * sizeof(float), sizeof(float));
+            ASSERT_NEAR(f_exp, f_value, ASSERT_EPS);
         }
     }
 
@@ -413,11 +415,13 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
     dmRender::GetMaterialProgramAttributeValues(material, 3, &value_ptr, &num_values);
     ASSERT_EQ(attribute_overrides[3].m_Values.m_BinaryValues.m_Count, num_values);
     {
-        float* f_value = (float*) value_ptr;
-        float* f_exp   = (float*) attribute_overrides[3].m_Values.m_BinaryValues.m_Data;
         for (int i = 0; i < num_values / sizeof(float); ++i)
         {
-            ASSERT_NEAR(f_exp[i], f_value[i], ASSERT_EPS);
+            float f_value;
+            float f_exp;
+            memcpy(&f_value, value_ptr + i * sizeof(float), sizeof(float));
+            memcpy(&f_exp, attribute_overrides[3].m_Values.m_BinaryValues.m_Data + i * sizeof(float), sizeof(float));
+            ASSERT_NEAR(f_exp, f_value, ASSERT_EPS);
         }
     }
 

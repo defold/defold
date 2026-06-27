@@ -31,11 +31,10 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.MacOSBundler;
@@ -73,6 +72,7 @@ public class MacOSBundlerTest {
         createFile(contentRoot, "builtins/render/default.display_profiles", "");
         createFile(contentRoot, "builtins/graphics/default.texture_profiles", "");
         createFile(contentRoot, "builtins/input/default.gamepads", "");
+        createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", "");
         createFile(contentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", "");
@@ -81,8 +81,7 @@ public class MacOSBundlerTest {
     }
 
     void build() throws IOException, CompileExceptionError, MultipleCompileException {
-        try {
-            Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
             project.setPublisher(new NullPublisher(new PublisherSettings()));
 
             ClassLoaderScanner scanner = new ClassLoaderScanner();
@@ -93,7 +92,7 @@ public class MacOSBundlerTest {
             project.setOption("architectures", Platform.X86_64MacOS.getPair());
             project.setOption("archive", "true");
             project.setOption("bundle-output", outputDir);
-            project.build(new NullProgress(), "clean", "build", "bundle");
+            project.build(Progress.discarding(), "clean", "build", "bundle");
         } catch (Exception e) {
             System.err.printf("Failed to build: %s\n", e.getMessage());
             throw e;
@@ -127,7 +126,6 @@ public class MacOSBundlerTest {
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }

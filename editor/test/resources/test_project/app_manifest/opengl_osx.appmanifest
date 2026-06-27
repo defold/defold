@@ -43,16 +43,16 @@ platforms:
       jetifier: true
   arm64-osx:
     context:
-      excludeLibs: [graphics_vulkan, platform_vulkan, MoltenVK]
-      excludeSymbols: [GraphicsAdapterVulkan]
+      excludeLibs: [graphics_metal, graphics_vulkan, platform_vulkan, MoltenVK]
+      excludeSymbols: [GraphicsAdapterMetal, GraphicsAdapterVulkan]
       symbols: [GraphicsAdapterOpenGL]
       libs: [graphics, platform]
       frameworks: [OpenGL]
       linkFlags: []
   x86_64-osx:
     context:
-      excludeLibs: [graphics_vulkan, platform_vulkan, MoltenVK]
-      excludeSymbols: [GraphicsAdapterVulkan]
+      excludeLibs: [graphics_metal, graphics_vulkan, platform_vulkan, MoltenVK]
+      excludeSymbols: [GraphicsAdapterMetal, GraphicsAdapterVulkan]
       symbols: [GraphicsAdapterOpenGL]
       libs: [graphics, platform]
       frameworks: [OpenGL]
@@ -81,14 +81,6 @@ platforms:
   x86_64-win32:
     context:
       excludeLibs: []
-      excludeSymbols: []
-      symbols: []
-      libs: []
-      linkFlags: []
-  js-web:
-    context:
-      excludeLibs: []
-      excludeJsLibs: []
       excludeSymbols: []
       symbols: []
       libs: []

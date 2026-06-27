@@ -23,6 +23,7 @@
 #if defined(__APPLE__) || defined(__linux__)
 #include <stdlib.h>
 #ifdef __APPLE__
+#include <stdlib.h>
 #include <xlocale.h>
 #else
 #include <locale.h>
@@ -259,37 +260,44 @@ static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_c
     if (desired_num_components == 0)
         desired_num_components = num_components;
 
-    uint32_t size = accessor->count * num_components;
+    uint32_t source_size = accessor->count * num_components;
+    uint32_t size = source_size;
     if (desired_num_components > num_components)
         size = accessor->count * desired_num_components;
 
     *out_count = size;
     float* out = new float[size]; // Now the buffer will fit the max num components
-    float* writeptr = out;
 
     if (desired_num_components > num_components)
     {
-        for (uint32_t i = 0; i < accessor->count; ++i)
-        {
-            for (uint32_t j = 0; j < desired_num_components; ++j)
-                *writeptr++ = default_value;
-        }
-    }
-
-    writeptr = out;
-
-    for (uint32_t i = 0; i < accessor->count; ++i)
-    {
-        bool result = cgltf_accessor_read_float(accessor, i, writeptr, num_components);
-
-        if (!result)
+        float* packed = new float[source_size];
+        cgltf_size unpacked = cgltf_accessor_unpack_floats(accessor, packed, source_size);
+        if (unpacked != source_size)
         {
             printf("Couldn't read floats!\n");
+            delete[] packed;
             delete[] out;
             return 0;
         }
 
-        writeptr += desired_num_components;
+        for (uint32_t i = 0; i < accessor->count; ++i)
+        {
+            for (uint32_t j = 0; j < desired_num_components; ++j)
+            {
+                out[i * desired_num_components + j] = j < num_components ? packed[i * num_components + j] : default_value;
+            }
+        }
+
+        delete[] packed;
+        return out;
+    }
+
+    cgltf_size unpacked = cgltf_accessor_unpack_floats(accessor, out, source_size);
+    if (unpacked != source_size)
+    {
+        printf("Couldn't read floats!\n");
+        delete[] out;
+        return 0;
     }
 
     return out;
@@ -352,6 +360,98 @@ static float* ReadAccessorMatrix4(cgltf_accessor* accessor, uint32_t index, floa
     }
 
     return out;
+}
+
+static bool ReadSparseIndex(const uint8_t* data, cgltf_component_type component_type, cgltf_size* out)
+{
+    switch (component_type)
+    {
+        case cgltf_component_type_r_8u:
+            *out = *data;
+            return true;
+        case cgltf_component_type_r_16u:
+        {
+            uint16_t value;
+            memcpy(&value, data, sizeof(value));
+            *out = value;
+            return true;
+        }
+        case cgltf_component_type_r_32u:
+        {
+            uint32_t value;
+            memcpy(&value, data, sizeof(value));
+            *out = value;
+            return true;
+        }
+        default:
+            return false;
+    }
+}
+
+static bool ValidateSparseAccessorsForUnpack(Scene* scene, cgltf_data* data)
+{
+    for (cgltf_size i = 0; i < data->accessors_count; ++i)
+    {
+        cgltf_accessor* accessor = &data->accessors[i];
+        if (!accessor->is_sparse)
+            continue;
+
+        cgltf_size element_size = cgltf_calc_size(accessor->type, accessor->component_type);
+        if (element_size == 0)
+        {
+            SetLoadError(scene, "Invalid sparse accessor component type.");
+            return false;
+        }
+
+        if (accessor->buffer_view && accessor->count > 0)
+        {
+            cgltf_size req_size = accessor->offset + accessor->stride * (accessor->count - 1) + element_size;
+            if (accessor->buffer_view->size < req_size)
+            {
+                SetLoadError(scene, "Sparse accessor base buffer view is too short.");
+                return false;
+            }
+        }
+
+        cgltf_accessor_sparse* sparse = &accessor->sparse;
+        cgltf_size index_component_size = cgltf_component_size(sparse->indices_component_type);
+        if (index_component_size == 0 || !sparse->indices_buffer_view || !sparse->values_buffer_view)
+        {
+            SetLoadError(scene, "Invalid sparse accessor indices or values.");
+            return false;
+        }
+
+        cgltf_size indices_req_size = sparse->indices_byte_offset + index_component_size * sparse->count;
+        cgltf_size values_req_size = sparse->values_byte_offset + element_size * sparse->count;
+        if (sparse->indices_buffer_view->size < indices_req_size ||
+            sparse->values_buffer_view->size < values_req_size)
+        {
+            SetLoadError(scene, "Sparse accessor buffer view is too short.");
+            return false;
+        }
+
+        const uint8_t* index_data = cgltf_buffer_view_data(sparse->indices_buffer_view);
+        const uint8_t* values_data = cgltf_buffer_view_data(sparse->values_buffer_view);
+        if (!index_data || !values_data)
+        {
+            SetLoadError(scene, "Sparse accessor buffer data is missing.");
+            return false;
+        }
+
+        index_data += sparse->indices_byte_offset;
+        for (cgltf_size j = 0; j < sparse->count; ++j, index_data += index_component_size)
+        {
+            cgltf_size sparse_index = 0;
+            if (!ReadSparseIndex(index_data, sparse->indices_component_type, &sparse_index) ||
+                sparse_index >= accessor->count)
+            {
+                SetLoadError(scene, "Sparse accessor index is out of range.");
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 static uint32_t FindNodeIndex(cgltf_node* node, uint32_t nodes_count, cgltf_node* nodes)
@@ -785,6 +885,31 @@ static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
     }
 }
 
+// One weight per morph target; zero-filled when glTF omits mesh/node weights (rig reset memcpy).
+static void EnsureMorphBaseWeightsMatchTargetCount(Mesh* mesh)
+{
+    uint32_t tc = mesh->m_MorphTargets.Size();
+    if (tc == 0)
+        return;
+
+    uint32_t bc = mesh->m_MorphBaseWeights.Size();
+    if (bc == tc)
+        return;
+
+    float* mw = new float[tc];
+    if (bc > 0)
+    {
+        memcpy(mw, mesh->m_MorphBaseWeights.Begin(), bc * sizeof(float));
+        if (tc > bc)
+            memset(mw + bc, 0, (tc - bc) * sizeof(float));
+    }
+    else
+    {
+        memset(mw, 0, tc * sizeof(float));
+    }
+    mesh->m_MorphBaseWeights.Set(mw, tc, tc, false);
+}
+
 static void AddDynamicMaterial(Scene* scene, Material* material)
 {
     if (scene->m_DynamicMaterials.Full())
@@ -798,7 +923,38 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
     for (size_t i = 0; i < gltf_mesh->primitives_count; ++i)
     {
+        if (scene->m_LoadError)
+            return;
+
         cgltf_primitive* prim = &gltf_mesh->primitives[i];
+
+        for (cgltf_size ai = 0; ai < prim->attributes_count; ++ai)
+        {
+            cgltf_attribute* attr = &prim->attributes[ai];
+
+            // we only support JOINTS_0 and WEIGHTS_0, so we need to emit an error if any of these cases are true.
+            if (attr->type == cgltf_attribute_type_joints && attr->index > 0)
+            {
+                char buf[512];
+                dmSnPrintf(buf, sizeof(buf),
+                    "GLTF mesh '%s', primitive %zu: multiple joint/weight attribute sets (e.g. JOINTS_%u) are not supported. Defold supports a single set of up to 4 bone influences per vertex, to use this content you need to fix the issues in an external tool.",
+                    model->m_Name, i, (unsigned)attr->index);
+                dmLogError("%s", buf);
+                SetLoadError(scene, buf);
+                return;
+            }
+            if (attr->type == cgltf_attribute_type_weights && attr->index > 0)
+            {
+                char buf[512];
+                dmSnPrintf(buf, sizeof(buf),
+                    "GLTF mesh '%s', primitive %zu: multiple joint/weight attribute sets (e.g. WEIGHTS_%u) are not supported. Defold supports a single set of up to 4 bone influences per vertex, to use this content you need to fix the issues in an external tool.",
+                    model->m_Name, i, (unsigned)attr->index);
+                dmLogError("%s", buf);
+                SetLoadError(scene, buf);
+                return;
+            }
+        }
+
         Mesh* mesh = &model->m_Meshes[i];
         mesh->m_Name = CreateNameFromHash("mesh", i);
 
@@ -909,6 +1065,50 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
             mesh->m_Material->m_IsSkinned = 1;
         }
 
+        if (prim->targets_count > 0 && gltf_mesh->weights_count > 0 &&
+            gltf_mesh->weights_count == prim->targets_count)
+        {
+            float* mw = new float[gltf_mesh->weights_count];
+            memcpy(mw, gltf_mesh->weights, sizeof(float) * gltf_mesh->weights_count);
+            mesh->m_MorphBaseWeights.Set(mw, (uint32_t)gltf_mesh->weights_count, (uint32_t)gltf_mesh->weights_count, false);
+        }
+
+        if (prim->targets_count > 0)
+        {
+            InitSize(mesh->m_MorphTargets, prim->targets_count, prim->targets_count);
+
+            for (uint32_t mt = 0; mt < prim->targets_count; ++mt)
+            {
+                const cgltf_morph_target* target = &prim->targets[mt];
+                MorphTarget& out = mesh->m_MorphTargets[mt];
+
+                for (uint32_t a = 0; a < target->attributes_count; ++a)
+                {
+                    const cgltf_attribute* attr = &target->attributes[a];
+
+                    if (attr->type == cgltf_attribute_type_position)
+                    {
+                        uint32_t data_count = 0;
+                        float* fdata = ReadAccessorFloat(attr->data, 3, 0.0f, &data_count);
+                        out.m_Positions.Set(fdata, data_count, data_count, false);
+                    }
+                    else if (attr->type == cgltf_attribute_type_normal)
+                    {
+                        uint32_t data_count = 0;
+                        float* fdata = ReadAccessorFloat(attr->data, 3, 0.0f, &data_count);
+                        out.m_Normals.Set(fdata, data_count, data_count, false);
+                    }
+                    else if (attr->type == cgltf_attribute_type_tangent)
+                    {
+                        uint32_t data_count = 0;
+                        float* fdata = ReadAccessorFloat(attr->data, 4, 0.0f, &data_count);
+                        out.m_Tangents.Set(fdata, data_count, data_count, false);
+                    }
+                }
+            }
+            EnsureMorphBaseWeightsMatchTargetCount(mesh);
+        }
+
         if (mesh->m_TexCoords0.Empty())
         {
             mesh->m_TexCoords0NumComponents = 2;
@@ -972,7 +1172,8 @@ static void FixupNonSkinnedModels(Scene* scene, Bone* parent, Node* node)
         if (!mesh->m_Weights.Empty())
             continue;
 
-        if (!mesh->m_Material->m_IsSkinned)
+        // Skips uninitialized mesh slots (e.g. fatal error mid-LoadPrimitives) and non-skinned materials.
+        if (!mesh->m_Material || !mesh->m_Material->m_IsSkinned)
             continue;
 
         // We duplicate the material, and create a non skinned version
@@ -1379,6 +1580,30 @@ static void LinkMeshesWithNodes(Scene* scene, cgltf_data* gltf_data)
                 RemapMeshBoneIndices(node->m_Skin, &node->m_Model->m_Meshes[j]);
             }
         }
+
+        if (gltf_node->weights && gltf_node->weights_count > 0)
+        {
+            for (uint32_t j = 0; j < node->m_Model->m_Meshes.Size(); ++j)
+            {
+                Mesh* mesh = &node->m_Model->m_Meshes[j];
+                if (mesh->m_MorphTargets.Size() != gltf_node->weights_count)
+                {
+                    dmLogWarning("GLTF node '%s': weights count %u does not match morph target count %u on mesh '%s'.",
+                                 node->m_Name, (unsigned)gltf_node->weights_count,
+                                 (unsigned)mesh->m_MorphTargets.Size(), mesh->m_Name);
+                    continue;
+                }
+                float* mw = new float[gltf_node->weights_count];
+                memcpy(mw, gltf_node->weights, sizeof(float) * gltf_node->weights_count);
+                mesh->m_MorphBaseWeights.SetCapacity(0);
+                mesh->m_MorphBaseWeights.Set(mw, (uint32_t)gltf_node->weights_count, (uint32_t)gltf_node->weights_count, false);
+            }
+        }
+
+        for (uint32_t j = 0; j < node->m_Model->m_Meshes.Size(); ++j)
+        {
+            EnsureMorphBaseWeightsMatchTargetCount(&node->m_Model->m_Meshes[j]);
+        }
     }
 }
 
@@ -1410,8 +1635,104 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     float time_min = FLT_MAX;
     float time_max = -FLT_MAX;
 
-    const uint32_t max_num_values = sizeof(KeyFrame::m_Value)/sizeof(float);
     uint32_t num_values = num_items * num_components;
+
+    if (channel->target_path == cgltf_animation_path_type_weights)
+    {
+        // glTF stores one SCALAR accessor element per morph weight per key; cubic spline packs
+        // (in-tangent, value, out-tangent) per weight. cgltf_accessor_read_float only reads
+        // num_components floats from a single element — do not pass morph_count as element_size on SCALAR.
+        if (key_count == 0 || accessor->count == 0)
+        {
+            return;
+        }
+
+        const bool cubic = (channel->sampler->interpolation == cgltf_interpolation_type_cubic_spline);
+        const uint32_t cubic_stride = cubic ? 3u : 1u;
+
+        Node* anim_node = node_animation->m_Node;
+        uint32_t morph_count = 0;
+        if (anim_node && anim_node->m_Model && anim_node->m_Model->m_Meshes.Size() > 0)
+        {
+            morph_count = anim_node->m_Model->m_Meshes[0].m_MorphTargets.Size();
+        }
+        if (morph_count == 0)
+        {
+            if (accessor->count % (key_count * cubic_stride) != 0)
+            {
+                return;
+            }
+            morph_count = (uint32_t)(accessor->count / (key_count * cubic_stride));
+        }
+        if (morph_count == 0)
+        {
+            return;
+        }
+
+        const cgltf_size expected_out = (cgltf_size)key_count * (cgltf_size)morph_count * (cgltf_size)cubic_stride;
+        if (accessor->count != expected_out)
+        {
+            dmLogWarning("GLTF morph weights animation output count %u does not match %u keys, %u morph targets, cubic=%d.",
+                         (unsigned)accessor->count, key_count, morph_count, cubic ? 1 : 0);
+        }
+
+        float* times = new float[key_count];
+        float* values = new float[key_count * morph_count];
+        for (uint32_t i = 0; i < key_count; ++i)
+        {
+            cgltf_accessor_read_float(accessor_times, i, &times[i], 1);
+
+            cgltf_size base_elem = (cgltf_size)i * (cgltf_size)morph_count * (cgltf_size)cubic_stride;
+            if (cubic)
+            {
+                base_elem += (cgltf_size)morph_count; // skip in-tangents; values are middle third
+            }
+            for (uint32_t m = 0; m < morph_count; ++m)
+            {
+                cgltf_accessor_read_float(accessor, base_elem + m, values + i * morph_count + m, 1);
+            }
+
+            if (all_identical && i > 0 && !AreEqual(values, values + i * morph_count, morph_count, 0.0001f))
+            {
+                all_identical = false;
+            }
+
+            time_min = dmMath::Min(time_min, times[i]);
+            time_max = dmMath::Max(time_max, times[i]);
+        }
+
+        if (all_identical)
+        {
+            key_count = 1;
+        }
+
+        for (uint32_t i = 0; i < key_count; ++i)
+        {
+            times[i] -= time_min;
+        }
+
+        if (anim_node && anim_node->m_Model && anim_node->m_Model->m_Meshes.Size() > 0)
+        {
+            uint32_t expected = anim_node->m_Model->m_Meshes[0].m_MorphTargets.Size();
+            if (expected > 0 && morph_count != expected)
+            {
+                dmLogWarning("GLTF morph weights animation has %u weights per key but mesh '%s' has %u morph targets.",
+                             (unsigned)morph_count, anim_node->m_Model->m_Name, (unsigned)expected);
+            }
+        }
+
+        node_animation->m_MorphWeightKeyTimes.SetCapacity(0);
+        node_animation->m_MorphWeightKeyValues.SetCapacity(0);
+        node_animation->m_MorphWeightDimensions = morph_count;
+        node_animation->m_MorphWeightKeyTimes.Set(times, key_count, key_count, false);
+        node_animation->m_MorphWeightKeyValues.Set(values, key_count * morph_count, key_count * morph_count, false);
+
+        float channel_span = time_max - time_min;
+        node_animation->m_EndTime = dmMath::Max(node_animation->m_EndTime, channel_span);
+        return;
+    }
+
+    const uint32_t max_num_values = sizeof(KeyFrame::m_Value)/sizeof(float);
     if (num_values > max_num_values)
     {
         dmLogWarning("Channel has input count %u and output count %u."
@@ -1438,7 +1759,6 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
         time_max = dmMath::Max(time_max, key_frames[i].m_Time);
     }
     node_animation->m_StartTime = 0.0f;
-    node_animation->m_EndTime = time_max - time_min;
 
     if (all_identical)
     {
@@ -1449,6 +1769,9 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     {
         key_frames[i].m_Time -= time_min;
     }
+
+    float channel_span = time_max - time_min;
+    node_animation->m_EndTime = dmMath::Max(node_animation->m_EndTime, channel_span);
 
     if (channel->target_path == cgltf_animation_path_type_translation)
     {
@@ -1515,6 +1838,8 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
 
         InitSize(animation->m_NodeAnimations, node_animations_count, node_animations_count);
 
+        animation->m_Duration = 0.0f;
+
         for (size_t i = 0; i < gltf_animation->channels_count; ++i)
         {
             cgltf_animation_channel* channel = &gltf_animation->channels[i];
@@ -1530,7 +1855,7 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
 
             LoadChannel(node_animation, channel);
 
-            animation->m_Duration = node_animation->m_EndTime - node_animation->m_StartTime;
+            animation->m_Duration = dmMath::Max(animation->m_Duration, node_animation->m_EndTime);
         }
     }
 }
@@ -1702,6 +2027,11 @@ static void LoadScene(Scene* scene, cgltf_data* data)
     LoadTextures(scene, data, &cache);
     LoadMaterials(scene, data, &cache);
     LoadMeshes(scene, data);
+
+    // Make sure we early-out so we don't touch uninitialized data
+    if (scene->m_LoadError)
+        return;
+
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);
     LoadAnimations(scene, data);
@@ -1717,8 +2047,10 @@ static void LoadScene(Scene* scene, cgltf_data* data)
 static bool LoadFinalizeGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
+    if (!ValidateSparseAccessorsForUnpack(scene, data->m_Data))
+        return false;
     LoadScene(scene, data->m_Data);
-    return true;
+    return scene->m_LoadError == 0;
 }
 
 static bool ValidateGltf(Scene* scene)
@@ -1760,6 +2092,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (result != cgltf_result_success)
     {
         printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
+        cgltf_free(data);
         return 0;
     }
 
@@ -1785,7 +2118,11 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     if (!NeedsResolve(scene))
     {
         scene->m_LoadFinalizeFn = 0;
-        LoadFinalizeGltf(scene);
+        if (!LoadFinalizeGltf(scene))
+        {
+            ClearScene(scene);
+            return scene;
+        }
         ValidateGltf(scene);
     }
 

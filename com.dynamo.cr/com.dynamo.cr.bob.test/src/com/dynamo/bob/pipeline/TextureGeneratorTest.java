@@ -67,6 +67,38 @@ public class TextureGeneratorTest {
         return srcImage;
     }
 
+    static TextureProfile createASTCTextureProfile(TextureFormat textureFormat, boolean mipmaps, int maxTextureSize)
+    {
+        TextureFormatAlternative.Builder textureFormatAlt = TextureFormatAlternative.newBuilder();
+        textureFormatAlt.setFormat(textureFormat);
+        textureFormatAlt.setCompressionType(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_ASTC);
+        textureFormatAlt.setCompressionLevel(CompressionLevel.FAST);
+
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt.build());
+        platformProfile.setMipmaps(mipmaps);
+        platformProfile.setMaxTextureSize(maxTextureSize);
+        platformProfile.setPremultiplyAlpha(false);
+
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        textureProfile.setName("ASTC Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+        return textureProfile.build();
+    }
+
+    static void assertASTCMip(Image image, TextureGenerator.GenerateResult result, TextureFormat textureFormat, int mipIndex, int offset, int width, int height)
+    {
+        int expectedSize = TextureCompressorASTC.getCompressedDataSize(textureFormat, width, height);
+
+        assertEquals(offset, image.getMipMapOffset(mipIndex));
+        assertEquals(expectedSize, image.getMipMapSize(mipIndex));
+        assertEquals(expectedSize, image.getMipMapSizeCompressed(mipIndex));
+        assertEquals(width, image.getMipMapDimensions(mipIndex * 2));
+        assertEquals(height, image.getMipMapDimensions(mipIndex * 2 + 1));
+        assertEquals(expectedSize, result.imageDatas.get(mipIndex).length);
+    }
+
     // Asserts that the pixel at x and y is of a certain color.
     static void assertPixel(Image image, byte[] data, int x, int y, int color)
     {
@@ -472,6 +504,87 @@ public class TextureGeneratorTest {
 
         assertEquals(16, result.textureImage.getAlternatives(0).getWidth());
         assertEquals(8, result.textureImage.getAlternatives(0).getHeight());
+    }
+
+    // ASTC texture metadata should keep the logical image size even though the
+    // compressed payload covers ceil-divided texel blocks.
+    @Test
+    public void testTextureProfilesASTCKeepsLogicalDimensions() throws TextureGeneratorException, IOException {
+        TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X6;
+        TextureProfile textureProfile = createASTCTextureProfile(textureFormat, false, 0);
+
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile, true);
+
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals(textureFormat, image.getFormat());
+        assertEquals(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_ASTC, image.getCompressionType());
+        assertEquals(128, image.getWidth());
+        assertEquals(64, image.getHeight());
+        assertEquals(128, image.getOriginalWidth());
+        assertEquals(64, image.getOriginalHeight());
+        assertEquals(1, image.getMipMapOffsetCount());
+        assertEquals(2, image.getMipMapDimensionsCount());
+
+        assertASTCMip(image, result, textureFormat, 0, 0, 128, 64);
+        assertEquals(TextureCompressorASTC.getCompressedDataSize(textureFormat, 128, 64), image.getDataSize());
+    }
+
+    // Max-size handling and mip metadata must be based on logical dimensions,
+    // not the larger ASTC block coverage used for byte-size calculations.
+    @Test
+    public void testTextureProfilesASTCMaxSizeDoesNotUseBlockCoverageAsDimensions() throws TextureGeneratorException, IOException {
+        TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X6;
+        TextureProfile textureProfile = createASTCTextureProfile(textureFormat, true, 16);
+        BufferedImage srcImage = new BufferedImage(16, 16, BufferedImage.TYPE_4BYTE_ABGR);
+
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(srcImage, textureProfile, true);
+
+        int[][] mipMaps = new int[][] {
+            { 16, 16 },
+            { 8, 8 },
+            { 4, 4 },
+            { 2, 2 },
+            { 1, 1 } };
+
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals(textureFormat, image.getFormat());
+        assertEquals(16, image.getWidth());
+        assertEquals(16, image.getHeight());
+        assertEquals(mipMaps.length, image.getMipMapOffsetCount());
+        assertEquals(mipMaps.length * 2, image.getMipMapDimensionsCount());
+
+        int offset = 0;
+        for (int i = 0; i < mipMaps.length; ++i) {
+            int width = mipMaps[i][0];
+            int height = mipMaps[i][1];
+            assertASTCMip(image, result, textureFormat, i, offset, width, height);
+            offset += TextureCompressorASTC.getCompressedDataSize(textureFormat, width, height);
+        }
+        assertEquals(offset, image.getDataSize());
+    }
+
+    // Non-square ASTC blocks must use independent block widths and heights
+    // when calculating compressed mip sizes.
+    @Test
+    public void testTextureProfilesASTCAsymmetricBlockSize() throws TextureGeneratorException, IOException {
+        TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X5;
+        TextureProfile textureProfile = createASTCTextureProfile(textureFormat, false, 16);
+        BufferedImage srcImage = new BufferedImage(16, 16, BufferedImage.TYPE_4BYTE_ABGR);
+
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(srcImage, textureProfile, true);
+
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals(textureFormat, image.getFormat());
+        assertEquals(16, image.getWidth());
+        assertEquals(16, image.getHeight());
+        assertEquals(1, image.getMipMapOffsetCount());
+        assertEquals(2, image.getMipMapDimensionsCount());
+
+        assertASTCMip(image, result, textureFormat, 0, 0, 16, 16);
+        assertEquals(TextureCompressorASTC.getCompressedDataSize(textureFormat, 16, 16), image.getDataSize());
     }
 
 

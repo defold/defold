@@ -18,6 +18,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -203,6 +204,7 @@
           (doseq [{:keys [gpu-texture sampler]} scene-infos]
             (gl/bind gl gpu-texture render-args)
             (shader/set-samplers-by-name shader gl sampler (:texture-units gpu-texture)))
+          (light/bind-preview-lights-for-shader! gl shader render-args)
           (gl/set-blend-mode gl blend-mode)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices)
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
@@ -508,6 +510,21 @@
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
   (property default-animation g/Str ; Required protobuf field.
+            ;; NOTE: There's an edge case where if the user sets :sprite-mode-manual before having selected the default animation,
+            ;; manual-size won't get set because it can't know the size of the sprite, so add a check to set it here
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [size-mode (g/node-value self :size-mode evaluation-context)
+                         manual-size (g/node-value self :manual-size evaluation-context)]
+                     (when (and (= :size-mode-manual size-mode)
+                                (= [0.0 0.0 0.0] manual-size))
+                       (let [texture-binding-infos (g/node-value self :texture-binding-infos evaluation-context)]
+                         (when-some [animation (some (fn [info]
+                                                       (get (:anim-data info) new-value))
+                                                     texture-binding-infos)]
+                           (g/set-property self :manual-size
+                                           [(double (:width animation))
+                                            (double (:height animation))
+                                            0.0])))))))
             (dynamic label (properties/label-dynamic :sprite :default-animation))
             (dynamic tooltip (properties/tooltip-dynamic :sprite :default-animation))
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
@@ -516,7 +533,8 @@
                                    (let [{:keys [anim-data sampler]} primary-texture-binding-info
                                          image-property-label (if (= 1 (count textures)) image-message sampler)]
                                      (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data image-property-label))))))
-            (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
+            (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids)))
+            (dynamic ext-edit-type (g/constantly {:type g/Str})))
 
   (property material resource/Resource ; Default assigned in load-fn.
             (value (gu/passthrough material-resource))

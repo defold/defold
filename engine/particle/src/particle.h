@@ -168,17 +168,19 @@ namespace dmParticle
         }
 
         dmVMath::Matrix4             m_Transform;
-        void*                        m_Material; // dmRender::HMaterial
-        dmParticleDDF::BlendMode     m_BlendMode;
-        void*                        m_Texture; // dmGraphics::HTexture
-        dmGraphics::VertexAttribute* m_Attributes;
-        uint32_t                     m_AttributeCount;
+        dmVMath::Point3              m_FrustumCullingCenter;
         RenderConstant*              m_RenderConstants;
-        uint32_t                     m_RenderConstantsSize;
+        dmGraphics::VertexAttribute* m_Attributes;
+        void*                        m_Material; // dmRender::HMaterial
+        void*                        m_Texture; // dmGraphics::HTexture
         HInstance                    m_Instance; // Particle instance handle
         uint32_t                     m_EmitterIndex;
         uint32_t                     m_MixedHash;
         uint32_t                     m_MixedHashNoMaterial;
+        uint32_t                     m_RenderConstantsSize;
+        uint32_t                     m_AttributeCount;
+        float                        m_FrustumCullingRadiusSq;
+        dmParticleDDF::BlendMode     m_BlendMode;
     };
 
     /**
@@ -239,6 +241,8 @@ namespace dmParticle
     dmhash_t GetAnimation(HPrototype prototype, uint32_t emitter_index);
     void     SetInstanceUserData(HParticleContext context, HInstance instance, void* user_data);
     void*    GetInstanceUserData(HParticleContext context, HInstance instance);
+    // Refresh cached render state after external transform changes.
+    void     UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index, float dt);
 
     // For tests
     dmVMath::Vector3 GetPosition(HParticleContext context, HInstance instance);
@@ -372,7 +376,6 @@ namespace dmParticle
     /**
      * Generates vertex data for an emitter
      * @param context Particle context
-     * @param dt Time step.
      * @param instance Particle instance handle
      * @param emitter_index Emitter index for which to generate vertex data for
      * @param attribute_infos Attribute information on the streams to write
@@ -382,7 +385,7 @@ namespace dmParticle
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
      * @return Result enum value
      */
-    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
      * Gets the particle count for an emitter
@@ -404,7 +407,6 @@ namespace dmParticle
     /**
      * Generates partial vertex data for an emitter
      * @param context Particle context
-     * @param dt Time step.
      * @param instance Particle instance handle
      * @param emitter_index Emitter index for which to generate vertex data for
      * @param particle_start The particle index to start from
@@ -416,7 +418,7 @@ namespace dmParticle
      * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
      * @return Result enum value
      */
-    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexDataPartial, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexDataPartial, HParticleContext context, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
      * Debug render the status of the instances within the specified context.

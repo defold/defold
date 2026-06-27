@@ -1,0 +1,25 @@
+platforms:
+  armv7-ios:
+    context:
+      excludeLibs: [graphics]
+      excludeSymbols: [GraphicsAdapterOpenGL]
+      symbols: []
+      libs: []
+      frameworks: []
+      linkFlags: []
+  arm64-ios:
+    context:
+      excludeLibs: [graphics, graphics_vulkan, MoltenVK]
+      excludeSymbols: [GraphicsAdapterOpenGL, GraphicsAdapterVulkan]
+      symbols: [GraphicsAdapterMetal]
+      libs: [graphics_metal]
+      frameworks: [Metal, IOSurface, QuartzCore]
+      linkFlags: []
+  x86_64-ios:
+    context:
+      excludeLibs: [graphics]
+      excludeSymbols: [GraphicsAdapterOpenGL]
+      symbols: [GraphicsAdapterMetal]
+      libs: [graphics_metal]
+      frameworks: [Metal, IOSurface, QuartzCore]
+      linkFlags: []

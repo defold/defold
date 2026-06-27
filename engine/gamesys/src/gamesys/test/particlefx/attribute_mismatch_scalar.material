@@ -1,0 +1,14 @@
+name: "attribute_mismatch_scalar"
+tags: "particle"
+vertex_program: "/particlefx/attribute_mismatch_scalar_repro.vp"
+fragment_program: "/particlefx/attribute_mismatch_repro.fp"
+vertex_space: VERTEX_SPACE_WORLD
+attributes {
+  name: "crash_attr"
+  semantic_type: SEMANTIC_TYPE_NONE
+  data_type: TYPE_FLOAT
+  vector_type: VECTOR_TYPE_SCALAR
+  double_values {
+    v: 1.0
+  }
+}

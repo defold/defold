@@ -29,8 +29,8 @@ import java.util.List;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.ConsoleProgress;
 import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.archive.publisher.NullPublisher;
@@ -127,22 +127,23 @@ public class JarTest {
     public void testNonJarBuild() throws Exception {
         IFileSystem fs = new DefaultFileSystem();
         String cwd = new File("test/proj").getAbsolutePath();
-        Project p = new Project(fs, cwd, "build/default");
-        p.setPublisher(new NullPublisher(new PublisherSettings()));
+        try (Project p = new Project(fs, cwd, "build/default")) {
+            p.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        p.scan(scanner, "com.dynamo.bob");
-        p.scan(scanner, "com.dynamo.bob.pipeline");
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            p.scan(scanner, "com.dynamo.bob");
+            p.scan(scanner, "com.dynamo.bob.pipeline");
 
-        List<TaskResult> result = p.build(new ConsoleProgress(), "distclean", "build");
-        assertFalse(result.isEmpty());
-        boolean res = true;
-        for (TaskResult taskResult : result) {
-            if (!taskResult.isOk()) {
-                res = false;
-                break;
+            List<TaskResult> result = p.build(Progress.console(), "distclean", "build");
+            assertFalse(result.isEmpty());
+            boolean res = true;
+            for (TaskResult taskResult : result) {
+                if (!taskResult.isOk()) {
+                    res = false;
+                    break;
+                }
             }
+            assertTrue(res);
         }
-        assertTrue(res);
     }
 }

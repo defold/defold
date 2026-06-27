@@ -126,13 +126,17 @@ namespace dmInput
         uint16_t m_Negate : 1;
         uint16_t m_Scale : 1;
         uint16_t m_Clamp : 1;
+        uint16_t : 11;
     };
 
     struct GamepadConfig
     {
-        uint32_t m_DeviceId;
-        float m_DeadZone;
+        dmHID::GamepadGuid m_Guid;
+        char m_DeviceName[dmHID::MAX_GAMEPAD_NAME_LENGTH];
         GamepadInput m_Inputs[dmInputDDF::MAX_GAMEPAD_COUNT];
+        float m_DeadZone; // Deprecated
+        uint32_t m_DeviceId; // hash of device id
+        uint8_t m_Legacy : 1;
     };
 
     struct Context
@@ -145,6 +149,7 @@ namespace dmInput
         float                           m_RepeatDelay;
         float                           m_RepeatInterval;
         float                           m_PressedThreshold;
+        float                           m_GamepadDeadZone;
     };
 }
 

@@ -18,6 +18,7 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.attribute :as attribute]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -28,6 +29,7 @@
             [editor.math :as math]
             [editor.model-loader :as model-loader]
             [editor.model-util :as model-util]
+            [editor.pose :as pose]
             [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -41,14 +43,14 @@
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [java.nio ByteOrder FloatBuffer]
-           [javax.vecmath Vector4d]))
+           [javax.vecmath Matrix4d Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (def mesh-icon "icons/32/Icons_27-AT-Mesh.png")
-(def model-file-types ["dae" "gltf" "glb"])
-(def animation-file-types ["animationset" "dae" "gltf" "glb"])
+(def model-file-types ["gltf" "glb"])
+(def animation-file-types ["animationset" "gltf" "glb"])
 
 (defn- make-attribute-float-buffer
   ^FloatBuffer [input-floats input-component-count output-component-count output-component-fill]
@@ -239,6 +241,7 @@
         (shader/set-samplers-by-name shader gl name (:texture-units t)))
       (doseq [[name v] material-data]
         (shader/set-uniform shader gl name v))
+      (light/bind-preview-lights-for-shader! gl shader render-args)
       (gl/gl-disable gl GL/GL_BLEND)
       (gl/gl-enable gl GL/GL_CULL_FACE)
       (gl/gl-cull-face gl GL/GL_BACK)
@@ -284,7 +287,10 @@
     (render-mesh-opaque-selection gl render-args renderables)))
 
 (g/defnk produce-mesh-set-build-target [_node-id resource content]
-  (rig/make-mesh-set-build-target (resource/workspace resource) _node-id (:mesh-set content)))
+  (rig/make-mesh-set-build-target (resource/workspace resource)
+                                  _node-id
+                                  (:mesh-set content)
+                                  (:morph-target-textures content)))
 
 (g/defnk produce-skeleton [content]
   (:skeleton content))
@@ -295,8 +301,8 @@
 (g/defnk produce-bones [content]
   (:bones content))
 
-(g/defnk produce-content [_node-id resource]
-  (model-loader/load-scene _node-id resource))
+(g/defnk produce-content [_node-id resource project-settings]
+  (model-loader/load-scene _node-id resource project-settings))
 
 (g/defnk produce-animation-info [resource]
   [{:path (resource/proj-path resource) :parent-id "" :resource resource}])
@@ -345,7 +351,7 @@
        ["pbrMetallicRoughness.baseColorFactor"
         (doto (Vector4d.)
           (math/clj->vecmath (:base-color-factor pbr-metallic-roughness)))]
-       ["pbrMetallicRoughness.metallicRoughnessFactor"
+       ["pbrMetallicRoughness.metallicAndRoughnessFactor"
         (Vector4d. (:metallic-factor pbr-metallic-roughness)
                    (:roughness-factor pbr-metallic-roughness)
                    0 0)]
@@ -462,7 +468,6 @@
             aabb (geom/coords->aabb aabb-min aabb-max)
             material-name (mesh-material-index->material-name material-index)
             ;; TODO(instancing): These doesn't appear to actually be per-mesh? Replace model-loader :material-ids with list of Rig$Material in map format.
-            ;; TODO(instancing): Do we even have Rig$Materials in the :mesh-set for Collada scenes?
             mesh-material-data (nth (:materials mesh-set) material-index)
             material-data (make-renderable-material-data mesh-material-data)]
         {:aabb aabb
@@ -470,9 +475,26 @@
          :material-data material-data
          :renderable-buffers renderable-buffers}))))
 
-(defn- make-renderable-model [model model-request-id mesh-set mesh-material-index->material-name]
+(defn- make-bone-id->world-transform [skeleton]
+  (into {}
+        (map (fn [bone]
+               [(:id bone)
+                (let [{:keys [translation rotation scale]} (:world bone)]
+                  (math/clj->mat4 translation rotation scale))]))
+        (:bones skeleton)))
+
+(defn- make-renderable-model [model model-request-id mesh-set mesh-material-index->material-name bone-id->world-transform]
   (let [{:keys [translation rotation scale]} (:local model)
-        model-transform (math/clj->mat4 translation rotation scale)
+        local-transform (math/clj->mat4 translation rotation scale)
+        bone-transform (get bone-id->world-transform (:bone-id model))
+        model-transform (if (some? bone-transform)
+                          (doto (Matrix4d. ^Matrix4d bone-transform)
+                            (.mul ^Matrix4d local-transform))
+                          local-transform)
+        pose-without-skeleton (pose/make translation rotation scale)
+        pose-with-skeleton (if (some? bone-transform)
+                             (pose/from-matrix model-transform)
+                             pose-without-skeleton)
 
         renderable-meshes
         (coll/into-> (:meshes model) []
@@ -487,21 +509,23 @@
                          geom/aabb-union
                          geom/null-aabb
                          renderable-meshes)]
-        {:transform model-transform
+        {:pose-with-skeleton pose-with-skeleton
+         :pose-without-skeleton pose-without-skeleton
          :aabb model-aabb
          :renderable-meshes renderable-meshes}))))
 
-(defn- make-renderable-mesh-set [mesh-set mesh-set-request-id mesh-material-index->material-name]
-  (let [renderable-models
+(defn- make-renderable-mesh-set [mesh-set skeleton mesh-set-request-id mesh-material-index->material-name]
+  (let [bone-id->world-transform (make-bone-id->world-transform skeleton)
+        renderable-models
         (mapv (fn [model]
                 (let [model-request-id (assoc mesh-set-request-id :model-id (:id model))]
-                  (make-renderable-model model model-request-id mesh-set mesh-material-index->material-name)))
+                  (make-renderable-model model model-request-id mesh-set mesh-material-index->material-name bone-id->world-transform)))
               (:models mesh-set))]
 
     (g/precluding-errors renderable-models
       (let [mesh-set-aabb (transduce
-                            (map (fn [{:keys [aabb transform]}]
-                                   (geom/aabb-transform aabb transform)))
+                            (map (fn [{:keys [aabb pose-with-skeleton]}]
+                                   (geom/aabb-transform aabb (pose/matrix pose-with-skeleton))))
                             geom/aabb-union
                             geom/null-aabb
                             renderable-models)]
@@ -518,7 +542,7 @@
             default-material-ids)
 
         renderable-mesh-set-or-error-value
-        (make-renderable-mesh-set (:mesh-set content) mesh-set-request-id mesh-material-index->material-name)]
+        (make-renderable-mesh-set (:mesh-set content) (:skeleton content) mesh-set-request-id mesh-material-index->material-name)]
 
     (if (g/error-value? renderable-mesh-set-or-error-value)
       (assoc renderable-mesh-set-or-error-value :_node-id _node-id :_label :renderable-mesh-set)
@@ -557,10 +581,12 @@
      :renderable renderable}))
 
 (defn- make-model-scene [scene-node-id renderable-model]
-  (let [{:keys [transform aabb renderable-meshes]} renderable-model
+  (let [{:keys [pose-with-skeleton pose-without-skeleton aabb renderable-meshes]} renderable-model
         mesh-scenes (mapv #(make-mesh-scene scene-node-id %)
                           renderable-meshes)]
-    {:transform transform
+    {:pose pose-with-skeleton
+     :pose-with-skeleton pose-with-skeleton
+     :pose-without-skeleton pose-without-skeleton
      :aabb aabb
      :children mesh-scenes}))
 
@@ -627,23 +653,43 @@
                       :shader shader
                       :textures gpu-textures))))))))
 
-(defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info]
-  (let [mesh-scenes (:children model-scene)]
+(defn- augment-model-scene [model-scene old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms]
+  (let [model-scene (assoc model-scene
+                      :pose (if use-skeleton-transforms
+                              (:pose-with-skeleton model-scene)
+                              (:pose-without-skeleton model-scene)))
+        mesh-scenes (:children model-scene)]
     (assoc (scene/claim-child-scene model-scene old-node-id new-node-id new-node-outline-key)
       :children (mapv #(augment-mesh-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
                       mesh-scenes))))
 
-(defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info]
+(defn- model-scenes-aabb [model-scenes]
+  (transduce
+    (keep (fn [{:keys [aabb pose]}]
+            (when pose
+              (geom/aabb-transform aabb (pose/matrix pose)))))
+    geom/aabb-union
+    geom/null-aabb
+    model-scenes))
+
+(defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms]
   (if (g/error-value? scene)
     scene
     (let [old-node-id (:node-id scene)
-          model-scenes (:children scene)]
-      (assoc scene
+          model-scenes (:children scene)
+          augmented-model-scenes (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms)
+                                       model-scenes)
+          scene-aabb (when-not use-skeleton-transforms
+                       (model-scenes-aabb augmented-model-scenes))
+          augmented-model-scenes (cond-> augmented-model-scenes
+                                   (and scene-aabb (seq augmented-model-scenes))
+                                   (assoc-in [0 :aabb] scene-aabb))]
+      (cond-> (assoc scene
         :node-id new-node-id
         :node-outline-key new-node-outline-key
         :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
-        :children (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info)
-                        model-scenes)))))
+        :children augmented-model-scenes)
+        scene-aabb (assoc :aabb scene-aabb)))))
 
 (defn make-material-name->material-scene-info
   "Given some material-scene-infos, return a material-name->material-scene-info
@@ -672,8 +718,17 @@
     (fn material-name->material-scene-info [^String material-name]
       (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
 
+(defn load-model-scene-node [project self resource]
+  (let [workspace-node (resource/workspace resource)
+        disk-sha256 (resource/resource->sha256-hex resource)]
+    (concat
+      (g/connect project :settings self :project-settings)
+      (workspace/set-disk-sha256 workspace-node self disk-sha256))))
+
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)
+
+  (input project-settings g/Any)
 
   (output content g/Any :cached produce-content)
   (output bones g/Any produce-bones)
@@ -691,6 +746,7 @@
     :ext model-file-types
     :label (localization/message "resource.type.model-scene")
     :node-type ModelSceneNode
+    :load-fn load-model-scene-node
     :icon mesh-icon
     :icon-class :design
     :view-types [:scene :text]))

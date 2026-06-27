@@ -67,7 +67,7 @@ welcome.new-project.rive-project.description = This template uses the rive exten
 # Welcome -> New Project -> From Tutorial
 welcome.new-project.side-scroller-tutorial.title = Side Scroller Tutorial
 welcome.new-project.side-scroller-tutorial.description = In this beginner's tutorial you get a taste of how to build a game in Defold by modifying a very simple side scroller game.
-welcome.new-project.walking-astronaut-tutorial.title = Walking Astronaut Tutorial
+welcome.new-project.walking-astronaut-tutorial.title = Top-down Movement Tutorial
 welcome.new-project.walking-astronaut-tutorial.description = In this beginner's tutorial you learn how to capture player input and make a character move and animate. You will also learn about the core building blocks in Defold: game objects, components, and collections.
 welcome.new-project.movement-tutorial.title = Movement Tutorial
 welcome.new-project.movement-tutorial.description = In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra.
@@ -269,6 +269,13 @@ dialog.quit-defold.header = Unsaved changes exist, are you sure you want to quit
 dialog.quit-defold.button.cancel = Cancel and Keep Working
 dialog.quit-defold.button.quit = Quit Without Saving
 
+# Restart Defold dialog
+
+dialog.restart-defold.title = Restart Defold?
+dialog.restart-defold.header = Unsaved changes exist. Save changes before restarting Defold?
+dialog.restart-defold.button.cancel = Cancel
+dialog.restart-defold.button.save-and-restart = Save and Restart
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = Not Safe to Upgrade File Formats
@@ -339,12 +346,34 @@ dialog.fetch-libraries.host-unreachable.content = Unreachable host: {host}\n\nPl
 
 # Fetch libraries notification
 
-notification.fetch-libraries.dependencies-changed.prompt = Project dependencies have changed. Do you want to fetch the libraries now?
-notification.fetch-libraries.dependencies-changed.action.fetch = Fetch Libraries
-notification.fetch-libraries.dependencies-missing.warning = The following dependencies are missing:\n{dependencies}\nThe project might not work without them.\nTo download, connect to the internet and fetch libraries.
-notification.fetch-libraries.dependencies-error.error = Couldn't install the following dependencies:\n{dependencies}
-notification.fetch-libraries.dependencies-error.action.open-game-project = Open game.project
-notification.fetch-libraries.min-version.error = Library {uri} requires Defold {required} or newer (current Defold version is {current}). Update Defold or check older extension versions for compatibility.
+notification.fetch-libraries.changed = Project dependencies have changed. Do you want to fetch the libraries now?
+notification.fetch-libraries.problems = Problems were found in the following dependencies:\n{dependencies}
+notification.fetch-libraries.action.fetch = Fetch Libraries
+notification.fetch-libraries.action.open-game-project = Open game.project
+notification.fetch-libraries.problem.missing = missing
+notification.fetch-libraries.problem.fetch-failed = failed to fetch
+notification.fetch-libraries.problem.failed-http-request = failed to fetch (HTTP {status})
+notification.fetch-libraries.problem.http-connect-timeout = failed to fetch (connection timed out)
+notification.fetch-libraries.problem.invalid-archive = not a valid Defold archive
+notification.fetch-libraries.problem.defold-min-version = requires Defold {required} or newer (current Defold version is {current}). Update Defold or check older extension versions for compatibility.
+notification.fetch-libraries.problem.install-failed = failed to install
+notification.fetch-libraries.problem.unknown = unknown problem — {problem}
+notification.fetch-libraries.dependency-problem = {uri}: {problem}
+
+# Editor scripts notification
+
+notification.reload-editor-scripts = Editor scripts have changed. Do you want to reload them now?
+notification.reload-editor-scripts.action.reload = Reload Editor Scripts
+
+# Reload plugins notification
+
+notification.reload-plugins-failed = Native extension plugins could not be reloaded. Restart Defold to reload them.\n\nFile: {file}\n\nUnderlying error from the OS:\n{error}
+notification.reload-plugins-failed.action.restart = Restart Defold
+
+# Open custom editor notifications
+
+notification.open-custom-editor-failed.error = Could not run external editor "{editor}".\n\nUnderlying error from the OS:\n{error}
+notification.open-custom-editor-failed.action.open-preferences = Open Preferences…
 
 # Settings notifications
 
@@ -510,7 +539,6 @@ dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
 dialog.bundle.option.architecture.x86_64-ios = Simulator (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
-dialog.bundle.option.architecture.js-web = asm.js
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Thread support
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
@@ -717,6 +745,7 @@ progress.updating-dependencies = Updating dependencies…
 progress.syncing-resources = Syncing resources…
 progress.loading-project = Loading project…
 progress.loading-external-changes = Loading external changes…
+progress.editor-scripts-reloaded = Reloaded editor scripts at {time}
 progress.writing-files = Writing files…
 progress.caching-save-results = Caching save results…
 progress.reading-timestamps = Reading timestamps…
@@ -736,7 +765,8 @@ progress.cleaning = Cleaning…
 progress.generating-report = Generating report…
 progress.working = Working…
 progress.reading-classes = Reading classes…
-progress.downloading-archives = Downloading archives…
+progress.downloading-archives = Downloading {count, plural, one {# archive} other {# archives}}…
+progress.downloading-archive = Downloading {uri}…
 progress.launching-engine = Launching engine…
 progress.launched-engine = Launched {engine}
 progress.engine-launch-failed = Launch failed
@@ -1051,6 +1081,35 @@ operation.paste = Paste
 operation.select = Select
 operation.tile-map.add-layer = Add Layer
 
+# Scene View Popups
+
+scene-popup.reset-defaults-button = Reset to Defaults
+scene-popup.grid.plane = Plane
+scene-popup.grid.color = Color
+scene-popup.grid.opacity = Opacity
+scene-popup.camera.move-speed = Move Speed
+scene-popup.camera.look-sensitivity = Look Speed
+scene-popup.camera.fov = FOV
+scene-popup.camera.invert-y = Invert Y
+scene-popup.camera.walking-mode = Walking Mode
+scene-popup.scene-visibility.visibility-filters = Visibility Filters
+scene-popup.scene-visibility.collision-shapes = Collision Shapes
+scene-popup.scene-visibility.camera = Camera
+scene-popup.scene-visibility.gui-bounds = GUI Bounds
+scene-popup.scene-visibility.gui-shapes = GUI Shapes
+scene-popup.scene-visibility.gui-particle-effects = GUI Particle Effects
+scene-popup.scene-visibility.gui-spine-scenes = GUI Spine Scenes
+scene-popup.scene-visibility.gui-text = GUI Text
+scene-popup.scene-visibility.models = Models
+scene-popup.scene-visibility.particle-effects = Particle Effects
+scene-popup.scene-visibility.skeletons = Skeletons
+scene-popup.scene-visibility.spine-scenes = Spine Scenes
+scene-popup.scene-visibility.sprites = Sprites
+scene-popup.scene-visibility.text = Text
+scene-popup.scene-visibility.tile-maps = Tile Maps
+scene-popup.scene-visibility.component-guides = Component Guides
+scene-popup.scene-visibility.scene-visibility-bounds = Scene Visibility Bounds
+
 # Properties
 
 property.tooltip = {help, select, none {} other {{help}\n\n}}Available as "{id}" in editor scripts
@@ -1096,6 +1155,9 @@ property.appmanifest.graphics = Graphics
 property.appmanifest.graphics.tooltip = Vulkan supports desktop and mobile platforms only
 property.appmanifest.graphics-osx = Graphics (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan is the default renderer for macOS
+property.appmanifest.graphics-ios = Graphics (iOS)
+property.appmanifest.graphics-android = Graphics (Android)
+property.appmanifest.graphics-android.tooltip = OpenGL+Vulkan is the default for Android
 property.appmanifest.graphics-web = Graphics (HTML5)
 property.appmanifest.graphics-web.tooltip = WebGPU support is in BETA (web platforms)
 property.appmanifest.use-font-layout = Use full text layout system
@@ -1164,6 +1226,7 @@ property.collision-object.event-contact.tooltip = If disabled, filters out any c
 property.collision-object.event-trigger = Generate Trigger Events
 property.collision-object.event-trigger.tooltip = If disabled, filters out any trigger events involving this collision object
 property.collision-object.group = Group
+property.collision-object.group.tilemap.tooltip = This property is not used when Collision Shape is a tilemap. Collision groups are defined in the tilemap's tile source.
 property.collision-object.mask = Mask
 property.collision-object.shape.diameter = Diameter
 property.collision-object.shape.dimensions = Dimensions
@@ -1258,6 +1321,14 @@ property.label.shadow = Shadow
 property.label.size = Size
 property.label.text = Text
 property.label.tracking = Tracking
+
+# Properties: light
+
+property.light.color = Color
+property.light.intensity = Intensity
+property.light.range = Range
+property.light.inner-cone-angle = Inner Cone Angle
+property.light.outer-cone-angle = Outer Cone Angle
 
 # Properties: mesh
 
@@ -1447,6 +1518,10 @@ resource.type.json = JSON
 resource.type.label = Label
 resource.type.lib = Library
 resource.type.light = Light
+resource.type.point-light = Point Light
+resource.type.directional-light = Directional Light
+resource.type.spot-light = Spot Light
+resource.type.ambient-light = Ambient Light
 resource.type.lua = Lua Module
 resource.type.manifest = Manifest
 resource.type.markdown = Markdown
@@ -1485,6 +1560,7 @@ resource.category.objects = Objects
 resource.category.scripts = Scripts
 resource.category.shaders = Shaders
 resource.category.components = Components
+resource.category.lights = Lights
 resource.category.resources = Resources
 resource.category.editor = Editor
 resource.category.render = Render
@@ -1767,6 +1843,10 @@ form.label.project.model.max_bone_matrix_texture_width = Max Bone Matrix Tex Wid
 form.help.project.model.max_bone_matrix_texture_width = Max width of the bone matrix texture, 1024 by default
 form.label.project.model.max_bone_matrix_texture_height = Max Bone Matrix Tex Height
 form.help.project.model.max_bone_matrix_texture_height = Max height of the bone matrix texture, 1024 by default
+form.label.project.model.max_morph_target_texture_width = Max Morph Target Tex Width
+form.help.project.model.max_morph_target_texture_width = Max width in pixels of the texture used per mesh for morph target deltas (positions, normals, tangents), 1024 by default. The engine uses at most this size and the GPU max texture size, whichever is smaller.
+form.label.project.model.max_morph_target_texture_height = Max Morph Target Tex Height
+form.help.project.model.max_morph_target_texture_height = Max height in pixels of the texture used per mesh for morph target deltas (positions, normals, tangents), 1024 by default. The engine uses at most this size and the GPU max texture size, whichever is smaller.
 
 form.label.project.particle_fx = ParticleFX
 form.help.project.particle_fx = ParticleFX related settings
@@ -1847,7 +1927,7 @@ form.help.project.display.high_dpi = Enable high DPI backbuffer where available
 form.label.project.display.samples = Samples
 form.help.project.display.samples = How many samples to use for super sampling anti-aliasing, 0 by default, which means it is turned off
 form.label.project.display.fullscreen = Fullscreen
-form.help.project.display.fullscreen = Start the application full screen instead of windowed
+form.help.project.display.fullscreen = Start the application in borderless fullscreen on desktop platforms instead of windowed
 form.label.project.display.display_profiles = Display Profiles
 form.help.project.display.display_profiles = File reference of the display profiles to use for the application
 form.label.project.display.dynamic_orientation = Dynamic Orientation
@@ -1914,6 +1994,10 @@ form.label.project.input.repeat_interval = Repeat Interval
 form.help.project.input.repeat_interval = Seconds between repeats while holding a keyboard key
 form.label.project.input.gamepads = Gamepads
 form.help.project.input.gamepads = File reference of the gamepads config file, which maps gamepad signals to the OS, /builtins/input/default.gamepadsc by default
+form.label.project.input.gamepad_database = Gamepad Database
+form.help.project.input.gamepad_database = File reference of the SDL gamepad database file, which maps gamepad signals to the OS, /builtins/input/gamecontrollerdb.txt by default
+form.label.project.input.gamepad_deadzone = Gamepad Dead Zone
+form.help.project.input.gamepad_deadzone = Runtime dead zone applied to SDL gamepad database mappings
 form.label.project.input.game_binding = Game Binding
 form.help.project.input.game_binding = File reference of the input config file, which maps hardware inputs to actions, /input/game.input_bindingc by default
 form.label.project.input.use_accelerometer = Use Accelerometer
@@ -1977,12 +2061,16 @@ form.label.project.profiler = Profiler
 form.help.project.profiler = Settings related to the runtime profiler
 form.label.project.profiler.track_cpu = Track CPU
 form.help.project.profiler.track_cpu = Enable CPU usage sampling in release builds
+form.label.project.profiler.track_detailed_memory = Detailed Memory
+form.help.project.profiler.track_detailed_memory = Enable detailed memory sampling in the profiler. This may be expensive on HTML5.
 form.label.project.profiler.enabled = Enabled
 form.help.project.profiler.enabled = Enable the in-game profiler; call profiler.enable() at runtime to enable programmatically
 form.label.project.profiler.sleep_between_server_updates = Server Sleep (ms)
 form.help.project.profiler.sleep_between_server_updates = Number of milliseconds to sleep between server updates
 form.label.project.profiler.performance_timeline_enabled = Performance Timeline
 form.help.project.profiler.performance_timeline_enabled = Enable reporting to the browser performance timeline
+form.label.project.profiler.max_sample_count = Max Sample Count
+form.help.project.profiler.max_sample_count = Maximum number of profiler samples recorded per thread and frame
 
 form.label.project.render = Render
 form.help.project.render = Render related settings
@@ -2026,8 +2114,6 @@ form.label.project.liveupdate.enabled = Enabled
 form.help.project.liveupdate.enabled = Enables the use of live update
 form.label.project.liveupdate.settings = Settings
 form.help.project.liveupdate.settings = Live Update settings resource
-form.label.project.liveupdate.mount_on_start = Mount on Start
-form.help.project.liveupdate.mount_on_start = Enables auto-mount of previously mounted resources when the application starts
 
 form.label.project.native_extension = Native Extension
 form.help.project.native_extension = Settings for native extensions
@@ -2138,6 +2224,14 @@ form.label.sound.gain = Gain
 form.label.sound.pan = Pan
 form.label.sound.speed = Speed
 
+form.label.light = Light
+form.label.light.type = Type
+form.label.light.color = Color
+form.label.light.intensity = Intensity
+form.label.light.range = Range
+form.label.light.inner-cone-angle = Inner Cone Angle
+form.label.light.outer-cone-angle = Outer Cone Angle
+
 form.label.liveupdate.liveupdate = Live Update
 form.label.liveupdate.liveupdate.mode = Mode
 form.help.liveupdate.liveupdate.mode = Target
@@ -2168,10 +2262,10 @@ form.label.liveupdate.liveupdate.output-folder-name = Output Folder
 form.help.liveupdate.liveupdate.output-folder-name = Output folder name
 form.label.liveupdate.manifest = Manifest
 form.label.liveupdate.liveupdate.publickey = Public Key
-form.help.liveupdate.liveupdate.publickey = Public key for manifest signing
+form.help.liveupdate.liveupdate.publickey = This setting is deprecated. Manifest public keys are no longer used.
 form.title.liveupdate.liveupdate.publickey = Select Manifest Public Key
 form.label.liveupdate.liveupdate.privatekey = Private Key
-form.help.liveupdate.liveupdate.privatekey = Private key for manifest signing
+form.help.liveupdate.liveupdate.privatekey = This setting is deprecated. Manifest private keys are no longer used.
 form.title.liveupdate.liveupdate.privatekey = Select Manifest Private Key
 form.label.liveupdate.liveupdate.supported-versions = Supported Engine Versions
 form.help.liveupdate.liveupdate.supported-versions = List of supported engine versions
@@ -2232,10 +2326,12 @@ quick-help.start-or-attach-debugger = Start or Attach Debugger
 # Error Messages
 error.assigned-image-has-internal-errors = The assigned image has internal errors.
 error.sampler-not-defined-in-material = "{sampler}" is not defined in the Material. Use the "Clear Override" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the Material.
+error.light.invalid-source = The light file could not be parsed. Fix the text format or revert your changes.
 error.sound.invalid-ogg-file = Invalid Ogg file.
 error.sound.invalid-ogg-file-details = Invalid Ogg file (oggz-validate):\n{output}
 error.sound.could-not-read-audio-file = Couldn't read audio file {resource}.
 error.unknown-source = Unknown source
+error.game-project.gamepad-database-must-be-txt = input.gamepad_database must reference a .txt file.
 error.unspecified-property = "{property}" must be specified.
 error.mesh.stream-must-be-specified-for-world-vertex-space = "{property}" must be specified when using a Material with a world-space "Vertex Space" setting.
 error.mesh.stream-not-found-in-buffer = Stream "{stream}" could not be found in the specified buffer.
@@ -2285,10 +2381,12 @@ error.resource-is-a-broken-symlink = Symlink "{resource}" refers to missing path
 error.resource-not-loaded = The file "{resource}" could not be loaded.
 error.resource-not-loaded-with-error = The file "{resource}" could not be loaded: {error}
 error.resource-assignment-not-of-type = {property} "{resource}" is not of type {type}.
+error.no-file-extension = no file extension
 error.material-not-defined-in-mesh = "{material}" is not defined in the Mesh. Use the "Clear Override" command from the label's context menu to remove the property.
 error.material-expects-paged-atlas = The Material expects a paged Atlas, but the selected {property} is not paged.
 error.material-does-not-support-paged-atlases = The Material does not support paged Atlases, but the selected {property} is paged.
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}.
+error.model-unsupported-file-format = {property} "{resource}" has unsupported format {format}. Defold supports only {supported_formats} files for {property}.
 error.model-load-failed = The file "{file}" failed to load:\n{error}
 error.animation-not-found = "{animation}" could not be found in "{property}".
 error.buffer-syntax-error = Syntax error in buffer file.

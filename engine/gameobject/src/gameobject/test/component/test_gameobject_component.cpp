@@ -16,8 +16,11 @@
 
 #include <map>
 
+#include <dlib/context_registry.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 
 #include "../gameobject.h"
 #include "../gameobject_private.h"
@@ -40,7 +43,8 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/component");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/component"));
 
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -48,6 +52,9 @@ protected:
 
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
+        m_ContextRegistry = ContextRegistryCreate();
+        ContextRegistrySet(m_ContextRegistry, "component_test", this);
+        dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
 
         m_Contexts.SetCapacity(7,16);
         m_Contexts.Put(dmHashString64("goc"), m_Register);
@@ -56,7 +63,11 @@ protected:
         m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
         dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
+        dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
+        component_create_ctx_impl.m_ContextRegistry = m_ContextRegistry;
+
         dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
+        component_create_ctx.m_Impl = &component_create_ctx_impl;
         component_create_ctx.m_Script = m_ScriptContext;
         component_create_ctx.m_Register = m_Register;
         component_create_ctx.m_Factory = m_Factory;
@@ -141,6 +152,8 @@ protected:
         dmGameObject::PostUpdate(m_Register);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+        dmGameObject::SetContextRegistry(m_Register, 0);
+        ContextRegistryDestroy(m_ContextRegistry);
         dmGameObject::DeleteRegister(m_Register);
         dmResource::DeleteFactory(m_Factory);
     }
@@ -196,6 +209,7 @@ public:
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
+    HContextRegistry m_ContextRegistry;
 };
 
 template <typename T>
@@ -293,6 +307,7 @@ static dmGameObject::CreateResult GenericComponentDestroy(const dmGameObject::Co
     }
 
     game_object_test->m_ComponentDestroyCountMap[T::m_DDFHash]++;
+
     return dmGameObject::CREATE_RESULT_OK;
 }
 
@@ -627,6 +642,10 @@ struct ComponentApiTestContext
     int m_Destroyed;
     void* m_CreateContext;
     void* m_DestroyContext;
+    void* m_CreateRegistryContext;
+    void* m_DestroyRegistryContext;
+    void* m_ComponentRegistryContext;
+    int m_ComponentRegistrySetResult;
 } g_ComponentApiTestContext;
 
 static dmResource::Result ResourceTypeTestResourceCreate(const dmResource::ResourceCreateParams* params)
@@ -646,6 +665,10 @@ static dmGameObject::Result ComponentTypeTest_Create(const dmGameObject::Compone
 {
     g_ComponentApiTestContext.m_Created = 1;
     g_ComponentApiTestContext.m_CreateContext = malloc(1);
+    HContextRegistry context_registry = ComponentGetContextRegistry(ctx);
+    g_ComponentApiTestContext.m_CreateRegistryContext = ContextRegistryGet(context_registry, "component_api");
+    g_ComponentApiTestContext.m_ComponentRegistrySetResult = ContextRegistrySet(context_registry, "component_api_from_component", g_ComponentApiTestContext.m_CreateContext);
+    g_ComponentApiTestContext.m_ComponentRegistryContext = ContextRegistryGet(context_registry, "component_api_from_component");
 
     ComponentTypeSetContext(type, g_ComponentApiTestContext.m_CreateContext);
     return dmGameObject::RESULT_OK;
@@ -655,6 +678,8 @@ static dmGameObject::Result ComponentTypeTest_Destroy(const dmGameObject::Compon
 {
     g_ComponentApiTestContext.m_Destroyed = 1;
     g_ComponentApiTestContext.m_DestroyContext = ComponentTypeGetContext(type);
+    HContextRegistry context_registry = ComponentGetContextRegistry(ctx);
+    g_ComponentApiTestContext.m_DestroyRegistryContext = ContextRegistryGet(context_registry, "component_api");
 
     ComponentTypeSetContext(type, g_ComponentApiTestContext.m_CreateContext);
     return dmGameObject::RESULT_OK;
@@ -694,7 +719,14 @@ TEST(ComponentApi, CreateDestroyType)
     dmGameObject::Result r = dmGameObject::RegisterComponentTypeDescriptor((dmGameObject::ComponentTypeDescriptor*)component_desc_testc, "testc", ComponentTypeTest_Create, ComponentTypeTest_Destroy);
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
 
-    dmGameObject::ComponentTypeCreateCtx component_create_ctx;
+    HContextRegistry context_registry = ContextRegistryCreate();
+    ContextRegistrySet(context_registry, "component_api", &g_ComponentApiTestContext);
+
+    dmGameObject::ComponentTypeCreateCtxImpl component_create_ctx_impl;
+    component_create_ctx_impl.m_ContextRegistry = context_registry;
+
+    dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
+    component_create_ctx.m_Impl = &component_create_ctx_impl;
     component_create_ctx.m_Factory = factory;
     component_create_ctx.m_Register = regist;
     component_create_ctx.m_Script = 0;
@@ -709,13 +741,18 @@ TEST(ComponentApi, CreateDestroyType)
     ASSERT_EQ(1, g_ComponentApiTestContext.m_Created);
     ASSERT_EQ(0, g_ComponentApiTestContext.m_Destroyed);
     ASSERT_NE((void*)0, g_ComponentApiTestContext.m_CreateContext);
+    ASSERT_EQ((void*)&g_ComponentApiTestContext, g_ComponentApiTestContext.m_CreateRegistryContext);
+    ASSERT_EQ(0, g_ComponentApiTestContext.m_ComponentRegistrySetResult);
+    ASSERT_EQ(g_ComponentApiTestContext.m_CreateContext, g_ComponentApiTestContext.m_ComponentRegistryContext);
 
     dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
     ASSERT_EQ(1, g_ComponentApiTestContext.m_Destroyed);
     ASSERT_EQ(g_ComponentApiTestContext.m_CreateContext, g_ComponentApiTestContext.m_DestroyContext);
+    ASSERT_EQ((void*)&g_ComponentApiTestContext, g_ComponentApiTestContext.m_DestroyRegistryContext);
     ////////////////////////////////////////////
 
     free((void*)g_ComponentApiTestContext.m_CreateContext);
+    ContextRegistryDestroy(context_registry);
     dmGameObject::DeleteRegister(regist);
     dmScript::Finalize(script_context);
     dmScript::DeleteContext(script_context);

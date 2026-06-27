@@ -32,6 +32,8 @@
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.input :as input]
+            [editor.library :as library]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.material :as material]
@@ -58,12 +60,14 @@
             [internal.system :as is]
             [internal.util :as util]
             [lambdaisland.deep-diff2 :as deep-diff]
+            [local-extensions :as local-extensions]
             [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
+            [util.path :as path]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [ch.qos.logback.classic Level Logger]
@@ -98,6 +102,19 @@
 ;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}
 (alter-var-root #'clojure.test.check.clojure-test/*report-completion* (constantly false))
 
+;; Use shared lib dir to skip re-downloading deps
+(def ^:dynamic *shared-lib-dir* (path/of "tmp/lib"))
+
+(alter-var-root
+  #'library/directory
+  (fn [f]
+    (fn overridden-library-directory [& args]
+      (or *shared-lib-dir* (apply f args)))))
+
+(defmacro with-project-default-library-directory [& body]
+  `(binding [*shared-lib-dir* nil]
+     ~@body))
+
 (def project-path "test/resources/test_project")
 
 (def ^:private ^:const system-cache-size 1000)
@@ -106,11 +123,11 @@
 ;; These extensions register additional protobuf resource types that we want to
 ;; cover in our tests.
 (def sanctioned-extension-urls
-  (mapv #(System/getProperty %)
-        ["defold.extension.rive.url"
-         "defold.extension.simpledata.url"
-         "defold.extension.spine.url"
-         "defold.extension.texturepacker.url"]))
+  (mapv local-extensions/inject-jvm-properties
+        ["{{defold.extension.rive.url}}"
+         "{{defold.extension.simpledata.url}}"
+         "{{defold.extension.spine.url}}"
+         "{{defold.extension.texturepacker.url}}"]))
 
 (defn number-type-preserving? [a b]
   (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
@@ -375,9 +392,13 @@
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
-    (->> (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
+
+(defn set-cached-project-dependencies! [workspace library-uris]
+  (->> (library/cached (workspace/project-directory workspace) library-uris)
+       (workspace/set-project-dependencies! workspace)))
 
 (defn set-libraries! [workspace library-uris]
   (let [library-uris
@@ -389,8 +410,8 @@
                   :else (throw (ex-info "library-uris contain invalid values."
                                         {:library-uris library-uris}))))
               library-uris)]
-    (->> (workspace/fetch-and-validate-libraries workspace library-uris progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (library/fetch! (workspace/project-directory workspace) library-uris progress/null-render-progress!)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn distinct-resource-types-by-editability
@@ -573,9 +594,6 @@
 
 (def load-system-and-project (fn/memoize load-system-and-project-raw))
 
-(defn clear-cached-libraries! []
-  (fn/clear-memoized! (var-get #'editor.library/fetch-library!)))
-
 (defn clear-cached-projects! []
   (fn/clear-memoized! load-system-and-project))
 
@@ -755,7 +773,8 @@
                         {:type type :x x :y y :click-count click-count :button button}
                         modifiers)
          action (scene/augment-action view action)]
-     (scene/dispatch-input handlers action user-data))))
+     ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
+     (scene/dispatch-input handlers (input/make-input-state) action user-data))))
 
 (defn mouse-press!
   ([view x y]
@@ -1370,16 +1389,16 @@
           (is (= (dissoc (get-in scene-data (conj gpu-texture-path :params)) :default-tex-params)
                  (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 
-(defn- build-node-result! [resource-node]
+(defn- build-node-result! [resource-node opts]
   (let [project (project/get-project resource-node)
         workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)]
     (g/with-auto-evaluation-context evaluation-context
-      (build/build-project! project resource-node old-artifact-map nil evaluation-context))))
+      (build/build-project! project resource-node old-artifact-map opts evaluation-context))))
 
-(defn build-node! [resource-node]
-  (let [build-result (build-node-result! resource-node)]
-    (when-some [error (:error build-result)]
+(defn build-node! [resource-node opts]
+  (let [build-result (build-node-result! resource-node opts)]
+    (when-let [error (:error build-result)]
       (throw (ex-info "Build produced an ErrorValue."
                       {:resource resource
                        :node-type-kw (g/node-type-kw resource-node)
@@ -1391,14 +1410,14 @@
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)]
-    (build-node! resource-node)
+    (build-node! resource-node nil)
     (make-directory-deleter build-directory)))
 
 (defn build-error! [resource-node]
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)
-        build-result (build-node-result! resource-node)]
+        build-result (build-node-result! resource-node nil)]
     (fs/delete-directory! build-directory {:fail :silently})
     (:error build-result)))
 
@@ -1469,12 +1488,23 @@
   (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
              {:tag pb-class}))
 
+(defn- resource-type-for-build-output-path [resource-types-by-build-ext ^String build-output-path]
+  ;; Return the resource-type with the longest build-ext that matches the end of
+  ;; the build-output-path. We do this to ensure multipart build-exts like
+  ;; `/lightbulb.point_light.lightc` are matched correctly.
+  (reduce-kv
+    (fn [best-resource-type build-ext resource-type]
+      (if (and (string/ends-with? build-output-path (str "." build-ext))
+               (> (count build-ext)
+                  (count (:build-ext best-resource-type ""))))
+        resource-type
+        best-resource-type))
+    nil
+    resource-types-by-build-ext))
+
 (defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
-  (let [build-ext (resource/filename->type-ext build-output-path)
-        resource-type (some (fn [[_ resource-type]]
-                              (when (= build-ext (:build-ext resource-type))
-                                resource-type))
-                            (workspace/get-resource-type-map workspace))
+  (let [resource-type (resource-type-for-build-output-path resource-types-by-build-ext build-output-path)
+        _ (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
         test-info (:test-info resource-type)
         pb-class (case (:type test-info)
                    (:code :ddf) (:built-pb-class test-info)
@@ -1485,7 +1515,6 @@
                            :file built-file
                            :resource-type resource-type
                            :bytes built-bytes}]
-    (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
     (if (nil? pb-class)
       (sorted-map build-output-path build-output-info)
       (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
@@ -1723,8 +1752,21 @@
 (defmethod edit-resource-node "label" [resource-node-id]
   (g/update-property resource-node-id :tracking type-preserving-add 0.1))
 
-(defmethod edit-resource-node "light" [resource-node-id]
-  (g/update-property resource-node-id :pb update :range type-preserving-add 1))
+(defn- edit-light-resource-node [resource-node-id]
+  ;; All light types expose :intensity; :range is only for point/spot.
+  (g/update-property resource-node-id :intensity type-preserving-add 1))
+
+(defmethod edit-resource-node "point_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "ambient_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "directional_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "spot_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
 
 (defmethod edit-resource-node "material" [resource-node-id]
   (g/update-property resource-node-id :tags conj "new_tag"))
@@ -1749,7 +1791,7 @@
   (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
 (defmethod edit-resource-node "rivemodel" [resource-node-id]
-  (g/update-property resource-node-id :create-go-bones not))
+  (g/update-property resource-node-id :auto-bind not))
 
 (defmethod edit-resource-node "rivescene" [resource-node-id]
   (g/set-property resource-node-id :rive-file nil))

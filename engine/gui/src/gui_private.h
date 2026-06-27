@@ -170,6 +170,7 @@ namespace dmGui
         };
 
         const char*             m_Text;
+        TextLayout              m_TextLayout;
         void**                  m_NodeDescTable;
         TextureSetAnimDesc      m_TextureSetAnimDesc;
         float                   m_FlipbookAnimPosition;
@@ -233,7 +234,7 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
+        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height, uint32_t image_type)
         : m_TextureSource(texture_source)
         , m_TextureSourceType(texture_source_type)
         , m_ImageType(image_type)
@@ -243,7 +244,7 @@ namespace dmGui
 
         HTextureSource  m_TextureSource;
         NodeTextureType m_TextureSourceType;
-        dmImage::Type   m_ImageType;
+        uint32_t        m_ImageType;
         uint32_t        m_OriginalWidth : 16;
         uint32_t        m_OriginalHeight : 16;
     };

@@ -247,6 +247,12 @@ public class ParseUtil {
                 return DataProto.Data.parseFrom(content);
             }
         });
+        parseMap.put("lightc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return DataProto.Data.parseFrom(content);
+            }
+        });
         parseMap.put("factoryc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {

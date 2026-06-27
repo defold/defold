@@ -4,5 +4,5 @@ components {
 }
 components {
   id: "model"
-  component: "/render_target/render_target.model"
+  component: "/resource/render_target_render_target.model"
 }

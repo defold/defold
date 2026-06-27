@@ -124,7 +124,7 @@ void ScriptTest::AppendToLog(const char* log)
 
 bool ScriptTest::RunFile(lua_State* L, const char* filename)
 {
-    return dmScriptTest::RunFile(L, filename, "build/src/test/");
+    return dmScriptTest::RunFile(L, filename, "build/src/test/scripts");
 }
 bool ScriptTest::RunFile(lua_State* L, const char* filename, const char* base_dir)
 {

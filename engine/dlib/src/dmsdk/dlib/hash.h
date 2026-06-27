@@ -16,23 +16,25 @@
 #define DMSDK_HASH_H
 
 #include <assert.h>
-#include <stdint.h>
 #if !defined(__cplusplus)
     #include <stdbool.h>
 #endif
+#if defined(__cplusplus) && !defined(__STDC_FORMAT_MACROS)
+    #define __STDC_FORMAT_MACROS
+#endif
+#include <inttypes.h>
+#include <stdint.h>
 #include "shared_library.h"
 #include "dalloca.h" // dmFixedMemAllocator
 
-#if defined(DM_PLATFORM_VENDOR)
+#if __has_include(<dmsdk/dlib/hash_vendor.h>)
     #include <dmsdk/dlib/hash_vendor.h>
-#elif defined(__linux__) && !defined(__ANDROID__)
-    #define DM_HASH_FMT "%016lx"
 #else
-    #define DM_HASH_FMT "%016llx"
+    #define DM_HASH_FMT "%016" PRIx64
 #endif
 
 #ifndef DM_HASH_FMT
-        #error "DM_HASH_FMT was not defined!"
+    #error "DM_HASH_FMT was not defined!"
 #endif
 
 /*# Hash API documentation

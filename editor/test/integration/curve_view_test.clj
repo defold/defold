@@ -88,12 +88,11 @@
         0.11 0.99 [modifier] [1]))))
 
 (defn- cp [nid property idx]
-  (let [c (g/node-value nid property)]
-    (some-> (g/node-value nid property)
-      (types/geom-aabbs [idx])
-      (get idx)
-      first
-      (subvec 0 2))))
+  (some-> (g/node-value nid property)
+          (types/geom-aabbs [idx])
+          (get idx)
+          first
+          (subvec 0 2)))
 
 (defn- cp? [exp act]
   (if act

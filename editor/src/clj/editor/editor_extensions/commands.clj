@@ -27,8 +27,7 @@
             [editor.lsp.async :as lsp.async]
             [editor.resource :as resource]
             [editor.scene :as scene]
-            [util.coll :as coll]
-            [util.fn :as fn]))
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -131,7 +130,7 @@
   (coerce/hash-map
     :req {:label ui-docs/string-or-message-pattern-coercer
           :locations (coerce/vector-of
-                       (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "Scene" "View" "Help")
+                       (coerce/enum "Assets" "Bundle" "Code" "Debug" "Edit" "Outline" "Project" "Scene" "View" "Help")
                        :distinct true
                        :min-count 1)}
     :opt {:query (coerce/hash-map
@@ -159,22 +158,24 @@
           (rt/wrap-userdata "editor.command(...)")))))
 
 (defn command->dynamic-handler [{:keys [label query active id run locations]} path project state]
-  (let [{:keys [rt display-output!]} state
+  (let [{:keys [rt]} state
         lua-fn->env-fn (compile-query query project)
         contexts (into #{}
                        (map {"Assets" :asset-browser
                              "Bundle" :global
+                             "Code" :code-view
                              "Debug" :global
                              "Edit" :global
                              "Outline" :outline
                              "Project" :global
-                             "Scene" :global
+                             "Scene" :workbench
                              "View" :global
                              "Help" :global})
                        locations)
         locations (into #{}
                         (map {"Assets" :editor.asset-browser/context-menu-end
                               "Bundle" :editor.bundle/menu
+                              "Code" :editor.code-view/context-menu-end
                               "Debug" :editor.debug-view/debug-end
                               "Edit" :editor.app-view/edit-end
                               "Outline" :editor.outline-view/context-menu-end
@@ -195,10 +196,10 @@
                    (lua-fn->env-fn
                      (fn [env opts]
                        (error-handling/try-with-extension-exceptions
-                         :display-output! display-output!
+                         :rt rt
                          :label (str label "'s \"active\" in " path)
                          :catch false
-                         (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
+                         (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) {:evaluation-context (:evaluation-context env)} active (rt/->lua opts)))))))
 
             (and (not active) query)
             (assoc :active? (lua-fn->env-fn (constantly true)))
@@ -214,4 +215,4 @@
                                  (when-not (rt/coerces-to? rt coerce/null lua-result)
                                    (lsp.async/with-auto-evaluation-context evaluation-context
                                      (actions/perform! lua-result project state evaluation-context)))))
-                             (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))))
+                             (future/catch #(error-handling/display-script-error! rt error-label %))))))))))

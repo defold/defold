@@ -36,6 +36,13 @@ namespace dmIntersection
  * @language C++
  */
 
+/*# Render extension context name
+ * Name used when registering the render context with the engine context registry.
+ * @constant
+ * @name RENDER_CONTEXT_NAME
+ */
+#define RENDER_CONTEXT_NAME "render"
+
 namespace dmRender
 {
     /*#
@@ -89,7 +96,7 @@ namespace dmRender
     * @typedef
     * @name HLightPrototype
     */
-    typedef struct LightPrototype* HLightPrototype;
+    typedef uint32_t HLightPrototype;
 
     /*#
      * @enum
@@ -220,6 +227,10 @@ namespace dmRender
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
+        dmGraphics::BlendFactor         m_SourceBlendFactorAlpha;
+        dmGraphics::BlendFactor         m_DestinationBlendFactorAlpha;
+        dmGraphics::BlendEquation       m_BlendEquationColor;
+        dmGraphics::BlendEquation       m_BlendEquationAlpha;
         dmGraphics::FaceWinding         m_FaceWinding;
         StencilTestParams               m_StencilTestParams;
         uint32_t                        m_VertexBufferOffsets[MAX_VERTEX_BUFFER_COUNT];
@@ -239,10 +250,11 @@ namespace dmRender
      * Each callback then represents a draw call, and will register a RenderObject
      * @name RenderListEntry
      * @param m_WorldPosition [type: dmVMath::Point3] the world position of the object
+     * @param m_UserData [type: uint64_t] user data (available in the render dispatch callback)
      * @param m_Order [type: uint32_t] the order to sort on (used if m_MajorOrder != RENDER_ORDER_WORLD)
      * @param m_BatchKey [type: uint32_t] the batch key to sort on (note: only 48 bits are currently used by renderer)
      * @param m_TagListKey [type: uint32_t] the key to the list of material tags
-     * @param m_UserData [type: uint64_t] user data (available in the render dispatch callback)
+     * @param m_FrustumHash [type: uint32_t] Last combined frustum cull key (note: engine internal use only!)
      * @param m_MinorOrder [type: uint32_t:4] used to sort within a batch
      * @param m_MajorOrder [type: uint32_t:2] If RENDER_ORDER_WORLD, then sorting is done based on the world position.
                                               Otherwise the sorting uses the m_Order value directly.
@@ -256,6 +268,7 @@ namespace dmRender
         uint32_t m_Order;
         uint32_t m_BatchKey;
         uint32_t m_TagListKey;
+        uint32_t m_FrustumHash;
         uint32_t m_MinorOrder : 4;
         uint32_t m_MajorOrder : 2;
         uint32_t m_Dispatch   : 8;

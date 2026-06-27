@@ -61,6 +61,7 @@
             [editor.connection-properties :as connection-properties]
             [editor.fs :as fs]
             [editor.os :as os]
+            [editor.util :as util]
             [service.log :as log]
             [util.array :as array]
             [util.coll :as coll]
@@ -246,7 +247,14 @@
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple
                                          :items [{:type :number} {:type :number} {:type :number} {:type :number}]
-                                         :default [0.5 0.5 0.5 1.0]}}}}}
+                                         :default [0.5 0.5 0.5 1.0]}}}
+             :perspective-camera {:type :object
+                                  :scope :project
+                                  :properties {:speed {:type :number :default 1.0}
+                                               :look-sensitivity {:type :number :default 0.145}
+                                               :invert-y {:type :boolean :default false}
+                                               :fov {:type :number :default 37.8}
+                                               :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :one-of
@@ -317,7 +325,6 @@
         :enum ((:values schema) 0)
         :tuple (mapv default-value (:items schema)))
       explicit-default)))
-
 
 ;; endregion
 
@@ -469,9 +476,21 @@
                    (when events
                      (reduce-kv
                        (fn [acc file-path path->val]
-                         (let [config (reduce-kv safe-assoc-in (read-config! file-path) path->val)]
-                           (write-config! file-path config)
-                           (assoc acc file-path config)))
+                         (let [existing (read-config! file-path)
+                               base (if (identical? ::not-found existing) {} existing)
+                               config (reduce-kv
+                                        (fn [cfg path val]
+                                          (cond
+                                            (and (identical? ::not-found val) (coll/empty? path)) ::not-found
+                                            (identical? ::not-found val) (if (map? cfg) (util/dissoc-in cfg path) cfg)
+                                            :else (safe-assoc-in cfg path val)))
+                                        base
+                                        path->val)]
+                           (if (identical? ::not-found config)
+                             (do (fs/delete-file! (io/file file-path) {:fail :silently})
+                                 (dissoc acc file-path))
+                             (do (write-config! file-path config)
+                                 (assoc acc file-path config)))))
                        storage
                        events))))]
       (swap! global-state incorporate-updated-storage updated-storage)))
@@ -764,6 +783,49 @@
                             (set-value-at-path m scopes schema path (apply f value args)))))
     nil))
 
+(defn- reset-value-events
+  "Walk schema, emitting [file-path config-path ::not-found] for every leaf."
+  [scopes schema path]
+  (if (= :object (:type schema))
+    (e/mapcat
+      #(reset-value-events scopes (val %) (conj path (key %)))
+      (:properties schema))
+    [[(-> schema :scope scopes) path ::not-found]]))
+
+(defn reset-path!
+  "Remove stored values at the specified path, reverting to the default.
+
+  Walks the schema to collect every leaf path (across all scopes for nested
+  object schemas) and emits ::not-found events. Later sets! on the same path
+  will clobber these events via map-key semantics, preserving ordering.
+
+  Using [] as a path allows resetting the whole preference state."
+  [prefs path]
+  {:pre [(vector? path)]}
+  (let [{:keys [scopes]} prefs]
+    (swap! global-state
+           (fn [{:keys [registry storage] :as m}]
+             (let [schema (combined-schema-at-path registry prefs path)
+                   events (->> (reset-value-events scopes schema path)
+                               (e/filter (fn [[file-path config-path _]]
+                                           (let [file-storage (clojure.core/get storage file-path ::not-found)]
+                                             (if (coll/empty? config-path)
+                                               (not (identical? ::not-found file-storage))
+                                               (and (map? file-storage)
+                                                    (not (identical? ::not-found
+                                                                     (get-in file-storage config-path ::not-found)))))))))]
+               (reduce
+                 (fn [acc [file-path config-path _ :as event]]
+                   (-> acc
+                       (update :storage (fn [s]
+                                          (if (coll/empty? config-path)
+                                            (assoc s file-path ::not-found)
+                                            (update s file-path util/dissoc-in config-path))))
+                       (assoc-in [:events file-path config-path] ::not-found)))
+                 m
+                 events))))
+    nil))
+
 (defn schema
   "Get a preference schema at a specified get-in path"
   ([prefs path]
@@ -949,3 +1011,7 @@
                                       "simulated-resolution" [:run :simulated-resolution]})))))
 
 ;; end region
+
+(comment
+  (swap! global-state assoc-in [:registry :default] (resolve-schema default-schema))
+  :-)

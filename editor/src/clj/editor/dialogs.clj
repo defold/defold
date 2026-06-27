@@ -62,7 +62,12 @@
 (set! *warn-on-reflection* true)
 
 (def clipping-container
-  (fx.composite/describe ClippingContainer :ctor [] :props fx.stack-pane/props))
+  (fx.composite/describe
+    ClippingContainer
+    :ctor []
+    :props (merge fx.stack-pane/props
+                  (fx.composite/props ClippingContainer
+                    :pref-height-cap [:setter fx.lifecycle/scalar]))))
 
 (def ^:private dialogs-css-delay
   (delay (str (io/resource "dialogs.css"))))
@@ -88,11 +93,13 @@
   Optional keys:
 
     :size          dialog width, either :small, :default or :large
+    :width         explicit dialog width, overriding :size width
+    :height        explicit dialog height, overriding :size content height cap
     :content       a content of a dialog, not padded; you can use
                    \"dialog-content-padding\" style class to set desired padding
                    (or \"text-area-with-dialog-content-padding\" for text areas)
     :root-props    extra props to scene root's v-box lifecycle (sans :children)"
-  [{:keys [size header content footer root-props]
+  [{:keys [size header content footer root-props width height]
     :or {size :default root-props {}}
     :as props}]
   (-> props
@@ -102,25 +109,30 @@
              :scene {:fx/type fx.scene/lifecycle
                      :stylesheets [@dialogs-css-delay]
                      :root (-> root-props
-                               (fxui/add-style-classes
-                                 "dialog-body"
-                                 (case size
-                                   :small "dialog-body-small"
-                                   :default "dialog-body-default"
-                                   :large "dialog-body-large"))
+                               (fxui/add-style-classes "dialog-body")
+                               (cond->
+                                 (not width)
+                                 (fxui/add-style-classes
+                                   (case size
+                                     :small "dialog-body-small"
+                                     :default "dialog-body-default"
+                                     :large "dialog-body-large")))
                                (assoc :fx/type fx.v-box/lifecycle
-                                      :children (if (some? content)
+                                      :children (if content
                                                   [{:fx/type fx.v-box/lifecycle
                                                     :style-class "dialog-with-content-header"
                                                     :children [header]}
                                                    {:fx/type fx.v-box/lifecycle
                                                     :style-class "dialog-content"
-                                                    :children [{:fx/type clipping-container
-                                                                :max-height (case size
-                                                                              :small 480.0
-                                                                              :default 600.0
-                                                                              :large 720.0)
-                                                                :children [content]}]}
+                                                    :v-box/vgrow :always
+                                                    :children [(cond-> {:fx/type clipping-container
+                                                                        :v-box/vgrow :always
+                                                                        :children [content]}
+                                                                 (not height)
+                                                                 (assoc :pref-height-cap (case size
+                                                                                           :small 480.0
+                                                                                           :default 600.0
+                                                                                           :large 720.0)))]}
                                                    {:fx/type fx.v-box/lifecycle
                                                     :style-class "dialog-with-content-footer"
                                                     :children [footer]}]

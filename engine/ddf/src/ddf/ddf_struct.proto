@@ -37,8 +37,6 @@ syntax = "proto2";
 
 package dmStructDDF;
 
-import "ddf/ddf_extensions.proto";
-
 option java_package = "com.dynamo.proto";
 option java_outer_classname = "DdfStruct";
 

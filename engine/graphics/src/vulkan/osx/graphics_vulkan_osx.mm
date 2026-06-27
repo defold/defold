@@ -26,7 +26,7 @@ namespace dmGraphics
     void* VulkanTextureToMetal(HContext _context, const HTexture& texture)
     {
         VulkanContext* context    = (VulkanContext*) _context;
-        VulkanTexture* vk_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture);
+        VulkanTexture* vk_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
         VkExportMetalTextureInfoEXT textureInfo = {};
         textureInfo.sType     = VK_STRUCTURE_TYPE_EXPORT_METAL_TEXTURE_INFO_EXT;

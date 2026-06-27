@@ -2,7 +2,6 @@ syntax = "proto2";
 package dmGraphics;
 
 import "ddf/ddf_extensions.proto";
-import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.graphics.proto";
 option java_outer_classname = "Graphics";
@@ -71,6 +70,7 @@ message VertexAttribute
         SEMANTIC_TYPE_BONE_WEIGHTS         = 10;
         SEMANTIC_TYPE_BONE_INDICES         = 11;
         SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D = 12;
+        SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS = 13;
     }
 
     message LongValues
@@ -441,6 +441,21 @@ message ShaderDesc
         optional uint32 set       = 3;
     }
 
+    message MSLResourceMapping
+    {
+        optional uint64 name_hash = 1;
+        optional uint32 binding   = 2;
+        optional uint32 set       = 3;
+        optional uint32 msl_index = 4;
+    }
+
+    message WorkGroupSize
+    {
+        optional uint32 x = 1;
+        optional uint32 y = 2;
+        optional uint32 z = 3;
+    }
+
     message Shader
     {
         required bytes               source                 = 1;
@@ -448,6 +463,8 @@ message ShaderDesc
         required Language            language               = 3;
         optional bool                variant_texture_array  = 4 [default = false];
         repeated HLSLResourceMapping hlsl_resource_mapping  = 5;
+        repeated MSLResourceMapping  msl_resource_mapping   = 6;
+        optional WorkGroupSize       work_group_size        = 7;
     }
 
     repeated Shader shaders              = 1;

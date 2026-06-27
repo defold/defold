@@ -50,13 +50,31 @@ struct dmWindow
     uint32_t                       m_HighDPI               : 1;
     uint32_t                       m_SwapIntervalSupported : 1;
     uint32_t                       m_WindowOpened          : 1;
+    uint32_t                       m_FullscreenWindowed    : 1;
 };
 
 namespace dmPlatform
 {
+    struct WindowModeParams
+    {
+        GLFWmonitor* m_Monitor;
+        int          m_Width;
+        int          m_Height;
+        int          m_X;
+        int          m_Y;
+        bool         m_WindowedFullscreen;
+    };
+
     void FocusWindowNative(HWindow window);
     void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor);
     void SetWindowsIconNative(HWindow window);
+    void SetWindowedFullscreenFocusNative(HWindow window, bool focused);
+    void SetWindowedSizeFromSettingsNative(HWindow window, int32_t width, int32_t height);
+    void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params);
+    bool CanSetOpenGLCoreProfileHintNative(bool use_highest_version);
+#if defined(_WIN32)
+    const char* GetJoystickDeviceGuidNative(HWindow window, uint32_t joystick_index, const char* glfw_guid);
+#endif
 }
 
 #endif // DM_PLATFORM_WINDOW_GLFW3_PRIVATE_H

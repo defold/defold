@@ -101,7 +101,7 @@
   0)
 
 (defn project []
-  (ffirst (g/targets-of (workspace) :resource-map)))
+  (ffirst (g/targets-of (workspace) :resource-list)))
 
 (defn app-view []
   (ffirst (g/targets-of (project) :selected-node-ids-by-resource-node)))
@@ -1005,8 +1005,6 @@
    (clear-caches! :project :scene :system))
   ([& cache-kws]
    (let [clear-cache? (set cache-kws)]
-     (when (clear-cache? :library)
-       (test-util/clear-cached-libraries!))
      (when (clear-cache? :project)
        (test-util/clear-cached-projects!))
      (when (clear-cache? :scene)
@@ -1289,7 +1287,7 @@
 (defn build-output-infos [project proj-path]
   (let [resource-node (project/get-resource-node project proj-path)]
     (assert (some? resource-node) (format "Resource node not found for: '%s'" proj-path))
-    (test-util/build-node! resource-node)
+    (test-util/build-node! resource-node nil)
     (let [build-resource (test-util/node-build-resource resource-node)
           build-output-path (resource/proj-path build-resource)
           workspace (resource/workspace build-resource)]

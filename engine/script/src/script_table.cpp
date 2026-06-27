@@ -187,6 +187,18 @@ namespace dmScript
         return supported;
     }
 
+    // Lua 5.1 stores numeric keys as lua_Number. Split the conversion so
+    // 0xffffffff can round-trip on wasm, where casting that double directly to
+    // uint32_t wraps to 0.
+    static uint32_t LuaNumberToUint32Key(lua_Number number)
+    {
+        if (number >= 2147483648.0)
+        {
+            return 0x80000000U + (uint32_t)(number - 2147483648.0);
+        }
+        return (uint32_t)number;
+    }
+
     static char* WriteEncodedIndex(lua_State* L, lua_Number index, const TableHeader& header, char* buffer, const char* buffer_end, dmArray<const void*>& table_stack)
     {
         if (header.m_Version == 0)
@@ -234,7 +246,7 @@ namespace dmScript
                 table_stack.SetCapacity(0);
                 luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
             }
-            uint32_t key = (uint32_t)index;
+            uint32_t key = LuaNumberToUint32Key(index);
             *buffer++ = (uint8_t)(key & 0xFF);
             *buffer++ = (uint8_t)((key >> 8) & 0xFF);
             *buffer++ = (uint8_t)((key >> 16) & 0xFF);
@@ -274,7 +286,7 @@ namespace dmScript
         {
             char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
-            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, total_size, (int)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
+            luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %zu]\n'%s'", count, total_size, (int)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
         }
 
         lua_pushstring(L, buffer);
@@ -293,7 +305,7 @@ namespace dmScript
             char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
             char str[512];
-            dmSnPrintf(str, sizeof(str), "Reading outside of buffer at element #%d (string) [value_len=%lu]: wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, value_len, total_size, (uint32_t)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
+            dmSnPrintf(str, sizeof(str), "Reading outside of buffer at element #%d (string) [value_len=%zu]: wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %zu]\n'%s'", count, value_len, total_size, (uint32_t)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
             luaL_error(L, "%s", str);
         }
 
@@ -837,11 +849,11 @@ namespace dmScript
             {
                 luaL_error(L, "Unknown key type %d", key_type);
             }
-            uint8_t b1 = (uint8_t)*buffer++;
-            uint8_t b2 = (uint8_t)*buffer++;
-            uint8_t b3 = (uint8_t)*buffer++;
-            uint8_t b4 = (uint8_t)*buffer++;
-            uint32_t index = b4 << 24 | b3 << 16 | b2 << 8 | b1;
+            uint32_t b1 = (uint8_t)*buffer++;
+            uint32_t b2 = (uint8_t)*buffer++;
+            uint32_t b3 = (uint8_t)*buffer++;
+            uint32_t b4 = (uint8_t)*buffer++;
+            uint32_t index = (b4 << 24) | (b3 << 16) | (b2 << 8) | b1;
             lua_Number number = index;
             if (key_type == LUA_TNEGATIVENUMBER)
             {
@@ -940,7 +952,7 @@ namespace dmScript
             char log_str[PUSH_TABLE_LOGGER_STR_SIZE];
             PushTableLogPrint(logger, log_str);
             char str[512]; \
-            dmSnPrintf(str, sizeof(str), "Reading outside of buffer at before element [BufStart: %p, Cursor: %p, End: %p, BufSize: %lu, Bytes OOB: %d].\n'%s'", logger.m_BufferStart, buffer, buffer_end, logger.m_BufferSize, (int)(buffer_end - buffer), log_str); \
+            dmSnPrintf(str, sizeof(str), "Reading outside of buffer at before element [BufStart: %p, Cursor: %p, End: %p, BufSize: %zu, Bytes OOB: %d].\n'%s'", logger.m_BufferStart, buffer, buffer_end, logger.m_BufferSize, (int)(buffer_end - buffer), log_str); \
             return luaL_error(L, "%s", str);
         }
 

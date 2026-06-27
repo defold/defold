@@ -172,7 +172,13 @@
     :constant-type-projection :projection
     :constant-type-normal :normal
     :constant-type-worldview :world-view
-    :constant-type-worldviewproj :world-view-proj))
+    :constant-type-worldviewproj :world-view-proj
+    :constant-type-world-inverse :world-inv
+    :constant-type-view-inverse :view-inv
+    :constant-type-projection-inverse :projection-inv
+    :constant-type-viewproj-inverse :view-proj-inv
+    :constant-type-worldview-inverse :world-view-inv
+    :constant-type-worldviewproj-inverse :world-view-proj-inv))
 
 (defn- transpile-shader-source
   [shader-resource-node-id shader-resource ^String shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
@@ -209,11 +215,12 @@
           (shader-gen/combined-shader-info augmented-shader-infos)))))
 
 (g/defnk produce-shader-request-data [combined-shader-info]
-  (shader/make-shader-request-data
-    (:shader-type+source-pairs combined-shader-info)
-    (:location+attribute-name-pairs combined-shader-info)
-    (:array-sampler-name->slice-sampler-names combined-shader-info)
-    (:strip-resource-binding-namespace-regex-str combined-shader-info)))
+  (-> (shader/make-shader-request-data
+        (:shader-type+source-pairs combined-shader-info)
+        (:location+attribute-name-pairs combined-shader-info)
+        (:array-sampler-name->slice-sampler-names combined-shader-info)
+        (:strip-resource-binding-namespace-regex-str combined-shader-info))
+      (shader/with-preview-light-capacity (:preview-light-capacity combined-shader-info))))
 
 (g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
   (let [{:keys [array-sampler-name->slice-sampler-names attribute-reflection-infos]} combined-shader-info

@@ -17,6 +17,10 @@
 #include "window.hpp"
 #include "platform_window_constants.h"
 
+#if defined(ANDROID)
+#include "platform_window_android.h"
+#endif
+
 struct dmWindow
 {
     WindowCreateParams m_CreateParams;
@@ -149,6 +153,11 @@ namespace dmPlatform
     }
 
     const char* GetJoystickDeviceName(HWindow window, uint32_t joystick_index)
+    {
+        return 0;
+    }
+
+    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
     {
         return 0;
     }
@@ -297,6 +306,60 @@ namespace dmPlatform
         return 0;
     }
 
+#if defined(ANDROID)
+    int32_t AndroidVerifySurface(HWindow window)
+    {
+        (void) window;
+        return 0;
+    }
+
+    void AndroidBeginFrame(HWindow window)
+    {
+        (void) window;
+    }
+
+    EGLContext GetAndroidEGLContext()
+    {
+        return EGL_NO_CONTEXT;
+    }
+
+    EGLSurface GetAndroidEGLSurface()
+    {
+        return EGL_NO_SURFACE;
+    }
+
+    JavaVM* GetAndroidJavaVM()
+    {
+        return 0;
+    }
+
+    jobject GetAndroidActivity()
+    {
+        return 0;
+    }
+
+    android_app* GetAndroidApp()
+    {
+        return 0;
+    }
+
+    bool GetSafeAreaAndroid(HWindow window, WindowSafeArea* out)
+    {
+        return GetSafeArea(window, out);
+    }
+
+    void SetAndroidInputMethod(bool use_hidden_inputfield)
+    {
+        (void) use_hidden_inputfield;
+    }
+
+    void SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout)
+    {
+        (void) immersive_mode;
+        (void) display_cutout;
+    }
+#endif
+
     const int PLATFORM_KEY_START           = 0;
     const int PLATFORM_JOYSTICK_LAST       = 0;
     const int PLATFORM_KEY_ESC             = 1;
@@ -358,16 +421,16 @@ namespace dmPlatform
     const int PLATFORM_KEY_BACK            = 57;
 
     const int PLATFORM_MOUSE_BUTTON_LEFT   = 0;
-    const int PLATFORM_MOUSE_BUTTON_MIDDLE = 1;
-    const int PLATFORM_MOUSE_BUTTON_RIGHT  = 2;
-    const int PLATFORM_MOUSE_BUTTON_1      = 3;
-    const int PLATFORM_MOUSE_BUTTON_2      = 4;
-    const int PLATFORM_MOUSE_BUTTON_3      = 5;
-    const int PLATFORM_MOUSE_BUTTON_4      = 6;
-    const int PLATFORM_MOUSE_BUTTON_5      = 7;
-    const int PLATFORM_MOUSE_BUTTON_6      = 8;
-    const int PLATFORM_MOUSE_BUTTON_7      = 9;
-    const int PLATFORM_MOUSE_BUTTON_8      = 10;
+    const int PLATFORM_MOUSE_BUTTON_RIGHT  = 1;
+    const int PLATFORM_MOUSE_BUTTON_MIDDLE = 2;
+    const int PLATFORM_MOUSE_BUTTON_1      = 0;
+    const int PLATFORM_MOUSE_BUTTON_2      = 1;
+    const int PLATFORM_MOUSE_BUTTON_3      = 2;
+    const int PLATFORM_MOUSE_BUTTON_4      = 3;
+    const int PLATFORM_MOUSE_BUTTON_5      = 4;
+    const int PLATFORM_MOUSE_BUTTON_6      = 5;
+    const int PLATFORM_MOUSE_BUTTON_7      = 6;
+    const int PLATFORM_MOUSE_BUTTON_8      = 7;
 
     const int PLATFORM_JOYSTICK_1          = 0;
     const int PLATFORM_JOYSTICK_2          = 1;

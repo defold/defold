@@ -16,8 +16,8 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.editor-extensions :as extensions]
             [editor.defold-project :as project]
+            [editor.editor-extensions :as extensions]
             [editor.game-project :as game-project]
             [editor.game-project-core :as game-project-core]
             [editor.gui :as gui]
@@ -27,11 +27,12 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [spit-until-new-mtime with-clean-system]]
+            [support.test-support :as test-support :refer [spit-until-new-mtime with-clean-system]]
+            [util.coll :as coll]
             [util.http-server :as http-server])
-  (:import [java.net URI]
-           [org.apache.commons.io FileUtils]
-           [org.apache.commons.codec.digest DigestUtils]))
+  (:import [com.dynamo.bob.util Library$Archive Library$Problem$Missing Library$Result]
+           [java.net URI]
+           [org.apache.commons.io FileUtils]))
 
 (def ^:dynamic *project-path* "test/resources/empty_project")
 
@@ -44,81 +45,55 @@
      [workspace project])))
 
 (def ^:private uri-string "file:/scriptlib, file:/imagelib1, file:/imagelib2, file:/bogus")
-(def ^:private uris (library/parse-library-uris uri-string))
+(def ^:private uris (library/parse-uris uri-string))
 
 (deftest uri-parsing
   (testing "sane uris"
     (is (= uris [(URI. "file:/scriptlib") (URI. "file:/imagelib1") (URI. "file:/imagelib2") (URI. "file:/bogus")]))
-    (is (= uris (library/parse-library-uris "file:/scriptlib,file:/imagelib1,file:/imagelib2,file:/bogus"))))
+    (is (= uris (library/parse-uris "file:/scriptlib,file:/imagelib1,file:/imagelib2,file:/bogus"))))
   (testing "quoted values"
-    (is (= uris (library/parse-library-uris "\"file:/scriptlib\",\"file:/imagelib1\",\"file:/imagelib2\",\"file:/bogus\"")))
-    (is (= uris (library/parse-library-uris "\"file:/scriptlib\", \"file:/imagelib1\", \"file:/imagelib2\", \"file:/bogus\""))))
+    (is (= uris (library/parse-uris "\"file:/scriptlib\",\"file:/imagelib1\",\"file:/imagelib2\",\"file:/bogus\"")))
+    (is (= uris (library/parse-uris "\"file:/scriptlib\", \"file:/imagelib1\", \"file:/imagelib2\", \"file:/bogus\""))))
   (testing "various spacing and commas allowed"
-    (is (= uris (library/parse-library-uris "   file:/scriptlib,   file:/imagelib1\t,file:/imagelib2,  file:/bogus\t")))
-    (is (= uris (library/parse-library-uris " ,, file:/scriptlib ,  ,,  file:/imagelib1,\tfile:/imagelib2 ,,,,  file:/bogus\t,")))
-    (is (= uris (library/parse-library-uris "\tfile:/scriptlib,\tfile:/imagelib1,\tfile:/imagelib2,\tfile:/bogus   ")))
-    (is (= uris (library/parse-library-uris "\r\nfile:/scriptlib,\nfile:/imagelib1,\rfile:/imagelib2,\tfile:/bogus "))))
+    (is (= uris (library/parse-uris "   file:/scriptlib,   file:/imagelib1\t,file:/imagelib2,  file:/bogus\t")))
+    (is (= uris (library/parse-uris " ,, file:/scriptlib ,  ,,  file:/imagelib1,\tfile:/imagelib2 ,,,,  file:/bogus\t,")))
+    (is (= uris (library/parse-uris "\tfile:/scriptlib,\tfile:/imagelib1,\tfile:/imagelib2,\tfile:/bogus   ")))
+    (is (= uris (library/parse-uris "\r\nfile:/scriptlib,\nfile:/imagelib1,\rfile:/imagelib2,\tfile:/bogus "))))
   (testing "ignore non-uris"
-    (is (= uris (library/parse-library-uris "this, file:/scriptlib, sure, file:/imagelib1, aint, file:/imagelib2, no, file:/bogus, uri")))))
+    (is (= uris (library/parse-uris "this, file:/scriptlib, sure, file:/imagelib1, aint, file:/imagelib2, no, file:/bogus, uri")))))
 
 (deftest initial-state
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world))]
-      (testing "initially no library files"
-        (let [files (library/library-files (workspace/project-directory workspace))]
-          (is (= 0 (count files)))))
-      (testing "initially unknown library state"
-        (let [states (library/current-library-state
-                      (workspace/project-directory workspace)
-                      uris)]
-          (is (every? (fn [state] (= (:status state) :unknown)) states))
-          (is (not (seq (filter :file states)))))))))
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (log/without-logging (setup-scratch world))]
+        (testing "initially no library files"
+          (let [files (test-support/library-files (workspace/project-directory workspace))]
+            (is (= 0 (count files)))))
+        (testing "initially missing library state"
+          (let [states (library/cached (workspace/project-directory workspace) uris)]
+            (is (coll/every? #(instance? Library$Problem$Missing (.problem ^Library$Result %)) states))
+            (is (coll/not-any? Library$Result/.archive states))))))))
 
 (deftest libraries-present
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world))]
-      (let [project-directory (workspace/project-directory workspace)]
+    (test-util/with-project-default-library-directory
+      (let [[workspace _project] (log/without-logging (setup-scratch world))
+            project-directory (workspace/project-directory workspace)]
         ;; copy to proper place
         (FileUtils/copyDirectory
-         (io/file "test/resources/lib_resource_project/.internal/lib")
-         (library/library-directory project-directory))
+          (io/file "test/resources/lib_resource_project/.internal/lib")
+          (test-support/library-directory project-directory))
         (testing "libraries now present"
-          (let [files (library/library-files project-directory)]
+          (let [files (test-support/library-files project-directory)]
             (is (= 3 (count files)))))
         (testing "library-state visible"
-          (let [state (library/current-library-state project-directory uris)]
+          (let [state (library/cached project-directory uris)]
             (is (= 4 (count state)))
-            (is (= 3 (count (filter :file state))))))  ; no file for bogus
+            (is (= 3 (count (keep Library$Result/.archive state))))))  ; no file for bogus
         (testing "ignore duplicate library uris"
-          (let [state (library/current-library-state project-directory (concat uris uris))]
+          (let [state (library/cached project-directory (concat uris uris))]
             (is (= 4 (count state)))
-            (is (= 3 (count (filter :file state))))))))))
-
-(defn dummy-lib-resolver [uri tag]
-  (let [file-name (str "lib_resource_project/.internal/lib/" (DigestUtils/sha1Hex (str uri)) "-.zip")]
-    {:status :stale
-     :stream (some-> file-name io/resource io/input-stream)
-     :tag    "tag"
-     :size   100}))
-
-(deftest library-update
-  (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world))]
-      (let [project-directory (workspace/project-directory workspace)]
-        (let [update-states   (->> (library/current-library-state project-directory uris)
-                                   (library/fetch-library-updates dummy-lib-resolver progress/null-render-progress!)
-                                   (library/validate-updated-libraries)
-                                   (library/install-validated-libraries! project-directory))
-              update-statuses (group-by :status update-states)
-              files           (library/library-files project-directory)
-              states          (library/current-library-state project-directory uris)]
-          (is (= 3 (count (update-statuses :up-to-date))))
-          (is (= 1 (count (update-statuses :error))))
-          (is (= (str (:uri (first (update-statuses :error)))) "file:/bogus"))
-          (is (every? (fn [state] (= (:tag state) "tag")) (update-statuses :up-to-date)))
-          (is (= 3 (count files)))
-          (is (= 4 (count states)))
-          (is (every? (fn [state] (= (:tag state) "tag")) (filter :file states))))))))
+            (is (= 3 (count (keep Library$Result/.archive state))))))))))
 
 (defn- write-deps! [game-project deps]
   (let [settings (with-open [game-project-reader (io/reader game-project)]
@@ -150,11 +125,10 @@
                   or (:node-id (test-util/outline int-gui [0 0 0]))]
               (is (= [or] (g/overrides original))))))))))
 
-(defn- fetch-validate-install-libraries! [workspace library-uris render-fn]
-  (when (workspace/dependencies-reachable? library-uris)
-    (->> (workspace/fetch-and-validate-libraries workspace library-uris render-fn)
-         (workspace/install-validated-libraries! workspace))
-    (workspace/resource-sync! workspace)))
+(defn- fetch-libraries! [workspace library-uris render-fn]
+  (->> (library/fetch! (workspace/project-directory workspace) library-uris render-fn)
+       (workspace/set-project-dependencies! workspace))
+  (workspace/resource-sync! workspace))
 
 (deftest fetch-libraries
   (with-clean-system
@@ -166,11 +140,11 @@
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
+        (fetch-libraries! workspace (project/project-dependencies project) identity)
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; remove dependency again, fetch libraries, we should no longer have the file
         (game-project/set-setting! game-project ["project" "dependencies"] nil)
-        (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
+        (fetch-libraries! workspace (project/project-dependencies project) identity)
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-library-archive-with-nesting
@@ -181,8 +155,32 @@
             game-project (project/get-resource-node project "/game.project")]
         ;; make sure we don't have library file to begin with
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
-
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity)
+        (fetch-libraries! workspace (project/project-dependencies project) identity)
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
+
+(deftest fetch-libraries-from-local-extension-dir
+  (with-clean-system
+    (let [[workspace _project] (log/without-logging (setup-scratch world))
+          project-directory (workspace/project-directory workspace)
+          original-uri (URI/create "https://example.com/local-extension-dir.zip")
+          property-prefix "defold.extension.test-local"
+          local-extension-dir (io/file "test/resources/lib_resource_project")
+          game-project-resource (workspace/resolve-workspace-resource workspace "/game.project")
+          expected-library-file (test-support/library-file project-directory original-uri "")]
+      (System/setProperty (str property-prefix ".url") (str original-uri))
+      (System/setProperty (str property-prefix ".path") (.getCanonicalPath local-extension-dir))
+      (try
+        (write-deps! game-project-resource "{{defold.extension.test-local.url}}")
+        (let [results (library/fetch! project-directory (project/read-dependencies game-project-resource) progress/null-render-progress!)
+              result ^Library$Result (first results)
+              archive ^Library$Archive (.archive result)]
+          (is (not= original-uri (.uri result)))
+          (is (= "localhost" (.getHost ^URI (.uri result))))
+          (is (not= (.toPath expected-library-file) (.path archive)))
+          (is (not (.isFile expected-library-file)))
+          (is (.isFile (.toFile (.path archive)))))
+        (finally
+          (System/clearProperty (str property-prefix ".url"))
+          (System/clearProperty (str property-prefix ".path")))))))

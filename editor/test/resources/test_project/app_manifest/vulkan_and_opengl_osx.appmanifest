@@ -43,19 +43,19 @@ platforms:
       jetifier: true
   arm64-osx:
     context:
-      excludeLibs: []
-      excludeSymbols: []
-      symbols: [GraphicsAdapterOpenGL]
-      libs: [graphics, platform]
-      frameworks: [OpenGL]
+      excludeLibs: [graphics_metal]
+      excludeSymbols: [GraphicsAdapterMetal]
+      symbols: [GraphicsAdapterOpenGL, GraphicsAdapterVulkan]
+      libs: [graphics, platform, graphics_vulkan, platform_vulkan, MoltenVK]
+      frameworks: [OpenGL, Metal, IOSurface, QuartzCore]
       linkFlags: []
   x86_64-osx:
     context:
-      excludeLibs: []
-      excludeSymbols: []
-      symbols: [GraphicsAdapterOpenGL]
-      libs: [graphics, platform]
-      frameworks: [OpenGL]
+      excludeLibs: [graphics_metal]
+      excludeSymbols: [GraphicsAdapterMetal]
+      symbols: [GraphicsAdapterOpenGL, GraphicsAdapterVulkan]
+      libs: [graphics, platform, graphics_vulkan, platform_vulkan, MoltenVK]
+      frameworks: [OpenGL, Metal, IOSurface, QuartzCore]
       linkFlags: []
   x86_64-linux:
     context:
@@ -81,14 +81,6 @@ platforms:
   x86_64-win32:
     context:
       excludeLibs: []
-      excludeSymbols: []
-      symbols: []
-      libs: []
-      linkFlags: []
-  js-web:
-    context:
-      excludeLibs: []
-      excludeJsLibs: []
       excludeSymbols: []
       symbols: []
       libs: []

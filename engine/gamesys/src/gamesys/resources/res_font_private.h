@@ -57,10 +57,12 @@ namespace dmGameSystem
         dmResource::HFactory    m_Factory;
         uint32_t                m_CacheCellPadding;
         uint32_t                m_ResourceSize;         // For correct resource usage reporting
+        uint32_t                m_Version;              // Monotonic layout version for label cache invalidation
         bool                    m_IsDynamic;            // Are the glyphs populated at runtime?
         uint8_t                 m_Padding;              // Extra space for outline + shadow
         uint8_t                 m_Prewarming:1;         // If true, it is currently waiting for glyphs to be prewamed (dynamic fonts only)
         uint8_t                 m_PrewarmDone:1;
+        uint8_t                 m_Destroying:1;
 
         dmHashTable64<TTFResource*> m_TTFResources;  // Maps path hash to a resource
         dmHashTable32<uint64_t>     m_FontHashes;    // Maps HFont path hash to a resource

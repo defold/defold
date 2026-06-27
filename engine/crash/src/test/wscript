@@ -5,6 +5,12 @@ from waf_dynamo import new_copy_task
 
 new_copy_task('luascript', '.lua', '.luac')
 
+def uses_posix_signal_handler(platform):
+    is_win32 = platform in ('win32', 'x86_64-win32')
+    is_web = 'web' in platform
+    is_null_crash = platform in ('arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone')
+    return not (is_win32 or is_web or is_null_crash)
+
 def build(bld):
     if options.skip_build_tests:
        return
@@ -30,11 +36,20 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM']:
         test_crash.env.append_value('LINKFLAGS', ['Psapi.lib'])
 
+    if uses_posix_signal_handler(bld.env['PLATFORM']):
+        test_crash_posix_signal = bld.program(features = 'cxx cprogram test',
+                                              includes = '..',
+                                              use = libs + ['crashext'],
+                                              target = 'test_crash_posix_signal',
+                                              source = 'test_crash_posix_signal.cpp')
+        test_crash_posix_signal.install_path = None
+
     # essentially only test that it links
     test_crash_null = bld.program(features = 'cxx cprogram test skip_test',
                                      includes = '..',
                                      use = libs + ['crashext_null'],
                                      web_libs = ['library_sys.js'],
+                                     defines = ['DM_CRASH_TEST_NULL'],
                                      target = 'test_crash_null',
                                      source = 'test_crash.cpp')
 

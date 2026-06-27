@@ -28,20 +28,13 @@
 
 (deftest aabb
   (test-util/with-loaded-project
-    (let [node-id (test-util/resource-node project "/mesh/test.dae")
+    (let [node-id (test-util/resource-node project "/builtins/assets/gltf/cube.gltf")
           scene (g/node-value node-id :scene)
           aabb (:aabb scene)
           min ^Point3d (types/min-p aabb)
           max ^Point3d (types/max-p aabb)
-          dist (.distance max min)] ; distance in meters (converted from centimeters in the loader)
-      (is (< 10 dist 20)))))
-
-(deftest invalid-scene
-  (test-util/with-loaded-project
-    (let [node-id (test-util/resource-node project "/mesh/invalid.dae")
-          scene (log/without-logging
-                  (g/node-value node-id :scene))]
-      (is (g/error? scene)))))
+          dist (.distance max min)]
+      (is (< 1 dist 2)))))
 
 (deftest gltf-valid-scene
   (test-util/with-loaded-project

@@ -18,12 +18,14 @@
             [editor.build-errors-view :as build-errors-view]
             [editor.disk :as disk]
             [editor.future :as future]
+            [editor.library :as library]
             [editor.lsp.server :as lsp.server]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [service.log :as log]
             [util.coll :as coll]
-            [util.http-server :as http-server]))
+            [util.http-server :as http-server])
+  (:import [com.dynamo.bob.util Library$Result]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,6 +47,25 @@
                                       maybe-resource (assoc :resource (resource/proj-path maybe-resource))
                                       cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
         (http-server/json-response {:success (not error) :issues issues} (if error 422 200))))))
+
+(defn- fetch-libraries-response [result localization-state]
+  (future/then
+    result
+    (fn [[lib-results reload-succeeded]]
+      (let [success (and reload-succeeded (coll/not-any? Library$Result/.problem lib-results))]
+        (http-server/json-response
+          {:success success
+           :libraries (coll/into-> lib-results []
+                        (map (fn [^Library$Result result]
+                               (let [problem (.problem result)]
+                                 (cond-> {:uri (str (.uri result))
+                                          :success (not problem)}
+                                   problem
+                                   (assoc :message (localization-state (library/result-message result))))))))}
+          (cond
+            (not reload-succeeded) 500
+            success 200
+            :else 422))))))
 
 (def ^:private supported-commands
   ;; Notable exclusions:
@@ -120,7 +141,8 @@
    :fetch-libraries
    {:ui-handler :project.fetch-libraries
     :help "Download the latest version of the project library dependencies."
-    :resource-sync true}
+    :resource-sync true
+    :response-fn fetch-libraries-response}
 
    :hot-reload
    {:ui-handler :run.hot-reload
@@ -131,10 +153,12 @@
    {:ui-handler :help.open-issues
     :help "Open the Defold Issue Tracker in a web browser."}
 
-   :rebuild
+   :clean-build
    {:ui-handler :project.clean-build
-    :help "Rebuild and run the project."
-    :resource-sync true}
+    :user-data {:skip-confirmation true}
+    :help "Clears build caches and rebuilds. Use only if builds fail oddly or miss changes."
+    :resource-sync true
+    :response-fn build-response}
 
    :rebundle
    {:ui-handler :project.rebundle
@@ -227,8 +251,8 @@
    {"POST" (with-meta
              (bound-fn [request]
                (let [command (-> request :path-params :command keyword)]
-                 (if-let [{:keys [ui-handler resource-sync response-fn]} (supported-commands command)]
-                   (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
+                 (if-let [{:keys [ui-handler user-data resource-sync response-fn]} (supported-commands command)]
+                   (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler (or user-data {}))]
                      (case ui-handler-ctx
                        (::ui/not-active ::ui/not-enabled) http-server/forbidden
                        (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))

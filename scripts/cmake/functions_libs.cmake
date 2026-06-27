@@ -1,5 +1,99 @@
 defold_log("functions_libs.cmake:")
 
+set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
+  basis_encoder
+  basis_encoder_noasan
+  basis_transcoder
+  crashext
+  crashext_null
+  decoder_ogg
+  decoder_opus
+  decoder_wav
+  ddf
+  ddf_noasan
+  dlib
+  dlib_noasan
+  engine
+  engine_release
+  engine_service
+  engine_service_null
+  extension
+  font
+  font_skribidi
+  gameobject
+  gamesys
+  gamesys_model
+  gamesys_model_null
+  gamesys_rig
+  gamesys_rig_null
+  graphics
+  graphics_dx12
+  graphics_null
+  graphics_null_noasan
+  graphics_opengles
+  graphics_proto
+  graphics_proto_noasan
+  graphics_transcoder_basisu
+  graphics_transcoder_null
+  graphics_vulkan
+  graphics_webgpu
+  graphics_webgpu_wagyu
+  gui
+  gui_null
+  hid
+  hid_null
+  image
+  image_noasan
+  image_null
+  image_null_noasan
+  input
+  jni
+  jni_noasan
+  launcherutil
+  liveupdate
+  liveupdate_null
+  lua
+  mbedtls
+  mbedtls_noasan
+  model
+  particle
+  physics
+  physics_2d
+  physics_2d_defold
+  physics_3d
+  physics_null
+  platform
+  platform_null
+  platform_vulkan
+  profile
+  profile_noasan
+  profile_null
+  profile_null_noasan
+  profiler_js
+  profiler_remotery
+  profilerext
+  profilerext_null
+  record
+  record_null
+  render
+  render_font_default
+  resource
+  rig
+  rig_null
+  script
+  script_box2d
+  script_box2d_defold
+  shaderc
+  sound
+  sound_nosimd
+  sound_null
+  sound_openal
+  testmain
+  texc
+  vpx
+  zip
+  zip_noasan)
+
 # defold_target_link_libraries
 # Link libraries to a target with platform-aware name adjustments.
 #
@@ -9,9 +103,9 @@ defold_log("functions_libs.cmake:")
 #
 # Behavior:
 # - For Windows platforms (…-win32), each library name in <libs> is prefixed
-#   with "lib" unless it already starts with "lib", is an absolute path,
-#   is a generator expression (starts with "$<"), is a linker flag (starts with "-"),
-#   or already ends with ".lib".
+#   with "lib" unless it is an existing CMake target, already starts with
+#   "lib", is an absolute path, is a generator expression (starts with "$<"),
+#   is a linker flag (starts with "-"), or already ends with ".lib".
 # - Exceptions (these already follow Windows naming): hid, hid_null, input,
 #   platform, platform_null, platform_vulkan.
 # - Other platforms link the names as-is.
@@ -29,8 +123,20 @@ function(defold_target_link_libraries target platform)
     message(FATAL_ERROR "defold_target_link_libraries: target and platform are required")
   endif()
 
-  # Remaining unparsed arguments are libraries to link
-  set(_LIBS ${DLIB_UNPARSED_ARGUMENTS})
+  # Remaining unparsed arguments are libraries to link. A plain "lua" entry
+  # mirrors Waf's LUA uselib and resolves to the platform runtime, not
+  # necessarily the vanilla lua target.
+  set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
+  set(_LIBS)
+  foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
+    if(_lib STREQUAL "graphics" AND DEFINED DEFOLD_PLATFORM_GRAPHICS_LIBS)
+      list(APPEND _LIBS ${DEFOLD_PLATFORM_GRAPHICS_LIBS})
+    elseif(_lib STREQUAL "lua" AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
+      list(APPEND _LIBS luajit-5.1)
+    else()
+      list(APPEND _LIBS "${_lib}")
+    endif()
+  endforeach()
 
   # Derive OS from tuple (e.g., x86_64-win32 -> win32)
   string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")
@@ -39,11 +145,12 @@ function(defold_target_link_libraries target platform)
   if(_PLAT_OS STREQUAL "win32")
     foreach(_lib IN LISTS _LIBS)
       set(_mapped "${_lib}")
-      # Exceptions: these libs follow Windows naming (no implicit "lib" prefix)
       set(_is_exception OFF)
-      if(_lib STREQUAL "hid" OR _lib STREQUAL "hid_null"
-         OR _lib STREQUAL "input"
-         OR _lib STREQUAL "platform" OR _lib STREQUAL "platform_null" OR _lib STREQUAL "platform_vulkan")
+      if(_lib IN_LIST DEFOLD_EXACT_WINDOWS_STATIC_LIBS)
+        set(_is_exception ON)
+      endif()
+
+      if(TARGET "${_lib}")
         set(_is_exception ON)
       endif()
 
@@ -64,6 +171,198 @@ function(defold_target_link_libraries target platform)
   if(_MAPPED_LIBS)
     target_link_libraries(${target} ${DLIB_SCOPE} ${_MAPPED_LIBS})
   endif()
+
+  foreach(_lib IN LISTS _SDK_LIBS)
+    if(NOT _lib MATCHES "^\\$<")
+      set(_sdk_headers_target)
+      if(TARGET "${_lib}_sdk_headers")
+        set(_sdk_headers_target "${_lib}_sdk_headers")
+      elseif(TARGET "${_lib}")
+        get_target_property(_sdk_headers_target "${_lib}" DEFOLD_SDK_HEADERS_TARGET)
+      endif()
+
+      if(_sdk_headers_target AND TARGET "${_sdk_headers_target}" AND NOT DEFOLD_MSVC_IDE_SOLUTION)
+        add_dependencies(${target} "${_sdk_headers_target}")
+      endif()
+    endif()
+  endforeach()
+
+  if(_PLAT_OS STREQUAL "macos" OR _PLAT_OS STREQUAL "ios")
+    list(FIND _LIBS "dlib" _dlib_idx)
+    if(NOT _dlib_idx EQUAL -1)
+      foreach(_fw IN ITEMS CFNetwork Security)
+        target_link_options(${target} ${DLIB_SCOPE} "-Wl,-framework,${_fw}")
+      endforeach()
+    endif()
+  endif()
+endfunction()
+
+# Installs targets using normal CMake semantics, except for static libraries on
+# Apple platforms. CMake's generated install script runs ranlib after installing
+# TYPE STATIC_LIBRARY there, which mutates the installed archive and makes the
+# next install copy it again even when the target did not change.
+function(defold_install_targets)
+  set(_targets)
+  set(_archive_dest)
+  set(_library_dest)
+  set(_runtime_dest)
+  set(_index 0)
+  set(_mode)
+
+  while(_index LESS ARGC)
+    list(GET ARGV ${_index} _arg)
+    if(_arg STREQUAL "TARGETS")
+      set(_mode TARGETS)
+    elseif(_arg STREQUAL "ARCHIVE" OR _arg STREQUAL "LIBRARY" OR _arg STREQUAL "RUNTIME")
+      set(_mode "${_arg}")
+      math(EXPR _index "${_index} + 1")
+      if(NOT _index LESS ARGC)
+        message(FATAL_ERROR "defold_install_targets: ${_mode} requires DESTINATION")
+      endif()
+      list(GET ARGV ${_index} _destination_keyword)
+      if(NOT _destination_keyword STREQUAL "DESTINATION")
+        message(FATAL_ERROR "defold_install_targets: ${_mode} requires DESTINATION")
+      endif()
+      math(EXPR _index "${_index} + 1")
+      if(NOT _index LESS ARGC)
+        message(FATAL_ERROR "defold_install_targets: ${_mode} DESTINATION requires a path")
+      endif()
+      list(GET ARGV ${_index} _destination)
+      if(_mode STREQUAL "ARCHIVE")
+        set(_archive_dest "${_destination}")
+      elseif(_mode STREQUAL "LIBRARY")
+        set(_library_dest "${_destination}")
+      elseif(_mode STREQUAL "RUNTIME")
+        set(_runtime_dest "${_destination}")
+      endif()
+    elseif(_mode STREQUAL "TARGETS")
+      list(APPEND _targets "${_arg}")
+    else()
+      message(FATAL_ERROR "defold_install_targets: expected TARGETS before ${_arg}")
+    endif()
+    math(EXPR _index "${_index} + 1")
+  endwhile()
+
+  if(NOT _targets)
+    message(FATAL_ERROR "defold_install_targets: no targets specified")
+  endif()
+
+  foreach(_target IN LISTS _targets)
+    get_target_property(_target_type ${_target} TYPE)
+    if(_target_type STREQUAL "STATIC_LIBRARY" AND TARGET_PLATFORM MATCHES "macos|ios")
+      if(NOT _archive_dest)
+        message(FATAL_ERROR "defold_install_targets: static target ${_target} requires ARCHIVE DESTINATION")
+      endif()
+      install(FILES "$<TARGET_FILE:${_target}>" DESTINATION "${_archive_dest}")
+    elseif(_target_type STREQUAL "SHARED_LIBRARY" AND TARGET_PLATFORM MATCHES "macos|ios")
+      if(NOT _library_dest)
+        message(FATAL_ERROR "defold_install_targets: shared target ${_target} requires LIBRARY DESTINATION")
+      endif()
+      set_target_properties(${_target} PROPERTIES
+        BUILD_WITH_INSTALL_NAME_DIR TRUE
+        INSTALL_NAME_DIR "")
+      install(PROGRAMS "$<TARGET_FILE:${_target}>" DESTINATION "${_library_dest}")
+    else()
+      set(_install_args TARGETS ${_target})
+      if(_archive_dest)
+        list(APPEND _install_args ARCHIVE DESTINATION "${_archive_dest}")
+      endif()
+      if(_library_dest)
+        list(APPEND _install_args LIBRARY DESTINATION "${_library_dest}")
+      endif()
+      if(_runtime_dest)
+        list(APPEND _install_args RUNTIME DESTINATION "${_runtime_dest}")
+        list(APPEND _install_args BUNDLE DESTINATION "${_runtime_dest}")
+      endif()
+      install(${_install_args})
+    endif()
+  endforeach()
+endfunction()
+
+function(defold_add_sdk_headers_target target_name)
+  set(options)
+  set(oneValueArgs DESTINATION SOURCE_ROOT)
+  set(multiValueArgs FILES DEPENDS)
+  cmake_parse_arguments(SDK_HEADERS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(NOT SDK_HEADERS_DESTINATION)
+    message(FATAL_ERROR "defold_add_sdk_headers_target: DESTINATION is required")
+  endif()
+  if(NOT SDK_HEADERS_FILES)
+    add_custom_target(${target_name} DEPENDS ${SDK_HEADERS_DEPENDS})
+    return()
+  endif()
+
+  set(_outputs)
+  set(_commands)
+  foreach(_file IN LISTS SDK_HEADERS_FILES)
+    if(SDK_HEADERS_SOURCE_ROOT)
+      file(RELATIVE_PATH _relative_file "${SDK_HEADERS_SOURCE_ROOT}" "${_file}")
+    else()
+      get_filename_component(_relative_file "${_file}" NAME)
+    endif()
+
+    set(_output "${DEFOLD_SDK_ROOT}/${SDK_HEADERS_DESTINATION}/${_relative_file}")
+    get_filename_component(_output_dir "${_output}" DIRECTORY)
+    list(APPEND _outputs "${_output}")
+    list(APPEND _commands
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_output_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy "${_file}" "${_output}")
+  endforeach()
+
+  add_custom_command(
+    OUTPUT ${_outputs}
+    ${_commands}
+    DEPENDS ${SDK_HEADERS_FILES}
+    VERBATIM)
+  add_custom_target(${target_name} DEPENDS ${_outputs} ${SDK_HEADERS_DEPENDS})
+endfunction()
+
+function(defold_get_box2d_library out_var)
+  defold_feature_enabled(box2dv3 _with_box2dv3)
+  defold_feature_enabled(simd _with_simd)
+  if(_with_box2dv3 AND NOT _with_simd)
+    set(_box2d_lib box2d_nosimd)
+  else()
+    set(_box2d_lib box2d)
+  endif()
+  set(${out_var} ${_box2d_lib} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_physics_libraries out_var)
+  defold_feature_disabled(physics _physics_disabled)
+  defold_feature_enabled(box2dv3 _with_box2dv3)
+
+  if(_physics_disabled)
+    set(_physics_libs physics_null)
+  elseif(_with_box2dv3)
+    defold_get_box2d_library(_box2d_lib)
+    set(_physics_libs physics BulletDynamics BulletCollision LinearMath ${_box2d_lib})
+  else()
+    set(_physics_libs physics BulletDynamics BulletCollision LinearMath box2d_defold)
+  endif()
+
+  set(${out_var} ${_physics_libs} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_font_libraries out_var)
+  defold_feature_enabled(font_layout _with_font_layout)
+  if(_with_font_layout)
+    set(_font_libs font_skribidi harfbuzz sheenbidi unibreak skribidi)
+  else()
+    set(_font_libs font)
+  endif()
+  set(${out_var} ${_font_libs} PARENT_SCOPE)
+endfunction()
+
+function(defold_get_gamesys_libraries out_var)
+  defold_feature_enabled(box2dv3 _with_box2dv3)
+  if(_with_box2dv3)
+    set(_gamesys_libs gamesys gamesys_model gamesys_rig script_box2d)
+  else()
+    set(_gamesys_libs gamesys gamesys_model gamesys_rig script_box2d_defold)
+  endif()
+  set(${out_var} ${_gamesys_libs} PARENT_SCOPE)
 endfunction()
 
 # Attach a local include folder to a target and add headers to the IDE tree.
@@ -110,13 +409,37 @@ endfunction()
 #   defold_add_executable(<name>
 #                         [EXCLUDE_FROM_ALL]
 #                         source1 [source2 ...])
+function(defold_resolve_private_source_paths out_var)
+  set(_resolved)
+  foreach(_arg IN LISTS ARGN)
+    set(_resolved_arg "${_arg}")
+    if(DEFOLD_PRIVATE_REPO_ROOT
+       AND IS_ABSOLUTE "${_arg}"
+       AND NOT EXISTS "${_arg}"
+       AND NOT _arg MATCHES "^\\$<")
+      file(RELATIVE_PATH _relative "${DEFOLD_HOME}" "${_arg}")
+      if(NOT _relative MATCHES "^\\.\\."
+         AND NOT IS_ABSOLUTE "${_relative}")
+        set(_private_candidate "${DEFOLD_PRIVATE_REPO_ROOT}/${_relative}")
+        if(EXISTS "${_private_candidate}")
+          set(_resolved_arg "${_private_candidate}")
+        endif()
+      endif()
+    endif()
+    list(APPEND _resolved "${_resolved_arg}")
+  endforeach()
+  set(${out_var} "${_resolved}" PARENT_SCOPE)
+endfunction()
+
 function(defold_add_executable target)
   if(NOT target)
     message(FATAL_ERROR "defold_add_executable: target name is required")
   endif()
 
+  defold_resolve_private_source_paths(_sources ${ARGN})
+
   # Forward all remaining args directly to add_executable
-  add_executable(${target} ${ARGN})
+  add_executable(${target} ${_sources})
 
   # Attach local include dir (e.g., ./include) and headers if present
   if(COMMAND defold_attach_local_include)
@@ -141,7 +464,7 @@ function(defold_target_link_libraries_web target platform)
   endif()
 
   # Only for web platforms
-  if(NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
+  if(NOT "${platform}" MATCHES "^(wasm-web|wasm_pthread-web)$")
     return()
   endif()
 
@@ -151,14 +474,41 @@ function(defold_target_link_libraries_web target platform)
     return()
   endif()
 
-  set(_js_dir "${DEFOLD_SDK_ROOT}/lib/${platform}/js")
   foreach(_js IN LISTS _JS_LIBS)
-    if(EXISTS "${_js_dir}/${_js}")
-      target_link_options(${target} ${DWEB_SCOPE} "SHELL:--js-library=${_js_dir}/${_js}")
+    set(_js_path)
+    set(_js_candidates
+      "${DEFOLD_SDK_ROOT}/lib/${platform}/js/${_js}"
+      "${DEFOLD_SDK_ROOT}/ext/lib/${platform}/js/${_js}")
+    foreach(_candidate IN LISTS _js_candidates)
+      if(EXISTS "${_candidate}")
+        set(_js_path "${_candidate}")
+        break()
+      endif()
+    endforeach()
+
+    if(_js_path)
+      target_link_options(${target} ${DWEB_SCOPE} "SHELL:--js-library=${_js_path}")
     else()
-      defold_log("functions_libs: JS lib not found: ${_js_dir}/${_js}")
+      defold_log("functions_libs: JS lib not found: ${_js}")
     endif()
   endforeach()
+endfunction()
+
+# Stage and install an Emscripten JS library for web platforms.
+#
+# Engine executables link before the install phase, so web JS libraries must
+# exist in DEFOLD_SDK_ROOT/lib/<platform>/js during configure/build as well as
+# after install.
+function(defold_install_js_library path)
+  if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+    return()
+  endif()
+
+  get_filename_component(_js_name "${path}" NAME)
+  set(_js_output_dir "${DEFOLD_LIB_DIR}/js")
+  file(MAKE_DIRECTORY "${_js_output_dir}")
+  configure_file("${path}" "${_js_output_dir}/${_js_name}" COPYONLY)
+  install(FILES "${path}" DESTINATION "lib/${TARGET_PLATFORM}/js")
 endfunction()
 
 # Wrapper around add_library that also groups sources by folder in IDEs.
@@ -171,8 +521,14 @@ function(defold_add_library target)
     message(FATAL_ERROR "defold_add_library: target name is required")
   endif()
 
+  defold_resolve_private_source_paths(_sources ${ARGN})
+
   # Forward all remaining args directly to add_library
-  add_library(${target} ${ARGN})
+  add_library(${target} ${_sources})
+
+  if(target MATCHES "_noasan$" AND COMMAND defold_target_skip_sanitizer)
+    defold_target_skip_sanitizer(${target})
+  endif()
 
   # Attach local include dir (e.g., ./include) and headers if present
   if(COMMAND defold_attach_local_include)

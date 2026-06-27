@@ -24,6 +24,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -372,13 +373,13 @@
                      [2500.0 2500.0 2500.0]))
 
 (g/defnk produce-modifier-scene
-  [_node-id transform type magnitude max-distance node-outline-key]
+  [_node-id pose type magnitude max-distance node-outline-key]
   (let [mod-type (mod-types type)
         magnitude (properties/sample magnitude)
         max-distance (properties/sample max-distance)]
     {:node-id _node-id
      :node-outline-key node-outline-key
-     :transform transform
+     :pose pose
      :aabb geom/empty-bounding-box
      :visibility-aabb modifier-visibility-aabb
      :renderable {:render-fn render-lines
@@ -478,6 +479,7 @@
                       blend-mode (convert-blend-mode (:blend-mode render-data))]
                   (gl/with-gl-bindings gl render-args [shader vtx-binding gpu-texture]
                     (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+                    (light/bind-preview-lights-for-shader! gl shader render-args)
                     (gl/set-blend-mode gl blend-mode)
                     (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
                     (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))))
@@ -582,7 +584,7 @@
                            [+bx +bx (case type :emitter-type-circle 0.0 +bx)])))))
 
 (g/defnk produce-emitter-scene
-  [_node-id id transform aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes material-attribute-infos max-particle-count vertex-attribute-bytes]
+  [_node-id id pose aabb visibility-aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes material-attribute-infos max-particle-count vertex-attribute-bytes]
   (let [emitter-type (emitter-types type)
         user-data {:type type
                    :emitter-sim-data emitter-sim-data
@@ -595,7 +597,7 @@
                                            (mapv properties/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
     {:node-id _node-id
      :node-outline-key id
-     :transform transform
+     :pose pose
      :aabb aabb
      :visibility-aabb visibility-aabb
      :renderable {:render-fn render-emitters
@@ -1155,8 +1157,8 @@
             ;; should never change
             (let [basis (:basis _evaluation-context)
                   outlines (group-by #(g/node-instance? basis ModifierNode (:node-id %)) child-outlines)
-                  mod-outlines (get outlines true)
-                  emitter-outlines (get outlines false)]
+                  mod-outlines (get outlines true [])
+                  emitter-outlines (get outlines false [])]
               {:node-id _node-id
                :node-outline-key "ParticleFX"
                :label (localization/message "outline.particlefx")

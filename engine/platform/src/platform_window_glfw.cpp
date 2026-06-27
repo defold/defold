@@ -287,6 +287,7 @@ namespace dmPlatform
                 break;
             case WINDOW_GRAPHICS_API_WEBGPU:
             case WINDOW_GRAPHICS_API_VULKAN:
+            case WINDOW_GRAPHICS_API_METAL:
                 res = OpenWindowNoAPI(window, params);
                 break;
             default: assert(0);
@@ -630,6 +631,18 @@ namespace dmPlatform
         char* device_name;
         glfwGetJoystickDeviceId(joystick_index, &device_name);
         return (const char*) device_name;
+    }
+
+    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
+    {
+#if defined(__EMSCRIPTEN__) || defined(ANDROID)
+        char* device_guid = 0;
+        if (glfwGetJoystickDeviceGuid(joystick_index, &device_guid)) // Defold addition
+        {
+            return (const char*) device_guid;
+        }
+#endif
+        return 0; // unsupported
     }
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)

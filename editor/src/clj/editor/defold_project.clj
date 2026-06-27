@@ -926,7 +926,6 @@
       (g/construct node-type
         :_node-id node-id
         :resource resource))
-    (g/connect node-id :_node-id project :nodes)
     (g/connect node-id :node-id+resource project :node-id+resources)))
 
 (defn make-resource-nodes-tx-data [project node-id+resource-pairs]
@@ -963,7 +962,7 @@
   ([project render-progress!]
    (load-project! project render-progress! (g/node-value project :resources)))
   ([project render-progress! resources]
-   (assert (empty? (g/node-value project :nodes)) "load-project should only be used when loading an empty project")
+   (assert (empty? (g/node-value project :node-id+resources)) "load-project should only be used when loading an empty project")
    ;; Create nodes for all resources in the workspace.
    (let [process-metrics (du/make-metrics-collector)
          resource-metrics (du/make-metrics-collector)
@@ -1068,7 +1067,8 @@
      (if-not include-non-editable-directories
        upgraded-editable-save-data
        (let [live-run-evaluation-context (dissoc evaluation-context :dry-run)
-             resources-by-proj-path (g/valid-node-value project :resource-map live-run-evaluation-context)
+             workspace (g/valid-node-value project :workspace live-run-evaluation-context)
+             resources-by-proj-path (g/valid-node-value workspace :resource-map live-run-evaluation-context)
              resource-nodes-by-proj-path (g/valid-node-value project :nodes-by-resource-path live-run-evaluation-context)]
          (into upgraded-editable-save-data
                (keep (fn [[proj-path node-id]]
@@ -1490,8 +1490,8 @@
           notifications
           {:id notification-id
            :type :info
-           :message (localization/message "notification.fetch-libraries.dependencies-changed.prompt")
-           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
+           :message (localization/message "notification.fetch-libraries.changed")
+           :actions [{:message (localization/message "notification.fetch-libraries.action.fetch")
                       :on-action #(ui/execute-command
                                     (ui/contexts (ui/main-scene) true)
                                     :project.fetch-libraries
@@ -1574,8 +1574,6 @@
      gl/linear-mipmap-linear :filter-mode-mag-linear)})
 
 (g/defnode Project
-  (inherits core/Scope)
-
   (property workspace g/Any)
 
   (property all-selections g/Any)
@@ -1588,9 +1586,8 @@
   (input all-selected-node-ids g/Any :array)
   (input all-selected-node-properties g/Any :array)
   (input resources g/Any)
-  (input resource-map g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
-  (input node-id+resources g/Any :array)
+  (input node-id+resources g/Any :array :cascade-delete)
   (input settings g/Any :substitute nil)
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
@@ -1617,7 +1614,6 @@
                                                                  (->> all-sub-selections
                                                                    (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
                                                                    (into {})))))
-  (output resource-map g/Any (gu/passthrough resource-map))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
@@ -1632,6 +1628,12 @@
                                  (double (or (get settings ["display" "width"]) 0))))
   (output display-height g/Num (g/fnk [settings]
                                   (double (or (get settings ["display" "height"]) 0))))
+  (output render-clear-color g/Any (g/fnk [settings]
+                                     (vector-of :double
+                                       (get settings ["render" "clear_color_red"] 0.0)
+                                       (get settings ["render" "clear_color_green"] 0.0)
+                                       (get settings ["render" "clear_color_blue"] 0.0)
+                                       (get settings ["render" "clear_color_alpha"] 1.0))))
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output glsl-es-default-precision-float g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_float"])))
   (output glsl-es-default-precision-int g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_int"])))
@@ -1704,7 +1706,6 @@
       (let [graph-id (g/node-id->graph-id project)
             node-type (resource-node-type resource)
             creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
-                               (g/connect resource-node-id :_node-id project :nodes)
                                (g/connect resource-node-id :node-id+resource project :node-id+resources))
             created-resource-node-id (first (g/tx-data-added-node-ids creation-tx-data))
             created-resource-nodes' (assoc (or created-resource-nodes {}) resource created-resource-node-id)
@@ -1809,7 +1810,6 @@
                 (g/connect workspace-id :build-settings project :build-settings)
                 (g/connect workspace-id :dependencies project :dependencies)
                 (g/connect workspace-id :resource-list project :resources)
-                (g/connect workspace-id :resource-map project :resource-map)
                 (g/set-graph-value graph :project-id project)
                 (g/set-graph-value graph :lsp (lsp/make project get-resource-node))
                 (g/set-graph-value graph :code-transpilers transpilers-id)))))]
@@ -1822,7 +1822,7 @@
   (with-open [game-project-reader (io/reader game-project-resource)]
     (-> (settings-core/parse-settings game-project-reader)
         (settings-core/get-setting ["project" "dependencies"])
-        (library/parse-library-uris))))
+        (library/parse-uris))))
 
 (defn- project-resource-node? [basis node-id]
   (if-some [resource (resource-node/as-resource-original basis node-id)]
@@ -1892,11 +1892,8 @@
         progress (atom (progress/make (localization/message "progress.updating-dependencies") 13 0))]
     (render-progress! @progress)
 
-    ;; Fetch+install libs if we have network, otherwise fallback to disk state
-    (if (workspace/dependencies-reachable? dependencies)
-      (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress 4))
-           (workspace/install-validated-libraries! workspace-id))
-      (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-directory workspace-id) dependencies)))
+    (->> (library/fetch! (workspace/project-directory workspace-id) dependencies (progress/nest-render-progress render-progress! @progress 4))
+         (workspace/set-project-dependencies! workspace-id))
 
     (render-progress! (swap! progress progress/advance 4 (localization/message "progress.syncing-resources")))
     (du/log-time "Initial resource sync"

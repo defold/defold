@@ -48,7 +48,10 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_BONE_INDICES;
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
     extern const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D;
+    extern const dmhash_t VERTEX_STREAM_MORPH_TARGET_WEIGHTS;
     extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
+    extern const dmhash_t SAMPLER_MORPH_TARGETS;
+    extern const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS;
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
@@ -59,7 +62,7 @@ namespace dmRender
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
-    typedef struct LightPrototype*          HLightPrototype;
+    typedef HOpaqueHandle                   HLightPrototype;
     typedef HOpaqueHandle                   HLightInstance;
 
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
@@ -126,6 +129,7 @@ namespace dmRender
         LIGHT_TYPE_DIRECTIONAL = 0,
         LIGHT_TYPE_POINT       = 1,
         LIGHT_TYPE_SPOT        = 2,
+        LIGHT_TYPE_AMBIENT     = 3,
     };
 
     // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
@@ -211,11 +215,22 @@ namespace dmRender
 
         LightType        m_Type;
         dmVMath::Vector4 m_Color;
-        dmVMath::Vector3 m_Direction;
         float            m_Intensity;
         float            m_Range;
         float            m_InnerConeAngle;
         float            m_OuterConeAngle;
+    };
+
+    struct SamplerInfo
+    {
+        dmhash_t                     m_NameHash;
+        dmGraphics::TextureType      m_TextureType;
+        dmGraphics::HUniformLocation m_Location;
+        dmGraphics::TextureWrap      m_UWrap;
+        dmGraphics::TextureWrap      m_VWrap;
+        dmGraphics::TextureFilter    m_MinFilter;
+        dmGraphics::TextureFilter    m_MagFilter;
+        float                        m_MaxAnisotropy;
     };
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -249,7 +264,6 @@ namespace dmRender
 
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
-    Result DrawDebug2d(HRenderContext context);
 
     void SetRenderPause(HRenderContext context, uint8_t is_paused);
     bool IsRenderPaused(HRenderContext context);
@@ -353,6 +367,7 @@ namespace dmRender
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
     Result                          SetConstantValuesRef(HConstant constant, dmVMath::Vector4* values, uint32_t num_values);
+    bool                            GetSamplerInfo(HSampler sampler, SamplerInfo* info);
 
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);
@@ -365,6 +380,8 @@ namespace dmRender
     uint8_t                         GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
+    bool                            GetMaterialHasMorphTargetsSampler(HMaterial material);
+    bool                            GetMaterialHasMorphTargetWeightsAttribute(HMaterial material);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
@@ -372,6 +389,8 @@ namespace dmRender
     HSampler                        GetComputeProgramSampler(HComputeProgram program, uint32_t unit);
     HRenderContext                  GetProgramRenderContext(HComputeProgram program);
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
+    uint32_t                        GetComputeProgramConstantCount(HComputeProgram program);
+    bool                            GetComputeProgramConstantNameHash(HComputeProgram program, uint32_t index, dmhash_t* out_name_hash);
     void                            SetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
     void                            SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
@@ -393,7 +412,9 @@ namespace dmRender
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     dmGraphics::HUniformLocation    GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
-
+    uint32_t                        GetMaterialConstantCount(HMaterial material);
+    bool                            GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash);
+    bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
@@ -461,6 +482,7 @@ namespace dmRender
     void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
     float                           GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera);
+    float                           GetRenderCameraOrthographicAutoZoom(HRenderContext render_context, HRenderCamera camera);
 
     /** Lights
      * A light prototype is essentially the data that represents the light and has a set of basic parameters,
@@ -472,9 +494,13 @@ namespace dmRender
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
     void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
     void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
+    LightType       GetLightType(HRenderContext render_context, HLightPrototype light_prototype);
+    dmVMath::Vector4 GetLightColor(HRenderContext render_context, HLightPrototype light_prototype);
+    float           GetLightIntensity(HRenderContext render_context, HLightPrototype light_prototype);
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
-    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation);
+    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
+    void            SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)

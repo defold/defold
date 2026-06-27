@@ -28,6 +28,7 @@
             [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
+            [editor.camera :as camera]
             [editor.code.data :as data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
@@ -54,6 +55,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.library :as library]
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
@@ -81,7 +83,7 @@
             [editor.targets :as targets]
             [editor.types :as types]
             [editor.ui :as ui]
-            [editor.url :as url]
+            [editor.ui.settings-popup :as settings-popup]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -99,9 +101,12 @@
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
-           [java.io File PipedInputStream PipedOutputStream]
+           [java.io File IOException PipedInputStream PipedOutputStream]
+           [java.lang.management ManagementFactory]
            [java.net SocketTimeoutException URL]
-           [java.util Arrays Collection List]
+           [java.time LocalTime]
+           [java.time.format DateTimeFormatter]
+           [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections ListChangeListener ObservableList]
@@ -517,40 +522,42 @@
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
-  (run [app-view scene-visibility]
-    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab)
-                           .getContent
-                           (.lookup "#visibility-settings-graphic")
-                           .getParent)]
-      (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
+  (run [app-view localization scene-visibility]
+    (when-let [btn (scene-visibility/toggle-button app-view)]
+      (scene-visibility/show-settings! (g/node-value app-view :keymap) localization btn scene-visibility)))
   (state [app-view scene-visibility evaluation-context]
-    (when-let [btn (some-> ^Tab (g/node-value app-view :active-tab evaluation-context)
-                           .getContent
-                           (.lookup "#visibility-settings-graphic")
-                           .getParent)]
-      ;; TODO: We have no mechanism for updating the style nor icon on
-      ;; on the toolbar button. For now we piggyback on the state
-      ;; update polling to set a style when the filters are active.
-      (if (scene-visibility/filters-appear-active? scene-visibility evaluation-context)
-        (ui/add-style! btn "filters-active")
-        (ui/remove-style! btn "filters-active"))
-      (scene-visibility/settings-visible? btn))))
+    (when-let [btn (scene-visibility/toggle-button app-view)]
+      (scene-visibility/sync-filter-button-style! app-view scene-visibility evaluation-context)
+      (settings-popup/settings-visible? btn))))
 
-(defn- get-grid-settings-button
-  [^Tab tab]
+(defn- get-settings-button [^Tab tab button-id]
   (some-> tab
           .getContent
-          (.lookup "#show-grid-settings")))
+          (.lookup button-id)))
+
+(defn- show-settings-state [app-view button-id evaluation-context]
+  (some-> (g/node-value app-view :active-tab evaluation-context)
+          (get-settings-button button-id)
+          (settings-popup/settings-visible?)))
 
 (handler/defhandler :scene.grid.show-settings :workbench
-  (run [app-view scene-visibility prefs]
+  (run [app-view scene-visibility prefs localization]
     (when-some [btn (some-> (g/node-value app-view :active-tab)
-                            (get-grid-settings-button))]
-      (grid/show-settings! app-view btn prefs)))
+                            (get-settings-button "#show-grid-settings"))]
+      (grid/show-settings! btn app-view prefs (g/node-value app-view :keymap) localization)))
   (state [app-view scene-visibility evaluation-context]
-    (some-> (g/node-value app-view :active-tab evaluation-context)
-            (get-grid-settings-button)
-            (scene-visibility/settings-visible?))))
+    (show-settings-state app-view "#show-grid-settings" evaluation-context)))
+
+(handler/defhandler :scene.perspective-camera.show-settings :workbench
+  (run [app-view scene-visibility prefs localization]
+    (g/with-auto-evaluation-context evaluation-context
+      (let [camera (scene/view->camera (scene/active-scene-view app-view evaluation-context))
+            btn (some-> (g/node-value app-view :active-tab evaluation-context)
+                        (get-settings-button "#show-perspective-camera-settings"))]
+        (when (and camera btn)
+          (camera/show-settings! camera btn prefs (g/node-value app-view :keymap evaluation-context) localization)))))
+  (state [app-view scene-visibility evaluation-context]
+    (show-settings-state app-view "#show-perspective-camera-settings" evaluation-context)))
 
 (def ^:private eye-icon-svg-path
   (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
@@ -603,7 +610,9 @@
    {:id :perspective-camera
     :tooltip "Perspective camera"
     :graphic-fn (partial icons/make-svg-icon-graphic perspective-icon-svg-path)
-    :command :scene.toggle-camera-type}
+    :command :scene.toggle-camera-type
+    :more {:id :show-perspective-camera-settings
+           :command :scene.perspective-camera.show-settings}}
    {:id :visibility-settings
     :tooltip "Visibility settings"
     :graphic-fn make-visibility-settings-graphic
@@ -617,6 +626,23 @@
   (run []
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
+
+(defn- start-launcher! []
+  (if (system/defold-dev?)
+    (apply process/start!
+           {:dir (System/getProperty "user.dir")
+            :out :inherit
+            :err :inherit}
+           (str (io/file (System/getProperty "java.home") "bin" (if (os/is-win32?) "java.exe" "java")))
+           (into (vec (.getInputArguments (ManagementFactory/getRuntimeMXBean)))
+                 ["-cp" (System/getProperty "java.class.path") "com.defold.editor.Main"]))
+    (let [resources-path (system/defold-resourcespath)]
+      (process/start!
+        {:dir (.getCanonicalFile
+                (case (.getOs (Platform/getHostPlatform))
+                  "macos" (io/file resources-path "../../")
+                  ("linux" "win32") (io/file resources-path)))}
+        (system/defold-launcherpath)))))
 
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x           (.getX stage)
@@ -692,6 +718,12 @@
                            (keys split-info-by-pane-kw))]
     (prefs/set! prefs prefs-hidden-panes hidden-panes)))
 
+(defn store-window-state! [^Stage stage prefs]
+  (let [scene (.getScene stage)]
+    (store-window-dimensions stage prefs)
+    (store-split-positions! scene prefs)
+    (store-hidden-panes! scene prefs)))
+
 (defn restore-hidden-panes! [^Scene scene prefs]
   (let [hidden-panes (stored-hidden-panes prefs)]
     (doseq [pane-kw hidden-panes]
@@ -723,27 +755,21 @@
 (defn- local-url [target web-server]
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
 
-(def ^:private app-task-progress
-  {:main (ref progress/done)
-   :build (ref progress/done)
-   :resource-sync (ref progress/done)
-   :save-all (ref progress/done)
-   :fetch-libraries (ref progress/done)
-   :download-update (ref progress/done)})
+(def ^:private initial-app-task-progress
+  {:main progress/done
+   :build progress/done
+   :resource-sync progress/done
+   :save-all progress/done
+   :fetch-libraries progress/done
+   :download-update progress/done})
 
-(declare ^:private render-task-progress!)
-
-(defn- cancel-task!
-  [task-key]
-  (dosync
-    (let [progress-ref (task-key app-task-progress)]
-      (render-task-progress! task-key (progress/cancel @progress-ref)))))
+(def ^:private app-task-state
+  (atom {:progress initial-app-task-progress
+         :render-ui-inflight false}))
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
   [:save-all :resource-sync :fetch-libraries :build :download-update :main])
-
-(def ^:private render-task-progress-ui-inflight (ref false))
 
 (def status-bar-controls-delay
   (delay
@@ -751,29 +777,46 @@
       (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
       ["progress-bar" "progress-hbox" "progress-percentage-label" "status-label" "progress-cancel-button"])))
 
+(declare ^:private render-task-progress-ui!)
+
+(defn- update-app-task-state! [f & args]
+  (let [[old-state new-state] (apply swap-vals! app-task-state f args)]
+    (when (and (not (:render-ui-inflight old-state))
+               (:render-ui-inflight new-state))
+      (ui/run-later (render-task-progress-ui!)))
+    [old-state new-state]))
+
+(defn- set-task-progress-state [state key progress]
+  (-> state
+      (update :progress assoc key progress)
+      (assoc :render-ui-inflight true)))
+
+(defn- update-task-progress-state [state key f & args]
+  (set-task-progress-state state key (apply f (-> state :progress (get key)) args)))
+
+(defn- cancel-task!
+  [task-key]
+  (update-app-task-state! update-task-progress-state task-key progress/cancel))
+
 (defn- render-task-progress-ui! []
-  (let [task-progress-snapshot (ref nil)]
-    (dosync
-      (ref-set render-task-progress-ui-inflight false)
-      (ref-set task-progress-snapshot
-               (into {} (map (juxt first (comp deref second))) app-task-progress)))
+  (let [task-progress-snapshot (:progress (swap! app-task-state assoc :render-ui-inflight false))]
     (let [[key progress] (->> app-task-ui-priority
-                              (map (juxt identity @task-progress-snapshot))
+                              (map (juxt identity task-progress-snapshot))
                               (filter (comp (complement progress/done?) second))
                               first)
-          show-progress-hbox? (boolean (and (not= key :main)
-                                            progress
-                                            (not (progress/done? progress))))
+          show-progress-hbox (boolean (and (not= key :main)
+                                           progress
+                                           (not (progress/done? progress))))
           localization (ui/user-data (.getScene (ui/main-stage)) :localization)
           {:keys [progress-bar progress-hbox progress-percentage-label status-label progress-cancel-button]} @status-bar-controls-delay]
       (ui/render-progress-message!
-        (if key progress (@task-progress-snapshot :main))
+        (if key progress (task-progress-snapshot :main))
         status-label
         localization)
       ;; The bottom right of the status bar can show either the progress-hbox
       ;; or the update-link, or both. The progress-hbox will cover
       ;; the update-link if both are visible.
-      (if-not show-progress-hbox?
+      (if-not show-progress-hbox
         (ui/visible! progress-hbox false)
         (do
           (ui/visible! progress-hbox true)
@@ -790,40 +833,38 @@
               (ui/on-action! identity))))))))
 
 (defn- render-task-progress! [key progress]
-  (let [schedule-render-task-progress-ui (ref false)]
-    (dosync
-      (ref-set (get app-task-progress key) progress)
-      (ref-set schedule-render-task-progress-ui (not @render-task-progress-ui-inflight))
-      (ref-set render-task-progress-ui-inflight true))
-    (when @schedule-render-task-progress-ui
-      (ui/run-later (render-task-progress-ui!)))))
+  (update-app-task-state! set-task-progress-state key progress))
 
 (defn make-render-task-progress [key]
-  (assert (contains? app-task-progress key))
+  (assert (contains? initial-app-task-progress key))
   (progress/throttle-render-progress
     (fn [progress] (render-task-progress! key progress))))
 
 (defn begin-task-progress! [key]
-  (let [progress-ref (get app-task-progress key)
-        prev-progress-atom (atom nil)]
-    (assert (some? progress-ref))
+  (let [prev-progress-atom (atom nil)]
+    (assert (contains? initial-app-task-progress key))
     (pair
       (fn render-progress! [progress]
         ;; Combined throttling and inheritance of cancel state.
         ;; The first call to render-progress! overwrites the cancel state of the
-        ;; progress-ref, and then subsequent calls will inherit the cancel state
-        ;; from the progress-ref. This is to ensure we see changes to the
-        ;; progress-refs cancel state from the cancel-task! function.
+        ;; task progress, and then subsequent calls will inherit the cancel state
+        ;; from the task progress. This is to ensure we see changes to the
+        ;; task progress cancel state from the cancel-task! function.
         (let [prev-progress @prev-progress-atom
-              progress (cond-> progress
-                               prev-progress
-                               (progress/with-inherited-cancel-state @progress-ref))]
-          (when (progress/relevant-change? prev-progress progress)
-            (reset! prev-progress-atom progress)
-            (render-task-progress! key progress))))
+              [old-state new-state] (update-app-task-state!
+                                      (fn [state]
+                                        (let [current-progress (-> state :progress (get key))
+                                              progress (cond-> progress
+                                                         prev-progress
+                                                         (progress/with-inherited-cancel-state current-progress))]
+                                          (if (progress/relevant-change? prev-progress progress)
+                                            (set-task-progress-state state key progress)
+                                            state))))]
+          (when-not (= old-state new-state)
+            (reset! prev-progress-atom (-> new-state :progress (get key))))))
 
       (fn task-cancelled? []
-        (progress/cancelled? @progress-ref)))))
+        (-> @app-task-state :progress (get key) progress/cancelled?)))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
@@ -988,8 +1029,7 @@
 
         (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
-          (when log-stream
-            (console/set-log-service-stream log-stream))
+          (console/set-log-service-stream log-stream)
           (reboot-engine! selected-target web-server debug?))
 
         :else
@@ -1525,8 +1565,9 @@
 
 (handler/defhandler :project.clean-build :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane localization]
-    (when (dialogs/make-confirmation-dialog localization clean-build-dialog-info)
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane localization user-data]
+    (when (or (:skip-confirmation user-data)
+              (dialogs/make-confirmation-dialog localization clean-build-dialog-info))
       (debug-view/detach! debug-view)
       (workspace/clear-build-cache! workspace)
       (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane))))
@@ -1853,19 +1894,14 @@
   (run [] (ui/reload-root-styles!)))
 
 (handler/defhandler :file.open-project :global
-  (active? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
-  (run [] (let [resources-path (system/defold-resourcespath)
-                install-dir (.getCanonicalFile
-                              (case (.getOs (Platform/getHostPlatform))
-                                "macos" (io/file resources-path "../../")
-                                ("linux" "win32") (io/file resources-path)))]
-            (process/start! {:dir install-dir} (system/defold-launcherpath)))))
+  (run [] (start-launcher!)))
 
 (handler/register-menu! ::menubar
   [{:label (localization/message "menu.file")
     :id ::file
     :children [{:label (localization/message "command.file.new")
                 :id ::new
+                :expand false
                 :command :file.new}
                {:label (localization/message "command.file.open")
                 :id ::open
@@ -2081,6 +2117,29 @@
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
+(defn- make-reload-editor-scripts-notification-updater [project]
+  (let [last-reload-needed (volatile! nil)]
+    (fn update-reload-editor-scripts-notification! [evaluation-context]
+      (let [workspace (project/workspace project evaluation-context)
+            reload-needed (extensions/reload-needed? project evaluation-context)]
+        (when (not= @last-reload-needed reload-needed)
+          (vreset! last-reload-needed reload-needed)
+          (let [notifications (workspace/notifications workspace evaluation-context)
+                notification-id ::editor-scripts-changed]
+            (g/transact
+              (if reload-needed
+                (notifications/show
+                  notifications
+                  {:id notification-id
+                   :type :info
+                   :message (localization/message "notification.reload-editor-scripts")
+                   :actions [{:message (localization/message "notification.reload-editor-scripts.action.reload")
+                              :on-action #(ui/execute-command
+                                            (ui/contexts (ui/main-scene) true)
+                                            :project.reload-editor-scripts
+                                            nil)}]})
+                (notifications/close notifications notification-id)))))))))
+
 (defn- refresh-menus-and-toolbars! [app-view ^Scene scene evaluation-context]
   (ui/user-data! scene :keymap (g/node-value app-view :keymap evaluation-context))
   (ui/refresh scene evaluation-context))
@@ -2207,6 +2266,7 @@
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
 
       (let [prev-localization-bundle (volatile! nil)
+            reload-editor-scripts-notification-updater (make-reload-editor-scripts-notification-updater project)
             refresh-timer (ui/->timer
                             "refresh-app-view"
                             (fn [_animation-timer _elapsed dt]
@@ -2225,6 +2285,7 @@
                                           (localization/set-bundle! localization ::project localization-bundle)))
                                       (refresh-menus-and-toolbars! app-view app-scene evaluation-context)
                                       (refresh-views! app-view evaluation-context)
+                                      (reload-editor-scripts-notification-updater evaluation-context)
                                       (refresh-app-title! stage project evaluation-context)))
                                   ;; Scene views are always refreshed, since they may play animations.
                                   ;; This performs graph mutations, so needs to manage its own evaluation-contexts.
@@ -2389,6 +2450,7 @@
                         (mapv #(substitute-args % arg-sub)))
               project-directory (workspace/project-directory basis workspace)]
           {:type :os-execute
+           :workspace workspace
            :executable custom-editor
            :args args
            :working-directory project-directory})
@@ -2447,11 +2509,21 @@
       false)
 
     :os-execute
-    (let [{:keys [args executable working-directory]} open-resource-plan
-          ^List command (cons executable args)]
-      (doto (ProcessBuilder. command)
-        (.directory working-directory)
-        (.start))
+    (let [{:keys [args executable working-directory workspace]} open-resource-plan]
+      (future/io
+        (error-reporting/catch-all!
+          (try
+            (apply process/start! {:dir working-directory :err :discard :out :discard} executable args)
+            (catch IOException e
+              (ui/run-later
+                (notifications/show!
+                  (workspace/notifications workspace)
+                  {:type :error
+                   :message (localization/message "notification.open-custom-editor-failed.error"
+                                                  {"editor" executable
+                                                   "error" (.getMessage e)})
+                   :actions [{:message (localization/message "notification.open-custom-editor-failed.action.open-preferences")
+                              :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :app.preferences nil)}]}))))))
       false)
 
     :os-open
@@ -2668,6 +2740,34 @@
                            (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true))
                          (when callback!
                            (callback! successful? render-reload-progress! render-save-progress!)))))))
+
+(defn- restart-defold! [^Stage stage prefs]
+  (store-window-state! stage prefs)
+  (ui/close! stage)
+  (start-launcher!))
+
+(handler/defhandler :app.restart :global
+  (run [app-view changes-view project prefs localization]
+    (let [^Stage stage (ui/main-stage)
+          dirty-save-data (project/dirty-save-data project)]
+      (if (coll/empty? dirty-save-data)
+        (restart-defold! stage prefs)
+        (when (dialogs/make-confirmation-dialog
+                localization
+                {:title (localization/message "dialog.restart-defold.title")
+                 :icon :icon/circle-question
+                 :size :large
+                 :header (localization/message "dialog.restart-defold.header")
+                 :buttons [{:text (localization/message "dialog.restart-defold.button.cancel")
+                            :cancel-button true
+                            :result false}
+                           {:text (localization/message "dialog.restart-defold.button.save-and-restart")
+                            :default-button true
+                            :result true}]})
+          (async-save! app-view changes-view project project/dirty-save-data
+                       (fn [successful? _render-reload-progress! _render-save-progress!]
+                         (when successful?
+                           (restart-defold! stage prefs)))))))))
 
 (defn- make-version-control-info-dialog-content
   ([localization]
@@ -3112,6 +3212,8 @@
       (when-let [handler+context (handler/active command [_context] false)]
         (handler/run handler+context)))))
 
+(declare ^:private fetch-libraries)
+
 (defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs localization web-server]
   (extensions/reload!
     project kind
@@ -3145,7 +3247,7 @@
                                          (future/complete! f nil))
                                      (future/fail! f (Exception. "Save failed")))))
                f))
-    :open-resource! (fn open-resource! [resource]
+    :open-resource! (fn ext-open-resource! [resource]
                       (let [f (future/make)]
                         (ui/run-later
                           (try
@@ -3153,6 +3255,8 @@
                             (catch Throwable e (error-reporting/report-exception! e)))
                           (future/complete! f nil))
                         f))
+    :fetch-libraries! (fn fetch-libraries! []
+                        (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server))
     :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
                    (let [f (future/make)]
                      (fx/on-fx-thread
@@ -3186,33 +3290,29 @@
                                                   (.close out)))))
                      f))
     :web-server web-server)
+  (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
   (ui/invalidate-menubar-item! ::project/bundle))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
-  (let [library-uris (project/project-dependencies project)
-        hosts (into #{} (map url/strip-path) library-uris)]
-    (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
-      (dialogs/make-info-dialog
-        localization
-        {:title (localization/message "dialog.fetch-libraries.host-unreachable.title")
-         :icon :icon/triangle-error
-         :size :large
-         :header (localization/message "dialog.fetch-libraries.host-unreachable.header")
-         :content (localization/message "dialog.fetch-libraries.host-unreachable.content" {"host" first-unreachable-host})})
-      (future
-        (error-reporting/catch-all!
-          (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
-            (when (workspace/dependencies-reachable? library-uris)
-              (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fetch-progress!)
-                    render-install-progress! (make-render-task-progress :resource-sync)]
-                (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
-                (ui/run-later
-                  (workspace/install-validated-libraries! workspace lib-states)
-                  (disk/async-reload! render-install-progress! workspace [] changes-view
-                                      (fn [success]
-                                        (when success
-                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                                          (project/update-fetch-libraries-notification! project)))))))))))))
+  (let [library-uris (project/project-dependencies project)]
+    (future/io
+      (try
+        (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
+          (let [lib-results (library/fetch! (workspace/project-directory workspace) library-uris render-fetch-progress!)
+                render-install-progress! (make-render-task-progress :resource-sync)]
+            (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
+            (ui/run-now (workspace/set-project-dependencies! workspace lib-results))
+            (if-not (let [reload-completed (promise)]
+                      (disk/async-reload! render-install-progress! workspace [] changes-view reload-completed)
+                      @reload-completed)
+              [lib-results false]
+              (ui/run-now
+                (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
+                (project/update-fetch-libraries-notification! project)
+                [lib-results true]))))
+        (catch Throwable error
+          (error-reporting/report-exception! error)
+          (throw error))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))
@@ -3230,10 +3330,24 @@
   (run [app-view workspace project changes-view build-errors-view prefs localization web-server]
     (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server)))
 
+(def ^:private editor-scripts-reloaded-time-formatter
+  (DateTimeFormatter/ofPattern "HH:mm:ss"))
+
 (handler/defhandler :project.reload-editor-scripts :global
   (enabled? [] (disk-availability/available?))
   (run [app-view project workspace changes-view build-errors-view prefs localization web-server]
-    (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)))
+    (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
+    (let [reloaded-progress (progress/make
+                              (localization/message "progress.editor-scripts-reloaded"
+                                                    {"time" (.format (LocalTime/now) editor-scripts-reloaded-time-formatter)}))]
+      (render-main-task-progress! reloaded-progress)
+      (ui/->future 5.0
+                   #(update-app-task-state!
+                      (fn [state]
+                        (if-not (= reloaded-progress (-> state :progress :main))
+                          state
+                          (set-task-progress-state state :main progress/done))))))
+    nil))
 
 (defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs localization project failure-notification]
   (let [workspace (project/workspace project)

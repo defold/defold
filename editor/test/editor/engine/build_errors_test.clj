@@ -146,6 +146,24 @@
           "androidnative/src/main.cpp"])]
     (is (= expected-result result))))
 
+(deftest trailing-included-from-does-not-crash
+  (let [[expected-result result]
+        (parse-log-test
+         "trailingIncludedFrom.txt"
+         "trailingIncludedFrom_parsed.edn"
+         nil
+         [])]
+    (is (= expected-result result))))
+
+(deftest orphan-included-from-at-eof-does-not-crash
+  (let [[expected-result result]
+        (parse-log-test
+         "orphanIncludedFromEOF.txt"
+         "orphanIncludedFromEOF_parsed.edn"
+         nil
+         [])]
+    (is (= expected-result result))))
+
 (deftest manifest-lookup
   (tu/with-loaded-project "test/resources/empty_project"
     (let [cpp-file (make-fake-file-resource workspace "androidnative/main.cpp" "" nil)
@@ -154,4 +172,3 @@
           project (tu/setup-project! workspace files)]
       (g/with-auto-evaluation-context evaluation-context
         (is (= "/androidnative/ext.manifest" (build-errors/find-ext-manifest-relative-to-resource project "/androidnative/main.cpp" evaluation-context)))))))
-

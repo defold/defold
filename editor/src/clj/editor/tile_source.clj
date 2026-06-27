@@ -552,7 +552,7 @@
                                       :passes [pass/outline]}}
                         {:aabb aabb
                          :renderable {:render-fn render-tile-source-hulls
-                                      :tags #{:tile-source :collision-shape}
+                                      :tags #{:tile-source :collision-shape :gizmo}
                                       :user-data user-data
                                       :passes [pass/outline]}}]
                        child-scenes)})))
@@ -934,13 +934,11 @@
 
       nil)))
 
-(defn handle-input
-  [self action tool-user-data]
+(defn handle-input [self _input-action action tool-user-data]
   (let [txs (input-txs self action tool-user-data)]
     (when (seq txs)
       (g/transact txs)
       true)))
-
 
 (g/defnk produce-selected-collision-group-node
   [selected-node-ids]

@@ -74,6 +74,7 @@
     ["display" "variable_dt"] :deprecated
     ["html5" "custom_heap_size"] :deprecated
     ["html5" "set_custom_heap_size"] :deprecated
+    ["liveupdate" "exclude_entries_from_main_manifest"] :deprecated
     ["shader" "output_spirv"] :deprecated}})
 
 (def ^:private pb-type-field-names
@@ -504,6 +505,45 @@
    {:default
     {"skeleton" :deprecated}} ; Non-default depth/stencil format not supported yet.
 
+   ;; Light component data uses dmStructDDF.Value for struct fields; in practice only
+   ;; struct / number / list variants appear. Other oneof branches are never written.
+   'dmStructDDF.Value
+   {[["ambient_light" "data"]
+     ["point_light" "data"]
+     ["directional_light" "data"]
+     ["spot_light" "data"]]
+    {"null" :unused
+     "bool" :unused
+     "number" :unused
+     "string" :unused
+     "list" :unused}
+    [["ambient_light" "data" "struct" "fields" "value"]
+     ["point_light" "data" "struct" "fields" "value"]
+     ["directional_light" "data" "struct" "fields" "value"]
+     ["spot_light" "data" "struct" "fields" "value"]]
+    {"null" :unused
+     "bool" :unused
+     "string" :unused
+     "struct" :unused}
+    [["ambient_light" "data" "struct" "fields" "value" "list" "values"]
+     ["point_light" "data" "struct" "fields" "value" "list" "values"]
+     ["directional_light" "data" "struct" "fields" "value" "list" "values"]
+     ["spot_light" "data" "struct" "fields" "value" "list" "values"]]
+    {"null" :unused
+     "bool" :unused
+     "string" :unused
+     "struct" :unused
+     "list" :unused}
+    [["ambient_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["point_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["directional_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["spot_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]]
+    {"null" :unused
+     "bool" :unused
+     "string" :unused
+     "struct" :unused
+     "list" :unused}}
+
    'dmRiveDDF.RiveModelDesc
    {:default
     {"auto_play" :unimplemented ; Not currently implemented in the editor or runtime.
@@ -735,6 +775,19 @@
                              :texture tex1-resource}]
                  :attributes {}}]
                (g/node-value legacy-material-and-textures-model :materials)))))
+
+    (testing "rivemodel"
+      (let [deprecated-fields-rive-model (project/get-resource-node project "/silently_migrated/deprecated_fields.rivemodel")]
+        (is (= (g/node-value deprecated-fields-rive-model :source-value)
+               (g/node-value deprecated-fields-rive-model :save-value))))
+      (let [fullscreen-coordinate-system-rive-model (project/get-resource-node project "/silently_migrated/fullscreen_coordinate_system.rivemodel")]
+        (is (= (g/node-value fullscreen-coordinate-system-rive-model :source-value)
+               (g/node-value fullscreen-coordinate-system-rive-model :save-value)))))
+
+    (testing "rivescene"
+      (let [deprecated-fields-rive-scene (project/get-resource-node project "/silently_migrated/deprecated_fields.rivescene")]
+        (is (= (g/node-value deprecated-fields-rive-scene :source-value)
+               (g/node-value deprecated-fields-rive-scene :save-value)))))
 
     (testing "sprite"
       (let [legacy-tile-set-sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]

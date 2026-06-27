@@ -204,41 +204,42 @@ public class ResourceCacheKeyTest {
 	@Test
 	public void testAllParametersExist() throws IOException, CompileExceptionError, NoSuchFieldException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
 		// Initialize project
-		Project project = new Project(new DefaultFileSystem());
-		project.scanJavaClasses();
-		project.configurePreBuildProjectOptions();
+		try (Project project = new Project(new DefaultFileSystem())) {
+			project.scanJavaClasses();
+			project.configurePreBuildProjectOptions();
 
-		// Access private static field classToParamsDigest
-		Class<?> builderClass = Builder.class;
-		Field field = builderClass.getDeclaredField("classToParamsDigest");
-		field.setAccessible(true);
-		Map<Class<?>, byte[]> map = (Map<Class<?>, byte[]>) field.get(null);
+			// Access private static field classToParamsDigest
+			Class<?> builderClass = Builder.class;
+			Field field = builderClass.getDeclaredField("classToParamsDigest");
+			field.setAccessible(true);
+			Map<Class<?>, byte[]> map = (Map<Class<?>, byte[]>) field.get(null);
 
-		// Get all available command line options
-		List<Bob.CommandLineOption> commandLineOptions = Bob.getCommandLineOptions();
-		Set<String> allOptions = new HashSet<>();
+			// Get all available command line options
+			List<Bob.CommandLineOption> commandLineOptions = Bob.getCommandLineOptions();
+			Set<String> allOptions = new HashSet<>();
 
-		// Collect all long options
-		for (Bob.CommandLineOption option : commandLineOptions) {
-			allOptions.add(option.longOpt);
-		}
+			// Collect all long options
+			for (Bob.CommandLineOption option : commandLineOptions) {
+				allOptions.add(option.longOpt);
+			}
 
-		for (String key :project.getOptions().keySet()) {
-			allOptions.add(key);
-		}
+			for (String key :project.getOptions().keySet()) {
+				allOptions.add(key);
+			}
 
-		// Validate each parameter in classToParamsDigest
-		for (Class<?> klass : map.keySet()) {
-			String[] params = klass.getAnnotation(BuilderParams.class).paramsForSignature();
+			// Validate each parameter in classToParamsDigest
+			for (Class<?> klass : map.keySet()) {
+				String[] params = klass.getAnnotation(BuilderParams.class).paramsForSignature();
 
-			for (String param : params) {
-				if (!allOptions.contains(param)) {
-					if (param.equals("important_option"))
-					{
-						assertEquals(BuilderParams.class.toString(), "interface com.dynamo.bob.BuilderParams");
-					}
-					else {
-						Assert.fail("Class " + klass.getName() + " uses parameter '" + param + "' in classToParamsDigest, but it does not exist in the command line options.");
+				for (String param : params) {
+					if (!allOptions.contains(param)) {
+						if (param.equals("important_option"))
+						{
+							assertEquals(BuilderParams.class.toString(), "interface com.dynamo.bob.BuilderParams");
+						}
+						else {
+							Assert.fail("Class " + klass.getName() + " uses parameter '" + param + "' in classToParamsDigest, but it does not exist in the command line options.");
+						}
 					}
 				}
 			}
@@ -252,32 +253,34 @@ public class ResourceCacheKeyTest {
 	@Test
 	public void testNoNewParametersAdded() throws IOException, CompileExceptionError, NoSuchFieldException, IllegalAccessException {
 		// Initialize project
-		Project project = new Project(new DefaultFileSystem());
-		project.scanJavaClasses();
+		try (Project project = new Project(new DefaultFileSystem())) {
+			project.scanJavaClasses();
 
-		// Access private static field classToParamsDigest
-		Class<?> builderClass = Builder.class;
-		Field field = builderClass.getDeclaredField("classToParamsDigest");
-		field.setAccessible(true);
-		Map<Class<?>, byte[]> map = (Map<Class<?>, byte[]>) field.get(null);
+			// Access private static field classToParamsDigest
+			Class<?> builderClass = Builder.class;
+			Field field = builderClass.getDeclaredField("classToParamsDigest");
+			field.setAccessible(true);
+			Map<Class<?>, byte[]> map = (Map<Class<?>, byte[]>) field.get(null);
 
-		// Get all available command line options
-		List<Bob.CommandLineOption> commandLineOptions = Bob.getCommandLineOptions();
-		List<String> allOptions = new ArrayList<>();
+			// Get all available command line options
+			List<Bob.CommandLineOption> commandLineOptions = Bob.getCommandLineOptions();
+			List<String> allOptions = new ArrayList<>();
 
-		// Collect all long options
-		for (Bob.CommandLineOption option : commandLineOptions) {
-			allOptions.add(option.longOpt);
-		}
-		Collections.sort(allOptions);
+			// Collect all long options
+			for (Bob.CommandLineOption option : commandLineOptions) {
+				allOptions.add(option.longOpt);
+			}
+			Collections.sort(allOptions);
 
-		List<String> existentParameters = new ArrayList<>(List.of(new String[]{
+			List<String> existentParameters = new ArrayList<>(List.of(new String[]{
                 "architectures",
                 "archive",
                 "archive-resource-padding",
                 "auth",
                 "binary-output",
                 "build-artifacts",
+                "build-input",
+                "build-input-file",
                 "build-report",
                 "build-report-html",
                 "build-report-json",
@@ -306,8 +309,6 @@ public class ResourceCacheKeyTest {
                 "keystore-alias",
                 "keystore-pass",
                 "liveupdate",
-                "manifest-private-key",
-                "manifest-public-key",
                 "max-cpu-threads",
                 "mobileprovisioning",
                 "ne-build-dir",
@@ -334,8 +335,9 @@ public class ResourceCacheKeyTest {
                 "with-sha1",
                 "with-symbols"}));
 
-		Collections.sort(existentParameters);
+			Collections.sort(existentParameters);
 
-		assertEquals("Lists are not equal!", existentParameters, allOptions);
+			assertEquals("Lists are not equal!", existentParameters, allOptions);
+		}
 	}
 }

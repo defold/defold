@@ -19,6 +19,6 @@
 namespace dmTestUtil
 {
 
-void GetSocketsFromConfig(dmConfigFile::HConfig config, int* socket, int* ssl_socket, int* test_sslsocket);
+void GetSocketsFromConfig(dmConfigFile::HConfig config, int* socket, int* tls_socket, int* test_tls_socket);
 
 }

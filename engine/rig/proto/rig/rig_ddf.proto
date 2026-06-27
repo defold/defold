@@ -233,6 +233,13 @@ message EventTrack
     repeated EventKey keys = 2;
 }
 
+message MorphWeightTrack
+{
+    required uint64 model_id = 1;    // MeshSet Model id (name hash) whose morph targets this track samples
+    required uint32 morph_count = 2; // Morph weights per time sample; stride when indexing weights (must match mesh morph count at runtime)
+    repeated float weights = 3;      // Packed samples: morph_count floats per pose
+}
+
 message RigAnimation
 {
     required uint64 id = 1;
@@ -240,6 +247,7 @@ message RigAnimation
     required float sample_rate = 3;
     repeated AnimationTrack tracks = 4;
     repeated EventTrack event_tracks = 5;
+    repeated MorphWeightTrack morph_weight_tracks = 6;
 }
 
 message AnimationSet
@@ -288,6 +296,14 @@ message Mesh
 
     optional uint32 material_index = 15; // index into the mesh set material list
 
+    repeated float morph_base_weights = 16;
+
+    // Packed morph target delta texture resource. Layout is RGBA32F 2D array:
+    // target N position/normal/tangent deltas live in layers N*3+0, N*3+1, N*3+2.
+    optional string morph_target_texture = 17 [(resource)=true];
+
+    // Number of morph targets represented by morph_target_texture.
+    optional uint32 morph_target_count = 18;
 }
 
 message Model // E.g. the Node in the Scene

@@ -51,96 +51,16 @@
 
       (testing "node-outline"
         (is (= {:label "Rive Scene"
-                :children [{:label "Belly"
-                            :read-only true
-                            :children [{:label "Chest"
-                                        :read-only true
-                                        :children [{:label "Neck"
-                                                    :read-only true
-                                                    :children [{:label "Head"
-                                                                :read-only true
-                                                                :children [{:label "Hair"
-                                                                            :read-only true}]}]}
-                                                   {:label "Arm_right"
-                                                    :read-only true
-                                                    :children [{:label "Forearm_right"
-                                                                :read-only true
-                                                                :children [{:label "Hand_right"
-                                                                            :read-only true}]}]}
-                                                   {:label "Arm_left"
-                                                    :read-only true
-                                                    :children [{:label "Forearm_left"
-                                                                :read-only true
-                                                                :children [{:label "Hand_left"
-                                                                            :read-only true}]}]}]}]}
-                           {:label "Chest"
-                            :read-only true
-                            :children [{:label "Neck"
-                                        :read-only true
-                                        :children [{:label "Head"
-                                                    :read-only true
-                                                    :children [{:label "Hair"
-                                                                :read-only true}]}]}
-                                       {:label "Arm_right"
-                                        :read-only true
-                                        :children [{:label "Forearm_right"
-                                                    :read-only true
-                                                    :children [{:label "Hand_right"
-                                                                :read-only true}]}]}
-                                       {:label "Arm_left"
-                                        :read-only true
-                                        :children [{:label "Forearm_left"
-                                                    :read-only true
-                                                    :children [{:label "Hand_left"
-                                                                :read-only true}]}]}]}
-                           {:label "Neck"
-                            :read-only true
-                            :children [{:label "Head"
-                                        :read-only true
-                                        :children [{:label "Hair"
-                                                    :read-only true}]}]}
-                           {:label "Head"
-                            :read-only true
-                            :children [{:label "Hair"
-                                        :read-only true}]}
-                           {:label "Hair"
-                            :read-only true}
-                           {:label "Arm_right"
-                            :read-only true
-                            :children [{:label "Forearm_right"
-                                        :read-only true
-                                        :children [{:label "Hand_right"
-                                                    :read-only true}]}]}
-                           {:label "Forearm_right"
-                            :read-only true
-                            :children [{:label "Hand_right"
-                                        :read-only true}]}
-                           {:label "Hand_right"
-                            :read-only true}
-                           {:label "Arm_left"
-                            :read-only true
-                            :children [{:label "Forearm_left"
-                                        :read-only true
-                                        :children [{:label "Hand_left"
-                                                    :read-only true}]}]}
-                           {:label "Forearm_left"
-                            :read-only true
-                            :children [{:label "Hand_left"
-                                        :read-only true}]}
-                           {:label "Hand_left"
-                            :read-only true}
-                           {:label "Pocket_rignt"
-                            :read-only true}
-                           {:label "Pocket_left"
+                :children [{:label "New Artboard"
                             :read-only true}]}
+
                (node-outline-info node-id))))
 
       (testing "scene"
         (is (not (g/error? (g/node-value node-id :scene)))))
 
       (testing "save-value"
-        (is (= {:atlas "/defold-rive/assets/empty.atlas"
-                :scene "/bones/marty.riv"}
+        (is (= {:scene "/bones/marty.riv"}
                (g/node-value node-id :save-value)))))))
 
 (deftest rivemodel-outputs-test
@@ -160,8 +80,6 @@
       (testing "save-value"
         (is (= {:artboard "New Artboard"
                 :blit-material "/defold-rive/assets/shader-library/rivemodel_blit.material"
-                :default-animation "Animation1"
-                :material "/defold-rive/assets/rivemodel.material"
                 :scene "/bones/marty.rivescene"}
                (g/node-value node-id :save-value)))))))
 

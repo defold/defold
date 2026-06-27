@@ -30,7 +30,9 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
+            [editor.doc :as doc]
             [editor.editor-extensions :as extensions]
+            [editor.editor-extensions.server :as ext.server]
             [editor.engine-profiler :as engine-profiler]
             [editor.git :as git]
             [editor.hot-reload :as hot-reload]
@@ -107,12 +109,6 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
 
-(defn- persist-window-state!
-  [^Stage stage ^Scene scene prefs]
-  (app-view/store-window-dimensions stage prefs)
-  (app-view/store-split-positions! scene prefs)
-  (app-view/store-hidden-panes! scene prefs))
-
 (defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
@@ -174,8 +170,8 @@
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
-          scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           [app-view ui-timer]  (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split right-split tool-tabs prefs localization)
+          scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph* app-view)
           outline-view         (outline-view/make-outline-view *view-graph* project app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
@@ -210,15 +206,18 @@
                                                       localization)
 
           breakpoints-view (breakpoints-view/make-breakpoints-view workspace project open-resource *view-graph* prefs (.lookup root "#breakpoints-container"))
+          token (web-server/make-token)
           server-handler (web-server/make-dynamic-handler
                            (into []
                                  cat
                                  [(web-server/built-in-routes project)
+                                  (ext.server/routes project token)
                                   (engine-profiler/routes)
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
                                   (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
+                                  (doc/routes)
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
@@ -237,7 +236,10 @@
           port-file-content (str (http-server/port web-server))
           port-file (doto (io/file project-path ".internal" "editor.port")
                       (io/make-parents)
-                      (spit port-file-content))]
+                      (spit port-file-content))
+          token-file (doto (io/file project-path ".internal" "editor.token")
+                       (io/make-parents)
+                       (spit token))]
       (localization/localize! (.lookup root "#assets-pane") localization (localization/message "pane.assets"))
       (localization/localize! (.lookup root "#changed-files-titled-pane") localization (localization/message "pane.changed-files"))
       (localization/localize! (.lookup root "#status-label") localization (localization/message "progress.ready"))
@@ -252,9 +254,11 @@
         (Thread.
           (fn []
             ;; Content might change if another editor is open in the same project
-            ;; In that case, we let the other instance to clean up the file
+            ;; In that case, we let the other instance to clean up the files
             (when (and (.exists port-file) (= port-file-content (slurp port-file)))
-              (.delete port-file)))))
+              (.delete port-file))
+            (when (and (.exists token-file) (= token (slurp token-file)))
+              (.delete token-file)))))
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (ui/add-application-unfocused-callback! :main-stage-unfocused app-view/handle-application-unfocused! app-view changes-view project prefs)
@@ -308,7 +312,7 @@
                                         (fn [successful?]
                                           (if successful?
                                             (do
-                                              (persist-window-state! stage scene prefs)
+                                              (app-view/store-window-state! stage prefs)
                                               (ui/close! stage))
                                             (ui/enable-ui!)))))
                                     false)
@@ -327,7 +331,7 @@
                                                                  :variant :danger
                                                                  :result true}]}))]
                                     (when result
-                                      (persist-window-state! stage scene prefs))
+                                      (app-view/store-window-state! stage prefs))
                                     result)))))
 
       (ui/on-closed! stage (fn [_]

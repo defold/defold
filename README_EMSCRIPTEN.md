@@ -30,9 +30,8 @@ Note: This information is based on the latest update (3.1.55 -> 3.1.65)
   - run the script `./script/package/package_emscripten.sh` on both OSX (x86_64 and arm64) and linux (x86_64) (tested on ubuntu 22.x)
   - copy the artifact(s) from the `local_sdk` folder to the s3-bucket `defold-packages`
 * run `./scripts/build.py install_ems` to get the latest sdk for your host platform
-* build protobuf for js-web, wasm-web and wasm_pthread-web (ubuntu/linux) and copy into the `defold/packages` folder
-* build bullet3d for js-web, wasm-web and wasm_pthread-web (ubuntu/linux)
-  - `./scripts/build.py build_external --platform=js-web`
+* build protobuf for wasm-web and wasm_pthread-web (ubuntu/linux) and copy into the `defold/packages` folder
+* build bullet3d for wasm-web and wasm_pthread-web (ubuntu/linux)
   - `./scripts/build.py build_external --platform=wasm-web`
   - `./scripts/build.py build_external --platform=wasm_pthread-web`
   - these are automatically copied to packages
@@ -130,3 +129,5 @@ To debug memory and alignment issues the following parameters should be added bo
 - `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks.
 - `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
 - `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
+
+For size analysis of `wasm-web` builds, add `--size-analyze` to the build. This keeps the normal `--emit-symbol-map` flow and also adds line-table debug info plus `.wasm.map` and separate DWARF sidecars, which makes it easier to attribute wasm functions back to source without changing the optimized code generation.

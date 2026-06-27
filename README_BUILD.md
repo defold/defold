@@ -42,6 +42,10 @@ Build full engine, docs, bob light, tests + running the tests
 
     $ ./scripts/build.py build_engine
 
+Build Android tests against a specific connected device serial
+
+    $ ./scripts/build.py build_engine --platform=arm64-android --test-device <serial>
+
 Build full engine, but without: docs, bob light, tests, skipping the tests (for a significant speedup)
 
     $ ./scripts/build.py build_engine --skip-docs --skip-bob-light --skip-tests -- --skip-build-tests
@@ -73,7 +77,6 @@ The following platforms are supported:
 * `arm64-ios`
 * `armv7-android`
 * `arm64-android`
-* `js-web`
 * `wasm-web`
 * `wasm_pthread-web`
 
@@ -163,6 +166,8 @@ This will build the engine and run all unit tests. In order to speed up the proc
 ```sh
 $ ./scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests
 ```
+
+When running Android tests, you can target a specific connected device either with `--test-device <serial>` or by setting `ANDROID_SERIAL` in the environment.
 
 Anything after `--` is passed directly as arguments to Waf. The built engine ends up in `./tmp/dynamo_home/bin/%platform%`.
 

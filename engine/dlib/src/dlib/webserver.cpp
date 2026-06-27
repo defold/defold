@@ -20,7 +20,8 @@
 #include "array.h"
 #include "dstrings.h"
 #include "webserver.h"
-#include "http_server.h"
+
+#include <dlib/http/http_server.h>
 
 namespace dmWebServer
 {
@@ -298,4 +299,3 @@ namespace dmWebServer
         return TranslateResult(r);
     }
 }
-

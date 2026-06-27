@@ -17,10 +17,10 @@
             [dynamo.graph :as g]
             [editor.attachment :as attachment]
             [editor.build-target :as bt]
-            [editor.core :as core]
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -33,6 +33,7 @@
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -386,6 +387,7 @@
                 render-args (assoc render-args :view-proj (:world-view-proj render-args))
                 vertex-binding (vtx/use-with node-id vbuf shader)]
             (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+              (light/bind-preview-lights-for-shader! gl shader render-args)
               (gl/set-blend-mode gl blend-mode)
               ;; TODO: can't use selected because we also need to know when nothing is selected
               #_(if selected
@@ -459,7 +461,7 @@
   [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)
-          transform (doto (Matrix4d.) (.set (Vector3d. 0.0 0.0 z)))
+          layer-pose (pose/translation-pose 0.0 0.0 z)
 
           ;; The visibility-aabb is used to determine the scene extents. We use
           ;; it to adjust the camera near and far clip planes to encompass the
@@ -474,7 +476,7 @@
             aabb)]
       {:node-id _node-id
        :node-outline-key id
-       :transform transform
+       :pose layer-pose
        :aabb aabb
        :visibility-aabb visibility-aabb
        :renderable {:render-fn render-layer
@@ -1351,10 +1353,9 @@
       :palette (handle-input-palette self action state evaluation-context)
       :editor  (handle-input-editor self action state evaluation-context))))
 
-(defn make-input-handler
-  []
+(defn make-input-handler []
   (let [state (atom nil)]
-    (fn [self action _]
+    (fn [self _input-state action _]
       (handle-input self action state))))
 
 (defn- get-current-tile

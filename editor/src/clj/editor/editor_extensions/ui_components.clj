@@ -23,6 +23,8 @@
             [cljfx.fx.row-constraints :as fx.row-constraints]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
+            [cljfx.fx.tab :as fx.tab]
+            [cljfx.fx.tab-pane :as fx.tab-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -37,7 +39,6 @@
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.fxui.combo-box :as fxui.combo-box]
@@ -159,6 +160,31 @@
 (defn- scroll-view [{:keys [content]}]
   {:fx/type fxui/scroll
    :content content})
+
+(defn- tabs-view [{:keys [tabs]}]
+  (cond-> {:fx/type fx.tab-pane/lifecycle
+           :style-class ["tab-pane" "ext-tab-pane"]}
+          tabs (assoc :tabs
+                      (into []
+                            (keep-indexed
+                              (fn [i desc]
+                                (when desc
+                                  (assoc desc :fx/key i))))
+                            tabs))))
+
+(fxui/defc tab-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [text content icon enabled localization-state]
+    :or {enabled true}}]
+  (cond-> {:fx/type fx.tab/lifecycle
+           :text (localization-state text)
+           :closable false
+           :disable (not enabled)}
+          content (assoc :content content)
+          icon (assoc :graphic {:fx/type fx.stack-pane/lifecycle
+                                :style-class ["ext-tab-icon"]
+                                :alignment :center
+                                :children [icon]})))
 
 (defn- apply-constraints [props props-key lifecycle grow-key constraints]
   (assoc props props-key (mapv (fn [maybe-constraint]
@@ -734,8 +760,9 @@
       button)))
 
 (fxui/defc dialog-view
-  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
-  [{:keys [title header content buttons localization-state]}]
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state :owner-window]}]}
+  [{:keys [title header content width height resizable buttons modal localization-state owner-window]
+    :or {modal true}}]
   (let [title (localization-state title)
         header (or header {:fx/type fxui/legacy-label :text title :variant :header})
         buttons (into []
@@ -754,11 +781,15 @@
                             buttons)}]
     (cond-> {:fx/type dialogs/dialog-stage
              :title title
+             :owner owner-window
              :on-close-request {:result cancel-result}
              :header header
              :footer footer}
-            content
-            (assoc :content content))))
+            (not modal) (assoc :modality :none)
+            content (assoc :content content)
+            width (assoc :width width)
+            height (assoc :height height)
+            resizable (assoc :resizable resizable))))
 
 ;; endregion
 
@@ -804,9 +835,13 @@
              lifecycle updates, can be accessed using
              [[lifecycle-evaluation-context]] fn
            - localization state: available in cljfx env using [[fx/ext-get-env]]
-             with :localization-state key"
+             with :localization-state key
+           - owner window: available in cljfx env using [[fx/ext-get-env]]
+             with :owner-window key"
    :compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}
-             {:fx/type fx/ext-set-env :env {:localization-state (:localization-state props) :workspace (:workspace props)}}
+             {:fx/type fx/ext-set-env :env {:localization-state (:localization-state props)
+                                            :owner-window (:owner-window props)
+                                            :workspace (:workspace props)}}
              {:fx/type ext-with-evaluation-context}]}
   [{:keys [desc]}]
   desc)
@@ -823,19 +858,22 @@
 
 (defn- make-lua-show-dialog-fn [workspace localization]
   (rt/suspendable-lua-fn show-dialog [{:keys [rt]} lua-dialog-component]
-    (let [desc {:fx/type show-dialog-wrapper-view
+    (let [owner-window (current-owner-window)
+          desc {:fx/type show-dialog-wrapper-view
                 :desc {:fx/type root-view
                        :localization localization
+                       :owner-window owner-window
                        :workspace workspace
                        :desc (rt/->clj rt ui-docs/component-coercer lua-dialog-component)}}
           f (future/make)]
       (fx/run-later
         (future/complete!
           f
-          (fxui/show-dialog-and-await-result!
-            :event-handler #(assoc %1 ::fxui/result (:result %2))
-            :error-handler #(future/fail! f %)
-            :description desc)))
+          (rt/and-refresh-context
+            (fxui/show-dialog-and-await-result!
+              :event-handler #(assoc %1 ::fxui/result (:result %2))
+              :error-handler #(future/fail! f %)
+              :description desc))))
       f)))
 
 ;; endregion
@@ -1040,7 +1078,7 @@
 
 (defn- invoke-with-hooks [component-atom rt lua-fn lua-props]
   (binding [*current-component-atom* component-atom]
-    (let [ret (rt/invoke-immediate-1 rt lua-fn lua-props (lifecycle-evaluation-context))
+    (let [ret (rt/invoke-immediate-1 rt {:evaluation-context (lifecycle-evaluation-context)} lua-fn lua-props)
           {:keys [hooks current-hook-index]} @component-atom]
       (swap! component-atom assoc :current-hook-index 0)
       (when (< current-hook-index (count hooks))
@@ -1165,7 +1203,7 @@
               (case (key type+dependencies)
                 :value (val type+dependencies)
                 :function (let [lua-fn+lua-args (val type+dependencies)]
-                            (apply rt/invoke-immediate-1 rt (lua-fn+lua-args 0) (conj (subvec lua-fn+lua-args 1) evaluation-context)))))
+                            (apply rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} (lua-fn+lua-args 0) (subvec lua-fn+lua-args 1)))))
             (eq-type+dependencies? [rt a b]
               (let [t (key a)]
                 (and (= t (key b))
@@ -1186,8 +1224,8 @@
                             lua-args (subvec lua-fn+lua-args 1)]
                         (update-hook-state! component-atom hook-index true update :current
                                             (fn [old-lua-value]
-                                              (apply rt/invoke-immediate-1 rt lua-fn
-                                                     (conj (into [old-lua-value] lua-args) evaluation-context))))))))))]
+                                              (apply rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} lua-fn
+                                                     (into [old-lua-value] lua-args))))))))))]
       (make-hook
         (:name ui-docs/use-state-doc)
         :create (fn create-use-hook-state [component-atom {:keys [rt current-hook-index]} evaluation-context & lua-args]
@@ -1214,13 +1252,13 @@
     :create (fn create-use-memo-state [_ {:keys [rt]} evaluation-context & lua-args]
               (let [deps (vec lua-args)]
                 {:dependencies deps
-                 :value (apply rt/invoke-immediate rt (conj deps evaluation-context))}))
+                 :value (apply rt/invoke-immediate rt {:evaluation-context evaluation-context} deps)}))
     :advance (fn advance-use-memo-state [{:keys [rt]} hook-state evaluation-context & lua-args]
                (let [new-dependencies (vec lua-args)]
                  (if (vectors-with-eq-lua-values? rt new-dependencies (:dependencies hook-state))
                    hook-state
                    {:dependencies new-dependencies
-                    :value (apply rt/invoke-immediate rt (conj new-dependencies evaluation-context))})))
+                    :value (apply rt/invoke-immediate rt {:evaluation-context evaluation-context} new-dependencies)})))
     :return :value))
 
 ;; endregion
@@ -1283,6 +1321,7 @@
             [ui-docs/grid-component grid-view]
             [ui-docs/separator-component separator-view]
             [ui-docs/scroll-component scroll-view]
+            [ui-docs/tabs-component tabs-view]
             [ui-docs/label-component label-view]
             [ui-docs/paragraph-component paragraph-view]
             [ui-docs/heading-component heading-view]
@@ -1299,6 +1338,7 @@
             [ui-docs/integer-field-component integer-field-view]
             [ui-docs/number-field-component number-field-view]
             [ui-docs/dialog-button-component dialog-button-view]
+            [ui-docs/tab-component tab-view]
             [ui-docs/dialog-component dialog-view]])
          (eduction
            (map (fn [[script-doc lua-fn]]

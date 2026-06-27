@@ -280,6 +280,10 @@ namespace dmGameSystem
         {
             dmResource::Release(context->m_Factory, proxy->m_Collection);
         }
+        if (proxy->m_CollectionResPath)
+        {
+            free(proxy->m_CollectionResPath);
+        }
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         uint32_t index = proxy - &proxy_world->m_Components[0];
         proxy_world->m_IndexPool.Push(index);
@@ -419,7 +423,6 @@ namespace dmGameSystem
         return result;
     }
 
-
     static dmGameObject::Result CompCollectionProxyLoadInternal(CollectionProxyContext* context, HCollectionProxyComponent proxy,
                                                             ProxyLoadCallback cbk, void* cbk_ctx,
                                                             dmMessage::URL* sender, dmMessage::URL* receiver,
@@ -445,6 +448,16 @@ namespace dmGameSystem
             if (message)
                 return dmGameObject::RESULT_OK;
             return dmGameObject::RESULT_UNKNOWN_ERROR;
+        }
+
+        char canonical_path[dmResource::RESOURCE_PATH_MAX];
+        uint32_t canonical_path_len = dmResource::GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
+        dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, canonical_path_len);
+
+        if (dmResource::FindByHash(context->m_Factory, canonical_path_hash) != 0)
+        {
+            LogMessageError(message, "Collection proxy %s: '%s'", "already loaded", path);
+            return dmGameObject::RESULT_ALREADY_REGISTERED;
         }
 
         proxy->m_Unloaded = 0;

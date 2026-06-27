@@ -39,6 +39,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TaskBuilder {
 
@@ -91,12 +92,8 @@ public class TaskBuilder {
         this.executorService = Executors.newFixedThreadPool(this.nThreads);
     }
 
-    private Callable<TaskResult> createCallableTask(final Task task, final IProgress monitor) {
-        Callable<TaskResult> callableTask = () -> {
-            TaskResult result = buildTask(task, monitor);
-            return result;
-        };
-        return callableTask;
+    private Callable<TaskResult> createCallableTask(Task task, IProgress progress, AtomicBoolean remoteBuildFailed) {
+        return () -> buildTask(task, progress, remoteBuildFailed);
     }
 
     private boolean compareAllSignatures(byte[] taskSignature, List<IResource> outputResources) {
@@ -136,8 +133,8 @@ public class TaskBuilder {
         return allResourcesExists;
     }
 
-    private TaskResult buildTask(Task task, IProgress monitor) throws IOException {
-        BundleHelper.throwIfCanceled(monitor);
+    private TaskResult buildTask(Task task, IProgress progress, AtomicBoolean remoteBuildFailed) {
+        BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
 
         TimeProfiler.start(task.getName());
 
@@ -200,7 +197,6 @@ public class TaskBuilder {
                         state.putSignature(r.getAbsPath(), taskSignature);
                     }
                 }
-                monitor.worked(1);
                 buildContainsChanges = true;
 
                 // verify that all output resources were created
@@ -234,6 +230,9 @@ public class TaskBuilder {
             taskResult.setException(e);
             e.printStackTrace(new java.io.PrintStream(System.out));
         } finally {
+            if (taskResult.getResult() != Result.RETRY) {
+                progress.close();
+            }
             TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
             TimeProfiler.addData("type", "buildTask");
             TimeProfiler.stop();
@@ -248,102 +247,102 @@ public class TaskBuilder {
 
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public List<TaskResult> build(IProgress monitor) throws IOException, CompileExceptionError {
-        TimeProfiler.start("Build tasks");
-        logger.info("Build tasks");
-        long tstart = System.currentTimeMillis();
+    public List<TaskResult> build(IProgress progress, AtomicBoolean remoteBuildFailed) throws IOException, CompileExceptionError {
+        try (progress) {
+            TimeProfiler.start("Build tasks");
+            logger.info("Build tasks");
+            long tstart = System.currentTimeMillis();
 
-        buildContainsChanges = false;
-        boolean abort = false;
-        int maxConcurrentHighMemoryTasks = this.nThreads;
-        List<Callable<TaskResult>> tasksToSubmit = new ArrayList<>();
-        Map<String, Integer> taskNameCounter = new HashMap<>();
-        while (!tasks.isEmpty() && !abort) {
+            buildContainsChanges = false;
+            boolean abort = false;
+            int maxConcurrentHighMemoryTasks = this.nThreads;
+            List<Callable<TaskResult>> tasksToSubmit = new ArrayList<>();
+            Map<String, Integer> taskNameCounter = new HashMap<>();
+            var split = progress.split(tasks.size());
+            while (!tasks.isEmpty() && !abort) {
+                // create a list of tasks to build this iteration
+                // - ignore tasks with unresolved dependencies
+                // - build game.project last as the only remaining task (see #9553)
+                // - never build more than one material or vp/fp at a time since
+                //   there is some kind of threading issue with the command line
+                //   tools
+                // - restrict atlas/tileset builders per iteration (for memory reasons)
+                int remainingTasksCount = tasks.size();
+                tasksToSubmit.clear();
+                taskNameCounter.clear();
+                for (Task task : tasks) {
+                    if (task.getBuilder().isGameProjectBuilder() && remainingTasksCount > 1) continue;
+                    String taskName = task.getName();
+                    if (taskName.equals("FragmentProgram") || taskName.equals("VertexProgram") || taskName.equals("Material") || taskName.equals("ShaderProgram")) taskName = "Shader";
+                    if (taskName.equals("TileSet")) taskName = "Atlas";
+                    int count = taskNameCounter.getOrDefault(taskName, 0);
+                    if (taskName.equals("Atlas") && (count == maxConcurrentHighMemoryTasks)) continue;
+                    if (taskName.equals("Shader") && count == 1) continue;
+                    if (hasUnresolvedDependencies(task)) continue;
+                    tasksToSubmit.add(createCallableTask(task, split.subtask(), remoteBuildFailed));
+                    taskNameCounter.put(taskName, count + 1);
+                }
 
-            // create a list of tasks to build this iteration
-            // - ignore tasks with unresolved dependencies
-            // - build game.project last as the only remaining task (see #9553)
-            // - never build more than one material or vp/fp at a time since
-            //   there is some kind of threading issue with the command line
-            //   tools
-            // - restrict atlas/tileset builders per iteration (for memory reasons)
-            int remainingTasksCount = tasks.size();
-            tasksToSubmit.clear();
-            taskNameCounter.clear();
-            for (Task task : tasks) {
-                if (task.getBuilder().isGameProjectBuilder() && remainingTasksCount > 1) continue;
-                String taskName = task.getName();
-                if (taskName.equals("FragmentProgram") || taskName.equals("VertexProgram") || taskName.equals("Material") || taskName.equals("ShaderProgram")) taskName = "Shader";
-                if (taskName.equals("TileSet")) taskName = "Atlas";
-                int count = taskNameCounter.getOrDefault(taskName, 0);
-                if (taskName.equals("Atlas") && (count == maxConcurrentHighMemoryTasks)) continue;
-                if (taskName.equals("Shader") && count == 1) continue;
-                if (hasUnresolvedDependencies(task)) continue;
-                tasksToSubmit.add(createCallableTask(task, monitor));
-                taskNameCounter.put(taskName, count + 1);
-            }
+                try {
+                    boolean retryAnyTask = false;
+                    List<Future<TaskResult>> futures = this.executorService.invokeAll(tasksToSubmit);
+                    for (Future<TaskResult> future : futures) {
+                        TaskResult result = future.get();
+                        Task task = result.getTask();
 
-            try {
-                boolean retryAnyTask = false;
-                List<Future<TaskResult>> futures = this.executorService.invokeAll(tasksToSubmit);
-                for (Future<TaskResult> future : futures) {
-                    TaskResult result = future.get();
-                    Task task = result.getTask();
-
-                    // should the task be retried again?
-                    // this can happen if running out of memory while building
-                    if (result.getResult() == Result.RETRY) {
-                        retryAnyTask = true;
-                        if (maxConcurrentHighMemoryTasks > 1) {
-                            maxConcurrentHighMemoryTasks--;
-                            logger.warning("Task '%s' (%s) must be retried. Reducing number of concurrent high memory tasks to %d", task.getName(), task.getInputsString(), maxConcurrentHighMemoryTasks);
+                        // should the task be retried again?
+                        // this can happen if running out of memory while building
+                        if (result.getResult() == Result.RETRY) {
+                            retryAnyTask = true;
+                            if (maxConcurrentHighMemoryTasks > 1) {
+                                maxConcurrentHighMemoryTasks--;
+                                logger.warning("Task '%s' (%s) must be retried. Reducing number of concurrent high memory tasks to %d", task.getName(), task.getInputsString(), maxConcurrentHighMemoryTasks);
+                            }
+                            continue;
                         }
-                        continue;
-                    }
 
-                    results.add(result);
-                    if (result.isOk()) {
-                        completedTasks.add(task);
-                        completedOutputs.addAll(task.getOutputs());
-                        boolean success = tasks.remove(task);
-                        if (!success) {
-                            // this shouldn't really happen, but we might as well
-                            // check for it anyway
-                            logger.severe("Unable to find task to remove");
+                        results.add(result);
+                        if (result.isOk()) {
+                            completedTasks.add(task);
+                            completedOutputs.addAll(task.getOutputs());
+                            boolean success = tasks.remove(task);
+                            if (!success) {
+                                // this shouldn't really happen, but we might as well
+                                // check for it anyway
+                                logger.severe("Unable to find task to remove");
+                                abort = true;
+                                break;
+                            }
+                        } else {
+                            List<IResource> outputs = task.getOutputs();
+                            for (IResource o : outputs) {
+                                state.removeSignature(o.getAbsPath());
+                            }
+                            logger.severe("Task '%s' (%s) failed", task.getName(), task.getInputsString());
                             abort = true;
                             break;
                         }
                     }
-                    else {
-                        List<IResource> outputs = task.getOutputs();
-                        for (IResource o : outputs) {
-                            state.removeSignature(o.getAbsPath());
-                        }
-                        logger.severe("Task '%s' (%s) failed", task.getName(), task.getInputsString());
-                        abort = true;
-                        break;
+                    // reset cap on max number of concurrent high memory tasks if
+                    // no tasks required a retry
+                    if (!retryAnyTask) {
+                        maxConcurrentHighMemoryTasks = this.nThreads;
                     }
-                }
-                // reset cap on max number of concurrent high memory tasks if
-                // no tasks required a retry
-                if (!retryAnyTask) {
-                    maxConcurrentHighMemoryTasks = this.nThreads;
+                } catch (Exception e) {
+                    if (!(remoteBuildFailed.get() || progress.isCanceled())) {
+                        logger.severe("Exception");
+                        e.printStackTrace(new java.io.PrintStream(System.out));
+                    }
+                    abort = true;
                 }
             }
-            catch (Exception e) {
-                if (!monitor.isCanceled()) {
-                    logger.severe("Exception");
-                    e.printStackTrace(new java.io.PrintStream(System.out));
-                }
-                abort = true;
-            }
+
+            this.executorService.shutdownNow();
+
+            long tend = System.currentTimeMillis();
+            logger.info("Build tasks took %f s", (tend - tstart) / 1000.0);
+            TimeProfiler.stop();
+            return results;
         }
-
-        this.executorService.shutdownNow();
-
-        long tend = System.currentTimeMillis();
-        logger.info("Build tasks took %f s", (tend-tstart)/1000.0);
-        TimeProfiler.stop();
-        return results;
     }
 }

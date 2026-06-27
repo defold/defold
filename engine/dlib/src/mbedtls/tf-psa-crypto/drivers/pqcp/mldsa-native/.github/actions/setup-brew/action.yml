@@ -1,0 +1,32 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Dependencies (apt)
+description: Install dependencies via brew
+
+inputs:
+  packages:
+    description: Space-separated list of additional packages to install
+    required: false
+    default: ''
+  sudo:
+    required: false
+    default: 'sudo'
+
+runs:
+  using: composite
+  steps:
+    - name: Update package repository
+      shell: bash
+      run: |
+        brew update
+    - name: Install base packages
+      shell: bash
+      run: |
+        brew install make
+    - name: Install additional packages
+      if: ${{ inputs.packages != ''}}
+      shell: bash
+      run: |
+        brew install ${{ inputs.packages }}

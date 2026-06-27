@@ -14,6 +14,7 @@
 
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/jobsystem.h>
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/time.h>
@@ -276,8 +277,17 @@ static int JobProcessSentinelGlyph(HJobContext job_thread, HJob hjob, void* cont
 
 static void JobPostProcessSentinelGlyph(HJobContext job_thread, HJob hjob, JobSystemStatus job_status, void* context, void* data, int result)
 {
-    FontGenJobData* jobdata = (FontGenJobData*)context;
+    (void)job_thread;
+    (void)hjob;
     (void)data;
+    (void)result;
+
+    if (job_status != JOBSYSTEM_STATUS_FINISHED)
+    {
+        return;
+    }
+
+    FontGenJobData* jobdata = (FontGenJobData*)context;
 
 #if defined(FONTGEN_DEBUG)
     uint32_t count = jobdata->m_Items.Size();
@@ -296,6 +306,14 @@ static void JobPostProcessSentinelGlyph(HJobContext job_thread, HJob hjob, JobSy
 // Called on the main thread
 static void JobPostProcessGlyph(HJobContext job_thread, HJob job, JobSystemStatus job_status, void* context, void* data, int result)
 {
+    (void)job_thread;
+    (void)job;
+
+    if (job_status != JOBSYSTEM_STATUS_FINISHED)
+    {
+        return;
+    }
+
     FontGenJobData* jobdata = (FontGenJobData*)context;
     JobItem* item = (JobItem*)data;
 
@@ -485,7 +503,8 @@ dmExtension::Result FontGenInitialize(dmExtension::Params* params)
     g_FontExtContext->m_StbttDefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_base_padding", 3);
     g_FontExtContext->m_StbttDefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_edge_value", 191);
 
-    g_FontExtContext->m_Jobs = dmExtension::GetContextAsType<HJobContext>(params, "jobs");
+    HContextRegistry context_registry = ExtensionParamsGetContextRegistry((ExtensionParams*)params);
+    g_FontExtContext->m_Jobs = (HJobContext) ContextRegistryGet(context_registry, JOB_SYSTEM_CONTEXT_NAME);
     return dmExtension::RESULT_OK;
 }
 

@@ -33,22 +33,18 @@ ordinary paths."
             [editor.resource :as resource]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
-            [editor.url :as url]
             [editor.util :as util]
             [internal.java :as java]
-            [internal.util :as iutil]
-            [schema.core :as s]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
-            [util.eduction :as e]
             [util.fn :as fn]
             [util.path :as path])
   (:import [clojure.lang DynamicClassLoader]
            [com.dynamo.bob Platform]
+           [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [editor.resource FileResource]
-           [java.io File FileNotFoundException IOException PushbackReader]
-           [java.net URI]
+           [java.io File FileNotFoundException PushbackReader]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -114,12 +110,12 @@ ordinary paths."
 
 (defrecord BuildResource [resource prefix]
   resource/Resource
-  (children [this] nil)
+  (children [_] nil)
   (ext [this] (:build-ext (resource/resource-type this) "unknown"))
-  (resource-type [this] (resource/resource-type resource))
-  (source-type [this] (resource/source-type resource))
-  (read-only? [this] false)
-  (symlink? [this] false)
+  (resource-type [_] (resource/resource-type resource))
+  (source-type [_] (resource/source-type resource))
+  (read-only? [_] false)
+  (symlink? [_] false)
   (path [this] (let [ext (resource/ext this)
                      ext (if (not-empty ext) (str "." ext) "")]
                  (if-let [path (resource/path resource)]
@@ -128,12 +124,12 @@ ordinary paths."
                      (str prefix "_generated_" suffix ext)))))
   (abs-path [this] (.getAbsolutePath (io/file (build-path (resource/workspace this)) (resource/path this))))
   (proj-path [this] (str "/" (resource/path this)))
-  (resource-name [this] (resource/resource-name resource))
-  (workspace [this] (resource/workspace resource))
-  (resource-hash [this] (resource/resource-hash resource))
-  (openable? [this] false)
-  (editable? [this] false)
-  (loaded? [this] false)
+  (resource-name [_] (resource/resource-name resource))
+  (workspace [_] (resource/workspace resource))
+  (resource-hash [_] (resource/resource-hash resource))
+  (openable? [_] false)
+  (editable? [_] false)
+  (loaded? [_] false)
 
   io/IOFactory
   (make-input-stream [this opts] (io/make-input-stream (File. (resource/abs-path this)) opts))
@@ -497,15 +493,18 @@ ordinary paths."
 (def ^:private default-user-resource-path "/templates/default.")
 (def ^:private java-resource-path "templates/template.")
 
-(defn- get-template-resource [basis workspace resource-type]
+(defn template-resource [basis workspace resource-type consider-user-resource]
   (when resource-type
     (let [resource-path (:template resource-type)
           ext (:ext resource-type)]
       (or
         ;; default user resource
-        (find-resource basis workspace (str default-user-resource-path ext))
+        (when consider-user-resource
+          (find-resource basis workspace (str default-user-resource-path ext)))
+
         ;; editor resource provided from extensions
         (when resource-path (find-resource basis workspace resource-path))
+
         ;; java resource
         (io/resource (str java-resource-path ext))))))
 
@@ -513,13 +512,13 @@ ordinary paths."
   ([workspace resource-type]
    (has-template? (g/now) workspace resource-type))
   ([basis workspace resource-type]
-   (some? (get-template-resource basis workspace resource-type))))
+   (some? (template-resource basis workspace resource-type true))))
 
 (defn template
   ([workspace resource-type]
    (template (g/now) workspace resource-type))
   ([basis workspace resource-type]
-   (when-let [resource (get-template-resource basis workspace resource-type)]
+   (when-let [resource (template-resource basis workspace resource-type true)]
      (let [{:keys [read-fn write-fn]} resource-type]
        (if (and read-fn write-fn)
          ;; Sanitize the template.
@@ -536,68 +535,45 @@ ordinary paths."
   (let [escaped-name (protobuf/escape-string name)]
     (string/replace template "{{NAME}}" escaped-name)))
 
-(defn- update-dependency-notifications! [workspace lib-states]
-  (let [{:keys [error missing]} (->> lib-states
-                                     (eduction
-                                       (keep (fn [{:keys [status file uri]}]
-                                               (cond
-                                                 (= status :error) (pair :error uri)
-                                                 (nil? file) (pair :missing uri)))))
-                                     (iutil/group-into {} [] key val))
-        notifications (notifications workspace)
-        min-version-states (into [] (filter #(= :defold-min-version (:reason %))) lib-states)
-        failing-uris (into #{} (map :uri) min-version-states)]
-    ;; Single min-version notification (only first error).
-    (if-let [{:keys [uri required current]} (first min-version-states)]
-      (notifications/show!
-        notifications
-        {:id ::dependencies-min-version
-         :type :error
-         :message (localization/message
-                    "notification.fetch-libraries.min-version.error"
-                    {"uri" (str uri)
-                     "required" (str required)
-                     "current" (str current)})
-         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
-                    :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene) true)
-                                  :file.open
-                                  "/game.project")}]})
-      (notifications/close! notifications ::dependencies-min-version))
-    (if (pos? (count missing))
-      (notifications/show!
-        notifications
-        {:id ::dependencies-missing
-         :type :warning
-         :message (localization/message
-                    "notification.fetch-libraries.dependencies-missing.warning"
-                    {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet missing))})
-         :actions [{:message (localization/message "notification.fetch-libraries.dependencies-changed.action.fetch")
-                    :on-action #(ui/execute-command
-                                  (ui/contexts (ui/main-scene) true)
-                                  :project.fetch-libraries
-                                  nil)}]})
-      (notifications/close! notifications ::dependencies-missing))
-    (let [other-errors (into [] (remove failing-uris) (or error []))]
-      (if (pos? (count other-errors))
+(defn- update-dependency-notifications! [workspace lib-results]
+  (let [problem-results (filterv Library$Result/.problem lib-results)
+        notifications (notifications workspace)]
+    (if (coll/empty? problem-results)
+      (notifications/close! notifications ::dependencies-problems)
+      (let [show-fetch (coll/any? (fn [^Library$Result result]
+                                    (let [problem (.problem result)]
+                                      (or (instance? Library$Problem$Missing problem)
+                                          (instance? Library$Problem$FetchFailed problem)
+                                          (instance? Library$Problem$FailedHTTPRequest problem)
+                                          (instance? Library$Problem$HttpConnectTimeout problem)
+                                          (instance? Library$Problem$InstallFailed problem))))
+                                  problem-results)
+            show-open-project (coll/any? (fn [^Library$Result result]
+                                           (let [problem (.problem result)]
+                                             (or (instance? Library$Problem$InvalidArchive problem)
+                                                 (instance? Library$Problem$DefoldMinVersion problem))))
+                                         problem-results)]
         (notifications/show!
           notifications
-          {:id ::dependencies-error
+          {:id ::dependencies-problems
            :type :error
-           :message (localization/message
-                      "notification.fetch-libraries.dependencies-error.error"
-                      {"dependencies" (coll/join-to-string "\n" (e/map dialogs/indent-with-bullet other-errors))})
-           :actions [{:message (localization/message "notification.fetch-libraries.dependencies-error.action.open-game-project")
-                      :on-action #(ui/execute-command
-                                    (ui/contexts (ui/main-scene) true)
-                                    :file.open
-                                    "/game.project")}]})
-        (notifications/close! notifications ::dependencies-error)))))
+           :message
+           (localization/message
+             "notification.fetch-libraries.problems"
+             {"dependencies" (->> problem-results
+                                  (mapv #(localization/transform (library/result-message %) dialogs/indent-with-bullet))
+                                  (localization/join "\n"))})
+           :actions
+           (cond-> []
+                   show-fetch (conj {:message (localization/message "notification.fetch-libraries.action.fetch")
+                                     :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :project.fetch-libraries nil)})
+                   show-open-project (conj {:message (localization/message "notification.fetch-libraries.action.open-game-project")
+                                            :on-action #(ui/execute-command (ui/contexts (ui/main-scene) true) :file.open "/game.project")}))})))))
 
-(defn set-project-dependencies! [workspace lib-states]
-  (g/set-property! workspace :dependencies lib-states)
-  (update-dependency-notifications! workspace lib-states)
-  lib-states)
+(defn set-project-dependencies! [workspace lib-results]
+  (g/set-property! workspace :dependencies lib-results)
+  (update-dependency-notifications! workspace lib-results)
+  lib-results)
 
 (defn dependencies
   ([workspace]
@@ -605,10 +581,6 @@ ordinary paths."
      (dependencies workspace evaluation-context)))
   ([workspace evaluation-context]
    (g/node-value workspace :dependency-uris evaluation-context)))
-
-(defn dependencies-reachable? [dependencies]
-  (let [hosts (into #{} (map url/strip-path) dependencies)]
-    (every? url/reachable? hosts)))
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
@@ -712,9 +684,9 @@ ordinary paths."
   ([workspace resource]
    (unpack-resource! workspace nil resource))
   ([workspace infix-path resource]
-   (try
-     (let [resource-path (str infix-path (resource/proj-path resource))
-           target-file (plugin-path workspace resource-path)]
+   (let [resource-path (str infix-path (resource/proj-path resource))
+         target-file (plugin-path workspace resource-path)]
+     (try
        (fs/create-parent-directories! target-file)
        (with-open [is (io/input-stream resource)]
          (io/copy is target-file))
@@ -723,9 +695,23 @@ ordinary paths."
        (when (jar-file? resource)
          (register-jar-file! target-file))
        (when (shared-library? resource)
-         (register-shared-library-file! target-file)))
-     (catch FileNotFoundException e
-       (throw (IOException. "\nExtension plugins needs updating.\nPlease restart editor for these changes to take effect!" e))))))
+         (register-shared-library-file! target-file))
+       true
+       (catch FileNotFoundException e
+         (notifications/show!
+           (notifications workspace)
+           {:id ::reload-plugins-failed
+            :type :warning
+            :message (localization/message
+                       "notification.reload-plugins-failed"
+                       {"file" (str target-file)
+                        "error" (.getMessage e)})
+            :actions [{:message (localization/message "notification.reload-plugins-failed.action.restart")
+                       :on-action #(ui/execute-command
+                                     (ui/contexts (ui/main-scene) true)
+                                     :app.restart
+                                     nil)}]})
+         false)))))
 
 (defn- delete-directory-recursive [^File file]
   ;; Recursively delete a directory. // https://gist.github.com/olieidel/c551a911a4798312e4ef42a584677397
@@ -744,7 +730,7 @@ ordinary paths."
 (defn clean-editor-plugins! [workspace]
   ; At startup, we want to remove the plugins in order to avoid having issues copying the .dll on Windows
   (let [dir (plugin-path workspace)]
-    (if (.exists dir)
+    (when (.exists dir)
       (delete-directory-recursive dir))))
 
 (def ^:private plugin-zip-names
@@ -762,15 +748,15 @@ ordinary paths."
 
 (defn- unpack-plugin-zip! [workspace resource]
   {:pre [(string/ends-with? (resource/proj-path resource) ".zip")]}
-  (unpack-resource! workspace resource)
-  (let [proj-path (resource/proj-path resource)
-        plugin-file (plugin-path workspace proj-path)
-        infix-path (resource/parent-proj-path proj-path)]
-    (run! #(unpack-resource! workspace infix-path %)
-          (eduction
-            (mapcat resource/resource-seq)
-            (filter #(= :file (resource/source-type %)))
-            (:tree (resource/load-zip-resources workspace plugin-file))))))
+  (when (unpack-resource! workspace resource)
+    (let [proj-path (resource/proj-path resource)
+          plugin-file (plugin-path workspace proj-path)
+          infix-path (resource/parent-proj-path proj-path)]
+      (run! #(unpack-resource! workspace infix-path %)
+            (eduction
+              (mapcat resource/resource-seq)
+              (filter #(= :file (resource/source-type %)))
+              (:tree (resource/load-zip-resources workspace plugin-file)))))))
 
 (defn unpack-editor-plugins! [basis workspace changed]
   ;; Used for unpacking the .jar files and shared libraries (.so, .dylib, .dll).
@@ -907,15 +893,6 @@ ordinary paths."
              (render-progress! progress/done)))))
      changes)))
 
-(defn fetch-and-validate-libraries [workspace library-uris render-fn]
-  (->> (library/current-library-state (project-directory workspace) library-uris)
-       (library/fetch-library-updates library/default-http-resolver render-fn)
-       (library/validate-updated-libraries)))
-
-(defn install-validated-libraries! [workspace lib-states]
-  (let [new-lib-states (library/install-validated-libraries! (project-directory workspace) lib-states)]
-    (set-project-dependencies! workspace new-lib-states)))
-
 (defn add-resource-listener! [workspace progress-span listener]
   (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
@@ -928,15 +905,10 @@ ordinary paths."
              (into [resource-listener-entry]
                    resource-listener-entries)))))
 
-(g/deftype Dependencies
-  [{:uri URI
-    (s/optional-key :file) File
-    s/Keyword s/Any}])
-
 (g/defnode Workspace
   (property root g/Str
             (set (gu/immutable-property-setter root)))
-  (property dependencies Dependencies)
+  (property dependencies g/Any)
   (property opened-files g/Any)
   (property resource-snapshot g/Any (default resource-watch/empty-snapshot)
             (set (fn [evaluation-context self _old-value new-value]
@@ -983,7 +955,7 @@ ordinary paths."
   (input code-preprocessors g/NodeID :cascade-delete)
   (input notifications g/NodeID :cascade-delete)
 
-  (output dependency-uris g/Any (g/fnk [dependencies] (mapv :uri dependencies))))
+  (output dependency-uris g/Any (g/fnk [dependencies] (mapv Library$Result/.uri dependencies))))
 
 (defn node-attachments [basis workspace]
   (g/raw-property-value basis workspace :node-attachments))
