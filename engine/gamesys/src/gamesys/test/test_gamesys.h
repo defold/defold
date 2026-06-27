@@ -18,6 +18,7 @@
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
+#include <dlib/configfile.h>
 #include <dlib/context_registry.h>
 #include <dlib/testutil.h>
 #include <hid/hid.h>

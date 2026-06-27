@@ -233,6 +233,9 @@ def platform_get_glfw_lib(platform):
     return 'dmglfw'
 
 def platform_get_platform_lib(platform):
+    if is_platform_private(platform):
+        return 'PLATFORM'
+
     if not (platform_supports_feature(platform, "opengl", None) or platform_supports_feature(platform, "vulkan", None)):
         return 'PLATFORM_NULL'
 
@@ -2221,7 +2224,8 @@ def detect(conf):
 
     if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
-        conf.env.append_value('LINKFLAGS_DLIB', ['ole32.lib']) # CoTaskMemFree in sys_win32.cpp
+        conf.env['LINKFLAGS_DLIB']        = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp
+        conf.env['LINKFLAGS_DLIB_NOASAN'] = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp (mirrors LINKFLAGS_DLIB for noasan consumers like shaderc_shared/texc_shared/modelc_shared)
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
@@ -2270,6 +2274,11 @@ def detect(conf):
                 Logs.error("JAVA_HOME=%s" % os.environ['JAVA_HOME'])
                 Logs.error("Failed to find jni.h at %s" % jni_path)
                 sys.exit(1)
+
+    conf.load('waf_csharp')
+
+    if Options.options.generate_compile_commands:
+        conf.load('clang_compilation_database')
 
     conf.load('waf_csharp')
 

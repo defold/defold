@@ -62,6 +62,10 @@ namespace dmInput
 
     void DeleteContext(HContext context)
     {
+        if (!context)
+        {
+            return;
+        }
         if (context->m_HidContext)
         {
             dmHID::SetGamepadConnectivityCallback(context->m_HidContext, 0, 0);

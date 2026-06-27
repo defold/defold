@@ -13,14 +13,168 @@
 // specific language governing permissions and limitations under the License.
 
 #include "shaderc.h"
+#include "shaderc_private.h"
 
 #include <jni.h> // JDK
 #include <jni/jni_util.h> // defold
 
-#include <Shaderc_jni.h>
+#include "jni/Shaderc_jni.h"
 
 #include <dlib/array.h>
 #include <dlib/log.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+static jfieldID FindFieldIdSafe(JNIEnv* env, jclass cls, const char* field_name, const char* signature, bool required)
+{
+    jfieldID field = env->GetFieldID(cls, field_name, signature);
+    if (!field)
+    {
+        if (env->ExceptionCheck())
+            env->ExceptionClear();
+        if (required)
+            dmLogError("Missing required ShaderCompilerOptions field '%s' with signature '%s'", field_name, signature);
+    }
+    return field;
+}
+
+static bool ReadIntFieldSafe(JNIEnv* env, jobject obj, jclass cls, const char* field_name, int32_t* out_value, bool required, int32_t default_value)
+{
+    *out_value = default_value;
+    jfieldID field = FindFieldIdSafe(env, cls, field_name, "I", required);
+    if (!field)
+        return !required;
+    *out_value = env->GetIntField(obj, field);
+    return true;
+}
+
+static bool ReadByteFieldSafe(JNIEnv* env, jobject obj, jclass cls, const char* field_name, uint8_t* out_value, bool required, uint8_t default_value)
+{
+    *out_value = default_value;
+    jfieldID field = FindFieldIdSafe(env, cls, field_name, "B", required);
+    if (!field)
+        return !required;
+    *out_value = (uint8_t) env->GetByteField(obj, field);
+    return true;
+}
+
+static bool ReadStringFieldSafe(JNIEnv* env, jobject obj, jclass cls, const char* field_name, char** out_value, bool required)
+{
+    *out_value = 0;
+    jfieldID field = FindFieldIdSafe(env, cls, field_name, "Ljava/lang/String;", required);
+    if (!field)
+        return !required;
+
+    jobject value_obj = env->GetObjectField(obj, field);
+    if (!value_obj)
+    {
+        if (required)
+            dmLogError("Required ShaderCompilerOptions string field '%s' was null", field_name);
+        return !required;
+    }
+
+    jclass string_class = env->FindClass("java/lang/String");
+    if (!string_class)
+    {
+        if (env->ExceptionCheck())
+            env->ExceptionClear();
+        env->DeleteLocalRef(value_obj);
+        dmLogError("Failed to resolve java/lang/String while reading ShaderCompilerOptions.%s", field_name);
+        return false;
+    }
+
+    bool is_string = env->IsInstanceOf(value_obj, string_class) == JNI_TRUE;
+    env->DeleteLocalRef(string_class);
+    if (!is_string)
+    {
+        env->DeleteLocalRef(value_obj);
+        dmLogError("ShaderCompilerOptions.%s is not a java.lang.String", field_name);
+        return false;
+    }
+
+    const char* utf = env->GetStringUTFChars((jstring) value_obj, 0);
+    if (!utf)
+    {
+        if (env->ExceptionCheck())
+            env->ExceptionClear();
+        env->DeleteLocalRef(value_obj);
+        dmLogError("Failed to read UTF chars from ShaderCompilerOptions.%s", field_name);
+        return false;
+    }
+
+    *out_value = strdup(utf);
+    env->ReleaseStringUTFChars((jstring) value_obj, utf);
+    env->DeleteLocalRef(value_obj);
+
+    if (!(*out_value))
+    {
+        dmLogError("Out of memory duplicating ShaderCompilerOptions.%s", field_name);
+        return false;
+    }
+
+    return true;
+}
+
+static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmShaderc::ShaderCompilerOptions* out_options)
+{
+    if (!out_options || !options_obj)
+    {
+        dmLogError("Invalid arguments while reading ShaderCompilerOptions from JNI");
+        return false;
+    }
+
+    *out_options = dmShaderc::ShaderCompilerOptions();
+
+    jclass options_cls = env->GetObjectClass(options_obj);
+    if (!options_cls)
+    {
+        dmLogError("Failed to get ShaderCompilerOptions class");
+        return false;
+    }
+
+    bool ok = true;
+    int32_t version = 0;
+    uint8_t remove_unused = 0;
+    uint8_t no_420_pack = 0;
+    uint8_t glsl_emit_ubo = 0;
+    uint8_t glsl_es = 0;
+
+    ok = ok && ReadIntFieldSafe(env, options_obj, options_cls, "version", &version, true, 0);
+    ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "removeUnusedVariables", &remove_unused, false, 0);
+    ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "no420PackExtension", &no_420_pack, false, 0);
+    ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "glslEmitUboAsPlainUniforms", &glsl_emit_ubo, false, 0);
+    ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "glslEs", &glsl_es, false, 0);
+    ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "entryPoint", (char**) &out_options->m_EntryPoint, false);
+    ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "externalCompilerPath", (char**) &out_options->m_ExternalCompilerPath, false);
+    ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "externalCompilerArgs", (char**) &out_options->m_ExternalCompilerArgs, false);
+    ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "rootSignatureOverride", (char**) &out_options->m_RootSignatureOverride, false);
+
+    out_options->m_Version = (uint32_t) version;
+    out_options->m_RemoveUnusedVariables = remove_unused;
+    out_options->m_No420PackExtension = no_420_pack;
+    out_options->m_GlslEmitUboAsPlainUniforms = glsl_emit_ubo;
+    out_options->m_GlslEs = glsl_es;
+
+    env->DeleteLocalRef(options_cls);
+    return ok;
+}
+
+static void FreeShaderCompilerOptionsStrings(dmShaderc::ShaderCompilerOptions* options)
+{
+    if (!options)
+        return;
+
+    free((void*) options->m_EntryPoint);
+    free((void*) options->m_ExternalCompilerPath);
+    free((void*) options->m_ExternalCompilerArgs);
+    free((void*) options->m_RootSignatureOverride);
+
+    options->m_EntryPoint = 0;
+    options->m_ExternalCompilerPath = 0;
+    options->m_ExternalCompilerArgs = 0;
+    options->m_RootSignatureOverride = 0;
+}
 
 static jobject GetReflection(JNIEnv* env, jclass cls, jlong context)
 {
@@ -75,9 +229,18 @@ static jobject Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler, j
     dmShaderc::HShaderCompiler shader_compiler = (dmShaderc::HShaderCompiler) compiler;
 
     dmShaderc::ShaderCompilerOptions shader_options;
-    dmShaderc::jni::J2C_CreateShaderCompilerOptions(env, types, options, &shader_options);
+    if (!ReadShaderCompilerOptionsSafe(env, options, &shader_options))
+    {
+        return 0;
+    }
 
     dmShaderc::ShaderCompileResult* res = dmShaderc::Compile(shader_ctx, shader_compiler, shader_options);
+    FreeShaderCompilerOptionsStrings(&shader_options);
+
+    if (!res)
+    {
+        return 0;
+    }
 
     jobject result = C2J_CreateShaderCompileResult(env, types, res);
 
@@ -206,7 +369,22 @@ static jobject HLSLMergeRootSignatures(JNIEnv* env, jclass cls, jobjectArray sha
 
     dmShaderc::HLSLRootSignature* root_signature = dmShaderc::HLSLMergeRootSignatures(results, results_count);
 
-    return C2J_CreateHLSLRootSignature(env, types, root_signature);
+    // Copy patched shader blobs/signatures back to the Java objects.
+    for (uint32_t i = 0; i < results_count; ++i)
+    {
+        jobject obj = env->GetObjectArrayElement(shader_results, i);
+        if (!obj)
+            continue;
+
+        dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.data, dmJNI::C2J_CreateUByteArray(env, results[i].m_Data.Begin(), results[i].m_Data.Size()));
+        dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.hLSLRootSignature, dmJNI::C2J_CreateUByteArray(env, results[i].m_HLSLRootSignature.Begin(), results[i].m_HLSLRootSignature.Size()));
+        env->DeleteLocalRef(obj);
+    }
+
+    jobject out = C2J_CreateHLSLRootSignature(env, types, root_signature);
+    delete root_signature;
+    delete[] results;
+    return out;
 }
 
 JNIEXPORT jobject JNICALL Java_ShadercJni_HLSLMergeRootSignatures(JNIEnv* env, jclass cls, jobjectArray shader_results)
@@ -218,6 +396,37 @@ JNIEXPORT jobject JNICALL Java_ShadercJni_HLSLMergeRootSignatures(JNIEnv* env, j
     }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return reflection;
+}
+
+JNIEXPORT jstring JNICALL Java_ShadercJni_HLSLRootSignatureToString(JNIEnv* env, jclass cls, jbyteArray root_signature_blob)
+{
+    jstring out_string = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+#if defined(_WIN32) && defined(DM_BINARY_HLSL_SUPPORTED)
+        if (root_signature_blob != 0)
+        {
+            jsize blob_size = env->GetArrayLength(root_signature_blob);
+            if (blob_size > 0)
+            {
+                jbyte* blob_data = env->GetByteArrayElements(root_signature_blob, 0);
+                dmArray<char> root_signature_text;
+                bool ok = dmShaderc::RootSignatureBlobToText(blob_data, (uint32_t) blob_size, root_signature_text);
+                env->ReleaseByteArrayElements(root_signature_blob, blob_data, JNI_ABORT);
+
+                if (ok && root_signature_text.Size() > 1)
+                {
+                    out_string = env->NewStringUTF(root_signature_text.Begin());
+                }
+            }
+        }
+#else
+        (void) cls;
+        (void) root_signature_blob;
+#endif
+    }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return out_string;
 }
 
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
@@ -254,6 +463,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         { (char*) "SetResourceBinding", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceBinding)},
         { (char*) "SetResourceSet", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceSet)},
         { (char*) "HLSLMergeRootSignatures", (char*) "([L" CLASS_NAME "$ShaderCompileResult;)L" CLASS_NAME "$HLSLRootSignature;", reinterpret_cast<void*>(Java_ShadercJni_HLSLMergeRootSignatures)},
+        { (char*) "HLSLRootSignatureToString", (char*) "([B)Ljava/lang/String;", reinterpret_cast<void*>(Java_ShadercJni_HLSLRootSignatureToString)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
     env->DeleteLocalRef(c);

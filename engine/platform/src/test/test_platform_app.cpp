@@ -132,6 +132,15 @@ static void AppDestroy(void* _ctx)
     ctx->m_Destroyed++;
 }
 
+static WindowsGraphicsApi GetPreferredGraphicsApi()
+{
+#if defined(_GAMING_XBOX)
+    return WINDOW_GRAPHICS_API_DIRECTX;
+#else
+    return WINDOW_GRAPHICS_API_OPENGL;
+#endif
+}
+
 static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = &g_EngineCtx;
@@ -143,7 +152,7 @@ static void* EngineCreate(int argc, char** argv)
     WindowCreateParamsInitialize(&params);
     params.m_Width                  = 512;
     params.m_Height                 = 512;
-    params.m_GraphicsApi            = WINDOW_GRAPHICS_API_OPENGL;
+    params.m_GraphicsApi            = GetPreferredGraphicsApi();
     params.m_Title                  = "Test app";
     params.m_ContextAlphabits       = 8;
 

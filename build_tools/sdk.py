@@ -850,6 +850,8 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
 def _setup_info_from_windowsinfo(windowsinfo, platform):
 
     info = {}
+    info['sdk_root'] = windowsinfo['sdk_root']
+    info['sdk_version'] = windowsinfo['sdk_version']
     info[platform] = {}
     info[platform]['version'] = windowsinfo['sdk_version']
     info[platform]['path'] = windowsinfo['sdk_root']

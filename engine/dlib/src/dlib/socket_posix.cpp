@@ -1,6 +1,7 @@
 #include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/log.h>
 #include "socket.h"
+#include "dstrings.h"
 
 #include <assert.h>
 #include <fcntl.h>
