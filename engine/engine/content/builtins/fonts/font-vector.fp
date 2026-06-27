@@ -87,10 +87,9 @@ float CalcCoverage(float xcov, float ycov, float xwgt, float ywgt)
     return clamp(coverage, 0.0, 1.0);
 }
 
-float SlugRender(vec2 render_coord, vec4 band_transform, float band_row, ivec2 band_max)
+float SlugRenderFiltered(vec2 render_coord, vec4 band_transform, float band_row, ivec2 band_max, vec2 filter_width)
 {
-    vec2 ems_per_pixel = fwidth(render_coord);
-    vec2 pixels_per_em = 1.0 / max(ems_per_pixel, vec2(1.0 / 65536.0));
+    vec2 filters_per_em = 1.0 / max(filter_width, vec2(1.0 / 65536.0));
     ivec2 band_index = clamp(ivec2(render_coord * band_transform.xy + band_transform.zw), ivec2(0, 0), band_max);
 
     vec4 hband_raw = SampleBandTexel(band_row, float(band_index.y));
@@ -113,7 +112,7 @@ float SlugRender(vec2 render_coord, vec4 band_transform, float band_row, ivec2 b
         vec4 p12 = SampleCurveTexel(curve_texel) - vec4(render_coord, render_coord);
         vec2 p3 = SampleCurveTexel(curve_texel + 1.0).xy - render_coord;
 
-        if (max(max(p12.x, p12.z), p3.x) * pixels_per_em.x < -0.5)
+        if (max(max(p12.x, p12.z), p3.x) * filters_per_em.x < -0.5)
         {
             break;
         }
@@ -121,7 +120,7 @@ float SlugRender(vec2 render_coord, vec4 band_transform, float band_row, ivec2 b
         int code = CalcRootCode(p12.y, p12.w, p3.y);
         if (code != 0)
         {
-            vec2 r = SolveHorizPoly(p12, p3) * pixels_per_em.x;
+            vec2 r = SolveHorizPoly(p12, p3) * filters_per_em.x;
 
             if ((code & 1) != 0)
             {
@@ -157,7 +156,7 @@ float SlugRender(vec2 render_coord, vec4 band_transform, float band_row, ivec2 b
         vec4 p12 = SampleCurveTexel(curve_texel) - vec4(render_coord, render_coord);
         vec2 p3 = SampleCurveTexel(curve_texel + 1.0).xy - render_coord;
 
-        if (max(max(p12.y, p12.w), p3.y) * pixels_per_em.y < -0.5)
+        if (max(max(p12.y, p12.w), p3.y) * filters_per_em.y < -0.5)
         {
             break;
         }
@@ -165,7 +164,7 @@ float SlugRender(vec2 render_coord, vec4 band_transform, float band_row, ivec2 b
         int code = CalcRootCode(p12.x, p12.z, p3.x);
         if (code != 0)
         {
-            vec2 r = SolveVertPoly(p12, p3) * pixels_per_em.y;
+            vec2 r = SolveVertPoly(p12, p3) * filters_per_em.y;
 
             if ((code & 1) != 0)
             {
@@ -449,6 +448,45 @@ float ComputeCurveDistanceSqPixels(vec2 p, float curve_start, float curve_count,
     return best_distance_sq;
 }
 
+float EvaluateOutlineSilhouetteAlpha(float curve_distance, float outline_width)
+{
+    if (outline_width <= 0.0)
+    {
+        return 0.0;
+    }
+
+    // Keep the outline contribution stable at the contour edge so the shadow can
+    // include the styled glyph silhouette, not just the filled face.
+    float aa_width = 0.5;
+    return 1.0 - smoothstep(max(0.0, outline_width - aa_width), outline_width + aa_width, curve_distance);
+}
+
+float EvaluateShadowSilhouetteAlpha(float face_coverage, float curve_distance, float outline_width)
+{
+    float face_alpha = face_coverage;
+    float outline_alpha = EvaluateOutlineSilhouetteAlpha(curve_distance, outline_width);
+    return max(face_alpha, outline_alpha);
+}
+
+float EvaluateFilteredShadowAlpha(vec2 p,
+                                  float curve_start,
+                                  float curve_count,
+                                  vec2 glyph_scale,
+                                  float face_coverage,
+                                  float outline_width,
+                                  float shadow_blur)
+{
+    float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_scale));
+    float center_alpha = EvaluateShadowSilhouetteAlpha(face_coverage, curve_distance, outline_width);
+    if (shadow_blur <= 0.0)
+    {
+        return center_alpha;
+    }
+
+    float feather_alpha = 1.0 - smoothstep(outline_width, outline_width + shadow_blur, curve_distance);
+    return max(center_alpha, feather_alpha);
+}
+
 void main()
 {
     float curve_count = var_glyph.x;
@@ -464,9 +502,9 @@ void main()
     float outline_width = max(var_jacobian.z, 0.0);
     float shadow_blur = max(var_jacobian.w, 0.0);
     ivec2 band_max = ivec2(int(var_jacobian.x + 0.5), int(var_jacobian.y + 0.5));
-    vec2 glyph_scale = 1.0 / max(fwidth(var_texcoord), vec2(0.0001));
     vec2 glyph_metric_scale = max(var_params.xy, vec2(0.0001));
-    float coverage = SlugRender(p, var_banding, band_row, band_max);
+    vec2 pixel_filter_width = fwidth(p);
+    float coverage = SlugRenderFiltered(p, var_banding, band_row, band_max, pixel_filter_width);
 
     if (abs(layer_mode - LAYER_MODE_FACE) < 0.5)
     {
@@ -480,24 +518,19 @@ void main()
 
     if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5)
     {
-        float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_metric_scale));
-        if (coverage >= 0.999 || curve_distance <= outline_width)
-        {
-            out_fragColor = var_color;
-            return;
-        }
+        float shadow_alpha = EvaluateFilteredShadowAlpha(p,
+                                                         curve_start,
+                                                         curve_count,
+                                                         glyph_metric_scale,
+                                                         coverage,
+                                                         outline_width,
+                                                         shadow_blur);
 
-        if (shadow_blur <= 0.0)
-        {
-            discard;
-        }
-
-        if (curve_distance > (outline_width + shadow_blur))
+        if (shadow_alpha <= 0.0)
         {
             discard;
         }
 
-        float shadow_alpha = 1.0 - smoothstep(outline_width, outline_width + shadow_blur, curve_distance);
         out_fragColor = vec4(var_color.rgb, var_color.a * shadow_alpha);
         return;
     }
