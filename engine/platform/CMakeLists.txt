@@ -10,6 +10,7 @@ project(defold_platform LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 # Sources
 set(PLAT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
 set(PLATFORM_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
+set(PLATFORM_DEPENDENCIES dlib)
 
 file(MAKE_DIRECTORY "${PLATFORM_GENERATED_INCLUDE_DIR}/platform")
 file(GLOB _DEFOLD_PLATFORM_HEADERS "${PLAT_SRC_DIR}/platform_*.h")
@@ -82,7 +83,8 @@ endif()
 # platform
 defold_add_library(platform STATIC ${_platform_glfw_sources})
 target_include_directories(platform PUBLIC "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
-target_compile_definitions(platform PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+target_compile_definitions(platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+defold_target_link_libraries(platform "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
 
 if (PLATFORM_USE_GLFW3)
     target_compile_definitions(platform PUBLIC DM_INPUT_USE_GLFW3)
@@ -93,7 +95,8 @@ defold_add_library(platform_null STATIC
     "${PLAT_SRC_DIR}/window.cpp"
     "${PLAT_SRC_DIR}/platform_window_null.cpp")
 target_include_directories(platform_null PUBLIC "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
-target_compile_definitions(platform_null PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+target_compile_definitions(platform_null PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+defold_target_link_libraries(platform_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
 
 # platform_vulkan (adds Vulkan-capable window integration on top of GLFW3)
 if (PLATFORM_USE_GLFW3)
@@ -101,7 +104,8 @@ if (PLATFORM_USE_GLFW3)
     list(REMOVE_DUPLICATES _platform_vulkan_sources)
     defold_add_library(platform_vulkan STATIC ${_platform_vulkan_sources})
     target_include_directories(platform_vulkan PUBLIC "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
-    target_compile_definitions(platform_vulkan PUBLIC "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+    target_compile_definitions(platform_vulkan PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+    defold_target_link_libraries(platform_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
 endif()
 
 
