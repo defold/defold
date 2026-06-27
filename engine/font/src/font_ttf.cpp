@@ -357,6 +357,8 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
         }
     }
 
+    bool has_sdf_image = options->m_GenerateImage && glyph->m_Bitmap.m_Data;
+
     // The dimensions of the visible area
     if (options->m_GenerateImage && x0 != x1 && y0 != y1)
     {
@@ -367,12 +369,25 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
         y1 += padding;
     }
 
-    glyph->m_Width = (x1 - x0) * scale;
-    glyph->m_Height = (y1 - y0) * scale;
     glyph->m_Advance = advx*scale;
-    glyph->m_LeftBearing = (options->m_GenerateOutline && !options->m_GenerateImage) ? x0 * scale : lsb * scale;
     glyph->m_Ascent = ascent;
     glyph->m_Descent = descent;
+
+    if (options->m_GenerateOutline && has_sdf_image)
+    {
+        // Vector glyphs with SDF-compatible metrics use the same pixel-space
+        // bitmap box as stbtt_GetGlyphSDF(), so curves normalize into the same
+        // coordinate system as the raster SDF image.
+        glyph->m_Width = (float)srcw;
+        glyph->m_Height = (float)srch;
+        glyph->m_LeftBearing = (float)offsetx;
+    }
+    else
+    {
+        glyph->m_Width = (x1 - x0) * scale;
+        glyph->m_Height = (y1 - y0) * scale;
+        glyph->m_LeftBearing = (options->m_GenerateOutline && !options->m_GenerateImage) ? x0 * scale : lsb * scale;
+    }
 
     if (options->m_GenerateOutline)
     {

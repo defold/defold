@@ -547,15 +547,29 @@ namespace dmRender
             {
                 FontGlyphOptions glyph_options;
                 glyph_options.m_Scale = FontGetScaleFromSize(font, font_map->m_Size);
+                glyph_options.m_GenerateImage = true;
                 glyph_options.m_GenerateOutline = true;
+                glyph_options.m_StbttSDFPadding = font_map->m_SdfSpread;
 
-                FontGlyph* out = new FontGlyph;
-                r = FontGetGlyphByIndex(font, glyph_index, &glyph_options, out);
+                FontGlyph temp;
+                r = FontGetGlyphByIndex(font, glyph_index, &glyph_options, &temp);
                 if (FONT_RESULT_OK != r)
                 {
-                    delete out;
                     return r;
                 }
+
+                FontGlyph* out = new FontGlyph;
+                *out = temp;
+
+                temp.m_Outline.m_Commands = 0;
+                temp.m_Outline.m_CommandCount = 0;
+                temp.m_Outline.m_Flags = 0;
+                FontFreeGlyph(font, &temp);
+
+                out->m_Bitmap.m_Data = 0;
+                out->m_Bitmap.m_DataSize = 0;
+                out->m_Bitmap.m_Channels = 0;
+                out->m_Bitmap.m_Flags = 0;
 
                 *glyph = out;
                 AddGlyph(font_map, key, *glyph);
@@ -1384,11 +1398,11 @@ namespace dmRender
                 cache_glyph->m_Glyph = 0;
                 cache_glyph->m_GlyphKey = 0;
                 cache_glyph->m_Frame = 0;
-                return;
+                return 0;
             }
 
             font_map->m_GlyphCache.Put(glyph_key, cache_glyph);
-            return;
+            return cache_glyph;
         }
 
         // If the blit would write outside of the texture, then we try to resize it
