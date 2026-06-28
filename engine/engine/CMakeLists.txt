@@ -481,7 +481,7 @@ engine_configure_executable(dmengine debug engine engine_service graphics "${ENG
 defold_xcode_configure_ios_app(dmengine
   BUNDLE_ID "${DEFOLD_IOS_BUNDLE_IDENTIFIER}"
   VERSION "${ENGINE_VERSION}")
-defold_codesign_target(dmengine)
+defold_codesign_target(dmengine darwin/entitlements-macos-debug.plist)
 
 set(ENGINE_RELEASE_SYMBOLS
   ${ENGINE_EXPORTED_SYMBOLS}
@@ -492,7 +492,7 @@ set(ENGINE_RELEASE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmeng
 defold_create_exported_symbols_file("${ENGINE_RELEASE_EXPORTS}" "${ENGINE_RELEASE_SYMBOLS}")
 engine_add_binary(dmengine_release ${ENGINE_MAIN_SOURCES} "${ENGINE_RELEASE_EXPORTS}")
 engine_configure_executable(dmengine_release release engine_release engine_service_null graphics "profile_null;profilerext_null" "ProfilerExt")
-defold_codesign_target(dmengine_release)
+defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
   LiveUpdateExt
@@ -505,7 +505,7 @@ set(ENGINE_HEADLESS_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmen
 defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADLESS_SYMBOLS}")
 engine_add_binary(dmengine_headless ${ENGINE_MAIN_SOURCES} "${ENGINE_HEADLESS_EXPORTS}")
 engine_configure_executable(dmengine_headless headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
-defold_codesign_target(dmengine_headless)
+defold_codesign_target(dmengine_headless darwin/entitlements-macos-debug.plist)
 
 if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
   set_target_properties(dmengine dmengine_release dmengine_headless PROPERTIES

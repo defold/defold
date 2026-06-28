@@ -16,7 +16,7 @@ option(WITH_DX12 "Enable DirectX 12 graphics backend" OFF)
 option(WITH_METAL "Enable Metal graphics backend" OFF)
 option(WITH_OPUS "Enable Opus audio support" OFF)
 option(WITH_WEBGPU "Enable WebGPU graphics backend" OFF)
-option(DEFOLD_SKIP_CODESIGN "Skip code signing" OFF)
+option(DEFOLD_CODESIGN "Enable code signing" OFF)
 
 set(DEFOLD_CODESIGNING_IDENTITY "Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)" CACHE STRING "Codesigning identity for macOS")
 set(DEFOLD_GCLOUD_PROJECTID "" CACHE STRING "Google Cloud project id where key ring is stored")

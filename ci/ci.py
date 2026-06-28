@@ -310,8 +310,8 @@ def build_engine(channel, platform, args):
     if args.archive:
         cmd_args.append('archive_engine')
 
-    if args.skip_codesign:
-        cmd_opts.append('--skip-codesign')
+    if args.codesign:
+        cmd_opts.append('--codesign')
     if args.skip_docs:
         cmd_opts.append('--skip-docs')
     if args.skip_builtins:
@@ -320,7 +320,7 @@ def build_engine(channel, platform, args):
         cmd_opts.append('--skip-tests')
     if args.skip_build_tests:
         waf_opts.append('--skip-build-tests')
-    if args.gcloud_service_key:
+    if args.codesign and args.gcloud_service_key:
         cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
 
     if args.with_valgrind:
@@ -356,16 +356,18 @@ def build_editor2(channel, platform, args):
 
     if args.engine_artifacts:
         cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
-    if args.notarization_username:
+    if args.codesign and args.notarization_username:
         cmd_opts.append('--notarization-username="%s"' % args.notarization_username)
-    if args.notarization_password:
+    if args.codesign and args.notarization_password:
         cmd_opts.append('--notarization-password="%s"' % args.notarization_password)
-    if args.notarization_itc_provider:
+    if args.codesign and args.notarization_itc_provider:
         cmd_opts.append('--notarization-itc-provider="%s"' % args.notarization_itc_provider)
-    if args.gcloud_service_key:
+    if args.codesign and args.gcloud_service_key:
         cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
     if args.skip_tests:
         cmd_opts.append('--skip-tests')
+    if args.codesign:
+        cmd_opts.append('--codesign')
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
@@ -512,7 +514,7 @@ def main(argv):
     parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
-    parser.add_argument("--skip-codesign", dest="skip_codesign", action='store_true', help="")
+    parser.add_argument("--codesign", dest="codesign", action='store_true', help="Enable code signing")
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
