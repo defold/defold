@@ -972,6 +972,7 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
     build_command = (
         f'{path_prefix}{_msbuild_command_arg(cmake_path)} --build {_msbuild_command_arg(build_dir)} '
         f'--config "$(Configuration)" --target "{_xml_escape(target_name)}"'
+        f' -- /nodeReuse:false /v:minimal'
         f' &amp;&amp; {stage_invocation}'
         f' &amp;&amp; {deploy_invocation}')
     symbol_search_path = ';'.join([layout_dir, os.path.dirname(exe_path), target_binary_dir])

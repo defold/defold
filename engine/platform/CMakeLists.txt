@@ -135,6 +135,7 @@ defold_add_sdk_headers_target(platform_dmsdk_sdk_headers
     DEPENDS platform)
 add_custom_target(platform_sdk_headers
     DEPENDS platform_public_sdk_headers platform_dmsdk_sdk_headers)
+set_target_properties(platform PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk_headers)
 
 install(FILES
     "${PLAT_SRC_DIR}/dmsdk/platform/window.h"

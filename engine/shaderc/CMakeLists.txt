@@ -39,9 +39,63 @@ if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
   set(SHADERC_IS_DESKTOP ON)
 endif()
 
+find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
+find_program(DEFOLD_CLANGPP
+  NAMES clang++
+  HINTS
+    "${DEFOLD_VISUAL_STUDIO_ROOT}/VC/Tools/Llvm/x64/bin"
+    "${DEFOLD_VISUAL_STUDIO_ROOT}/VC/Tools/Llvm/ARM64/bin"
+    "C:/Program Files/LLVM/bin"
+    "C:/Program Files (x86)/LLVM/bin")
+if(NOT DEFOLD_CLANGPP)
+  message(FATAL_ERROR "Could not find clang++. It is required to generate shaderc Java bindings.")
+endif()
+
+set(SHADERC_JAVA_DIR "${CMAKE_CURRENT_BINARY_DIR}/java")
+set(SHADERC_JNI_DIR "${CMAKE_CURRENT_BINARY_DIR}/jni")
+set(SHADERC_GENERATED_JAVA "${SHADERC_JAVA_DIR}/com/dynamo/bob/pipeline/Shaderc.java")
+set(SHADERC_GENERATED_CPP "${SHADERC_JNI_DIR}/Shaderc_jni.cpp")
+set(SHADERC_GENERATED_H "${SHADERC_JNI_DIR}/Shaderc_jni.h")
+
+add_custom_command(
+  OUTPUT "${SHADERC_GENERATED_JAVA}" "${SHADERC_GENERATED_CPP}" "${SHADERC_GENERATED_H}"
+  COMMAND "${CMAKE_COMMAND}" -E env
+          "DEFOLD_HOME=${DEFOLD_HOME}"
+          "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+          "CLANGPP=${DEFOLD_CLANGPP}"
+          "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
+          --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
+          --header "${SHADERC_SRC_DIR}/shaderc.h"
+          --namespace dmShaderc
+          --package com.dynamo.bob.pipeline
+          --java-outdir "${SHADERC_JAVA_DIR}"
+          --jni-outdir "${SHADERC_JNI_DIR}"
+          --include "${SHADERC_SRC_DIR}"
+          --include "${DEFOLD_DMSDK_INCLUDE_DIR}"
+          --include "${DEFOLD_INCLUDE_DIR}"
+          --include "${DEFOLD_EXT_INCLUDE_DIR}"
+  DEPENDS
+    "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
+    "${SHADERC_SRC_DIR}/shaderc.h"
+  COMMENT "Generating Java/JNI bindings for shaderc.h")
+
+set(SHADERC_JAR "${CMAKE_CURRENT_BINARY_DIR}/shaderc.jar")
+set(SHADERC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")
+add_custom_command(
+  OUTPUT "${SHADERC_JAR}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${SHADERC_CLASSES_DIR}"
+  COMMAND "${DEFOLD_JAVAC_EXECUTABLE}" -g --release 8 -Xlint:-options
+          -d "${SHADERC_CLASSES_DIR}"
+          "${SHADERC_GENERATED_JAVA}"
+          "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
+  COMMAND "${Java_JAR_EXECUTABLE}" cf "${SHADERC_JAR}" -C "${SHADERC_CLASSES_DIR}" .
+  DEPENDS "${SHADERC_GENERATED_JAVA}" "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
+  COMMENT "Packaging shaderc.jar")
+add_custom_target(shaderc_jar ALL DEPENDS "${SHADERC_JAR}")
+install(FILES "${SHADERC_JAR}" DESTINATION share/java)
+
 if(SHADERC_IS_DESKTOP)
   find_package(JNI REQUIRED)
-  find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
 
   set(SHADERC_CORE_SOURCES
     "${SHADERC_SRC_DIR}/shaderc.cpp"
@@ -57,33 +111,6 @@ if(SHADERC_IS_DESKTOP)
     list(APPEND SHADERC_EXTRA_INCLUDES "${DEFOLD_EXT_INCLUDE_DIR}/directx")
     list(APPEND SHADERC_EXTRA_LIBS d3dcompiler.lib uuid.lib dxcompiler.lib D3D12.lib DXGI.lib)
   endif()
-
-  set(SHADERC_JAVA_DIR "${CMAKE_CURRENT_BINARY_DIR}/java")
-  set(SHADERC_JNI_DIR "${CMAKE_CURRENT_BINARY_DIR}/jni")
-  set(SHADERC_GENERATED_JAVA "${SHADERC_JAVA_DIR}/com/dynamo/bob/pipeline/Shaderc.java")
-  set(SHADERC_GENERATED_CPP "${SHADERC_JNI_DIR}/Shaderc_jni.cpp")
-  set(SHADERC_GENERATED_H "${SHADERC_JNI_DIR}/Shaderc_jni.h")
-
-  add_custom_command(
-    OUTPUT "${SHADERC_GENERATED_JAVA}" "${SHADERC_GENERATED_CPP}" "${SHADERC_GENERATED_H}"
-    COMMAND "${CMAKE_COMMAND}" -E env
-            "DEFOLD_HOME=${DEFOLD_HOME}"
-            "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
-            "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
-            --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
-            --header "${SHADERC_SRC_DIR}/shaderc.h"
-            --namespace dmShaderc
-            --package com.dynamo.bob.pipeline
-            --java-outdir "${SHADERC_JAVA_DIR}"
-            --jni-outdir "${SHADERC_JNI_DIR}"
-            --include "${SHADERC_SRC_DIR}"
-            --include "${DEFOLD_DMSDK_INCLUDE_DIR}"
-            --include "${DEFOLD_INCLUDE_DIR}"
-            --include "${DEFOLD_EXT_INCLUDE_DIR}"
-    DEPENDS
-      "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
-      "${SHADERC_SRC_DIR}/shaderc.h"
-    COMMENT "Generating Java/JNI bindings for shaderc.h")
 
   defold_add_library(shaderc STATIC ${SHADERC_CORE_SOURCES})
   target_include_directories(shaderc PUBLIC "${SHADERC_SRC_DIR}" "${SHADERC_SRC_DIR}/shader" ${SHADERC_EXTRA_INCLUDES})
@@ -112,19 +139,6 @@ if(SHADERC_IS_DESKTOP)
     ${SHADERC_EXTRA_LIBS})
   defold_target_link_app(shaderc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
 
-  set(SHADERC_JAR "${CMAKE_CURRENT_BINARY_DIR}/shaderc.jar")
-  set(SHADERC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")
-  add_custom_command(
-    OUTPUT "${SHADERC_JAR}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${SHADERC_CLASSES_DIR}"
-    COMMAND "${DEFOLD_JAVAC_EXECUTABLE}" -g --release 8 -Xlint:-options
-            -d "${SHADERC_CLASSES_DIR}"
-            "${SHADERC_GENERATED_JAVA}"
-            "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
-    COMMAND "${Java_JAR_EXECUTABLE}" cf "${SHADERC_JAR}" -C "${SHADERC_CLASSES_DIR}" .
-    DEPENDS shaderc_bindings "${SHADERC_SRC_DIR}/java/com/dynamo/bob/pipeline/ShadercJni.java"
-    COMMENT "Packaging shaderc.jar")
-  add_custom_target(shaderc_jar ALL DEPENDS "${SHADERC_JAR}")
   add_dependencies(shaderc_jar shaderc_bindings)
 
   add_subdirectory(src/standalone)
@@ -139,8 +153,6 @@ if(SHADERC_IS_DESKTOP)
     DEPENDS shaderc dlib_sdk_headers)
   defold_install_targets(TARGETS shaderc_standalone
           RUNTIME DESTINATION bin/${TARGET_PLATFORM})
-  install(FILES "${SHADERC_JAR}" DESTINATION share/java)
-
   if(BUILD_TESTS)
     add_subdirectory(src/test)
   endif()

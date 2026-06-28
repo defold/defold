@@ -181,7 +181,7 @@ function(defold_target_link_libraries target platform)
         get_target_property(_sdk_headers_target "${_lib}" DEFOLD_SDK_HEADERS_TARGET)
       endif()
 
-      if(_sdk_headers_target AND TARGET "${_sdk_headers_target}" AND NOT DEFOLD_MSVC_IDE_SOLUTION)
+      if(_sdk_headers_target AND TARGET "${_sdk_headers_target}")
         add_dependencies(${target} "${_sdk_headers_target}")
       endif()
     endif()
@@ -448,6 +448,10 @@ function(defold_add_executable target)
   # Forward all remaining args directly to add_executable
   add_executable(${target} ${_sources})
 
+  if(TARGET defold_sdk)
+    target_link_libraries(${target} PRIVATE defold_sdk)
+  endif()
+
   # Attach local include dir (e.g., ./include) and headers if present
   if(COMMAND defold_attach_local_include)
     defold_attach_local_include(${target})
@@ -532,6 +536,14 @@ function(defold_add_library target)
 
   # Forward all remaining args directly to add_library
   add_library(${target} ${_sources})
+
+  if(TARGET defold_sdk)
+    get_target_property(_defold_target_type ${target} TYPE)
+    if(NOT _defold_target_type STREQUAL "INTERFACE_LIBRARY")
+      target_link_libraries(${target} PRIVATE defold_sdk)
+    endif()
+    unset(_defold_target_type)
+  endif()
 
   if(target MATCHES "_noasan$" AND COMMAND defold_target_skip_sanitizer)
     defold_target_skip_sanitizer(${target})
