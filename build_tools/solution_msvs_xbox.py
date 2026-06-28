@@ -1272,7 +1272,155 @@ def _slnx_project_reference(solution_dir, project_path):
         return os.path.abspath(project_path).replace('\\', '/')
 
 
-def _replace_xbone_slnx_projects(solution_path, source_slnx_path, debug_projects_by_source, log):
+def _slnx_folder_name(folder):
+    return f'/{folder.strip("/")}/'
+
+
+def _slnx_sort_solution_folders(root):
+    folders = [child for child in list(root) if _xml_local_name(child.tag) == 'Folder']
+    if not folders:
+        return
+
+    for folder in folders:
+        root.remove(folder)
+
+    def sort_key(folder_element):
+        folder = _slnx_folder_path(folder_element.get('Name')) or ''
+        return _folder_sort_key(folder)
+
+    for folder in sorted(folders, key=sort_key):
+        root.append(folder)
+
+
+def _slnx_merge_solution_files(root, folder_files):
+    folders_by_name = {}
+    for child in root:
+        if _xml_local_name(child.tag) == 'Folder':
+            folders_by_name[child.get('Name')] = child
+
+    def ensure_folder(folder):
+        folder = folder.strip('/').replace('\\', '/')
+        parts = folder.split('/')
+        for i in range(1, len(parts) + 1):
+            folder_name = _slnx_folder_name('/'.join(parts[:i]))
+            if folder_name not in folders_by_name:
+                folders_by_name[folder_name] = ElementTree.Element(
+                    _xml_tag(root, 'Folder'),
+                    {'Name': folder_name})
+                root.append(folders_by_name[folder_name])
+        return folders_by_name[_slnx_folder_name(folder)]
+
+    added_files = 0
+    for folder, file_paths in sorted(folder_files.items(), key=lambda item: _folder_sort_key(item[0])):
+        folder_element = ensure_folder(folder)
+        existing_files = {
+            file_element.get('Path', '').replace('\\', '/').lower()
+            for file_element in folder_element
+            if _xml_local_name(file_element.tag) == 'File'
+        }
+        for file_path in sorted(file_paths, key=lambda path: path.lower()):
+            solution_file_path = solution_msvs._solution_file_path(file_path)
+            file_key = solution_file_path.lower()
+            if file_key in existing_files:
+                continue
+            folder_element.append(ElementTree.Element(
+                _xml_tag(folder_element, 'File'),
+                {'Path': solution_file_path}))
+            existing_files.add(file_key)
+            added_files += 1
+
+    if added_files:
+        _slnx_sort_solution_folders(root)
+    return added_files
+
+
+def _engine_solution_folder_for_file(file_path, repo_roots):
+    if not file_path:
+        return None
+    file_path = os.path.abspath(file_path.replace('/', os.sep).replace('\\', os.sep))
+    for repo_root in repo_roots:
+        if not repo_root:
+            continue
+        engine_root = os.path.abspath(os.path.join(repo_root, 'engine'))
+        try:
+            rel_path = relpath(file_path, engine_root)
+        except ValueError:
+            continue
+        if rel_path.startswith('..' + os.sep) or rel_path == '..' or os.path.isabs(rel_path):
+            continue
+        parts = rel_path.replace('\\', '/').split('/')
+        if len(parts) < 2:
+            continue
+        module_name = parts[0]
+        rel_dir = os.path.dirname('/'.join(parts[1:])).replace('\\', '/')
+        folder = f'Engine/{module_name}'
+        if rel_dir:
+            folder = f'{folder}/{rel_dir}'
+        return folder
+    return None
+
+
+def _engine_solution_folder_exists(folder, repo_roots):
+    parts = folder.strip('/').split('/')
+    if len(parts) < 2 or parts[0] != 'Engine':
+        return True
+    module_name = parts[1]
+    rel_dir = os.path.join(*parts[2:]) if len(parts) > 2 else ''
+    for repo_root in repo_roots:
+        if not repo_root:
+            continue
+        path = os.path.join(repo_root, 'engine', module_name, rel_dir)
+        if os.path.isdir(path):
+            return True
+    return False
+
+
+def _slnx_relocate_engine_solution_files(root, repo_roots):
+    repo_roots = [os.path.abspath(root) for root in repo_roots if root]
+    if not repo_roots:
+        return 0, 0
+
+    folder_files = {}
+    moved_files = 0
+    for folder_element in list(root):
+        if _xml_local_name(folder_element.tag) != 'Folder':
+            continue
+        current_folder = _slnx_folder_path(folder_element.get('Name'))
+        for child in list(folder_element):
+            if _xml_local_name(child.tag) != 'File':
+                continue
+            actual_folder = _engine_solution_folder_for_file(child.get('Path'), repo_roots)
+            if not actual_folder:
+                continue
+            folder_element.remove(child)
+            folder_files.setdefault(actual_folder, set()).add(child.get('Path'))
+            if current_folder != actual_folder:
+                moved_files += 1
+
+    if folder_files:
+        _slnx_merge_solution_files(root, folder_files)
+
+    removed_folders = 0
+    for folder_element in list(root):
+        if _xml_local_name(folder_element.tag) != 'Folder' or len(folder_element):
+            continue
+        folder = _slnx_folder_path(folder_element.get('Name'))
+        if folder and folder.startswith('Engine/') and not _engine_solution_folder_exists(folder, repo_roots):
+            root.remove(folder_element)
+            removed_folders += 1
+
+    if moved_files or removed_folders:
+        _slnx_sort_solution_folders(root)
+    return moved_files, removed_folders
+
+
+def _slnx_merge_private_xbox_sources(root, private_repo_root):
+    if not private_repo_root or not os.path.isdir(os.path.join(private_repo_root, 'engine')):
+        return 0
+    return _slnx_merge_solution_files(root, solution_msvs._engine_source_files(private_repo_root))
+
+
+def _replace_xbone_slnx_projects(solution_path, source_slnx_path, debug_projects_by_source, log, defold_root=None, private_repo_root=None):
     if not source_slnx_path or not source_slnx_path.endswith('.slnx') or not os.path.exists(source_slnx_path):
         return False
 
@@ -1329,11 +1477,20 @@ def _replace_xbone_slnx_projects(solution_path, source_slnx_path, debug_projects
             elif resolved_dependency:
                 dependency.set('Project', _slnx_project_reference(solution_dir, resolved_dependency))
 
+    added_private_sources = _slnx_merge_private_xbox_sources(root, private_repo_root)
+    moved_engine_files, removed_virtual_folders = _slnx_relocate_engine_solution_files(
+        root,
+        [defold_root, private_repo_root])
+
     try:
         ElementTree.indent(tree, space='\t')
     except AttributeError:
         pass
     tree.write(solution_path, encoding='utf-8', xml_declaration=True)
+    if added_private_sources:
+        log(f'Added {added_private_sources} private Xbox source files to Visual Studio solution folders')
+    if moved_engine_files or removed_virtual_folders:
+        log(f'Relocated {moved_engine_files} engine solution files and removed {removed_virtual_folders} virtual folders')
     log(f'Xbox solution generated from organized Visual Studio solution: {solution_path} ({replaced_projects} launchable projects)')
     return True
 
@@ -1430,7 +1587,13 @@ def generate_xbone_solution(solution_dir, build_dir, target_name, private_repo_r
             except Exception as e:
                 log(f'Warning: Failed to remove stale Xbox solution {stale_path}: {e}')
 
-    if not _replace_xbone_slnx_projects(solution_file, solution_path, debug_projects_by_source, log):
+    if not _replace_xbone_slnx_projects(
+            solution_file,
+            solution_path,
+            debug_projects_by_source,
+            log,
+            os.path.abspath(defold_root),
+            os.path.abspath(private_repo_root)):
         solution_file = os.path.join(solution_dir, f'{target_name}.sln')
         _write_xbone_debug_solution(solution_file, projects, os.path.abspath(defold_root))
         log(f'Xbox solution generated: {solution_file}')

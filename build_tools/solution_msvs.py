@@ -160,7 +160,6 @@ def _engine_source_files(defold_root):
         '.mm', '.proto', '.py', '.script', '.sh', '.txt', '.yml',
         '.yaml',
     }
-    header_extensions = {'.h', '.hpp', '.hxx', '.inc', '.inl'}
     excluded_dirs = {'__pycache__', '.git', '.gradle', '.vs', 'build', 'tmp'}
     folder_files = {}
 
@@ -173,15 +172,12 @@ def _engine_source_files(defold_root):
             continue
         module_name = os.path.basename(module_root)
 
-        def add_file(path, folder_override=None):
+        def add_file(path):
             rel_path = relpath(path, module_root).replace('\\', '/')
             folder = f'Engine/{module_name}'
-            if folder_override:
-                folder = f'{folder}/{folder_override}'
-            else:
-                rel_dir = os.path.dirname(rel_path).replace('\\', '/')
-                if rel_dir:
-                    folder = f'{folder}/{rel_dir}'
+            rel_dir = os.path.dirname(rel_path).replace('\\', '/')
+            if rel_dir:
+                folder = f'{folder}/{rel_dir}'
             folder_files.setdefault(folder, set()).add(_solution_file_path(path))
 
         for file_name in root_file_names:
@@ -198,16 +194,7 @@ def _engine_source_files(defold_root):
                 for file_name in sorted(file_names):
                     extension = os.path.splitext(file_name)[1].lower()
                     if extension in source_extensions:
-                        path = join(current_root, file_name)
-                        if source_root == 'src' and extension in header_extensions:
-                            rel_source_path = relpath(path, root_path).replace('\\', '/')
-                            rel_source_dir = os.path.dirname(rel_source_path).replace('\\', '/')
-                            include_folder = 'include'
-                            if rel_source_dir:
-                                include_folder = f'{include_folder}/{rel_source_dir}'
-                            add_file(path, include_folder)
-                        else:
-                            add_file(path)
+                        add_file(join(current_root, file_name))
 
     return {
         folder: sorted(files, key=lambda path: path.lower())
