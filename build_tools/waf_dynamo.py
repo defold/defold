@@ -82,7 +82,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengl_compute':
         return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux', 'armv7-android', 'arm64-android']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-ios', 'arm64-ios']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     if feature == 'metal':
