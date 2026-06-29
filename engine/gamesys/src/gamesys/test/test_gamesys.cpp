@@ -1530,6 +1530,10 @@ public:
         assert(g_GamesysErrorLogCapture == 0);
         g_GamesysErrorLogCapture = this;
         dmLogRegisterListener(CaptureGamesysErrorLog);
+        // dmLog listener callbacks are delivered by the log thread. Discard
+        // expected errors that were queued by previous tests before capturing.
+        dmTime::Sleep(60 * 1000);
+        m_Output.SetSize(0);
     }
 
     ~GamesysErrorLogCapture()
@@ -1553,17 +1557,36 @@ public:
 
     bool Contains(const char* needle)
     {
-        if (m_Output.Size() == 0 || m_Output[m_Output.Size() - 1] != '\0')
+        return strstr(Output(), needle) != 0;
+    }
+
+    const char* Output()
+    {
+        if (m_Output.Size() == 0)
+        {
+            return "";
+        }
+        if (m_Output[m_Output.Size() - 1] != '\0')
         {
             m_Output.OffsetCapacity(1);
             m_Output.Push('\0');
         }
-        return strstr(m_Output.Begin(), needle) != 0;
+        return m_Output.Begin();
     }
 
 private:
     dmArray<char> m_Output;
 };
+
+static bool GamesysErrorLogCaptureEmpty(GamesysErrorLogCapture& log_capture)
+{
+    bool empty = log_capture.Empty();
+    if (!empty)
+    {
+        printf("Unexpected GAMESYS error log output:\n%s", log_capture.Output());
+    }
+    return empty;
+}
 
 static void CaptureGamesysErrorLog(LogSeverity severity, const char* domain, const char* formatted_string)
 {
@@ -2272,7 +2295,7 @@ TEST_F(SpriteTest, SetImageThenPlayAnimationDoesNotLogErrors)
         ASSERT_EQ(atlas_b, GetHashProperty(go, sprite_comp_id, image_prop_id, &tex1_options));
         ASSERT_EQ(animation_b, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, atlas_resource);
@@ -2306,7 +2329,7 @@ TEST_F(SpriteTest, SetImageKeepsSharedAnimationWithoutLogging)
         RenderCollection(m_RenderContext, m_Collection);
 
         ASSERT_EQ(shared_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, image_resource);
@@ -2350,7 +2373,7 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstAnimationWithoutLogging)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         ASSERT_EQ(new_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, image_resource);
@@ -2398,7 +2421,7 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstTrimmedAnimationWithoutLogging)
 
         ASSERT_EQ(fallback_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
         ASSERT_EQ(0u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, image_resource);
