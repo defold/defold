@@ -616,6 +616,8 @@ ordinary paths."
       (when-not (Boolean/getBoolean "defold.tests")
         (log/info :message (str "Loaded plugin: " (resource/path resource)))))
     (catch Exception e
+      (when (Boolean/getBoolean "defold.tests")
+        (throw e))
       (log/error :message (str "Exception while loading plugin: " (resource/path resource))
                  :plugin-path (resource/path resource)
                  :exception e)

@@ -404,7 +404,6 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
@@ -509,7 +508,6 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
@@ -757,7 +755,6 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
@@ -1030,7 +1027,6 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
@@ -1273,7 +1269,6 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
@@ -1571,7 +1566,6 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)
           edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
@@ -1723,7 +1717,6 @@
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]

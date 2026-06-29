@@ -81,8 +81,7 @@
 
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
-    (let [project-graph (g/node-id->graph-id project)
-          game-object-path "/game_object/embedded_components.go"
+    (let [game-object-path "/game_object/embedded_components.go"
           game-object (project/get-resource-node project game-object-path)
           embedded-component (ffirst (g/sources-of game-object :child-scenes))]
       (doseq [original-scale

@@ -292,8 +292,7 @@
 
 (declare ^:private make-delete-nodes-change)
 
-(declare ->DeleteNodeTXC
-         ->UpdateGraphValueTXC
+(declare ->DeleteNodesTXC
          add-node
          realize-tx)
 
@@ -850,7 +849,7 @@
       ctx)
     ctx))
 
-(defn- override-node-ids-removed-by-disconnect [ctx source-id _source-label target-id target-label]
+(defn- override-node-ids-removed-by-disconnect [ctx source-id target-id target-label]
   (let [basis (:basis ctx)
         target (gt/node-by-id-at basis target-id)]
     (if-not (contains? (in/cascade-deletes (gt/node-type target)) target-label)
@@ -869,11 +868,6 @@
                      (into result to-delete)))
             result))))))
 
-(defn- ctx-remove-overrides [ctx source-id source-label target-id target-label]
-  (reduce ctx-delete-node
-          ctx
-          (override-node-ids-removed-by-disconnect ctx source-id source-label target-id target-label)))
-
 (defn- ctx-perform-disconnect-arc [ctx source-id source-label target-id target-label]
   (-> ctx
       (mark-input-activated target-id target-label)
@@ -889,9 +883,10 @@
                    (ig/get-overrides (:basis ctx) source-id)))))))
 
 (defn- ctx-disconnect [ctx source-id source-label target-id target-label]
-  (-> ctx
-      (ctx-perform-disconnect-arc source-id source-label target-id target-label)
-      (ctx-remove-overrides source-id source-label target-id target-label)))
+  (let [ctx (ctx-perform-disconnect-arc ctx source-id source-label target-id target-label)]
+    (reduce ctx-delete-node
+            ctx
+            (override-node-ids-removed-by-disconnect ctx source-id target-id target-label))))
 
 (defn- ctx-invalidate [ctx node-id]
   (if (gt/node-by-id-at (:basis ctx) node-id)
@@ -1150,7 +1145,17 @@
   [node-id property-label]
   [(->ClearPropertyTXS node-id property-label)])
 
-(defonce/type UpdateGraphValueTXS [graph-id fn args]
+(defonce/type UpdateGraphValueTXC [graph-id k old-value old-value-assigned new-value]
+  TransactionChange
+  (perform [_this ctx]
+    (assoc-in ctx [:basis :graphs graph-id :graph-values k] new-value))
+
+  (revert [_this ctx]
+    (if old-value-assigned
+      (assoc-in ctx [:basis :graphs graph-id :graph-values k] old-value)
+      (update-in ctx [:basis :graphs graph-id :graph-values] dissoc k))))
+
+(defonce/type UpdateGraphValueTXS [graph-id k fn args]
   TransactionStep
   (step-type [_this]
     :tx-step/update-graph-value)
@@ -1159,25 +1164,20 @@
     graph-id)
 
   (realize [_this ctx undoable-changes]
-    (let [old-graph-values (get-in ctx [:basis :graphs graph-id :graph-values])
-          new-graph-values (apply fn old-graph-values args)]
-      (perform-and-conj-change ctx undoable-changes (->UpdateGraphValueTXC graph-id old-graph-values new-graph-values)))))
+    (let [graph-values (get-in ctx [:basis :graphs graph-id :graph-values])
+          value-for-key (get graph-values k ::not-found)
+          old-value (case value-for-key ::not-found nil value-for-key)
+          old-value-assigned (case value-for-key ::not-found false true)
+          new-value (apply fn old-value args)]
+      (perform-and-conj-change ctx undoable-changes (->UpdateGraphValueTXC graph-id k old-value old-value-assigned new-value)))))
 
 (defn update-graph-value
   "*transaction step* - Update a graph value."
-  [graph-id fn args]
+  [graph-id k fn args]
   {:pre [(gt/graph-id? graph-id)
          (ifn? fn)
          (coll/eager-seqable? args)]}
-  [(->UpdateGraphValueTXS graph-id fn args)])
-
-(defonce/type UpdateGraphValueTXC [graph-id old-graph-values new-graph-values]
-  TransactionChange
-  (perform [_this ctx]
-    (assoc-in ctx [:basis :graphs graph-id :graph-values] new-graph-values))
-
-  (revert [_this ctx]
-    (assoc-in ctx [:basis :graphs graph-id :graph-values] old-graph-values)))
+  [(->UpdateGraphValueTXS graph-id k fn args)])
 
 (defonce/type CallbackTXS [callback-fn args opts]
   TransactionStep
@@ -1250,7 +1250,6 @@
         (override-node-ids-removed-by-disconnect
           ctx
           source-id
-          source-label
           target-id
           target-label)]
 

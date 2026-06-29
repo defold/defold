@@ -107,8 +107,7 @@
 
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
-    (let [project-graph (g/node-id->graph-id project)
-          collision-object-path "/collision_object/three_shapes.collisionobject"
+    (let [collision-object-path "/collision_object/three_shapes.collisionobject"
           collision-object (project/get-resource-node project collision-object-path)
           [[sphere-shape] [box-shape] [capsule-shape]] (g/sources-of collision-object :child-scenes)]
 

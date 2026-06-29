@@ -148,8 +148,7 @@
 
 (deftest keep-existing-nodes-no-false-positives-test
   (test-util/with-scratch-project project-path
-    (let [project-graph (g/node-id->graph-id project)
-          resource-change-plans-atom (make-resource-change-plans-atom! project)
+    (let [resource-change-plans-atom (make-resource-change-plans-atom! project)
 
           resource+edited-contents
           (with-open [_ (test-util/make-undo-reverter :undo/global)]

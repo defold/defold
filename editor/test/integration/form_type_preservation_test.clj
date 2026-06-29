@@ -120,8 +120,7 @@
       (test-util/editable-controls)))
 
 (defn- check-text-fields! [resource-node prop-kw new-num-values text-fields-fn]
-  (let [project-graph (g/node-id->graph-id resource-node)
-        view-node (ffirst (g/targets-of resource-node :form-data))
+  (let [view-node (ffirst (g/targets-of resource-node :form-data))
         original-value (g/node-value resource-node prop-kw)
 
         check-field!

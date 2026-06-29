@@ -1009,7 +1009,7 @@
   (transact (clear-property node-id p)))
 
 (defn update-graph-value [graph-id k f & args]
-  (it/update-graph-value graph-id update (into [k f] args)))
+  (it/update-graph-value graph-id k f args))
 
 (defn set-graph-value
  "Create the transaction step to attach a named value to a graph. It will take effect when the transaction is
@@ -1020,7 +1020,7 @@
   `(transact (set-graph-value 0 :string-value \"A String\"))`"
   [graph-id k v]
   (assert graph-id)
-  (it/update-graph-value graph-id assoc [k v]))
+  (it/update-graph-value graph-id k (constantly v) []))
 
 (defn set-graph-value!
   "Create the transaction step to attach a named value to a graph and applies the transaction.

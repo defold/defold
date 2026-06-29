@@ -37,3 +37,25 @@
       (testing "Redo."
         (g/redo! :undo/global)
         (is (= {:a 1} (g/graph-value graph-id :things)))))))
+
+(deftest undo-is-granular-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)]
+      (g/transact
+        {:undoable false}
+        (g/set-graph-value graph-id :counter 0))
+
+      (testing "Transact."
+        (g/transact
+          {:undo-key ::counter}
+          (g/update-graph-value graph-id :counter inc))
+        (g/transact
+          {:undo-key ::resource}
+          (g/set-graph-value graph-id :resource "main.collection"))
+        (is (= 1 (g/graph-value graph-id :counter)))
+        (is (= "main.collection" (g/graph-value graph-id :resource))))
+
+      (testing "Undo."
+        (g/undo! ::counter)
+        (is (= 0 (g/graph-value graph-id :counter)))
+        (is (= "main.collection" (g/graph-value graph-id :resource)))))))

@@ -127,8 +127,7 @@
 
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
-    (let [project-graph (g/node-id->graph-id project)
-          particlefx-path "/particlefx/fireworks_big.particlefx"
+    (let [particlefx-path "/particlefx/fireworks_big.particlefx"
           particlefx (project/get-resource-node project particlefx-path)
           [[emitter] _ [modifier]] (g/sources-of particlefx :child-scenes)
           check! (fn check! [node-id prop-kw]
