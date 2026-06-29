@@ -220,6 +220,10 @@ namespace dmRender
         dmGraphics::Type                m_IndexType;
         dmGraphics::BlendFactor         m_SourceBlendFactor;
         dmGraphics::BlendFactor         m_DestinationBlendFactor;
+        dmGraphics::BlendFactor         m_SourceBlendFactorAlpha;
+        dmGraphics::BlendFactor         m_DestinationBlendFactorAlpha;
+        dmGraphics::BlendEquation       m_BlendEquationColor;
+        dmGraphics::BlendEquation       m_BlendEquationAlpha;
         dmGraphics::FaceWinding         m_FaceWinding;
         StencilTestParams               m_StencilTestParams;
         uint32_t                        m_VertexBufferOffsets[MAX_VERTEX_BUFFER_COUNT];

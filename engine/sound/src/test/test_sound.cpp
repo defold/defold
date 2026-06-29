@@ -115,6 +115,10 @@ extern uint32_t MUSIC_ADPCM_WAV_SIZE;
 extern unsigned char AMBIENCE_ADPCM_WAV[];
 extern uint32_t AMBIENCE_ADPCM_WAV_SIZE;
 
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
+extern "C" int dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart();
+#endif
+
 struct TestParams
 {
     typedef dmSound::SoundDataType SoundDataType;
@@ -2362,6 +2366,20 @@ static int PlaySound(const char* path, dmSound::SoundDataType type)
     return 0;
 }
 
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
+TEST(SoundAVAudio, ReconfigureHandlesEngineStoppedAfterRestart)
+{
+    // The Objective-C++ helper fakes the AVAudio runtime so this exercises the
+    // backend reconfigure path without depending on host audio components.
+    int result = dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart();
+    if (result == 0)
+    {
+        SKIP();
+    }
+    ASSERT_EQ(1, result);
+}
+#endif
+
 TEST(SoundSdk, HighSpeedPlaybackCompletes)
 {
     dmSound::InitializeParams params;
@@ -2689,6 +2707,11 @@ TEST(SoundSdk, GroupToggleMute)
 int main(int argc, char **argv)
 {
     dmExportedSymbols();
+
+#if defined(__EMSCRIPTEN__)
+    printf("Skipping sound tests on html5: WebAudio requires a browser window.\n");
+    return 0;
+#endif
 
     dmSound::SoundDataType sound_type;
     const char* sound_file = FindSoundFile(argc, argv, &sound_type);

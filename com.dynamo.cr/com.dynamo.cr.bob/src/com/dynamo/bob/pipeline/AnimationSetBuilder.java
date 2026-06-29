@@ -37,8 +37,6 @@ import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.google.protobuf.TextFormat;
 
-import javax.xml.stream.XMLStreamException;
-
 @BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc", isCacheble = true)
 public class AnimationSetBuilder extends Builder  {
 
@@ -116,18 +114,12 @@ public class AnimationSetBuilder extends Builder  {
             ArrayList<String> animationIds = new ArrayList<String>();
 
             String suffix = BuilderUtil.getSuffix(animFile.getPath());
-            boolean isCollada = suffix.equals("dae");
+            if (!suffix.equals("gltf") && !suffix.equals("glb")) {
+                throw new CompileExceptionError(animFile, -1, "Unsupported animation format '." + suffix + "'");
+            }
 
             try {
-                if (isCollada)
-                    loadColladaAnimations(animBuilder, animFileIS, animId, parentId);
-                else
-                    loadModelAnimations(isAnimationSet, animBuilder, animFileIS, dataResolver, animId, parentId, animFile.getPath(), animationIds);
-
-            } catch (XMLStreamException e) {
-                throw new CompileExceptionError(animFile, e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(animFile, -1, "Failed to load animation: " + e.getLocalizedMessage(), e);
+                loadModelAnimations(isAnimationSet, animBuilder, animFileIS, dataResolver, animId, parentId, animFile.getPath(), animationIds);
             } catch (IOException e) {
                 throw new CompileExceptionError(animFile, -1, e.getMessage(), e);
             }
@@ -156,15 +148,6 @@ public class AnimationSetBuilder extends Builder  {
             animations.add(instance.getAnimation());
         }
         return makeUnique(animations);
-    }
-
-    static void loadColladaAnimations(AnimationSet.Builder animationSetBuilder, InputStream is, String animId, String parentId)
-    throws IOException, XMLStreamException, LoaderException {
-        ArrayList<String> localAnimationIds = new ArrayList<String>();
-        AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
-        ColladaUtil.loadAnimations(is, animBuilder, animId, localAnimationIds);
-
-        animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
     }
 
     static void loadModelAnimations(boolean isAnimationSet, AnimationSet.Builder animationSetBuilder,
@@ -234,22 +217,15 @@ public class AnimationSetBuilder extends Builder  {
             }
             animationIds.add(animId);
 
-            boolean isCollada = false;
             String suffix = BuilderUtil.getSuffix(path);
-            if (suffix.equals("dae")) {
-                isCollada = true;
+            if (!suffix.equals("gltf") && !suffix.equals("glb")) {
+                throw new CompileExceptionError(String.format("Unsupported animation format '.%s' in animation set: %s", suffix, path));
             }
 
             try {
-                if (isCollada)
-                    loadColladaAnimations(animationSetBuilder, stream, animId, parentId);
-                else
-                    loadModelAnimations(isAnimationSet, animationSetBuilder, stream, dataResolver, animId, parentId, path, animationIds);
-
-            } catch (XMLStreamException e) {
-                throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, e.getLocation().getLineNumber(), e.getLocalizedMessage()), e);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, -1, e.getLocalizedMessage()), e);
+                loadModelAnimations(isAnimationSet, animationSetBuilder, stream, dataResolver, animId, parentId, path, animationIds);
+            } catch (IOException e) {
+                throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, -1, e.getMessage()), e);
             }
         }
     }

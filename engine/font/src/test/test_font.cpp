@@ -44,7 +44,7 @@ protected:
 
     virtual void SetUp() override
     {
-        LoadFont("src/test/vera_mo_bd.ttf", &m_Font);
+        LoadFont("src/test/data/vera_mo_bd.ttf", &m_Font);
 
         m_FontCollection = FontCollectionCreate();
         FontResult r = FontCollectionAddFont(m_FontCollection, m_Font);
@@ -66,9 +66,9 @@ protected:
         ASSERT_NE((HFont)0, font);
 
         const char* font_path = FontGetPath(font);
-        ASSERT_STREQ(path, font_path);
+        ASSERT_STREQ(host_path, font_path);
 
-        uint32_t path_hash = dmHashString32(path);
+        uint32_t path_hash = dmHashString32(host_path);
         ASSERT_EQ(path_hash, FontGetPathHash(font));
 
         *out = font;
@@ -182,7 +182,7 @@ TEST_F(FontTest, LayoutSingleLine)
 TEST_F(FontTest, LayoutSingleLineWithUnknownCharacterLast)
 {
     HFont font;
-    LoadFont("src/test/vera_mo_bd_atoz.ttf", &font);
+    LoadFont("src/test/data/vera_mo_bd_atoz.ttf", &font);
 
     HFontCollection fontCollection = FontCollectionCreate();
     FontResult fr = FontCollectionAddFont(fontCollection, font);
@@ -976,7 +976,7 @@ TEST_F(FontTest, SkribidiLayoutHeightMatchesLegacyLineHeight)
 TEST_F(FontTest, TextArabic)
 {
     HFont font;
-    LoadFont("src/test/NotoSansArabic-Regular.ttf", &font);
+    LoadFont("src/test/data/NotoSansArabic-Regular.ttf", &font);
 
     HFontCollection fontCollection = FontCollectionCreate();
     FontResult fr = FontCollectionAddFont(fontCollection, font);

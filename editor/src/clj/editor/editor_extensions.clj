@@ -104,16 +104,16 @@
     path    a proj-path of the editor script, string
     ret     a Lua data structure returned from function in that file"
   [state fn-keyword opts evaluation-context]
-  (let [{:keys [rt all display-output!]} state
+  (let [{:keys [rt all]} state
         lua-opts (rt/->lua opts)
         label (name fn-keyword)]
     (eduction
       (keep (fn [[path lua-fn]]
               (when-let [lua-ret (error-handling/try-with-extension-exceptions
-                                   :display-output! display-output!
+                                   :rt rt
                                    :label (str label " in " path)
                                    :catch nil
-                                   (rt/invoke-immediate-1 rt lua-fn lua-opts evaluation-context))]
+                                   (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} lua-fn lua-opts))]
                 (when-not (rt/coerces-to? rt coerce/null lua-ret)
                   [path lua-ret]))))
       (get all fn-keyword))))
@@ -314,7 +314,7 @@
                            :out (coerce/enum :capture :discard :pipe)
                            :err (coerce/enum :stdout :discard :pipe)})))
 
-(defn- make-ext-execute-fn [^Path project-path display-output! reload-resources!]
+(defn- make-ext-execute-fn [^Path project-path reload-resources!]
   (rt/suspendable-lua-fn ext-execute [{:keys [rt]} & lua-args]
     (when (empty? lua-args)
       (throw (LuaError. "No arguments provided to editor.execute()")))
@@ -334,12 +334,14 @@
           maybe-output-future (when (= :capture out)
                                 (future/io
                                   (or (process/capture! (process/out p))
-                                      empty-lua-string)))]
-      (when (= :pipe out)
-        (actions/input-stream->console (process/out p) display-output! :out))
-      (when (= :pipe err)
-        (actions/input-stream->console (process/err p) display-output! :err))
+                                      empty-lua-string)))
+          out-future (when (= :pipe out)
+                       (actions/input-stream->console (process/out p) (rt/stdout rt)))
+          err-future (when (= :pipe err)
+                       (actions/input-stream->console (process/err p) (rt/stderr rt)))]
       (-> (.onExit p)
+          (cond-> out-future (future/then (fn [_] out-future))
+                  err-future (future/then (fn [_] err-future)))
           (future/then
             (fn [_]
               (let [exit-code (.exitValue p)]
@@ -628,14 +630,14 @@
       :opt {:watched_files (coerce/vector-of (coerce/hash-map :req {:pattern coerce/string}) :min-count 1)})))
 
 (defn- ext-language-servers [state evaluation-context]
-  (let [{:keys [display-output! rt]} state]
+  (let [{:keys [rt]} state]
     (into
       #{}
       (comp
         (mapcat
           (fn [[path lua-language-servers]]
             (error-handling/try-with-extension-exceptions
-              :display-output! display-output!
+              :rt rt
               :label (str "Reloading language servers in " path)
               :catch []
               (rt/->clj rt language-servers-coercer lua-language-servers))))
@@ -664,18 +666,18 @@
   (coerce/vector-of commands/command-coercer))
 
 (defn- command-handlers [project state evaluation-context]
-  (let [{:keys [display-output! rt]} state]
+  (let [{:keys [rt]} state]
     (into []
           (mapcat
             (fn [[path lua-ret]]
               (error-handling/try-with-extension-exceptions
-                :display-output! display-output!
+                :rt rt
                 :label (str "Reloading commands in " path)
                 :catch nil
                 (eduction
                   (keep (fn [command]
                           (error-handling/try-with-extension-exceptions
-                            :display-output! display-output!
+                            :rt rt
                             :label (str (:label command) " in " path)
                             :catch nil
                             (commands/command->dynamic-handler command path project state))))
@@ -686,9 +688,9 @@
   (handler/register! ::commands :handlers command-handlers))
 
 (defn- prefs-schema [state evaluation-context]
-  (let [{:keys [display-output! rt]} state
+  (let [{:keys [rt]} state
         report-omitted-schema! (fn report-omitted-schema! [path reason]
-                                 (display-output! :err (str "Omitting prefs schema definition for path '" (string/join "." (map name path)) "': " reason)))
+                                 (.println (rt/stderr rt) (str "Omitting prefs schema definition for path '" (string/join "." (map name path)) "': " reason)))
         omit-on-conflict (fn omit-on-conflict [a b path]
                            (if (= a b)
                              a
@@ -698,7 +700,7 @@
          (e/keep
            (fn [[proj-path lua-ret]]
              (error-handling/try-with-extension-exceptions
-               :display-output! display-output!
+               :rt rt
                :label (str "Reloading prefs schema in " proj-path)
                :catch nil
                (prefs/subtract-schemas
@@ -718,12 +720,12 @@
     (prefs/register-project-schema! project-path prefs-schema)))
 
 (defn- dynamic-routes [state evaluation-context]
-  (let [{:keys [display-output! rt]} state]
+  (let [{:keys [rt]} state]
     (->> (execute-all-top-level-functions state :get_http_server_routes nil evaluation-context)
          (e/mapcat
            (fn [[proj-path lua-ret]]
              (error-handling/try-with-extension-exceptions
-               :display-output! display-output!
+               :rt rt
                :label (str "Reloading server routes in " proj-path)
                :catch nil
                (e/map
@@ -736,18 +738,20 @@
                (let [{:keys [handler proj-path]} (routes 0)]
                  (assoc-in acc path+method (vary-meta handler assoc :proj-path proj-path)))
                (do
-                 (display-output! :err (str "Omitting conflicting routes for '"
-                                            method " " path "' defined in "
-                                            (->> routes
-                                                 (map :proj-path)
-                                                 (distinct)
-                                                 sort
-                                                 (util/join-words ", " " and "))))
+                 (-> rt
+                     rt/stderr
+                     (.println
+                       (str "Omitting conflicting routes for '" method " " path "' defined in "
+                            (->> routes
+                                 (map :proj-path)
+                                 (distinct)
+                                 sort
+                                 (util/join-words ", " " and ")))))
                  acc)))
            {}))))
 
 (defn- reload-server-routes! [state dynamic-routes]
-  (let [{:keys [display-output! web-server]} state
+  (let [{:keys [rt web-server]} state
         handler (http-server/handler web-server)]
     (try
       (web-server/set-dynamic-routes! handler dynamic-routes)
@@ -776,8 +780,8 @@
                                                     a-is-dynamic [a-path]
                                                     b-is-dynamic [b-path]
                                                     :else (throw (ex-info "Didn't expect 2 built-in routes to conflict" {:a a-path :b b-path})))]
-                               (display-output!
-                                 :err
+                               (.println
+                                 (rt/stderr rt)
                                  (str "Omitting conflicting routes for "
                                       (util/join-words ", " " and " (map #(str "'" % "'") excluded-paths))
                                       " defined in "
@@ -820,7 +824,7 @@
     (reduced (read-bundle-editor-script))))
 
 (defn- re-create-ext-state [initial-state evaluation-context]
-  (let [{:keys [rt display-output!]} initial-state]
+  (let [{:keys [rt]} initial-state]
     (->> (e/concat
            [@bundle-editor-script-prototype]
            (:library-prototypes initial-state)
@@ -830,16 +834,16 @@
              (cond
                (instance? LuaError x)
                (do
-                 (display-output! :err (str "Compilation failed" (some->> (ex-message x) (str ": "))))
+                 (.println (rt/stderr rt) (str "Compilation failed" (some->> (ex-message x) (str ": "))))
                  acc)
 
                (instance? Prototype x)
                (let [proto-path (.tojstring (.-source ^Prototype x))]
                  (if-let [module (error-handling/try-with-extension-exceptions
-                                   :display-output! display-output!
+                                   :rt rt
                                    :label (str "Loading " proto-path)
                                    :catch nil
-                                   (rt/->clj rt module-coercer (rt/invoke-immediate-1 rt (rt/bind rt x) evaluation-context)))]
+                                   (rt/->clj rt module-coercer (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} (rt/bind rt x))))]
                    (-> acc
                        (update :all add-all-entry proto-path module)
                        (cond-> (= hooks-file-path proto-path)
@@ -948,7 +952,7 @@
                                   "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
                                   "resource_attributes" (make-ext-resource-attributes-fn project)
                                   "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
-                                  "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
+                                  "execute" (make-ext-execute-fn project-path reload-resources!)
                                   "bob" (make-ext-bob-fn invoke-bob!)
                                   "browse" ext-browse-fn
                                   "open_external_file" ext-open-external-file-fn
@@ -984,7 +988,7 @@
                         "tilemap" tile-map/env
                         "zip" (zip/env project-path reload-resources!)
                         "zlib" zlib/env})
-             _ (rt/invoke-immediate rt (rt/bind rt @prelude-prototype) evaluation-context)
+             _ (rt/invoke-immediate rt {:evaluation-context evaluation-context} (rt/bind rt @prelude-prototype))
              new-state (re-create-ext-state
                          (assoc opts
                            :rt rt
@@ -1041,7 +1045,7 @@
                            :ignore      return nil
                          When not provided, the exception will be re-thrown"
   [project hook-keyword opts & {:keys [exception-policy]}]
-  (g/let-ec [{:keys [rt display-output! hooks] :as state} (ext-state project evaluation-context)]
+  (g/let-ec [{:keys [rt hooks] :as state} (ext-state project evaluation-context)]
     (if-let [lua-fn (get hooks hook-keyword)]
       (-> (rt/invoke-suspending-1 rt lua-fn (rt/->lua opts))
           (future/then
@@ -1051,7 +1055,7 @@
                   (actions/perform! lua-result project state evaluation-context)))))
           (future/catch
             (fn [ex]
-              (error-handling/display-script-error! display-output! (str "hook " (name hook-keyword)) ex)
+              (error-handling/display-script-error! rt (str "hook " (name hook-keyword)) ex)
               (case exception-policy
                 :as-error (hook-exception->error ex project hook-keyword)
                 :ignore nil

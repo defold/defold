@@ -164,19 +164,21 @@ static void OutputGlyph(FontGlyph* glyph,
 
     float xx = x - f_size_diff * 0.5f;
 
+    // CCW winding order (OpenGL front-face default)
+    // v1=BL, v2=BR, v3=TL, v4=v3=TL, v5=v2=BR, v6=TR
     (Vector4&) v1_layer_face.m_Position = transform * Vector4(xx + f_left_bearing, y - f_descent, 0, 1);
-    (Vector4&) v2_layer_face.m_Position = transform * Vector4(xx + f_left_bearing, y + f_ascent, 0, 1);
-    (Vector4&) v3_layer_face.m_Position = transform * Vector4(xx + f_left_bearing + f_width, y - f_descent, 0, 1);
+    (Vector4&) v2_layer_face.m_Position = transform * Vector4(xx + f_left_bearing + f_width, y - f_descent, 0, 1);
+    (Vector4&) v3_layer_face.m_Position = transform * Vector4(xx + f_left_bearing, y + f_ascent, 0, 1);
     (Vector4&) v6_layer_face.m_Position = transform * Vector4(xx + f_left_bearing + f_width, y + f_ascent, 0, 1);
 
     v1_layer_face.m_UV[0] = (tx + cache_cell_padding) * recip_w;
     v1_layer_face.m_UV[1] = (ty + cache_cell_padding + ascent + descent + px_cell_offset_y) * recip_h;
 
-    v2_layer_face.m_UV[0] = (tx + cache_cell_padding) * recip_w;
-    v2_layer_face.m_UV[1] = (ty + cache_cell_padding + px_cell_offset_y) * recip_h;
+    v2_layer_face.m_UV[0] = (tx + cache_cell_padding + width) * recip_w;
+    v2_layer_face.m_UV[1] = (ty + cache_cell_padding + ascent + descent + px_cell_offset_y) * recip_h;
 
-    v3_layer_face.m_UV[0] = (tx + cache_cell_padding + width) * recip_w;
-    v3_layer_face.m_UV[1] = (ty + cache_cell_padding + ascent + descent + px_cell_offset_y) * recip_h;
+    v3_layer_face.m_UV[0] = (tx + cache_cell_padding) * recip_w;
+    v3_layer_face.m_UV[1] = (ty + cache_cell_padding + px_cell_offset_y) * recip_h;
 
     v6_layer_face.m_UV[0] = (tx + cache_cell_padding + width) * recip_w;
     v6_layer_face.m_UV[1] = (ty + cache_cell_padding + px_cell_offset_y) * recip_h;
@@ -263,9 +265,10 @@ static void OutputGlyph(FontGlyph* glyph,
         v6_layer_shadow = v6_layer_face;
 
         // Shadow offsets must be calculated since we need to offset in local space (before vertex transformation)
+        // CCW winding: v1=BL, v2=BR, v3=TL, v6=TR
         (Vector4&) v1_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x, y - f_descent + shadow_y, 0, 1);
-        (Vector4&) v2_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x, y + f_ascent + shadow_y, 0, 1);
-        (Vector4&) v3_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x + f_width, y - f_descent + shadow_y, 0, 1);
+        (Vector4&) v2_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x + f_width, y - f_descent + shadow_y, 0, 1);
+        (Vector4&) v3_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x, y + f_ascent + shadow_y, 0, 1);
         (Vector4&) v6_layer_shadow.m_Position = transform * Vector4(xx + f_left_bearing + shadow_x + f_width, y + f_ascent + shadow_y, 0, 1);
 
         v4_layer_shadow = v3_layer_shadow;

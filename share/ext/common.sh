@@ -181,8 +181,8 @@ function cmi_cleanup() {
 }
 
 function cmi_cross() {
-    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
-        # Cross compiling protobuf for js-web with --host doesn't work
+    if [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
+        # Cross compiling protobuf for web with --host doesn't work
         # Unknown host in reported by configure script
         cmi_do $1
     else
@@ -370,7 +370,7 @@ function cmi_setup_cc() {
             export RANLIB=i586-mingw32msvc-ranlib
             ;;
 
-        js-web|wasm-web)
+        wasm-web)
             export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
             export CC=${EMSCRIPTEN_BIN_DIR}/emcc
             export CXX=${EMSCRIPTEN_BIN_DIR}/em++
@@ -416,7 +416,7 @@ function cmi() {
             cmi_cross $1 arm-linux
             ;;
 
-        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web|wasm_pthread-web)
+        arm64-ios|x86_64-ios|armv7-android|arm64-android|wasm-web|wasm_pthread-web)
             cmi_cross $1 arm-ios
             ;;
 

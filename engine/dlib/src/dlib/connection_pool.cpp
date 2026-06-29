@@ -352,6 +352,10 @@ namespace dmConnectionPool
             {
                 *sock_res = dmSocket::RESULT_WOULDBLOCK;
             }
+            else if (dmSSLSocket::RESULT_CONNREFUSED == result)
+            {
+                *sock_res = dmSocket::RESULT_CONNREFUSED;
+            }
             else
             {
                 *sock_res = dmSocket::RESULT_UNKNOWN;

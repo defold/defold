@@ -1,0 +1,19 @@
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Lint-Markdown
+permissions:
+  contents: read
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  lint-markdown-link:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - name: Check markdown links
+      run: |
+        npm install -g markdown-link-check@3.14.2
+        find . -name '*.md' -print0 | xargs -0 -P16 -n1 markdown-link-check -q

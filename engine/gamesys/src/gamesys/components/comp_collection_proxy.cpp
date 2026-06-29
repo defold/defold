@@ -280,6 +280,10 @@ namespace dmGameSystem
         {
             dmResource::Release(context->m_Factory, proxy->m_Collection);
         }
+        if (proxy->m_CollectionResPath)
+        {
+            free(proxy->m_CollectionResPath);
+        }
         CollectionProxyWorld* proxy_world = (CollectionProxyWorld*)params.m_World;
         uint32_t index = proxy - &proxy_world->m_Components[0];
         proxy_world->m_IndexPool.Push(index);

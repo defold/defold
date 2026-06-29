@@ -197,6 +197,12 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(unlit, "Z");
     }
     {
+        SETUP_CLASS(MorphTargetJNI, "MorphTarget");
+        GET_FLD_TYPESTR(positions, "[F");
+        GET_FLD_TYPESTR(normals, "[F");
+        GET_FLD_TYPESTR(tangents, "[F");
+    }
+    {
         SETUP_CLASS(MeshJNI, "Mesh");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD(material, "Material");
@@ -213,6 +219,8 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD(aabb, "Aabb");
         GET_FLD_TYPESTR(indices, "[I");
         GET_FLD_TYPESTR(vertexCount, "I");
+        GET_FLD_ARRAY(morphTargets, "MorphTarget");
+        GET_FLD_TYPESTR(morphBaseWeights, "[F");
     }
     {
         SETUP_CLASS(ModelJNI, "Model");
@@ -261,6 +269,9 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_ARRAY(translationKeys, "KeyFrame");
         GET_FLD_ARRAY(rotationKeys, "KeyFrame");
         GET_FLD_ARRAY(scaleKeys, "KeyFrame");
+        GET_FLD_TYPESTR(morphWeightKeyTimes, "[F");
+        GET_FLD_TYPESTR(morphWeightKeyValues, "[F");
+        GET_FLD_TYPESTR(morphWeightDimensions, "I");
         GET_FLD_TYPESTR(startTime, "F");
         GET_FLD_TYPESTR(endTime, "F");
     }
@@ -321,6 +332,7 @@ void FinalizeJNITypes(JNIEnv* env, TypeInfos* infos) {
     env->DeleteLocalRef(infos->m_EmissiveStrengthJNI.cls);
     env->DeleteLocalRef(infos->m_IridescenceJNI.cls);
     env->DeleteLocalRef(infos->m_MaterialJNI.cls);
+    env->DeleteLocalRef(infos->m_MorphTargetJNI.cls);
     env->DeleteLocalRef(infos->m_MeshJNI.cls);
     env->DeleteLocalRef(infos->m_ModelJNI.cls);
     env->DeleteLocalRef(infos->m_BoneJNI.cls);
@@ -553,6 +565,15 @@ jobject C2J_CreateMaterial(JNIEnv* env, TypeInfos* types, const Material* src) {
     return obj;
 }
 
+jobject C2J_CreateMorphTarget(JNIEnv* env, TypeInfos* types, const MorphTarget* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_MorphTargetJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_MorphTargetJNI.positions, dmJNI::C2J_CreateFloatArray(env, src->m_Positions.Begin(), src->m_Positions.Size()));
+    dmJNI::SetObjectDeref(env, obj, types->m_MorphTargetJNI.normals, dmJNI::C2J_CreateFloatArray(env, src->m_Normals.Begin(), src->m_Normals.Size()));
+    dmJNI::SetObjectDeref(env, obj, types->m_MorphTargetJNI.tangents, dmJNI::C2J_CreateFloatArray(env, src->m_Tangents.Begin(), src->m_Tangents.Size()));
+    return obj;
+}
+
 jobject C2J_CreateMesh(JNIEnv* env, TypeInfos* types, const Mesh* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_MeshJNI.cls);
@@ -571,6 +592,8 @@ jobject C2J_CreateMesh(JNIEnv* env, TypeInfos* types, const Mesh* src) {
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.aabb, C2J_CreateAabb(env, types, &src->m_Aabb));
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.indices, dmJNI::C2J_CreateUIntArray(env, src->m_Indices.Begin(), src->m_Indices.Size()));
     dmJNI::SetUInt(env, obj, types->m_MeshJNI.vertexCount, src->m_VertexCount);
+    dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.morphTargets, C2J_CreateMorphTargetArray(env, types, src->m_MorphTargets.Begin(), src->m_MorphTargets.Size()));
+    dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.morphBaseWeights, dmJNI::C2J_CreateFloatArray(env, src->m_MorphBaseWeights.Begin(), src->m_MorphBaseWeights.Size()));
     return obj;
 }
 
@@ -637,6 +660,9 @@ jobject C2J_CreateNodeAnimation(JNIEnv* env, TypeInfos* types, const NodeAnimati
     dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.translationKeys, C2J_CreateKeyFrameArray(env, types, src->m_TranslationKeys.Begin(), src->m_TranslationKeys.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.rotationKeys, C2J_CreateKeyFrameArray(env, types, src->m_RotationKeys.Begin(), src->m_RotationKeys.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.scaleKeys, C2J_CreateKeyFrameArray(env, types, src->m_ScaleKeys.Begin(), src->m_ScaleKeys.Size()));
+    dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.morphWeightKeyTimes, dmJNI::C2J_CreateFloatArray(env, src->m_MorphWeightKeyTimes.Begin(), src->m_MorphWeightKeyTimes.Size()));
+    dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.morphWeightKeyValues, dmJNI::C2J_CreateFloatArray(env, src->m_MorphWeightKeyValues.Begin(), src->m_MorphWeightKeyValues.Size()));
+    dmJNI::SetUInt(env, obj, types->m_NodeAnimationJNI.morphWeightDimensions, src->m_MorphWeightDimensions);
     dmJNI::SetFloat(env, obj, types->m_NodeAnimationJNI.startTime, src->m_StartTime);
     dmJNI::SetFloat(env, obj, types->m_NodeAnimationJNI.endTime, src->m_EndTime);
     return obj;
@@ -1080,6 +1106,26 @@ jobjectArray C2J_CreateMaterialPtrArray(JNIEnv* env, TypeInfos* types, const Mat
     jobjectArray arr = env->NewObjectArray(src_count, types->m_MaterialJNI.cls, 0);
     for (uint32_t i = 0; i < src_count; ++i) {
         jobject obj = C2J_CreateMaterial(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateMorphTargetArray(JNIEnv* env, TypeInfos* types, const MorphTarget* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_MorphTargetJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateMorphTarget(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateMorphTargetPtrArray(JNIEnv* env, TypeInfos* types, const MorphTarget* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_MorphTargetJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateMorphTarget(env, types, src[i]);
         env->SetObjectArrayElement(arr, i, obj);
         env->DeleteLocalRef(obj);
     }
@@ -1806,6 +1852,38 @@ bool J2C_CreateMaterial(JNIEnv* env, TypeInfos* types, jobject obj, Material* ou
     return true;
 }
 
+bool J2C_CreateMorphTarget(JNIEnv* env, TypeInfos* types, jobject obj, MorphTarget* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MorphTargetJNI.positions);
+        if (field_object) {
+            uint32_t tmp_count;
+            float* tmp = dmJNI::J2C_CreateFloatArray(env, (jfloatArray)field_object, &tmp_count);
+            out->m_Positions.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MorphTargetJNI.normals);
+        if (field_object) {
+            uint32_t tmp_count;
+            float* tmp = dmJNI::J2C_CreateFloatArray(env, (jfloatArray)field_object, &tmp_count);
+            out->m_Normals.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MorphTargetJNI.tangents);
+        if (field_object) {
+            uint32_t tmp_count;
+            float* tmp = dmJNI::J2C_CreateFloatArray(env, (jfloatArray)field_object, &tmp_count);
+            out->m_Tangents.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    return true;
+}
+
 bool J2C_CreateMesh(JNIEnv* env, TypeInfos* types, jobject obj, Mesh* out) {
     if (out == 0) return false;
     out->m_Name = dmJNI::GetString(env, obj, types->m_MeshJNI.name);
@@ -1908,6 +1986,24 @@ bool J2C_CreateMesh(JNIEnv* env, TypeInfos* types, jobject obj, Mesh* out) {
         }
     }
     out->m_VertexCount = dmJNI::GetUInt(env, obj, types->m_MeshJNI.vertexCount);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MeshJNI.morphTargets);
+        if (field_object) {
+            uint32_t tmp_count;
+            MorphTarget* tmp = J2C_CreateMorphTargetArray(env, types, (jobjectArray)field_object, &tmp_count);
+            out->m_MorphTargets.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MeshJNI.morphBaseWeights);
+        if (field_object) {
+            uint32_t tmp_count;
+            float* tmp = dmJNI::J2C_CreateFloatArray(env, (jfloatArray)field_object, &tmp_count);
+            out->m_MorphBaseWeights.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
     return true;
 }
 
@@ -2105,6 +2201,25 @@ bool J2C_CreateNodeAnimation(JNIEnv* env, TypeInfos* types, jobject obj, NodeAni
             env->DeleteLocalRef(field_object);
         }
     }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_NodeAnimationJNI.morphWeightKeyTimes);
+        if (field_object) {
+            uint32_t tmp_count;
+            float* tmp = dmJNI::J2C_CreateFloatArray(env, (jfloatArray)field_object, &tmp_count);
+            out->m_MorphWeightKeyTimes.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_NodeAnimationJNI.morphWeightKeyValues);
+        if (field_object) {
+            uint32_t tmp_count;
+            float* tmp = dmJNI::J2C_CreateFloatArray(env, (jfloatArray)field_object, &tmp_count);
+            out->m_MorphWeightKeyValues.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_MorphWeightDimensions = dmJNI::GetUInt(env, obj, types->m_NodeAnimationJNI.morphWeightDimensions);
     out->m_StartTime = dmJNI::GetFloat(env, obj, types->m_NodeAnimationJNI.startTime);
     out->m_EndTime = dmJNI::GetFloat(env, obj, types->m_NodeAnimationJNI.endTime);
     return true;
@@ -3068,6 +3183,47 @@ Material** J2C_CreateMaterialPtrArray(JNIEnv* env, TypeInfos* types, jobjectArra
     jsize len = env->GetArrayLength(arr);
     Material** out = new Material*[len];
     J2C_CreateMaterialPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateMorphTargetArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, MorphTarget* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateMorphTarget(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+MorphTarget* J2C_CreateMorphTargetArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    MorphTarget* out = new MorphTarget[len];
+    J2C_CreateMorphTargetArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateMorphTargetPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, MorphTarget** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new MorphTarget();
+        J2C_CreateMorphTarget(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+MorphTarget** J2C_CreateMorphTargetPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    MorphTarget** out = new MorphTarget*[len];
+    J2C_CreateMorphTargetPtrArrayInPlace(env, types, arr, out, len);
     *out_count = (uint32_t)len;
     return out;
 }

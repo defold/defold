@@ -59,8 +59,7 @@ protected:
 
         dmDDF::Result result = dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.gamepadsc"), dmInputDDF::GamepadMaps::m_DDFDescriptor, (void**)&gamepad_maps);
 
-        (void)result;
-        assert(dmDDF::RESULT_OK == result);
+        ASSERT_EQ(dmDDF::RESULT_OK, result);
         dmInput::RegisterGamepads(m_Context, gamepad_maps);
         dmDDF::FreeMessage(gamepad_maps);
         dmDDF::LoadMessageFromFile(HOSTPATH(BUILD_DIR "/test.input_bindingc"), dmInputDDF::InputBinding::m_DDFDescriptor, (void**)&m_TestDDF);
@@ -325,6 +324,46 @@ TEST_F(InputTest, Mouse)
 
     ASSERT_EQ((void*)0, (void*)move_action);
 
+    dmInput::DeleteBinding(binding);
+}
+
+TEST_F(InputTest, MouseButtonAliases)
+{
+    /* Intent: verify input bindings preserve Defold mouse button aliases.
+    ** Setup: bind semantic right/middle actions and numeric mouse button 2/3 actions.
+    ** Expected: right activates both right and button 2 actions, while middle activates
+    ** both middle and button 3 actions.
+    */
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, m_TestDDF);
+
+    dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
+
+    dmhash_t mouse_right_id = dmHashString64("MOUSE_RIGHT");
+    dmhash_t mouse_middle_id = dmHashString64("MOUSE_MIDDLE");
+    dmhash_t mouse_2_id = dmHashString64("MOUSE_2");
+    dmhash_t mouse_3_id = dmHashString64("MOUSE_3");
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_RIGHT, true);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding, mouse_right_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding, mouse_2_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding, mouse_middle_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding, mouse_3_id));
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_RIGHT, false);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_MIDDLE, true);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding, mouse_right_id));
+    ASSERT_EQ(0.0f, dmInput::GetValue(binding, mouse_2_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding, mouse_middle_id));
+    ASSERT_EQ(1.0f, dmInput::GetValue(binding, mouse_3_id));
+
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_MIDDLE, false);
     dmInput::DeleteBinding(binding);
 }
 

@@ -632,6 +632,18 @@ namespace dmPlatform
         return (const char*) device_name;
     }
 
+    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
+    {
+#if defined(__EMSCRIPTEN__) || defined(ANDROID)
+        char* device_guid = 0;
+        if (glfwGetJoystickDeviceGuid(joystick_index, &device_guid)) // Defold addition
+        {
+            return (const char*) device_guid;
+        }
+#endif
+        return 0; // unsupported
+    }
+
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
     {
         uint32_t count = dmMath::Min(glfwGetJoystickParam(joystick_index, GLFW_AXES), (int) values_capacity);

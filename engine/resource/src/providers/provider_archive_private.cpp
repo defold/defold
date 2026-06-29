@@ -17,7 +17,7 @@
 #include "../resource.h"
 
 #include <dlib/dstrings.h>
-#include <dlib/endian.h>
+#include <dlib/endian.hpp>
 #include <dlib/log.h>
 #include <dlib/memory.h>
 #include <dlib/sys.h>

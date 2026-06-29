@@ -327,6 +327,12 @@ static jobject CreateNodeAnimation(JNIEnv* env, dmModelImporter::jni::TypeInfos*
     dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.translationKeys, CreateKeyFramesArray(env, types, node_anim->m_TranslationKeys.Begin(), node_anim->m_TranslationKeys.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.rotationKeys, CreateKeyFramesArray(env, types, node_anim->m_RotationKeys.Begin(), node_anim->m_RotationKeys.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.scaleKeys, CreateKeyFramesArray(env, types, node_anim->m_ScaleKeys.Begin(), node_anim->m_ScaleKeys.Size()));
+    if (node_anim->m_MorphWeightDimensions > 0 && node_anim->m_MorphWeightKeyTimes.Size() > 0)
+    {
+        dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.morphWeightKeyTimes, dmJNI::C2J_CreateFloatArray(env, node_anim->m_MorphWeightKeyTimes.Begin(), node_anim->m_MorphWeightKeyTimes.Size()));
+        dmJNI::SetObjectDeref(env, obj, types->m_NodeAnimationJNI.morphWeightKeyValues, dmJNI::C2J_CreateFloatArray(env, node_anim->m_MorphWeightKeyValues.Begin(), node_anim->m_MorphWeightKeyValues.Size()));
+    }
+    dmJNI::SetUInt(env, obj, types->m_NodeAnimationJNI.morphWeightDimensions, node_anim->m_MorphWeightDimensions);
     dmJNI::SetFloat(env, obj, types->m_NodeAnimationJNI.startTime, node_anim->m_StartTime);
     dmJNI::SetFloat(env, obj, types->m_NodeAnimationJNI.endTime, node_anim->m_EndTime);
     return obj;

@@ -2,7 +2,6 @@ syntax = "proto2";
 package dmRenderDDF;
 
 import "ddf/ddf_extensions.proto";
-import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Font";
@@ -126,4 +125,3 @@ message FontMap
     optional float sdf_shadow     = 22 [default = 0.0];
     optional uint32 padding       = 23 [default = 0];
 }
-

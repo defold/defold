@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <dlib/safe_windows.h>
 #include <graphics/graphics.h>
 
 #include "../render_private.h"             // TextEntry

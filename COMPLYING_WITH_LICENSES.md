@@ -28,6 +28,8 @@ The following software has licenses which require inclusion of their respective 
     * [mbedTLS](/licenses/NOTICE-mbedtls) - Used when doing HTTPS requests or creating SSL sockets. Included in all builds of Defold.
     * [Basis Universal](/licenses/NOTICE-basisuniversal) - Used when compressing textures.
     * [Remotery](/licenses/NOTICE-remotery) - Used during development of your game. Not included in the release builds of Defold.
+    * [Metal.hpp](/licenses/NOTICE-metal-cpp) - Used by the Metal graphics backend on macOS and iOS.
+    * [VkQuality](/licenses/NOTICE-vkquality) - Used by the Android Vulkan graphics backend to select between Vulkan and OpenGL ES.
   * MIT
     * [jctest](/licenses/NOTICE-jctest) - Used when running unit tests in the engine. Not included in any builds.
     * [Lua](/licenses/NOTICE-lua) - Used in HTML5 builds.
@@ -41,7 +43,7 @@ The following software has licenses which require inclusion of their respective 
     * [lipo](https://github.com/konoui/lipo) - Used when building bundles for macOS and iOS. Included in all Editor/bob.jar builds.
     * [miniz](https://github.com/richgel999/miniz) - Rich Geldrich
     * [zip](https://github.com/kuba--/zip) - Kuba Podgórski
-    * [SampleRateConverter] (https://github.com/zephray/SampleRateConverter/tree/master) - Used off line to generate polyphase filter coefficients for sound system
+    * [SampleRateConverter] (https://github.com/zephray/SampleRateConverter/tree/master) - Used offline to generate polyphase filter coefficients for sound system
   * Simplified BSD license (2-clause license)
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
   * BSD 2.0 license (3-clause license)
@@ -65,5 +67,6 @@ The following third party software has licenses which does not require inclusion
     * Bullet Physics - Erwin Coumans
     * GLFW - Marcus Geelnard, Camilla Löwy
     * bindgen (Sokol) - Andre Weissflog
+    * SDL - Sam Lantinga (slouken@libsdl.org)
 
 NOTE: The Zlib license encourages attribution but does not require inclusion of the license.

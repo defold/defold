@@ -85,14 +85,6 @@ platforms:
             symbols: []
             libs: [librecord_null.lib, libsound_null.lib, hid_null.lib, libliveupdate_null.lib, libgraphics_transcoder_null.lib, libprofile_null.lib, libprofilerext_null.lib]
             linkFlags: []
-    js-web:
-        context:
-            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
-            excludeJsLibs: []
-            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
-            symbols: []
-            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
-            linkFlags: []
     wasm-web:
         context:
             excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]

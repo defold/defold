@@ -1,4 +1,4 @@
-mesh: "/test.dae"
+mesh: "/test.gltf"
 material: "/test.material"
 skeleton: ""
 animations: "/test.animationset"

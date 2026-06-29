@@ -30,6 +30,9 @@ var LibraryDmSys = {
         dmSysGetUserPersistentDataRoot: function() {
             if (null == DMSYS._cstr) {
                 var str = DMSYS.GetUserPersistentDataRoot();
+                if (str.length == 0) {
+                    return 0;
+                }
                 DMSYS._cstr = stringToNewUTF8(str);
             }
             return DMSYS._cstr;
@@ -41,13 +44,13 @@ var LibraryDmSys = {
 
         dmSysGetUserPreferredLanguage: function(defaultlang) {
             var jsdefault = UTF8ToString(defaultlang);
-            var preferred = navigator == undefined ? jsdefault : (navigator.languages ? (navigator.languages[0] || jsdefault) : (navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage || jsdefault) );
+            var preferred = typeof navigator === 'undefined' ? jsdefault : (navigator.languages ? (navigator.languages[0] || jsdefault) : (navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage || jsdefault) );
             var buffer = stringToNewUTF8(preferred);
             return buffer;
         },
 
         dmSysGetUserAgent: function() {
-            var useragent = navigator.userAgent;
+            var useragent = typeof navigator === 'undefined' ? '' : navigator.userAgent;
             var buffer = stringToNewUTF8(useragent);
             return buffer;
         },

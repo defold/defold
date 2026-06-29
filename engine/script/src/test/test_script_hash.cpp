@@ -103,6 +103,42 @@ TEST_F(ScriptHashTest, TestHashUnknown)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptHashTest, TestHashGcDoesNotEraseLiveHashInstance)
+{
+    int top = lua_gettop(L);
+
+    dmhash_t hash = dmHashString64("/collection112/collisionobject");
+
+    dmScript::PushHash(L, hash);
+    void* live_hash = lua_touserdata(L, -1);
+    lua_setglobal(L, "live_hash");
+
+    lua_getglobal(L, "live_hash");
+    ASSERT_TRUE(lua_getmetatable(L, -1));
+
+    dmhash_t* stale_hash = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t));
+    *stale_hash = hash;
+    lua_pushvalue(L, -2);
+    lua_setmetatable(L, -2);
+
+    lua_getfield(L, -2, "__gc");
+    lua_pushvalue(L, -2);
+    ASSERT_EQ(0, lua_pcall(L, 1, 0, 0));
+
+    lua_pushnil(L);
+    lua_setmetatable(L, -2);
+    lua_pop(L, 3);
+
+    dmScript::PushHash(L, hash);
+    ASSERT_EQ(live_hash, lua_touserdata(L, -1));
+    lua_pop(L, 1);
+
+    lua_pushnil(L);
+    lua_setglobal(L, "live_hash");
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 
 TEST_F(ScriptHashTest, TestGetStringFromHashOrString)
 {

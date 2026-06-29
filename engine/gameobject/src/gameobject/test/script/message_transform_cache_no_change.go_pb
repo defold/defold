@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/message_transform_cache_no_change.scriptc"
+}

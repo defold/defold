@@ -1,0 +1,51 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Lint
+description: Lint
+
+inputs:
+  nix-shell:
+    description: Run in the specified Nix environment if exists
+    default: "ci-linter"
+  nix-cache:
+    description: Determine whether to enable nix cache
+    default: "false"
+  nix-verbose:
+    description: Determine wether to suppress nix log or not
+    default: 'false'
+  custom_shell:
+    description: The shell to use. Only relevant if no nix-shell specified
+    default: "bash"
+  cross-prefix:
+    description: Binary prefix for cross compilation
+    default: ""
+  gh_token:
+    description: Github access token to use
+    required: true
+runs:
+  using: composite
+  steps:
+      - uses: ./.github/actions/setup-shell
+        with:
+          nix-shell: ${{ inputs.nix-shell }}
+          custom_shell: ${{ inputs.custom_shell }}
+          nix-cache: ${{ inputs.nix-cache }}
+          nix-verbose: ${{ inputs.nix-verbose }}
+          gh_token: ${{ inputs.gh_token }}
+          script: |
+            cat >> $GITHUB_STEP_SUMMARY << EOF
+              ## Setup
+              Architecture: $(uname -m)
+              - $(uname -a)
+              - $(nix --version)
+              - $(clang-format --version)
+              - $(${{ matrix.target.cross-prefix }}gcc --version | grep -m1 "")
+              - $(bash --version | grep -m1 "")
+            EOF
+      - name: Run linter
+        shell: ${{ env.SHELL }}
+        run: |
+          echo "## Lint & Checks" >> $GITHUB_STEP_SUMMARY
+          lint

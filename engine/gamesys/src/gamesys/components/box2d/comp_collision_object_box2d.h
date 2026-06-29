@@ -29,6 +29,8 @@ class b2Body;
 
 namespace dmGameSystem
 {
+    typedef void (*ScriptBox2DInvalidateBodyCallback)(void* body);
+
     dmGameObject::CreateResult   CompCollisionObjectBox2DNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     dmGameObject::CreateResult   CompCollisionObjectBox2DDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
     dmGameObject::CreateResult   CompCollisionObjectBox2DCreate(const dmGameObject::ComponentCreateParams& params);
@@ -46,6 +48,7 @@ namespace dmGameSystem
     // For script_box2d.cpp
     void* CompCollisionObjectGetBox2DWorld(dmGameObject::HComponentWorld _world);
     void* CompCollisionObjectGetBox2DBody(dmGameObject::HComponent _component);
+    void  CompCollisionObjectSetBox2DInvalidateBodyCallback(ScriptBox2DInvalidateBodyCallback callback);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_BOX2D_H

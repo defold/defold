@@ -26,6 +26,7 @@
 set -e
 
 while IFS='=' read -r key value; do
+	value=${value%$'\r'}
 	case "$key" in
 		MSVC_VERSION) MSVC_VERSION="$value" ;;
 		SDK_VERSION) SDK_VERSION="$value" ;;
@@ -47,7 +48,9 @@ if info is None:
 
 sdk_root = info['sdk_root'].rstrip("\\/")
 sdk_path = os.path.dirname(sdk_root)
-year = os.path.normpath(info['vs_root']).split(os.sep)[-6]
+year = info['vs_year']
+if not year:
+    raise SystemExit(f"Failed to determine Visual Studio year from {info['vs_root']}")
 
 values = {
     'MSVC_VERSION': info['vs_version'],
@@ -71,21 +74,21 @@ echo "Found SDK_ROOT=${SDK_ROOT}"
 
 
 PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-${YEAR}-${MSVC_VERSION}.tar.gz"
-PACKAGES_WIN32_SDK_10="WindowsKits-${SDK_VERSION}.tar.gz"
+PACKAGES_WIN32_SDK="WindowsKits-${SDK_VERSION}.tar.gz"
 
 
 TARGET_PATH=$(pwd)/local_sdks
 TMP_PATH=${TARGET_PATH}/tmp
 if [ ! -d "${TMP_PATH}" ]; then
-	mkdir -p ${TMP_PATH}
+	mkdir -p "${TMP_PATH}"
 fi
 
 
-if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK_10}" ]; then
-	echo "Packing to ${PACKAGES_WIN32_SDK_10}"
-	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} -C "${SDK_PATH}" 10/Include/${SDK_VERSION} 10/Lib/${SDK_VERSION}/um/x86 10/Lib/${SDK_VERSION}/um/x64 10/Lib/${SDK_VERSION}/ucrt/x86 10/Lib/${SDK_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_VERSION}/x64 10/bin/${SDK_VERSION}/x86
+if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK}" ]; then
+	echo "Packing to ${PACKAGES_WIN32_SDK}"
+	GZIP=-9 tar czf "${TARGET_PATH}/${PACKAGES_WIN32_SDK}" -C "${SDK_PATH}" 10/Include/${SDK_VERSION} 10/Lib/${SDK_VERSION}/um/x86 10/Lib/${SDK_VERSION}/um/x64 10/Lib/${SDK_VERSION}/ucrt/x86 10/Lib/${SDK_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_VERSION}/x64 10/bin/${SDK_VERSION}/x86
 else
-	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK_10} already existed"
+	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK} already existed"
 fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
@@ -93,12 +96,12 @@ if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	TMP=${TMP_PATH}/MicrosoftVisualStudio${YEAR}
 	TMP_VS_ROOT=${TMP}/VC/Tools/MSVC/${MSVC_VERSION}
 
-	mkdir -p ${TMP_VS_ROOT}/bin/Hostx64
-	mkdir -p ${TMP_VS_ROOT}/bin/Hostx86
-	mkdir -p ${TMP_VS_ROOT}/include
-	mkdir -p ${TMP_VS_ROOT}/lib/x64
-	mkdir -p ${TMP_VS_ROOT}/lib/x86
-	mkdir -p ${TMP_VS_ROOT}/atlmfc
+	mkdir -p "${TMP_VS_ROOT}/bin/Hostx64"
+	mkdir -p "${TMP_VS_ROOT}/bin/Hostx86"
+	mkdir -p "${TMP_VS_ROOT}/include"
+	mkdir -p "${TMP_VS_ROOT}/lib/x64"
+	mkdir -p "${TMP_VS_ROOT}/lib/x86"
+	mkdir -p "${TMP_VS_ROOT}/atlmfc"
 
 	cp -r -v "${VS_ROOT}/bin/Hostx64/x64" "${TMP_VS_ROOT}/bin/Hostx64"
 	cp -r -v "${VS_ROOT}/bin/Hostx64/x86" "${TMP_VS_ROOT}/bin/Hostx86"
@@ -107,7 +110,7 @@ if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	cp -r -v "${VS_ROOT}/lib/x86" "${TMP_VS_ROOT}/lib"
 	cp -r -v "${VS_ROOT}/atlmfc"  "${TMP_VS_ROOT}"
 
-	GZIP=-9 tar czf ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} -C "$TMP" VC
+	GZIP=-9 tar czf "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" -C "$TMP" VC
 else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN} already existed"
 fi

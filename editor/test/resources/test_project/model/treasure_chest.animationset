@@ -1,7 +1,7 @@
 animations {
-  animation: "/mesh/treasure_chest.dae"
+  animation: "/mesh/treasure_chest.gltf"
 }
 animations {
   animation: "/model/treasure_chest_sub_animation.animationset"
 }
-skeleton: "/mesh/treasure_chest.dae"
+skeleton: "/mesh/treasure_chest.gltf"

@@ -1580,14 +1580,14 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(m_Context, texture);
 }
 
-#if defined(DM_HAS_THREADS)
-
 static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
 {
     assert(dmGraphics::GetOpaqueHandle(texture) != INVALID_OPAQUE_HANDLE);
     int* value = (int*)user_data;
     *value = 1;
 }
+
+#if defined(DM_HAS_THREADS)
 
 TEST_F(dmGraphicsTest, TestTextureAsync)
 {
@@ -1783,6 +1783,39 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
 }
 #endif // DM_HAS_THREADS
+
+TEST_F(dmGraphicsSynchronousTest, TestTextureAsyncCallbackWithoutAsyncSupport)
+{
+    bool tmp_async_load = m_NullContext->m_UseAsyncTextureLoad;
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+
+    dmGraphics::TextureCreationParams creation_params;
+    dmGraphics::TextureParams params;
+
+    creation_params.m_Width          = WIDTH;
+    creation_params.m_Height         = HEIGHT;
+    creation_params.m_OriginalWidth  = WIDTH;
+    creation_params.m_OriginalHeight = HEIGHT;
+
+    params.m_DataSize = WIDTH * HEIGHT;
+    params.m_Data     = new char[params.m_DataSize];
+    params.m_Width    = WIDTH;
+    params.m_Height   = HEIGHT;
+    params.m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+
+    int callback_value = 0;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+    dmGraphics::SetTextureAsync(m_Context, texture, params, TestTextureAsyncCallback, &callback_value);
+
+    ASSERT_EQ(1, callback_value);
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
+
+    dmGraphics::DeleteTexture(m_Context, texture);
+    delete [] (char*)params.m_Data;
+
+    m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
+}
 
 TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
 {
@@ -2136,6 +2169,33 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
         }
         ASSERT_NE(0, dmGraphics::GetTextureFormatBitsPerPixel(format));
     }
+}
+
+// Compressed texture uploads need block dimensions and byte sizes to translate
+// logical texture dimensions into physical storage/copy extents.
+TEST_F(dmGraphicsTest, TestTextureFormatCompressedBlockSize)
+{
+    dmGraphics::TextureFormatCompressedBlockSize block_size;
+
+    ASSERT_TRUE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_6X6, &block_size));
+    ASSERT_EQ(6u, block_size.m_Width);
+    ASSERT_EQ(6u, block_size.m_Height);
+    ASSERT_EQ(16u, block_size.m_ByteSize);
+
+    const uint32_t block_columns = (4096 + block_size.m_Width - 1) / block_size.m_Width;
+    const uint32_t block_rows    = (4096 + block_size.m_Height - 1) / block_size.m_Height;
+    ASSERT_EQ(683u, block_columns);
+    ASSERT_EQ(683u, block_rows);
+    ASSERT_EQ(4098u, block_columns * block_size.m_Width);
+    ASSERT_EQ(4098u, block_rows * block_size.m_Height);
+    ASSERT_EQ(10928u, block_columns * block_size.m_ByteSize);
+
+    ASSERT_TRUE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2, &block_size));
+    ASSERT_EQ(4u, block_size.m_Width);
+    ASSERT_EQ(4u, block_size.m_Height);
+    ASSERT_EQ(16u, block_size.m_ByteSize);
+
+    ASSERT_FALSE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA, &block_size));
 }
 
 TEST_F(dmGraphicsTest, TestGetTextureParams)

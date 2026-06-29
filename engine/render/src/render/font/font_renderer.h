@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <dlib/safe_windows.h>
 #include <dmsdk/dlib/vmath.h>
 
 #include <graphics/graphics.h>

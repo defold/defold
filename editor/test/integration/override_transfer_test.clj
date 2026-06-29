@@ -848,7 +848,7 @@
 
      "/book.model"
      {:name "book"
-      :mesh "/builtins/assets/meshes/cube.dae"
+      :mesh "/builtins/assets/gltf/cube.gltf"
 
       :materials
       [{:name "default"

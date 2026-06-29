@@ -13,7 +13,7 @@ PLATFORMS_PLAYSTATION="x86_64-ps4 x86_64-ps5"
 PLATFORMS_NINTENDO="arm64-nx64"
 PLATFORMS_IOS="arm64-ios x86_64-ios"
 PLATFORMS_ANDROID="arm64-android armv7-android"
-PLATFORMS_WEB="js-web wasm-web wasm_pthread-web"
+PLATFORMS_WEB="wasm-web wasm_pthread-web"
 
 PLATFORMS="arm64-macos x86_64-macos arm64-linux x86_64-linux"
 

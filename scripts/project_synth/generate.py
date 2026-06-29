@@ -1147,7 +1147,7 @@ def render_lua(node: Node) -> str:
             + "    self.text_pred = render.predicate({\"text\"})\n"
             + "end\n\n"
             + "function update(self)\n"
-            + "    render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0, 0, 0, 1), [render.BUFFER_DEPTH_BIT] = 1})\n"
+            + "    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 0, 0, 1), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1})\n"
             + "    render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())\n"
             + "    render.set_view(vmath.matrix4())\n"
             + "    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))\n"
@@ -1281,11 +1281,13 @@ def render_gui(node: Node, nodes_by_extension: dict[str, list[Node]], seed: int)
     script = first_edge(node, "gui_script", "")
     fonts = unique_edges(node, "font")
     textures = unique_edges(node, "atlas") + unique_edges(node, "png")
-    templates = unique_edges(node, "gui")
+    # Bob flattens GUI templates but later walks their source .gui paths from
+    # compiled output, so synthetic template links make resource graph creation fail.
+    templates: list[str] = []
     materials: list[str] = []
     node_count = max(0, node.properties.get("node_count", 0))
     parented_count = min(node_count, node.properties.get("parented_node_count", 0))
-    template_count = min(node_count, node.properties.get("template_node_count", 0))
+    template_count = 0
     max_depth = max(0, node.properties.get("max_node_depth", 0))
     if not fonts and not textures and not templates:
         node_count = 0

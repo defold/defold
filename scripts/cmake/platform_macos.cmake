@@ -20,6 +20,7 @@ endif()
 # Common compile options for macOS (mirrors waf_dynamo defaults)
 target_compile_definitions(defold_sdk INTERFACE
   DM_PLATFORM_MACOS
+  DM_HOSTFS=\"\"
   GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED
   GL_SILENCE_DEPRECATION)
 
@@ -44,6 +45,7 @@ target_link_options(defold_sdk INTERFACE
   -stdlib=libc++
   -mmacosx-version-min=${_DEFOLD_MACOS_MIN}
   -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19
+  -dead_strip
   # Frameworks
   -Wl,-framework,AppKit
   -Wl,-framework,Carbon

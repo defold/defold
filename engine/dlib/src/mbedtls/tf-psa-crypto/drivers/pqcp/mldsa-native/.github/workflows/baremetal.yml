@@ -1,0 +1,39 @@
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Baremetal
+permissions:
+  contents: read
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  baremetal_tests:
+    name: Baremetal tests (${{ matrix.target.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+         - runner: ubuntu-latest
+           name: 'M55-AN547'
+           makefile: test/baremetal/platform/m55-an547/platform.mk
+           nix-shell: arm-embedded
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: baremetal build + test
+        uses: ./.github/actions/functest
+        env:
+          EXTRA_MAKEFILE: ${{ matrix.target.makefile }}
+        with:
+          nix-shell: ${{ matrix.target.nix-shell }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          opt: no_opt
+          func: true
+          kat: true
+          acvp: true
+          examples: false
+          stack: false
+          alloc: true
+          rng_fail: false

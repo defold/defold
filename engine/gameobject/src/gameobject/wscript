@@ -11,6 +11,7 @@ def build(bld):
                            proto_gen_py = True,
                            protoc_includes = ['../../proto', bld.env['PREFIX'] + '/share'],
                            protopy_includes = bld.env['PREFIX'] + '/lib/python',
+                           uselib = 'LUA',
                            target = 'gameobject')
     bld.add_group()
 

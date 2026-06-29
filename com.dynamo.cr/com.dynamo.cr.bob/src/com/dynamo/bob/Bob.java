@@ -22,6 +22,8 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.Library;
+import com.dynamo.bob.util.Library.Result;
 import com.dynamo.bob.util.PackedResources;
 import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.cli.CommandLine;
@@ -39,13 +41,16 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -167,6 +172,15 @@ public class Bob {
         return rootFolder;
     }
 
+    private static File resolveArchiveEntry(File toFolder, String entryName) throws IOException {
+        File canonicalFolder = toFolder.getCanonicalFile();
+        File dstFile = new File(canonicalFolder, entryName).getCanonicalFile();
+        if (!dstFile.toPath().startsWith(canonicalFolder.toPath())) {
+            throw new IOException(String.format("Archive entry '%s' resolves outside of '%s'", entryName, canonicalFolder.getAbsolutePath()));
+        }
+        return dstFile;
+    }
+
     public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
         TimeProfiler.start("extractToFolder %s", toFolder.toString());
         TimeProfiler.addData("url", url.toString());
@@ -178,7 +192,7 @@ public class Bob {
             {
                 if (!entry.isDirectory()) {
 
-                    File dstFile = new File(toFolder, entry.getName());
+                    File dstFile = resolveArchiveEntry(toFolder, entry.getName());
                     if (deleteOnExit)
                         FileUtil.deleteOnExit(dstFile);
                     dstFile.getParentFile().mkdirs();
@@ -212,6 +226,31 @@ public class Bob {
 
     public static void extract(final URL url, File toFolder) throws IOException {
         extractToFolder(url, toFolder, true);
+    }
+
+    public static void atomicExtractDirectory(final URL url, File toFolder, String directoryName) throws IOException {
+        File target = new File(toFolder, directoryName);
+        if (target.exists()) {
+            return;
+        }
+
+        toFolder.mkdirs();
+        File tmpFolder = new File(toFolder, String.format(".%s_%d", directoryName, System.nanoTime()));
+        try {
+            extractToFolder(url, tmpFolder, false);
+            File extracted = new File(tmpFolder, directoryName);
+            if (!extracted.isDirectory()) {
+                throw new IOException(String.format("Archive '%s' did not contain directory '%s'", url, directoryName));
+            }
+
+            try {
+                move(extracted, target);
+            } catch (FileAlreadyExistsException e) {
+                // Another process completed the same extraction first.
+            }
+        } finally {
+            FileUtils.deleteDirectory(tmpFolder);
+        }
     }
 
     public static String getPath(String path) {
@@ -298,6 +337,26 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    private static String getOptionalExeWithExtension(Platform platform, String name, String extension) throws IOException {
+        init();
+        PackedResources.waitForuUpackAllLibsAsync();
+        TimeProfiler.start("getOptionalExeWithExtension %s.%s", name, extension);
+        String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
+        File f = new File(rootFolder, exeName);
+        if (!f.exists()) {
+            URL url = Bob.class.getResource("/libexec/" + exeName);
+            if (url == null) {
+                TimeProfiler.stop();
+                return null;
+            }
+
+            atomicCopy(url, f, true);
+        }
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
+        return f.getAbsolutePath();
+    }
+
     public static String getLibExecPath(String filename) throws IOException {
         init();
         TimeProfiler.start("getLibExecPath %s", filename);
@@ -320,6 +379,22 @@ public class Bob {
             return currentExe;
         }
         return Bob.getExe(Platform.getHostPlatform(), exeName);
+    }
+
+    public static String getOptionalHostExeOnce(String exeName, String currentExe) throws IOException {
+        if (currentExe != null && Files.exists(Path.of(currentExe))) {
+            return currentExe;
+        }
+
+        Platform platform = Platform.getHostPlatform();
+        String[] exeSuffixes = platform.getExeSuffixes();
+        for (String exeSuffix : exeSuffixes) {
+            String exe = getOptionalExeWithExtension(platform, exeName, exeSuffix);
+            if (exe != null) {
+                return exe;
+            }
+        }
+        return null;
     }
 
     public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
@@ -407,6 +482,8 @@ public class Bob {
                 opt("r", "root", ONE, ABS_OR_CWD_REL_PATH, "Build root directory. Default is current directory"),
                 opt("o", "output", ONE, "Output directory. Default is \"build/default\""),
                 opt("i", "input", ONE, "DEPRECATED! Use --root instead"),
+                opt(null, "build-input", MANY, "Project resource path to build instead of game.project. May be specified more than once"),
+                opt(null, "build-input-file", MANY, ABS_OR_CWD_REL_PATH, "File containing project resource paths to build instead of game.project. May be specified more than once"),
                 opt("v", "verbose", ZERO, "Verbose output"),
                 opt("h", "help", ZERO, "This help message"),
                 opt("a", "archive", ZERO, "Build archive"),
@@ -532,6 +609,41 @@ public class Bob {
         return cmd;
     }
 
+    private static List<String> getBuildInputs(CommandLine cmd, String rootDirectory) throws IOException {
+        List<String> inputs = new ArrayList<>();
+
+        if (cmd.hasOption("build-input")) {
+            for (String input : cmd.getOptionValues("build-input")) {
+                addBuildInput(inputs, input);
+            }
+        }
+
+        if (cmd.hasOption("build-input-file")) {
+            for (String filepath : cmd.getOptionValues("build-input-file")) {
+                Path path = Paths.get(filepath);
+                if (!path.isAbsolute()) {
+                    path = Paths.get(rootDirectory).resolve(path);
+                }
+                for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+                    int comment = line.indexOf('#');
+                    if (comment != -1) {
+                        line = line.substring(0, comment);
+                    }
+                    addBuildInput(inputs, line);
+                }
+            }
+        }
+
+        return inputs;
+    }
+
+    private static void addBuildInput(List<String> inputs, String input) {
+        input = input.trim();
+        if (!input.isEmpty()) {
+            inputs.add(input);
+        }
+    }
+
     private static Project createProject(ClassLoader classLoader, String rootDirectory, String buildDirectory, String email, String auth) {
         Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
         project.setOption("email", email);
@@ -559,18 +671,16 @@ public class Bob {
             project.loadProjectFile(false);
             BobProjectProperties projectProperties = project.getProjectProperties();
             String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
-            List<URL> libUrls = new ArrayList<>();
-            for (String val : dependencies) {
-                libUrls.add(new URL(val));
-            }
-
-            project.setLibUrls(libUrls);
+            project.setLibUrls(Arrays.stream(dependencies).map(URI::create).toList());
+            List<Result> resolvedDependencies;
             if (resolveLibraries) {
                 TimeProfiler.start("Resolve libs");
-                project.resolveLibUrls(progress);
+                resolvedDependencies = project.resolveLibUrls(progress);
                 TimeProfiler.stop();
+            } else {
+                resolvedDependencies = Library.cached(project.getLibUris(), Paths.get(project.getLibPath()));
             }
-            project.mount(new ClassLoaderResourceScanner());
+            project.mount(new ClassLoaderResourceScanner(), resolvedDependencies);
         }
     }
 
@@ -637,6 +747,10 @@ public class Bob {
             if (cmd == null) { // nothing to do: requested to print help
                 return new InvocationResult(true, Collections.emptyList());
             }
+            if (cmd.hasOption("version")) {
+                System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
+                return new InvocationResult(true, Collections.emptyList());
+            }
             String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
             String rootDirectory = getOptionsValue(cmd, 'r', cwd);
 
@@ -670,11 +784,6 @@ public class Bob {
 
             try {
                 TimeProfiler.start("ParseCommandLine");
-                if (cmd.hasOption("version")) {
-                    System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
-                    return new InvocationResult(true, Collections.emptyList());
-                }
-
                 if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
                     System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
                     throw new OptionValidationException(1);
@@ -730,6 +839,10 @@ public class Bob {
                     }
                 }
 
+                List<String> buildInputs = getBuildInputs(cmd, rootDirectory);
+                if (!buildInputs.isEmpty()) {
+                    project.setInputs(buildInputs);
+                }
 
                 if (cmd.hasOption("build-server-header")) {
                     for (String header : cmd.getOptionValues("build-server-header")) {

@@ -159,7 +159,7 @@
           (rt/wrap-userdata "editor.command(...)")))))
 
 (defn command->dynamic-handler [{:keys [label query active id run locations]} path project state]
-  (let [{:keys [rt display-output!]} state
+  (let [{:keys [rt]} state
         lua-fn->env-fn (compile-query query project)
         contexts (into #{}
                        (map {"Assets" :asset-browser
@@ -195,10 +195,10 @@
                    (lua-fn->env-fn
                      (fn [env opts]
                        (error-handling/try-with-extension-exceptions
-                         :display-output! display-output!
+                         :rt rt
                          :label (str label "'s \"active\" in " path)
                          :catch false
-                         (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
+                         (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) {:evaluation-context (:evaluation-context env)} active (rt/->lua opts)))))))
 
             (and (not active) query)
             (assoc :active? (lua-fn->env-fn (constantly true)))
@@ -214,4 +214,4 @@
                                  (when-not (rt/coerces-to? rt coerce/null lua-result)
                                    (lsp.async/with-auto-evaluation-context evaluation-context
                                      (actions/perform! lua-result project state evaluation-context)))))
-                             (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))))
+                             (future/catch #(error-handling/display-script-error! rt error-label %))))))))))

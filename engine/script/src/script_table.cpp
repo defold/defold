@@ -187,6 +187,18 @@ namespace dmScript
         return supported;
     }
 
+    // Lua 5.1 stores numeric keys as lua_Number. Split the conversion so
+    // 0xffffffff can round-trip on wasm, where casting that double directly to
+    // uint32_t wraps to 0.
+    static uint32_t LuaNumberToUint32Key(lua_Number number)
+    {
+        if (number >= 2147483648.0)
+        {
+            return 0x80000000U + (uint32_t)(number - 2147483648.0);
+        }
+        return (uint32_t)number;
+    }
+
     static char* WriteEncodedIndex(lua_State* L, lua_Number index, const TableHeader& header, char* buffer, const char* buffer_end, dmArray<const void*>& table_stack)
     {
         if (header.m_Version == 0)
@@ -234,7 +246,7 @@ namespace dmScript
                 table_stack.SetCapacity(0);
                 luaL_error(L, "index out of bounds, max is %d", 0xffffffff);
             }
-            uint32_t key = (uint32_t)index;
+            uint32_t key = LuaNumberToUint32Key(index);
             *buffer++ = (uint8_t)(key & 0xFF);
             *buffer++ = (uint8_t)((key >> 8) & 0xFF);
             *buffer++ = (uint8_t)((key >> 16) & 0xFF);
@@ -837,11 +849,11 @@ namespace dmScript
             {
                 luaL_error(L, "Unknown key type %d", key_type);
             }
-            uint8_t b1 = (uint8_t)*buffer++;
-            uint8_t b2 = (uint8_t)*buffer++;
-            uint8_t b3 = (uint8_t)*buffer++;
-            uint8_t b4 = (uint8_t)*buffer++;
-            uint32_t index = b4 << 24 | b3 << 16 | b2 << 8 | b1;
+            uint32_t b1 = (uint8_t)*buffer++;
+            uint32_t b2 = (uint8_t)*buffer++;
+            uint32_t b3 = (uint8_t)*buffer++;
+            uint32_t b4 = (uint8_t)*buffer++;
+            uint32_t index = (b4 << 24) | (b3 << 16) | (b2 << 8) | b1;
             lua_Number number = index;
             if (key_type == LUA_TNEGATIVENUMBER)
             {

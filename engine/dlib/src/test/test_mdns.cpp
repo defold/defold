@@ -1045,6 +1045,32 @@ namespace
         }
     }
 
+    static bool WaitForOnlyResponseTxtId(dmMDNS::HMDNS mdns_a, dmMDNS::HMDNS mdns_b, dmSocket::Socket capture_socket,
+                                         dmSocket::Socket sender_socket, const std::vector<uint8_t>& query,
+                                         const char* full_service_name, const char* expected_id, uint32_t timeout_ms)
+    {
+        const uint64_t deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
+        for (;;)
+        {
+            const uint64_t now = dmTime::GetMonotonicTime();
+            if (now >= deadline)
+                break;
+
+            // Prior multicast announcements can still be queued on the capture socket.
+            // Drain before each fresh query so stale packets cannot decide the race.
+            DrainSocket(capture_socket, 100);
+            if (!SendPacketToAddress(sender_socket, &query[0], (uint32_t) query.size(), MDNS_MULTICAST_IPV4, MDNS_PORT))
+                return false;
+
+            std::set<std::string> ids;
+            CollectResponseTxtIds(mdns_a, mdns_b, capture_socket, full_service_name, 500, &ids);
+            if (ids.size() == 1 && ids.find(expected_id) != ids.end())
+                return true;
+        }
+
+        return false;
+    }
+
     static bool SendQueryAndCapture(dmMDNS::HMDNS mdns, dmSocket::Socket socket, const char* qname, uint16_t qtype, const std::vector<std::string>& names, RawDnsPacket* packet, uint32_t timeout_ms)
     {
         std::vector<uint8_t> query;
@@ -1195,9 +1221,28 @@ namespace
             dmAtomicStore32(&ctx->m_Accepted, 1);
 
             char request[4];
-            int read = 0;
-            r = dmSocket::Receive(client_socket, request, sizeof(request), &read);
-            if (r != dmSocket::RESULT_OK || read != (int) sizeof(request) || memcmp(request, "PING", 4) != 0)
+            int total_read = 0;
+            // Accepted sockets can inherit non-blocking behavior from the listening socket on some platforms.
+            // Wait briefly for the client payload instead of treating the first empty read as EOF.
+            for (uint32_t j = 0; j < 300 && total_read < (int) sizeof(request) && !dmAtomicGet32(&ctx->m_Stop); ++j)
+            {
+                int read = 0;
+                r = dmSocket::Receive(client_socket, request + total_read, sizeof(request) - total_read, &read);
+                if (r == dmSocket::RESULT_WOULDBLOCK || r == dmSocket::RESULT_TRY_AGAIN)
+                {
+                    dmTime::Sleep(10 * 1000);
+                    continue;
+                }
+                if (r != dmSocket::RESULT_OK)
+                    break;
+                if (read == 0)
+                {
+                    r = dmSocket::RESULT_CONNRESET;
+                    break;
+                }
+                total_read += read;
+            }
+            if (r != dmSocket::RESULT_OK || total_read != (int) sizeof(request) || memcmp(request, "PING", 4) != 0)
             {
                 ctx->m_Result = (r == dmSocket::RESULT_OK) ? dmSocket::RESULT_UNKNOWN : r;
                 goto bail;
@@ -1924,16 +1969,11 @@ TEST(MDNS, SimultaneousServiceProbesPickSingleWinner)
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup_b.m_Mdns, &service_b));
 
     PumpMdnsPair(cleanup_a.m_Mdns, cleanup_b.m_Mdns, 500, 5 * 1000);
-    DrainSocket(capture.m_Socket, 100);
 
     std::vector<uint8_t> query;
     BuildQueryPacket(full_service_name, DNS_TYPE_ANY, &query);
-    ASSERT_TRUE(SendPacketToAddress(sender.m_Socket, &query[0], (uint32_t) query.size(), MDNS_MULTICAST_IPV4, MDNS_PORT));
-
-    std::set<std::string> ids;
-    CollectResponseTxtIds(cleanup_a.m_Mdns, cleanup_b.m_Mdns, capture.m_Socket, full_service_name, 800, &ids);
-    ASSERT_EQ(1U, ids.size());
-    ASSERT_TRUE(ids.find("probe-race-b") != ids.end());
+    ASSERT_TRUE(WaitForOnlyResponseTxtId(cleanup_a.m_Mdns, cleanup_b.m_Mdns, capture.m_Socket, sender.m_Socket,
+                                         query, full_service_name, "probe-race-b", 4000));
 }
 
 // Verifies the advertiser returns the expected PTR/SRV/TXT/A response set for valid queries.
@@ -2227,8 +2267,11 @@ TEST(MDNS, ZeroTtlAnnouncements)
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_SRV));
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_TXT));
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_A));
+    DrainSocket(capture.m_Socket, 100);
+    Pump(mdns, 0, 20, 5 * 1000);
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(mdns, &service));
+    dmTime::Sleep(100 * 1000);
     ASSERT_TRUE(WaitForMatchingResponse(mdns, capture.m_Socket, response_names, &packet, 3000));
     DrainSocket(capture.m_Socket, 100);
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::Delete(mdns));

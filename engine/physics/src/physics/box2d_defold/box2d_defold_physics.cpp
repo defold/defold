@@ -229,6 +229,8 @@ namespace dmPhysics
             DeleteContext2D(context);
             return 0x0;
         }
+
+        dmLogInfo("Created physics context: Box2D v%d.%d.%d", b2_version.major, b2_version.minor, b2_version.revision);
         return context;
     }
 
@@ -386,6 +388,8 @@ namespace dmPhysics
         return dmMath::Min(v[0], v[1]);
     }
 
+    static const float SCALE_EPSILON = 0.000001f;
+
     static void UpdateScale(HWorld2D world, b2Body* body)
     {
         dmTransform::Transform world_transform;
@@ -394,16 +398,16 @@ namespace dmPhysics
         float object_scale = GetUniformScale2D(world_transform);
 
         b2Fixture* fix = body->GetFixtureList();
-        bool allow_sleep = true;
+        bool scale_changed = false;
         while( fix )
         {
             b2Shape* shape = fix->GetShape();
-            if (shape->m_lastScale == object_scale )
+            if (fabsf(shape->m_lastScale - object_scale) <= SCALE_EPSILON )
             {
                 break;
             }
             shape->m_lastScale = object_scale;
-            allow_sleep = false;
+            scale_changed = true;
 
             if (fix->GetShape()->GetType() == b2Shape::e_circle) {
                 // creation scale for circles, is the initial radius
@@ -426,7 +430,7 @@ namespace dmPhysics
             fix = fix->GetNext();
         }
 
-        if (!allow_sleep)
+        if (scale_changed)
         {
             body->SetAwake(true);
         }
@@ -469,11 +473,7 @@ namespace dmPhysics
                         b2Vec2 b2_position;
                         ToB2(position, b2_position, scale);
                         body->SetTransform(b2_position, angle);
-                        body->SetSleepingAllowed(false);
-                    }
-                    else
-                    {
-                        body->SetSleepingAllowed(true);
+                        body->SetAwake(true);
                     }
                 }
 
@@ -911,6 +911,33 @@ namespace dmPhysics
         }
     }
 
+    static bool IsPolygonAreaValid(const b2Shape* shape, const b2Transform& transform, float scale)
+    {
+        if (shape->m_type != b2Shape::e_polygon)
+            return true;
+
+        const b2PolygonShape* poly_shape = (const b2PolygonShape*) shape;
+        int32 count = poly_shape->GetVertexCount();
+        if (count < 3)
+            return false;
+
+        b2Vec2 vertices[b2_maxPolygonVertices];
+        for (int32 i = 0; i < count; ++i)
+        {
+            vertices[i] = TransformScaleB2(transform, scale, poly_shape->GetVertex(i));
+        }
+
+        b2Vec2 origin = vertices[0];
+        float area = 0.0f;
+        for (int i = 1; i < count - 1; ++i)
+        {
+            b2Vec2 e1 = vertices[i] - origin;
+            b2Vec2 e2 = vertices[i + 1] - origin;
+            area += 0.5f * b2Cross(e1, e2);
+        }
+        return area > FLT_EPSILON;
+    }
+
     /*
      * NOTE: In order to support shape transform we create a copy of shapes using the function TransformCopyShape() above
      * This is required as the transform is part of the shape and due to absence of a compound shape, aka list shape
@@ -961,6 +988,34 @@ namespace dmPhysics
             else
             {
                 dmLogWarning("Collision object created at origin, this will result in a performance hit if multiple objects are created there in the same frame.");
+            }
+        }
+        // NOTE: Box2D's ComputeCentroid contains an assert that fires when a polygon's area is too close to zero, which
+        // would crash the editor with an ugly callstack. To prevent this, we replicate the same area computation here
+        // so we can detect the issue early and fail gracefully instead of hitting the assert.
+        for (uint32_t i = 0; i < shape_count; ++i)
+        {
+            b2Shape* s = (b2Shape*)shapes[i];
+            if (s->m_type != b2Shape::e_polygon)
+                continue;
+            b2Vec2 t;
+            b2Rot r;
+            if (translations && rotations)
+            {
+                ToB2(translations[i], t, context->m_Scale * scale);
+                r.SetComplex(1 - 2 * rotations[i].getZ() * rotations[i].getZ(),
+                             2 * rotations[i].getZ() * rotations[i].getW());
+            }
+            else
+            {
+                t.SetZero();
+                r.SetIdentity();
+            }
+            b2Transform transform(t, r);
+            if (!IsPolygonAreaValid(s, transform, scale))
+            {
+                dmLogError("Collision object has a polygon shape with invalid (near-zero) area.");
+                return 0x0;
             }
         }
         switch (data.m_Type)
