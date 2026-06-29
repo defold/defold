@@ -38,7 +38,7 @@ namespace dmGraphics
 #if defined(DM_PLATFORM_MACOS)
     const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 2; // Keep two frames in flight on macOS for better CPU/GPU overlap
 #else
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 1;
+    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 2;
 #endif
     const static uint16_t MAX_ENCODER_RESOURCE_CACHE = 256;
     const static uint8_t  MAX_VERTEX_BUFFER_SLOTS    = MAX_BINDINGS_PER_SET_COUNT + MAX_VERTEX_BUFFERS;

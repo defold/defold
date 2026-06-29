@@ -16,7 +16,7 @@
 #include "../../../include/GL/glfw.h"
 #include "internal.h"
 
-#import "VulkanView.h"
+#import "MetalView.h"
 #import "EAGLView.h"
 
 extern int g_IsReboot;
@@ -37,16 +37,19 @@ static int g_view_type = GLFW_NO_API;
     CGRect bounds = self.view.bounds;
     cachedViewSize = bounds.size;
 
+    BaseView* oldBaseView = baseView;
+    BaseView* newBaseView = 0;
     if (g_view_type == GLFW_NO_API)
     {
-        baseView = [VulkanView createView: bounds recreate:recreate];
+        newBaseView = [MetalView createView: bounds recreate:recreate];
     }
     else
     {
-        baseView = [EAGLView createView: bounds recreate:recreate];
+        newBaseView = [EAGLView createView: bounds recreate:recreate];
     }
 
-    [[self view] removeFromSuperview];
+    [oldBaseView removeFromSuperview];
+    self.baseView = newBaseView;
 
     [[self view] insertSubview:baseView atIndex:0];
 }
@@ -175,7 +178,18 @@ static int g_view_type = GLFW_NO_API;
 
 void _glfwPlatformSetViewType(int view_type)
 {
+    if (g_view_type == view_type)
+    {
+        return;
+    }
+
     g_view_type = view_type;
+
+    ViewController* viewController = (ViewController*) _glfwWin.viewController;
+    if (viewController && [viewController isViewLoaded])
+    {
+        [viewController createView:FALSE];
+    }
 }
 
 void _glfwPlatformSetWindowBackgroundColor(unsigned int color)

@@ -16,7 +16,7 @@
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 
-@interface VulkanView : BaseView {
+@interface MetalView : BaseView {
 @private
 }
 
@@ -26,6 +26,6 @@
 
 @end
 
-@interface VulkanView ()
+@interface MetalView ()
 
 @end

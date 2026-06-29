@@ -250,14 +250,15 @@ def platform_graphics_libs_and_symbols(platform):
     use_vulkan = False
     use_metal = Options.options.with_metal and platform_supports_feature(platform, 'metal', {})
 
-    if platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
+    if platform in ('x86_64-ios', 'arm64-ios'):
+        use_opengles = True
+        use_vulkan = Options.options.with_vulkan
+    elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
         use_opengl = Options.options.with_opengl
         use_vulkan = True
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
-    elif platform in ('x86_64-ios', 'arm64-ios') and (Options.options.with_vulkan or Options.options.with_metal):
-        use_vulkan = Options.options.with_vulkan and not use_metal
     elif platform in ('armv7-android', 'arm64-android'):
         use_opengles = Options.options.with_opengl or not Options.options.with_vulkan
         use_vulkan = Options.options.with_vulkan or not Options.options.with_opengl

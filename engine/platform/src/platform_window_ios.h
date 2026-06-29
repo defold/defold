@@ -21,7 +21,6 @@
 
 namespace dmPlatform
 {
-    void SetiOSViewTypeOpenGL(HWindow window);
     id   GetiOSUIWindow();
     id   GetiOSUIView();
     id   GetiOSEAGLContext();
