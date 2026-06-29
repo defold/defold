@@ -833,6 +833,31 @@
                                ;; Check so empty custom properties are included as empty strings
                                (check-project-setting built-properties ["custom" "should_be_empty"] "")))))))
 
+(deftest build-game-project-preserves-explicit-empty-resource-settings
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/game_project_properties")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (spit (io/file project-path "game.project")
+            (str "[project]\n"
+                 "title = Explicit Empty Resource Settings\n\n"
+                 "[bootstrap]\n"
+                 "main_collection = main.collectionc\n"
+                 "render = \n\n"
+                 "[display]\n"
+                 "display_profiles = \n\n"
+                 "[input]\n"
+                 "game_binding = game.input_bindingc\n"))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)
+              project (test-util/setup-project! workspace)
+              game-project (test-util/resource-node project "/game.project")]
+          (is (nil? (game-project/get-setting game-project ["bootstrap" "render"])))
+          (is (nil? (game-project/get-setting game-project ["display" "display_profiles"])))
+          (with-open [_ (test-util/build! game-project)]
+            (with-open [r (io/reader (build-path workspace "game.projectc"))]
+              (let [built-properties (settings-core/parse-settings r)]
+                (check-project-setting built-properties ["bootstrap" "render"] "")
+                (check-project-setting built-properties ["display" "display_profiles"] "")))))))))
+
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
   (let [path-list (string/split path #"/")]

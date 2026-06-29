@@ -37,13 +37,10 @@
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
 
-(def ^:private gamepads-setting-path ["input" "gamepads"])
-(def ^:private gamepad-database-setting-path ["input" "gamepad_database"])
-
 (defn- ignored-setting?
   [{:keys [path]}]
   (or (= ["project" "dependencies"] path)
-      (= gamepad-database-setting-path path)))
+      (= ["input" "gamepad_database"] path)))
 
 ;; Transform a settings map with build-time settings conversions.
 (defn- transform-settings! [settings]
@@ -54,39 +51,26 @@
         (assoc  ["display", "update_frequency"] 0))
     settings))
 
-(defn- explicit-empty-setting? [raw-settings path]
-  (= "" (settings-core/get-setting raw-settings path)))
-
-(defn- built-resource-setting [path value meta-settings path->built-resource-settings dep-resources]
-  (let [meta-setting (settings-core/get-meta-setting meta-settings path)
-        build-resource (path->built-resource-settings path)]
-    (cond
-      (:unknown-setting meta-setting)
-      {:path path :value value}
-
-      build-resource
-      {:path path :value (resource/proj-path (dep-resources build-resource))}
-
-      (and (= gamepads-setting-path path)
-           (= "" value))
-      {:path path :value value}
-
-      (and (some? value) (not= "" value))
-      {:path path
-       :value (if (= :resource (:type meta-setting))
-                (resource/proj-path value)
-                (settings-core/render-raw-setting-value meta-setting value))})))
-
 (defn- build-game-project [resource dep-resources user-data]
-  (let [{:keys [settings-map raw-settings meta-settings path->built-resource-settings]} user-data
-        settings-map (cond-> (transform-settings! settings-map)
-                             (explicit-empty-setting? raw-settings gamepads-setting-path)
-                             (assoc gamepads-setting-path ""))
+  (let [{:keys [settings-map meta-settings path->built-resource-settings]} user-data
         settings (into []
                        (comp (keep (fn [[path value]]
-                                     (built-resource-setting path value meta-settings path->built-resource-settings dep-resources)))
-                             (remove ignored-setting?))
-                       (sort-by first settings-map))
+                                     (let [meta-setting (settings-core/get-meta-setting meta-settings path)]
+                                       (when (or (:unknown-setting meta-setting)
+                                                 (and (= :resource (:type meta-setting))
+                                                      (nil? value)
+                                                      (:default meta-setting))
+                                                 (and (some? value) (not= "" value)))
+                                         {:path path :value value}))))
+                             (remove ignored-setting?)
+                             (keep (fn [{:keys [path value] :as setting}]
+                                     (let [meta-setting (settings-core/get-meta-setting meta-settings path)]
+                                       (if (= :resource (:type meta-setting))
+                                         (if-let [build-resource (path->built-resource-settings path)]
+                                           (assoc setting :value (resource/proj-path (dep-resources build-resource)))
+                                           (assoc setting :value (resource/resource->proj-path value)))
+                                         (assoc setting :value (settings-core/render-raw-setting-value meta-setting value)))))))
+                       (sort-by first (transform-settings! settings-map)))
         user-data-content (settings-core/settings->str settings meta-settings :comma-separated-list)]
     {:resource resource :content (.getBytes user-data-content)}))
 
@@ -139,56 +123,45 @@
    ["graphics" "texture_profiles"] [[:build-targets :dep-build-targets]
                                     [:pb :texture-profiles-data]]
    ["input" "gamepads"] [[:build-targets :gamepads-build-targets]
-                         [:_node-id :gamepads-node-id]
                          [:resource :gamepads-resource]
                          [:pb :gamepads-pb]]
    ["input" "gamepad_database"] [[:resource :gamepad-database-resource]
                                  [:lines :gamepad-database-lines]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
-(defn- gamepad-database-error [_node-id gamepad-database-resource]
-  (when (and gamepad-database-resource
-             (resource/exists? gamepad-database-resource)
-             (not= "txt" (resource/ext gamepad-database-resource)))
-    (g/->error _node-id :build-targets :fatal gamepad-database-resource
-               (localization/message "error.game-project.gamepad-database-must-be-txt"))))
-
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map raw-settings meta-info custom-build-targets resource-settings dep-build-targets gamepads-build-targets gamepads-node-id gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
-  (let [gamepads-empty (explicit-empty-setting? raw-settings gamepads-setting-path)
-        gamepad-database-empty (explicit-empty-setting? raw-settings gamepad-database-setting-path)
-        gamepads-build-targets (when-not gamepads-empty gamepads-build-targets)
-        gamepads-resource (when-not gamepads-empty gamepads-resource)
-        gamepads-pb (when-not gamepads-empty gamepads-pb)
-        gamepad-database-resource (when-not gamepad-database-empty gamepad-database-resource)
-        gamepad-database-lines (when-not gamepad-database-empty gamepad-database-lines)]
-    (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
-                          gamepads-pb
-                          gamepad-database-lines
-                          (gamepad-database-error _node-id gamepad-database-resource)]
-     (let [gamepads-build-target (if (and gamepads-build-targets
-                                           (not gamepad-database-resource))
-                                    (peek gamepads-build-targets)
-                                    (gamepads/make-build-target (or gamepads-node-id _node-id) gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines))
-           dep-build-targets (cond-> (vec (into (flatten dep-build-targets) custom-build-targets))
-                                     gamepads-build-target (conj gamepads-build-target))
-           deps-by-source (into {} (map (fn [{build-resource :resource}]
-                                          [(:resource build-resource) build-resource]))
-                                dep-build-targets)
-           path->built-resource-settings (cond-> (into {} (keep (fn [{:keys [path value]}]
-                                                                  (when (resource-setting-connections-template path)
-                                                                    [path (deps-by-source value)])))
-                                                                resource-settings)
-                                         gamepads-build-target
-                                         (assoc gamepads-setting-path (:resource gamepads-build-target)))]
-       [(bt/with-content-hash
-          {:node-id _node-id
-           :resource (workspace/make-build-resource resource)
-           :build-fn build-game-project
-           :user-data {:settings-map settings-map
-                       :raw-settings raw-settings
-                       :meta-settings (:settings meta-info)
-                       :path->built-resource-settings path->built-resource-settings}
-           :deps dep-build-targets})]))))
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
+  (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
+                        gamepads-pb
+                        gamepad-database-lines
+                        (when (and gamepad-database-resource
+                                   (resource/exists? gamepad-database-resource)
+                                   (not= "txt" (resource/ext gamepad-database-resource)))
+                          (g/->error _node-id :build-targets :fatal gamepad-database-resource
+                                     (localization/message "error.game-project.gamepad-database-must-be-txt")))]
+    (let [gamepads-build-target (if (and gamepads-build-targets (not gamepad-database-resource))
+                                  (peek gamepads-build-targets)
+                                  (gamepads/make-build-target _node-id gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines))
+          dep-build-targets (cond-> (vec (into (flatten dep-build-targets) custom-build-targets))
+                              gamepads-build-target (conj gamepads-build-target))
+          deps-by-source (into {}
+                               (map (fn [{build-resource :resource}]
+                                      [(:resource build-resource) build-resource]))
+                               dep-build-targets)
+          path->built-resource-settings (cond-> (into {}
+                                                      (keep (fn [{:keys [path value]}]
+                                                              (when (resource-setting-connections-template path)
+                                                                [path (deps-by-source value)])))
+                                                      resource-settings)
+                                          gamepads-build-target
+                                          (assoc ["input" "gamepads"] (:resource gamepads-build-target)))]
+      [(bt/with-content-hash
+         {:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-game-project
+          :user-data {:settings-map settings-map
+                      :meta-settings (:settings meta-info)
+                      :path->built-resource-settings path->built-resource-settings}
+          :deps dep-build-targets})])))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)
@@ -206,12 +179,10 @@
   (input form-data g/Any)
   (output form-data g/Any :cached (gu/passthrough form-data))
 
-  (input raw-settings g/Any)
   (input resource-settings g/Any)
 
   (input gamepads-resource resource/Resource)
   (input gamepads-build-targets g/Any)
-  (input gamepads-node-id g/NodeID)
   (input gamepads-pb g/Any)
   (input gamepad-database-resource resource/Resource)
   (input gamepad-database-lines g/Any)
@@ -311,7 +282,6 @@
         (g/connect settings-node :settings-map self :settings-map)
         (g/connect settings-node :save-value self :save-value)
         (g/connect settings-node :form-data self :form-data)
-        (g/connect settings-node :raw-settings self :raw-settings)
         (g/connect settings-node :meta-info self :meta-info)
         (g/connect settings-node :resource-settings self :resource-settings)
         (g/connect settings-node :setting-errors self :build-errors)

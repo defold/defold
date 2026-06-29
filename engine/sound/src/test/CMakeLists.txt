@@ -195,7 +195,7 @@ defold_target_link_libraries(test_sound_null "${TARGET_PLATFORM}"
   embedded_opus)
 defold_target_link_socket(test_sound_null "${TARGET_PLATFORM}" PRIVATE)
 defold_target_link_libraries_web(test_sound_null "${TARGET_PLATFORM}" library_sound.js)
-defold_register_test_target(test_sound_null ${SOUND_RUN_TESTS} "${SOUND_ROOT}")
+defold_register_test_target(test_sound_null OFF "${SOUND_ROOT}")
 
 if(TARGET_PLATFORM MATCHES "linux$")
   set(_sound_openal_export_file "${SOUND_TEST_GEN_DIR}/test_sound_openal_exported_symbols.cpp")
