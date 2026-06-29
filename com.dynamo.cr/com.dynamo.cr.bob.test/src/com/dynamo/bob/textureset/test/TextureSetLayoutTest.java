@@ -333,4 +333,64 @@ public class TextureSetLayoutTest {
         assertEquals(layout.getWidth(), 2048);
         assertEquals(layout.getHeight(), 1024);
     }
+
+    @Test
+    public void testMixedOrientationFit() throws CompileExceptionError {
+        List<Rect> rectangles
+            = Arrays.asList(rect("0", 0, 1089, 417),
+                            rect("1", 1, 369, 1080));
+        List<Layout> layouts = packedLayout(0, rectangles);
+        assertEquals(1, layouts.size());
+
+        Layout layout = layouts.get(0);
+        assertTrue("Expected occupancy to be above 40%", layouts.get(0).getOccupancy() >= 0.4);
+        assertEquals(2048, layout.getWidth());
+        assertEquals(1024, layout.getHeight());
+    }
+
+    // The 26 source images of issue #12593's 2.atlas (chars_01..26), unextruded.
+    private static final int[][] PORTRAIT_ATLAS_RECTS = {
+        {227, 475}, {203, 434}, {265, 532}, {242, 521}, {236, 588}, {253, 567},
+        {305, 552}, {308, 551}, {289, 620}, {259, 615}, {363, 584}, {316, 626},
+        {264, 630}, {283, 507}, {193, 508}, {201, 500}, {322, 536}, {280, 514},
+        {224, 546}, {218, 520}, {260, 485}, {252, 486}, {246, 520}, {265, 495},
+        {319, 558}, {285, 497}
+    };
+
+    private List<Rect> portraitAtlasRects(int extrudeBorders) {
+        int grow = 2 * extrudeBorders;
+        List<Rect> rects = new ArrayList<Rect>(PORTRAIT_ATLAS_RECTS.length);
+        for (int i = 0; i < PORTRAIT_ATLAS_RECTS.length; i++) {
+            rects.add(rect(Integer.toString(i), i,
+                           PORTRAIT_ATLAS_RECTS[i][0] + grow,
+                           PORTRAIT_ATLAS_RECTS[i][1] + grow));
+        }
+        return rects;
+    }
+
+    // Issue #12593: increasing extrudeBorders for the reported portrait atlas
+    // should not produce a smaller packed page. This is distinct from the #11541
+    // canFitInPage regression covered by testMixedOrientationFit. Here we're making
+    // sure that the packing remains monotonic over N extrusions.
+    @Test
+    public void testIssue12593PortraitAtlasExtrudeBorders() throws CompileExceptionError {
+        long previousArea = 0;
+        int occupancyCount = 0;
+
+        for (int extrudeBorders = 0; extrudeBorders <= 5; extrudeBorders++) {
+            List<Layout> layouts = packedLayout(0, portraitAtlasRects(extrudeBorders));
+            assertEquals(1, layouts.size());
+            Layout layout = layouts.get(0);
+            long area = (long)layout.getWidth() * layout.getHeight();
+            assertTrue(String.format("extrudeBorders=%d packed to a smaller page area", extrudeBorders), area >= previousArea);
+            if (layout.getOccupancy() >= 0.88f) {
+                occupancyCount++;
+            } else {
+                break;
+            }
+            previousArea = area;
+        }
+
+        assertTrue("Expected occupancy to be above 88% for the first 3 extrusion borders", occupancyCount >= 3);
+    }
 }
