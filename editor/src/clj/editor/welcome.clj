@@ -80,6 +80,13 @@
 (def ^:private URLString
   (s/constrained s/Str #(try (URL. %) true (catch MalformedURLException _ false)) "URLString"))
 
+(defn- display-url
+  ^String [^String url]
+  (or (some->> url
+               (re-matches #"(https://github\.com/[^/]+/[^/]+)/archive/.+\.zip")
+               second)
+      url))
+
 (def ^:private TemplateProject
   {:name VisibleString
    :description VisibleString
@@ -459,7 +466,7 @@
                      (ui/add-child!
                        (localization/localize! (Text.) localization (localization/message description)))
                      (VBox/setVgrow Priority/ALWAYS))
-                   (doto (Hyperlink. zip-url)
+                   (doto (Hyperlink. (display-url zip-url))
                      (ui/on-action! (fn [_] (ui/open-url zip-url))))])))
 
 (defn- make-template-entry
