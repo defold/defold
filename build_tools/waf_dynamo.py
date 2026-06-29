@@ -248,6 +248,7 @@ def platform_graphics_libs_and_symbols(platform):
     use_opengl = False
     use_opengles = False
     use_vulkan = False
+    use_metal = Options.options.with_metal and platform_supports_feature(platform, 'metal', {})
 
     if platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
         use_opengl = Options.options.with_opengl
@@ -255,6 +256,8 @@ def platform_graphics_libs_and_symbols(platform):
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
+    elif platform in ('x86_64-ios', 'arm64-ios') and (Options.options.with_vulkan or Options.options.with_metal):
+        use_vulkan = Options.options.with_vulkan and not use_metal
     elif platform in ('armv7-android', 'arm64-android'):
         use_opengles = Options.options.with_opengl or not Options.options.with_vulkan
         use_vulkan = Options.options.with_vulkan or not Options.options.with_opengl
@@ -285,8 +288,11 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_libs += ['GRAPHICS_WEBGPU']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
 
-    if Options.options.with_metal and platform_supports_feature(platform, 'metal', {}):
-        graphics_libs += ['GRAPHICS_METAL', 'METAL']
+    if use_metal:
+        graphics_libs += ['GRAPHICS_METAL']
+        if platform in ('x86_64-ios', 'arm64-ios') and not use_opengl and not use_opengles and not use_vulkan:
+            graphics_libs += ['DMGLFW']
+        graphics_libs += ['METAL']
         graphics_lib_symbols.append('GraphicsAdapterMetal')
 
     if platform in ('arm64-nx64'):

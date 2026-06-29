@@ -761,7 +761,6 @@ namespace dmGraphics
         desc->setStorageMode(MTL::StorageModePrivate);
         desc->setUsage(MTL::TextureUsageRenderTarget);
         MTL::Texture* texture = context->m_Device->newTexture(desc);
-        desc->release();
         return texture;
     }
 
@@ -3905,7 +3904,6 @@ namespace dmGraphics
         }
 
         texture->m_Texture = context->m_Device->newTexture(desc);
-        desc->release();
         texture->m_Destroyed = 0;
 
         texture->m_Base.m_Width       = params.m_Width;
