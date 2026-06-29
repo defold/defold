@@ -1056,6 +1056,18 @@
         "texture" gui-texture "box" :texture "renamed_texture" "renamed_texture/particle_blob" ["" "renamed_texture/particle_blob"]
         "particlefx" gui-particlefx-resource "particlefx" :particlefx "renamed_particlefx" "renamed_particlefx" ["renamed_particlefx"]))))
 
+(deftest rename-referenced-gui-resource-ignores-visible-layout
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          scene (project/get-resource-node project "/gui/resources/button.gui")
+          font-node (gui-font scene "button_font")
+          text-node (gui-node scene "text")]
+      (with-open [_ (make-restore-point!)]
+        (with-visible-layout! scene "Landscape"
+          (g/set-property! font-node :name "button_font_renamed"))
+        (is (= "button_font_renamed" (g/raw-property-value (g/now) text-node :font)))
+        (is (not (contains? (g/node-value text-node :layout->prop->override) "")))))))
+
 (deftest rename-referenced-gui-resource-in-template
   ;; Note: This test does not verify that override values in the outer scene
   ;; that refer to resources in the template scene are updated after the rename.
