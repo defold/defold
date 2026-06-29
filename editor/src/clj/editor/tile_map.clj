@@ -1340,8 +1340,8 @@
       (do
         (g/transact tx)
         nil)
-      ;; If we pass an action instead, we enable right-click context menu
-      ;; action)))
+      ;; We want to disable the right-click context menu in the tilemap scene because there's really nothing to select,
+      ;; so the menu doesn't provide much. If we want to enable it, pass the action instead
       true)))
 
 (defn- handle-input-palette
