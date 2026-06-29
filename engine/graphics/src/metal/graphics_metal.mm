@@ -2111,14 +2111,15 @@ namespace dmGraphics
         MetalContext* context       = (MetalContext*) _context;
         MetalUniformBuffer* ubo     = (MetalUniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         {
-            return;
-        }
-
-        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
-        {
-            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentUniformBuffers[set][binding] == ubo)
+                {
+                    context->m_CurrentUniformBuffers[set][binding] = 0;
+                }
+            }
         }
 
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -2132,11 +2133,6 @@ namespace dmGraphics
 
         ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
         ubo->m_BaseUniformBuffer.m_BoundSet     = set;
-
-        if (context->m_CurrentUniformBuffers[set][binding])
-        {
-            MetalDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
-        }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
@@ -2903,6 +2899,7 @@ namespace dmGraphics
                                 bound_ubo->m_BaseUniformBuffer.m_Layout,
                                 res->m_Name,
                                 *pgm_layout);
+                            MetalDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                             bound_ubo = 0;
                         }
                     }

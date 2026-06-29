@@ -409,8 +409,9 @@ public class IOSBundler implements IBundler {
 
         // copy dynamic libraries
         if (architectures.size() == 1) {
-            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
-            BundleHelper.copySharedLibraries(platform, binaryDir, appDir);
+            Platform architecture = architectures.get(0);
+            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), architecture.getExtenderPair()));
+            BundleHelper.copySharedLibraries(architecture, binaryDir, appDir);
         } else {
             BundleHelper.createFatLibrary(project, architectures, project.getBinaryOutputDirectory(), appDir, canceled);
         }

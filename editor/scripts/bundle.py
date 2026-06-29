@@ -536,11 +536,11 @@ def create_bundle(jdk, platform, options):
                   '--output=%s' % packages_jdk])
 
     # Sign files
-    if options.skip_codesign:
-        log("Skipping code signing")
-    else:
+    if options.codesign:
         log("Signing for %s..." % platform)
         sign(bundle_dir, platform, options)
+    else:
+        log("Code signing disabled")
 
     # create final zip file
     zipfile = 'target/editor/Defold-%s.zip' % platform
@@ -606,7 +606,7 @@ def create_dmg(bundle_dir, options, platform):
     run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
-    if not options.skip_codesign:
+    if options.codesign:
         certificate = codesigning.mac_certificate(options.codesigning_identity)
         if certificate is None:
             error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
@@ -786,10 +786,10 @@ Commands:
                       default = False,
                       help = 'Skip tests when building')
 
-    parser.add_option('--skip-codesign', dest='skip_codesign',
+    parser.add_option('--codesign', dest='codesign',
                       action = 'store_true',
                       default = False,
-                      help = 'Skip code signing when bundling')
+                      help = 'Enable code signing when bundling')
 
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
                       default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
