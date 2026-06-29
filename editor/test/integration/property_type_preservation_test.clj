@@ -121,7 +121,7 @@
   (let [original-value (g/node-value node-id prop-kw)
         widget (make-property-widget node-id prop-kw)
         [num-field] (test-util/editable-controls widget)]
-    (with-open [_ (test-util/make-undo-reverter :undo/global)]
+    (with-open [_ (test-util/make-system-reverter)]
       (test-util/set-control-value! num-field 0.11)
       (let [modified-value (g/node-value node-id prop-kw)]
         (is (not= original-value modified-value))
@@ -131,7 +131,7 @@
   (let [original-value (g/node-value node-id prop-kw)
         widget (make-property-widget node-id prop-kw)
         check! (fn check! [num-field num-value]
-                 (with-open [_ (test-util/make-undo-reverter :undo/global)]
+                 (with-open [_ (test-util/make-system-reverter)]
                    (test-util/set-control-value! num-field num-value)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))
@@ -155,7 +155,7 @@
   (let [original-value (g/node-value node-id prop-kw)
         widget (make-property-widget node-id prop-kw)
         [color-input] (test-util/editable-controls widget)]
-    (with-open [_ (test-util/make-undo-reverter :undo/global)]
+    (with-open [_ (test-util/make-system-reverter)]
       (test-util/set-control-value! color-input "#fff")
       (let [modified-value (g/node-value node-id prop-kw)]
         (is (not= original-value modified-value))
@@ -167,7 +167,7 @@
         widget (make-property-widget node-id prop-kw)
         [value-field slider] (test-util/editable-controls widget)
         check! (fn check! [perform-edit!]
-                 (with-open [_ (test-util/make-undo-reverter :undo/global)]
+                 (with-open [_ (test-util/make-system-reverter)]
                    (perform-edit!)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))
@@ -180,7 +180,7 @@
         widget (make-property-widget node-id prop-kw)
         [edit-curve-button value-field] (test-util/editable-controls widget)
         check! (fn check! [perform-edit!]
-                 (with-open [_ (test-util/make-undo-reverter :undo/global)]
+                 (with-open [_ (test-util/make-system-reverter)]
                    (perform-edit!)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))
@@ -193,7 +193,7 @@
         widget (make-property-widget node-id prop-kw)
         [edit-curve-button value-field spread-field] (test-util/editable-controls widget)
         check! (fn check! [perform-edit!]
-                 (with-open [_ (test-util/make-undo-reverter :undo/global)]
+                 (with-open [_ (test-util/make-system-reverter)]
                    (perform-edit!)
                    (let [modified-value (g/node-value node-id prop-kw)]
                      (is (not= original-value modified-value))

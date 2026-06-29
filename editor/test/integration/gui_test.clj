@@ -573,7 +573,7 @@
 
 (deftest paste-gui-resource-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui/resources/button.gui")
 
           check!
@@ -623,7 +623,7 @@
 
 (deftest rename-referenced-gui-resource
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui_resources/gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices]
         (testing (format "Renaming %s resource updates references" resource-id)
@@ -649,7 +649,7 @@
   ;; that refer to resources in the template scene are updated after the rename.
   ;; This is covered by template-layout-resource-rename-test below.
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)
+    (let [make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
           scene (test-util/resource-node project "/gui_resources/uses_gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices expected-tmpl-choices]
@@ -674,7 +674,7 @@
 
 (deftest rename-referenced-gui-resource-in-outer-scene
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)
+    (let [make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
           scene (test-util/resource-node project "/gui_resources/replaces_gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-tmpl-name expected-choices]
@@ -729,7 +729,7 @@
 (deftest introduce-missing-referenced-gui-resource
   (test-util/with-loaded-project
     (let [[workspace project _app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-undo-reverter :undo/global)
+          make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           shapes {:box (gui-node scene "box")
                   :pie (gui-node scene "pie")
@@ -779,7 +779,7 @@
 (deftest introduce-missing-referenced-gui-resource-in-template
   (test-util/with-loaded-project
     (let [[workspace project _app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-undo-reverter :undo/global)
+          make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           template-shapes {:box (gui-node template-scene "box")
                            :pie (gui-node template-scene "pie")
@@ -928,7 +928,7 @@
 
 (deftest reordering-does-not-wipe-layout-overrides
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
           layouts (g/node-feeding-into scene :layout-names)
@@ -1172,7 +1172,7 @@
 
 (deftest template-layout-data-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
 
       (let [proj-path "/gui/template_layout/button.gui"]
         (testing proj-path
@@ -1880,7 +1880,7 @@
 
 (deftest template-layout-add-referenced-layout-to-referencing-scene-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (with-open [_ (make-restore-point!)]
         (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_button.gui")
               referenced-scene (project/get-resource-node project "/gui/template_layout/button.gui")
@@ -2011,7 +2011,7 @@
 
 (deftest template-layout-add-referencing-layout-to-referenced-scene-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (with-open [_ (make-restore-point!)]
         (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_button.gui")
               referenced-scene (project/get-resource-node project "/gui/template_layout/button.gui")
@@ -2418,7 +2418,7 @@
 
 (deftest template-layout-resource-rename-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (let [referencing-scene (project/get-resource-node project "/gui/resources/panel.gui")
             referenced-scene (project/get-resource-node project "/gui/resources/button.gui")
 
@@ -2768,7 +2768,7 @@
 
 (deftest template-layout-shadowing-resource-rename-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (let [referencing-scene (project/get-resource-node project "/gui/resources/shadowing_panel.gui")
             referenced-scene (project/get-resource-node project "/gui/resources/shadowing_button.gui")
 

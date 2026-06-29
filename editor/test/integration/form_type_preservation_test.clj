@@ -125,7 +125,7 @@
 
         check-field!
         (fn check-field! [field-index new-num-value]
-          (with-open [_ (test-util/make-undo-reverter :undo/global)]
+          (with-open [_ (test-util/make-system-reverter)]
             (let [text-field-count
                   (do
                     (render-form! view-node)

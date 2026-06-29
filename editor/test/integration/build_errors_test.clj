@@ -56,7 +56,7 @@
           resource (partial test-util/resource workspace)
           resource-node (partial test-util/resource-node project)
           outline-node (fn [resource-path labels] (find-outline-node (resource-node resource-path) labels))
-          make-restore-point! #(test-util/make-undo-reverter :undo/global)
+          make-restore-point! #(test-util/make-system-reverter)
           nodes-label (localization/message "outline.gui.nodes")]
 
       (testing "Build error links to source node"

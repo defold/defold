@@ -95,7 +95,7 @@
 
 (deftest label-batch-render-test
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-undo-reverter :undo/global)
+    (let [make-restore-point! #(test-util/make-system-reverter)
           add-label-component! #(test-util/add-embedded-component! % (workspace/get-resource-type workspace "label"))
           [go view] (test-util/open-scene-view! project app-view "/game_object/test.go" 128 128)
           render-calls (fn [selection key-fn]

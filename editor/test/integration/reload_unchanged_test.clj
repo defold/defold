@@ -151,7 +151,7 @@
     (let [resource-change-plans-atom (make-resource-change-plans-atom! project)
 
           resource+edited-contents
-          (with-open [_ (test-util/make-undo-reverter :undo/global)]
+          (with-open [_ (test-util/make-system-reverter)]
             (perform-edits-to-all-editable-files! project)
             (into []
                   (map (fn [save-data]

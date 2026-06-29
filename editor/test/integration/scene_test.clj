@@ -260,7 +260,7 @@
                          [(double 0.0) (double 0.0) (double 0.0)]
                          (vector-of :float 0.0 0.0 0.0)
                          (vector-of :double 0.0 0.0 0.0)])]
-            (with-open [_ (test-util/make-undo-reverter :undo/global)]
+            (with-open [_ (test-util/make-system-reverter)]
               (g/set-property! go-node :position original-position)
               (test-util/mouse-drag! view 64 64 68 64)
               (let [modified-position (g/node-value go-node :position)]
@@ -276,7 +276,7 @@
                          [(double 0.0) (double 0.0) (double 0.0) (double 1.0)]
                          (vector-of :float 0.0 0.0 0.0 1.0)
                          (vector-of :double 0.0 0.0 0.0 1.0)])]
-            (with-open [_ (test-util/make-undo-reverter :undo/global)]
+            (with-open [_ (test-util/make-system-reverter)]
               (g/set-property! go-node :rotation original-rotation)
               (test-util/mouse-drag! view 64 80 64 84)
               (let [modified-rotation (g/node-value go-node :rotation)]
@@ -292,7 +292,7 @@
                          [(double 1.0) (double 1.0) (double 1.0)]
                          (vector-of :float 1.0 1.0 1.0)
                          (vector-of :double 1.0 1.0 1.0)])]
-            (with-open [_ (test-util/make-undo-reverter :undo/global)]
+            (with-open [_ (test-util/make-system-reverter)]
               (g/set-property! go-node :scale original-scale)
               (test-util/mouse-drag! view 64 64 68 64)
               (let [modified-scale (g/node-value go-node :scale)]

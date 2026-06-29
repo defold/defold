@@ -113,7 +113,7 @@
 
       (testing "Sphere Shape"
         (doseq [original-diameter [(float 10.0) (double 10.0)]]
-          (with-open [_ (test-util/make-undo-reverter :undo/global)]
+          (with-open [_ (test-util/make-system-reverter)]
             (g/set-property! sphere-shape :diameter original-diameter)
             (test-util/manip-scale! sphere-shape [2.0 2.0 2.0])
             (test-util/ensure-number-type-preserving! original-diameter (g/node-value sphere-shape :diameter)))))
@@ -125,14 +125,14 @@
                        [(double 10.0) (double 10.0) (double 10.0)]
                        (vector-of :float 10.0 10.0 10.0)
                        (vector-of :double 10.0 10.0 10.0)])]
-          (with-open [_ (test-util/make-undo-reverter :undo/global)]
+          (with-open [_ (test-util/make-system-reverter)]
             (g/set-property! box-shape :dimensions original-dimensions)
             (test-util/manip-scale! box-shape [2.0 2.0 2.0])
             (test-util/ensure-number-type-preserving! original-dimensions (g/node-value box-shape :dimensions)))))
 
       (testing "Capsule Shape"
         (doseq [original-value [(float 10.0) (double 10.0)]]
-          (with-open [_ (test-util/make-undo-reverter :undo/global)]
+          (with-open [_ (test-util/make-system-reverter)]
             (g/set-properties! capsule-shape :diameter original-value :height original-value)
             (test-util/manip-scale! capsule-shape [2.0 2.0 2.0])
             (test-util/ensure-number-type-preserving! original-value (g/node-value capsule-shape :diameter))

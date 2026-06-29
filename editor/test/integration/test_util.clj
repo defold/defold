@@ -1100,16 +1100,27 @@
             (g/undo! undo-key)
             (recur (g/undo-stack-count undo-key))))))))
 
+(defn make-system-reverter
+  "Returns an AutoCloseable that reverts *g/the-system* to the state it was at
+  construction time when its close method is invoked. Suitable for use with
+  the (with-open) macro."
+  ^AutoCloseable []
+  (let [system-snapshot (g/clone-system)]
+    (reify AutoCloseable
+      (close [_]
+        (reset! g/*the-system* system-snapshot)))))
+
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
                   {:node-id node-id
                    :node-type (g/node-type* basis node-id)})))
 
 (defmacro with-changes-reverted
-  "Evaluates the body expressions in a try expression, and reverts any undoable
-  changes in the finally clause. Returns the result of the body expression."
+  "Evaluates the body expressions in a try expression, then reverts
+  *g/the-system* to the state it was in at the beginning of the code block.
+  Returns the result of the body expression."
   [& body]
-  `(with-open [_undo-reverter# (make-undo-reverter :undo/global)]
+  `(with-open [_undo-reverter# (make-system-reverter)]
      ~@body))
 
 (defn- validate-component-resource-node-id

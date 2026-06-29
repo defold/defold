@@ -136,7 +136,7 @@
                             (properties/->curve-spread [[(double 0.0) (double 1.0) (double 1.0) (double 0.0)]] (double 0.0))
                             (properties/->curve-spread [(vector-of :float 0.0 1.0 1.0 0.0)] (float 0.0))
                             (properties/->curve-spread [(vector-of :double 0.0 1.0 1.0 0.0)] (double 0.0))]]
-                     (with-open [_ (test-util/make-undo-reverter :undo/global)]
+                     (with-open [_ (test-util/make-system-reverter)]
                        (g/set-property! node-id prop-kw original-curve-spread)
                        (test-util/manip-scale! node-id [2.0 2.0 2.0])
                        (let [modified-curve-spread (g/node-value node-id prop-kw)]
