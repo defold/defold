@@ -343,6 +343,7 @@ public class TextureSetLayoutTest {
         assertEquals(1, layouts.size());
 
         Layout layout = layouts.get(0);
+        assertTrue("Expected occupancy to be above 40%", layouts.get(0).getOccupancy() >= 0.4);
         assertEquals(2048, layout.getWidth());
         assertEquals(1024, layout.getHeight());
     }
@@ -374,7 +375,7 @@ public class TextureSetLayoutTest {
     @Test
     public void testIssue12593PortraitAtlasExtrudeBorders() throws CompileExceptionError {
         long previousArea = 0;
-        int compactLayoutCount = 0;
+        int occupancyCount = 0;
 
         for (int extrudeBorders = 0; extrudeBorders <= 5; extrudeBorders++) {
             List<Layout> layouts = packedLayout(0, portraitAtlasRects(extrudeBorders));
@@ -382,12 +383,14 @@ public class TextureSetLayoutTest {
             Layout layout = layouts.get(0);
             long area = (long)layout.getWidth() * layout.getHeight();
             assertTrue(String.format("extrudeBorders=%d packed to a smaller page area", extrudeBorders), area >= previousArea);
-            if (layout.getWidth() == 2048 && layout.getHeight() == 2048) {
-                compactLayoutCount++;
+            if (layout.getOccupancy() >= 0.88f) {
+                occupancyCount++;
+            } else {
+                break;
             }
             previousArea = area;
         }
 
-        assertTrue("Expected at least three extrude border values to fit in 2048x2048", compactLayoutCount >= 3);
+        assertTrue("Expected occupancy to be above 88% for the first 3 extrusion borders", occupancyCount >= 3);
     }
 }

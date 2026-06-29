@@ -261,6 +261,13 @@ public class TextureSetLayout {
         public int getHeight() {
             return height;
         }
+        public float getOccupancy() {
+            long used = 0;
+            for (Rect r : rectangles) {
+                used += (long) r.getWidth() * r.getHeight();
+            }
+            return (float) used / ((long) width * height);
+        }
 
         @Override
         public String toString() {
