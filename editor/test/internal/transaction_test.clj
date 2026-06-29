@@ -111,6 +111,31 @@
         (is (= :ok (:status tx-result)))
         (is (nil?  node))))))
 
+(deftest disconnect-sources-only-disconnects-explicit-sources
+  (ts/with-clean-system
+    (let [[implicit-source explicit-source target]
+          (ts/tx-nodes (g/make-node world Resource)
+                       (g/make-node world Resource)
+                       (g/make-node world Downstream))]
+      (g/transact (g/connect implicit-source :b target :consumer))
+      (let [[override-target] (ts/tx-nodes (g/override target))]
+        (let [basis (g/now)]
+          (is (= [[implicit-source :b]]
+                 (g/sources basis override-target :consumer)))
+          (is (= []
+                 (g/tx-data-step-types (it/disconnect-sources basis override-target :consumer)))))
+
+        (g/transact (g/connect explicit-source :b override-target :consumer))
+        (let [basis (g/now)
+              disconnect-tx-data (it/disconnect-sources basis override-target :consumer)]
+          (is (= [[explicit-source :b]]
+                 (g/sources basis override-target :consumer)))
+          (is (= [:tx-step/disconnect]
+                 (g/tx-data-step-types disconnect-tx-data)))
+          (g/transact disconnect-tx-data)
+          (is (= [[implicit-source :b]]
+                 (g/sources-of override-target :consumer))))))))
+
 (g/defnode NamedThing
   (property name g/Str))
 

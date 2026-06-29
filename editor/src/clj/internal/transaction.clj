@@ -1317,8 +1317,8 @@
 
 (defn disconnect-sources
   [basis target-id target-label]
-  (for [[source-id source-label] (gt/sources basis target-id target-label)]
-    (disconnect source-id source-label target-id target-label)))
+  (for [arc (ig/explicit-inputs basis target-id target-label)]
+    (disconnect (gt/source-id arc) (gt/source-label arc) target-id target-label)))
 
 (defonce/type LabelTXS [label]
   TransactionStep
