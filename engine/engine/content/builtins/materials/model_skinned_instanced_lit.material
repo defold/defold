@@ -1,6 +1,6 @@
 name: "model_skinned_instanced_lit"
 tags: "model"
-vertex_program: "/builtins/materials/model_skinned_instanced_lit.vp"
+vertex_program: "/builtins/materials/model_skinned_instanced.vp"
 fragment_program: "/builtins/materials/model_lit.fp"
 vertex_space: VERTEX_SPACE_LOCAL
 vertex_constants {
