@@ -1206,44 +1206,17 @@
   (revert [_this ctx]
     (ctx-perform-disconnect-arc ctx source-id source-label target-id target-label)))
 
-(defn- ctx-revert-disconnect-arc
-  [ctx source-id source-label target-id target-label source-arcs-before target-arcs-before]
-  ;; TODO(decouple-undo-from-graph): Why do we need this? Why not just call ctx-perform-connect-arc?
-  ;;  - Likely because we need to retain the original order. But it would be better if we could achieve that using ctx-perform-connect-arc.
-  (let [source-graph-id (gt/node-id->graph-id source-id)
-        target-graph-id (gt/node-id->graph-id target-id)]
-    (-> ctx
-        (mark-input-activated target-id target-label)
-        (assoc-in [:basis :graphs source-graph-id :sarcs source-id source-label] source-arcs-before)
-        (assoc-in [:basis :graphs target-graph-id :tarcs target-id target-label] target-arcs-before)
-        (cond-> (not (:full-invalidation ctx))
-          (flag-successors-changed
-            (e/cons
-              (pair source-id source-label)
-              (e/map #(pair % source-label)
-                     (ig/get-overrides (:basis ctx) source-id))))))))
-
-(defonce/type DisconnectArcTXC [source-id source-label target-id target-label source-arcs-before target-arcs-before]
+(defonce/type DisconnectArcTXC [source-id source-label target-id target-label]
   TransactionChange
   (perform [_this ctx]
     (ctx-perform-disconnect-arc ctx source-id source-label target-id target-label))
 
   (revert [_this ctx]
-    (ctx-revert-disconnect-arc ctx source-id source-label target-id target-label source-arcs-before target-arcs-before)))
+    (ctx-perform-connect-arc ctx source-id source-label target-id target-label)))
 
 (defn- realize-disconnect
   [ctx undoable-changes source-id source-label target-id target-label]
-  (let [basis (:basis ctx)
-
-        disconnect-change
-        (->DisconnectArcTXC
-          source-id
-          source-label
-          target-id
-          target-label
-          (vec (ig/explicit-arcs-by-source basis source-id source-label))
-          (vec (ig/explicit-arcs-by-target basis target-id target-label)))
-
+  (let [disconnect-change (->DisconnectArcTXC source-id source-label target-id target-label)
         ctx (perform-change ctx disconnect-change)
 
         removed-override-node-ids

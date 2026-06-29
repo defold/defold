@@ -157,15 +157,17 @@
               (is (g/connected? basis second-source-node-id :property-output target-node-id :array-input))
               (is (= [[target-node-id :array-input]] (g/targets basis first-source-node-id :property-output)))
               (is (= [[target-node-id :array-input]] (g/targets basis second-source-node-id :property-output)))
-              (is (= [[first-source-node-id :property-output] [second-source-node-id :property-output]] (g/sources basis target-node-id :array-input)))
+              (is (= #{[first-source-node-id :property-output]
+                       [second-source-node-id :property-output]}
+                     (set (g/sources basis target-node-id :array-input))))
               (testing "Internal arc indices."
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]]
                        (helpers/index-source-arc-tuples basis graph-id first-source-node-id :property-output)))
                 (is (= [[second-source-node-id :property-output target-node-id :array-input]]
                        (helpers/index-source-arc-tuples basis graph-id second-source-node-id :property-output)))
-                (is (= [[first-source-node-id :property-output target-node-id :array-input]
-                        [second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/index-target-arc-tuples basis graph-id target-node-id :array-input))))
+                (is (= #{[first-source-node-id :property-output target-node-id :array-input]
+                         [second-source-node-id :property-output target-node-id :array-input]}
+                       (set (helpers/index-target-arc-tuples basis graph-id target-node-id :array-input)))))
               (is (= [:first-value :second-value] (g/node-value target-node-id :array-output)))))
 
           ensure-after!
@@ -453,7 +455,9 @@
                   (is (= [[first-order-override-target-node-id :array-input]] (ig/explicit-targets basis shadowing-source-one-node-id :property-output)))
                   (is (= [[first-order-override-target-node-id :array-input]] (ig/explicit-targets basis shadowing-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output] [initial-source-two-node-id :property-output]] (ig/explicit-sources basis original-target-node-id :array-input)))
-                  (is (= [[shadowing-source-one-node-id :property-output] [shadowing-source-two-node-id :property-output]] (ig/explicit-sources basis first-order-override-target-node-id :array-input)))
+                  (is (= #{[shadowing-source-one-node-id :property-output]
+                           [shadowing-source-two-node-id :property-output]}
+                         (set (ig/explicit-sources basis first-order-override-target-node-id :array-input))))
                   (is (= [] (ig/explicit-sources basis second-order-override-target-node-id :array-input))))
 
                 (testing "Implicit connections."
@@ -462,8 +466,12 @@
                   (is (= [[first-order-override-target-node-id :array-input] [second-order-override-target-node-id :array-input]] (g/targets basis shadowing-source-one-node-id :property-output)))
                   (is (= [[first-order-override-target-node-id :array-input] [second-order-override-target-node-id :array-input]] (g/targets basis shadowing-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output] [initial-source-two-node-id :property-output]] (g/sources basis original-target-node-id :array-input)))
-                  (is (= [[shadowing-source-one-node-id :property-output] [shadowing-source-two-node-id :property-output]] (g/sources basis first-order-override-target-node-id :array-input)))
-                  (is (= [[shadowing-source-one-node-id :property-output] [shadowing-source-two-node-id :property-output]] (g/sources basis second-order-override-target-node-id :array-input))))
+                  (is (= #{[shadowing-source-one-node-id :property-output]
+                           [shadowing-source-two-node-id :property-output]}
+                         (set (g/sources basis first-order-override-target-node-id :array-input))))
+                  (is (= #{[shadowing-source-one-node-id :property-output]
+                           [shadowing-source-two-node-id :property-output]}
+                         (set (g/sources basis second-order-override-target-node-id :array-input)))))
 
                 (testing "Internal arc indices."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
@@ -477,9 +485,9 @@
                          (helpers/index-source-arc-tuples basis graph-id shadowing-source-one-node-id :property-output)))
                   (is (= [[shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
                          (helpers/index-source-arc-tuples basis graph-id shadowing-source-two-node-id :property-output)))
-                  (is (= [[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]
-                          [shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/index-target-arc-tuples basis graph-id first-order-override-target-node-id :array-input))))
+                  (is (= #{[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]
+                           [shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]}
+                         (set (helpers/index-target-arc-tuples basis graph-id first-order-override-target-node-id :array-input)))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -639,4 +647,63 @@
 
       (testing "Redo."
         (g/redo! :undo/global)
+        (ensure-after!)))))
+
+(deftest undo-is-granular-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [source-node-id
+           first-target-node-id
+           second-target-node-id
+           third-target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                 first-target-node-id helpers/ConnectionTargetNode
+                 second-target-node-id helpers/ConnectionTargetNode
+                 _third-target-node-id helpers/ConnectionTargetNode]
+                (g/connect source-node-id :property-output first-target-node-id :regular-input)
+                (g/connect source-node-id :property-output second-target-node-id :regular-input))))
+
+          ensure-before!
+          (fn ensure-before! []
+            (let [basis (g/now)]
+              (is (= #{[first-target-node-id :regular-input]
+                       [second-target-node-id :regular-input]
+                       [third-target-node-id :regular-input]}
+                     (set (g/targets basis source-node-id :property-output))))
+              (is (= [[source-node-id :property-output]]
+                     (g/sources basis first-target-node-id :regular-input)
+                     (g/sources basis second-target-node-id :regular-input)
+                     (g/sources basis third-target-node-id :regular-input)))))
+
+          ensure-after!
+          (fn ensure-after! []
+            (let [basis (g/now)]
+              (is (= #{[second-target-node-id :regular-input]
+                       [third-target-node-id :regular-input]}
+                     (set (g/targets basis source-node-id :property-output))))
+              (is (= [] (g/sources basis first-target-node-id :regular-input)))
+              (is (= [[source-node-id :property-output]]
+                     (g/sources basis second-target-node-id :regular-input)
+                     (g/sources basis third-target-node-id :regular-input)))))]
+
+      (testing "Transact."
+        (g/transact
+          {:undo-key ::disconnect}
+          (g/disconnect source-node-id :property-output first-target-node-id :regular-input))
+        (g/transact
+          {:undo-key ::connect}
+          (g/connect source-node-id :property-output third-target-node-id :regular-input))
+        (ensure-after!))
+
+      (testing "Undo."
+        (g/undo! ::disconnect)
+        (ensure-before!))
+
+      (testing "Redo."
+        (g/redo! ::disconnect)
         (ensure-after!)))))

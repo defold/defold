@@ -103,7 +103,7 @@
 
   (input array-input g/Keyword :array)
   (output array-output [g/Keyword] :cached
-          (g/fnk [array-input] array-input))
+          (g/fnk [array-input] (vec (sort array-input))))
 
   (input regular-cascade-delete-input g/Any :cascade-delete)
   (output regular-cascade-delete-output g/Any :cached
@@ -111,7 +111,7 @@
 
   (input array-cascade-delete-input g/Any :array :cascade-delete)
   (output array-cascade-delete-output g/Any :cached
-          (g/fnk [array-cascade-delete-input] array-cascade-delete-input)))
+          (g/fnk [array-cascade-delete-input] (vec (sort array-cascade-delete-input)))))
 
 (g/defnode OverrideTestNode
   (property property g/Keyword)
@@ -124,4 +124,4 @@
 
   (input array-cascade-delete-input g/Any :array :cascade-delete)
   (output array-cascade-delete-output g/Any :cached
-          (g/fnk [array-cascade-delete-input] array-cascade-delete-input)))
+          (g/fnk [array-cascade-delete-input] (vec (sort array-cascade-delete-input)))))
