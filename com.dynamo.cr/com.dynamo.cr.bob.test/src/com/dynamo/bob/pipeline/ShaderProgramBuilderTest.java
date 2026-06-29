@@ -147,13 +147,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private ShaderDesc compileShaderWithCompiler(IShaderCompiler shaderCompiler, String shaderAdapters, String outputResource) throws Exception {
+        return compileShaderWithCompiler(shaderCompiler, shaderAdapters, outputResource, fp);
+    }
+
+    private ShaderDesc compileShaderWithCompiler(IShaderCompiler shaderCompiler, String shaderAdapters, String outputResource, String source) throws Exception {
         IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
         compileOptions.shaderAdapters = shaderAdapters;
 
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules = new ArrayList<>();
         ShaderCompilePipeline.ShaderModuleDesc shaderModule = new ShaderCompilePipeline.ShaderModuleDesc();
         shaderModule.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
-        shaderModule.source = fp;
+        shaderModule.source = source;
         shaderModule.resourcePath = "/" + outputResource + ".fp";
         shaderModules.add(shaderModule);
 
@@ -493,11 +497,70 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             compileShaderForPlatform(Platform.X86_64Win32, shaderAdapters, "manifest_win32_vulkan"),
             ShaderDesc.Language.LANGUAGE_SPIRV);
 
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.WasmWeb, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterWebGPU"))));
+        String samplerSource =
+            "#version 140\n" +
+            "in vec2 var_texcoord0;\n" +
+            "out vec4 color_out;\n" +
+            "uniform sampler2D texture_sampler;\n" +
+            "void main()\n" +
+            "{\n" +
+            "   color_out = texture(texture_sampler, var_texcoord0.xy);\n" +
+            "}\n";
+        checkOnlyExpectedLanguages(
+            compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource),
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_GLES_SM100,
+            ShaderDesc.Language.LANGUAGE_WGSL);
+
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings("excludeSymbols", List.of("GraphicsAdapterVulkan"))));
         assertEquals("", shaderAdapters);
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_no_adapters"));
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings(
+                "symbols", List.of("GraphicsAdapterMetal"),
+                "libs", List.of("graphics_metal"),
+                "engineLibs", List.of("platform"),
+                "excludeSymbols", List.of("GraphicsAdapterOpenGL", "GraphicsAdapterVulkan"),
+                "excludeLibs", List.of("graphics", "graphics_vulkan", "platform_vulkan", "MoltenVK"))));
+        assertEquals("metal", shaderAdapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_metal"),
+            ShaderDesc.Language.LANGUAGE_MSL_22);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings(
+                "libs", List.of("graphics_metal"),
+                "excludeLibs", List.of("graphics", "graphics_vulkan", "platform_vulkan", "MoltenVK"))));
+        assertEquals("metal", shaderAdapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_metal_lib"),
+            ShaderDesc.Language.LANGUAGE_MSL_22);
+    }
+
+    @Test
+    public void testMetalAppManifestConfiguresMSLShaders() throws Exception {
+        getProject().setOption("platform", Platform.X86_64MacOS.getPair());
+        getProject().setOption("architectures", Platform.X86_64MacOS.getPair());
+        getProject().getProjectProperties().putStringValue("native_extension", "app_manifest", "metal.appmanifest");
+        addFile("/metal.appmanifest",
+            "platforms:\n" +
+            "  x86_64-osx:\n" +
+            "    context:\n" +
+            "      libs: [graphics_metal]\n" +
+            "      excludeLibs: [graphics, graphics_vulkan, platform_vulkan, MoltenVK]\n");
+
+        getProject().configurePreBuildProjectOptions();
+
+        String shaderAdapters = getProject().option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+        assertEquals("metal", shaderAdapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_metal_from_project"),
+            ShaderDesc.Language.LANGUAGE_MSL_22);
     }
 
     @Test

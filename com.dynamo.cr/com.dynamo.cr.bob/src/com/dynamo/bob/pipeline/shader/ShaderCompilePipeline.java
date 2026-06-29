@@ -27,10 +27,10 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.MurmurHash;
 
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.apache.commons.io.FileUtils;
@@ -42,6 +42,7 @@ public class ShaderCompilePipeline {
         public ArrayList<String> defines = new ArrayList<>();
         public String externalToolPath;
         public String externalToolArgs;
+        public Platform targetPlatform;
         public Shaderc.ShaderPrecision glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public Shaderc.ShaderPrecision glslEsDefaultIntPrecision   = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
     }
@@ -66,6 +67,7 @@ public class ShaderCompilePipeline {
 
     protected String pipelineName;
     protected ArrayList<ShaderModule> shaderModules = new ArrayList<>();
+    protected ArrayList<File> tempFiles = new ArrayList<>();
     protected Options options                       = null;
 
     private static String tintExe = null;
@@ -81,7 +83,17 @@ public class ShaderCompilePipeline {
     }
 
     protected void reset() {
+        for (File tempFile : tempFiles) {
+            FileUtils.deleteQuietly(tempFile);
+        }
+        tempFiles.clear();
         shaderModules.clear();
+    }
+
+    protected File createTempFile(String prefix, String suffix) throws IOException {
+        File file = File.createTempFile(prefix, suffix);
+        tempFiles.add(file);
+        return file;
     }
 
     private static String ShaderTypeToSpirvStage(ShaderDesc.ShaderType shaderType) {
@@ -248,6 +260,13 @@ public class ShaderCompilePipeline {
         opts.no420PackExtension            = 1;
         opts.glslEsDefaultFloatPrecision   = this.options.glslEsDefaultFloatPrecision;
         opts.glslEsDefaultIntPrecision     = this.options.glslEsDefaultIntPrecision;
+        if (this.options.targetPlatform != null) {
+            if (this.options.targetPlatform.matchesOS(OS.OS_ID_IOS)) {
+                opts.targetPlatform = Shaderc.ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_IOS;
+            } else if (this.options.targetPlatform.isMacOS()) {
+                opts.targetPlatform = Shaderc.ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_MACOS;
+            }
+        }
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
             opts.glslEmitUboAsPlainUniforms = 1;
@@ -278,8 +297,7 @@ public class ShaderCompilePipeline {
         for (ShaderModule module : this.shaderModules) {
             String baseName = this.pipelineName + "." + ShaderTypeToSpirvStage(module.desc.type);
 
-            File fileInGLSL = File.createTempFile(baseName, ".glsl");
-            FileUtil.deleteOnExit(fileInGLSL);
+            File fileInGLSL = createTempFile(baseName, ".glsl");
 
             String glsl = module.desc.source;
             if (this.options.splitTextureSamplers) {
@@ -288,13 +306,11 @@ public class ShaderCompilePipeline {
             }
             FileUtils.writeByteArrayToFile(fileInGLSL, glsl.getBytes());
 
-            File fileOutSpv = File.createTempFile(baseName, ".spv");
-            FileUtil.deleteOnExit(fileOutSpv);
+            File fileOutSpv = createTempFile(baseName, ".spv");
             generateSPIRv(module.desc.resourcePath, module.desc.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
 
             // Generate an optimized version of the final .spv file
-            File fileOutSpvOpt = File.createTempFile(this.pipelineName, ".optimized.spv");
-            FileUtil.deleteOnExit(fileOutSpvOpt);
+            File fileOutSpvOpt = createTempFile(this.pipelineName, ".optimized.spv");
             generateSPIRvOptimized(module.desc.resourcePath, fileOutSpv.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
 
             module.spirvFile = fileOutSpvOpt;
@@ -327,8 +343,7 @@ public class ShaderCompilePipeline {
                 ShadercJni.DeleteShaderContext(fragmentModule.spirvContext);
 
                 String baseName = this.pipelineName + "." + ShaderTypeToSpirvStage(fragmentModule.desc.type);
-                File remappedSpvFile = File.createTempFile(baseName, ".remapped.spv");
-                FileUtil.deleteOnExit(remappedSpvFile);
+                File remappedSpvFile = createTempFile(baseName, ".remapped.spv");
                 FileUtils.writeByteArrayToFile(remappedSpvFile, remappedSpv.data);
 
                 fragmentModule.spirvContext = remappedSpvContext;
@@ -467,8 +482,7 @@ public class ShaderCompilePipeline {
             String shaderTypeStr = ShaderTypeToSpirvStage(shaderType);
             String versionStr    = "v" + version;
 
-            File fileCrossCompiled = File.createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
-            FileUtil.deleteOnExit(fileCrossCompiled);
+            File fileCrossCompiled = createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
 
             generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
 
@@ -502,10 +516,34 @@ public class ShaderCompilePipeline {
         throw new CompileExceptionError("Cannot crosscompile to shader language: " + shaderLanguage);
     }
 
-    public Shaderc.HLSLRootSignature createRootSignature(ShaderDesc.Language shaderLanguage, List<Shaderc.ShaderCompileResult> shaders) {
+    private String getShaderModulePaths() {
+        StringBuilder builder = new StringBuilder();
+        for (ShaderModule module : shaderModules) {
+            if (builder.length() > 0) {
+                builder.append(", ");
+            }
+            if (module.desc.resourcePath != null) {
+                builder.append(module.desc.resourcePath);
+            } else {
+                builder.append("<unknown>");
+            }
+            builder.append(" (");
+            builder.append(module.desc.type);
+            builder.append(")");
+        }
+        return builder.toString();
+    }
+
+    public Shaderc.HLSLRootSignature createRootSignature(ShaderDesc.Language shaderLanguage, List<Shaderc.ShaderCompileResult> shaders) throws CompileExceptionError {
         assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
         Shaderc.ShaderCompileResult[] shaders_array = shaders.toArray(new Shaderc.ShaderCompileResult[0]);
         Shaderc.HLSLRootSignature result = ShadercJni.HLSLMergeRootSignatures(shaders_array);
+        if (result == null) {
+            throw new CompileExceptionError("Failed to create HLSL root signature for " + this.pipelineName + " from shader module(s): " + getShaderModulePaths());
+        }
+        if (result.lastError != null && !result.lastError.isEmpty()) {
+            throw new CompileExceptionError("Failed to create HLSL root signature for " + this.pipelineName + " from shader module(s): " + getShaderModulePaths() + ". " + result.lastError);
+        }
         return result;
     }
 
@@ -524,11 +562,16 @@ public class ShaderCompilePipeline {
     public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, ArrayList<ShaderModuleDesc> descs, Options options) throws IOException, CompileExceptionError {
         pipeline.options = options;
         pipeline.reset();
-        for (ShaderModuleDesc desc : descs) {
-            pipeline.addShaderModule(desc);
+        try {
+            for (ShaderModuleDesc desc : descs) {
+                pipeline.addShaderModule(desc);
+            }
+            pipeline.prepare();
+            return pipeline;
+        } catch (IOException | CompileExceptionError | RuntimeException e) {
+            destroyShaderPipeline(pipeline);
+            throw e;
         }
-        pipeline.prepare();
-        return pipeline;
     }
 
     public static void destroyShaderPipeline(ShaderCompilePipeline pipeline) {

@@ -28,17 +28,20 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.library :as library]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
+            [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.diff :as diff]
@@ -319,6 +322,9 @@
 (defn- open-resource-noop! [_]
   (future/completed nil))
 
+(defn- fetch-libraries-noop! []
+  (future/completed [[] true]))
+
 (defn- make-invoke-bob-fn [project]
   (fn invoke-bob! [options commands _]
     (future/io
@@ -329,8 +335,9 @@
 (def ^:private stopped-server
   (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! kind open-resource! prefs web-server]
+(defn- reload-editor-scripts! [project & {:keys [display-output! fetch-libraries! kind open-resource! prefs web-server]
                                           :or {display-output! println
+                                               fetch-libraries! fetch-libraries-noop!
                                                kind :all
                                                open-resource! open-resource-noop!
                                                web-server stopped-server}}]
@@ -341,6 +348,7 @@
                       :display-output! display-output!
                       :save! (make-save-fn project)
                       :open-resource! open-resource!
+                      :fetch-libraries! fetch-libraries!
                       :invoke-bob! (make-invoke-bob-fn project)
                       :web-server web-server))
 
@@ -434,6 +442,29 @@
                 nil
                 (catch Throwable e e))))
         (is (= [2 2 2] (test-util/prop sprite-node-id :scale)))))))
+
+(deftest editor-script-commands-preserve-declaration-order-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/command_order_project"
+    (reload-editor-scripts! project)
+    (let [command-labels (into []
+                               (comp
+                                 (filter (fn [{:keys [command]}]
+                                           (and command
+                                                (handler/synthetic-command? command))))
+                                 (map (fn [{:keys [command]}]
+                                        (some-> (handler/active command (eval-handler-contexts :global []) {})
+                                                handler/label))))
+                               (handler/realize-menu :editor.app-view/edit-end))]
+      (is (= ["Command 7"
+              "Command 2"
+              "Command 9"
+              "Command 1"
+              "Command 5"
+              "Command 3"
+              "Command 8"
+              "Command 4"
+              "Command 6"]
+             command-labels)))))
 
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
@@ -758,6 +789,33 @@
         output-matches-expectation (= expected actual)]
     (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3))))))
 
+(def ^:private expected-fetch-libraries-test-output
+  "fetch libraries: ok
+resource exists after fetch: true
+fetch missing libraries: error
+resource exists after failed fetch: false
+")
+
+(deftest fetch-libraries-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/fetch_libraries_test"
+    (with-open [_server (http-server/start! test-util/lib-server-handler :port 58091)]
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts!
+          project
+          :display-output! #(doto out (.append %2) (.append \newline))
+          :fetch-libraries! (fn fetch-libraries! []
+                              (future/io
+                                (let [lib-results (library/fetch!
+                                                    (workspace/project-directory workspace)
+                                                    (project/project-dependencies project)
+                                                    progress/null-render-progress!)]
+                                  (ui/run-now
+                                    (workspace/set-project-dependencies! workspace lib-results)
+                                    (workspace/resource-sync! workspace [] progress/null-render-progress!))
+                                  [lib-results true]))))
+        (run-edit-menu-test-command!)
+        (expect-script-output expected-fetch-libraries-test-output out)))))
+
 (def ^:private expected-outline-selection-parent-chain-test-output
   "outline.child.can_get_parent=true
 outline.child.has_parent_property=true
@@ -816,6 +874,7 @@ editor.ui.image({image = 'foo', width = -1}) => -1 is not positive
 editor.ui.dialog({title = 'Dialog title', width = false}) => false is not a number
 editor.ui.dialog({title = 'Dialog title', height = -1}) => -1 is not positive
 editor.ui.dialog({title = 'Dialog title', resizable = 1}) => 1 is not a boolean
+editor.ui.tab({}) => {} must have the \"text\" key
 ")
 
 (deftest ui-test
@@ -1125,14 +1184,28 @@ editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resou
   /npc.collection
   /npc.go
   /UPPER.COLLECTION
+editor.create_resources({{\"/test/invalid.go\", \"\\\"name\\\":\\\"invalid\\\"\"}}) => Created resources are invalid: /test/invalid.go
+/test
+  /config.json
+  /invalid.go
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+editor.tx.set(\"/test/invalid.go\", \"text\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.add(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.clear(\"/test/invalid.go\", \"components\") => Cannot edit defective resource: /test/invalid.go
+editor.tx.remove(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.reorder(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.reset(\"/test/invalid.go\", \"text\") => Cannot edit defective resource: /test/invalid.go
 ")
 
 (deftest resources-io-test
-  (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
-    (let [out (StringBuilder.)]
-      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
-      (run-edit-menu-test-command!)
-      (expect-script-output resource-io-test-output out))))
+  (log/without-logging
+    (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+        (run-edit-menu-test-command!)
+        (expect-script-output resource-io-test-output out)))))
 
 (defn- expected-zip-test-output [root]
   (str "Testing zip.pack...
@@ -1383,6 +1456,28 @@ openapi route has 200 => true
                                 :web-server server)
         (run-edit-menu-test-command!)
         (expect-script-output expected-http-server-test-output out)))))
+
+(def ^:private expected-image-test-output
+  "size image: 32,32
+top-left: 255,0,0,255
+top-right: 0,255,0,255
+bottom-left: 0,0,255,255
+bottom-right: 255,255,255,128
+pixels: count=1024 checksum=620288
+load_file missing: Image file does not exist: assets/missing.png
+load_file unsupported: Unsupported image file: assets/not_image.txt
+pixel x low: Pixel coordinate out of bounds: 0, 1
+pixel x high: Pixel coordinate out of bounds: 33, 1
+pixel y low: Pixel coordinate out of bounds: 1, 0
+pixel y high: Pixel coordinate out of bounds: 1, 33
+")
+
+(deftest image-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/image_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-image-test-output out))))
 
 (deftest eval-route-test
   (test-util/with-loaded-project

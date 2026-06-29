@@ -23,11 +23,17 @@ int main(int argc, char *argv[])
     printf("static constexpr int32_t _pfb_num_phases = %d;\n", filter->num_phases);
     printf("static constexpr int32_t _pfb_num_taps = %d;\n", filter->taps_per_phase);
     printf("static float _pfb[]={\n");
-    for(int p=0; p<filter->num_phases; ++p) {
+    for (int p = 0; p < filter->num_phases; ++p)
+    {
         printf("    ");
-        for(int t=0; t<filter->taps_per_phase; ++t) {
+        for (int t = 0; t < filter->taps_per_phase; ++t)
+        {
             float f = filter->pfb[filter->taps_per_phase * p + t] * w;
-            printf ("%e, ", f);
+            printf("%ef,", (double) f);
+            if (t < filter->taps_per_phase - 1)
+            {
+                printf(" ");
+            }
         }
         printf("\n");
     }

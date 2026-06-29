@@ -62,30 +62,6 @@ namespace dmGameSystem
     static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED   = 0xffff;
     static const uint8_t ATTRIBUTE_RENDER_DATA_MAX_FRAME_TICKS = 30;
 
-    const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR                         = dmHashString64("pbrMetallicRoughness.baseColorFactor");
-    const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR             = dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor");
-    const dmhash_t PBR_METALLIC_ROUGHNESS_TEXTURES                                  = dmHashString64("pbrMetallicRoughness.metallicRoughnessTextures");
-    const dmhash_t PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR                           = dmHashString64("pbrSpecularGlossiness.diffuseFactor");
-    const dmhash_t PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR  = dmHashString64("pbrSpecularGlossiness.specularAndSpecularGlossinessFactor");
-    const dmhash_t PBR_SPECULAR_GLOSSINESS_TEXTURES                                 = dmHashString64("pbrSpecularGlossiness.specularGlossinessTextures");
-    const dmhash_t PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR        = dmHashString64("pbrClearCoat.clearCoatAndClearCoatRoughnessFactor");
-    const dmhash_t PBR_CLEAR_COAT_TEXTURES                                          = dmHashString64("pbrClearCoat.clearCoatTextures");
-    const dmhash_t PBR_TRANSMISSION_TRANSMISSION_FACTOR                             = dmHashString64("pbrTransmission.transmissionFactor");
-    const dmhash_t PBR_TRANSMISSION_TEXTURES                                        = dmHashString64("pbrTransmission.transmissionTextures");
-    const dmhash_t PBR_IOR_IOR_FACTOR                                               = dmHashString64("pbrIor.ior");
-    const dmhash_t PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR                  = dmHashString64("pbrSpecular.specularColorAndSpecularFactor");
-    const dmhash_t PBR_SPECULAR_TEXTURES                                            = dmHashString64("pbrSpecular.specularTextures");
-    const dmhash_t PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR                = dmHashString64("pbrVolume.thicknessFactorAndAttenuationColor");
-    const dmhash_t PBR_VOLUME_ATTENUATION_DISTANCE                                  = dmHashString64("pbrVolume.attenuationDistance");
-    const dmhash_t PBR_VOLUME_TEXTURES                                              = dmHashString64("pbrVolume.volumeTextures");
-    const dmhash_t PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR                 = dmHashString64("pbrSheen.sheenColorAndRoughnessFactor");
-    const dmhash_t PBR_SHEEN_TEXTURES                                               = dmHashString64("pbrSheen.sheenTextures");
-    const dmhash_t PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH                          = dmHashString64("pbrEmissiveStrength.emissiveStrength");
-    const dmhash_t PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX = dmHashString64("pbrIridescence.iridescenceFactorAndIorAndThicknessMinMax");
-    const dmhash_t PBR_IRIDESCENCE_TEXTURES                                         = dmHashString64("pbrIridescence.iridescenceTextures");
-    const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT                   = dmHashString64("pbrAlphaCutoffAndDoubleSidedAndIsUnlit");
-    const dmhash_t PBR_COMMON_TEXTURES                                              = dmHashString64("pbrCommonTextures");
-
     struct ModelInstanceData
     {
         dmVMath::Matrix4 m_WorldTransform;
@@ -456,6 +432,8 @@ namespace dmGameSystem
                     return name_hash == dmRender::VERTEX_STREAM_WORLD_MATRIX;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
                     return name_hash == dmRender::VERTEX_STREAM_NORMAL_MATRIX;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS:
+                    return name_hash == dmRender::VERTEX_STREAM_MORPH_TARGET_WEIGHTS;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS:
                     return name_hash == dmRender::VERTEX_STREAM_BONE_WEIGHTS;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_INDICES:
@@ -591,6 +569,25 @@ namespace dmGameSystem
             // We need to hash the mesh pointer for instance grouping
             dmHashUpdateBuffer32(state, item.m_Mesh, sizeof(*item.m_Mesh));
 
+            if (item.m_MorphTargetTexture)
+            {
+                dmHashUpdateBuffer32(state, &item.m_MorphTargetTexture, sizeof(item.m_MorphTargetTexture));
+
+                // Uniform morph weights are render constants, so they still need to split
+                // instanced batches. Materials using the morph-target weight instance
+                // attribute carry the weights in the instance stream instead.
+                // Note: Render script material overrides are not part of this hash. If an
+                // override material changes morph weights from an instance attribute to a
+                // uniform, instances with different weights can still share a batch.
+                if (!dmRender::GetMaterialHasMorphTargetWeightsAttribute(material))
+                {
+                    const float* weights;
+                    uint32_t weights_count;
+                    GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
+                    dmHashUpdateBuffer32(state, weights, sizeof(float) * weights_count);
+                }
+            }
+
             // If we use an override material, we don't need to hash the override values
             if (component->m_Material && component->m_Material->m_Material == material)
             {
@@ -622,17 +619,6 @@ namespace dmGameSystem
                 dmHashUpdateBuffer32(state, attr.m_ValuePtr, value_byte_size);
             }
 
-            // Morph weights need to be included into the instancing hash
-            // otherwise two instanced objects with different morph weights
-            // will be rendered in the same draw call. At this moment,
-            // morpth targets + instancing is not supported (MVP2 for this feature).
-            if (item.m_MorphTargetTexture)
-            {
-                const float* weights;
-                uint32_t weights_count;
-                GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
-                dmHashUpdateBuffer32(state, weights, sizeof(float) * weights_count);
-            }
         }
         else
         {
@@ -818,13 +804,38 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
     }
 
-    static uint8_t* WriteMeshAttributes(dmRender::HRenderContext render_context, MeshRenderItem* render_item, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_count)
+    static bool GetMorphTargetWeightsAttributeVectorType(const dmGraphics::VertexAttributeInfos* attribute_infos, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttribute::VectorType* vector_type)
+    {
+        for (uint32_t i = 0; i < attribute_infos->m_NumInfos; ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& attr = attribute_infos->m_Infos[i];
+            if (attr.m_StepFunction == step_function &&
+                attr.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS)
+            {
+                *vector_type = attr.m_VectorType;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static void FillMorphWeightsFloatSlots(const float* weights, uint32_t weight_count, float* out, uint32_t slot_count)
+    {
+        for (uint32_t i = 0; i < slot_count; ++i)
+        {
+            out[i] = i < weight_count ? weights[i] : 0.0f;
+        }
+    }
+
+    static uint8_t* WriteMeshAttributes(ModelWorld* world, dmRender::HRenderContext render_context, MeshRenderItem* render_item, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_count)
     {
         dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
 
         const float* world_matrix_channels[]         = { (float*) &render_item->m_World };
         const float* normal_matrix_channels[]        = { (float*) &normal_matrix };
         const float* texture_transform_2d_channels[] = { dmRig::TEXTURE_TRANSFORM_2D_IDENTITY };
+        const float* morph_target_weights_channels[] = { 0 };
+        dmGraphics::VertexAttribute::VectorType morph_target_weights_vector_type = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
 
     #define UNPACK_ATTRIBUTE_PTR(name) \
         (render_item->m_Mesh->name.m_Count ? render_item->m_Mesh->name.m_Data : 0)
@@ -836,6 +847,32 @@ namespace dmGameSystem
     #undef UNPACK_ATTRIBUTE_PTR
 
         uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
+
+        if (GetMorphTargetWeightsAttributeVectorType(attribute_infos, step_function, &morph_target_weights_vector_type))
+        {
+            const uint32_t weight_capacity = dmGraphics::VectorTypeToElementCount(morph_target_weights_vector_type);
+            const uint32_t vec4_slots      = (weight_capacity + 3) / 4;
+            const float* weights           = 0;
+            uint32_t weights_count         = 0;
+
+            GetRenderItemMorphWeights(render_item->m_Component, render_item, &weights, &weights_count);
+
+            dmArray<dmVMath::Vector4>& scratch = world->m_ScratchMorphWeightsConstants;
+            if (scratch.Capacity() < vec4_slots)
+            {
+                scratch.SetCapacity(vec4_slots);
+            }
+            scratch.SetSize(vec4_slots);
+            FillMorphWeightsFloatSlots(weights, weights_count, (float*) scratch.Begin(), weight_capacity);
+            morph_target_weights_channels[0] = (float*) scratch.Begin();
+
+            const uint32_t mesh_morph_count = render_item->m_Mesh->m_MorphTargetCount;
+            if (mesh_morph_count > weight_capacity)
+            {
+                dmLogOnceError("Model mesh has %u morph targets; material instance attribute `morph_targets_weights` has room for %u weight(s). Increase the attribute vector type. Extra weights are ignored.",
+                    mesh_morph_count, weight_capacity);
+            }
+        }
 
         dmGraphics::WriteAttributeParams params = {};
         dmRig::SetMeshWriteAttributeParams(&params,
@@ -849,6 +886,8 @@ namespace dmGameSystem
             tangent_channels,
             color_channels,
             texture_transform_2d_channels,
+            morph_target_weights_channels,
+            morph_target_weights_vector_type,
             uv_channels,
             uv_channels_count);
 
@@ -891,7 +930,7 @@ namespace dmGameSystem
         void* attribute_data      = malloc(vertex_data_size);
         uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
 
-        vertex_write_ptr = WriteMeshAttributes(render_context, render_item, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, non_default_attribute, vertex_write_ptr, vertex_count);
+        vertex_write_ptr = WriteMeshAttributes(world, render_context, render_item, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, non_default_attribute, vertex_write_ptr, vertex_count);
 
         if (rd->m_VertexBuffer)
         {
@@ -1071,7 +1110,7 @@ namespace dmGameSystem
             item.m_Component = component;
             item.m_Model = resource->m_Meshes[i].m_Model;
             item.m_Mesh = resource->m_Meshes[i].m_Mesh;
-            item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture;
+            item.m_MorphTargetTexture = resource->m_Meshes[i].m_MorphTargetTexture ? resource->m_Meshes[i].m_MorphTargetTexture->m_Texture : 0;
             item.m_RenderConstants = 0;
             item.m_MaterialIndex = resource->m_Meshes[i].m_Mesh->m_MaterialIndex;
             item.m_AabbMin = item.m_Mesh->m_AabbMin;
@@ -1291,258 +1330,6 @@ namespace dmGameSystem
     }
     #endif
 
-    static bool FillPBRConstants(ModelComponent* component, MeshRenderItem* render_item, dmRender::HMaterial material, uint32_t material_index)
-    {
-        dmRenderDDF::MaterialDesc::PbrParameters parameters;
-        dmRender::GetMaterialPBRParameters(material, &parameters);
-
-        if (!parameters.m_HasParameters)
-        {
-            return false;
-        }
-
-        const dmRigDDF::Material& ddf_material = component->m_Resource->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[material_index];
-
-        if (!render_item->m_RenderConstants)
-        {
-            render_item->m_RenderConstants = dmGameSystem::CreateRenderConstants();
-        }
-
-        if (parameters.m_HasMetallicRoughness)
-        {
-            /*******************************************
-            * uniform sampler2D PbrMetallicRoughness_baseColorTexture;
-            * uniform sampler2D PbrMetallicRoughness_metallicRoughnessTexture;
-            * struct PbrMetallicRoughness
-            * {
-            *     vec4 baseColorFactor;
-            *     vec4 metallicAndRoughnessFactor; // R: metallic (Default=1.0), G: roughness (Default=1.0)
-            *     vec4 metallicRoughnessTextures;  // R: use baseColorTexture, G: use metallicRoughnessTexture
-            * };
-            *******************************************/
-            dmVMath::Vector4 metallic_roughness = dmVMath::Vector4(ddf_material.m_Pbrmetallicroughness.m_Metallicfactor, ddf_material.m_Pbrmetallicroughness.m_Roughnessfactor, 0.0f, 0.0f);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, (dmVMath::Vector4*) &ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor, 1);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, &metallic_roughness, 1);
-
-            if (ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 metallic_roughness_textures = dmVMath::Vector4(
-                    ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
-
-                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_METALLIC_ROUGHNESS_TEXTURES, &metallic_roughness_textures, 1);
-            }
-        }
-        if (parameters.m_HasSpecularGlossiness)
-        {
-            /*******************************************
-            * uniform sampler2D PbrSpecularGlossiness_diffuseTexture;
-            * uniform sampler2D PbrSpecularGlossiness_specularGlossinessTexture;
-            * struct PbrSpecularGlossiness
-            * {
-            *     vec4 diffuseFactor;
-            *     vec4 specularAndSpecularGlossinessFactor; // RGB: specular (Default=1.0), A: glossiness (Default=1.0)
-            *     vec4 specularGlossinessTextures;          // R: use diffuseTexture, G: use specularGlossinessTexture
-            * };
-            *******************************************/
-            dmVMath::Vector4 specular_glossiness = dmVMath::Vector4(ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getX(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getY(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getZ(), ddf_material.m_Pbrspecularglossiness.m_Glossinessfactor);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR, (dmVMath::Vector4*) &ddf_material.m_Pbrspecularglossiness.m_Diffusefactor, 1);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR, &specular_glossiness, 1);
-
-            if (ddf_material.m_Pbrspecularglossiness.m_Diffusetexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Pbrspecularglossiness.m_Specularglossinesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 specular_glossiness_textures = dmVMath::Vector4(
-                    ddf_material.m_Pbrspecularglossiness.m_Diffusetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Pbrspecularglossiness.m_Specularglossinesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
-                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_GLOSSINESS_TEXTURES, &specular_glossiness_textures, 1);
-            }
-
-        }
-        if (parameters.m_HasClearcoat)
-        {
-            /*******************************************
-            * uniform sampler2D PbrClearcoat_clearcoatTexture;
-            * uniform sampler2D PbrClearcoat_clearcoatRoughnessTexture;
-            * uniform sampler2D PbrClearcoat_clearcoatNormalTexture;
-            * struct PbrClearCoat
-            * {
-            *     vec4 clearCoatAndClearCoatRoughnessFactor; // R: clearCoat (Default=0.0), G: clearCoatRoughness (Default=0.0)
-            *     vec4 clearCoatTextures;                    // R: use clearCoatTexture, G: use clearCoatRoughnessTexture, B: use clearCoatNormalTexture
-            * };
-            *******************************************/
-            dmVMath::Vector4 clear_coat = dmVMath::Vector4(ddf_material.m_Clearcoat.m_Clearcoatfactor, ddf_material.m_Clearcoat.m_Clearcoatroughnessfactor, 0.0f, 0.0f);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR, &clear_coat, 1);
-
-            if (ddf_material.m_Clearcoat.m_Clearcoattexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Clearcoat.m_Clearcoatroughnesstexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Clearcoat.m_Clearcoatnormaltexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 clear_coat_textures = dmVMath::Vector4(
-                    ddf_material.m_Clearcoat.m_Clearcoattexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Clearcoat.m_Clearcoatroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Clearcoat.m_Clearcoatnormaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
-                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_CLEAR_COAT_TEXTURES, &clear_coat_textures, 1);
-            }
-
-        }
-        if (parameters.m_HasTransmission)
-        {
-            /*******************************************
-            * uniform sampler2D PbrTransmission_transmissionTexture;
-            * struct PbrTransmission
-            * {
-            *     vec4 transmissionFactor;   // R: transmission (Default=0.0)
-            *     vec4 transmissionTextures; // R: use transmissionTexture
-            * };
-            *******************************************/
-            dmVMath::Vector4 transmission = dmVMath::Vector4(ddf_material.m_Transmission.m_Transmissionfactor, 0.0f, 0.0f, 0.0f);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_TRANSMISSION_TRANSMISSION_FACTOR, &transmission, 1);
-
-            if (ddf_material.m_Transmission.m_Transmissiontexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 transmission_textures = dmVMath::Vector4(
-                    ddf_material.m_Transmission.m_Transmissiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
-                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_TRANSMISSION_TEXTURES, &transmission_textures, 1);
-            }
-        }
-        if (parameters.m_HasIor)
-        {
-            /*
-            struct Ior
-            {
-                vec4 ior; // R: ior (Default=0.0)
-            };
-            */
-            dmVMath::Vector4 ior = dmVMath::Vector4(ddf_material.m_Ior.m_Ior, 0.0f, 0.0f, 0.0f);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_IOR_IOR_FACTOR, &ior, 1);
-        }
-        if (parameters.m_HasSpecular)
-        {
-            /***********************************
-            * uniform sampler2D PbrSpecular_specularTexture;
-            * uniform sampler2D PbrSpecular_specularColorTexture;
-            * struct PbrSpecular
-            * {
-            *     vec4 specularColorAndSpecularFactor; // RGB: specularColor, A: specularFactor (Default=1.0);
-            *     vec4 specularTextures;               // R: use specularTexture, G: use specularColorTexture
-            * };
-            ***********************************/
-            dmVMath::Vector4 specular = dmVMath::Vector4(ddf_material.m_Specular.m_Specularcolorfactor.getX(), ddf_material.m_Specular.m_Specularcolorfactor.getY(), ddf_material.m_Specular.m_Specularcolorfactor.getZ(), ddf_material.m_Specular.m_Specularfactor);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, &specular, 1);
-
-            if (ddf_material.m_Specular.m_Speculartexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Specular.m_Specularcolortexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 specular_textures = dmVMath::Vector4(
-                    ddf_material.m_Specular.m_Speculartexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Specular.m_Specularcolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
-                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SPECULAR_TEXTURES, &specular_textures, 1);
-            }
-        }
-        if (parameters.m_HasVolume)
-        {
-            /***********************************
-            * uniform sampler2D PbrVolume_thicknessTexture;
-            * struct PbrVolume
-            * {
-            *     vec4 thicknessFactorAndAttenuationColor; // R: thicknessFactor (Default=0.0), RGB: attenuationColor
-            *     vec4 attenuationDistance;                // R: attentuationDistance (Default=-1.0)
-            *     vec4 volumeTextures;                     // R: use thicknessTexture
-            * };
-            ***********************************/
-            dmVMath::Vector4 thicknessFactorAndAttenuationColor = dmVMath::Vector4(ddf_material.m_Volume.m_Thicknessfactor, ddf_material.m_Volume.m_Attenuationcolor.getX(), ddf_material.m_Volume.m_Attenuationcolor.getY(), ddf_material.m_Volume.m_Attenuationcolor.getZ());
-            dmVMath::Vector4 attenuationDistance = dmVMath::Vector4(ddf_material.m_Volume.m_Attenuationdistance, 0.0f, 0.0f, 0.0f);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR, &thicknessFactorAndAttenuationColor, 1);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_VOLUME_ATTENUATION_DISTANCE, &attenuationDistance, 1);
-
-            if (ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 volume_textures = dmVMath::Vector4(
-                    ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
-                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_VOLUME_TEXTURES, &volume_textures, 1);
-            }
-        }
-        if (parameters.m_HasSheen)
-        {
-            /***********************************
-            * uniform sampler2D PbrSheen_sheenColorTexture;
-            * uniform sampler2D PbrSheen_sheenRoughnessTexture;
-            * struct PbrSheen
-            * {
-            *     vec4 sheenColorAndRoughnessFactor; // RGB: sheenColor, A: sheenRoughnessFactor (Default=0.0)
-            *     vec4 sheenTextures;                // R: use sheenColorTexture, G: use sheenRoughnessTexture
-            * };
-            ***********************************/
-            dmVMath::Vector4 sheenColorAndRoughnessFactor = dmVMath::Vector4(ddf_material.m_Sheen.m_Sheencolorfactor.getX(), ddf_material.m_Sheen.m_Sheencolorfactor.getY(), ddf_material.m_Sheen.m_Sheencolorfactor.getZ(), ddf_material.m_Sheen.m_Sheenroughnessfactor);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR, &sheenColorAndRoughnessFactor, 1);
-
-            if (ddf_material.m_Sheen.m_Sheencolortexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Sheen.m_Sheenroughnesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 sheen_textures = dmVMath::Vector4(
-                    ddf_material.m_Sheen.m_Sheencolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Sheen.m_Sheenroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
-                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_SHEEN_TEXTURES, &sheen_textures, 1);
-            }
-        }
-        if (parameters.m_HasEmissiveStrength)
-        {
-            /***********************************
-            * struct PbrEmissiveStrength
-            * {
-            *     vec4 emissiveStrength; // R: emissiveStrength (Default=1.0)
-            * };
-            ***********************************/
-            dmVMath::Vector4 emissiveFactorAndStrength = dmVMath::Vector4(ddf_material.m_Emissivestrength.m_Emissivestrength, 0.0f, 0.0f, 0.0f);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH, &emissiveFactorAndStrength, 1);
-        }
-        if (parameters.m_HasIridescence)
-        {
-            /***********************************
-            * uniform sampler2D PbrEmissive_iridescenceTexture;
-            * uniform sampler2D PbrEmissive_iridescenceThicknessTexture;
-            * struct PbrIridescence
-            * {
-            *     vec4 iridescenceFactorAndIorAndThicknessMinMax; // R: iridescenceFactor (Default=0.0), G: iridescenceIor (Default=1.3), B: iridescenceThicknessMin (Default=100.0), A: iridescenceThicknessMax (Default=400.0)
-            *     vec4 iridescenceTextures;                       // R: use iridescenceTexture, G: use iridescenceThicknessTexture
-            * };
-            ***********************************/
-            dmVMath::Vector4 iridescenceFactorAndIorAndThicknessMinMax = dmVMath::Vector4(ddf_material.m_Iridescence.m_Iridescencefactor, ddf_material.m_Iridescence.m_Iridescenceior, ddf_material.m_Iridescence.m_Iridescencethicknessmin, ddf_material.m_Iridescence.m_Iridescencethicknessmax);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, &iridescenceFactorAndIorAndThicknessMinMax, 1);
-
-            if (ddf_material.m_Iridescence.m_Iridescencetexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Iridescence.m_Iridescencethicknesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 iridescence_textures = dmVMath::Vector4(
-                    ddf_material.m_Iridescence.m_Iridescencetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Iridescence.m_Iridescencethicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
-                dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_IRIDESCENCE_TEXTURES, &iridescence_textures, 1);
-            }
-        }
-
-        /***********************************
-        * vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; // R: alphaCutoff (Default=0.5), G: doubleSided (Default=false), B: unlit (Default=false)
-        * vec4 pbrCommonTextures;                      // R: use normalTexture, G: use occlusionTexture, B: use emissiveTexture
-        ***********************************/
-        dmVMath::Vector4 alphaCutoffAndDoubleSidedAndIsUnlit = dmVMath::Vector4(ddf_material.m_Alphacutoff, ddf_material.m_Doublesided, ddf_material.m_Unlit, 0.0f);
-        dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, &alphaCutoffAndDoubleSidedAndIsUnlit, 1);
-
-        if (ddf_material.m_Normaltexture.m_Texture.m_Index != -1 ||
-            ddf_material.m_Occlusiontexture.m_Texture.m_Index != -1 ||
-            ddf_material.m_Emissivetexture.m_Texture.m_Index != -1)
-        {
-            dmVMath::Vector4 common_textures = dmVMath::Vector4(
-                ddf_material.m_Normaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                ddf_material.m_Occlusiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                ddf_material.m_Emissivetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
-            dmGameSystem::SetRenderConstant(render_item->m_RenderConstants, PBR_COMMON_TEXTURES, &common_textures, 1);
-        }
-
-        return true;
-    }
-
     static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmRender::HMaterial material, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HInstance instance)
     {
         if (dmRender::GetMaterialHasSkinnedMatrixCache(material))
@@ -1595,36 +1382,22 @@ namespace dmGameSystem
         }
     }
 
-    static inline bool MorphTargetsNeedShaderConstants(const MeshRenderItem* render_item, dmRender::HMaterial material)
+    static inline bool MorphTargetsNeedShaderData(const MeshRenderItem* render_item, dmRender::HMaterial material)
     {
-        return render_item->m_Mesh->m_MorphTargets.m_Count > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
+        return render_item->m_Mesh->m_MorphTargetCount > 0 && dmRender::GetMaterialHasMorphTargetsSampler(material);
+    }
+
+    static inline bool MorphTargetsNeedUniformWeights(const MeshRenderItem* render_item, dmRender::HMaterial material)
+    {
+        return MorphTargetsNeedShaderData(render_item, material) && !dmRender::GetMaterialHasMorphTargetWeightsAttribute(material);
     }
 
     static void ApplyMorphToRenderObject(ModelWorld* world, dmRender::RenderObject* ro, dmRender::HMaterial material,
         ModelComponent* component, const MeshRenderItem* render_item, dmGameObject::HInstance log_instance)
     {
-        if (!MorphTargetsNeedShaderConstants(render_item, material))
+        if (!MorphTargetsNeedShaderData(render_item, material))
         {
             return;
-        }
-
-        dmRender::HConstant mw_constant = 0;
-        uint32_t shader_vec4_slots = 1;
-        if (dmRender::GetMaterialProgramConstant(material, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, mw_constant))
-        {
-            dmRender::GetConstantValues(mw_constant, &shader_vec4_slots);
-            if (shader_vec4_slots == 0)
-            {
-                shader_vec4_slots = 1;
-            }
-        }
-
-        const uint32_t mesh_morph_count = render_item->m_Mesh->m_MorphTargets.m_Count;
-        const uint32_t max_weights_in_shader = shader_vec4_slots * 4;
-        if (mesh_morph_count > max_weights_in_shader)
-        {
-            dmLogOnceError("Model mesh has %u morph targets; material uniform `morph_targets_weights` has %u vec4 slot(s) (%u weights). Increase the array size in the vertex shader. Extra weights are ignored.",
-                mesh_morph_count, shader_vec4_slots, max_weights_in_shader);
         }
 
         int32_t unit = FindNextFreeTextureSlot(ro);
@@ -1644,6 +1417,30 @@ namespace dmGameSystem
             return;
         }
         ro->m_Textures[unit] = render_item->m_MorphTargetTexture;
+
+        if (dmRender::GetMaterialHasMorphTargetWeightsAttribute(material))
+        {
+            return;
+        }
+
+        dmRender::HConstant mw_constant = 0;
+        uint32_t shader_vec4_slots = 1;
+        if (dmRender::GetMaterialProgramConstant(material, dmRender::CONSTANT_MORPH_TARGETS_WEIGHTS, mw_constant))
+        {
+            dmRender::GetConstantValues(mw_constant, &shader_vec4_slots);
+            if (shader_vec4_slots == 0)
+            {
+                shader_vec4_slots = 1;
+            }
+        }
+
+        const uint32_t mesh_morph_count = render_item->m_Mesh->m_MorphTargetCount;
+        const uint32_t max_weights_in_shader = shader_vec4_slots * 4;
+        if (mesh_morph_count > max_weights_in_shader)
+        {
+            dmLogOnceError("Model mesh has %u morph targets; material uniform `morph_targets_weights` has %u vec4 slot(s) (%u weights). Increase the array size in the vertex shader. Extra weights are ignored.",
+                mesh_morph_count, shader_vec4_slots, max_weights_in_shader);
+        }
 
         if (!ro->m_ConstantBuffer)
         {
@@ -1725,9 +1522,10 @@ namespace dmGameSystem
             render_context_material_custom_attributes = HasCustomVertexAttributes(render_context_material);
         }
 
+        const bool render_material_has_morph_target_weights_attribute = dmRender::GetMaterialHasMorphTargetWeightsAttribute(render_material);
         uint32_t required_instance_buffer_memory = instance_count * instance_stride;
 
-        if (!render_context_material_custom_attributes)
+        if (!render_context_material_custom_attributes && !render_material_has_morph_target_weights_attribute)
         {
             if (IsRenderItemSkinned(component, render_item))
             {
@@ -1780,17 +1578,17 @@ namespace dmGameSystem
             MeshRenderItem* instance_render_item = (MeshRenderItem*) buf[*i].m_UserData;
             ModelComponent* instance_component   = instance_render_item->m_Component;
 
-            if (render_context_material_custom_attributes || instance_render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+            if (render_context_material_custom_attributes || render_material_has_morph_target_weights_attribute || instance_render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
             {
                 // The overridden material from the render script might be setup with custom vertex attributes,
                 // while the component material might not. In this case, we need to setup the attribute render data
                 // specifically for the render material.
-                if (render_item->m_AttributeRenderDataIndex == ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+                if (instance_render_item->m_AttributeRenderDataIndex == ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
                 {
-                    render_item->m_AttributeRenderDataIndex = component->m_MeshAttributeRenderDatas.Size();
-                    component->m_MeshAttributeRenderDatas.OffsetCapacity(1);
-                    component->m_MeshAttributeRenderDatas.SetSize(component->m_MeshAttributeRenderDatas.Capacity());
-                    memset(&component->m_MeshAttributeRenderDatas[render_item->m_AttributeRenderDataIndex], 0, sizeof(MeshAttributeRenderData));
+                    instance_render_item->m_AttributeRenderDataIndex = instance_component->m_MeshAttributeRenderDatas.Size();
+                    instance_component->m_MeshAttributeRenderDatas.OffsetCapacity(1);
+                    instance_component->m_MeshAttributeRenderDatas.SetSize(instance_component->m_MeshAttributeRenderDatas.Capacity());
+                    memset(&instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex], 0, sizeof(MeshAttributeRenderData));
                 }
 
                 attribute_rd = &instance_component->m_MeshAttributeRenderDatas[instance_render_item->m_AttributeRenderDataIndex];
@@ -1822,7 +1620,7 @@ namespace dmGameSystem
 
                 if (instance_render_item->m_DynamicVertexAttributesDirty)
                 {
-                    SetMeshAttributeRenderData(world, component,
+                    SetMeshAttributeRenderData(world, instance_component,
                         render_context,
                         &material_infos,
                         attribute_infos,
@@ -1846,7 +1644,7 @@ namespace dmGameSystem
                     ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER] = attribute_rd->m_InstanceVertexDeclaration;
                 }
 
-                instance_write_ptr = WriteMeshAttributes(render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
+                instance_write_ptr = WriteMeshAttributes(world, render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
             }
             else if (IsRenderItemSkinned(instance_component, render_item))
             {
@@ -1892,13 +1690,13 @@ namespace dmGameSystem
         // Otherwise, each render item will overwrite the component render constants with new values
         // before the render object is processed and the draw call is dispatched.
         HComponentRenderConstants constants = component->m_RenderConstants;
-        if (FillPBRConstants(component, render_item, render_material, material_index))
+        if (FillPBRConstants(component->m_Resource, &component->m_Resource->m_Materials[material_index], &render_item->m_RenderConstants, render_material, material_index))
         {
             CopyRenderConstants(render_item->m_RenderConstants, constants);
             constants = render_item->m_RenderConstants;
         }
 
-        if (!constants && MorphTargetsNeedShaderConstants(render_item, render_material))
+        if (!constants && MorphTargetsNeedUniformWeights(render_item, render_material))
         {
             constants = GetScratchConstantBuffer(world);
         }
@@ -2044,13 +1842,13 @@ namespace dmGameSystem
             // If the material supports PBR data, we need to use the render item's constants.
             // Otherwise, each render item will overwrite the component render constants with new values
             // before the render object is processed and the draw call is dispatched.
-            if (FillPBRConstants(component, render_item, render_material, material_index))
+            if (FillPBRConstants(component->m_Resource, &component->m_Resource->m_Materials[material_index], &render_item->m_RenderConstants, render_material, material_index))
             {
                 CopyRenderConstants(render_item->m_RenderConstants, constants);
                 constants = render_item->m_RenderConstants;
             }
 
-            if (!constants && MorphTargetsNeedShaderConstants(render_item, render_material))
+            if (!constants && MorphTargetsNeedUniformWeights(render_item, render_material))
             {
                 constants = GetScratchConstantBuffer(world);
             }
@@ -2494,6 +2292,7 @@ namespace dmGameSystem
         component->m_BlendWeightsOverride.SetSize(count);
         memcpy(component->m_BlendWeightsOverride.Begin(), weights, count * sizeof(float));
         component->m_BlendWeightsOverrideActive = 1;
+        component->m_ReHash = 1;
     }
 
     void CompModelResetBlendWeights(ModelComponent* component)
@@ -2502,6 +2301,7 @@ namespace dmGameSystem
             return;
         component->m_BlendWeightsOverrideActive = 0;
         component->m_BlendWeightsOverride.SetSize(0);
+        component->m_ReHash = 1;
     }
 
     // If true, out_weights and out_count are written
@@ -2527,7 +2327,7 @@ namespace dmGameSystem
             MeshRenderItem& render_item = component->m_RenderItems[i];
 
             // Not all render items might have morph targets
-            if (render_item.m_Mesh->m_MorphTargets.m_Count == 0)
+            if (render_item.m_Mesh->m_MorphTargetCount == 0)
             {
                 continue;
             }
@@ -3274,6 +3074,12 @@ namespace dmGameSystem
         ModelWorld* world = (ModelWorld*) model_world;
         *vx_buffers       = world->m_VertexBuffers;
         *vx_buffers_count = VERTEX_BUFFER_MAX_BATCHES;
+    }
+
+    void GetModelWorldInstanceRenderBuffer(void* model_world, dmRender::HBufferedRenderBuffer* instance_buffer)
+    {
+        ModelWorld* world = (ModelWorld*) model_world;
+        *instance_buffer  = world->m_InstanceBufferLocalSpace;
     }
 
     void GetModelWorldRenderBatchStats(void* model_world, uint8_t* world_batch_count, uint8_t* local_batch_count, uint8_t* local_instanced_batch_count)

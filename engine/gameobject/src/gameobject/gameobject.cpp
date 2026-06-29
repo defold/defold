@@ -214,6 +214,7 @@ namespace dmGameObject
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
+        m_ContextRegistry = 0;
         m_Mutex = dmMutex::New();
     }
 
@@ -289,6 +290,16 @@ namespace dmGameObject
     {
         assert(regist != 0x0);
         return regist->m_DefaultCollectionCapacity;
+    }
+
+    void SetContextRegistry(HRegister regist, HContextRegistry context_registry)
+    {
+        regist->m_ContextRegistry = context_registry;
+    }
+
+    HContextRegistry GetContextRegistry(HRegister regist)
+    {
+        return regist->m_ContextRegistry;
     }
 
     void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity)
@@ -406,7 +417,7 @@ namespace dmGameObject
         {
             instances_in_collection = dmMath::Min(max_instances, instances_in_collection);
         }
-        Collection* collection = new Collection(0, 0, instances_in_collection, GetInputStackDefaultCapacity(regist));
+        Collection* collection = new Collection(0, regist, instances_in_collection, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)

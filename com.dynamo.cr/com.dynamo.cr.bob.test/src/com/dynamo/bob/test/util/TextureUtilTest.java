@@ -18,20 +18,116 @@ import static org.junit.Assert.assertEquals;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import javax.imageio.ImageIO;
 
 import org.junit.Test;
 
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.PathSettings;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 public class TextureUtilTest {
+
+    /* Intent: verify that generated texture resources align embedded typed image payloads.
+    ** Setup: one small byte texture alternative and one RGBA32F texture alternative are
+    ** written through the default texture resource path.
+    ** Expected: the byte alternative is unchanged, the float alternative mip offset skips any
+    ** inserted padding so it starts on a 4-byte boundary, and both image payloads are preserved.
+    */
+    @Test
+    public void testWriteGenerateResultCanAlignFirstImageData() throws Exception {
+        byte[] byteImageData = new byte[5];
+        for (int i = 0; i < byteImageData.length; ++i) {
+            byteImageData[i] = (byte)i;
+        }
+
+        byte[] floatImageData = new byte[16];
+        for (int i = 0; i < floatImageData.length; ++i) {
+            floatImageData[i] = (byte)(i + 16);
+        }
+
+        TextureImage.Image byteImage = TextureImage.Image.newBuilder()
+                .setWidth(1)
+                .setHeight(1)
+                .setDepth(1)
+                .setOriginalWidth(1)
+                .setOriginalHeight(1)
+                .setOriginalDepth(1)
+                .setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA)
+                .addMipMapOffset(0)
+                .addMipMapSize(byteImageData.length)
+                .addMipMapSizeCompressed(byteImageData.length)
+                .addMipMapDimensions(1)
+                .addMipMapDimensions(1)
+                .setDataSize(byteImageData.length)
+                .build();
+
+        TextureImage.Image floatImage = TextureImage.Image.newBuilder()
+                .setWidth(1)
+                .setHeight(1)
+                .setDepth(1)
+                .setOriginalWidth(1)
+                .setOriginalHeight(1)
+                .setOriginalDepth(1)
+                .setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA32F)
+                .addMipMapOffset(0)
+                .addMipMapSize(floatImageData.length)
+                .addMipMapSizeCompressed(floatImageData.length)
+                .addMipMapDimensions(1)
+                .addMipMapDimensions(1)
+                .setDataSize(floatImageData.length)
+                .build();
+
+        TextureGenerator.GenerateResult generateResult = new TextureGenerator.GenerateResult();
+        generateResult.textureImage = TextureImage.newBuilder()
+                .addAlternatives(byteImage)
+                .addAlternatives(floatImage)
+                .setType(TextureImage.Type.TYPE_2D_ARRAY)
+                .setCount(1)
+                .build();
+        generateResult.imageDatas = new ArrayList<>();
+        generateResult.imageDatas.add(byteImageData);
+        generateResult.imageDatas.add(floatImageData);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        TextureUtil.writeGenerateResultToOutputStream(generateResult, out);
+        byte[] textureBytes = out.toByteArray();
+
+        ByteBuffer headerSizeBuffer = ByteBuffer.wrap(textureBytes, 0, Integer.BYTES);
+        headerSizeBuffer.order(ByteOrder.LITTLE_ENDIAN);
+        int headerSize = headerSizeBuffer.getInt();
+        TextureImage textureImage = TextureImage.parseFrom(Arrays.copyOfRange(textureBytes, Integer.BYTES, Integer.BYTES + headerSize));
+        TextureImage.Image alignedByteImage = textureImage.getAlternatives(0);
+        TextureImage.Image alignedFloatImage = textureImage.getAlternatives(1);
+
+        int payloadOffset = Integer.BYTES + headerSize;
+        int byteImageDataOffset = payloadOffset + alignedByteImage.getMipMapOffset(0);
+        int floatImageDataOffset = payloadOffset + alignedByteImage.getDataSize() + alignedFloatImage.getMipMapOffset(0);
+
+        assertEquals(0, floatImageDataOffset % 4);
+        assertEquals(0, alignedByteImage.getMipMapOffset(0));
+        assertEquals(byteImageData.length, alignedByteImage.getDataSize());
+        assertEquals(floatImageData.length + alignedFloatImage.getMipMapOffset(0), alignedFloatImage.getDataSize());
+
+        for (int i = 0; i < byteImageData.length; ++i) {
+            assertEquals(byteImageData[i], textureBytes[byteImageDataOffset + i]);
+        }
+        for (int i = 0; i < floatImageData.length; ++i) {
+            assertEquals(floatImageData[i], textureBytes[floatImageDataOffset + i]);
+        }
+    }
 
     @Test
     public void testExtrudeBorders() {

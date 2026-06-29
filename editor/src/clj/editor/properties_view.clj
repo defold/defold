@@ -467,7 +467,7 @@
             (resolve-scrubber property :left #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
 
 (defn- vec->color [[r g b a]]
-  (Color. (float r) (float g) (float b) (float a)))
+  (Color. (float r) (float g) (float b) (float (or a 1.0))))
 
 (defmethod make-control-view types/Color [property {:keys [prefs]} localization-state]
   (let [values (properties/values property)

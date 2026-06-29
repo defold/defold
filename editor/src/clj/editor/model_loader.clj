@@ -21,7 +21,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [com.dynamo.bob.pipeline ModelUtil]
+  (:import [com.dynamo.bob.pipeline ModelUtil ModelUtil$CollectedMorphTargetTexture ModelUtil$PackedMorphTargetTexture]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
            [java.io InputStream]))
@@ -32,6 +32,17 @@
   (mapv #(int (get project-settings %))
         [["model" "max_morph_target_texture_width"]
          ["model" "max_morph_target_texture_height"]]))
+
+(defn- packed-morph-target-texture->map [^ModelUtil$PackedMorphTargetTexture texture]
+  {:width (.-width texture)
+   :height (.-height texture)
+   :layer-count (.-layerCount texture)
+   :data (.-data texture)})
+
+(defn- collected-morph-target-texture->map [^ModelUtil$CollectedMorphTargetTexture texture]
+  (let [packed-texture (.-texture texture)]
+    {:token (.-resourcePath texture)
+     :packed-texture (packed-morph-target-texture->map packed-texture)}))
 
 (defn- load-model-scene
   [resource ^InputStream stream morph-tex-w morph-tex-h]
@@ -45,16 +56,18 @@
         scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
-        animation-ids (ModelUtil/getAnimationNames scene)] ; sorted on duration (largest first)
+        animation-ids (ModelUtil/getAnimationNames scene) ; sorted on duration (largest first)
+        morph-target-texture-collector (ModelUtil/createMorphTargetTextureCollector)]
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h)
+    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector)
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
        :skeleton skeleton
        :bones bones
        :buffers (.buffers scene)
+       :morph-target-textures (mapv collected-morph-target-texture->map (.getTextures morph-target-texture-collector))
        :animation-ids animation-ids
        :material-ids material-ids})))
 

@@ -515,11 +515,8 @@ namespace dmHID
     {
         static int translation_table[] = {
             dmPlatform::PLATFORM_MOUSE_BUTTON_LEFT,
-            dmPlatform::PLATFORM_MOUSE_BUTTON_MIDDLE,
             dmPlatform::PLATFORM_MOUSE_BUTTON_RIGHT,
-            dmPlatform::PLATFORM_MOUSE_BUTTON_1,
-            dmPlatform::PLATFORM_MOUSE_BUTTON_2,
-            dmPlatform::PLATFORM_MOUSE_BUTTON_3,
+            dmPlatform::PLATFORM_MOUSE_BUTTON_MIDDLE,
             dmPlatform::PLATFORM_MOUSE_BUTTON_4,
             dmPlatform::PLATFORM_MOUSE_BUTTON_5,
             dmPlatform::PLATFORM_MOUSE_BUTTON_6,

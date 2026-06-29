@@ -50,11 +50,11 @@ VERSION_EDITOR_JDK="25+36"
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="26.2" # we also use this to match version on Github Actions
-VERSION_XCODE_CLANG="17.0.0"
-VERSION_MACOSX="26.2"
-VERSION_IPHONEOS="26.2"
-VERSION_IPHONESIMULATOR="26.2"
+VERSION_XCODE="26.5" # we also use this to match version on Github Actions
+VERSION_XCODE_CLANG="21.0.0"
+VERSION_MACOSX="26.5"
+VERSION_IPHONEOS="26.5"
+VERSION_IPHONESIMULATOR="26.5"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
@@ -1218,15 +1218,14 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
             raise TestSdkException("Path not found for clang!")
 
     clang = 'clang++'
-    sysroot = ''
-    arch = ''
+    cmd = [clang]
 
     if platform in ['arm64-android', 'armv7-android']:
         clang = os.path.join(info['bintools'], info['clangname'])
+        cmd = [clang]
 
     elif platform in ['arm64-ios', 'x86_64-ios']:
-        sysroot = '-isysroot' + info[platform]['path']
-        arch = '-arch ' + platform.split('-')[0]
+        cmd.extend(['-isysroot', info[platform]['path'], '-arch', platform.split('-')[0]])
 
     if not use_local_path:
         if not os.path.exists(clang):
@@ -1234,12 +1233,10 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
 
     target = _get_clang_arch_from_platform(platform)
     if target is not None:
-        target = f'--target={target}'
-    else:
-        target = ''
+        cmd.append(f'--target={target}')
 
-    cmd = f'{clang} {sysroot} {target} {arch} {srcfile} -o {exefile}'
-    return run.shell_command(cmd)
+    cmd.extend([srcfile, '-o', exefile])
+    return run.command(cmd)
 
 def _test_compiler_clang(platform, info, can_run, verbose):
     testdir = os.path.join(os.environ['DYNAMO_HOME'], 'sdktest')
@@ -1249,11 +1246,11 @@ def _test_compiler_clang(platform, info, can_run, verbose):
     output = _compile_file_clang(platform, info, testfile, exefile, verbose)
 
     if verbose:
-        output = run.shell_command(f'file {exefile}')
+        output = run.command(['file', exefile])
         log.log(output)
 
     if can_run:
-        output = run.shell_command(f'{exefile}')
+        output = run.command([exefile])
         if verbose:
             log.log(output)
 

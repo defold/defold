@@ -191,12 +191,24 @@ public class ShaderCompilers {
                 throw new CompileExceptionError("Can't match compute with graphics modules");
         }
 
+        private static boolean shaderLanguageRequiresSplitTextureSamplers(ShaderDesc.Language shaderLanguage) {
+            return shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
+        }
+
         public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions compileOptions) throws IOException, CompileExceptionError {
 
             // We need this for e.g. Win32 when creating the root signature bindings, to get a deterministic order.
             shaderModules.sort(Comparator.comparingInt(m -> m.type.getNumber()));
+            validateModules(shaderModules);
 
             boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+            Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, compileOptions);
+            assert shaderLanguages != null;
+
+            // Used for tests, merge in potentially unsupported languages here.
+            shaderLanguages.addAll(compileOptions.forceIncludeShaderLanguages);
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
             if (this.baseOptions != null) {
@@ -204,80 +216,76 @@ public class ShaderCompilers {
                 opts.externalToolArgs = this.baseOptions.externalToolArgs;
             }
             opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
+            opts.targetPlatform = this.platform;
             opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
             opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
 
-            for (ShaderDesc.Language shaderLanguage : compileOptions.forceIncludeShaderLanguages) {
-                boolean isHLSL = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
-
-                opts.splitTextureSamplers |= isHLSL || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
-            }
-
-            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
-            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
-
-            validateModules(shaderModules);
-
-            Set<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, compileOptions);
-            assert shaderLanguages != null;
-
-            // Used for tests, merge in potentially unsupported languages here.
-            shaderLanguages.addAll(compileOptions.forceIncludeShaderLanguages);
-
-            HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
-            Shaderc.HLSLRootSignature hlslRootSignature = null;
-
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                opts.splitTextureSamplers |= shaderLanguageRequiresSplitTextureSamplers(shaderLanguage);
+            }
 
-                boolean arrayTextureFallbackRequired = ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage);
+            ShaderCompilePipeline pipeline = null;
+            try {
+                pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
+                ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
 
-                boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
-                List<Shaderc.ShaderCompileResult> compiled_shaders = new ArrayList<>();
+                HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
+                Shaderc.HLSLRootSignature hlslRootSignature = null;
 
-                for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
+                for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
 
-                    boolean variantTextureArray = false;
-                    Shaderc.ShaderCompileResult crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                    boolean arrayTextureFallbackRequired = ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage);
 
-                    if (!shaderTypeKeys.containsKey(shaderModule.type)) {
-                        shaderTypeKeys.put(shaderModule.type, true);
-                    }
+                    boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
+                    List<Shaderc.ShaderCompileResult> compiled_shaders = new ArrayList<>();
 
-                    if (arrayTextureFallbackRequired) {
-                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount);
-                        if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
-                            crossCompileResult.data = variantCompileResult.source.getBytes();
-                            variantTextureArray = true;
+                    for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
+
+                        boolean variantTextureArray = false;
+                        Shaderc.ShaderCompileResult crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+
+                        if (!shaderTypeKeys.containsKey(shaderModule.type)) {
+                            shaderTypeKeys.put(shaderModule.type, true);
                         }
+
+                        if (arrayTextureFallbackRequired) {
+                            ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount);
+                            if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
+                                crossCompileResult.data = variantCompileResult.source.getBytes();
+                                variantTextureArray = true;
+                            }
+                        }
+
+                        ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(crossCompileResult, shaderLanguage, shaderModule.type);
+                        shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+
+                        if (variantTextureArray) {
+                            builder.setVariantTextureArray(true);
+                        }
+
+                        compiled_shaders.add(crossCompileResult);
                     }
 
-                    ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(crossCompileResult, shaderLanguage, shaderModule.type);
-                    shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
-
-                    if (variantTextureArray) {
-                        builder.setVariantTextureArray(true);
+                    if (create_hlsl_root_signature) {
+                        hlslRootSignature = pipeline.createRootSignature(shaderLanguage, compiled_shaders);
                     }
-
-                    compiled_shaders.add(crossCompileResult);
                 }
 
-                if (create_hlsl_root_signature) {
-                    hlslRootSignature = pipeline.createRootSignature(shaderLanguage, compiled_shaders);
+                ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
+                compileResult.shaderBuildResults = shaderBuildResults;
+
+                for(ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
+                    compileResult.reflectors.add(pipeline.getReflectionData(type));
+                }
+
+                compileResult.hlslRootSignature = hlslRootSignature != null ? hlslRootSignature.hLSLRootSignature : null;
+
+                return compileResult;
+            } finally {
+                if (pipeline != null) {
+                    ShaderCompilePipeline.destroyShaderPipeline(pipeline);
                 }
             }
-
-            ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
-            compileResult.shaderBuildResults = shaderBuildResults;
-
-            for(ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
-                compileResult.reflectors.add(pipeline.getReflectionData(type));
-            }
-
-            compileResult.hlslRootSignature = hlslRootSignature != null ? hlslRootSignature.hLSLRootSignature : null;
-
-            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
-
-            return compileResult;
         }
     }
 

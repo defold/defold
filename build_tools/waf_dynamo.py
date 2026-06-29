@@ -52,6 +52,17 @@ class waf_dynamo_vendor(object):
     def transform_runnable_path(cls, platform, path):
         return call_hook('waf_dynamo', platform, 'transform_runnable_path', path, platform, path)
 
+def static_libs(conf, uselib, libs, exact_windows_libs = None):
+    # Waf expands STLIB entries to lib%s.lib on Windows. Libraries built outside Waf
+    # may need their exact .lib filename instead, while keeping the usual STLIB path elsewhere.
+    libs = Utils.to_list(libs)
+    exact_windows_libs = set(Utils.to_list(exact_windows_libs or libs))
+    if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
+        conf.env['STLIB_%s' % uselib] = [lib for lib in libs if lib not in exact_windows_libs]
+        conf.env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in libs if lib in exact_windows_libs])
+    else:
+        conf.env['STLIB_%s' % uselib] = libs
+
 
 def is_platform_private(platform):
     return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'] or platform in get_configured_platforms()
@@ -74,6 +85,8 @@ def platform_supports_feature(platform, feature, data):
         return platform in ['arm64-linux', 'armv7-android', 'arm64-android']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
+    if feature == 'metal':
+        return platform in ['x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -118,6 +131,12 @@ def _has_waf_configure_state(path):
     return False
 
 def _fail_if_unconfigured_cmake_library():
+    # Skip the CMake check when the user explicitly requested a pure‑Waf
+    # build via ``--with-waf``.  The flag is exposed as
+    # ``Options.options.with_waf`` by the command line parser.
+    if getattr(Options.options, 'with_waf', False):
+        return
+
     if not set(Options.commands).intersection(['build', 'clean', 'install', 'uninstall', 'list', 'step']):
         return
 
@@ -132,21 +151,24 @@ def _fail_if_unconfigured_cmake_library():
 This library has CMakeLists.txt and has not been configured by Waf.
 Use CMake/Ninja for this library instead:
 
+  Defaults from ./scripts/build.py shell:
+    CMAKE_GENERATOR=Ninja, TARGET_PLATFORM=%s, CMAKE_BUILD_TYPE=RelWithDebInfo, BUILD_TESTS=ON
+
   Configure with tests:
-    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=ON
+    cmake -S . -B build
 
   Configure without tests:
-    cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DTARGET_PLATFORM=%s -DBUILD_TESTS=OFF
+    cmake -S . -B build -DBUILD_TESTS=OFF
 
   Build after configuring with tests:
-    ninja -C build all build_tests install
+    cmake --build build --target all build_tests install
 
   Build after configuring without tests:
-    ninja -C build all install
+    cmake --build build --target all install
 
   Run tests:
-    ninja -C build run_tests
-''' % (platform, platform))
+    cmake --build build --target run_tests
+''' % platform)
 
 _cmake_library_guard_installed = False
 
@@ -262,6 +284,10 @@ def platform_graphics_libs_and_symbols(platform):
     if Options.options.with_webgpu and platform_supports_feature(platform, 'webgpu', {}):
         graphics_libs += ['GRAPHICS_WEBGPU']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
+
+    if Options.options.with_metal and platform_supports_feature(platform, 'metal', {}):
+        graphics_libs += ['GRAPHICS_METAL', 'METAL']
+        graphics_lib_symbols.append('GraphicsAdapterMetal')
 
     if platform in ('arm64-nx64'):
         graphics_libs = ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
@@ -450,7 +476,9 @@ def default_flags(self):
     for f in ['CFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
-    if not use_cl_exe:
+    if Options.options.with_metal or platform_supports_feature(build_util.get_target_platform(), 'metal', {}):
+        self.env.append_value('CXXFLAGS', ['-std=c++17']) # Due to metal-cpp library
+    elif not use_cl_exe:
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
@@ -1124,50 +1152,6 @@ def _strip_executable(bld, platform, target_arch, path):
 
     return bld.exec_command([strip, path])
 
-AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
-
-def authenticode_certificate_installed(task):
-    if Options.options.skip_codesign:
-        return 0
-    ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, stdout=True, stderr=True)
-    return ret > 0
-
-def authenticode_sign(task):
-    if Options.options.skip_codesign:
-        return
-    exe_file = task.inputs[0].abspath()
-    exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath()
-    exe_file_signed = task.outputs[0].abspath()
-
-    ret = task.exec_command('copy /Y %s %s' % (exe_file, exe_file_to_sign), stdout=True, stderr=True)
-    if ret != 0:
-        error("Unable to copy file before signing")
-        return 1
-
-    ret = task.exec_command('"%s" sign /sm /n "%s" /fd sha256 /tr http://timestamp.comodoca.com /td sha256 /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), stdout=True, stderr=True)
-    if ret != 0:
-        error("Unable to sign executable")
-        return 1
-
-    ret = task.exec_command('move /Y %s %s' % (exe_file_to_sign, exe_file_signed), stdout=True, stderr=True)
-    if ret != 0:
-        error("Unable to rename file after signing")
-        return 1
-
-    return 0
-
-Task.task_factory('authenticode_sign',
-                     func = authenticode_sign,
-                     after = 'link_task stlink_task')
-
-@task_gen
-@feature('authenticode')
-def authenticode(self):
-    exe_file = self.link_task.outputs[0].abspath(self.env)
-    sign_task = self.create_task('authenticode_sign')
-    sign_task.set_inputs(self.link_task.outputs)
-    sign_task.set_outputs([self.link_task.outputs[0].change_ext('_signed.exe')])
-
 @task_gen
 @after('apply_link')
 @feature('cprogram', 'cxxprogram')
@@ -1194,7 +1178,7 @@ def create_app_bundle(self):
 
     self.app_bundle_task = app_bundle_task
 
-    if not Options.options.skip_codesign and not self.env["CODESIGN_UNSUPPORTED"]:
+    if Options.options.codesign and not self.env["CODESIGN_UNSUPPORTED"]:
         signed_exe = self.path.get_bld().make_node("%s.app/%s" % (exe_name, exe_name))
 
         codesign = self.create_task('codesign')
@@ -1817,7 +1801,7 @@ def detect(conf):
         print ("Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), host_platform))
 
         conf.env['CODESIGN_UNSUPPORTED'] = True
-        print ("Codesign disabled", Options.options.skip_codesign)
+        print ("Codesign unsupported (%s cannot codesign for %s)" % (host_platform, build_util.get_target_platform()))
 
     # Vulkan support
     if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'wasm-web', 'wasm_pthread-web'):
@@ -1833,7 +1817,7 @@ def detect(conf):
         else:
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
 
-        if not Options.options.skip_codesign:
+        if Options.options.codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
 
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
@@ -1982,7 +1966,7 @@ def detect(conf):
             conf.env['LIBPATH']  = libdirs
             conf.load('msvc', funs='no_autodetect')
 
-            if not Options.options.skip_codesign:
+            if Options.options.codesign:
                 conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
         else:
             conf.options.check_c_compiler = 'clang gcc'
@@ -2111,11 +2095,11 @@ def detect(conf):
         use_vanilla = True
 
     if use_vanilla:
-        conf.env['STLIB_LUA'] = 'lua'
+        static_libs(conf, 'LUA', 'lua')
     else:
         conf.env['STLIB_LUA'] = 'luajit-5.1'
 
-    conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
+    static_libs(conf, 'TESTMAIN', ['testmain']) # we'll use this for all internal tests/tools
 
     if target_os != TargetOS.MACOS:
         conf.env['STLIB_UNWIND'] = 'unwind'
@@ -2141,24 +2125,25 @@ def detect(conf):
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip']
+    static_libs(conf, 'DLIB', ['dlib', 'image', 'zip'])
     if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
-        conf.env['STLIB_DLIB'].append('dmbedtls')
+        conf.env.append_unique('STLIB_DLIB', 'dmbedtls')
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
         conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
 
-    conf.env['STLIB_DDF'] = 'ddf'
+    static_libs(conf, 'DDF', ['ddf'])
+    static_libs(conf, 'DDF_NOASAN', ['ddf_noasan'])
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
 
-    conf.env['STLIB_PROFILE'] = ['profile']
-    conf.env['STLIB_PROFILE_NULL'] = ['profile_null']
+    static_libs(conf, 'PROFILE', ['profile'])
+    static_libs(conf, 'PROFILE_NULL', ['profile_null'])
     conf.env['STLIB_PROFILER_BASIC'] = ['profiler_basic']
     conf.env['STLIB_PROFILER_REMOTERY'] = ['profiler_remotery']
     conf.env['STLIB_PROFILER_NULL'] = ['profiler_null']
 
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
+    static_libs(conf, 'PROFILE_NULL_NOASAN', ['profile_null_noasan'])
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'
@@ -2171,24 +2156,35 @@ def detect(conf):
             conf.env['STLIB_RECORD'] = 'record_null'
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STLIB_GRAPHICS']          = ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+    static_libs(conf, 'GRAPHICS',          ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_OPENGLES', ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_VULKAN',   ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_DX12',     ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_METAL',    ['graphics_metal', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
     if 'wagyu' in Options.options.enable_features:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
     else:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'image', 'graphics_transcoder_null']
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_NULL', ['graphics_null', 'image', 'graphics_transcoder_null'])
+    static_libs(conf, 'GRAPHICS_PROTO', ['graphics_proto'])
+    static_libs(conf, 'GRAPHICS_NULL_NOASAN', ['graphics_null_noasan', 'image_noasan', 'graphics_proto_noasan'])
 
-    conf.env['STLIB_FONT']            = ['font']
-    conf.env['STLIB_FONT_LAYOUT']     = ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi']
+    static_libs(conf, 'FONT', ['font'])
+    static_libs(conf, 'FONT_LAYOUT', ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi'], ['font_skribidi'])
 
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'
     else:
         conf.env['STLIB_DMGLFW'] = 'dmglfw'
     conf.env['STLIB_DMGLFW_VULKAN'] = 'dmglfw_vulkan'
+
+    # ***********************************************************
+    # Metal
+    if TargetOS.MACOS == target_os:
+        conf.env['FRAMEWORK_METAL']  = ['Metal', 'IOSurface', 'QuartzCore']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+    elif TargetOS.IOS == target_os:
+        conf.env['FRAMEWORK_METAL']  = ['Metal', 'IOSurface', 'QuartzCore']
 
     # ***********************************************************
     # Vulkan
@@ -2199,7 +2195,7 @@ def detect(conf):
     elif TargetOS.IOS == target_os:
         conf.env['STLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']
-        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics', 'CoreMotion']
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_VULKAN'] = ['vulkan', 'X11-xcb']
         # currently we only have the validation
@@ -2225,19 +2221,19 @@ def detect(conf):
 
     if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
-        conf.env['LINKFLAGS_DLIB']      = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp
+        conf.env.append_value('LINKFLAGS_DLIB', ['ole32.lib']) # CoTaskMemFree in sys_win32.cpp
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
 
 
     if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
-        conf.env['LINKFLAGS_HID']               = ['hid.lib']
-        conf.env['LINKFLAGS_HID_NULL']          = ['hid_null.lib']
-        conf.env['LINKFLAGS_INPUT']             = ['input.lib']
-        conf.env['LINKFLAGS_PLATFORM']          = ['platform.lib']
-        conf.env['LINKFLAGS_PLATFORM_VULKAN']   = ['platform_vulkan.lib']
-        conf.env['LINKFLAGS_PLATFORM_NULL']     = ['platform_null.lib']
+        static_libs(conf, 'HID', ['hid'])
+        static_libs(conf, 'HID_NULL', ['hid_null'])
+        static_libs(conf, 'INPUT', ['input'])
+        static_libs(conf, 'PLATFORM', ['platform'])
+        static_libs(conf, 'PLATFORM_VULKAN', ['platform_vulkan'])
+        static_libs(conf, 'PLATFORM_NULL', ['platform_null'])
     else:
         conf.env['STLIB_HID']               = ['hid']
         conf.env['STLIB_HID_NULL']          = ['hid_null']
@@ -2249,8 +2245,8 @@ def detect(conf):
     if target_os in [TargetOS.MACOS, TargetOS.IOS]:
         conf.env['FRAMEWORK_HID'] = ['GameController']
 
-    conf.env['STLIB_EXTENSION'] = 'extension'
-    conf.env['STLIB_SCRIPT'] = 'script'
+    static_libs(conf, 'EXTENSION', ['extension'])
+    static_libs(conf, 'SCRIPT', ['script'])
 
     if conf.env.IS_TARGET_DESKTOP:
 
@@ -2297,7 +2293,7 @@ def options(opt):
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-ios')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
-    opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
+    opt.add_option('--codesign', action="store_true", default=False, dest='codesign', help='enable code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')
@@ -2305,6 +2301,8 @@ def options(opt):
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
+    # Flag to indicate that the build should use pure Waf (skip CMake checks)
+    opt.add_option('--with-waf', action='store_true', dest='with_waf', help='Build using Waf only (skip CMake checks)')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
     opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
     opt.add_option('--with-msan', action='store_true', default=False, dest='with_msan', help='Enables memory sanitizer')
@@ -2319,6 +2317,7 @@ def options(opt):
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
+    opt.add_option('--with-metal', action='store_true', default=False, dest='with_metal', help='Enables Metal as graphics backend (on osx and ios)')
     opt.add_option('--size-analyze', action='store_true', default=False, dest='size_analyze', help='Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
     # Currently supported features: physics

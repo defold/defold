@@ -44,12 +44,14 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.GamepadBuilder;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.MinifyPathCollector;
@@ -110,7 +112,7 @@ import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
  * @author Christian Murray
  *
  */
-public class Project {
+public class Project implements AutoCloseable {
 
     private static Logger logger = Logger.getLogger(Project.class.getName());
 
@@ -132,9 +134,10 @@ public class Project {
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
-    private HashMap<String, Task> tasks;
+    private HashMap<String, Task> tasks = new HashMap<String, Task>();
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
+    private volatile BobTempDirectory tempDirectory;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
     private Map<String, String> options = new HashMap<String, String>();
@@ -184,7 +187,12 @@ public class Project {
 
     // For the editor
     public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
+        this(loader, fileSystem, sourceRootDirectory, buildDirectory, null);
+    }
+
+    public Project(ClassLoader loader, IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory, BobTempDirectory tempDirectory) {
         this.classLoader = loader;
+        this.tempDirectory = tempDirectory;
         this.rootDirectory = normalizeNoEndSeparator(new File(sourceRootDirectory).getAbsolutePath(), true);
         this.buildDirectory = normalizeNoEndSeparator(buildDirectory, true);
         this.fileSystem = fileSystem;
@@ -200,7 +208,41 @@ public class Project {
     }
 
     public void dispose() {
-        this.fileSystem.close();
+        try {
+            this.fileSystem.close();
+        } finally {
+            if (this.tempDirectory != null) {
+                this.tempDirectory.close();
+                this.tempDirectory = null;
+            }
+        }
+    }
+
+    @Override
+    public void close() {
+        dispose();
+    }
+
+    private BobTempDirectory getOrCreateTempDirectory() throws IOException {
+        BobTempDirectory directory = this.tempDirectory;
+        if (directory == null) {
+            synchronized (this) {
+                directory = this.tempDirectory;
+                if (directory == null) {
+                    directory = new BobTempDirectory();
+                    this.tempDirectory = directory;
+                }
+            }
+        }
+        return directory;
+    }
+
+    public File createTempFile(String prefix, String suffix) throws IOException {
+        return getOrCreateTempDirectory().createTempFile(prefix, suffix);
+    }
+
+    public File createTempDirectory(String prefix) throws IOException {
+        return getOrCreateTempDirectory().createTempDirectory(prefix);
     }
 
     public String getRootDirectory() {
@@ -420,6 +462,11 @@ public class Project {
                     }
                 }
                 TimeProfiler.stop();
+            } catch (ClassNotFoundException e) {
+                TimeProfiler.stop();
+                if (!className.contains("$")) {
+                    throw new RuntimeException(e);
+                }
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -517,6 +564,56 @@ public class Project {
         }
     }
 
+    public Task createGamepadTask(IResource gamepadDbInput, IResource gamepadsInput) throws CompileExceptionError {
+        if (gamepadDbInput == null && gamepadsInput == null) {
+            throw new CompileExceptionError("Gamepad task requires a .gamepads file or a gamecontrollerdb.txt file.");
+        }
+
+        String gamepadDbPath = gamepadDbInput != null ? gamepadDbInput.getPath() : "";
+        String gamepadsPath = gamepadsInput != null ? gamepadsInput.getPath() : "";
+        String key = gamepadDbPath + " " + gamepadsPath + " " + GamepadBuilder.class;
+        if (!circularDependencyChecker.add(key)) {
+            throw new CompileExceptionError(generateCircularDependencyErrorMessage(key), null);
+        }
+
+        Task task = tasks.get(key);
+        if (task != null) {
+            circularDependencyChecker.remove(key);
+            return task;
+        }
+
+        TimeProfiler.start();
+        TimeProfiler.addData("type", "createGamepadTask");
+        GamepadBuilder builder;
+        try {
+            builder = new GamepadBuilder();
+            builder.setProject(this);
+            Task.TaskBuilder taskBuilder = Task.newBuilder(builder)
+                    .setName(builder.getParams().name());
+            if (gamepadDbInput != null) {
+                taskBuilder.addInput(gamepadDbInput);
+            }
+            if (gamepadsInput != null) {
+                taskBuilder.addInput(gamepadsInput);
+            }
+            IResource outputAnchor = gamepadsInput != null ? gamepadsInput : gamepadDbInput;
+            task = taskBuilder
+                    .addOutput(outputAnchor.changeExt(builder.getParams().outExt()))
+                    .build();
+            if (task != null) {
+                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
+                TimeProfiler.addData("name", task.getName());
+                tasks.put(key, task);
+            }
+            circularDependencyChecker.remove(key);
+            return task;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            TimeProfiler.stop();
+        }
+    }
+
     private void createTasks() throws CompileExceptionError {
         circularDependencyChecker = new LinkedHashSet<>();
         tasks = new HashMap<String, Task>();
@@ -555,7 +652,7 @@ public class Project {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
-                        this.publisher = new ZipPublisher(getRootDirectory(), settings);
+                        this.publisher = new ZipPublisher(this, getRootDirectory(), settings);
                     } else if (PublisherSettings.PublishMode.Folder.equals(settings.getMode())) {
                         this.publisher = new FolderPublisher(getRootDirectory(), settings);
                     } else {
@@ -1367,18 +1464,40 @@ public class Project {
      *  Options from the `game.project` file that may affect build outputs.
      */
     private static class GameProjectBuildOption {
+        private enum ValueType {
+            BOOLEAN,
+            INTEGER
+        }
+
         public String inputOption, outputOption, propertyCategory, propertyKey;
-        /**
-         * @param inputOption        Option that may be used with Bob.
-         * @param outputOption       How the option will be saved in project options using project.setOption() for future use.
-         * @param propertyCategory   Category in the `game.project` file.
-         * @param propertyKey        Key in the `game.project` file.
-         */
-        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey) {
+        private ValueType valueType;
+
+        public GameProjectBuildOption(String inputOption, String outputOption, String propertyCategory, String propertyKey, ValueType valueType) {
             this.inputOption = inputOption;
             this.outputOption = outputOption;
             this.propertyCategory = propertyCategory;
             this.propertyKey = propertyKey;
+            this.valueType = valueType;
+        }
+
+        public String getValue(Project project) {
+            if (valueType == ValueType.BOOLEAN) {
+                boolean fromProjectProperties = project.getProjectProperties().getBooleanValue(propertyCategory, propertyKey, false);
+                if (project.hasOption(inputOption)) {
+                    boolean fromProjectOptions = project.option(inputOption, "false").equals("true");
+                    return Boolean.toString(fromProjectProperties || fromProjectOptions);
+                } else {
+                    return Boolean.toString(fromProjectProperties);
+                }
+            } else if (valueType == ValueType.INTEGER) {
+                if (project.hasOption(inputOption)) {
+                    return project.option(inputOption, "0");
+                }
+                int value = project.getProjectProperties().getIntValue(propertyCategory, propertyKey, 0);
+                return Integer.toString(value);
+            } else {
+                throw new IllegalArgumentException(String.format("Unknown game.project build option value type: %s", valueType));
+            }
         }
     }
 
@@ -1469,6 +1588,8 @@ public class Project {
                 return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
                 return ShaderCompilers.SHADER_ADAPTER_VULKAN;
+            case "graphics_metal":
+                return ShaderCompilers.SHADER_ADAPTER_METAL;
             case "graphics_opengles":
             case "graphics_gles":
                 return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
@@ -1507,22 +1628,24 @@ public class Project {
     public void configurePreBuildProjectOptions() throws IOException, CompileExceptionError {
         TimeProfiler.start("configurePreBuildProjectOptions");
         List<GameProjectBuildOption> options = new ArrayList<>();
-        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader", "output_spirv"));
-        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader", "output_hlsl"));
-        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader", "output_wgsl"));
-        options.add(new GameProjectBuildOption("debug-output-msl", "output-msl", "shader", "output_msl"));
-        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader", "output_glsl"));
-        options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader", "output_glsl_es100"));
-        options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader", "output_glsl_es300"));
-        options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader", "output_glsl120"));
-        options.add(new GameProjectBuildOption("output-glsl330", "output-glsl330", "shader", "output_glsl330"));
-        options.add(new GameProjectBuildOption("output-glsl430", "output-glsl430", "shader", "output_glsl430"));
-        options.add(new GameProjectBuildOption("exclude-gles-sm100", "exclude-gles-sm100", "shader", "exclude_gles_sm100"));
+        options.add(new GameProjectBuildOption("debug-output-spirv", "output-spirv", "shader", "output_spirv", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("debug-output-hlsl", "output-hlsl", "shader", "output_hlsl", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("debug-output-wgsl", "output-wgsl", "shader", "output_wgsl", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("debug-output-msl", "output-msl", "shader", "output_msl", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("debug-output-glsl", "output-glsl", "shader", "output_glsl", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsles100", "output-glsles100", "shader", "output_glsl_es100", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsles300", "output-glsles300", "shader", "output_glsl_es300", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsl120", "output-glsl120", "shader", "output_glsl120", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsl330", "output-glsl330", "shader", "output_glsl330", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("output-glsl430", "output-glsl430", "shader", "output_glsl430", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("exclude-gles-sm100", "exclude-gles-sm100", "shader", "exclude_gles_sm100", GameProjectBuildOption.ValueType.BOOLEAN));
 
-        options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound", "stream_enabled"));
-        options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model", "split_meshes"));
-        options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus", "disabled"));
-        options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font", "runtime_generation"));
+        options.add(new GameProjectBuildOption("sound-stream-enabled", "sound-stream-enabled", "sound", "stream_enabled", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("model-split-large-meshes", "model-split-large-meshes", "model", "split_meshes", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("model-max-morph-target-texture-width", "model-max-morph-target-texture-width", "model", "max_morph_target_texture_width", GameProjectBuildOption.ValueType.INTEGER));
+        options.add(new GameProjectBuildOption("model-max-morph-target-texture-height", "model-max-morph-target-texture-height", "model", "max_morph_target_texture_height", GameProjectBuildOption.ValueType.INTEGER));
+        options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus", "disabled", GameProjectBuildOption.ValueType.BOOLEAN));
+        options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font", "runtime_generation", GameProjectBuildOption.ValueType.BOOLEAN));
 
         Platform currentPlatform = getPlatform();
         final List<Platform> architectures = Platform.getArchitecturesFromString(this.option("architectures", ""), currentPlatform);
@@ -1538,13 +1661,7 @@ public class Project {
         this.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, getShaderAdaptersOption(currentPlatform, platformsSettings));
 
         for(GameProjectBuildOption option:options) {
-            boolean fromProjectProperties = this.getProjectProperties().getBooleanValue(option.propertyCategory, option.propertyKey, false);
-            if (this.hasOption(option.inputOption)) {
-                boolean fromProjectOptions = this.option(option.inputOption, "false").equals("true");
-                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties || fromProjectOptions));
-            } else {
-                this.setOption(option.outputOption, Boolean.toString(fromProjectProperties));
-            }
+            this.setOption(option.outputOption, option.getValue(this));
         }
 
         boolean isPhysics2D = this.getProjectProperties().getStringValue("physics", "type", "2D").equals("2D");

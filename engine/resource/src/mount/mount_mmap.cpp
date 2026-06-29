@@ -36,6 +36,37 @@ namespace dmResource
         uint64_t data_length;
     };
 
+    static Result MapArchiveFile(const char* path, void*& out_map, uint64_t& out_size)
+    {
+        int fd = open(path, O_RDONLY);
+        if (fd < 0)
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        struct stat fs;
+        if (fstat(fd, &fs))
+        {
+            close(fd);
+            return RESULT_IO_ERROR;
+        }
+        out_map = mmap(NULL, fs.st_size, PROT_READ, MAP_SHARED, fd, 0);
+        close(fd);
+
+        if (!out_map || out_map == MAP_FAILED)
+        {
+            int err = errno;
+            char errstr[128];
+            dmStrError(errstr, sizeof(errstr), err);
+            dmLogError("Failed to memory map file %s: errno: %d %s", path, err, errstr);
+            return RESULT_IO_ERROR;
+        }
+
+        out_size = (uint64_t)fs.st_size;
+
+        return RESULT_OK;
+    }
+
     Result MapFile(const char* path, void*& out_map, uint32_t& out_size)
     {
         int fd = open(path, O_RDONLY);
@@ -99,6 +130,24 @@ namespace dmResource
         return UnmapFile(map, size);
     }
 
+    static Result MountArchiveFromFileBacked(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
+    {
+        dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(index_path, data_path, archive);
+        if (result == dmResourceArchive::RESULT_OK)
+        {
+            // A null mount_info marks a file-backed archive. UnmountArchiveInternal()
+            // will only delete the archive container; there are no mapped regions to release.
+            *mount_info = 0;
+            return RESULT_OK;
+        }
+        if (result == dmResourceArchive::RESULT_VERSION_MISMATCH)
+        {
+            return RESULT_VERSION_MISMATCH;
+        }
+
+        return RESULT_IO_ERROR;
+    }
+
     Result MountArchiveInternal(const char* index_path, const char* data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         void* index_map = 0x0;
@@ -111,11 +160,17 @@ namespace dmResource
         }
 
         void* data_map = 0x0;
-        uint32_t data_size = 0;
-        r = MapFile(data_path, data_map, data_size);
+        uint64_t data_size = 0;
+        r = MapArchiveFile(data_path, data_map, data_size);
         if (r != RESULT_OK)
         {
             munmap(index_map, index_size);
+            Result fallback_result = MountArchiveFromFileBacked(index_path, data_path, archive, mount_info);
+            if (fallback_result != RESULT_IO_ERROR)
+            {
+                return fallback_result;
+            }
+
             dmLogError("Error when mapping data file '%s', result = %i", data_path, r);
             return r;
         }
@@ -126,7 +181,7 @@ namespace dmResource
         if (res != dmResourceArchive::RESULT_OK)
         {
             munmap(index_map, index_size);
-            munmap(data_map, data_size);
+            munmap(data_map, (size_t)data_size);
             if (res == dmResourceArchive::RESULT_VERSION_MISMATCH)
                 return RESULT_VERSION_MISMATCH;
             return RESULT_IO_ERROR;
@@ -150,12 +205,12 @@ namespace dmResource
         {
             if (info->index_map)
             {
-                munmap(info->index_map, info->index_length);
+                munmap(info->index_map, (size_t)info->index_length);
             }
 
             if (info->data_map)
             {
-                munmap(info->data_map, info->data_length);
+                munmap(info->data_map, (size_t)info->data_length);
             }
             delete info;
         }

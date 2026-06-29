@@ -39,6 +39,7 @@
                  dynamo.graph/with-system [[:inner 0]]
                  editor.analytics-test/with-config! [[:inner 0]]
                  editor.code.resource/register-code-resource-type [[:inner 0]]
+                 editor.data/register-data-resource-type [[:inner 0]]
                  editor.defold-project/read-nodes [[:inner 0]]
                  editor.defold-project/with-transpiler-txs-fn [[:inner 0]]
                  editor.editor-extensions.runtime/lua-fn [[:inner 0]]

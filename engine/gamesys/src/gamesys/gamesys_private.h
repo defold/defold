@@ -22,6 +22,7 @@
 #include <render/render.h>
 
 #include <gameobject/gameobject.h>
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmScript
 {
@@ -85,6 +86,11 @@ namespace dmGameSystem
     extern const dmhash_t PBR_IRIDESCENCE_TEXTURES;
     extern const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT;
     extern const dmhash_t PBR_COMMON_TEXTURES;
+
+    struct MaterialInfo;
+    struct ModelResource;
+
+    bool FillPBRConstants(ModelResource* resource, const MaterialInfo* material_info, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index);
 
     static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
 

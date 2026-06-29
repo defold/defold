@@ -30,8 +30,17 @@ def build(bld):
         source = proto_sources,
         target = 'gamesys_proto')
 
+    http_proto_source = bld.path.parent.parent.parent.find_resource('dlib/proto/dlib/http_ddf.proto')
+    bld.stlib(features = 'cxx ddf',
+        includes = '. .. ../../src ../../../dlib/proto',
+        proto_gen_py = True,
+        protoc_includes = '../../../dlib/proto',
+        source = http_proto_source,
+        target = 'gamesys_http_proto')
+
     sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp'])
     sources = remove_from_node_list(sources, 'comp_model.cpp')
+    sources = remove_from_node_list(sources, 'comp_model_pbr.cpp')
     sources = remove_from_node_list(sources, 'comp_model_null.cpp')
     sources = remove_from_node_list(sources, 'res_model.cpp')
     sources = remove_from_node_list(sources, 'res_model_null.cpp')
@@ -42,7 +51,7 @@ def build(bld):
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
-        use = 'gamesys_proto',
+        use = 'gamesys_proto gamesys_http_proto',
         uselib = 'LUA',
         source = sources,
         target = 'gamesys')
@@ -65,7 +74,7 @@ def build(bld):
         proto_gen_py = True,
         use = 'gamesys_proto',
         uselib = 'LUA',
-        source = 'resources/res_model.cpp components/comp_model.cpp scripts/script_model.cpp',
+        source = 'resources/res_model.cpp components/comp_model.cpp components/comp_model_pbr.cpp scripts/script_model.cpp',
         target = 'gamesys_model')
 
     bld.stlib(features = 'cxx',
@@ -91,13 +100,13 @@ def build(bld):
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto',
-        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v3/script_box2d_body_v3.cpp scripts/box2d/v3/script_box2d_joint_v3.cpp scripts/box2d/v3/script_box2d_shape_v3.cpp',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v3/script_box2d_body_v3.cpp scripts/box2d/v3/script_box2d_chain_v3.cpp scripts/box2d/v3/script_box2d_joint_v3.cpp scripts/box2d/v3/script_box2d_shape_v3.cpp scripts/box2d/v3/script_box2d_world_v3.cpp',
         uselib = 'LUA',
         target = 'script_box2d')
 
     bld.stlib(features = 'cxx',
         includes = '. .. ../../src ../../proto ' + build_util.get_dynamo_ext('include', 'box2d_defold'),
-        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v2/script_box2d_body_v2.cpp scripts/box2d/v2/script_box2d_fixture_v2.cpp scripts/box2d/v2/script_box2d_joint_v2.cpp scripts/box2d/v2/script_box2d_shape_v2.cpp',
+        source = 'scripts/box2d/script_box2d.cpp scripts/box2d/v2/script_box2d_body_v2.cpp scripts/box2d/v2/script_box2d_fixture_v2.cpp scripts/box2d/v2/script_box2d_joint_v2.cpp scripts/box2d/v2/script_box2d_shape_v2.cpp scripts/box2d/v2/script_box2d_world_v2.cpp',
         uselib = 'LUA',
         target = 'script_box2d_defold')
 

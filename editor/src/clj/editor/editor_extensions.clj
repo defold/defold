@@ -30,6 +30,7 @@
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.http-server :as ext.http-server]
+            [editor.editor-extensions.image :as ext.image]
             [editor.editor-extensions.localization :as ext.localization]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
@@ -42,6 +43,8 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.library :as library]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
             [editor.os :as os]
@@ -62,6 +65,7 @@
   (:import [clojure.lang IDeref Murmur3]
            [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
+           [com.dynamo.bob.util Library$Result]
            [java.io PrintStream PushbackReader]
            [java.net URI]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
@@ -148,14 +152,17 @@
 
 ;; region script API
 
-(defn- make-ext-get-fn [project]
+(defn- make-ext-get-fn [project localization]
   (rt/lua-fn ext-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
           editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)
           getter (graph/ext-value-getter editor-lookup property project evaluation-context)]
       (if getter
-        (getter)
+        (let [result (getter)]
+          (if (g/error-value? result)
+            (throw (LuaError. (str "Can't get \"" property "\" property: " (localization (g/error-message result)))))
+            result))
         (throw (LuaError. (str (if (resource/resource? editor-lookup)
                                  (resource/proj-path editor-lookup)
                                  (name (graph/node-id->type-keyword (graph/editor-lookup->node-id editor-lookup) evaluation-context)))
@@ -235,26 +242,37 @@
                       (spit file-path content))
                     path+contents)))
           (future/then (fn [_] (reload-resources!)))
-          (future/then rt/and-refresh-context)))))
+          (future/then
+            (fn [_]
+              (g/let-ec [basis (:basis evaluation-context)
+                         invalid-proj-paths
+                         (coll/into-> created-resource-infos []
+                           (keep (fn [{proj-path 1}]
+                                   (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
+                                     (when (g/defective? basis node-id)
+                                       proj-path)))))]
+                (rt/and-refresh-context
+                  (when-let [invalid-proj-paths (coll/not-empty invalid-proj-paths)]
+                    (LuaError. (str "Created resources are invalid: " (coll/join-to-string ", " invalid-proj-paths))))))))))))
 
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
-    (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)]
-      (let [basis (:basis evaluation-context)
-            workspace (project/workspace project evaluation-context)
-            root-path (-> (workspace/project-directory basis workspace)
-                          (path/real))
-            dir-path (-> (str root-path proj-path)
-                         (path/normalized))]
-        (if (.startsWith dir-path root-path)
-          (try
-            (path/create-directories! dir-path)
-            (future/then (reload-resources!) rt/and-refresh-context)
-            (catch FileAlreadyExistsException e
-              (throw (LuaError. (str "File already exists: " (.getMessage e)))))
-            (catch Exception e
-              (throw (LuaError. ^String (or (.getMessage e) (.getSimpleName (class e)))))))
-          (throw (LuaError. (str "Can't create " dir-path ": outside of project directory"))))))))
+    (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
+          basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          root-path (-> (workspace/project-directory basis workspace)
+                        (path/real))
+          dir-path (-> (str root-path proj-path)
+                       (path/normalized))]
+      (if (.startsWith dir-path root-path)
+        (try
+          (path/create-directories! dir-path)
+          (future/then (reload-resources!) rt/and-refresh-context)
+          (catch FileAlreadyExistsException e
+            (throw (LuaError. (str "File already exists: " (.getMessage e)))))
+          (catch Exception e
+            (throw (LuaError. ^String (or (.getMessage e) (.getSimpleName (class e)))))))
+        (throw (LuaError. (str "Can't create " dir-path ": outside of project directory")))))))
 
 (defn- make-ext-delete-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-delete-directory [{:keys [rt evaluation-context]} lua-proj-path]
@@ -276,7 +294,7 @@
         (throw (LuaError. (str "Can't delete " dir-path ": outside of project directory")))
 
         (= (.getNameCount dir-path) (.getNameCount root-path))
-        (throw (LuaError. (str "Can't delete the project directory itself")))
+        (throw (LuaError. "Can't delete the project directory itself"))
 
         (protected-path? dir-path)
         (throw (LuaError. (str "Can't delete " dir-path ": protected by editor")))
@@ -432,7 +450,7 @@
 
 (defn- make-ext-tx-set-fn [project]
   (rt/lua-fn ext-tx-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property lua-value]
-    (let [node-id (graph/unresolved-editor-lookup->node-id
+    (let [node-id (graph/editable-unresolved-editor-lookup->node-id
                     (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
                     project
                     evaluation-context)
@@ -449,6 +467,20 @@
 (defn- make-ext-save-fn [save!]
   (rt/suspendable-lua-fn ext-save [_]
     (future/then (save!) rt/and-refresh-context)))
+
+(defn- make-ext-fetch-libraries-fn [fetch-libraries! localization-state]
+  (rt/suspendable-lua-fn ext-fetch-libraries [_]
+    (future/then
+      (fetch-libraries!)
+      (fn [[lib-results reload-succeeded]]
+        (rt/and-refresh-context
+          (if-not reload-succeeded
+            (LuaError. "Reload failed")
+            (let [error-messages (coll/into-> lib-results []
+                                   (filter Library$Result/.problem)
+                                   (map library/result-message))]
+              (when (coll/not-empty error-messages)
+                (LuaError. ^String (localization-state (localization/join "\n" error-messages)))))))))))
 
 (defn- make-open-resource-fn [workspace open-resource!]
   (rt/suspendable-lua-fn open-resource [{:keys [rt evaluation-context]} lua-resource-path]
@@ -938,6 +970,9 @@
                           has OS-defined file association, returns
                           CompletableFuture (that might complete exceptionally
                           if resource could not be opened)
+    :fetch-libraries!     0-arg function that asynchronously fetches libraries,
+                          returns a CompletableFuture that completes with tuple
+                          [library-results reload-succeeded]
     :invoke-bob!          3-arg function that asynchronously invokes bob and
                           returns a CompletableFuture (which may complete
                           exceptionally if bob invocation fails). The args:
@@ -948,8 +983,8 @@
                                                   strings
                             evaluation-context    evaluation context of the
                                                   invocation"
-  [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
-  {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! invoke-bob!]}
+  [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
+  {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
   (g/let-ec [basis (:basis evaluation-context)
              lsp (lsp/get-node-lsp basis project)
              script-annotations (project/script-annotations project evaluation-context)
@@ -967,7 +1002,7 @@
                   :out (line-writer #(display-output! :out %))
                   :err (line-writer #(display-output! :err %))
                   :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
-                                  "get" (make-ext-get-fn project)
+                                  "get" (make-ext-get-fn project localization)
                                   "can_add" (graph/make-ext-can-add-fn project)
                                   "can_get" (make-ext-can-get-fn project)
                                   "can_reorder" (graph/make-ext-can-reorder-fn project)
@@ -987,6 +1022,7 @@
                                   "platform" (.getPair (Platform/getHostPlatform))
                                   "prefs" (prefs-functions/env prefs)
                                   "save" (make-ext-save-fn save!)
+                                  "fetch_libraries" (make-ext-fetch-libraries-fn fetch-libraries! localization)
                                   "transact" ext-transact
                                   "tx" {"set" (make-ext-tx-set-fn project)
                                         "add" (graph/make-ext-add-fn project)
@@ -1002,6 +1038,7 @@
                                   "editor_sha1" (system/defold-editor-sha1)}
                         "http" {"request" ext-http-request
                                 "server" (ext.http-server/env workspace project-path web-server)}
+                        "image" (ext.image/env project-path)
                         "json" {"decode" ext-json-decode
                                 "encode" ext-json-encode}
                         "io" {"tmpfile" nil}

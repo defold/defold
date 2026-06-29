@@ -42,6 +42,10 @@
 
 (def vulkan-osx #{:x86_64-osx :arm64-osx})
 
+(def vulkan-ios #{:arm64-ios})
+
+(def metal-ios #{:arm64-ios :x86_64-ios})
+
 (def all-platforms
   #{;; ios
     :armv7-ios :arm64-ios :x86_64-ios
@@ -56,50 +60,153 @@
     ;; web
     :wasm-web :wasm_pthread-web})
 
-(def custom-lib-names
-  {:x86-win32 {"gamesys" "gamesys"
-               "gamesys_model" "gamesys_model"
-               "gamesys_model_null" "gamesys_model_null"
-               "gamesys_rig" "gamesys_rig"
-               "gamesys_rig_null" "gamesys_rig_null"
-               "hid" "hid"
-               "hid_null" "hid_null"
-               "input" "input"
-               "platform" "platform"
-               "platform_null" "platform_null"
-               "platform_vulkan" "platform_vulkan"
-               "vpx" "vpx"
-               "vulkan" "vulkan-1"
-               "script_box2d_defold" "script_box2d_defold"}
-   :x86_64-win32 {"gamesys" "gamesys"
-                  "gamesys_model" "gamesys_model"
-                  "gamesys_model_null" "gamesys_model_null"
-                  "gamesys_rig" "gamesys_rig"
-                  "gamesys_rig_null" "gamesys_rig_null"
-                  "hid" "hid"
-                  "hid_null" "hid_null"
-                  "input" "input"
-                  "platform" "platform"
-                  "platform_null" "platform_null"
-                  "platform_vulkan" "platform_vulkan"
-                  "vpx" "vpx"
-                  "vulkan" "vulkan-1"
-                  "script_box2d_defold" "script_box2d_defold"}})
+(def defold-windows-lib-names
+  #{"basis_encoder"
+    "basis_encoder_noasan"
+    "basis_transcoder"
+    "crashext"
+    "crashext_null"
+    "decoder_ogg"
+    "decoder_opus"
+    "decoder_wav"
+    "ddf"
+    "ddf_noasan"
+    "dlib"
+    "dlib_noasan"
+    "engine"
+    "engine_release"
+    "engine_service"
+    "engine_service_null"
+    "extension"
+    "font"
+    "font_skribidi"
+    "gamesys"
+    "gamesys_model"
+    "gamesys_model_null"
+    "gamesys_rig"
+    "gamesys_rig_null"
+    "graphics"
+    "graphics_dx12"
+    "graphics_null"
+    "graphics_null_noasan"
+    "graphics_opengles"
+    "graphics_proto"
+    "graphics_proto_noasan"
+    "graphics_transcoder_basisu"
+    "graphics_transcoder_null"
+    "graphics_vulkan"
+    "graphics_webgpu"
+    "graphics_webgpu_wagyu"
+    "hid"
+    "hid_null"
+    "image"
+    "image_noasan"
+    "image_null"
+    "image_null_noasan"
+    "input"
+    "launcherutil"
+    "liveupdate"
+    "liveupdate_null"
+    "lua"
+    "mbedtls"
+    "mbedtls_noasan"
+    "model"
+    "particle"
+    "physics"
+    "physics_2d"
+    "physics_2d_defold"
+    "physics_3d"
+    "physics_null"
+    "platform"
+    "platform_null"
+    "platform_vulkan"
+    "profile"
+    "profile_noasan"
+    "profile_null"
+    "profile_null_noasan"
+    "profiler_js"
+    "profiler_remotery"
+    "profilerext"
+    "profilerext_null"
+    "record"
+    "record_null"
+    "render"
+    "render_font_default"
+    "resource"
+    "rig"
+    "rig_null"
+    "script"
+    "script_box2d"
+    "script_box2d_defold"
+    "sound"
+    "sound_nosimd"
+    "sound_null"
+    "sound_openal"
+    "zip"
+    "zip_noasan"})
+
+(def windows-lib-name-overrides
+  {"vpx" "vpx"
+   "vulkan" "vulkan-1"})
+
+(def legacy-windows-unprefixed-lib-names
+  ;; App manifests authored before the CMake migration may still use Waf's
+  ;; Windows library names. Keep reading them, but write current names.
+  #{"gamesys"
+    "gamesys_model"
+    "gamesys_model_null"
+    "gamesys_rig"
+    "gamesys_rig_null"
+    "hid"
+    "hid_null"
+    "input"
+    "platform"
+    "platform_null"
+    "platform_vulkan"
+    "script_box2d_defold"
+    "vpx"})
+
+(defn- windows-lib-name [lib]
+  (or (windows-lib-name-overrides lib)
+      (and (contains? defold-windows-lib-names lib) lib)
+      (str "lib" lib)))
+
+(defn- legacy-windows-lib-name [lib]
+  (or (windows-lib-name-overrides lib)
+      (and (contains? legacy-windows-unprefixed-lib-names lib) lib)
+      (str "lib" lib)))
 
 (defn platformify-excluded-lib [platform lib]
-  (or (-> custom-lib-names platform (get lib))
-      (and (contains? windows platform) (str "lib" lib))
-      lib))
+  (if (contains? windows platform)
+    (windows-lib-name lib)
+    lib))
 
 (defn platformify-lib [platform lib]
-  (or (some-> custom-lib-names platform (get lib) (str ".lib"))
-      (and (contains? windows platform) (str "lib" lib ".lib"))
-      lib))
+  (platformify-excluded-lib platform lib))
+
+(defn platformify-lib-filename [platform lib]
+  (let [platform-lib (platformify-lib platform lib)]
+    (if (contains? windows platform)
+      (str platform-lib ".lib")
+      platform-lib)))
+
+(defn legacy-platformify-excluded-lib [platform lib]
+  (if (contains? windows platform)
+    (legacy-windows-lib-name lib)
+    lib))
+
+(defn legacy-platformify-lib [platform lib]
+  (if (contains? windows platform)
+    (str (legacy-platformify-excluded-lib platform lib) ".lib")
+    lib))
 
 ;; region toggles
 
-(defn contains-toggle [platform key value]
-  {:toggle :contains :platform platform :key key :value value})
+(defn contains-toggle
+  ([platform key value]
+   (contains-toggle platform key value [value]))
+  ([platform key value values]
+   {:toggle :contains :platform platform :key key :value value :values (vec (distinct values))}))
 
 (defn boolean-toggle [platform key value]
   {:toggle :boolean :platform platform :key key :value value})
@@ -107,12 +214,17 @@
 (defn exclude-libs-toggles [platforms libs]
   (for [p platforms
         l libs]
-    (contains-toggle p :excludeLibs (platformify-excluded-lib p l))))
+    (contains-toggle p :excludeLibs (platformify-excluded-lib p l)
+                     [(platformify-excluded-lib p l)
+                      (legacy-platformify-excluded-lib p l)])))
 
 (defn libs-toggles [platforms libs]
   (for [p platforms
         l libs]
-    (contains-toggle p :libs (platformify-lib p l))))
+    (contains-toggle p :libs (platformify-lib p l)
+                     [(platformify-lib p l)
+                      (platformify-lib-filename p l)
+                      (legacy-platformify-lib p l)])))
 
 (defn generic-contains-toggles [platforms key values]
   (for [p platforms
@@ -199,12 +311,13 @@
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
     :contains (let [{:keys [platform key value]} toggle]
-                (boolean (some #(= value %) (get-in-guarded manifest
-                                                            :platforms map?
-                                                            platform map?
-                                                            :context map?
-                                                            key vector?
-                                                            []))))
+                (boolean (some (set (or (:values toggle) [value]))
+                               (get-in-guarded manifest
+                                               :platforms map?
+                                               platform map?
+                                               :context map?
+                                               key vector?
+                                               []))))
     :boolean (let [{:keys [platform key value]} toggle
                    default-value (not value)]
                (= value (get-in-guarded manifest
@@ -217,7 +330,8 @@
 (defn set-toggle-value [manifest toggle value]
   (case (:toggle toggle)
     :contains (let [enabled value
-                    {:keys [platform key value]} toggle]
+                    {:keys [platform key value]} toggle
+                    accepted-values (set (or (:values toggle) [value]))]
                 (update-in-fixing
                   manifest map? {}
                   :platforms map? {}
@@ -227,8 +341,8 @@
                   (if enabled
                     (fn [values]
                       (into [] (distinct) (conj values value)))
-                    (fn [values]
-                      (filterv #(not= value %) values)))))
+                    (fn [current-values]
+                      (filterv #(not (contains? accepted-values %)) current-values)))))
 
     :boolean (let [enabled value
                    {:keys [platform key value]} toggle]
@@ -481,37 +595,26 @@
     :model))
 
 
-(def vulkan-toggles
-  (concat
-    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
-    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
-    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
-    (libs-toggles android ["graphics_vulkan"])
-    (libs-toggles windows ["graphics_vulkan" "vulkan"])
-    (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
-    (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
-    (generic-contains-toggles vulkan :symbols ["GraphicsAdapterVulkan"])))
+(def generic-vulkan
+  (disj vulkan :armv7-android :arm64-android :arm64-ios))
 
-(def vulkan-toggles-no-android
+(def generic-vulkan-toggles
   (concat
     (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
     (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
-    (libs-toggles [:arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles [:arm64-ios] :frameworks ["Metal" "IOSurface" "QuartzCore"])
-    (generic-contains-toggles (disj vulkan :armv7-android :arm64-android) :symbols ["GraphicsAdapterVulkan"])))
+    (generic-contains-toggles generic-vulkan :symbols ["GraphicsAdapterVulkan"])))
 
 (def graphics-setting
   (make-choice-setting
     :vulkan (concat
-              vulkan-toggles-no-android
-              (exclude-libs-toggles (disj vulkan :armv7-android :arm64-android) ["graphics"])
-              (generic-contains-toggles (disj vulkan :arm64-linux :armv7-android :arm64-android) :excludeSymbols ["GraphicsAdapterOpenGL"])
+              generic-vulkan-toggles
+              (exclude-libs-toggles generic-vulkan ["graphics"])
+              (generic-contains-toggles (disj generic-vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
               [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
-    :both vulkan-toggles-no-android
+    :both generic-vulkan-toggles
     :open-gl))
 
 (def open-gl-android-toggles
@@ -550,20 +653,98 @@
     :vulkan vulkan-android-toggles
     :both))
 
+(def apple-graphics-choice-options
+  [[:open-gl "OpenGL"]
+   [:metal "Metal"]
+   [:vulkan "Vulkan"]
+   [:open-gl-metal "OpenGL & Metal"]
+   [:open-gl-vulkan "OpenGL & Vulkan"]])
+
 (def open-gl-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics" "platform"])
     (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
     (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"])))
 
+(def explicit-vulkan-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"])
+    (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-vulkan-osx-toggles
+  (concat
+    (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"])))
+
+(def metal-osx-toggles
+  (concat
+    (libs-toggles vulkan-osx ["graphics_metal"])
+    (generic-contains-toggles vulkan-osx :engineLibs ["platform"])
+    (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterMetal"])
+    (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-metal-osx-toggles
+  (concat
+    (exclude-libs-toggles vulkan-osx ["graphics_metal"])
+    (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterMetal"])))
+
+(def exclude-open-gl-osx-toggles
+  (concat
+    (exclude-libs-toggles vulkan-osx ["graphics"])
+    (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
+
 (def graphics-setting-osx
   (make-choice-setting
-    :open-gl (concat
-               open-gl-osx-toggles
-               (exclude-libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
-               (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterVulkan"]))
-    :both open-gl-osx-toggles
+    :open-gl (concat open-gl-osx-toggles exclude-metal-osx-toggles exclude-vulkan-osx-toggles)
+    :metal (concat metal-osx-toggles exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles)
+    :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-metal-osx-toggles)
+    :open-gl-metal (concat open-gl-osx-toggles metal-osx-toggles exclude-vulkan-osx-toggles)
+    :open-gl-vulkan (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
     :vulkan))
+
+(def open-gl-ios-toggles [])
+
+(def explicit-vulkan-ios-toggles
+  (concat
+    (libs-toggles vulkan-ios ["graphics_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-ios :symbols ["GraphicsAdapterVulkan"])
+    (generic-contains-toggles vulkan-ios :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-vulkan-ios-toggles
+  (concat
+    (exclude-libs-toggles vulkan-ios ["graphics_vulkan" "MoltenVK"])
+    (generic-contains-toggles vulkan-ios :excludeSymbols ["GraphicsAdapterVulkan"])))
+
+(def metal-ios-toggles
+  (concat
+    (libs-toggles metal-ios ["graphics_metal"])
+    (generic-contains-toggles metal-ios :symbols ["GraphicsAdapterMetal"])
+    (generic-contains-toggles metal-ios :frameworks ["Metal" "IOSurface" "QuartzCore"])))
+
+(def exclude-metal-ios-toggles
+  (concat
+    (exclude-libs-toggles metal-ios ["graphics_metal"])
+    (generic-contains-toggles metal-ios :excludeSymbols ["GraphicsAdapterMetal"])))
+
+(def exclude-open-gl-vulkan-ios-toggles
+  (concat
+    (exclude-libs-toggles vulkan-ios ["graphics"])
+    (generic-contains-toggles vulkan-ios :excludeSymbols ["GraphicsAdapterOpenGL"])))
+
+(def exclude-open-gl-metal-ios-toggles
+  (concat
+    (exclude-libs-toggles metal-ios ["graphics"])
+    (generic-contains-toggles metal-ios :excludeSymbols ["GraphicsAdapterOpenGL"])))
+
+(def graphics-setting-ios
+  (make-choice-setting
+    :open-gl (concat exclude-metal-ios-toggles exclude-vulkan-ios-toggles)
+    :metal (concat metal-ios-toggles exclude-open-gl-metal-ios-toggles exclude-vulkan-ios-toggles)
+    :vulkan (concat explicit-vulkan-ios-toggles exclude-open-gl-vulkan-ios-toggles exclude-metal-ios-toggles)
+    :open-gl-metal (concat open-gl-ios-toggles metal-ios-toggles exclude-vulkan-ios-toggles)
+    :open-gl-vulkan (concat open-gl-ios-toggles explicit-vulkan-ios-toggles exclude-metal-ios-toggles)
+    :open-gl))
 
 (def webgpu-toggles
   (concat
@@ -754,11 +935,16 @@
             (dynamic label (properties/label-dynamic :appmanifest :graphics-osx))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-osx))
             (dynamic edit-type (g/constantly {:type :choicebox
-                                              :options [[:vulkan "Vulkan"]
-                                                        [:open-gl "OpenGL"]
-                                                        [:both "OpenGL & Vulkan"]]}))
+                                              :options apple-graphics-choice-options}))
             (value (setting-property-getter graphics-setting-osx))
             (set (setting-property-setter graphics-setting-osx)))
+  (property graphics-ios g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :graphics-ios))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-ios))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options apple-graphics-choice-options}))
+            (value (setting-property-getter graphics-setting-ios))
+            (set (setting-property-setter graphics-setting-ios)))
   (property graphics-android g/Any
             (dynamic label (properties/label-dynamic :appmanifest :graphics-android))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics-android))

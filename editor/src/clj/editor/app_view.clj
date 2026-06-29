@@ -102,6 +102,7 @@
            [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
+           [java.lang.management ManagementFactory]
            [java.net SocketTimeoutException URL]
            [java.time LocalTime]
            [java.time.format DateTimeFormatter]
@@ -626,6 +627,23 @@
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
 
+(defn- start-launcher! []
+  (if (system/defold-dev?)
+    (apply process/start!
+           {:dir (System/getProperty "user.dir")
+            :out :inherit
+            :err :inherit}
+           (str (io/file (System/getProperty "java.home") "bin" (if (os/is-win32?) "java.exe" "java")))
+           (into (vec (.getInputArguments (ManagementFactory/getRuntimeMXBean)))
+                 ["-cp" (System/getProperty "java.class.path") "com.defold.editor.Main"]))
+    (let [resources-path (system/defold-resourcespath)]
+      (process/start!
+        {:dir (.getCanonicalFile
+                (case (.getOs (Platform/getHostPlatform))
+                  "macos" (io/file resources-path "../../")
+                  ("linux" "win32") (io/file resources-path)))}
+        (system/defold-launcherpath)))))
+
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x           (.getX stage)
                  :y           (.getY stage)
@@ -699,6 +717,12 @@
                            (remove (partial pane-visible? scene))
                            (keys split-info-by-pane-kw))]
     (prefs/set! prefs prefs-hidden-panes hidden-panes)))
+
+(defn store-window-state! [^Stage stage prefs]
+  (let [scene (.getScene stage)]
+    (store-window-dimensions stage prefs)
+    (store-split-positions! scene prefs)
+    (store-hidden-panes! scene prefs)))
 
 (defn restore-hidden-panes! [^Scene scene prefs]
   (let [hidden-panes (stored-hidden-panes prefs)]
@@ -1870,13 +1894,7 @@
   (run [] (ui/reload-root-styles!)))
 
 (handler/defhandler :file.open-project :global
-  (active? [] (and (system/defold-resourcespath) (system/defold-launcherpath)))
-  (run [] (let [resources-path (system/defold-resourcespath)
-                install-dir (.getCanonicalFile
-                              (case (.getOs (Platform/getHostPlatform))
-                                "macos" (io/file resources-path "../../")
-                                ("linux" "win32") (io/file resources-path)))]
-            (process/start! {:dir install-dir} (system/defold-launcherpath)))))
+  (run [] (start-launcher!)))
 
 (handler/register-menu! ::menubar
   [{:label (localization/message "menu.file")
@@ -2723,6 +2741,34 @@
                          (when callback!
                            (callback! successful? render-reload-progress! render-save-progress!)))))))
 
+(defn- restart-defold! [^Stage stage prefs]
+  (store-window-state! stage prefs)
+  (ui/close! stage)
+  (start-launcher!))
+
+(handler/defhandler :app.restart :global
+  (run [app-view changes-view project prefs localization]
+    (let [^Stage stage (ui/main-stage)
+          dirty-save-data (project/dirty-save-data project)]
+      (if (coll/empty? dirty-save-data)
+        (restart-defold! stage prefs)
+        (when (dialogs/make-confirmation-dialog
+                localization
+                {:title (localization/message "dialog.restart-defold.title")
+                 :icon :icon/circle-question
+                 :size :large
+                 :header (localization/message "dialog.restart-defold.header")
+                 :buttons [{:text (localization/message "dialog.restart-defold.button.cancel")
+                            :cancel-button true
+                            :result false}
+                           {:text (localization/message "dialog.restart-defold.button.save-and-restart")
+                            :default-button true
+                            :result true}]})
+          (async-save! app-view changes-view project project/dirty-save-data
+                       (fn [successful? _render-reload-progress! _render-save-progress!]
+                         (when successful?
+                           (restart-defold! stage prefs)))))))))
+
 (defn- make-version-control-info-dialog-content
   ([localization]
    (make-version-control-info-dialog-content localization nil))
@@ -3166,6 +3212,8 @@
       (when-let [handler+context (handler/active command [_context] false)]
         (handler/run handler+context)))))
 
+(declare ^:private fetch-libraries)
+
 (defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs localization web-server]
   (extensions/reload!
     project kind
@@ -3207,6 +3255,8 @@
                             (catch Throwable e (error-reporting/report-exception! e)))
                           (future/complete! f nil))
                         f))
+    :fetch-libraries! (fn fetch-libraries! []
+                        (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server))
     :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
                    (let [f (future/make)]
                      (fx/on-fx-thread
@@ -3245,20 +3295,24 @@
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs localization web-server]
   (let [library-uris (project/project-dependencies project)]
-    (future
-      (error-reporting/catch-all!
+    (future/io
+      (try
         (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
           (let [lib-results (library/fetch! (workspace/project-directory workspace) library-uris render-fetch-progress!)
                 render-install-progress! (make-render-task-progress :resource-sync)]
             (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
-            (ui/run-later
-              (workspace/set-project-dependencies! workspace lib-results)
-              (disk/async-reload!
-                render-install-progress! workspace [] changes-view
-                (fn [success]
-                  (when success
-                    (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                    (project/update-fetch-libraries-notification! project)))))))))))
+            (ui/run-now (workspace/set-project-dependencies! workspace lib-results))
+            (if-not (let [reload-completed (promise)]
+                      (disk/async-reload! render-install-progress! workspace [] changes-view reload-completed)
+                      @reload-completed)
+              [lib-results false]
+              (ui/run-now
+                (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
+                (project/update-fetch-libraries-notification! project)
+                [lib-results true]))))
+        (catch Throwable error
+          (error-reporting/report-exception! error)
+          (throw error))))))
 
 (handler/defhandler :private/add-dependency :global
   (enabled? [] (disk-availability/available?))

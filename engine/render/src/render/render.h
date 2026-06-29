@@ -48,6 +48,7 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_BONE_INDICES;
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
     extern const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D;
+    extern const dmhash_t VERTEX_STREAM_MORPH_TARGET_WEIGHTS;
     extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
     extern const dmhash_t SAMPLER_MORPH_TARGETS;
     extern const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS;
@@ -61,7 +62,7 @@ namespace dmRender
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
-    typedef struct LightPrototype*          HLightPrototype;
+    typedef HOpaqueHandle                   HLightPrototype;
     typedef HOpaqueHandle                   HLightInstance;
 
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
@@ -128,6 +129,7 @@ namespace dmRender
         LIGHT_TYPE_DIRECTIONAL = 0,
         LIGHT_TYPE_POINT       = 1,
         LIGHT_TYPE_SPOT        = 2,
+        LIGHT_TYPE_AMBIENT     = 3,
     };
 
     // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
@@ -213,7 +215,6 @@ namespace dmRender
 
         LightType        m_Type;
         dmVMath::Vector4 m_Color;
-        dmVMath::Vector3 m_Direction;
         float            m_Intensity;
         float            m_Range;
         float            m_InnerConeAngle;
@@ -380,6 +381,7 @@ namespace dmRender
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
     bool                            GetMaterialHasMorphTargetsSampler(HMaterial material);
+    bool                            GetMaterialHasMorphTargetWeightsAttribute(HMaterial material);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
@@ -492,9 +494,13 @@ namespace dmRender
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
     void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
     void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
+    LightType       GetLightType(HRenderContext render_context, HLightPrototype light_prototype);
+    dmVMath::Vector4 GetLightColor(HRenderContext render_context, HLightPrototype light_prototype);
+    float           GetLightIntensity(HRenderContext render_context, HLightPrototype light_prototype);
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
-    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation);
+    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
+    void            SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)

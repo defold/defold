@@ -164,8 +164,6 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
             BuilderUtil.checkResource(this.project, input, "component", component);
         }
 
-        int buildDirLen = project.getBuildDirectory().length();
-
         // convert embedded components to generated components in the build folder
         for (EmbeddedComponentDesc ec : protoBuilder.getEmbeddedComponentsList()) {
             if (ec.getId().length() == 0) {
@@ -180,7 +178,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
             // TODO: We have to set content again here as distclean might have removed everything at this point (according to CollectionBuilder.java)
             genResource.setContent(data);
 
-            String relativePath = genResource.getPath().substring(buildDirLen);
+            String relativePath = BuilderUtil.getRelativePath(project, genResource);
 
             ComponentDesc.Builder b = ComponentDesc.newBuilder()
                     .setId(ec.getId())

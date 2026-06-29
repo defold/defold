@@ -254,7 +254,7 @@ namespace dmGraphics
         {
             return VK_SUCCESS;
         }
-        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
+        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_Base.m_Size, 0, &m_MappedDataPtr);
     }
 
     void DeviceBuffer::UnmapMemory(VkDevice vk_device)
@@ -313,7 +313,10 @@ namespace dmGraphics
 
             vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
             vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
-            vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            if (pNextFeatures && vkGetPhysicalDeviceFeatures2)
+            {
+                vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            }
             vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
@@ -757,8 +760,8 @@ namespace dmGraphics
             return res;
         }
 
-        bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
-        bufferOut->m_Destroyed  = 0;
+        bufferOut->m_Base.m_Size = (uint32_t) vk_buffer_memory_req.size;
+        bufferOut->m_Destroyed   = 0;
 
         return VK_SUCCESS;
 bail:
@@ -909,7 +912,7 @@ bail:
             goto bail;
         }
 
-        device_buffer.m_MemorySize = vk_memory_req.size;
+        device_buffer.m_Base.m_Size = (uint32_t) vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
@@ -1595,6 +1598,24 @@ bail:
     }
 
     #define QUEUE_FAMILY_INVALID 0xffff
+
+    QueueFamily GetGraphicsQueueFamily(PhysicalDevice* device)
+    {
+        QueueFamily qf;
+
+        for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
+        {
+            VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
+            if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                qf.m_GraphicsQueueIx = i;
+                qf.m_PresentQueueIx  = i;
+                break;
+            }
+        }
+
+        return qf;
+    }
 
     // All GPU operations are pushed to various queues. The physical device can have multiple
     // queues with different properties supported, so we need to find a combination of queues

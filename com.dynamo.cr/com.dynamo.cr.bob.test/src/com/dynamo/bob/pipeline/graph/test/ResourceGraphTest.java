@@ -32,10 +32,11 @@ public class ResourceGraphTest {
 
 
     private ResourceGraph resourceGraph;
+    private Project project;
 
 
     private ResourceGraph createResourceGraph() {
-        Project project = new Project(new DefaultFileSystem());
+        project = new Project(new DefaultFileSystem());
         ResourceGraph graph = new ResourceGraph(project);
 
         /*
@@ -89,7 +90,9 @@ public class ResourceGraphTest {
 
     @After
     public void tearDown() throws IOException {
-
+        if (project != null) {
+            project.dispose();
+        }
     }
 
 

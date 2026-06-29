@@ -60,9 +60,14 @@ public class ArchiveBuilder {
 
     private static Logger logger = Logger.getLogger(ArchiveBuilder.class.getName());
 
-    public static final int VERSION = 5;
+    public static final int VERSION_6 = 6;
+    public static final int VERSION = VERSION_6;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
+    public static final long MAX_UNSIGNED_INT_OFFSET = 0xffffffffL;
+    public static final int V6_FLAGS_SHIFT = 60;
+    public static final int V6_MAX_FLAGS = 0xf;
+    public static final long V6_OFFSET_MASK = 0x0fffffffffffffffL;
 
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
     private List<ArchiveEntry> excludedEntries;
@@ -218,7 +223,7 @@ public class ArchiveBuilder {
                 // do not write to it at the same time
                 synchronized (archiveData) {
                     alignBuffer(archiveData, this.resourcePadding);
-                    entry.setResourceOffset((int) archiveData.getFilePointer());
+                    entry.setResourceOffset(archiveData.getFilePointer());
                     archiveData.write(buffer, 0, buffer.length);
                 }
             }
@@ -236,10 +241,12 @@ public class ArchiveBuilder {
     private void writeArchiveIndex(RandomAccessFile archiveIndex, List<ArchiveEntry> archiveEntries) throws IOException {
         TimeProfiler.start("writeArchiveIndex");
 
+        int version = VERSION;
+
         // INDEX
-        archiveIndex.writeInt(VERSION); // Version
+        archiveIndex.writeInt(version); // Version
         archiveIndex.writeInt(0); // Pad
-        archiveIndex.writeLong(0); // UserData, used in runtime to distinguish between if the index and resources are memory mapped or loaded from disk
+        archiveIndex.writeLong(0); // UserData. Runtime reuses this field after loading.
         archiveIndex.writeInt(0); // EntryCount
         archiveIndex.writeInt(0); // EntryOffset
         archiveIndex.writeInt(0); // HashOffset
@@ -260,12 +267,11 @@ public class ArchiveBuilder {
         int entryOffset = (int) archiveIndex.getFilePointer();
         alignBuffer(archiveIndex, 4);
 
-        ByteBuffer indexBuffer = ByteBuffer.allocate(4 * 4 * archiveEntries.size());
+        ByteBuffer indexBuffer = ByteBuffer.allocate(getArchiveEntryDataSize(version) * archiveEntries.size());
         for (ArchiveEntry entry : archiveEntries) {
-            indexBuffer.putInt(entry.getResourceOffset());
+            indexBuffer.putLong(packArchiveEntryOffsetAndFlags(entry));
             indexBuffer.putInt(entry.getSize());
             indexBuffer.putInt(entry.getCompressedSize());
-            indexBuffer.putInt(entry.getFlags());
         }
         archiveIndex.write(indexBuffer.array());
 
@@ -284,7 +290,7 @@ public class ArchiveBuilder {
 
         // Update index header with offsets
         archiveIndex.seek(0);
-        archiveIndex.writeInt(VERSION);
+        archiveIndex.writeInt(version);
         archiveIndex.writeInt(0); // Pad
         archiveIndex.writeLong(0); // UserData
         archiveIndex.writeInt(archiveEntries.size());
@@ -296,6 +302,24 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
+    public static int getArchiveEntryDataSize(int version) {
+        return 16;
+    }
+
+    private static long packArchiveEntryOffsetAndFlags(ArchiveEntry entry) throws IOException {
+        long resourceOffset = entry.getResourceOffset();
+        if (resourceOffset < 0 || resourceOffset > V6_OFFSET_MASK) {
+            throw new IOException(String.format("Archive entry offset %d cannot fit in v6 offset field", resourceOffset));
+        }
+
+        int flags = entry.getFlags();
+        if ((flags & ~V6_MAX_FLAGS) != 0) {
+            throw new IOException(String.format("Archive entry flags 0x%x cannot fit in v6 flags field", flags));
+        }
+
+        return ((long) flags << V6_FLAGS_SHIFT) | resourceOffset;
+    }
+
     // The flow of how a resource is found in the archive:
     // URL → url_hash ───> Manifest: url_hash → data_hash
     //                                            ↓
@@ -303,7 +327,7 @@ public class ArchiveBuilder {
     //                                            ↓
     //                    Archive Index: if found, use index to get Entry from parallel EntryData array
     //                                            ↓
-    //                    EntryData = { offset, size, compressed_size, flags }
+    //                    EntryData = { offset_and_flags, size, compressed_size }
     //                                            ↓
     //                    Read bytes from .arcd (using offset via fseek or mmap)
     //                                            ↓
@@ -363,11 +387,15 @@ public class ArchiveBuilder {
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
-        int pos = (int) outFile.getFilePointer();
-        int newPos = (int) (outFile.getFilePointer() + (align - 1));
-        newPos &= ~(align - 1);
+        long pos = outFile.getFilePointer();
+        long newPos = (pos + align - 1L) & ~((long) align - 1L);
+        long padding = newPos - pos;
+        if (padding > 4096) {
+            outFile.seek(newPos);
+            return;
+        }
 
-        for (int i = 0; i < (newPos - pos); ++i) {
+        for (int i = 0; i < padding; ++i) {
             outFile.writeByte((byte) 0);
         }
     }
@@ -444,91 +472,92 @@ public class ArchiveBuilder {
         manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
 
-        Project project = new Project(new DefaultFileSystem());
-        // Keep builtins archives deterministic; parallel writes make .arcd offsets depend on thread scheduling.
-        project.setOption("max-cpu-threads", "1");
-        ResourceGraph resourceGraph = new ResourceGraph(project);
-        manifestBuilder.setResourceGraph(resourceGraph);
+        try (Project project = new Project(new DefaultFileSystem())) {
+            // Keep builtins archives deterministic; parallel writes make .arcd offsets depend on thread scheduling.
+            project.setOption("max-cpu-threads", "1");
+            ResourceGraph resourceGraph = new ResourceGraph(project);
+            manifestBuilder.setResourceGraph(resourceGraph);
 
-        ResourceNode rootNode = resourceGraph.getRootNode();
+            ResourceNode rootNode = resourceGraph.getRootNode();
 
-        List<String> excludedResources = new ArrayList<String>();
+            List<String> excludedResources = new ArrayList<String>();
 
-        // set up publisher - has to be done before creating the ArchiveBuilder
-        PublisherSettings settings = new PublisherSettings();
-        settings.setZipFilepath(dirpathRoot.getAbsolutePath());
-        ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
-        project.setPublisher(publisher);
-        publisher.setFilename(filepathZipArchive.getName());
+            // set up publisher - has to be done before creating the ArchiveBuilder
+            PublisherSettings settings = new PublisherSettings();
+            settings.setZipFilepath(dirpathRoot.getAbsolutePath());
+            ZipPublisher publisher = new ZipPublisher(project, dirpathRoot.getAbsolutePath(), settings);
+            project.setPublisher(publisher);
+            publisher.setFilename(filepathZipArchive.getName());
 
-        int archivedEntries = 0;
-        String dirpathRootString = dirpathRoot.toString();
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4, project);
-        archiveBuilder.setForceCompression(doCompress);
-        for (File currentInput : inputs) {
-            String absolutePath = currentInput.getAbsolutePath();
-            boolean encrypt = ( absolutePath.endsWith("luac") ||
-                                absolutePath.endsWith("scriptc") ||
-                                absolutePath.endsWith("gui_scriptc") ||
-                                absolutePath.endsWith("render_scriptc"));
-            if (currentInput.getName().startsWith("liveupdate.")){
-                archiveBuilder.add(absolutePath, doCompress, encrypt, true);
+            int archivedEntries = 0;
+            String dirpathRootString = dirpathRoot.toString();
+            ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4, project);
+            archiveBuilder.setForceCompression(doCompress);
+            for (File currentInput : inputs) {
+                String absolutePath = currentInput.getAbsolutePath();
+                boolean encrypt = ( absolutePath.endsWith("luac") ||
+                                    absolutePath.endsWith("scriptc") ||
+                                    absolutePath.endsWith("gui_scriptc") ||
+                                    absolutePath.endsWith("render_scriptc"));
+                if (currentInput.getName().startsWith("liveupdate.")){
+                    archiveBuilder.add(absolutePath, doCompress, encrypt, true);
 
-                String relativePath = currentInput.getAbsolutePath().substring(dirpathRootString.length());
-                relativePath = FilenameUtils.separatorsToUnix(relativePath);
-                excludedResources.add(relativePath);
-            } else {
-                archivedEntries++;
-                archiveBuilder.add(absolutePath, doCompress, encrypt, false);
-            }
-            ResourceNode currentNode = new ResourceNode(currentInput.getPath());
-            rootNode.addChild(currentNode);
-        }
-        System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
-
-        RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
-        RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");
-        archiveIndex.setLength(0);
-        archiveData.setLength(0);
-
-        publisher.start();
-        FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
-        try {
-            System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
-            System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
-
-            archiveBuilder.write(archiveIndex, archiveData, excludedResources);
-
-            System.out.println("Writing " + filepathManifest.getCanonicalPath());
-            byte[] manifestFile = manifestBuilder.buildManifest();
-            outputStreamManifest.write(manifestFile);
-
-            if (doOutputManifestHashFile) {
-                if (filepathManifestHash.exists()) {
-                    filepathManifestHash.delete();
-                    filepathManifestHash.createNewFile();
+                    String relativePath = currentInput.getAbsolutePath().substring(dirpathRootString.length());
+                    relativePath = FilenameUtils.separatorsToUnix(relativePath);
+                    excludedResources.add(relativePath);
+                } else {
+                    archivedEntries++;
+                    archiveBuilder.add(absolutePath, doCompress, encrypt, false);
                 }
-                FileOutputStream manifestHashOutoutStream = new FileOutputStream(filepathManifestHash);
-                manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
-                manifestHashOutoutStream.close();
+                ResourceNode currentNode = new ResourceNode(currentInput.getPath());
+                rootNode.addChild(currentNode);
             }
+            System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
 
-            String liveupdateManifestFilename = "liveupdate.game.dmanifest";
-            File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
-            FileUtils.copyFile(filepathManifest, luManifestFile);
-            publisher.publish(new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()), luManifestFile);
+            RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
+            RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");
+            archiveIndex.setLength(0);
+            archiveData.setLength(0);
 
-        } finally {
+            publisher.start();
+            FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
             try {
-                publisher.stop();
-                archiveIndex.close();
-                archiveData.close();
-                outputStreamManifest.close();
-            } catch (IOException exception) {
-                // Nothing to do, moving on ...
-            }
-        }
+                System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
+                System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-        System.out.println("Done.");
+                archiveBuilder.write(archiveIndex, archiveData, excludedResources);
+
+                System.out.println("Writing " + filepathManifest.getCanonicalPath());
+                byte[] manifestFile = manifestBuilder.buildManifest();
+                outputStreamManifest.write(manifestFile);
+
+                if (doOutputManifestHashFile) {
+                    if (filepathManifestHash.exists()) {
+                        filepathManifestHash.delete();
+                        filepathManifestHash.createNewFile();
+                    }
+                    FileOutputStream manifestHashOutoutStream = new FileOutputStream(filepathManifestHash);
+                    manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
+                    manifestHashOutoutStream.close();
+                }
+
+                String liveupdateManifestFilename = "liveupdate.game.dmanifest";
+                File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
+                FileUtils.copyFile(filepathManifest, luManifestFile);
+                publisher.publish(new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()), luManifestFile);
+
+            } finally {
+                try {
+                    publisher.stop();
+                    archiveIndex.close();
+                    archiveData.close();
+                    outputStreamManifest.close();
+                } catch (IOException exception) {
+                    // Nothing to do, moving on ...
+                }
+            }
+
+            System.out.println("Done.");
+        }
     }
 }

@@ -27,6 +27,13 @@
  * @language C++
  */
 
+/*# HID extension context name
+ * Name used when registering the HID context with the engine context registry.
+ * @constant
+ * @name HID_CONTEXT_NAME
+ */
+#define HID_CONTEXT_NAME "hid"
+
 namespace dmHID
 {
     /*# HID context handle
@@ -129,6 +136,11 @@ namespace dmHID
      * @name dmHID::MAX_GAMEPAD_GUID_LENGTH
      */
     const uint8_t MAX_GAMEPAD_GUID_LENGTH = 32;
+    /*# max number of characters for a guid
+     * @constant
+     * @name dmHID::MAX_GAMEPAD_GUID_LENGTH
+     */
+    const uint8_t MAX_GAMEPAD_NAME_LENGTH = 128;
 
     /*# touch phase enumeration
      * @note By convention the enumeration corresponds to the iOS values
@@ -600,6 +612,16 @@ namespace dmHID
      * @return result [type: boolean] true if gamepad has a user id data assigned to it
      */
     bool GetGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out);
+
+    /*#
+     * Retrieves the platform-specific device name of a given gamepad.
+     *
+     * @name GetGamepadDeviceName
+     * @param context [type: dmHID::HContext] context in which to find the gamepad
+     * @param gamepad [type: dmHID::HGamepad] Handle to gamepad
+     * @param buffer [type: char*] a pointer to memory where the name should be stored (size dmHID::MAX_GAMEPAD_NAME_LENGTH)
+     */
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH]);
 
     /*#
      * Retrieves the guid of a given gamepad.

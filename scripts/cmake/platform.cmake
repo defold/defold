@@ -27,10 +27,8 @@ defold_log("TARGET_PLATFORM_OS: ${TARGET_PLATFORM_OS}")
 # Include the sdk
 include(sdk)
 
-# Global empty target to aggregate test build dependencies across subprojects
-if(NOT TARGET build_tests)
-  add_custom_target(build_tests)
-endif()
+# Global target aggregating test build dependencies across subprojects.
+add_custom_target(build_tests)
 
 
 #**************************************************************************
@@ -38,8 +36,8 @@ endif()
 # Provide the C++ standard via target-level usage requirements
 target_compile_features(defold_sdk INTERFACE cxx_std_11)
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
@@ -60,6 +58,20 @@ elseif (TARGET_PLATFORM MATCHES "arm64-nx64")
         # Mark this configuration as using a private vendor platform (e.g., Switch)
         set(DEFOLD_IS_PRIVATE_VENDOR ON CACHE BOOL "Building with private vendor platform configuration" FORCE)
         include(platform_vendor_switch)
+else()
+        set(DEFOLD_IS_PRIVATE_VENDOR ON CACHE BOOL "Building with private vendor platform configuration" FORCE)
+        include("platform_${TARGET_PLATFORM_OS}" OPTIONAL RESULT_VARIABLE _DEFOLD_PRIVATE_PLATFORM_MODULE)
+        if(NOT _DEFOLD_PRIVATE_PLATFORM_MODULE)
+            message(FATAL_ERROR "Unsupported platform: ${TARGET_PLATFORM}")
+        endif()
+endif()
+
+if(TARGET_PLATFORM MATCHES "x86_64-xbone")
+    target_compile_definitions(defold_sdk INTERFACE DM_HOSTFS=\"G:\")
+    set(DEFOLD_PLATFORM_TEST_DEFINES
+        JC_TEST_NO_DEATH_TEST
+        JC_TEST_USE_COLORS=0
+        JC_TEST_USE_PRINTF)
 endif()
 
 #**************************************************************************
@@ -71,6 +83,14 @@ target_compile_definitions(defold_sdk INTERFACE
     DDF_EXPOSE_DESCRIPTORS
     GOOGLE_PROTOBUF_NO_RTTI
     DM_USE_CMAKE)
+
+if(DEFOLD_MSVC_IDE_SOLUTION)
+    target_compile_definitions(defold_sdk INTERFACE
+        JC_TEST_USE_COLORS=0
+        DM_LOG_TO_DEBUGGER)
+elseif(DEFINED ENV{GITHUB_WORKFLOW})
+    target_compile_definitions(defold_sdk INTERFACE GITHUB_CI JC_TEST_USE_COLORS=1)
+endif()
 
 set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE ON)
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|x86_64-ios)$")
@@ -91,8 +111,19 @@ endif()
 # Common flags
 
 if(MSVC_CL)
-    # Disable RTTI; don't force /EH to avoid changing exception model globally
-    target_compile_options(defold_sdk INTERFACE /GR- /W3)
+    target_compile_definitions(defold_sdk INTERFACE _HAS_EXCEPTIONS=0)
+    if(TARGET_PLATFORM MATCHES "x86_64-xbone")
+        target_compile_definitions(defold_sdk INTERFACE _ITERATOR_DEBUG_LEVEL=0)
+    endif()
+
+    # Match Waf: disable RTTI and C++ exception handling for engine code.
+    # CMake's MSVC defaults add /EHsc, which conflicts with SEH __try blocks
+    # that contain C++ objects requiring unwinding.
+    target_compile_options(defold_sdk INTERFACE
+        /GR-
+        /W3
+        $<$<COMPILE_LANGUAGE:CXX>:/EHs->
+        $<$<COMPILE_LANGUAGE:CXX>:/EHa->)
 else()
     # Apply per-language flags via target options
     set(_DEFOLD_NON_MSVC_OPTIONS
@@ -101,8 +132,10 @@ else()
         -Werror=return-type
         -fvisibility=hidden
         -fno-exceptions
-        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
-        -g)
+        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
+    if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+        list(APPEND _DEFOLD_NON_MSVC_OPTIONS -g)
+    endif()
     if(NOT DEFINED DEFOLD_PLATFORM_SUPPORTS_FPIC)
         set(DEFOLD_PLATFORM_SUPPORTS_FPIC ON)
         if(TARGET_PLATFORM_OS STREQUAL "win32")
@@ -135,8 +168,10 @@ else()
         "$<$<CONFIG:Release>:-O2>"
         "$<$<CONFIG:RelWithDebInfo>:${_DEFOLD_RELWITHDEBINFO_OPT}>"
         "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:-O0>")
-    target_compile_options(defold_sdk INTERFACE -g)
-    target_link_options(defold_sdk INTERFACE -g)
+    if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+        target_compile_options(defold_sdk INTERFACE -g)
+        target_link_options(defold_sdk INTERFACE -g)
+    endif()
     if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
         target_link_options(defold_sdk INTERFACE "$<$<CONFIG:RelWithDebInfo>:-O3>")
     endif()
