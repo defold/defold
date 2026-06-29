@@ -1323,6 +1323,11 @@ property.label.tracking = Трекинг
 
 # Properties: light
 
+property.light.color = Цвет
+property.light.intensity = Интенсивность
+property.light.range = Дальность
+property.light.inner-cone-angle = Внутренний угол конуса
+property.light.outer-cone-angle = Внешний угол конуса
 
 # Properties: mesh
 
@@ -1512,6 +1517,10 @@ resource.type.json = JSON
 resource.type.label = Надпись
 resource.type.lib = Библиотека
 resource.type.light = Источник света
+resource.type.point-light = Точечный свет
+resource.type.directional-light = Направленный свет
+resource.type.spot-light = Прожекторный свет
+resource.type.ambient-light = Окружающий свет
 resource.type.lua = Lua-модуль
 resource.type.manifest = Манифест
 resource.type.markdown = Markdown
@@ -1550,6 +1559,7 @@ resource.category.objects = Объекты
 resource.category.scripts = Скрипты
 resource.category.shaders = Шейдеры
 resource.category.components = Компоненты
+resource.category.lights = Источники света
 resource.category.resources = Ресурсы
 resource.category.editor = Редактор
 resource.category.render = Рендер
@@ -1983,6 +1993,10 @@ form.label.project.input.repeat_interval = Интервал повтора
 form.help.project.input.repeat_interval = Сколько секунд проходит между повторами удерживаемой клавиши
 form.label.project.input.gamepads = Геймпады
 form.help.project.input.gamepads = Ссылка на конфиг геймпадов, сопоставляющий сигналы устройствам ОС, по умолчанию /builtins/input/default.gamepadsc
+form.label.project.input.gamepad_database = База данных геймпадов
+form.help.project.input.gamepad_database = Ссылка на файл базы данных геймпадов SDL, содержащей сопоставления сигналов геймпадов с элементами управления операционной системы. По умолчанию используется файл /builtins/input/gamecontrollerdb.txt
+form.label.project.input.gamepad_deadzone = Мертвая зона геймпада
+form.help.project.input.gamepad_deadzone = Мёртвая зона, применяемая во время выполнения к сопоставлениям из базы данных геймпадов SDL
 form.label.project.input.game_binding = Привязки ввода
 form.help.project.input.game_binding = Ссылка на файл привязок ввода, сопоставляющий аппаратные вводы действиям, по умолчанию /input/game.input_bindingc
 form.label.project.input.use_accelerometer = Акселерометр
@@ -2209,6 +2223,13 @@ form.label.sound.gain = Усиление
 form.label.sound.pan = Панорама
 form.label.sound.speed = Скорость
 
+form.label.light = Свет
+form.label.light.type = Тип
+form.label.light.color = Цвет
+form.label.light.intensity = Интенсивность
+form.label.light.range = Дальность
+form.label.light.inner-cone-angle = Внутренний угол конуса
+form.label.light.outer-cone-angle = Внешний угол конуса
 
 form.label.liveupdate.liveupdate = Live Update
 form.label.liveupdate.liveupdate.mode = Режим
@@ -2304,10 +2325,12 @@ quick-help.start-or-attach-debugger = Запустить отладчик
 # Error Messages
 error.assigned-image-has-internal-errors = Назначенное изображение содержит внутренние ошибки.
 error.sampler-not-defined-in-material = «{sampler}» не определён в материале. Используйте команду «Сбросить переопределение» в контекстном меню имени свойства, чтобы удалить свойство. Если этот сэмплер необходим для шейдера, добавьте отсутствующий сэмплер в материал.
+error.light.invalid-source = Не удалось прочитать файл источников света. Исправьте текстовый формат или отмените внесённые изменения.
 error.sound.invalid-ogg-file = Некорректный Ogg-файл.
 error.sound.invalid-ogg-file-details = Некорректный Ogg-файл (oggz-validate)\:\n{output}
 error.sound.could-not-read-audio-file = Не удалось прочитать аудиофайл «{resource}».
 error.unknown-source = Неизвестный источник
+error.game-project.gamepad-database-must-be-txt = Параметр input.gamepad_database должен ссылаться на файл с расширением .txt
 error.unspecified-property = Свойство «{property}» должно быть указано.
 error.mesh.stream-must-be-specified-for-world-vertex-space = Свойство «{property}» должно быть указано при использовании материала с параметром «Vertex Space», установленным в world-space.
 error.mesh.stream-not-found-in-buffer = Поток «{stream}» не найден в указанном буфере.
