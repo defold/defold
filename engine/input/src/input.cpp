@@ -148,6 +148,26 @@ namespace dmInput
         return dmHashBuffer32(guid, GAMEPAD_GUID_SIZE);
     }
 
+    static void ClearGamepadGuidCRC(dmHID::GamepadGuid* guid)
+    {
+        guid->m_CRC16 = 0;
+    }
+
+    static void ClearGamepadGuidVersion(dmHID::GamepadGuid* guid)
+    {
+        guid->m_Version = 0;
+    }
+
+    static bool GamepadGuidUsesVersion(const dmHID::GamepadGuid& guid)
+    {
+        // SDL uses driver signature 'm' for Apple GameController/MFi GUIDs.
+        // Their version word is a generated profile signature, not a USB version.
+        if (guid.m_DriverSignature == 'm')
+            return false;
+
+        return guid.m_Vendor != 0 && guid.m_Product != 0;
+    }
+
     static dmHID::GamepadGuid GamepadGuidBytesToHID(const uint8_t guid[GAMEPAD_GUID_SIZE])
     {
         dmHID::GamepadGuid hid_guid = {};
@@ -155,14 +175,72 @@ namespace dmInput
         return hid_guid;
     }
 
+    static GamepadConfig* GetGamepadConfigFromIndex(HContext context, uint32_t config_index)
+    {
+        assert(config_index < context->m_GamepadConfigs.Size());
+        return &context->m_GamepadConfigs[config_index];
+    }
+
     static GamepadConfig* GetGamepadConfigFromId(HBinding binding, const uint32_t config_id)
     {
-        return binding->m_Context->m_GamepadMaps.Get(config_id);
+        uint32_t* config_index = binding->m_Context->m_GamepadMaps.Get(config_id);
+        if (config_index == 0x0)
+        {
+            return 0x0;
+        }
+
+        return GetGamepadConfigFromIndex(binding->m_Context, *config_index);
+    }
+
+    static GamepadConfig* GetGamepadConfigFromGuidMatch(HBinding binding, const dmHID::GamepadGuid& guid)
+    {
+        const uint32_t guid_id = GamepadGuidHash32(&guid);
+        GamepadConfig* config = GetGamepadConfigFromId(binding, guid_id);
+        if (config && config->m_Legacy == 0)
+        {
+            return config;
+        }
+
+        return 0x0;
     }
 
     static GamepadConfig* GetGamepadConfigFromGuid(HBinding binding, const dmHID::GamepadGuid& guid)
     {
-        return GetGamepadConfigFromId(binding, GamepadGuidHash32(&guid));
+        // Mirrors SDL_PrivateGetGamepadMappingForGUID in SDL src/joystick/SDL_gamepad.c:1405-1429:
+        // exact match, then without CRC, then without version, then without both.
+        GamepadConfig* config = GetGamepadConfigFromGuidMatch(binding, guid);
+        if (config)
+        {
+            return config;
+        }
+
+        dmHID::GamepadGuid match_guid = guid;
+        ClearGamepadGuidCRC(&match_guid);
+        config = GetGamepadConfigFromGuidMatch(binding, match_guid);
+        if (config)
+        {
+            return config;
+        }
+
+        if (GamepadGuidUsesVersion(guid))
+        {
+            match_guid = guid;
+            ClearGamepadGuidVersion(&match_guid);
+            config = GetGamepadConfigFromGuidMatch(binding, match_guid);
+            if (config)
+            {
+                return config;
+            }
+
+            ClearGamepadGuidCRC(&match_guid);
+            config = GetGamepadConfigFromGuidMatch(binding, match_guid);
+            if (config)
+            {
+                return config;
+            }
+        }
+
+        return 0x0;
     }
 
     static void GetGamepadGuidString(HBinding binding, dmHID::HGamepad gamepad, char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1])
@@ -581,10 +659,58 @@ namespace dmInput
         delete binding;
     }
 
+    static bool PutGamepadConfigLookup(HContext context, uint32_t lookup_id, uint32_t config_index)
+    {
+        if (context->m_GamepadMaps.Get(lookup_id) != 0x0)
+        {
+            return false;
+        }
+
+        context->m_GamepadMaps.Put(lookup_id, config_index);
+        return true;
+    }
+
+    static void PutGamepadGuidFallback(HContext context, const dmHID::GamepadGuid& guid, uint32_t device_id, uint32_t config_index)
+    {
+        const uint32_t fallback_id = GamepadGuidHash32(&guid);
+        if (fallback_id == device_id)
+        {
+            return;
+        }
+
+        PutGamepadConfigLookup(context, fallback_id, config_index);
+    }
+
+    static void RegisterGamepadGuidFallbacks(HContext context, const dmHID::GamepadGuid& guid, uint32_t device_id, uint32_t config_index)
+    {
+        dmHID::GamepadGuid fallback_guid = guid;
+        ClearGamepadGuidCRC(&fallback_guid);
+        PutGamepadGuidFallback(context, fallback_guid, device_id, config_index);
+
+        if (GamepadGuidUsesVersion(guid))
+        {
+            fallback_guid = guid;
+            ClearGamepadGuidVersion(&fallback_guid);
+            PutGamepadGuidFallback(context, fallback_guid, device_id, config_index);
+
+            ClearGamepadGuidCRC(&fallback_guid);
+            PutGamepadGuidFallback(context, fallback_guid, device_id, config_index);
+        }
+    }
+
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMapsRuntime* ddf)
     {
-        const uint32_t count = ddf->m_Mappings.m_Count + 1;
-        context->m_GamepadMaps.SetCapacity(count);
+        const uint32_t config_count = ddf->m_Mappings.m_Count + 1;
+        if (config_count > context->m_GamepadConfigs.Capacity())
+        {
+            context->m_GamepadConfigs.SetCapacity(config_count);
+        }
+
+        const uint32_t lookup_count = config_count + ddf->m_Mappings.m_Count * 3;
+        if (lookup_count > context->m_GamepadMaps.Capacity())
+        {
+            context->m_GamepadMaps.SetCapacity(lookup_count);
+        }
 
         // Add a gamepad config that will be used when an unidentified gamepad
         // is connected. This will allow developers to at least read raw button,
@@ -599,7 +725,9 @@ namespace dmInput
         {
             unknownGamepadConfig.m_Inputs[j].m_Index = INVALID_INDEX;
         }
-        context->m_GamepadMaps.Put(UNKNOWN_GAMEPAD_CONFIG_ID, unknownGamepadConfig);
+        const uint32_t unknown_gamepad_config_index = context->m_GamepadConfigs.Size();
+        context->m_GamepadConfigs.Push(unknownGamepadConfig);
+        context->m_GamepadMaps.Put(UNKNOWN_GAMEPAD_CONFIG_ID, unknown_gamepad_config_index);
 
         for (uint32_t i = 0; i < ddf->m_Mappings.m_Count; ++i)
         {
@@ -656,12 +784,21 @@ namespace dmInput
                 gamepad_config.m_Guid = GamepadGuidBytesToHID(gamepad_map.m_Guid.m_Data);
             }
 
-            if (context->m_GamepadMaps.Get(device_id) != 0x0)
+            uint32_t* existing_config_index = context->m_GamepadMaps.Get(device_id);
+            if (existing_config_index != 0x0 && GetGamepadConfigFromIndex(context, *existing_config_index)->m_DeviceId == device_id)
             {
                 dmLogWarning("Gamepad map for device '%s' already registered.", gamepad_map.m_Device);
                 continue;
             }
-            context->m_GamepadMaps.Put(device_id, gamepad_config);
+
+            const uint32_t gamepad_config_index = context->m_GamepadConfigs.Size();
+            context->m_GamepadConfigs.Push(gamepad_config);
+            context->m_GamepadMaps.Put(device_id, gamepad_config_index);
+
+            if (has_guid)
+            {
+                RegisterGamepadGuidFallbacks(context, gamepad_config.m_Guid, device_id, gamepad_config_index);
+            }
         }
     }
 

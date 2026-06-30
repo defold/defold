@@ -58,57 +58,37 @@ namespace dmShaderc
         return written == data_size;
     }
 
+    static bool GetFileSize(const char* path, uint32_t* out_file_size);
+
     static bool ReadBytesFromFile(const char* path, dmArray<uint8_t>& out)
     {
+        uint32_t file_size = 0;
+        if (!GetFileSize(path, &file_size))
+        {
+            return false;
+        }
+
         FILE* file = fopen(path, "rb");
         if (!file)
             return false;
-
-        if (fseek(file, 0, SEEK_END) != 0)
-        {
-            fclose(file);
-            return false;
-        }
-
-        long file_size = ftell(file);
-        if (file_size < 0)
-        {
-            fclose(file);
-            return false;
-        }
-
-        if (fseek(file, 0, SEEK_SET) != 0)
-        {
-            fclose(file);
-            return false;
-        }
 
         out.SetCapacity(file_size);
         out.SetSize(file_size);
 
         size_t read_size = fread(out.Begin(), 1, file_size, file);
         fclose(file);
-        return read_size == (size_t) file_size;
+        return read_size == file_size;
     }
 
     static bool GetFileSize(const char* path, uint32_t* out_file_size)
     {
-        FILE* file = fopen(path, "rb");
-        if (!file)
-            return false;
-
-        if (fseek(file, 0, SEEK_END) != 0)
+        dmSys::StatInfo stat_info;
+        if (dmSys::Stat(path, &stat_info) != dmSys::RESULT_OK || !dmSys::StatIsFile(&stat_info) || stat_info.m_Size > UINT32_MAX)
         {
-            fclose(file);
             return false;
         }
 
-        long file_size = ftell(file);
-        fclose(file);
-        if (file_size < 0)
-            return false;
-
-        *out_file_size = (uint32_t) file_size;
+        *out_file_size = (uint32_t) stat_info.m_Size;
         return true;
     }
 

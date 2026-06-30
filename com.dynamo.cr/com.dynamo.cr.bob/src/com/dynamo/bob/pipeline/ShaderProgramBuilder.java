@@ -675,7 +675,6 @@ public class ShaderProgramBuilder extends Builder {
                 }
             }
 
-            System.out.printf("Wrote '%s'\n", outputPath);
         }
     }
 }

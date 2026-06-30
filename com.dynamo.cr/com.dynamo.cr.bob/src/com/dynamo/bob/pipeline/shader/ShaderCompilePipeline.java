@@ -600,7 +600,12 @@ public class ShaderCompilePipeline {
         return crossCompile(shaderType, shaderLanguage, null);
     }
 
-    public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride) throws IOException, CompileExceptionError {
+    public Shaderc.ShaderCompileResult crossCompileWithRootSignature(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride) throws IOException, CompileExceptionError {
+        assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
+        return crossCompile(shaderType, shaderLanguage, rootSignatureOverride);
+    }
+
+    private Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride) throws IOException, CompileExceptionError {
         int version = ShaderLanguageToVersion(shaderLanguage);
 
         ShaderModule module = getShaderModule(shaderType);

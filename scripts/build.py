@@ -589,7 +589,7 @@ class Configuration(object):
                  ios_team_id = None,
                  ios_bundle_id_prefix = None,
                  keep_bob_uncompressed = False,
-                 skip_codesign = False,
+                 codesign = False,
                  skip_docs = False,
                  incremental = False,
                  skip_builtins = False,
@@ -647,7 +647,7 @@ class Configuration(object):
         self.ios_team_id = ios_team_id
         self.ios_bundle_id_prefix = ios_bundle_id_prefix
         self.keep_bob_uncompressed = keep_bob_uncompressed
-        self.skip_codesign = skip_codesign
+        self.codesign = codesign
         self.skip_docs = skip_docs
         self.incremental = incremental
         self.skip_builtins = skip_builtins
@@ -1964,10 +1964,10 @@ class Configuration(object):
     def _get_build_flags(self):
         supports_tests = self._can_run_tests()
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
-        skip_codesign = '--skip-codesign' if self.skip_codesign else ''
+        codesign = '--codesign' if self.codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
         generate_compile_commands = '--generate-compile-commands' if self.generate_compile_commands else ''
-        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'generate_compile_commands':generate_compile_commands, 'prefix':None}
+        return {'skip_tests':skip_tests, 'codesign':codesign, 'disable_ccache':disable_ccache, 'generate_compile_commands':generate_compile_commands, 'prefix':None}
 
     def get_base_platforms(self):
         # Base platforms is the platforms to build the base libs for.
@@ -2011,13 +2011,13 @@ class Configuration(object):
     def _waf_forward_options(self):
         return [option for option in self.waf_options if option != '--with-waf']
 
-    def _build_engine_cmd_waf(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix, incremental = None):
+    def _build_engine_cmd_waf(self, skip_tests, codesign, disable_ccache, generate_compile_commands, prefix, incremental = None):
         prefix = prefix and prefix or self.dynamo_home
         incremental = self.incremental if incremental is None else incremental
         commands = "build install"
         if not incremental:
             commands = "distclean configure " + commands
-        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
+        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, codesign, disable_ccache, generate_compile_commands, commands)
 
     def _has_waf_configure_state(self, cwd):
         return os.path.exists(join(cwd, 'build', 'c4che', '_cache.py'))
@@ -2342,7 +2342,7 @@ class Configuration(object):
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
             f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}',
-            f'-DDEFOLD_SKIP_CODESIGN:BOOL={"ON" if self.skip_codesign else "OFF"}',
+            f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
             f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
             f'-DDEFOLD_GCLOUD_PROJECTID:STRING={self.gcloud_projectid or ""}',
             f'-DDEFOLD_GCLOUD_LOCATION:STRING={self.gcloud_location or ""}',
@@ -2984,9 +2984,8 @@ class Configuration(object):
         if self.skip_tests:
             cmd.append("--skip-tests")
 
-        if self.skip_codesign:
-            cmd.append('--skip-codesign')
-        else:
+        if self.codesign:
+            cmd.append('--codesign')
             if self.gcloud_keyname:
                 cmd.append('--gcloud-keyname=%s' % self.gcloud_keyname)
             if self.gcloud_certfile:
@@ -3903,10 +3902,10 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                     default = False,
                     help = 'do not apply compression to bob.jar. Default is false')
 
-    parser.add_option('--skip-codesign', dest='skip_codesign',
+    parser.add_option('--codesign', dest='codesign',
                       action = 'store_true',
                       default = False,
-                      help = 'skip code signing (engine and editor). Default is false')
+                      help = 'enable code signing (engine and editor). Default is false')
 
     parser.add_option('--skip-docs', dest='skip_docs',
                       action = 'store_true',
@@ -4090,7 +4089,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       ios_team_id = options.ios_team_id,
                       ios_bundle_id_prefix = options.ios_bundle_id_prefix,
                       keep_bob_uncompressed = options.keep_bob_uncompressed,
-                      skip_codesign = options.skip_codesign,
+                      codesign = options.codesign,
                       skip_docs = options.skip_docs,
                       incremental = options.incremental,
                       skip_builtins = options.skip_builtins,

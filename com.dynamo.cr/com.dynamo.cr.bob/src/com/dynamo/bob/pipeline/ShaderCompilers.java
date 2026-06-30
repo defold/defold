@@ -292,7 +292,7 @@ public class ShaderCompilers {
 
                         for (int i = 0; i < shaderModules.size(); ++i) {
                             ShaderCompilePipeline.ShaderModuleDesc shaderModule = shaderModules.get(i);
-                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompile(shaderModule.type, shaderLanguage, mergedRootSignatureText);
+                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompileWithRootSignature(shaderModule.type, shaderLanguage, mergedRootSignatureText);
                             compiled_shaders.set(i, recompiledShader);
                         }
 
@@ -337,14 +337,6 @@ public class ShaderCompilers {
                 }
             }
         }
-    }
-
-    public static IShaderCompiler GetCommonShaderCompiler(Platform platform) {
-        return new CommonShaderCompiler(platform);
-    }
-
-    public static IShaderCompiler GetCommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
-        return new CommonShaderCompiler(platform, baseOptions);
     }
 
     public static ArrayList<ShaderDesc.Language> GetSupportedOpenGLVersionsForPlatform(Platform platform) {

@@ -2669,6 +2669,15 @@
   (doto (MenuItem.)
     (.setText str)))
 
+(defn hide-context-menu-on-anchor-pressed!
+  [^ContextMenu context-menu ^Node anchor-node]
+  (let [hide-event-handler (event-handler event
+                             (.hide context-menu))]
+    (.addEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)
+    (on-closed! context-menu (fn [_]
+                               (.removeEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)))
+    context-menu))
+
 (defn show-simple-context-menu!
   [menu-item-fn item-action-fn items ^Node anchor-node ^Point2D offset]
   (let [handle-action! (fn [^Event event]
@@ -2682,12 +2691,8 @@
                         items)
         context-menu (doto (make-context-menu menu-items)
                        (on-closed! (fn [_]
-                                     (item-action-fn nil))))
-        hide-event-handler (event-handler event (.hide context-menu))]
-    (.addEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)
-    (on-closed! context-menu (fn [_]
-                               (.removeEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)
-                               (item-action-fn nil)))
+                                     (item-action-fn nil))))]
+    (hide-context-menu-on-anchor-pressed! context-menu anchor-node)
     (.show context-menu anchor-node (.getX offset) (.getY offset))))
 
 (defn show-simple-context-menu-at-mouse!

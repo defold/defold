@@ -1181,7 +1181,7 @@ def create_app_bundle(self):
 
     self.app_bundle_task = app_bundle_task
 
-    if not Options.options.skip_codesign and not self.env["CODESIGN_UNSUPPORTED"]:
+    if Options.options.codesign and not self.env["CODESIGN_UNSUPPORTED"]:
         signed_exe = self.path.get_bld().make_node("%s.app/%s" % (exe_name, exe_name))
 
         codesign = self.create_task('codesign')
@@ -1804,7 +1804,7 @@ def detect(conf):
         print ("Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), host_platform))
 
         conf.env['CODESIGN_UNSUPPORTED'] = True
-        print ("Codesign disabled", Options.options.skip_codesign)
+        print ("Codesign unsupported (%s cannot codesign for %s)" % (host_platform, build_util.get_target_platform()))
 
     # Vulkan support
     if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'wasm-web', 'wasm_pthread-web'):
@@ -1820,7 +1820,7 @@ def detect(conf):
         else:
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
 
-        if not Options.options.skip_codesign:
+        if Options.options.codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
 
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
@@ -1969,7 +1969,7 @@ def detect(conf):
             conf.env['LIBPATH']  = libdirs
             conf.load('msvc', funs='no_autodetect')
 
-            if not Options.options.skip_codesign:
+            if Options.options.codesign:
                 conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
         else:
             conf.options.check_c_compiler = 'clang gcc'
@@ -2302,7 +2302,7 @@ def options(opt):
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-ios')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
-    opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
+    opt.add_option('--codesign', action="store_true", default=False, dest='codesign', help='enable code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')

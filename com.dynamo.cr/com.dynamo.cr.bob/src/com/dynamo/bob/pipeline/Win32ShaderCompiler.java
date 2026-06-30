@@ -93,10 +93,7 @@ public class Win32ShaderCompiler implements IShaderCompiler {
         ShaderCompilePipeline.Options pipelineOptions = new ShaderCompilePipeline.Options();
         configure(targetPlatform, pipelineOptions);
 
-        IShaderCompiler commonCompiler = ShaderCompilers.GetCommonShaderCompiler(targetPlatform, pipelineOptions);
-        if (commonCompiler == null) {
-            throw new CompileExceptionError(String.format("No common shader compiler available for platform '%s'", targetPlatform.getPair()));
-        }
+        IShaderCompiler commonCompiler = new ShaderCompilers.CommonShaderCompiler(targetPlatform, pipelineOptions);
         return commonCompiler.compile(shaderModules, resourceOutputPath, compileOptions);
     }
 }

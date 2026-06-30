@@ -147,6 +147,7 @@ dialog.button.report = Report
 dialog.button.disable-scene-editor = Disable Scene Editor
 dialog.button.cancel = Cancel
 dialog.button.delete = Delete
+dialog.button.apply = Apply
 
 # Error Dialog
 
@@ -706,6 +707,8 @@ prefs.label.dev.custom-engine = Custom Engine
 prefs.keymap.filter.prompt = Filter keymap…
 prefs.keymap.command = Command
 prefs.keymap.shortcuts = Shortcuts
+prefs.keymap.badge.mouse-binding = Mouse Binding
+prefs.keymap.badge.mouse-modifier = Mouse Modifier
 prefs.keymap.context-menu.new-shortcut = New Shortcut…
 prefs.keymap.context-menu.reset-to-default = Reset to Default
 prefs.keymap.context-menu.remove = Remove {shortcut}
@@ -718,6 +721,16 @@ prefs.keymap.warnings = Warnings:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)
 prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
+prefs.keymap.warning.duplicate = Binding already exists, will be ignored
+prefs.keymap.mouse-binding.button.left = Left
+prefs.keymap.mouse-binding.button.middle = Middle
+prefs.keymap.mouse-binding.button.right = Right
+prefs.keymap.mouse-binding.section.button = Mouse Button
+prefs.keymap.mouse-binding.section.modifiers = Modifiers
+prefs.keymap.context-menu.add-mouse-binding = Add Mouse Binding
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = Reset to Defaults
+prefs.keymap.context-menu.edit-modifier = Edit Modifier
+prefs.keymap.inherited-from = Inherited from {context}
 
 # Progress
 
