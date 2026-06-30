@@ -217,25 +217,31 @@ namespace dmGameSystem
     static int CollectionProxy_Load(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0)
-        CollectionProxyWorld* world;
-        CollectionProxyComponent* component;
-        dmMessage::URL url; // for reporting errors only
-        dmScript::GetComponentFromLua(L, 1, COLLECTION_PROXY_EXT, (void**)&world, (void**)&component, &url);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        // index 2 is the options table, ignored for now
 
         int functionref = 0;
-        if (lua_isfunction(L, 2))
+        if (lua_isfunction(L, 3))
         {
-            lua_pushvalue(L, 2);
+            lua_pushvalue(L, 3);
             // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
             functionref = dmScript::RefInInstance(L) - LUA_NOREF;
         }
 
-        dmGameSystemDDF::PlayAnimation msg;
-        msg.m_Id = id_hash;
-        msg.m_Offset = offset;
-        msg.m_PlaybackRate = playback_rate;
+        dmhash_t message_id = dmHashString64("async_load_and_init");
+        const dmDDF::Descriptor* descriptor = dmDDF::GetDescriptorFromHash(message_id);
+        uintptr_t user_data1 = (uintptr_t)functionref;
+        const void* message_data = 0x0;
+        uint32_t message_data_size = 0;
+        dmMessage::MessageDestroyCallback destroy_callback = 0;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Result r = dmMessage::Post(&sender, &receiver, message_id, user_data1, (uintptr_t)descriptor, message_data, message_data_size, destroy_callback);
+
+        // dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
         return 0;
     }

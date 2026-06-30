@@ -24,6 +24,8 @@
 #include <dlib/index_pool.h>
 #include <dlib/profile.h>
 
+#include <dmsdk/gameobject/script.h>
+
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
 
@@ -33,6 +35,7 @@
 #include "../gamesys_private.h"
 
 #include <gamesys/gamesys_ddf.h>
+#include <gamesys/collectionproxy_ddf.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_CollectionProxy, 0, PROFILE_PROPERTY_FRAME_RESET, "# components", &rmtp_Components);
@@ -47,6 +50,7 @@ namespace dmGameSystem
 
     static const dmhash_t COLLECTION_PROXY_LOAD_HASH = dmHashString64("load");
     static const dmhash_t COLLECTION_PROXY_ASYNC_LOAD_HASH = dmHashString64("async_load");
+    static const dmhash_t COLLECTION_PROXY_ASYNC_LOAD_AND_INIT_HASH = dmHashString64("async_load_and_init");
     static const dmhash_t COLLECTION_PROXY_UNLOAD_HASH = dmHashString64("unload");
     static const dmhash_t COLLECTION_PROXY_INIT_HASH = dmHashString64("init");
     static const dmhash_t COLLECTION_PROXY_FINAL_HASH = dmHashString64("final");
@@ -55,28 +59,30 @@ namespace dmGameSystem
 
     struct CollectionProxyComponent
     {
-        dmMessage::URL                  m_Unloader;
-        CollectionProxyResource*        m_Resource;
-        dmGameObject::HCollection       m_Collection;
-        dmGameObject::HInstance         m_Instance;
-        dmGameSystemDDF::TimeStepMode   m_TimeStepMode;
-        float                           m_TimeStepFactor;
-        float                           m_AccumulatedTime;
-        uint32_t                        m_ComponentIndex : 16;
-        uint32_t                        m_Initialized : 1;
-        uint32_t                        m_Enabled : 1;
-        uint32_t                        m_DelayedEnable : 1;
-        uint32_t                        m_Unloaded : 1;
-        uint32_t                        m_AddedToUpdate : 1;
-        uint32_t                        m_Loading : 1;
+        dmMessage::URL                     m_Unloader;
+        CollectionProxyResource*           m_Resource;
+        dmGameObject::HCollection          m_Collection;
+        dmGameObject::HInstance            m_Instance;
+        dmCollectionProxyDDF::TimeStepMode m_TimeStepMode;
+        float                              m_TimeStepFactor;
+        float                              m_AccumulatedTime;
+        uint32_t                           m_ComponentIndex : 16;
+        uint32_t                           m_Initialized : 1;
+        uint32_t                           m_Enabled : 1;
+        uint32_t                           m_DelayedEnable : 1;
+        uint32_t                           m_Unloaded : 1;
+        uint32_t                           m_AddedToUpdate : 1;
+        uint32_t                           m_Loading : 1;
 
-        dmResource::HPreloader          m_Preloader;
-        dmMessage::URL                  m_LoadSender;
-        dmMessage::URL                  m_LoadReceiver;
+        dmResource::HPreloader             m_Preloader;
+        dmMessage::URL                     m_LoadSender;
+        dmMessage::URL                     m_LoadReceiver;
 
-        ProxyLoadCallback               m_Callback;
-        void*                           m_CallbackCtx;
-        char*                           m_CollectionResPath;  // set from script as an override
+        int32_t                            m_AsyncLoadAndInitCallbackRef;
+
+        ProxyLoadCallback                  m_Callback;
+        void*                              m_CallbackCtx;
+        char*                              m_CollectionResPath;  // set from script as an override
     };
 
     inline static const char* GetCollectionResorcePath(CollectionProxyComponent* proxy)
@@ -112,8 +118,22 @@ namespace dmGameSystem
         }
         else if(dmGameObject::RESULT_OK == result)
         {
+            if (proxy->m_AsyncLoadAndInitCallbackRef)
+            {
+                dmGameObject::Result init_result = CompCollectionProxyInitialize(0, (HCollectionProxyComponent)proxy);
+                if (init_result != dmGameObject::RESULT_OK)
+                {
+                    dmLogWarning("proxy_loaded could not be posted: %d", init_result);
+                }
+
+                dmCollectionProxyDDF::ProxyReady message;
+                // This is a 'done' callback, so we should tell the message system to remove the callback once it's been consumed
+                dmGameObject::Result go_result = dmGameObject::PostDDF(&message, &proxy->m_LoadReceiver, &proxy->m_LoadSender, proxy->m_AsyncLoadAndInitCallbackRef, true);
+                proxy->m_AsyncLoadAndInitCallbackRef = 0;
+
+            }
             // We only post a "proxy_loaded" if the loading went ok
-            if (dmMessage::IsSocketValid(proxy->m_LoadSender.m_Socket))
+            else if (dmMessage::IsSocketValid(proxy->m_LoadSender.m_Socket))
             {
                 dmMessage::Result msg_result = dmMessage::Post(&proxy->m_LoadReceiver, &proxy->m_LoadSender, COLLECTION_PROXY_LOADED_HASH, 0, 0, 0, 0, 0);
                 if (msg_result != dmMessage::RESULT_OK)
@@ -352,11 +372,11 @@ namespace dmGameSystem
                     float warped_dt = params.m_UpdateContext->m_DT * proxy->m_TimeStepFactor;
                     switch (proxy->m_TimeStepMode)
                     {
-                    case dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS:
+                    case dmCollectionProxyDDF::TIME_STEP_MODE_CONTINUOUS:
                         uc.m_DT = warped_dt;
                         proxy->m_AccumulatedTime = 0.0f;
                         break;
-                    case dmGameSystemDDF::TIME_STEP_MODE_DISCRETE:
+                    case dmCollectionProxyDDF::TIME_STEP_MODE_DISCRETE:
                         proxy->m_AccumulatedTime += warped_dt;
                         if (proxy->m_AccumulatedTime >= params.m_UpdateContext->m_DT)
                         {
@@ -662,7 +682,7 @@ namespace dmGameSystem
     dmGameObject::Result CompCollectionProxySetTimeStep(HCollectionProxyWorld world, HCollectionProxyComponent proxy, float factor, int mode)
     {
         proxy->m_TimeStepFactor = factor < 0.0f ? 0.0f : factor;
-        proxy->m_TimeStepMode = mode == 0 ? dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS : dmGameSystemDDF::TIME_STEP_MODE_DISCRETE;
+        proxy->m_TimeStepMode = mode == 0 ? dmCollectionProxyDDF::TIME_STEP_MODE_CONTINUOUS : dmCollectionProxyDDF::TIME_STEP_MODE_DISCRETE;
         return dmGameObject::RESULT_OK;
     }
 
@@ -676,6 +696,14 @@ namespace dmGameSystem
             bool load_async = COLLECTION_PROXY_ASYNC_LOAD_HASH == params.m_Message->m_Id;
             dmGameObject::Result r = CompCollectionProxyLoadInternal(context, proxy, 0, 0,
                                             &params.m_Message->m_Sender, &params.m_Message->m_Receiver, params.m_Message, load_async);
+
+            return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+        else if (params.m_Message->m_Id == COLLECTION_PROXY_ASYNC_LOAD_AND_INIT_HASH)
+        {
+            proxy->m_AsyncLoadAndInitCallbackRef = params.m_Message->m_UserData1;
+            dmGameObject::Result r = CompCollectionProxyLoadInternal(context, proxy, 0, 0,
+                                            &params.m_Message->m_Sender, &params.m_Message->m_Receiver, params.m_Message, true);
 
             return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
@@ -704,16 +732,16 @@ namespace dmGameSystem
             dmGameObject::Result r = CompCollectionProxyDisableInternal(proxy, params.m_Message);
             return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
-        else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGameSystemDDF::SetTimeStep::m_DDFDescriptor)
+        else if ((dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmCollectionProxyDDF::SetTimeStep::m_DDFDescriptor)
         {
-            dmGameSystemDDF::SetTimeStep* ddf = (dmGameSystemDDF::SetTimeStep*)params.m_Message->m_Data;
+            dmCollectionProxyDDF::SetTimeStep* ddf = (dmCollectionProxyDDF::SetTimeStep*)params.m_Message->m_Data;
             dmGameObject::Result r = CompCollectionProxySetTimeStep(0, proxy, ddf->m_Factor, (int)ddf->m_Mode);
             return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         else if (params.m_Message->m_Id == dmHashString64("reset_time_step")) // DEPRECATED!
         {
             proxy->m_TimeStepFactor = 1.0f;
-            proxy->m_TimeStepMode = dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS;
+            proxy->m_TimeStepMode = dmCollectionProxyDDF::TIME_STEP_MODE_CONTINUOUS;
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
