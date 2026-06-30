@@ -137,7 +137,7 @@ endif()
 if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output hlsl)
 endif()
-if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output msl)
 endif()
 add_custom_command(
