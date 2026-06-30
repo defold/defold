@@ -5,7 +5,11 @@
 # Based on https://github.com/weka-io/waf/blob/8ac4646d0966fe22f8ae8955c7e9b9d56ae8288e/waflib/extras/clang_compilation_database.py
 # Original is BSD 3-Clause License
 
-import sys, os, json, shlex, pipes
+import sys, os, json
+try:
+	from pipes import quote
+except ImportError:
+	from shlex import quote
 from waflib import Logs, TaskGen, Task
 from waflib.Tools import c, cxx
 
@@ -40,7 +44,7 @@ def write_compilation_database(ctx):
 		directory = getattr(task, 'cwd', ctx.variant_dir)
 		f_node = task.inputs[0]
 		filename = os.path.relpath(f_node.abspath(), directory)
-		cmd = " ".join(map(pipes.quote, cmd))
+		cmd = " ".join(map(quote, cmd))
 		entry = {
 			"directory": directory,
 			"command": cmd,
@@ -49,4 +53,3 @@ def write_compilation_database(ctx):
 		clang_db[filename] = entry
 	root = list(clang_db.values())
 	database_file.write(json.dumps(root, indent=2))
-

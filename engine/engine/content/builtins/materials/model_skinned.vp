@@ -32,11 +32,12 @@ uniform vs_uniforms
 void main()
 {
     vec4 skinned_position = get_skinned_position(position);
+    vec3 skinned_normal = get_skinned_normal(normal);
     vec4 p = mtx_worldview * vec4(skinned_position.xyz, 1.0);
     var_light = mtx_view * vec4(light.xyz, 1.0);
     var_view = mtx_view;
     var_position = p;
     var_texcoord0 = texcoord0;
-    var_normal = normalize((mtx_normal * vec4(normal, 0.0)).xyz);
+    var_normal = normalize((mtx_normal * vec4(skinned_normal, 0.0)).xyz);
     gl_Position = mtx_proj * p;
 }
