@@ -429,3 +429,39 @@
 
       (is (= #{override-successor-endpoint}
              (set (g/successors (g/now) original-node-id :property-output)))))))
+
+(deftest undo-delete-override-node-preserves-later-overrides-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [original-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-node graph-id helpers/OverrideTestNode)))
+
+          [deleted-override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override original-node-id)))]
+
+      (g/transact
+        {:undo-key ::delete-override}
+        (g/delete-node deleted-override-node-id))
+
+      (let [[later-override-node-id]
+            (g/tx-nodes-added
+              (g/transact
+                {:undo-key ::later-override}
+                (g/override original-node-id)))]
+
+        (let [basis (g/now)]
+          (is (= #{later-override-node-id} (set (g/overrides basis original-node-id))))
+          (is (= nil (g/node-by-id basis deleted-override-node-id)))
+          (is (= original-node-id (g/override-original basis later-override-node-id))))
+
+        (g/undo! ::delete-override)
+
+        (let [basis (g/now)]
+          (is (= #{deleted-override-node-id later-override-node-id} (set (g/overrides basis original-node-id))))
+          (is (= original-node-id (g/override-original basis deleted-override-node-id)))
+          (is (= original-node-id (g/override-original basis later-override-node-id))))))))

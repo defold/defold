@@ -208,3 +208,51 @@
       (testing "Redo."
         (g/redo! :undo/global)
         (ensure-after!)))))
+
+(deftest undo-transfer-overrides-preserves-later-overrides-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [owner-node-id
+           replacement-owner-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              [(g/make-node graph-id helpers/OverrideTestNode)
+               (g/make-node graph-id helpers/OverrideTestNode)]))
+
+          [transferred-override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override owner-node-id)))]
+
+      (g/transact
+        {:undo-key ::transfer}
+        (g/transfer-overrides {owner-node-id replacement-owner-node-id}))
+
+      (let [[later-owner-override-node-id]
+            (g/tx-nodes-added
+              (g/transact
+                {:undo-key ::later-owner-override}
+                (g/override owner-node-id)))
+
+            [later-replacement-owner-override-node-id]
+            (g/tx-nodes-added
+              (g/transact
+                {:undo-key ::later-replacement-owner-override}
+                (g/override replacement-owner-node-id)))]
+
+        (let [basis (g/now)]
+          (is (= #{later-owner-override-node-id} (set (g/overrides basis owner-node-id))))
+          (is (= #{transferred-override-node-id later-replacement-owner-override-node-id} (set (g/overrides basis replacement-owner-node-id))))
+          (is (= owner-node-id (g/override-original basis later-owner-override-node-id)))
+          (is (= replacement-owner-node-id (g/override-original basis transferred-override-node-id)))
+          (is (= replacement-owner-node-id (g/override-original basis later-replacement-owner-override-node-id))))
+
+        (g/undo! ::transfer)
+
+        (let [basis (g/now)]
+          (is (= #{transferred-override-node-id later-owner-override-node-id} (set (g/overrides basis owner-node-id))))
+          (is (= #{later-replacement-owner-override-node-id} (set (g/overrides basis replacement-owner-node-id))))
+          (is (= owner-node-id (g/override-original basis later-owner-override-node-id)))
+          (is (= owner-node-id (g/override-original basis transferred-override-node-id)))
+          (is (= replacement-owner-node-id (g/override-original basis later-replacement-owner-override-node-id))))))))
