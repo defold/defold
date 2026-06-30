@@ -430,7 +430,13 @@
                      [:graphs (gt/node-id->graph-id node-id)]
                      (fn [graph]
                        (-> graph
-                           (update-in [:node->overrides original-id] (partial util/removev #{node-id}))
+                           (cond->
+                             original-id
+                             (coll/removing-update-in
+                               [:node->overrides original-id]
+                               (fn [override-node-ids]
+                                 (coll/not-empty (filterv #(not= node-id %) override-node-ids)))))
+
                            (cond->
                              (and override (= original-id (:root-id override)))
                              (update :overrides dissoc override-id))

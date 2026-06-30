@@ -479,15 +479,15 @@
 
 (defn tx-data-added-nodes
   "Given a sequence of possibly nested transaction steps, returns a sequence of
-  Nodes that will be added by any encountered :tx-step/add-node steps."
+  Nodes that will be added by any encountered :tx-step/add-nodes steps."
   [txs]
   (sequence
-    (keep it/tx-step-added-node)
+    (mapcat it/tx-step-added-nodes)
     (flattened-tx-data txs)))
 
 (defn tx-data-added-node-ids
   "Given a sequence of possibly nested transaction steps, returns a sequence of
-  node-ids that will be added by any encountered :tx-step/add-node steps."
+  node-ids that will be added by any encountered :tx-step/add-nodes steps."
   [txs]
   (map gt/node-id
        (tx-data-added-nodes txs)))
@@ -750,16 +750,16 @@
         ids    (repeat (count locals) `(internal.system/next-node-id @*the-system* ~graph-id))]
     `(let [~@(interleave locals ids)]
        (concat
-        ~@(map
-           (fn [ctor id]
-             (list `it/add-node
-                   (if (sequential? ctor)
-                     (if (= 2 (count ctor))
-                       `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
-                       `(construct ~@ctor :_node-id ~id))
-                     `(construct  ~ctor :_node-id ~id))))
-           ctors locals)
-        ~@body-exprs))))
+         (it/add-nodes
+           [~@(map (fn [ctor id]
+                     (if (sequential? ctor)
+                       (if (= 2 (count ctor))
+                         `(apply construct ~(first ctor) :_node-id ~id (mapcat identity ~(second ctor)))
+                         `(construct ~@ctor :_node-id ~id))
+                       `(construct  ~ctor :_node-id ~id)))
+                   ctors
+                   locals)])
+         ~@body-exprs))))
 
 (defn operation-label
   "Set a human-readable label (MessagePattern or string) to describe the current transaction."
@@ -786,14 +786,20 @@
   (when (pos? node-id-count)
     (is/take-node-ids @*the-system* graph-id node-id-count)))
 
-(def add-node
+(defn add-node
   "Returns the transaction step for adding a node to the graph. The node will
   typically have been constructed beforehand using the construct function.
 
   Example:
 
   `(transact (add-node (construct SimpleTestNode)))`"
-  it/add-node)
+  [node]
+  (it/add-nodes [node]))
+
+(def add-nodes
+  "Returns the transaction step for adding nodes to the graph. The nodes will
+  typically have been constructed beforehand using the construct function."
+  it/add-nodes)
 
 (defn- construct-node-with-id
   [graph-id node-type args]
@@ -813,7 +819,7 @@
                (if (= 1 (count args))
                  (first args)
                  (apply assoc {} args)))]
-    (it/add-node (construct-node-with-id graph-id node-type args))))
+    (it/add-nodes [(construct-node-with-id graph-id node-type args)])))
 
 (defn make-node!
   "Creates the transaction step and runs it in a transaction, returning the resulting node.
@@ -834,6 +840,12 @@
   [node-id]
   (assert node-id)
   (it/delete-node node-id))
+
+(defn delete-nodes
+ "Returns the transaction step for deleting nodes.
+  Needs to be executed within a transact to actually delete the nodes from a graph."
+  [node-ids]
+  (it/delete-nodes node-ids))
 
 (defn delete-node!
   "Creates the transaction step for deleting a node and runs it in a transaction.
@@ -1833,8 +1845,8 @@
                                   external-refs {}}}]
    (let [deserializer  (partial deserializer basis graph-id)
          nodes         (map deserializer (:nodes fragment))
-         new-nodes     (remove #(gt/node-by-id-at basis (gt/node-id %)) nodes)
-         node-txs      (vec (mapcat it/add-node new-nodes))
+         new-nodes     (into [] (remove #(gt/node-by-id-at basis (gt/node-id %))) nodes)
+         node-txs      (it/add-nodes new-nodes)
          node-ids      (map gt/node-id nodes)
          id-dictionary (zipmap (map :serial-id (:nodes fragment)) node-ids)
          deserialize-dictionary (into id-dictionary external-refs)

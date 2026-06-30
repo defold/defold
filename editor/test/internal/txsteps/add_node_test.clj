@@ -51,6 +51,23 @@
                    (map #(g/add-node (g/construct ReturnsTxResultWithNodesAddedTestNode :_node-id %))
                         added-node-ids)))))))))
 
+(deftest adds-multiple-nodes-with-single-change-test
+  (test-support/with-clean-system
+    (let [added-node-ids (vec (g/take-node-ids world 20))
+          added-nodes (mapv #(g/construct ReturnsTxResultWithNodesAddedTestNode :_node-id %)
+                             added-node-ids)
+          tx-result (g/transact (g/add-nodes added-nodes))]
+      (is (= added-node-ids (g/tx-nodes-added tx-result)))
+      (is (= 1 (count (:undoable-changes tx-result))))
+
+      (g/undo! :undo/global)
+      (doseq [node-id added-node-ids]
+        (is (nil? (g/node-by-id node-id))))
+
+      (g/redo! :undo/global)
+      (doseq [node-id added-node-ids]
+        (is (g/node-instance*? ReturnsTxResultWithNodesAddedTestNode (g/node-by-id node-id)))))))
+
 (g/defnode PropertyHasDefaultValueTestNode
   (property property-with-default g/Any (default :default-property-value)))
 

@@ -173,6 +173,26 @@
                  (g/transact
                    (map g/delete-node node-ids)))))))))
 
+(deftest deletes-multiple-nodes-with-single-change-test
+  (test-support/with-clean-system
+    (let [node-ids (sort (vals (setup-override-hierarchy! world OwnerTestNode OwnedTestNode)))
+          tx-result (g/transact (g/delete-nodes node-ids))]
+      (is (= 1 (count (:undoable-changes tx-result))))
+      (is (= (set node-ids) (set (keys (:nodes-deleted tx-result)))))
+      (is (= []
+             (coll/into-> node-ids []
+               (keep g/node-by-id))))
+
+      (g/undo! :undo/global)
+      (is (= (set node-ids)
+             (coll/into-> node-ids #{}
+               (filter g/node-by-id))))
+
+      (g/redo! :undo/global)
+      (is (= []
+             (coll/into-> node-ids []
+               (keep g/node-by-id)))))))
+
 (deftest evicts-cache-entries-associated-with-deleted-nodes-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
