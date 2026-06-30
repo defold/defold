@@ -78,25 +78,33 @@
 (extend-protocol ModifierKeys
   KeyEvent
   (get-modifiers [e]
-    {:alt (.isAltDown e) :shift (.isShiftDown e)
-     :meta (.isMetaDown e) :control (.isControlDown e)})
+    (cond-> #{}
+      (.isAltDown e) (conj :alt)
+      (.isShiftDown e) (conj :shift)
+      (.isMetaDown e) (conj :meta)
+      (.isControlDown e) (conj :control)))
   MouseEvent
   (get-modifiers [e]
-    {:alt (.isAltDown e) :shift (.isShiftDown e)
-     :meta (.isMetaDown e) :control (.isControlDown e)})
+    (cond-> #{}
+      (.isAltDown e) (conj :alt)
+      (.isShiftDown e) (conj :shift)
+      (.isMetaDown e) (conj :meta)
+      (.isControlDown e) (conj :control)))
   ScrollEvent
   (get-modifiers [e]
-    {:alt (.isAltDown e) :shift (.isShiftDown e)
-     :meta (.isMetaDown e) :control (.isControlDown e)})
+    (cond-> #{}
+      (.isAltDown e) (conj :alt)
+      (.isShiftDown e) (conj :shift)
+      (.isMetaDown e) (conj :meta)
+      (.isControlDown e) (conj :control)))
   InputEvent
   (get-modifiers [_]
-    ;; NOTE: Return an empty map so it doesn't potentially clobber InputState
-    {}))
+    #{}))
 
 (defn action-from-jfx [^InputEvent jfx-event]
   (let [type (translate-action (.getEventType jfx-event))
         modifiers (get-modifiers jfx-event)
-        action (merge {:type type :event jfx-event} modifiers)]
+        action {:type type :event jfx-event :modifiers modifiers}]
     (case type
       :undefined action
 
@@ -156,9 +164,7 @@
   (not (.isModifierKey code)))
 
 (defn update-input-state [state action]
-  (let [modifiers (->> [:alt :shift :meta :control]
-                       (filter action)
-                       set)
+  (let [modifiers (:modifiers action #{})
         cursor-pos (when (and (:screen-x action) (:screen-y action))
                      [(:screen-x action) (:screen-y action)])
         view-pos (when (and (:x action) (:y action))
@@ -189,3 +195,20 @@
       (and (= :key-released (:type action))
            (trackable-key? (:key-code action)))
       (update :pressed-keys disj (:key-code action)))))
+
+(defn- modifiers-match? [expected actual]
+  ;; `:meta` is never part of a binding, so ignore it on the actual side.
+  (= expected (disj actual :meta)))
+
+(defn mouse-binding-action?
+  [{:keys [button modifiers]} action]
+  (and button
+       (= button (:button action))
+       (not (contains? (:modifiers action) :meta))
+       (modifiers-match? modifiers (:modifiers action))))
+
+(defn mouse-binding-active?
+  [{:keys [button modifiers]} input-state]
+  (and button
+       (contains? (:mouse-buttons input-state) button)
+       (modifiers-match? modifiers (:modifiers input-state))))
