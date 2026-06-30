@@ -93,6 +93,3 @@ AGENTS.md
 /share/ext/astcenc/build/
 /share/ext/astcenc/source
 /engine/dlib/test_http_server.log
-
-# Dev artifact from build.py gen_editor_release_notes
-/release-notes.json

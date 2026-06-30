@@ -3103,27 +3103,14 @@ class Configuration(object):
         run.shell_command(cmd)
 
     def _build_editor_release_notes(self):
-        # Returns the editor's release-notes.json as produced by
-        # releasenotes_github_projectv2.py (which already includes the forum
-        # 'external-link'). None if it hasn't been generated yet.
+        # Returns the per-version release notes JSON (releasenotes/<version>.json)
+        # as produced by releasenotes_github_projectv2.py (which already includes
+        # the forum 'external-link'). None if it hasn't been generated yet.
         release_notes_path = os.path.join(self.defold_root, 'releasenotes', '%s.json' % self.version)
         if not os.path.exists(release_notes_path):
             return None
         with open(release_notes_path) as f:
             return f.read()
-
-    def gen_editor_release_notes(self):
-        # Dev helper: writes the editor release-notes.json so the updater dialog
-        # can be tested locally without S3 credentials. Uses the committed
-        # releasenotes/<version>.json as its source.
-        notes_content = self._build_editor_release_notes()
-        if notes_content is None:
-            self._log("WARNING: no release notes found for version %s" % self.version)
-            return
-        out_path = os.path.join(self.defold_root, 'release-notes.json')
-        with open(out_path, 'w') as f:
-            f.write(notes_content)
-        self._log("Wrote editor release notes for %s -> %s" % (self.version, os.path.abspath(out_path)))
 
     @staticmethod
     def _parse_semver(version):
@@ -3856,7 +3843,6 @@ build_docs       - Build documentation
 build_builtins   - Build builtin content archive
 bump             - Bump version number
 release          - Release editor
-gen_editor_release_notes - Dev: write editor release-notes.json (deployed shape) to the repo root for local testing
 upload_editor_release_notes - Manual: upload editor release-notes.{md,json} for --version to S3 for --channel
 shell            - Start development shell
 add_private_repo - Add a private repo to .defold-platforms
@@ -4109,7 +4095,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
-    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo', 'gen_editor_release_notes', 'upload_editor_release_notes', 'dev_publish_update_pointer']
+    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo', 'upload_editor_release_notes', 'dev_publish_update_pointer']
     needs_dynamo_home = any(cmd not in commands_without_dynamo_home for cmd in args)
     if needs_dynamo_home:
         for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
