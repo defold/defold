@@ -150,6 +150,15 @@
   [nt]
   (into {} (filter (comp (declared-property-labels nt) key)) (all-properties nt)))
 
+(defn property-statics
+  [nt label]
+  (into {}
+        (keep (fn [[property-label property-info]]
+                (let [static-value (get (:statics property-info) label ::not-found)]
+                  (when-not (identical? ::not-found static-value)
+                    (pair property-label static-value)))))
+        (all-properties nt)))
+
 (defn abstract-output-labels [nt]
   (into #{}
         (keep (fn [[label outdef]]
@@ -887,6 +896,10 @@
   (assert-symbol "dynamic" label) ; "dynamic" argument is for debug printing
   {:dynamics {(keyword label) {:fn (maybe-macroexpand forms)}}})
 
+(defmethod process-property-form 'static [[_ label form]]
+  (assert-symbol "static" label)
+  {:statics {(keyword label) form}})
+
 (defmethod process-property-form 'value [[_ form]]
   {:value {:fn (maybe-macroexpand form)}})
 
@@ -918,7 +931,7 @@
         register-type-info (:register-type-info propdef)
         propdef (dissoc propdef :register-type-info)
         prop-value-fn (-> propdef :value :fn)
-        outdef (cond-> (dissoc propdef :setter :dynamics :value :default)
+        outdef (cond-> (dissoc propdef :setter :dynamics :statics :value :default)
 
                        (some? prop-value-fn)
                        (assoc :fn prop-value-fn)
