@@ -48,10 +48,16 @@ static int g_view_type = GLFW_NO_API;
         newBaseView = [EAGLView createView: bounds recreate:recreate];
     }
 
+    if (!newBaseView)
+    {
+        return;
+    }
+
     [oldBaseView removeFromSuperview];
     self.baseView = newBaseView;
 
     [[self view] insertSubview:baseView atIndex:0];
+    [baseView setCurrentContext];
 }
 
 - (void)viewDidLoad
@@ -176,16 +182,30 @@ static int g_view_type = GLFW_NO_API;
 
 @end
 
+static BOOL ViewTypeMatchesBaseView(int view_type, BaseView* view)
+{
+    if (!view)
+    {
+        return NO;
+    }
+    if (view_type == GLFW_NO_API)
+    {
+        return [view isKindOfClass:[MetalView class]];
+    }
+    return [view isKindOfClass:[EAGLView class]];
+}
+
 void _glfwPlatformSetViewType(int view_type)
 {
-    if (g_view_type == view_type)
+    ViewController* viewController = (ViewController*) _glfwWin.viewController;
+    if (g_view_type == view_type &&
+        (!viewController || ![viewController isViewLoaded] || ViewTypeMatchesBaseView(view_type, viewController.baseView)))
     {
         return;
     }
 
     g_view_type = view_type;
 
-    ViewController* viewController = (ViewController*) _glfwWin.viewController;
     if (viewController && [viewController isViewLoaded])
     {
         [viewController createView:FALSE];
@@ -248,6 +268,8 @@ int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
+    _glfwPlatformSetViewType(wndconfig->clientAPI);
+
     if (wndconfig->clientAPI == GLFW_NO_API)
     {
         return _glfwPlatformOpenWindowVulkan(width, height, wndconfig, fbconfig);
