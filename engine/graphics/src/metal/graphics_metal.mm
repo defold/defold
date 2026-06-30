@@ -4383,8 +4383,13 @@ namespace dmGraphics
         const uint8_t* srcBase = pixels;
 
         // Source layout assumption: pixels holds `layerCount` slices contiguous for this mip.
-        // When m_DataSize is supplied it is the stride for one uploaded slice/cube face.
-        const uint64_t srcSliceStride = params.m_DataSize ? params.m_DataSize : unpaddedSliceSize * copyDepth;
+        // Most resource paths supply m_DataSize as the stride for one slice/cube face, while
+        // resource.create_texture_async() supplies the whole Lua buffer size.
+        uint64_t srcSliceStride = params.m_DataSize ? params.m_DataSize : unpaddedSliceSize * copyDepth;
+        if (is_cube_texture && params.m_DataSize == unpaddedSliceSize * copyDepth * layerCount)
+        {
+            srcSliceStride = unpaddedSliceSize * copyDepth;
+        }
 
         for (uint32_t slice = 0; slice < layerCount; ++slice)
         {
