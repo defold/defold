@@ -31,8 +31,7 @@
   (fn [updater]
     (ui/run-later
       (let [can-install? (updater/can-install-update? updater)
-            can-download? (and (updater/can-download-update? updater)
-                               (updater/release-notes-ready? updater))]
+            can-download? (updater/can-download-update? updater)]
         (ui/visible! link (or can-install? can-download?))
         (cond
           can-install? (localization/localize! link localization (localization/message "updater.button.restart-to-update"))
@@ -126,10 +125,10 @@
           (dialogs/make-platform-no-longer-supported-dialog stage localization)
 
           :else
-          (let [content (or (updater/release-notes updater)
-                            "# Update Available\n\nCould not load the release notes.")]
+          (if-let [content (updater/release-notes updater)]
             (when (show-release-notes-update-dialog! content)
-              (updater/download-and-extract! updater))))))
+              (updater/download-and-extract! updater))
+            (updater/download-and-extract! updater)))))
     (updater/add-progress-watch updater render-progress!)
     (updater/add-state-watch updater link-fn)
     (.addEventHandler stage

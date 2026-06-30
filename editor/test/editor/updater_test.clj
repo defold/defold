@@ -163,3 +163,100 @@
       (finally
         (.cancel timer)
         (.purge timer)))))
+
+(deftest parse-version-test
+  (are [in out] (= out (#'updater/parse-version in))
+    "1.13.2" [1 13 2]
+    "1.0"    [1 0]
+    "42"     [42]
+    "1.x"    nil
+    "abc"    nil
+    ""       nil
+    nil      nil))
+
+(deftest versions-to-fetch-test
+  (let [vtf #'updater/versions-to-fetch]
+    ;; only versions strictly newer than current, newest first
+    (is (= ["1.13.2" "1.13.1"]
+           (vtf ["1.13.0" "1.13.1" "1.13.2"] "1.13.0")))
+    ;; equal version is excluded
+    (is (= [] (vtf ["1.13.0"] "1.13.0")))
+    ;; nil current -> most recent N, newest first
+    (is (= ["1.13.2" "1.13.1" "1.13.0"]
+           (vtf ["1.13.0" "1.13.2" "1.13.1"] nil)))
+    ;; caps at release-notes-range-limit (5)
+    (is (= ["1.0.6" "1.0.5" "1.0.4" "1.0.3" "1.0.2"]
+           (vtf ["1.0.0" "1.0.1" "1.0.2" "1.0.3" "1.0.4" "1.0.5" "1.0.6"]
+                "1.0.0")))
+    ;; unparseable entries are dropped
+    (is (= ["1.2.0"]
+           (vtf ["1.2.0" "garbage" "1.x"] "1.1.0")))
+    ;; semver ordering, not lexicographic
+    (is (= ["1.10.0" "1.9.0"]
+           (vtf ["1.9.0" "1.10.0"] "1.8.0")))))
+
+(deftest fetch-release-notes-walks-manifest
+  ;; happy path: manifest order preserved, newest first
+  (with-redefs [updater/fetch-manifest! (fn [_ _] ["1.13.2" "1.13.1" "1.13.0"])
+                updater/fetch-version-notes! (fn [_ _ v] {:version v :issues []})]
+    (is (= ["1.13.2" "1.13.1" "1.13.0"]
+           (mapv :version (#'updater/fetch-release-notes! "d" "test"))))))
+
+(deftest fetch-release-notes-keeps-failed-slots
+  ;; a version whose file fails stays as a slot with nil notes, in order
+  (with-redefs [updater/fetch-manifest! (fn [_ _] ["1.14.0" "1.13.0"])
+                updater/fetch-version-notes! (fn [_ _ v]
+                                               (when (= v "1.14.0")
+                                                 {:version v :issues []}))]
+    (let [slots (#'updater/fetch-release-notes! "d" "test")]
+      (is (= ["1.14.0" "1.13.0"] (mapv :version slots)))
+      (is (some? (:notes (first slots))))
+      (is (nil? (:notes (second slots)))))))
+
+(deftest fetch-release-notes-nil-when-manifest-fails
+  (with-redefs [updater/fetch-manifest! (fn [_ _] nil)]
+    (is (nil? (#'updater/fetch-release-notes! "d" "test")))))
+
+(deftest check-skips-refetch-when-complete
+  ;; a complete fetch arms the sha guard, so the next check does not re-download
+  (with-open [_ (start-update-server! "test" "2")]
+    (let [fetches (atom 0)]
+      (with-redefs [updater/fetch-manifest! (fn [_ _] ["1.14.0"])
+                    updater/fetch-version-notes! (fn [_ _ v]
+                                                   (swap! fetches inc)
+                                                   {:version v :issues []})]
+        (let [updater (make-updater "test" "1")]
+          (#'updater/check! updater)
+          (#'updater/check! updater)
+          (is (= 1 @fetches)))))))
+
+(deftest check-retries-when-incomplete
+  ;; a partial fetch leaves the guard unarmed, so the next check retries
+  (with-open [_ (start-update-server! "test" "2")]
+    (let [fetches (atom 0)]
+      (with-redefs [updater/fetch-manifest! (fn [_ _] ["1.14.0"])
+                    updater/fetch-version-notes! (fn [_ _ _]
+                                                   (swap! fetches inc)
+                                                   nil)]
+        (let [updater (make-updater "test" "1")]
+          (#'updater/check! updater)
+          (#'updater/check! updater)
+          (is (= 2 @fetches)))))))
+
+(deftest release-notes-renders-missing-version-in-place
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :release-notes [{:version "1.14.0" :notes nil}
+                           {:version "1.13.0" :notes {:version "1.13.0"
+                                                      :issues []
+                                                      :external-link "https://forum"}}])
+    (let [md (updater/release-notes updater)]
+      (is (re-find #"Version 1\.14\.0" md))
+      (is (re-find #"(?i)failed to download" md))
+      (is (re-find #"Version 1\.13\.0" md))
+      ;; the missing version renders before the one we have
+      (is (< (.indexOf md "1.14.0") (.indexOf md "1.13.0"))))))
+
+
+
+

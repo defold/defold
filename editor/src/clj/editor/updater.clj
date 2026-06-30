@@ -154,14 +154,17 @@
   "Downloads the release notes to show for the available update. Reads the
   channel manifest, selects the versions between the running editor version and
   the update (newest first, capped at `release-notes-range-limit`), and fetches
-  those per-version notes in parallel. Returns a vector of release-notes maps
-  (newest first), or nil if nothing could be fetched."
+  those per-version notes in parallel. Returns a vector of slots, newest first,
+  one per selected version: {:version <string> :notes <map-or-nil>} (:notes is
+  nil when that version's file couldn't be fetched). Returns nil when the
+  manifest itself can't be fetched."
   [archive-domain channel]
   (when-some [manifest (fetch-manifest! archive-domain channel)]
     (let [versions (versions-to-fetch (filter string? manifest) (system/defold-version))]
-      (-> (coll/pmapv #(fetch-version-notes! archive-domain channel %) versions)
-          (->> (filterv some?))
-          not-empty))))
+      (coll/pmapv (fn [version]
+                    {:version version
+                     :notes (fetch-version-notes! archive-domain channel version)})
+                  versions))))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
@@ -232,21 +235,22 @@
 
 (defn release-notes
   "Returns the in-memory release notes markdown for the available update, or nil
-  if they have not been fetched yet (or the fetch failed). When the user is
-  several versions behind, the notes for each version in range are concatenated
-  newest first."
+  if none have been fetched yet (or the fetch failed). When the user is several
+  versions behind, each version in range is rendered newest first. A version
+  whose notes failed to download renders its heading followed by a short
+  'failed to download' notice in place, so the user sees the gap in order."
   ^String
   [updater]
   (let [updater (if @dev-updater @dev-updater updater)
-        notes (:release-notes @(:state-atom updater))]
-    (when (seq notes)
-      (string/join "\n\n---\n\n" (map release-notes->markdown notes)))))
-
-(defn release-notes-ready?
-  "Returns true once the release notes for the available update are loaded in
-  memory and ready to display."
-  [updater]
-  (some? (release-notes updater)))
+        slots (:release-notes @(:state-atom updater))]
+    (when-not (coll/empty? slots)
+      (string/join "\n\n---\n\n"
+                   (map (fn [{:keys [version notes]}]
+                          (if notes
+                            (release-notes->markdown notes)
+                            (str "# Defold Release Summary - Version " version
+                                 "\n\n_Failed to download these release notes._")))
+                        slots)))))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
@@ -447,13 +451,26 @@
         (let [update (json/read reader :key-fn keyword)
               update-sha1 (:sha1 update)]
           (swap! state-atom assoc :server-sha1 update-sha1)
-          (if (can-download-update? updater)
+          (cond
+            (not (can-download-update? updater))
+            (log/info :message "No update found")
+
+            ;; Notes for this update were already fetched earlier this session, so
+            ;; don't re-download them on every hourly check. The sha only changes
+            ;; when a genuinely newer release appears, which re-arms the fetch.
+            (= update-sha1 (:release-notes-sha @state-atom))
+            (log/info :message "New version found; release notes already loaded" :sha1 update-sha1)
+
+            :else
             (do
               (log/info :message "New version found" :sha1 update-sha1)
-              ;; TODO: Make sure we're handling failures here correctly
-              (when-some [release-notes (fetch-release-notes! archive-domain channel)]
-                (swap! state-atom assoc :release-notes release-notes)))
-            (log/info :message "No update found"))))
+              (when-some [slots (fetch-release-notes! archive-domain channel)]
+                ;; Partial results still display (failed versions render a
+                ;; placeholder); only a complete fetch arms the sha guard, so
+                ;; missing versions get retried on the next check.
+                (swap! state-atom assoc :release-notes slots)
+                (when (coll/every? :notes slots)
+                  (swap! state-atom assoc :release-notes-sha update-sha1)))))))
       (catch IOException e
         ;; Disabled during tests to minimize log spam.
         (when-not (Boolean/getBoolean "defold.tests")
