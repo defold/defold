@@ -1,17 +1,9 @@
 nodes {
-  position {
-    x: 200.0
-  }
   type: TYPE_CUSTOM
-  id: "spineboy"
+  id: "spine"
   inherit_alpha: true
   size_mode: SIZE_MODE_AUTO
   custom_type: 405028931
-  custom_properties {
-    id: "spine_default_animation"
-    type: TYPE_STRING
-    string: "idle"
-  }
   custom_properties {
     id: "spine_scene"
     type: TYPE_STRING

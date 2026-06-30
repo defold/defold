@@ -25,6 +25,7 @@
             [editor.workspace :as workspace]
             [editor.yaml :as yaml]
             [integration.test-util :as test-util]
+            [service.log :as log]
             [support.test-support :refer [with-clean-system]]
             [util.repo :as repo])
   (:import [com.defold.extender.client ExtenderResource]
@@ -135,7 +136,8 @@
   (testing "configured app manifest is merged with editor build options"
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-            project (test-util/setup-project! workspace)
+            project (log/without-logging
+                      (test-util/setup-project! workspace))
             resources (make-extender-resources project "x86_64-macos")
             app-manifest-file (io/file (workspace/project-directory workspace) "checked.appmanifest")
             app-manifest (yaml/load (slurp app-manifest-file))]
@@ -145,7 +147,8 @@
   (testing "configured app manifest in flow style is merged as yaml data"
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-            project (test-util/setup-project! workspace)
+            project (log/without-logging
+                      (test-util/setup-project! workspace))
             app-manifest (project/get-resource-node project "/checked.appmanifest")]
         (test-util/set-code-editor-source! app-manifest "{\"platforms\": {\"wasm-web\": {\"context\": {}}}}\n")
         (let [resources (make-extender-resources project "wasm-web")]
@@ -158,7 +161,8 @@
     (testing (str "configured invalid app manifest is uploaded unchanged: " (string/trim content))
       (with-clean-system
         (let [workspace (test-util/setup-workspace! world "test/resources/save_data_project")
-              project (test-util/setup-project! workspace)
+              project (log/without-logging
+                        (test-util/setup-project! workspace))
               app-manifest (project/get-resource-node project "/checked.appmanifest")]
           (test-util/set-code-editor-source! app-manifest content)
           (let [resources (make-extender-resources project "x86_64-macos")]

@@ -435,6 +435,10 @@
      {:editable (mapv val editable-protobuf-resource-types)
       :non-editable (mapv val distinctly-non-editable-protobuf-resource-types)})))
 
+(defn gui-node-type-info [workspace node-type]
+  (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
+          [:gui-node-type-registry :node-type->type-info node-type]))
+
 (defn setup-project!
   ([workspace]
    (let [proj-graph (g/make-graph! :history true :volatility 1)
