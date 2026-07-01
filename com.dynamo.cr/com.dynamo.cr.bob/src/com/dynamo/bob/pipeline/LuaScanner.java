@@ -36,8 +36,13 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -547,11 +552,15 @@ public class LuaScanner {
         }
 
         String value = text.substring(1, text.length() - 1);
-        StringBuilder builder = new StringBuilder(value.length());
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream(value.length());
         for (int i = 0; i < value.length(); ++i) {
             char c = value.charAt(i);
             if (c != '\\') {
-                builder.append(c);
+                int codePoint = value.codePointAt(i);
+                appendUtf8(bytes, codePoint);
+                if (Character.isSupplementaryCodePoint(codePoint)) {
+                    ++i;
+                }
                 continue;
             }
 
@@ -563,13 +572,13 @@ public class LuaScanner {
             c = value.charAt(i);
             switch (c) {
                 // Named escapes are Lua's one-character control escapes.
-                case 'a' -> builder.append('\u0007');
-                case 'b' -> builder.append('\b');
-                case 'f' -> builder.append('\f');
-                case 'n' -> builder.append('\n');
-                case 'r' -> builder.append('\r');
-                case 't' -> builder.append('\t');
-                case 'v' -> builder.append('\u000b');
+                case 'a' -> bytes.write(0x07);
+                case 'b' -> bytes.write('\b');
+                case 'f' -> bytes.write('\f');
+                case 'n' -> bytes.write('\n');
+                case 'r' -> bytes.write('\r');
+                case 't' -> bytes.write('\t');
+                case 'v' -> bytes.write(0x0b);
                 case 'z' -> {
                     // \z consumes all following whitespace, including newlines. Lua uses this to
                     // let long source literals wrap without adding whitespace to the string value.
@@ -578,16 +587,16 @@ public class LuaScanner {
                     }
                 }
                 // Quotes and backslash can be escaped to include the literal character.
-                case '"', '\'', '\\' -> builder.append(c);
+                case '"', '\'', '\\' -> bytes.write(c);
                 case '\r' -> {
                     // A backslash followed by a physical newline is a line continuation. Normalize
                     // CRLF and CR to '\n' to match Lua's line-ending handling.
                     if (i + 1 < value.length() && value.charAt(i + 1) == '\n') {
                         ++i;
                     }
-                    builder.append('\n');
+                    bytes.write('\n');
                 }
-                case '\n' -> builder.append('\n');
+                case '\n' -> bytes.write('\n');
                 case 'x' -> {
                     // Hex byte escapes are exactly two hex digits: \xXX.
                     if (i + 2 >= value.length()) {
@@ -595,15 +604,15 @@ public class LuaScanner {
                     }
                     String hex = value.substring(i + 1, i + 3);
                     try {
-                        builder.append((char)Integer.parseInt(hex, 16));
+                        bytes.write(Integer.parseInt(hex, 16));
                     } catch (NumberFormatException e) {
                         return null;
                     }
                     i += 2;
                 }
                 case 'u' -> {
-                    // UTF-8 code point escapes use Lua 5.3 syntax: \\u{X...}. Java stores strings
-                    // as UTF-16, so appendCodePoint handles supplementary code points correctly.
+                    // UTF-8 code point escapes use Lua 5.3 syntax: \\u{X...}. Lua inserts the
+                    // code point as its UTF-8 bytes, so add those bytes before final decoding.
                     if (i + 1 >= value.length() || value.charAt(i + 1) != '{') {
                         return null;
                     }
@@ -612,7 +621,7 @@ public class LuaScanner {
                         return null;
                     }
                     try {
-                        builder.appendCodePoint(Integer.parseInt(value.substring(i + 2, end), 16));
+                        appendUtf8(bytes, Integer.parseInt(value.substring(i + 2, end), 16));
                     } catch (IllegalArgumentException e) {
                         return null;
                     }
@@ -632,7 +641,7 @@ public class LuaScanner {
                             if (decimal > 255) {
                                 return null;
                             }
-                            builder.append((char)decimal);
+                            bytes.write(decimal);
                         } catch (NumberFormatException e) {
                             return null;
                         }
@@ -643,7 +652,24 @@ public class LuaScanner {
                 }
             }
         }
-        return builder.toString();
+        return decodeUtf8(bytes);
+    }
+
+    private static void appendUtf8(ByteArrayOutputStream bytes, int codePoint) {
+        byte[] encoded = new String(Character.toChars(codePoint)).getBytes(StandardCharsets.UTF_8);
+        bytes.writeBytes(encoded);
+    }
+
+    private static String decodeUtf8(ByteArrayOutputStream bytes) {
+        try {
+            return StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(bytes.toByteArray()))
+                    .toString();
+        } catch (CharacterCodingException e) {
+            return null;
+        }
     }
 
     private static List<String> getAllStringArgs(LuaParser.ArgsContext argsCtx) {

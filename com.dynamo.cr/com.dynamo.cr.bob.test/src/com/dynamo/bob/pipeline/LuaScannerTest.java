@@ -236,11 +236,13 @@ public class LuaScannerTest {
                 "go.property(\"long\", [[\nhello\nworld]])\n" +
                 "go.property(\"long_equals\", [=[hello ] inside]=])\n" +
                 "go.property(\"utf8\", \"Spelare \u00e5\u00e4\u00f6\")\n" +
-                "go.property(\"unicode_escape\", \"\\u{1F600}\")");
+                "go.property(\"unicode_escape\", \"\\u{1F600}\")\n" +
+                "go.property(\"hex_utf8_escape\", \"\\xC3\\xA5\")\n" +
+                "go.property(\"decimal_utf8_escape\", \"\\195\\165\")");
 
         assertEquals(0, result.errors().size());
         List<Property> properties = result.properties();
-        assertEquals(7, properties.size());
+        assertEquals(9, properties.size());
         assertProperty(properties, "pattern", PropertyType.PROPERTY_TYPE_TEXT, ".*", 0);
         assertProperty(properties, "name", PropertyType.PROPERTY_TYPE_TEXT, "Player", 1);
         assertProperty(properties, "escaped", PropertyType.PROPERTY_TYPE_TEXT, "line\n\t\\\"'end", 2);
@@ -248,6 +250,8 @@ public class LuaScannerTest {
         assertProperty(properties, "long_equals", PropertyType.PROPERTY_TYPE_TEXT, "hello ] inside", 6);
         assertProperty(properties, "utf8", PropertyType.PROPERTY_TYPE_TEXT, "Spelare \u00e5\u00e4\u00f6", 7);
         assertProperty(properties, "unicode_escape", PropertyType.PROPERTY_TYPE_TEXT, "\uD83D\uDE00", 8);
+        assertProperty(properties, "hex_utf8_escape", PropertyType.PROPERTY_TYPE_TEXT, "\u00e5", 9);
+        assertProperty(properties, "decimal_utf8_escape", PropertyType.PROPERTY_TYPE_TEXT, "\u00e5", 10);
     }
 
     @Test
@@ -256,17 +260,20 @@ public class LuaScannerTest {
                 "local value = \"text\"\n" +
                 "go.property(\"variable\", value)\n" +
                 "go.property(\"concat\", \"a\" .. \"b\")\n" +
-                "go.property(\"nul\", \"\\0\")");
+                "go.property(\"nul\", \"\\0\")\n" +
+                "go.property(\"invalid_utf8\", \"\\xE5\")");
 
         List<Property> properties = result.properties();
-        assertEquals(3, properties.size());
+        assertEquals(4, properties.size());
         assertPropertyStatus(properties, "variable", Status.INVALID_VALUE, 1);
         assertPropertyStatus(properties, "concat", Status.INVALID_VALUE, 2);
         assertPropertyStatus(properties, "nul", Status.INVALID_VALUE, 3);
-        assertEquals(3, result.errors().size());
+        assertPropertyStatus(properties, "invalid_utf8", Status.INVALID_VALUE, 4);
+        assertEquals(4, result.errors().size());
         assertEquals("expecting a function", result.errors().get(0).message());
         assertEquals("unexpected argument", result.errors().get(1).message());
         assertEquals("string properties cannot contain NUL bytes", result.errors().get(2).message());
+        assertEquals("invalid string literal", result.errors().get(3).message());
     }
 
     @Test
