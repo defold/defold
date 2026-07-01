@@ -1270,22 +1270,12 @@
 
 (defn- realize-disconnect
   [ctx undoable-changes source-id source-label target-id target-label]
-  (let [disconnect-change (->DisconnectArcTXC source-id source-label target-id target-label)
-        ctx (perform-change ctx disconnect-change)
-
-        removed-override-node-ids
-        (override-node-ids-removed-by-disconnect
-          ctx
-          source-id
-          target-id
-          target-label)]
-
-    ;; TODO(decouple-undo-from-graph): Order here seems wrong?
-    (if-let [delete-change (make-delete-nodes-change ctx removed-override-node-ids)]
-      (let [ctx (perform-change ctx delete-change)
-            undoable-changes (conj-change (conj-change undoable-changes disconnect-change) delete-change)]
-        (pair ctx undoable-changes))
-      (pair ctx (conj-change undoable-changes disconnect-change)))))
+  (let [[ctx undoable-changes :as disconnect-result] (perform-and-conj-change ctx undoable-changes (->DisconnectArcTXC source-id source-label target-id target-label))
+        deleted-override-node-ids (override-node-ids-removed-by-disconnect ctx source-id target-id target-label)
+        delete-nodes-change (make-delete-nodes-change ctx deleted-override-node-ids)]
+    (if (nil? delete-nodes-change)
+      disconnect-result
+      (perform-and-conj-change ctx undoable-changes delete-nodes-change))))
 
 (defn- realize-connect
   [{:keys [basis] :as ctx} undoable-changes source-id source-label target-id target-label]
@@ -1300,12 +1290,10 @@
                 (fn [[ctx undoable-changes] ^Arc arc]
                   (realize-disconnect ctx undoable-changes (.source-id arc) (.source-label arc) (.target-id arc) (.target-label arc)))
                 (pair ctx undoable-changes)
-                (ig/explicit-arcs-by-target basis target-id target-label)))
+                (ig/explicit-arcs-by-target basis target-id target-label)))]
 
-            connect-change (->ConnectArcTXC source-id source-label target-id target-label)]
         (assert-type-compatible source-id source source-label target-id target target-label)
-        (pair (perform-change ctx connect-change)
-              (conj-change undoable-changes connect-change)))
+        (perform-and-conj-change ctx undoable-changes (->ConnectArcTXC source-id source-label target-id target-label)))
       (pair ctx undoable-changes))
     (pair ctx undoable-changes)))
 

@@ -252,7 +252,6 @@
   (g/transact
     {:undoable false}
     (concat
-      (g/operation-sequence op-seq) ; TODO(decouple-undo-from-graph): Remove?
       (g/set-property controller :start nil)
       (g/set-property controller :current nil)
       (g/set-property controller :op-seq nil)
@@ -301,7 +300,6 @@
                                               (g/transact
                                                 {:undoable false}
                                                 (concat
-                                                  (g/operation-sequence op-seq) ; TODO(decouple-undo-from-graph): Remove?
                                                   (g/set-property self :op-seq op-seq)
                                                   (g/set-property self :start cursor-pos)
                                                   (g/set-property self :current cursor-pos)
@@ -326,9 +324,7 @@
                                                                {} sub-selection)]
                                       (g/transact
                                         {:undoable false}
-                                        (concat
-                                          (g/operation-sequence op-seq) ; TODO(decouple-undo-from-graph): Remove?
-                                          (g/set-property self :current cursor-pos)))
+                                        (g/set-property self :current cursor-pos))
                                       (g/transact
                                         (concat
                                           (g/operation-sequence op-seq)
