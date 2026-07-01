@@ -450,6 +450,11 @@ function(defold_register_test_target target_name)
 
   if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
     target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=1)
+  elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
+    target_compile_definitions(${target_name} PRIVATE
+      JC_TEST_NO_DEATH_TEST
+      JC_TEST_USE_COLORS=1
+      JC_TEST_USE_PRINTF)
   endif()
   if(DEFINED DEFOLD_PLATFORM_TEST_DEFINES)
     target_compile_definitions(${target_name} PRIVATE ${DEFOLD_PLATFORM_TEST_DEFINES})

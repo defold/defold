@@ -15,7 +15,7 @@
 #ifndef DMSDK_SOCKETTYPES_H
 #define DMSDK_SOCKETTYPES_H
 
-#if __has_include("sockettypes_vendor.h")
+#if defined(DM_PLATFORM_VENDOR)
 #include "sockettypes_vendor.h"
 #elif defined(_MSC_VER)
 #include "sockettypes_win32.h"

@@ -76,6 +76,15 @@ _CMAKE_FEATURE_LIST_OPTIONS = {
 JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
 MINIMUM_PYTHON_VERSION = (3, 12)
 
+def get_legacy_private_target_platforms():
+    try:
+        import build_vendor
+    except ModuleNotFoundError as e:
+        if "No module named 'build_vendor'" in str(e):
+            return []
+        raise
+    return build_vendor.get_target_platforms() if hasattr(build_vendor, 'get_target_platforms') else []
+
 class build_private(object):
     _target_platform = None
 
@@ -90,7 +99,7 @@ class build_private(object):
 
     @classmethod
     def get_target_platforms(cls):
-        return get_configured_platforms()
+        return get_configured_platforms() + get_legacy_private_target_platforms()
 
     @classmethod
     def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
@@ -922,7 +931,10 @@ class Configuration(object):
         self._mkdirs(path)
         suffix = os.path.splitext(file)[1]
         fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
-        run.env_command(self._form_env(), ['tar', 'xf%s' % fmts.get(suffix, 'z'), file], cwd = path)
+        cmd = ['tar', 'xf%s' % fmts.get(suffix, 'z'), file]
+        if os.name == 'nt':
+            cmd.append('--unlink-first')
+        run.env_command(self._form_env(), cmd, cwd = path)
 
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1, format=None):
         src = src.replace('\\', '/')
@@ -944,6 +956,8 @@ class Configuration(object):
         cmd = ['tar', 'xf%s' % format, src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
+        if os.name == 'nt':
+            cmd.append('--unlink-first')
         if force_local:
             cmd.append(force_local)
 
@@ -2405,7 +2419,13 @@ class Configuration(object):
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
         self.build_tracker.start_component(lib, platform)
-        self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
+
+        if lib in CMAKE_SUPPORT:
+            if platform == 'win32':
+                platform = 'x86-win32'
+            self._build_engine_lib_cmake(lib, platform, skip_tests, directory)
+        else:
+            self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
 
         self.build_tracker.end_component(lib, platform)
 
@@ -2418,6 +2438,28 @@ class Configuration(object):
             return join('.', 'gradlew.bat')
         else:  # Linux, macOS, or other Unix-like OS
             return join('.', 'gradlew')
+
+    def build_bob_plugins(self):
+        gradle = join('..', 'com.dynamo.cr.bob', os.name == 'nt' and 'gradlew.bat' or 'gradlew')
+        gradle_args = []
+        if self.verbose:
+            gradle_args += ['--info']
+
+        env = self._form_env()
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}'
+
+        for plugin_name in ('xbox', 'switch', 'playstation'):
+            plugin_dir = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.%s' % plugin_name)
+            if not os.path.isdir(plugin_dir):
+                continue
+
+            self.build_tracker.start_component('bob_plugin_%s' % plugin_name, self.host)
+
+            s = run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=plugin_dir, shell=True, env=env)
+            if self.verbose:
+                print(s)
+
+            self.build_tracker.end_component('bob_plugin_%s' % plugin_name, self.host)
 
     def _run_bob_copy_script(self):
         """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
@@ -2450,6 +2492,7 @@ class Configuration(object):
                 self.build_tracker.end_command(log_cmd_build)
             if self.verbose:
                 print (s)
+            self.build_bob_plugins()
         finally:
             self.build_tracker.end_component('bob_light', self.host)
 
@@ -2729,6 +2772,8 @@ class Configuration(object):
         else:
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
             run.command(" ".join([gradle] + flags + gradle_args + ['clean', 'install', 'testJar']), cwd = test_dir, shell = True, env = env, stdout = None)
+
+        self.build_bob_plugins()
 
     def test_bob(self):
         bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')

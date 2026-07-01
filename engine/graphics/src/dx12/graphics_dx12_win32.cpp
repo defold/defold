@@ -101,8 +101,6 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
 
     HRESULT hr = S_OK;
 
-    context->m_UseValidationLayers = true;
-
     // This needs to be created before the device
     if (context->m_UseValidationLayers)
     {

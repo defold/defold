@@ -10,6 +10,11 @@ endif()
 
 defold_log("sdk.cmake:")
 
+if(TARGET_PLATFORM STREQUAL "x86_64-xbox")
+    message(STATUS "TARGET_PLATFORM=x86_64-xbox is an alias for x86_64-xbone")
+    set(TARGET_PLATFORM "x86_64-xbone" CACHE STRING "Defold platform tuple" FORCE)
+endif()
+
 # Bootstrap DEFOLD_HOME/DEFOLD_SDK_ROOT when running before defold.cmake
 if(NOT DEFINED DEFOLD_HOME)
     get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
@@ -39,7 +44,7 @@ elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
 elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
     include(sdk_windows)
 elseif (TARGET_PLATFORM MATCHES "x86_64-xbone")
-    include(sdk_xbone)
+    include(sdk_vendor_xbone)
 elseif (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
     include(sdk_emscripten)
 elseif (TARGET_PLATFORM MATCHES "arm64-nx64")
