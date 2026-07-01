@@ -35,7 +35,7 @@
            [javafx.css Styleable]
            [javafx.event ActionEvent Event]
            [javafx.geometry HPos Point2D VPos]
-           [javafx.scene Cursor Node Parent]
+           [javafx.scene Cursor Node Parent Scene]
            [javafx.scene.control ColorPicker PopupControl Skin Slider ToggleButton]
            [javafx.scene.input MouseEvent ScrollEvent]
            [javafx.scene.layout StackPane]
@@ -171,7 +171,7 @@
                        (.setOnHidden  cp (fn [_] (.setAutoHide ^PopupControl popup true)))))))
    :desc desc})
 
-(defn- make-color-row [{:keys [popup key label state swap-state on-value-changed]}]
+(defn- make-color-row [{:keys [popup key label state swap-state on-value-changed on-dropper-activated on-dropper-deactivated]}]
   {:fx/type fxui/horizontal
    :children [{:fx/type fxui/label
                :text (or label "")
@@ -187,6 +187,8 @@
                                     (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
                                       (swap-state assoc key color)
                                       (on-value-changed color)))
+                :on-dropper-activated on-dropper-activated
+                :on-dropper-deactivated on-dropper-deactivated
                 :ignore-alpha false}}]})
 
 (defn- make-vec3-floats-row [{:keys [key state swap-state on-value-changed]}]
@@ -248,7 +250,7 @@
                             (on-reset swap-state)
                             (.requestFocus (.getParent ^Node (.getSource e))))}]})
 
-(defn- make-row [popup keymap localization-state state swap-state descriptor]
+(defn- make-row [popup dropper-hooks keymap localization-state state swap-state descriptor]
   (let [descriptor-with-state (merge descriptor {:state state :swap-state swap-state :popup popup})
         label #(localization-state (localization/message (:label descriptor)))]
     (case (:type descriptor)
@@ -258,7 +260,11 @@
                           :accelerator (keymap/display-text keymap (:command descriptor) "")
                           :on-selected-changed (:on-value-changed descriptor))
       :slider      (assoc descriptor-with-state :fx/type make-slider-row :label (label))
-      :color       (assoc descriptor-with-state :fx/type make-color-row  :label (label))
+      :color       (assoc descriptor-with-state
+                          :fx/type make-color-row
+                          :label (label)
+                          :on-dropper-activated (:on-activated dropper-hooks)
+                          :on-dropper-deactivated (:on-deactivated dropper-hooks))
       :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row)
       :vec3-toggle (assoc descriptor-with-state :fx/type make-vec3-toggle-row :label (label))
       :reset-all   {:fx/type make-reset-button
@@ -277,11 +283,11 @@
               :key :localization-state}
              {:fx/type fx/ext-state
               :initial-state (:state props)}]}
-  [{:keys [popup descriptors keymap state swap-state localization-state]}]
+  [{:keys [popup dropper-hooks descriptors keymap state swap-state localization-state]}]
   {:fx/type fxui/vertical
    :style-class "popup-settings"
    :children (keep (fn [descriptor]
-                     (make-row popup keymap localization-state state swap-state descriptor))
+                     (make-row popup dropper-hooks keymap localization-state state swap-state descriptor))
                    descriptors)})
 
 (defn settings-visible? [^Parent owner]
@@ -292,9 +298,9 @@
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
 (defn- make-popup
-  ^PopupControl [^Styleable owner ^Node content]
+  ^PopupControl [^Styleable styleable-parent ^Node content]
   (let [popup (proxy [PopupControl] []
-                (getStyleableParent [] owner))
+                (getStyleableParent [] styleable-parent))
         *skinnable (atom popup)
         popup-skin (reify Skin
                      (getSkinnable [_] @*skinnable)
@@ -352,8 +358,49 @@
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (do (.hide popup) nil)
      (let [content (StackPane.)
-           popup (make-popup owner content)
+           ;; The popup gets its CSS through this node (see make-popup). We use the #toolbar element
+           ;; that holds the button, not the button itself: using the color dropper makes the
+           ;; scene-view toolbar rebuild, which throws the button away and creates a new one, while
+           ;; #toolbar stays put. Anchoring here keeps the popup styled across a color pick.
+           styleable-parent (or (ui/closest-node-where (fn [^Node n] (= "toolbar" (.getId n))) owner)
+                                owner)
+           owner-id (.getId owner)
+           ;; Using the color dropper rebuilds the toolbar and swaps the button for a new one, so any
+           ;; button we held onto would go stale. Instead we look the button up again by id whenever
+           ;; we need it. We tag that button with ::popup so the toolbar command can tell the popup is
+           ;; already open and close it, rather than opening a second one. Falls back to #toolbar if
+           ;; the button isn't found.
+           current-owner (fn [] (or (when owner-id
+                                      (.lookup ^Node styleable-parent (str "#" owner-id)))
+                                    styleable-parent))
+           popup (make-popup styleable-parent content)
            anchor ^Point2D (pref-popup-position (.getParent owner) width)
+           screen-x (.getX anchor)
+           screen-y (.getY anchor)
+           ;; The color dropper draws a magnifier over the editor while you pick. The popup is a
+           ;; separate window that would cover it, so we hide the popup during the pick and show it
+           ;; again afterwards. Hiding normally destroys the popup, so pick-in-flight tells the close
+           ;; handler below to leave it alone for this one hide.
+           pick-in-flight (volatile! false)
+           dropper-hooks {:on-activated (fn []
+                                          (vreset! pick-in-flight true)
+                                          (.hide popup))
+                          :on-deactivated (fn []
+                                            (vreset! pick-in-flight false)
+                                            ;; Wait for the current click to finish (run-later), rebuild
+                                            ;; the toolbar so the new button exists, look it up, and show
+                                            ;; the popup again attached to it. It has to be the button,
+                                            ;; not the whole #toolbar: JavaFX won't auto-close a popup
+                                            ;; when you click its owner, so if #toolbar owned it, clicking
+                                            ;; any toolbar button would fail to close it. We also move the
+                                            ;; ::popup tag onto the new button so the toolbar command
+                                            ;; still knows the popup is open.
+                                            (ui/run-later
+                                              (ui/refresh (ui/main-scene))
+                                              (let [cur ^Node (current-owner)]
+                                                (ui/user-data! cur ::popup popup)
+                                                (.show popup cur screen-x screen-y)
+                                                (.requestFocus content))))}
            advance! (fn [state]
                       (fxui/advance-ui-user-data-component!
                         content ::popup
@@ -365,6 +412,7 @@
                                              :descriptors setting-descriptors
                                              :keymap keymap
                                              :popup popup
+                                             :dropper-hooks dropper-hooks
                                              :localization localization
                                              :state state}]}}))]
        (.setPrefWidth content width)
@@ -373,18 +421,20 @@
        (doto popup
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
          (ui/on-closed! (fn [e]
-                          (fxui/advance-ui-user-data-component! content ::popup nil)
-                          (when on-closed (on-closed))
-                          (ui/user-data! owner ::popup nil)))
-         (.show owner (.getX anchor) (.getY anchor)))
+                          (when-not @pick-in-flight
+                            (fxui/advance-ui-user-data-component! content ::popup nil)
+                            (when on-closed (on-closed))
+                            (ui/user-data! (current-owner) ::popup nil))))
+         (.show owner screen-x screen-y))
        ;; WORKAROUND: scene-visibility opens the popup right next to the outline's split pane divider, when you mouse over
        ;; the edge, the cursor gets set to H_RESIZE. If you move your cursor fast enough from the divider to the popup, the H_RESIZE
        ;; persists and only gets reset to DEFAULT when you leave the popup and reenter. The scene apparently still thinks it's
        ;; the DEFAULT cursor, so if you set it to DEFAULT, it's a NOOP, so we set it to NONE first, then DEFAULT, and it works.
        ;; Note that this might just be linux specific, but wouldn't hurt to just do it for everyone.
+       ;; We read the scene from main-scene rather than owner, because using the color dropper can rebuild the toolbar and leave owner out of the window.
        (.addEventHandler content MouseEvent/MOUSE_ENTERED
                          (ui/event-handler e
-                                           (let [scene (.getScene owner)]
+                                           (let [scene ^Scene (ui/main-scene)]
                                              (.setCursor scene Cursor/NONE)
                                              (.setCursor scene Cursor/DEFAULT))))
        ;; Request focus so the first UI element loses focus

@@ -1493,7 +1493,7 @@
     :color-dropper         whether to show the color dropper, default true
     :prefs                 if provided, loads/persists custom colors
     :color                 either :warning or :error"
-  [{:keys [value on-value-changed ignore-alpha color-dropper prefs editable]
+  [{:keys [value on-value-changed ignore-alpha color-dropper prefs editable on-dropper-activated on-dropper-deactivated]
     :or {color-dropper true
          editable true}
     :as props}]
@@ -1506,7 +1506,7 @@
                    (ui/user-data! node ::color-dropper-key nil)))
    :desc
    (-> props
-       (dissoc :value :on-value-changed :ignore-alpha :color-dropper :prefs :editable)
+       (dissoc :value :on-value-changed :ignore-alpha :color-dropper :prefs :editable :on-dropper-activated :on-dropper-deactivated)
        (assoc
          :fx/type horizontal
          :style-class "ext-color-picker"
@@ -1538,7 +1538,7 @@
                                                 (when (instance? Node source)
                                                   (when-let [node (ui/closest-node-with-style "ext-color-picker" source)]
                                                     (when-let [color-dropper (ui/user-data node ::color-dropper-key)]
-                                                      (color-dropper/activate! color-dropper on-value-changed event))))))}}))
+                                                      (color-dropper/activate! color-dropper on-value-changed on-dropper-activated on-dropper-deactivated event))))))}}))
                     (cond-> {:fx/type fx.color-picker/lifecycle
                              :focus-traversable false
                              :disable (not editable)

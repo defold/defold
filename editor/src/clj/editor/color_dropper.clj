@@ -15,7 +15,8 @@
 (ns editor.color-dropper
   (:require [editor.ui :as ui])
   (:import [javafx.beans.value ChangeListener]
-           [javafx.scene Cursor]
+           [javafx.geometry Point2D]
+           [javafx.scene Cursor Node]
            [javafx.scene.canvas Canvas GraphicsContext]
            [javafx.scene.image PixelReader WritableImage]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
@@ -29,7 +30,9 @@
 (defrecord ColorDropper [^Color color
                          ^StackPane dropper-area
                          ^ChangeListener size-listener
-                         ^WritableImage image])
+                         ^WritableImage image
+                         on-deactivated
+                         prev-focus-owner])
 
 (defn- paint-pixel!
   [^GraphicsContext graphics-context x y size color]
@@ -64,13 +67,10 @@
       diameter (* pixel-size (count pixel-seq))
       radius ^double (/ diameter 2)]
   (defn- paint-magnifier!
-    [color-dropper ^Canvas canvas ^MouseEvent e]
-    (.consume e)
+    [color-dropper ^Canvas canvas ^double mouse-x ^double mouse-y]
     (when-let [image ^WritableImage (:image @color-dropper)]
       (let [graphics-context ^GraphicsContext (.getGraphicsContext2D canvas)
-            pixel-reader ^PixelReader (.getPixelReader image)
-            mouse-x (.getSceneX e)
-            mouse-y (.getSceneY e)]
+            pixel-reader ^PixelReader (.getPixelReader image)]
         (when (in-bounds? image mouse-x mouse-y)
           (swap! color-dropper assoc :color (.getColor pixel-reader mouse-x mouse-y)))
         (.clearRect graphics-context (- mouse-x radius) (- mouse-y radius) diameter diameter)
@@ -92,7 +92,7 @@
 
 (defn deactivate!
   [color-dropper]
-  (let [{:keys [^StackPane dropper-area ^ChangeListener size-listener]} @color-dropper]
+  (let [{:keys [^StackPane dropper-area ^ChangeListener size-listener on-deactivated ^Node prev-focus-owner]} @color-dropper]
     (when dropper-area
       (let [main-view ^StackPane (ui/main-root)]
         (when size-listener
@@ -101,9 +101,16 @@
         (swap! color-dropper assoc
                :dropper-area nil
                :size-listener nil
-               :image nil)
+               :image nil
+               :on-deactivated nil
+               :prev-focus-owner nil)
         (-> (.getChildren main-view)
-            (.remove dropper-area)))))
+            (.remove dropper-area))
+        ;; Give keyboard focus back to whatever had it before the dropper took over. Defold rebuilds
+        ;; the scene-view toolbar based on what's focused, so this is what brings the toolbar back.
+        ;; Must happen before the popup is shown again.
+        (when prev-focus-owner (.requestFocus prev-focus-owner))
+        (when on-deactivated (on-deactivated)))))
   nil)
 
 (defn- apply-and-deactivate!
@@ -120,37 +127,48 @@
     nil))
 
 (defn make-color-dropper! []
-  (atom (->ColorDropper nil nil nil nil)))
+  (atom (->ColorDropper nil nil nil nil nil nil)))
 
-(defn activate! [color-dropper pick-fn ^MouseEvent event]
-  (deactivate! color-dropper)
-  (let [main-view ^StackPane (ui/main-root)
-        canvas (Canvas. (.getWidth main-view) (.getHeight main-view))
-        size-listener (reify ChangeListener
-                        (changed [_ _ _ _]
-                          (capture! color-dropper canvas)))
-        dropper-area (doto (StackPane.)
-                       (.setCursor Cursor/NONE)
-                       (ui/add-child! canvas)
-                       (.setStyle "-fx-background-color: transparent;"))]
-    (ui/add-child! main-view dropper-area)
-    (swap! color-dropper assoc
-           :color nil
-           :image nil
-           :dropper-area dropper-area
-           :size-listener size-listener)
+(defn activate! [color-dropper pick-fn on-activated on-deactivated ^MouseEvent event]
+  (let [prev-focus-owner (ui/focus-owner (ui/main-scene))]
+    (deactivate! color-dropper)
+    (when on-activated (on-activated))
+    (let [main-view ^StackPane (ui/main-root)
+          canvas (Canvas. (.getWidth main-view) (.getHeight main-view))
+          size-listener (reify ChangeListener
+                          (changed [_ _ _ _]
+                            (capture! color-dropper canvas)))
+          dropper-area (doto (StackPane.)
+                         (.setCursor Cursor/NONE)
+                         (ui/add-child! canvas)
+                         (.setStyle "-fx-background-color: transparent;"))]
+      (ui/add-child! main-view dropper-area)
+      (swap! color-dropper assoc
+             :color nil
+             :image nil
+             :dropper-area dropper-area
+             :size-listener size-listener
+             :on-deactivated on-deactivated
+             :prev-focus-owner prev-focus-owner)
 
-    (.bind (.widthProperty canvas) (.widthProperty dropper-area))
-    (.bind (.heightProperty canvas) (.heightProperty dropper-area))
+      (.bind (.widthProperty canvas) (.widthProperty dropper-area))
+      (.bind (.heightProperty canvas) (.heightProperty dropper-area))
 
-    (.addListener (.widthProperty main-view) size-listener)
-    (.addListener (.heightProperty main-view) size-listener)
+      (.addListener (.widthProperty main-view) size-listener)
+      (.addListener (.heightProperty main-view) size-listener)
 
-    (doto dropper-area
-      (.addEventHandler KeyEvent/ANY (ui/event-handler event (key-pressed-handler! color-dropper pick-fn event)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (paint-magnifier! color-dropper canvas event)))
-      (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! color-dropper pick-fn)))
-      (.requestFocus))
-    
-    (capture! color-dropper canvas)
-    (paint-magnifier! color-dropper canvas event)))
+      (doto dropper-area
+        (.addEventHandler KeyEvent/ANY (ui/event-handler event (key-pressed-handler! color-dropper pick-fn event)))
+        (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event
+                                                                    (.consume ^MouseEvent event)
+                                                                    (paint-magnifier! color-dropper canvas (.getSceneX ^MouseEvent event) (.getSceneY ^MouseEvent event))))
+        (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (apply-and-deactivate! color-dropper pick-fn)))
+        (.requestFocus))
+
+      (capture! color-dropper canvas)
+      ;; The click that starts the dropper can come from inside a popup window, so its x/y are
+      ;; measured against that popup, not against the editor image we snapshotted. Convert through
+      ;; screen coordinates so this first magnifier reading samples the right pixel even if the user
+      ;; picks without moving the mouse.
+      (let [point ^Point2D (.screenToLocal main-view (.getScreenX event) (.getScreenY event))]
+        (paint-magnifier! color-dropper canvas (.getX point) (.getY point))))))
