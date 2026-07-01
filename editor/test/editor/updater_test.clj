@@ -246,6 +246,8 @@
 (deftest release-notes-renders-missing-version-in-place
   (let [updater (make-updater "test" "1")]
     (swap! (:state-atom updater) assoc
+           :server-sha1 "B"
+           :release-notes-sha "B"
            :release-notes [{:version "1.14.0" :notes nil}
                            {:version "1.13.0" :notes {:version "1.13.0"
                                                       :issues []
@@ -256,6 +258,31 @@
       (is (re-find #"Version 1\.13\.0" md))
       ;; the missing version renders before the one we have
       (is (< (.indexOf md "1.14.0") (.indexOf md "1.13.0"))))))
+
+(deftest release-notes-not-shown-for-superseded-update
+  ;; notes fetched for one update must not render once :server-sha1 moves on
+  ;; (e.g. a newer update appears but its notes fetch failed)
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :server-sha1 "B"
+           :release-notes-sha "A"
+           :release-notes [{:version "1.13.0" :notes {:version "1.13.0"
+                                                      :issues []
+                                                      :external-link "https://forum"}}])
+    (is (nil? (updater/release-notes updater)))))
+
+(deftest check-retries-when-selection-empty
+  ;; manifest present but nothing newer than the running editor -> empty slots,
+  ;; which must NOT count as complete, so the next check retries
+  (with-open [_ (start-update-server! "test" "2")]
+    (let [fetches (atom 0)]
+      (with-redefs [updater/fetch-manifest! (fn [_ _]
+                                              (swap! fetches inc)
+                                              [])]
+        (let [updater (make-updater "test" "1")]
+          (#'updater/check! updater)
+          (#'updater/check! updater)
+          (is (= 2 @fetches)))))))
 
 
 

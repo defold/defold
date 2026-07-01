@@ -124,12 +124,15 @@
   candidate, so this yields the most recent N."
   [manifest-versions current-version]
   (let [current (parse-version current-version)]
-    (->> manifest-versions
-         (keep (fn [v] (when-some [parsed (parse-version v)] [v parsed])))
-         (filter (fn [[_ parsed]] (or (nil? current) (pos? (compare parsed current)))))
-         (sort-by second #(compare %2 %1)) ; newest first
-         (mapv first)
-         (into [] (take release-notes-range-limit)))))
+    (-> (coll/into-> manifest-versions []
+          (keep (fn [v]
+                  (when-some [parsed (parse-version v)]
+                    (when (or (nil? current) (pos? (compare parsed current)))
+                      [v parsed])))))
+        (->> (sort-by second #(compare %2 %1)))
+        (coll/into-> []
+          (map first)
+          (take release-notes-range-limit)))))
 
 (defn- fetch-json!
   "GETs `url` and parses the body as JSON with keyword keys, or nil on failure."
@@ -235,15 +238,18 @@
 
 (defn release-notes
   "Returns the in-memory release notes markdown for the available update, or nil
-  if none have been fetched yet (or the fetch failed). When the user is several
-  versions behind, each version in range is rendered newest first. A version
-  whose notes failed to download renders its heading followed by a short
-  'failed to download' notice in place, so the user sees the gap in order."
+  if none have been fetched yet (or the fetch failed), or if the fetched notes
+  belong to a superseded update. When the user is several versions behind, each
+  version in range is rendered newest first. A version whose notes failed to
+  download renders its heading followed by a short 'failed to download' notice in
+  place, so the user sees the gap in order."
   ^String
   [updater]
   (let [updater (if @dev-updater @dev-updater updater)
-        slots (:release-notes @(:state-atom updater))]
-    (when-not (coll/empty? slots)
+        state @(:state-atom updater)
+        slots (:release-notes state)]
+    (when (and (= (:release-notes-sha state) (:server-sha1 state))
+               (not (coll/empty? slots)))
       (string/join "\n\n---\n\n"
                    (map (fn [{:keys [version notes]}]
                           (if notes
@@ -455,22 +461,25 @@
             (not (can-download-update? updater))
             (log/info :message "No update found")
 
-            ;; Notes for this update were already fetched earlier this session, so
-            ;; don't re-download them on every hourly check. The sha only changes
-            ;; when a genuinely newer release appears, which re-arms the fetch.
-            (= update-sha1 (:release-notes-sha @state-atom))
+            ;; Complete notes for this update are already loaded, so don't
+            ;; re-download them on every hourly check.
+            (and (= update-sha1 (:release-notes-sha @state-atom))
+                 (:release-notes-complete? @state-atom))
             (log/info :message "New version found; release notes already loaded" :sha1 update-sha1)
 
             :else
             (do
               (log/info :message "New version found" :sha1 update-sha1)
               (when-some [slots (fetch-release-notes! archive-domain channel)]
-                ;; Partial results still display (failed versions render a
-                ;; placeholder); only a complete fetch arms the sha guard, so
-                ;; missing versions get retried on the next check.
-                (swap! state-atom assoc :release-notes slots)
-                (when (coll/every? :notes slots)
-                  (swap! state-atom assoc :release-notes-sha update-sha1)))))))
+                ;; Tag the notes with the sha they belong to so a failed fetch for
+                ;; a newer update can't keep showing them. Only a non-empty, fully
+                ;; fetched result is complete; an empty selection or any missing
+                ;; version stays incomplete and is retried on the next check.
+                (swap! state-atom assoc
+                       :release-notes slots
+                       :release-notes-sha update-sha1
+                       :release-notes-complete? (and (not (coll/empty? slots))
+                                                     (coll/every? :notes slots))))))))
       (catch IOException e
         ;; Disabled during tests to minimize log spam.
         (when-not (Boolean/getBoolean "defold.tests")
