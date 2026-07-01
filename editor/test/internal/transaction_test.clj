@@ -245,7 +245,7 @@
       (let [graph-a (g/make-graph!)
             graph-b (g/make-graph!)
             [resource-a receiver-a resource-b receiver-b] (ts/tx-nodes
-                                                            (g/make-node graph-a Resource)
+                                                            (g/make-node graph-a Resource :marker (int 0))
                                                             (g/make-node graph-a Receiver)
                                                             (g/make-node graph-b Resource)
                                                             (g/make-node graph-b Receiver))]
@@ -263,9 +263,17 @@
               undo-stack-count-before (g/undo-stack-count :undo/global)
               tx-result (g/transact {:full-invalidation true}
                           (g/set-property resource-a :marker (int 1)))]
-          (testing "Does not collect undoable changes."
-            (is (= [] (:undoable-changes tx-result)))
-            (is (= undo-stack-count-before (g/undo-stack-count :undo/global))))
+
+          (testing "Collects undoable changes."
+            (is (= 1 (count (:undoable-changes tx-result))))
+            (is (= (inc undo-stack-count-before) (g/undo-stack-count :undo/global)))
+            (is (= 1 (g/node-value resource-a :marker)))
+
+            (g/undo! :undo/global)
+            (is (= 0 (g/node-value resource-a :marker)))
+
+            (g/redo! :undo/global)
+            (is (= 1 (g/node-value resource-a :marker))))
 
           (let [graph-a-successors-after (graph-successors-cache graph-a)
                 graph-b-successors-after (graph-successors-cache graph-b)]
@@ -278,6 +286,20 @@
             (is (not (identical? graph-b-successors-before graph-b-successors-after)))
             (is (= #{(g/endpoint receiver-b :passthrough)}
                    (set (g/successors (g/now) resource-b :b)))))))))
+
+  (testing "Honors :undoable false with full invalidation."
+    (ts/with-clean-system
+      (let [graph (g/make-graph!)
+            [resource] (ts/tx-nodes
+                         (g/make-node graph Resource :marker (int 0)))
+            undo-stack-count-before (g/undo-stack-count :undo/global)
+            tx-result (g/transact
+                        {:full-invalidation true
+                         :undoable false}
+                        (g/set-property resource :marker (int 1)))]
+        (is (= [] (:undoable-changes tx-result)))
+        (is (= undo-stack-count-before (g/undo-stack-count :undo/global)))
+        (is (= 1 (g/node-value resource :marker))))))
 
   (testing "Does not invalidate successors for a no-op transaction."
     (ts/with-clean-system

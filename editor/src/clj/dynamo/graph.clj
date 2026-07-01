@@ -308,7 +308,7 @@
         override-id-generator (is/override-id-generator system)
         tx-data-context-map (or (:tx-data-context-map opts) {})
         metrics-collector (:metrics opts)
-        full-invalidation (:full-invalidation opts)]
+        full-invalidation (:full-invalidation opts false)]
     (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation)))
 
 (defn commit-tx-result!
@@ -329,7 +329,6 @@
     nil))
 
 (defn transact
-  ;; TODO(decouple-undo-from-graph): Figure out if :full-invalidation still warrants a reset-undo! call.
   "Runs a transaction against the graph system.
 
   Args:
@@ -345,9 +344,7 @@
                 tracking and uses full invalidation instead of incremental
                 updates. The system cache is cleared automatically after
                 commit, but older evaluation contexts may still be stale and
-                must not be written back into the cache. Undo is not tracked
-                accurately in this mode, so callers that need consistent undo
-                semantics must reset or otherwise manage undo explicitly.
+                must not be written back into the cache.
 
               :undoable
                 Defaults to true. When false, commits graph changes without
@@ -402,8 +399,7 @@
          tx-result (do-strict-evaluation-context-scope-body
                      (it/transact* transaction-context
                                    txs
-                                   (when (and (:undoable opts true)
-                                              (not (:full-invalidation opts)))
+                                   (when (:undoable opts true)
                                      (transient []))))]
      (commit-tx-result! tx-result opts)
      tx-result)))
