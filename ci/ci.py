@@ -457,10 +457,10 @@ def gen_release_notes(channel):
         return
 
     # The generator audits every issue's fix for presence on the branch(es) this
-    # channel ships from (via the GitHub compare API, no local history needed)
-    # and exits non-zero - failing the job - if any are missing or generation
-    # itself errors.
-    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s generate' % (
+    # channel ships from and exits non-zero - failing the job - if any are missing
+    # or generation itself errors. --use-github-compare does that check via the
+    # GitHub compare API since CI runs on a shallow clone with no branch history.
+    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s --use-github-compare generate' % (
         sys.executable, version, channel, get_github_token()))
 
     # beta/stable must ship notes: a missing file here means generation produced

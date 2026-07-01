@@ -23,9 +23,14 @@ import github
 import json
 import time
 import math
-from concurrent.futures import ThreadPoolExecutor
+import subprocess
 
 token = None
+
+# Check commit branch membership via the GitHub compare API instead of local
+# `git branch --contains`. Off by default (local git is fast and needs no API
+# calls); CI turns it on because a shallow clone has no branch history.
+use_github_compare = False
 
 TYPE_BREAKING_CHANGE = "BREAKING CHANGE"
 TYPE_FIX = "FIX"
@@ -224,32 +229,21 @@ def _print_errors(response):
     for error in response['errors']:
         print(error['message'])
 
-def github_query(query, max_retries = 6):
-    # Retries with backoff so parallel callers wait out GitHub's rate limits
-    # instead of failing. A hard rate limit comes back as a RATE_LIMITED error;
-    # a too-many-at-once limit comes back as a 403, which github.query turns into
-    # a None response.
-    for attempt in range(max_retries):
-        response = github.query(query, token)
-        if response is None:
-            time.sleep(min(60, 2 ** attempt))
-            continue
-        if 'errors' in response:
-            errors = response['errors']
-            if any(error.get('type') == 'RATE_LIMITED' for error in errors):
-                time.sleep(min(60, 5 * 2 ** attempt))
-                continue
-            # NOT_FOUND usually just means we looked in the wrong repo (a
-            # cross-repo reference). Not fatal: hand back the (empty) data so the
-            # caller can skip it. Any other kind of error is still fatal.
-            if all(error.get('type') == 'NOT_FOUND' for error in errors):
-                return response.get("data")
-            print(response)
-            _print_errors(response)
-            sys.exit(1)
-        return response["data"]
-    print("github_query: giving up after %d retries (rate limited or network errors)" % max_retries)
-    sys.exit(1)
+def github_query(query):
+    response = github.query(query, token)
+    if response is None:
+        print("No response from GitHub")
+        sys.exit(1)
+    if 'errors' in response:
+        # NOT_FOUND usually just means we looked in the wrong repo (a cross-repo
+        # reference). Not fatal: hand back the (empty) data so the caller can skip
+        # it. Any other kind of error is still fatal.
+        if all(error.get('type') == 'NOT_FOUND' for error in response['errors']):
+            return response.get("data")
+        print(response)
+        _print_errors(response)
+        sys.exit(1)
+    return response["data"]
 
 def get_project(name):
     data = github_query(QUERY_PROJECT_NUMBER % name)
@@ -355,9 +349,10 @@ def find_reference_commits(pr):
             commits.append(node["commit"]["oid"])
     return commits
 
-# Branches a release-note issue's fix has to be on. We check this through
-# GitHub's "compare two commits" API (below), so the audit needs no local git
-# history and works on CI's shallow checkout.
+# Branches a release-note issue's fix has to be on. get_commit_branches checks
+# membership with local git by default, or GitHub's "compare two commits" API
+# when --use-github-compare is set (below). AUDIT_BRANCHES only matters for the
+# API path, which has to name the branches to compare against.
 AUDIT_BRANCHES = ["dev", "beta"]
 
 def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
@@ -365,8 +360,8 @@ def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
     # tells us: comparing <branch>...<commit> comes back with ahead_by == 0.
     # A commit that exists but hasn't landed yet has ahead_by > 0 (so False).
     # Only an unreachable repo or unknown sha gives a null response, which we
-    # retry with backoff like github_query; if it still can't be confirmed we
-    # treat it as missing (False) so it blocks the release.
+    # retry a few times; if it still can't be confirmed we treat it as missing
+    # (False) so it blocks the release.
     url = "/repos/defold/%s/compare/%s...%s" % (repository, branch, commit)
     for attempt in range(max_retries):
         response = github.get(url, token)
@@ -376,10 +371,21 @@ def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
     red("    Could not verify commit %s against %s after %d attempts" % (commit[:8], branch, max_retries))
     return False
 
+def git_branch_contains(commit):
+    # Local branches that contain the commit. Only sees what's in the checkout,
+    # so it needs a full clone with dev/beta fetched (not a shallow CI clone).
+    result = subprocess.run(["git", "branch", "--contains", commit], capture_output = True)
+    if result.returncode == 0:
+        return [line.replace("*", "").strip() for line in result.stdout.decode('utf-8').splitlines()]
+    red(result.stderr.decode('utf-8'))
+    sys.exit(result.returncode)
+
 def get_commit_branches(commit):
-    # Which of the audited branches contain this commit. Does the job of a local
-    # `git branch --contains`, which won't work on CI's shallow checkout.
-    return [branch for branch in AUDIT_BRANCHES if commit_in_branch(branch, commit)]
+    # Which branches contain this commit. Locally we just ask git; on a shallow
+    # CI clone there's no history, so --use-github-compare asks GitHub instead.
+    if use_github_compare:
+        return [branch for branch in AUDIT_BRANCHES if commit_in_branch(branch, commit)]
+    return git_branch_contains(commit)
 
 def check_commit_branches(commit, branches):
     result = get_commit_branches(commit)
@@ -410,11 +416,9 @@ def issue_to_markdown(issue, hide_details = True, title_only = False):
 
 
 def fetch_item(item):
-    # Slow, and safe to run in parallel: turns one item into its (issue, pr,
-    # labels) with a few GraphQL calls and applies the per-item skip checks.
-    # It shares no state and each call stands alone, so it's thread-safe.
-    # parse_github_project consumes the results in order (the dedup and assembly
-    # stay single-threaded).
+    # Turns one project item into its (issue, pr, labels) with a few GraphQL
+    # calls and applies the per-item skip checks. parse_github_project then
+    # assembles the results.
     content = item.get("content")
     if not content:
         return None
@@ -457,12 +461,8 @@ def parse_github_project(version):
     print("Parsing GitHub project for version %s" % version)
     issues = []
     items = get_issues_and_prs(project)
-    # Resolve every item's issue/PR in parallel (the slow part); assemble in order
-    # below. 8 workers stays well within GitHub's rate and concurrency limits, and
-    # github_query backs off if we hit either.
     print("Fetching %d items..." % len(items))
-    with ThreadPoolExecutor(max_workers = 8) as executor:
-        records = list(executor.map(fetch_item, items))
+    records = [fetch_item(item) for item in items]
 
     for record in records:
         if record is None:
@@ -762,6 +762,11 @@ generate - Generate release notes
                       default = None,
                       help = 'Release channel; selects which branch(es) the commit audit requires')
 
+    parser.add_option('--use-github-compare', dest='use_github_compare',
+                      default = False,
+                      action = "store_true",
+                      help = 'Check commit branch membership via the GitHub compare API instead of local git (use on shallow clones, e.g. CI)')
+
     options, args = parser.parse_args()
 
     if not args:
@@ -779,6 +784,7 @@ generate - Generate release notes
         exit(1)
 
     token = options.token
+    use_github_compare = options.use_github_compare
     for cmd in args:
         if cmd == "generate":
             generate(options.version, options.hide_details, options.channel)
