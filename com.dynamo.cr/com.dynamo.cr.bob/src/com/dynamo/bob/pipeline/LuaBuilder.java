@@ -615,6 +615,11 @@ public abstract class LuaBuilder extends Builder {
                         builder.addStringValues((String)property.value());
                         builder.addUrlEntries(entryBuilder);
                         break;
+                    case PROPERTY_TYPE_TEXT:
+                        entryBuilder.setIndex(builder.getStringValuesCount());
+                        builder.addStringValues((String)property.value());
+                        builder.addTextEntries(entryBuilder);
+                        break;
                     case PROPERTY_TYPE_VECTOR3:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
                         entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".x"));
@@ -659,9 +664,9 @@ public abstract class LuaBuilder extends Builder {
                         break;
                     }
                 } else if (property.status() == Status.INVALID_ARGS) {
-                    throw new CompileExceptionError(resource, property.startLine() + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, or resource.*.");
+                    throw new CompileExceptionError(resource, property.startLine() + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, string, msg.url, vmath.vector3, vmath.vector4, vmath.quat, or resource.*.");
                 } else if (property.status() == Status.INVALID_VALUE) {
-                    throw new CompileExceptionError(resource, property.startLine() + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, resource.*");
+                    throw new CompileExceptionError(resource, property.startLine() + 1, "Only these types are available: number, hash, string, msg.url, vmath.vector3, vmath.vector4, vmath.quat, resource.*");
                 } else if (property.status() == Status.INVALID_LOCATION) {
                     throw new CompileExceptionError(resource, property.startLine() + 1, "go.property should be a top-level statement");
                 }

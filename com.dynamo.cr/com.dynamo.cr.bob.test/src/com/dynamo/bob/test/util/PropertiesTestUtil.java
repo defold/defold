@@ -33,6 +33,10 @@ public class PropertiesTestUtil {
         assertEquals(expected, properties.getStringValues(properties.getUrlEntries(index).getIndex()));
     }
 
+    public static void assertText(PropertyDeclarations properties, String expected, int index) {
+        assertEquals(expected, properties.getStringValues(properties.getTextEntries(index).getIndex()));
+    }
+
     public static void assertVector3(PropertyDeclarations properties, float expectedX, float expectedY, float expectedZ, int index) {
         PropertyDeclarationEntry entry = properties.getVector3Entries(index);
         assertEquals(expectedX, properties.getFloatValues(entry.getIndex()+0), 0);

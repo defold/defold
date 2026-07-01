@@ -602,7 +602,7 @@ public class LuaScanner {
                     i += 2;
                 }
                 case 'u' -> {
-                    // UTF-8 code point escapes use Lua 5.3 syntax: \u{X...}. Java stores strings
+                    // UTF-8 code point escapes use Lua 5.3 syntax: \\u{X...}. Java stores strings
                     // as UTF-16, so appendCodePoint handles supplementary code points correctly.
                     if (i + 1 >= value.length() || value.charAt(i + 1) != '{') {
                         return null;
