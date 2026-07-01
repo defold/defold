@@ -44,6 +44,7 @@
             [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.outline :as outline]
+            [editor.outline-order :as outline-order]
             [editor.particlefx :as particlefx]
             [editor.pose :as pose]
             [editor.properties :as properties]
@@ -582,7 +583,7 @@
   (g/with-auto-evaluation-context evaluation-context
     (let [node-tree (node->node-tree (:basis evaluation-context) target)
           taken-ids (g/node-value node-tree :id-counts evaluation-context)
-          next-index (gui-attachment/next-child-index target evaluation-context)]
+          next-index (outline-order/next-index target :child-indices evaluation-context)]
       (concat
         (g/update-property source :id id/resolve taken-ids)
         (g/set-property source :child-index next-index)
@@ -669,7 +670,6 @@
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
                                    :overrides {s/Str s/Any}})
 
-(g/deftype ^:private NodeIndex [(s/one s/Int "node-id") (s/one s/Int "index")])
 (g/deftype ^:private NameIndex [(s/one s/Str "name") (s/one s/Int "index")])
 
 (g/deftype TrivialGuiSceneInfo TTrivialGuiSceneInfo)
@@ -1244,7 +1244,7 @@
 
   (input id-counts NameCounts)
 
-  (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
+  (output node-id+child-index outline-order/OrderPair (g/fnk [_node-id child-index] [_node-id child-index]))
 
   (property id g/Str (default (protobuf/default Gui$NodeDesc :id))
             (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts id-message)))
@@ -1304,7 +1304,7 @@
 
   (input parent g/Str)
   (input child-scenes g/Any :array)
-  (input child-indices NodeIndex :array)
+  (input child-indices outline-order/OrderPair :array)
   (output node-outline-link resource/Resource (g/constantly nil))
   (output node-outline-children [outline/OutlineData] :cached (g/fnk [child-outlines]
                                                                      (vec (sort-by :child-index child-outlines))))
@@ -2779,7 +2779,7 @@
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle :substitute nil)
 
-  (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
+  (output node-id+child-index outline-order/OrderPair (g/fnk [_node-id child-index] [_node-id child-index]))
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name child-index build-errors]
                                                      {:node-id _node-id
@@ -2819,7 +2819,7 @@
             (set (partial update-gui-resource-references :layer)))
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0)) ; No protobuf counterpart.
   (input name-counts NameCounts)
-  (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
+  (output node-id+child-index outline-order/OrderPair (g/fnk [_node-id child-index] [_node-id child-index]))
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name child-index build-errors]
                                                           {:node-id _node-id
@@ -2923,7 +2923,7 @@
   (input costly-gui-scene-info CostlyGuiSceneInfo)
   (output costly-gui-scene-info CostlyGuiSceneInfo (gu/passthrough costly-gui-scene-info))
   (input child-scenes g/Any :array)
-  (input child-indices NodeIndex :array)
+  (input child-indices outline-order/OrderPair :array)
   (output child-scenes g/Any (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id child-outlines trivial-gui-scene-info]
@@ -3145,7 +3145,7 @@
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
       (let [name (id/gen "layer" (g/node-value parent :name-counts evaluation-context))
-            next-index (gui-attachment/next-child-index parent evaluation-context)]
+            next-index (outline-order/next-index parent :child-indices evaluation-context)]
         (concat
           (g/operation-label (localization/message "operation.gui.add-layer"))
           (add-layer scene parent name next-index select-fn))))))
@@ -3169,7 +3169,7 @@
           (g/fnk [ordered-layer-names]
             (coll/into-> ordered-layer-names {}
               (map-indexed coll/flipped-pair))))
-  (input child-indices NodeIndex :array)
+  (input child-indices outline-order/OrderPair :array)
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk (localization/message "outline.gui.layers") "Layers" 3 true
                            [{:node-type LayerNode
@@ -4050,7 +4050,7 @@
                      (id/resolve (or (some-> (node-types/->name def-node-type) extension-type-name->id)
                                      (subs (name (:type node-type-info)) 5))
                                  (g/node-value node-tree :id-counts evaluation-context)))
-              next-index (gui-attachment/next-child-index parent evaluation-context)
+              next-index (outline-order/next-index parent :child-indices evaluation-context)
               node-properties (assoc props
                                 :id id
                                 :child-index next-index
@@ -4684,10 +4684,10 @@
 
 (defn- gui-scene-layers-getter [scene-node {:keys [basis] :as evaluation-context}]
   (let [layer-nodes (attachment/nodes-getter (gui-attachment/scene-node->layers-node basis scene-node) evaluation-context)]
-    (vec (sort-by #(g/raw-property-value basis % :child-index) layer-nodes))))
+    (outline-order/ordered-node-ids layer-nodes :child-index evaluation-context)))
 
 (defn- reorder-gui-scene-layers [reordered-layer-node-ids]
-  (coll/mapcat-indexed #(g/set-property %2 :child-index %1) reordered-layer-node-ids))
+  (outline-order/reorder-tx-data :child-index reordered-layer-node-ids))
 
 (defn- gui-scene-materials-getter [scene-node {:keys [basis] :as evaluation-context}]
   (attachment/nodes-getter (gui-attachment/scene-node->materials-node basis scene-node) evaluation-context))
@@ -4713,14 +4713,14 @@
   ;; have explicit arcs.
   (let [node-tree (g/node-value scene-node :node-tree evaluation-context)
         nodes (g/node-value node-tree :nodes evaluation-context)]
-    (vec (sort-by #(g/node-value % :child-index evaluation-context) nodes))))
+    (outline-order/ordered-node-ids nodes :child-index evaluation-context)))
 
 (defn- gui-nodes-getter [parent-node evaluation-context]
   ;; We need to use g/node-value instead of raw props and explicit arcs because
   ;; scene and gui nodes might be override nodes from templates: those don't
   ;; have explicit arcs.
   (let [nodes (g/node-value parent-node :nodes evaluation-context)]
-    (vec (sort-by #(g/node-value % :child-index evaluation-context) nodes))))
+    (outline-order/ordered-node-ids nodes :child-index evaluation-context)))
 
 (defn- template-nodes-getter [template-node {:keys [basis] :as evaluation-context}]
   ;; We need to use g/node-value instead of raw props and explicit arcs because
@@ -4743,7 +4743,7 @@
 (def ^:private add-attachment-to-gui-node (partial g/expand-ec attach-gui-node-to-gui-node))
 
 (defn- reorder-gui-nodes [reordered-gui-node-ids]
-  (coll/mapcat-indexed #(g/set-property %2 :child-index %1) reordered-gui-node-ids))
+  (outline-order/reorder-tx-data :child-index reordered-gui-node-ids))
 
 ;; SDK api
 (defn register-node-tree-attachment-node-type [workspace node-type]
@@ -4941,23 +4941,16 @@
       :get gui-scene-texture-nodes-getter)
     (register workspace pb-def)))
 
+(defn- can-move-child-node?
+  [child-node-id offset evaluation-context]
+  (let [basis (:basis evaluation-context)
+        parent-node-id (core/scope basis child-node-id)]
+    (outline-order/can-move? parent-node-id :child-indices child-node-id :child-index offset evaluation-context)))
+
 (defn- move-child-node!
-  [node-id offset]
-  (let [parent (core/scope node-id)
-        node-index (g/node-value node-id :child-index)
-        child-indices (g/node-value parent :child-indices)
-        before? (partial > node-index)
-        after? (partial < node-index)
-        neighbour (first (sort-by second
-                                  (if (= offset -1) coll/descending-order coll/ascending-order)
-                                  (filter (comp (if (= offset -1) before? after?) second)
-                                          child-indices)))]
-    (when neighbour
-      (let [[neighbour-node-id neighbour-node-index] neighbour]
-        (g/transact
-          (concat
-            (g/set-property node-id :child-index neighbour-node-index)
-            (g/set-property neighbour-node-id :child-index node-index)))))))
+  [child-node-id offset]
+  (let [parent-node-id (core/scope child-node-id)]
+    (outline-order/move! parent-node-id :child-indices child-node-id :child-index offset)))
 
 (defn- selection->gui-node [selection evaluation-context]
   (let [basis (:basis evaluation-context)]
@@ -4973,11 +4966,8 @@
         (selection->layer-node selection evaluation-context)))
   (enabled? [selection evaluation-context]
     (let [basis (:basis evaluation-context)
-          selected-node-id (g/override-root basis (handler/selection->node-id selection evaluation-context))
-          parent (core/scope basis selected-node-id)
-          node-child-index (g/node-value selected-node-id :child-index evaluation-context)
-          first-index (transduce (map second) min Long/MAX_VALUE (g/node-value parent :child-indices evaluation-context))]
-      (< first-index node-child-index)))
+          selected-node-id (g/override-root basis (handler/selection->node-id selection evaluation-context))]
+      (can-move-child-node? selected-node-id -1 evaluation-context)))
   (run [selection]
     (g/let-ec [basis (:basis evaluation-context)
                selected (g/override-root basis (handler/selection->node-id selection evaluation-context))]
@@ -4989,11 +4979,8 @@
         (selection->layer-node selection evaluation-context)))
   (enabled? [selection evaluation-context]
     (let [basis (:basis evaluation-context)
-          selected-node-id (g/override-root basis (handler/selection->node-id selection evaluation-context))
-          parent (core/scope basis selected-node-id)
-          node-child-index (g/node-value selected-node-id :child-index evaluation-context)
-          last-index (transduce (map second) max 0 (g/node-value parent :child-indices evaluation-context))]
-      (< node-child-index last-index)))
+          selected-node-id (g/override-root basis (handler/selection->node-id selection evaluation-context))]
+      (can-move-child-node? selected-node-id 1 evaluation-context)))
   (run [selection]
     (g/let-ec [basis (:basis evaluation-context)
                selected (g/override-root basis (handler/selection->node-id selection evaluation-context))]
@@ -5237,7 +5224,7 @@
                                 (gui-attachment/scene-node->node-tree basis parent-node-id)
                                 parent-node-id)
         props (assoc defaults
-                :child-index (gui-attachment/next-child-index node-tree-or-gui-node evaluation-context)
+                :child-index (outline-order/next-index node-tree-or-gui-node :child-indices evaluation-context)
                 :type type)]
     (concat
       (apply g/set-properties child-node-id (coll/mapcat identity props))

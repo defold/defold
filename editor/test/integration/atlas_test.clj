@@ -18,10 +18,26 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.resource :as resource]
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]))
+
+(defn- image-orders [image-node-ids]
+  (g/with-auto-evaluation-context evaluation-context
+    (mapv #(g/node-value % :order evaluation-context) image-node-ids)))
+
+(defn- animation-image-paths [atlas]
+  (->> (g/node-value atlas :save-value)
+       :animations
+       first
+       :images
+       (mapv :image)))
+
+(defn- animation-output-image-paths [animation-node]
+  (mapv (comp resource/proj-path :path)
+        (:images (g/node-value animation-node :animation))))
 
 (deftest valid-fps
   (test-util/with-loaded-project
@@ -58,6 +74,59 @@
                "diamond_dogs"
                "test_anim"}
              animation-ids-in-ddf)))))
+
+(deftest reorder-animation-images-uses-order
+  (test-util/with-scratch-project "test/resources/test_project"
+    (test-util/make-resource! workspace "/graphics/reorder.atlas"
+                              {:animations [{:id "anim"
+                                             :images [{:image "/graphics/ball.png"}
+                                                      {:image "/graphics/block.png"}
+                                                      {:image "/graphics/pow.png"}]}]})
+    (workspace/resource-sync! workspace)
+    (let [atlas (project/get-resource-node project "/graphics/reorder.atlas")
+          animation (:node-id (test-util/outline atlas [0]))
+          image-node-ids (vec (g/node-value animation :nodes))
+          [_ block-image] image-node-ids
+          block-selection-context [{:name :workbench
+                                    :env {:selection [block-image]}}]]
+      (is (= [0 1 2] (image-orders image-node-ids)))
+      (is (= ["/graphics/ball.png"
+              "/graphics/block.png"
+              "/graphics/pow.png"]
+             (animation-image-paths atlas)))
+      (is (= ["/graphics/ball.png"
+              "/graphics/block.png"
+              "/graphics/pow.png"]
+             (animation-output-image-paths animation)))
+
+      (is (test-util/handler-enabled? :edit.reorder-up block-selection-context {}))
+      (test-util/handler-run :edit.reorder-up block-selection-context {})
+
+      (is (= image-node-ids (vec (g/node-value animation :nodes))))
+      (is (= [1 0 2] (image-orders image-node-ids)))
+      (is (= ["/graphics/block.png"
+              "/graphics/ball.png"
+              "/graphics/pow.png"]
+             (animation-image-paths atlas)))
+      (is (= ["/graphics/block.png"
+              "/graphics/ball.png"
+              "/graphics/pow.png"]
+             (animation-output-image-paths animation)))
+      (is (not (test-util/handler-enabled? :edit.reorder-up block-selection-context {})))
+      (is (test-util/handler-enabled? :edit.reorder-down block-selection-context {}))
+
+      (test-util/handler-run :edit.reorder-down block-selection-context {})
+
+      (is (= image-node-ids (vec (g/node-value animation :nodes))))
+      (is (= [0 1 2] (image-orders image-node-ids)))
+      (is (= ["/graphics/ball.png"
+              "/graphics/block.png"
+              "/graphics/pow.png"]
+             (animation-image-paths atlas)))
+      (is (= ["/graphics/ball.png"
+              "/graphics/block.png"
+              "/graphics/pow.png"]
+             (animation-output-image-paths animation))))))
 
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system

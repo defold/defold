@@ -14,8 +14,7 @@
 
 (ns editor.gui-attachment
   (:require [dynamo.graph :as g]
-            [internal.graph.types :as gt]
-            [util.eduction :as e]))
+            [internal.graph.types :as gt]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -43,10 +42,3 @@
 
 (defn scene-node->node-tree [basis scene-node]
   (scene-input-node basis scene-node :node-tree))
-
-(defn next-child-index [parent-node evaluation-context]
-  (->> (g/node-value parent-node :child-indices evaluation-context)
-       (e/map second)
-       (reduce max -1)
-       long
-       inc))
