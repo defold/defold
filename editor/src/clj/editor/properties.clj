@@ -304,7 +304,8 @@
                        :property-type-vector3 [:vector3-entries :float-values]
                        :property-type-vector4 [:vector4-entries :float-values]
                        :property-type-quat [:quat-entries :float-values]
-                       :property-type-boolean [:bool-entries :float-values]})
+                       :property-type-boolean [:bool-entries :float-values]
+                       :property-type-text [:text-entries :string-values]})
 
 (def ^:private go-prop-type? (partial contains? type->entry-keys))
 
@@ -326,7 +327,7 @@
 (defn go-props->decls [go-props include-element-ids?]
   (loop [go-props go-props
          decl (->decl [:number-entries :hash-entries :url-entries :vector3-entries
-                       :vector4-entries :quat-entries :bool-entries :float-values
+                       :vector4-entries :quat-entries :bool-entries :text-entries :float-values
                        :hash-values :string-values])]
     (if-some [{:keys [id type clj-value value] :as go-prop} (first go-props)]
       (let [_ (assert (go-prop? go-prop))
@@ -337,7 +338,8 @@
                      :property-type-vector3 clj-value
                      :property-type-vector4 clj-value
                      :property-type-quat (-> clj-value math/euler->quat math/vecmath->clj)
-                     :property-type-boolean [(if clj-value 1.0 0.0)])
+                     :property-type-boolean [(if clj-value 1.0 0.0)]
+                     :property-type-text [value])
             [entry-key values-key] (type->entry-keys type)
             entry {:key id
                    :id (murmur/hash64 id)
