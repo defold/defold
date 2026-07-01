@@ -43,7 +43,7 @@
 
 (defonce dev-updater (atom nil))
 
-(defn release-notes->markdown
+(defn- release-notes->markdown
   ^String [release-notes]
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
         issue->closed-issues (fn [{:keys [closed_issues repository]}]
@@ -102,14 +102,13 @@
          "\n" (summary-markdown [engine editor other]))))
 
 (def ^:private release-notes-range-limit
-  "When the user is several versions behind, show at most this many of the most
-  recent releases in the update dialog. Each shown release links to its full
-  notes online, so older ones stay reachable."
+  "Most releases to show in the update dialog when someone is several versions
+  behind. Each one links to its full notes online, so nothing older is lost."
   5)
 
 (defn- parse-version
-  "\"1.13.2\" -> [1 13 2]; nil or anything non-numeric -> nil. Equal-length int
-  vectors compare with clojure.core/compare exactly as semver expects."
+  "Turns \"1.13.2\" into [1 13 2] (nil for anything that isn't a plain dotted
+  number). Comparing these vectors with `compare` gives normal version ordering."
   [s]
   (when (string? s)
     (let [parts (string/split s #"\.")]
@@ -117,11 +116,10 @@
         (mapv #(Long/parseLong %) parts)))))
 
 (defn- versions-to-fetch
-  "From the channel manifest's version strings, picks the ones to show for the
-  running editor version: those strictly newer than `current-version`, newest
-  first, capped at `release-notes-range-limit`. Unparseable entries are dropped.
-  When `current-version` is unknown (e.g. dev builds) every version is a
-  candidate, so this yields the most recent N."
+  "Picks which versions to show from the manifest: the ones newer than the
+  running editor, newest first, capped at `release-notes-range-limit`. Bad
+  version strings are skipped. If we don't know the current version (dev builds),
+  everything counts, so you get the most recent few."
   [manifest-versions current-version]
   (let [current (parse-version current-version)]
     (-> (coll/into-> manifest-versions []
@@ -154,13 +152,12 @@
                        archive-domain channel version)))
 
 (defn fetch-release-notes!
-  "Downloads the release notes to show for the available update. Reads the
-  channel manifest, selects the versions between the running editor version and
-  the update (newest first, capped at `release-notes-range-limit`), and fetches
-  those per-version notes in parallel. Returns a vector of slots, newest first,
-  one per selected version: {:version <string> :notes <map-or-nil>} (:notes is
-  nil when that version's file couldn't be fetched). Returns nil when the
-  manifest itself can't be fetched."
+  "Downloads the notes to show for the available update. Reads the channel
+  manifest, works out which versions to show (newest first, capped at
+  `release-notes-range-limit`), and fetches each one's notes in parallel.
+  Returns a newest-first vector of {:version <string> :notes <map-or-nil>}, one
+  per version, where :notes is nil if that file didn't download. Returns nil if
+  even the manifest can't be fetched."
   [archive-domain channel]
   (when-some [manifest (fetch-manifest! archive-domain channel)]
     (let [versions (versions-to-fetch (filter string? manifest) (system/defold-version))]
@@ -237,16 +234,14 @@
               editor-sha1))))
 
 (defn release-notes
-  "Returns the in-memory release notes markdown for the available update, or nil
-  if none have been fetched yet (or the fetch failed), or if the fetched notes
-  belong to a superseded update. When the user is several versions behind, each
-  version in range is rendered newest first. A version whose notes failed to
-  download renders its heading followed by a short 'failed to download' notice in
-  place, so the user sees the gap in order."
+  "Returns the release notes markdown for the available update, or nil if we
+  haven't fetched any yet, the fetch failed, or the notes we have are for an
+  older update that's since been replaced. Versions render newest first; if one
+  version's notes didn't download, its heading still shows with a short 'failed
+  to download' note in its place, so gaps stay visible in order."
   ^String
   [updater]
-  (let [updater (if @dev-updater @dev-updater updater)
-        state @(:state-atom updater)
+  (let [state @(:state-atom updater)
         slots (:release-notes state)]
     (when (and (= (:release-notes-sha state) (:server-sha1 state))
                (not (coll/empty? slots)))
@@ -471,10 +466,10 @@
             (do
               (log/info :message "New version found" :sha1 update-sha1)
               (when-some [slots (fetch-release-notes! archive-domain channel)]
-                ;; Tag the notes with the sha they belong to so a failed fetch for
-                ;; a newer update can't keep showing them. Only a non-empty, fully
-                ;; fetched result is complete; an empty selection or any missing
-                ;; version stays incomplete and is retried on the next check.
+                ;; Remember which update these notes are for, so a failed fetch
+                ;; for a newer one can't keep showing stale notes. "Complete"
+                ;; means we got notes for every version; an empty or partial
+                ;; result stays incomplete so the next check retries it.
                 (swap! state-atom assoc
                        :release-notes slots
                        :release-notes-sha update-sha1

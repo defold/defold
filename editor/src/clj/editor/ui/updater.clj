@@ -64,10 +64,12 @@
                          (str (io/resource "editor.css"))]
            :root
            {:fx/type fx.v-box/lifecycle
+            :style-class "release-notes-dialog"
             :children [{:fx/type markdown/view
                         :v-box/vgrow :always
                         :content content
-                        :project nil}
+                        :project nil
+                        :root-props {:style-class "md-page-root"}}
                        {:fx/type fx.h-box/lifecycle
                         :alignment :center-right
                         :pref-height 52

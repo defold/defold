@@ -3137,8 +3137,8 @@ class Configuration(object):
             versions = json.loads(obj.get()['Body'].read())
         except botocore.exceptions.ClientError as e:
             # First release on this channel -> no manifest yet. Any other error
-            # (auth, throttling, network) must NOT be swallowed, or we'd publish
-            # a manifest containing only this version and lose the channel history.
+            # (auth, throttling, network) must NOT be ignored, or we'd publish a
+            # manifest with only this version and lose the channel's history.
             code = e.response.get('Error', {}).get('Code')
             if code not in ('NoSuchKey', 'NoSuchBucket', '404'):
                 raise
@@ -3152,8 +3152,8 @@ class Configuration(object):
         # Publishes the update dialog's release notes for the current channel:
         #   - release-notes/<version>.json  per-version, accumulates across releases
         #   - release-notes/manifest.json   ordered version list the editor walks
-        # Alpha/dev builds don't ship notes, but beta/stable releases must fail
-        # before the channel pointer moves if notes are absent.
+        # Alpha/dev builds don't ship notes, but for beta/stable the release must
+        # fail before it starts offering the update if notes are missing.
         json_content = self._build_editor_release_notes()
         if json_content is None:
             message = "No release notes for %s in releasenotes/" % self.version

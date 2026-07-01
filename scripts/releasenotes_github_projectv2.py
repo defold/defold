@@ -225,10 +225,10 @@ def _print_errors(response):
         print(error['message'])
 
 def github_query(query, max_retries = 6):
-    # Retries with exponential backoff so parallel callers ride out GitHub's rate
-    # limits instead of failing: a primary GraphQL limit surfaces as a RATE_LIMITED
-    # error, a secondary (concurrency/abuse) limit as a 403 that github.query
-    # swallows into a None response.
+    # Retries with backoff so parallel callers wait out GitHub's rate limits
+    # instead of failing. A hard rate limit comes back as a RATE_LIMITED error;
+    # a too-many-at-once limit comes back as a 403, which github.query turns into
+    # a None response.
     for attempt in range(max_retries):
         response = github.query(query, token)
         if response is None:
@@ -239,9 +239,9 @@ def github_query(query, max_retries = 6):
             if any(error.get('type') == 'RATE_LIMITED' for error in errors):
                 time.sleep(min(60, 5 * 2 ** attempt))
                 continue
-            # NOT_FOUND usually means a cross-repo reference queried in the wrong
-            # repo. Non-fatal: return the (null-leaf) data so the caller can skip
-            # it. Any other error type stays fatal.
+            # NOT_FOUND usually just means we looked in the wrong repo (a
+            # cross-repo reference). Not fatal: hand back the (empty) data so the
+            # caller can skip it. Any other kind of error is still fatal.
             if all(error.get('type') == 'NOT_FOUND' for error in errors):
                 return response.get("data")
             print(response)
@@ -254,8 +254,8 @@ def github_query(query, max_retries = 6):
 def get_project(name):
     data = github_query(QUERY_PROJECT_NUMBER % name)
     nodes = data["organization"]["projectsV2"]["nodes"]
-    # Empty when no board matches (e.g. a past release's board was archived, or the
-    # token lacks read:project / org SSO). Let the caller report it cleanly.
+    # Empty when no board matches (e.g. an old release's board was archived, or
+    # the token can't read projects). Let the caller report it cleanly.
     return nodes[0] if nodes else None
 
 def _entity(data, key):
@@ -355,19 +355,18 @@ def find_reference_commits(pr):
             commits.append(node["commit"]["oid"])
     return commits
 
-# Branches a release-note issue's fix must be present on. Containment is asked
-# server-side via the GitHub "compare two commits" REST API (below), so the
-# audit needs no local git history and runs on shallow CI clones.
+# Branches a release-note issue's fix has to be on. We check this through
+# GitHub's "compare two commits" API (below), so the audit needs no local git
+# history and works on CI's shallow checkout.
 AUDIT_BRANCHES = ["dev", "beta"]
 
 def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
-    # True when `branch` contains `commit` - i.e. the commit introduces nothing
-    # the branch is missing. GitHub's compare endpoint reports this as
-    # ahead_by == 0 for compare/<branch>...<commit>. A commit that exists but
-    # hasn't landed returns a normal response with ahead_by > 0 (fast False);
-    # only an unreachable repo / unknown sha yields a null response, which we
-    # retry with backoff like github_query. If it still can't be confirmed we
-    # fail closed (False) so the commit shows up as missing and blocks release.
+    # True when `branch` already contains `commit`. GitHub's compare endpoint
+    # tells us: comparing <branch>...<commit> comes back with ahead_by == 0.
+    # A commit that exists but hasn't landed yet has ahead_by > 0 (so False).
+    # Only an unreachable repo or unknown sha gives a null response, which we
+    # retry with backoff like github_query; if it still can't be confirmed we
+    # treat it as missing (False) so it blocks the release.
     url = "/repos/defold/%s/compare/%s...%s" % (repository, branch, commit)
     for attempt in range(max_retries):
         response = github.get(url, token)
@@ -378,8 +377,8 @@ def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
     return False
 
 def get_commit_branches(commit):
-    # Which audited branches contain this commit. Replaces a local
-    # `git branch --contains`, which needs full history unavailable in CI.
+    # Which of the audited branches contain this commit. Does the job of a local
+    # `git branch --contains`, which won't work on CI's shallow checkout.
     return [branch for branch in AUDIT_BRANCHES if commit_in_branch(branch, commit)]
 
 def check_commit_branches(commit, branches):
@@ -411,11 +410,11 @@ def issue_to_markdown(issue, hide_details = True, title_only = False):
 
 
 def fetch_item(item):
-    # Network-heavy, parallelizable: resolves an item to its (issue, pr, labels)
-    # via 2-3 serial GraphQL calls and does the per-item skip checks. No shared
-    # state and github.query is a stateless requests.post, so this is thread-safe.
-    # Returns a record consumed serially by parse_github_project (which keeps the
-    # order-dependent dedup/assembly single-threaded).
+    # Slow, and safe to run in parallel: turns one item into its (issue, pr,
+    # labels) with a few GraphQL calls and applies the per-item skip checks.
+    # It shares no state and each call stands alone, so it's thread-safe.
+    # parse_github_project consumes the results in order (the dedup and assembly
+    # stay single-threaded).
     content = item.get("content")
     if not content:
         return None
@@ -458,9 +457,9 @@ def parse_github_project(version):
     print("Parsing GitHub project for version %s" % version)
     issues = []
     items = get_issues_and_prs(project)
-    # Resolve every item's issue/PR in parallel (the slow part); assemble serially
-    # below. 8 workers stays well under GitHub's point-based GraphQL budget and its
-    # secondary concurrency limit, and github_query backs off on either.
+    # Resolve every item's issue/PR in parallel (the slow part); assemble in order
+    # below. 8 workers stays well within GitHub's rate and concurrency limits, and
+    # github_query backs off if we hit either.
     print("Fetching %d items..." % len(items))
     with ThreadPoolExecutor(max_workers = 8) as executor:
         records = list(executor.map(fetch_item, items))
@@ -554,10 +553,10 @@ def parse_github_project(version):
     return issues
 
 def audit_branches_for_channel(channel):
-    # Which branches a note's fix must be present on, by release channel.
-    # beta/stable ship from beta with everything forward-merged -> require both.
+    # Which branches a note's fix has to be on, per release channel.
+    # beta/stable ship from beta with everything merged forward -> require both.
     # alpha (dev track) and custom validation channels build off dev / a feature
-    # branch, so requiring beta would fail them for fixes that simply haven't
+    # branch, so requiring beta would fail them for fixes that just haven't
     # reached beta yet -> require dev only. Unknown channel (manual run with no
     # --channel) keeps the strict default.
     if channel in ("beta", "stable", None):
@@ -633,11 +632,11 @@ def check_issue_commits(issues, required_branches = ("dev", "beta")):
     print("\nSummary (%d issues)" % len(issues))
     print("  %d issue(s) from external repositories not checked" % ignored_count)
     green("  %d issue(s) present on dev+beta via merge commits" % merge_dev_beta_count)
-    green("  %d issue(s) present on dev+beta via reference commits" % merge_dev_beta_count)
+    green("  %d issue(s) present on dev+beta via reference commits" % reference_dev_beta_count)
     yellow("  %d issue(s) present on dev via merge commits" % merge_dev_count)
     yellow("  %d issue(s) present on beta via merge commits" % merge_beta_count)
-    yellow("  %d issue(s) present on dev via reference commits" % merge_dev_count)
-    yellow("  %d issue(s) present on beta via reference commits" % merge_beta_count)
+    yellow("  %d issue(s) present on dev via reference commits" % reference_dev_count)
+    yellow("  %d issue(s) present on beta via reference commits" % reference_beta_count)
     red("  %d issue(s) not present on dev" % missing_dev_count)
     red("  %d issue(s) not present on beta" % missing_beta_count)
     red("  %d issue(s) not present on dev+beta" % missing_dev_beta_count)
