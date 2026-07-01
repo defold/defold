@@ -521,9 +521,7 @@
         downloaded-sha1 (when (.exists update-sha1-file)
                           (slurp update-sha1-file))
         initial-update-delay 1000
-        ;; DEV-ONLY (issue-7186 validation): poll every 10s instead of hourly so a
-        ;; full update cycle can be observed. Restore to 3600000 before merge.
-        update-delay 10000]
+        update-delay 3600000]
     (if (or (string/blank? channel) (string/blank? sha1))
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
