@@ -268,6 +268,36 @@ TEST(dmLog, TestCapture)
     ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
 }
 
+static bool WaitForPendingLogCount()
+{
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 5000000;
+    while (dmLog::GetPendingLogCount() != 0 && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    return dmLog::GetPendingLogCount() == 0;
+}
+
+TEST(dmLog, TestPendingLogCount)
+{
+    g_LogListenerOutput.SetSize(0);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLogRegisterListener(TestLogCaptureCallback);
+
+    dmLogInfo("Pending marker");
+    ASSERT_TRUE(WaitForPendingLogCount());
+    ASSERT_EQ(0u, dmLog::GetPendingLogCount());
+
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
+    g_LogListenerOutput.Push('\0');
+
+    ASSERT_STREQ("INFO:DLIB: Pending marker\n", g_LogListenerOutput.Begin());
+
+    dmLogUnregisterListener(TestLogCaptureCallback);
+    dmLog::LogFinalize();
+}
+
 TEST(dmLog, TestMaxUntruncatedMessageLength)
 {
     g_LogListenerOutput.SetSize(0);
