@@ -32,6 +32,11 @@ components {
     type: PROPERTY_TYPE_NUMBER
   }
   properties {
+    id: "text"
+    value: "hello"
+    type: PROPERTY_TYPE_TEXT
+  }
+  properties {
     id: "vector3"
     value: "0.1, 0.2, 0.3"
     type: PROPERTY_TYPE_VECTOR3
