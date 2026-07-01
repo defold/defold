@@ -2581,6 +2581,7 @@
           tab-pane-tabs (.getTabs tab-pane)
           new-tab (make-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts)]
       (g/transact
+        {:undoable false}
         (select app-view resource-node [select-node]))
       (when select-tab
         (select-editor-tab!
