@@ -45,7 +45,7 @@ defold_protoc_encode(
   "${INPUT_TEST_BUILD_DIR}/test.gamepadsc"                         # OUT_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/test.gamepads"                       # SRC_FILE
   "${CMAKE_CURRENT_SOURCE_DIR}/../../proto/input/input_ddf.proto"   # SCHEMA_PROTO
-  "dmInputDDF.GamepadMaps"                                          # MESSAGE_NAME
+  "dmInputDDF.GamepadMapsRuntime"                                   # MESSAGE_NAME
   INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/../../proto"
 )
 
@@ -79,7 +79,7 @@ defold_target_link_libraries(test_input "${TARGET_PLATFORM}"
     input
 )
 
-defold_target_link_platform(test_input "${TARGET_PLATFORM}" PRIVATE)
+target_link_libraries(test_input PRIVATE platform_null)
 defold_target_link_socket(test_input "${TARGET_PLATFORM}" PRIVATE)
 defold_target_link_glfw(test_input "${TARGET_PLATFORM}" PRIVATE)
 
@@ -96,10 +96,6 @@ elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
     find_package(Threads REQUIRED)
     target_link_libraries(test_input PRIVATE Threads::Threads dl)
 endif()
-
-# Graphics and platform linkages
-defold_target_link_graphics(test_input "${TARGET_PLATFORM}" PRIVATE)
-defold_target_link_platform(test_input "${TARGET_PLATFORM}" PRIVATE)
 
 # Register into global build_tests and run_tests with working directory set to engine/input
 defold_register_test_target(test_input ON "${INPUT_TEST_RUNTIME_DIR}"

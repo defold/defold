@@ -147,6 +147,7 @@ dialog.button.report = Report
 dialog.button.disable-scene-editor = Disable Scene Editor
 dialog.button.cancel = Cancel
 dialog.button.delete = Delete
+dialog.button.apply = Apply
 
 # Error Dialog
 
@@ -706,6 +707,8 @@ prefs.label.dev.custom-engine = Custom Engine
 prefs.keymap.filter.prompt = Filter keymap…
 prefs.keymap.command = Command
 prefs.keymap.shortcuts = Shortcuts
+prefs.keymap.badge.mouse-binding = Mouse Binding
+prefs.keymap.badge.mouse-modifier = Mouse Modifier
 prefs.keymap.context-menu.new-shortcut = New Shortcut…
 prefs.keymap.context-menu.reset-to-default = Reset to Default
 prefs.keymap.context-menu.remove = Remove {shortcut}
@@ -718,6 +721,16 @@ prefs.keymap.warnings = Warnings:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)
 prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
+prefs.keymap.warning.duplicate = Binding already exists, will be ignored
+prefs.keymap.mouse-binding.button.left = Left
+prefs.keymap.mouse-binding.button.middle = Middle
+prefs.keymap.mouse-binding.button.right = Right
+prefs.keymap.mouse-binding.section.button = Mouse Button
+prefs.keymap.mouse-binding.section.modifiers = Modifiers
+prefs.keymap.context-menu.add-mouse-binding = Add Mouse Binding
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = Reset to Defaults
+prefs.keymap.context-menu.edit-modifier = Edit Modifier
+prefs.keymap.inherited-from = Inherited from {context}
 
 # Progress
 
@@ -1155,6 +1168,7 @@ property.appmanifest.graphics = Graphics
 property.appmanifest.graphics.tooltip = Vulkan supports desktop and mobile platforms only
 property.appmanifest.graphics-osx = Graphics (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan is the default renderer for macOS
+property.appmanifest.graphics-ios = Graphics (iOS)
 property.appmanifest.graphics-android = Graphics (Android)
 property.appmanifest.graphics-android.tooltip = OpenGL+Vulkan is the default for Android
 property.appmanifest.graphics-web = Graphics (HTML5)
@@ -1993,6 +2007,10 @@ form.label.project.input.repeat_interval = Repeat Interval
 form.help.project.input.repeat_interval = Seconds between repeats while holding a keyboard key
 form.label.project.input.gamepads = Gamepads
 form.help.project.input.gamepads = File reference of the gamepads config file, which maps gamepad signals to the OS, /builtins/input/default.gamepadsc by default
+form.label.project.input.gamepad_database = Gamepad Database
+form.help.project.input.gamepad_database = File reference of the SDL gamepad database file, which maps gamepad signals to the OS, /builtins/input/gamecontrollerdb.txt by default
+form.label.project.input.gamepad_deadzone = Gamepad Dead Zone
+form.help.project.input.gamepad_deadzone = Runtime dead zone applied to SDL gamepad database mappings
 form.label.project.input.game_binding = Game Binding
 form.help.project.input.game_binding = File reference of the input config file, which maps hardware inputs to actions, /input/game.input_bindingc by default
 form.label.project.input.use_accelerometer = Use Accelerometer
@@ -2326,6 +2344,7 @@ error.sound.invalid-ogg-file = Invalid Ogg file.
 error.sound.invalid-ogg-file-details = Invalid Ogg file (oggz-validate):\n{output}
 error.sound.could-not-read-audio-file = Couldn't read audio file {resource}.
 error.unknown-source = Unknown source
+error.game-project.gamepad-database-must-be-txt = input.gamepad_database must reference a .txt file.
 error.unspecified-property = "{property}" must be specified.
 error.mesh.stream-must-be-specified-for-world-vertex-space = "{property}" must be specified when using a Material with a world-space "Vertex Space" setting.
 error.mesh.stream-not-found-in-buffer = Stream "{stream}" could not be found in the specified buffer.

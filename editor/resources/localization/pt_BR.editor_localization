@@ -269,6 +269,13 @@ dialog.quit-defold.header = Existem alterações não salvas, tem certeza que de
 dialog.quit-defold.button.cancel = Cancelar e Continuar Trabalhando
 dialog.quit-defold.button.quit = Sair Sem Salvar
 
+# Restart Defold dialog
+
+dialog.restart-defold.title = Reiniciar Defold?
+dialog.restart-defold.header = Existem alterações não salvas. Salvar as alterações antes de reiniciar o Defold?
+dialog.restart-defold.button.cancel = Cancelar
+dialog.restart-defold.button.save-and-restart = Salvar e Reiniciar
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = Não é Seguro Atualizar Formatos de Arquivo
@@ -357,6 +364,11 @@ notification.fetch-libraries.dependency-problem = {uri}\: {problem}
 
 notification.reload-editor-scripts = Os scripts do editor mudaram. Deseja recarregá-los agora?
 notification.reload-editor-scripts.action.reload = Recarregar Scripts do Editor
+
+# Reload plugins notification
+
+notification.reload-plugins-failed = Os plugins de extensão nativos não puderam ser recarregados. Reinicie o Defold para recarregá-los.\n\nArquivo\: {file}\n\nErro subjacente do SO\:\n{error}
+notification.reload-plugins-failed.action.restart = Reiniciar Defold
 
 # Open custom editor notifications
 
@@ -1309,6 +1321,14 @@ property.label.size = Tamanho
 property.label.text = Texto
 property.label.tracking = Espaçamento Entre Letras
 
+# Properties: light
+
+property.light.color = Cor
+property.light.intensity = Intensidade
+property.light.range = Alcance
+property.light.inner-cone-angle = Ângulo do Cone Interno
+property.light.outer-cone-angle = Ângulo do Cone Externo
+
 # Properties: mesh
 
 property.mesh.normal-stream = Fluxo de Normais
@@ -1497,6 +1517,10 @@ resource.type.json = JSON
 resource.type.label = Rótulo
 resource.type.lib = Biblioteca
 resource.type.light = Luz
+resource.type.point-light = Luz de Ponto
+resource.type.directional-light = Luz Direcional
+resource.type.spot-light = Luz Holofote
+resource.type.ambient-light = Luz Ambiente
 resource.type.lua = Módulo Lua
 resource.type.manifest = Manifesto
 resource.type.markdown = Markdown
@@ -1535,6 +1559,7 @@ resource.category.objects = Objetos
 resource.category.scripts = Scripts
 resource.category.shaders = Shaders
 resource.category.components = Componentes
+resource.category.lights = Luzes
 resource.category.resources = Recursos
 resource.category.editor = Editor
 resource.category.render = Renderização
@@ -1901,6 +1926,7 @@ form.help.project.display.high_dpi = Ativar backbuffer de DPI alto quando dispon
 form.label.project.display.samples = Amostras
 form.help.project.display.samples = Quantas amostras usar para super amostragem anti-aliasing, 0 por padrão, o que significa que está desativado
 form.label.project.display.fullscreen = Tela Cheia
+form.help.project.display.fullscreen = Iniciar a aplicação em tela cheia sem bordas nas plataformas de desktop em vez de janelas
 form.label.project.display.display_profiles = Perfis de Exibição
 form.help.project.display.display_profiles = Arquivo de referência dos perfis de exibição que serão utilizados pela aplicação
 form.label.project.display.dynamic_orientation = Orientação Dinâmica
@@ -1967,6 +1993,10 @@ form.label.project.input.repeat_interval = Intervalo de repetição
 form.help.project.input.repeat_interval = Segundos entre repetições ao segurar uma tecla do teclado
 form.label.project.input.gamepads = Gamepads
 form.help.project.input.gamepads = Referência de arquivo de configuração do gamepad, que mapeia sinais do gamepad para o SO, /builtins/input/default.gamepadsc por padrão
+form.label.project.input.gamepad_database = Banco de Dados do Gamepad
+form.help.project.input.gamepad_database = Referência do arquivo de banco de dados SDL, que mapeia sinais do gamepad para o SO, /builtins/input/gamecontrollerdb.txt por padrão
+form.label.project.input.gamepad_deadzone = Zona Morta do Gamepad
+form.help.project.input.gamepad_deadzone = Zona morta de execução aplicada ao mapeamento SDL do banco de dados de gamepad
 form.label.project.input.game_binding = Ligação do Jogo
 form.help.project.input.game_binding = Referência de arquivo de configuração de entrada, que mapeia entradas de hardware para ações, /input/game.input_bindingc por padrão
 form.label.project.input.use_accelerometer = Usar Acelerômetro
@@ -2193,6 +2223,14 @@ form.label.sound.gain = Ganho
 form.label.sound.pan = Balanço
 form.label.sound.speed = Velocidade
 
+form.label.light = Luz
+form.label.light.type = Tipo
+form.label.light.color = Cor
+form.label.light.intensity = Intensidade
+form.label.light.range = Alcance
+form.label.light.inner-cone-angle = Ângulo do Cone Interno
+form.label.light.outer-cone-angle = Ângulo do Cone Externo
+
 form.label.liveupdate.liveupdate = Atualização Ao Vivo
 form.label.liveupdate.liveupdate.mode = Modo
 form.help.liveupdate.liveupdate.mode = Alvo
@@ -2287,6 +2325,7 @@ quick-help.start-or-attach-debugger = Iniciar ou Conectar Depurador
 # Error Messages
 error.assigned-image-has-internal-errors = A imagem atribuída tem erros internos.
 error.sampler-not-defined-in-material = "{sampler}" não está definido no Material. Use o comando "Limpar Sobreescrição" no menu de contexto da etiqueta para remover a propriedade. Se a amostra for necessária para o shader, adicione a amostra ausente no Material.
+error.light.invalid-source = O arquivo de luz não pôde ser analisado. Corrija o formato de texto ou reverta suas alterações.
 error.sound.invalid-ogg-file = Arquivo Ogg inválido.
 error.sound.invalid-ogg-file-details = Arquivo Ogg inválido (oggz-validate)\:\n{output}
 error.sound.could-not-read-audio-file = Não foi possível ler o arquivo de áudio {resource}.

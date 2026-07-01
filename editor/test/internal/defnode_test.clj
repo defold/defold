@@ -294,6 +294,13 @@
             (value (g/fnk [_this]
                           (inc (or (get _this :int-val) 0))))))
 
+(g/defnode StaticPropertyNode
+  (property static-property g/Str
+            (static custom-property {:id "static_property"
+                                     :protobuf-type :type-string})
+            (static false-value false))
+  (property ordinary-property g/Str))
+
 (g/defnode ComplexGetterFnPropertyNode
   (input a g/Any)
   (input b g/Any)
@@ -327,6 +334,19 @@
   (testing "properties can have defaults"
     (let [node (g/construct TwoPropertyNode)]
       (is (= "default value" (gt/get-property node (g/now) :a-property)))))
+
+  (testing "properties can have static attributes"
+    (is (= {:custom-property {:id "static_property"
+                              :protobuf-type :type-string}
+            :false-value false}
+           (get-in @StaticPropertyNode [:property :static-property :statics])))
+    (is (= {:static-property {:id "static_property"
+                              :protobuf-type :type-string}}
+           (g/property-statics StaticPropertyNode :custom-property)))
+    (is (= {:static-property false}
+           (g/property-statics StaticPropertyNode :false-value)))
+    (is (= {}
+           (g/property-statics StaticPropertyNode :missing))))
 
   (testing "properties are inherited"
     (let [node (g/construct InheritedPropertyNode :a-property nil :another-property nil)]

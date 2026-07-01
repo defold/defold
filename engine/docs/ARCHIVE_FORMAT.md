@@ -57,7 +57,9 @@ These two lists are of the same length, are in fact a 1:1 match. This makes it e
 
 The hashes are a 64bit hash (using [dmHashString64()](https://defold.com/ref/stable/dmHash/?q=dmhashstring64#dmHashString64:string)) of the relative file path of the resource.
 
-The resource entry contains the resource size, and compressed size (if it is compressed). It also has a set of flags with meta data, such as if the resource is compressed and/or obfuscated.
+The resource entry contains the archive data offset, resource size, compressed size (if it is compressed), and a set of flags with meta data, such as if the resource is compressed and/or obfuscated.
+
+Archive index version 6 is the current supported version and uses the packed 64-bit entry layout: flags are stored in the high 4 bits of a 64-bit entry word and the low 60 bits store the archive data offset, so a `.arcd` file can grow beyond 4 GiB without increasing the entry size. Resource sizes remain 32-bit.
 
 <pre>
 HEADER:
@@ -70,10 +72,9 @@ HASH1
  ...
 HASHn
 ENTRY0
-  entry.resource_offset
+  entry.offset_and_flags             # flags in bits 63..60, offset in bits 59..0
   entry.resource_size
   entry.resource_compressed_size
-  entry.flags
 ENTRY1
  ...
 ENTRYn
@@ -114,5 +115,3 @@ See [ManifestBuilder.java](https://github.com/defold/defold/blob/dev/com.dynamo.
 #### Debugging
 
 It is possible to print the contents of a `.dmanifest` by calling `<defold>/scripts/unpack_ddf.py /path/to/game.dmanifest`
-
-

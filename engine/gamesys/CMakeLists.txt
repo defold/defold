@@ -144,6 +144,7 @@ set(GS_SOURCES ${GS_TOP_LEVEL} ${GS_RESOURCES} ${GS_COMPONENTS})
 # Exclude model/rig sources (built as separate libs) using explicit paths for reliability
 # Apply remove_from_node_list() exclusions by basename
 list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_model\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_model_pbr\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_model_null\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_model\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_model_null\\.cpp$")
@@ -202,6 +203,7 @@ add_custom_target(gamesys_model_proto_headers DEPENDS "${GS_MODEL_HEADER}")
 defold_add_library(gamesys_model STATIC
     "${GS_SRC_DIR}/resources/res_model.cpp"
     "${GS_SRC_DIR}/components/comp_model.cpp"
+    "${GS_SRC_DIR}/components/comp_model_pbr.cpp"
     "${GS_SRC_DIR}/scripts/script_model.cpp"
     "${GS_MODEL_CC}")
 target_include_directories(gamesys_model PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}" "${GS_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}")

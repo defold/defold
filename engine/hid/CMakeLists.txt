@@ -189,8 +189,13 @@ if(BUILD_TESTS)
     )
 
     defold_target_link_graphics(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
-    defold_target_link_platform(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
+    if(TARGET_PLATFORM MATCHES "x86_64-xbone")
+        target_link_libraries(test_app_hid PRIVATE platform_null)
+    else()
+        defold_target_link_platform(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
+    endif()
     defold_target_link_socket(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_app(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
 
     # Register into global build_tests and run_tests
     defold_register_test_target(test_app_hid FALSE)

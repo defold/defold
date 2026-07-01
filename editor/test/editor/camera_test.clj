@@ -15,9 +15,9 @@
 (ns editor.camera-test
   (:require [clojure.test :refer :all]
             [editor.camera :as c]
+            [editor.geom :as geom]
             [editor.math :as math]
-            [editor.types :as t]
-            [editor.geom :as geom])
+            [editor.types :as t])
   (:import [javax.vecmath Point3d Vector3d]))
 
 (deftest frame-zero-aabb
@@ -38,28 +38,6 @@
           framed-camera (c/camera-orthographic-frame-aabb camera viewport geom/null-aabb)
           proj (c/camera-projection-matrix framed-camera)]
       (is (.epsilonEquals proj-before proj math/epsilon)))))
-
-(deftest mouse-button-interpretation
-  (are [move button shift control alt meta]
-    (= move (c/camera-movement {:button button :shift shift :control control :alt alt :meta meta}
-                               #{:tumble :track :dolly}))
-
-    ;; move button     shift ctrl  alt   meta
-    :tumble :primary   false true  false false
-    :track  :primary   false false true  false
-    :dolly  :primary   false true  true  false
-    :idle   :primary   false false false false
-    :idle   :primary   true  false false false
-    :idle   :primary   false false false true
-    :track  :secondary false false false false
-    :idle   :secondary true  false false false
-    :idle   :secondary false true  false false
-    :dolly  :secondary false false true false
-    :idle   :secondary false false false true
-    :track  :middle    false false false false
-    :idle   :middle    true  false false false
-    :idle   :middle    false true  false false
-    :idle   :middle    false false true  false))
 
 (deftest look-rotation-pitch-clamp
   (testing "Pitch should clamp at ±86 degrees even with extreme dy input"

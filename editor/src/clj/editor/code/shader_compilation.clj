@@ -38,7 +38,7 @@
 (def ^:private default-shader-languages
   ;; TODO: WGSL support (:language-wgsl)
   ;; TODO(question): Does the order matter?
-  [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])
+  [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv :language-msl-22])
 
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" pb-default-shader-languages
   (pb-shader-languages default-shader-languages))

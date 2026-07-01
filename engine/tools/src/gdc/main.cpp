@@ -19,6 +19,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <assert.h>
+#include <stdlib.h>
 
 #include <dlib/platform.h>
 
@@ -28,6 +30,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/time.h>
+#include <dlib/dstrings.h>
 #include <ddf/ddf.h>
 
 #include <hid/hid.h>
@@ -36,6 +39,7 @@
 extern "C" void dmExportedSymbols();
 
 static const uint16_t USB_VENDOR_NINTENDO = 0x057e;
+static const float AXIS_DETECT_THRESHOLD = 0.25f;
 
 enum State
 {
@@ -56,14 +60,14 @@ struct Driver
 {
     const char* m_Guid;
     const char* m_Device;
-    const char* m_DeviceSDL;
     const char* m_Platform;
     float m_DeadZone;
     Trigger m_Triggers[dmInputDDF::MAX_GAMEPAD_COUNT];
 };
 
-void GetDelta(dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
+void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
 void DumpDriver(FILE* out, Driver* driver);
+void LogDriver(Driver* driver);
 void DumpSDLEntry(FILE* out, Driver* driver);
 
 static const char* GetSDLPlatformName(const char* platform)
@@ -81,6 +85,23 @@ static const char* GetSDLPlatformName(const char* platform)
     if (strcmp(platform, DM_PLATFORM_NAME_WEB) == 0)
         return "Web";
     return platform;
+}
+
+static WindowsGraphicsApi AdapterFamilyToWindowApi(dmGraphics::AdapterFamily family)
+{
+    switch (family)
+    {
+    case dmGraphics::ADAPTER_FAMILY_NULL:     return WINDOW_GRAPHICS_API_NULL;
+    case dmGraphics::ADAPTER_FAMILY_OPENGL:   return WINDOW_GRAPHICS_API_OPENGL;
+    case dmGraphics::ADAPTER_FAMILY_OPENGLES: return WINDOW_GRAPHICS_API_OPENGLES;
+    case dmGraphics::ADAPTER_FAMILY_VULKAN:   return WINDOW_GRAPHICS_API_VULKAN;
+    case dmGraphics::ADAPTER_FAMILY_VENDOR:   return WINDOW_GRAPHICS_API_VENDOR;
+    case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return WINDOW_GRAPHICS_API_WEBGPU;
+    case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return WINDOW_GRAPHICS_API_DIRECTX;
+    default: break;
+    }
+    assert(0);
+    return (WindowsGraphicsApi) -1;
 }
 
 static int HexCharToInt(char c)
@@ -187,10 +208,8 @@ static void DumpSDLDeviceName(FILE* out, const char* device_name)
     }
 }
 
-static void DumpSDLBinding(FILE* out, const char* input_name, const Trigger* trigger)
+static void DumpSDLBindingValue(FILE* out, const Trigger* trigger)
 {
-    fprintf(out, ",%s:", input_name);
-
     switch (trigger->m_Type)
     {
     case dmInputDDF::GAMEPAD_TYPE_BUTTON:
@@ -214,6 +233,73 @@ static void DumpSDLBinding(FILE* out, const char* input_name, const Trigger* tri
     }
 }
 
+static void DumpSDLBinding(FILE* out, const char* input_name, const Trigger* trigger)
+{
+    fprintf(out, ",%s:", input_name);
+    DumpSDLBindingValue(out, trigger);
+}
+
+static void DumpSDLDirectionalBinding(FILE* out, const char* input_name, char logical_direction, const Trigger* trigger)
+{
+    fprintf(out, ",%c%s:", logical_direction, input_name);
+    DumpSDLBindingValue(out, trigger);
+}
+
+static bool IsFullAxisPair(const Trigger* negative_trigger, const Trigger* positive_trigger, bool* inverted)
+{
+    if (negative_trigger->m_Type != dmInputDDF::GAMEPAD_TYPE_AXIS ||
+        positive_trigger->m_Type != dmInputDDF::GAMEPAD_TYPE_AXIS ||
+        negative_trigger->m_Index != positive_trigger->m_Index ||
+        !negative_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] ||
+        !positive_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] ||
+        negative_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] ||
+        positive_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE])
+    {
+        return false;
+    }
+
+    const bool negative_negate = negative_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE];
+    const bool positive_negate = positive_trigger->m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE];
+    if (negative_negate == positive_negate)
+    {
+        return false;
+    }
+
+    *inverted = !negative_negate && positive_negate;
+    return true;
+}
+
+static void DumpSDLStickAxis(FILE* out, Driver* driver, const char* input_name, uint32_t negative_trigger_id, uint32_t positive_trigger_id, bool written_triggers[dmInputDDF::MAX_GAMEPAD_COUNT])
+{
+    const Trigger* negative_trigger = &driver->m_Triggers[negative_trigger_id];
+    const Trigger* positive_trigger = &driver->m_Triggers[positive_trigger_id];
+    const bool has_negative = !negative_trigger->m_Skip;
+    const bool has_positive = !positive_trigger->m_Skip;
+
+    if (has_negative && has_positive)
+    {
+        bool inverted = false;
+        if (IsFullAxisPair(negative_trigger, positive_trigger, &inverted))
+        {
+            fprintf(out, ",%s:a%d%s", input_name, negative_trigger->m_Index, inverted ? "~" : "");
+            written_triggers[negative_trigger_id] = true;
+            written_triggers[positive_trigger_id] = true;
+            return;
+        }
+    }
+
+    if (has_negative)
+    {
+        DumpSDLDirectionalBinding(out, input_name, '-', negative_trigger);
+        written_triggers[negative_trigger_id] = true;
+    }
+    if (has_positive)
+    {
+        DumpSDLDirectionalBinding(out, input_name, '+', positive_trigger);
+        written_triggers[positive_trigger_id] = true;
+    }
+}
+
 bool IsIgnoredID(uint32_t trigger_id) {
     // Ignore connected/disconnected triggers.
     if (trigger_id == dmInputDDF::GAMEPAD_CONNECTED ||
@@ -223,12 +309,124 @@ bool IsIgnoredID(uint32_t trigger_id) {
         return true;
     }
 
+#if defined(_GAMING_XBOX)
+    if (trigger_id == dmInputDDF::GAMEPAD_GUIDE ||
+        trigger_id == dmInputDDF::GAMEPAD_RAW)
+        return true;
+#endif
+
     return false;
+}
+
+static bool IsTriggerID(uint32_t trigger_id)
+{
+    return trigger_id == dmInputDDF::GAMEPAD_LTRIGGER || trigger_id == dmInputDDF::GAMEPAD_RTRIGGER;
+}
+
+static bool IsFullRangeTriggerAxis(dmHID::GamepadPacket* zero_packet, uint32_t index, float delta)
+{
+    const float zero_value = zero_packet->m_Axis[index];
+    return (zero_value <= -0.5f && delta > 0.0f) || (zero_value >= 0.5f && delta < 0.0f);
 }
 
 dmHID::HContext g_HidContext = 0;
 
 static volatile bool g_SkipTrigger = false;
+
+static void UpdateHID(HWindow window)
+{
+    dmHID::Update(g_HidContext);
+    dmPlatform::PollEvents(window);
+}
+
+static void PrintGamepadPacketDebug(dmHID::HGamepad gamepad, dmHID::GamepadPacket* packet)
+{
+    printf("\tdebug packet:");
+
+    printf(" axis");
+    uint32_t axis_count = dmHID::GetGamepadAxisCount(gamepad);
+    if (axis_count == 0)
+    {
+        printf("=<none>");
+    }
+    else
+    {
+        printf("=");
+        for (uint32_t a = 0; a < axis_count; ++a)
+        {
+            printf("%s%.3f", a == 0 ? "" : ",", packet->m_Axis[a]);
+        }
+    }
+
+    printf(" buttons");
+    uint32_t button_count = dmHID::GetGamepadButtonCount(gamepad);
+    if (button_count == 0)
+    {
+        printf("=<none>");
+    }
+    else
+    {
+        printf("=");
+        for (uint32_t b = 0; b < button_count; ++b)
+        {
+            printf("%c", dmHID::GetGamepadButton(packet, b) ? '*' : '_');
+        }
+    }
+
+    printf(" hats");
+    uint32_t hat_count = dmHID::GetGamepadHatCount(gamepad);
+    if (hat_count == 0)
+    {
+        printf("=<none>");
+    }
+    else
+    {
+        printf("=");
+        for (uint32_t h = 0; h < hat_count; ++h)
+        {
+            printf("%s%d", h == 0 ? "" : ",", packet->m_Hat[h]);
+        }
+    }
+
+    printf("\n");
+    fflush(stdout);
+}
+
+static bool HasGamepadInputs(dmHID::HGamepad gamepad)
+{
+    return dmHID::GetGamepadAxisCount(gamepad) != 0 || dmHID::GetGamepadButtonCount(gamepad) != 0 || dmHID::GetGamepadHatCount(gamepad) != 0;
+}
+
+static bool WaitForGamepadReady(HWindow window, dmHID::HGamepad gamepad, dmHID::GamepadPacket* packet, bool debug_input)
+{
+    const uint32_t wait_steps = 300;
+    for (uint32_t step = 0; step < wait_steps; ++step)
+    {
+        UpdateHID(window);
+        if (!dmHID::GetGamepadPacket(gamepad, packet))
+        {
+            return false;
+        }
+
+        if (HasGamepadInputs(gamepad))
+        {
+            if (debug_input)
+            {
+                PrintGamepadPacketDebug(gamepad, packet);
+            }
+            return true;
+        }
+
+        if (debug_input && (step == 0 || (step % 60) == 0))
+        {
+            PrintGamepadPacketDebug(gamepad, packet);
+        }
+
+        dmTime::Sleep(16667);
+    }
+
+    return false;
+}
 
 static void sig_handler(int _)
 {
@@ -246,15 +444,12 @@ static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
         char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
         dmHID::GetGamepadDeviceName(g_HidContext, pad, device_name);
 
-        char device_name_sdl[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-        dmHID::GetGamepadDeviceNameSDL(g_HidContext, pad, device_name_sdl);
-
         dmHID::GamepadGuid guid;
         dmHID::GetGamepadDeviceGuid(g_HidContext, pad, &guid);
         char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH+1];
         dmHID::FormatGamepadGuid(&guid, guid_string);
 
-        dmLogInfo("Gamepad %u connected: '%s' - '%s' '%s'", gamepad_index, device_name, device_name_sdl, guid_string);
+        dmLogInfo("Gamepad %u connected: '%s' - '%s'", gamepad_index, device_name, guid_string);
     }
     else
     {
@@ -284,7 +479,9 @@ int main(int argc, char *argv[])
     if (argc > 1)
         filename = argv[1];
 
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+    const bool debug_input = getenv("GDC_DEBUG") != 0x0;
+
+    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL);
 
     WindowCreateParams window_params;
     WindowCreateParamsInitialize(&window_params);
@@ -293,19 +490,17 @@ int main(int argc, char *argv[])
     window_params.m_Title = "gdc";
     window_params.m_PrintDeviceInfo = false;
     window_params.m_OpenGLVersionHint = 33;
-    if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
-    {
-        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
-    }
-    else
-    {
-        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
-    }
+    window_params.m_GraphicsApi = AdapterFamilyToWindowApi(dmGraphics::GetInstalledAdapterFamily());
     window_params.m_ContextAlphabits = 8;
     window_params.m_Hidden = 1;
 
     HWindow window = dmPlatform::NewWindow();
-    dmPlatform::OpenWindow(window, window_params);
+    WindowResult window_result = dmPlatform::OpenWindow(window, window_params);
+    if (window_result != WINDOW_RESULT_OK)
+    {
+        dmLogFatal("Unable to open window: %d.", window_result);
+        return 1;
+    }
 
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
@@ -319,13 +514,21 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    g_HidContext = dmHID::NewContext(dmHID::NewContextParams());
+    dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
+    new_hid_params.m_IgnoreAcceleration = 1;
+
+    g_HidContext = dmHID::NewContext(new_hid_params);
     dmHID::SetWindow(g_HidContext, window);
     dmHID::SetGamepadConnectivityCallback(g_HidContext, GamepadConnectivityCallback, 0);
-    dmHID::Init(g_HidContext);
+    bool hid_result = dmHID::Init(g_HidContext);
+    if (!hid_result)
+    {
+        dmLogFatal("Unable to initialize HID.");
+        return 1;
+    }
 
-    const int settle_wait_count = (int)(wait_delay / dt) + 1;
-    int wait_count = settle_wait_count;
+    const int settle_timeout_count = (int)(5.0f / dt) + 1;
+    int wait_count = settle_timeout_count;
 
 retry:
 
@@ -335,7 +538,7 @@ retry:
     const uint32_t wait_steps = 180;
     for (uint32_t step = 0; step < wait_steps && gamepad_count == 0; ++step)
     {
-        dmHID::Update(g_HidContext);
+        UpdateHID(window);
 
         gamepad_count = 0;
         for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_COUNT; ++i)
@@ -385,6 +588,7 @@ retry:
                 gamepad = gamepads[index-1];
                 break;
             }
+
             printf("Invalid input!");
             fflush(stdout);
             goto bail;
@@ -395,10 +599,10 @@ retry:
         gamepad = gamepads[0];
     }
 
+    dmHID::SetGamepadLayoutLegacy(gamepad, false);
+
     char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
-    char device_name_sdl[dmHID::MAX_GAMEPAD_NAME_LENGTH];
     dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name);
-    dmHID::GetGamepadDeviceNameSDL(g_HidContext, gamepad, device_name_sdl);
 
     dmHID::GamepadGuid guid;
     dmHID::GetGamepadDeviceGuid(g_HidContext, gamepad, &guid);
@@ -411,13 +615,22 @@ retry:
     memset(&driver, 0, sizeof(Driver));
     driver.m_Guid = guid_string;
     driver.m_Device = device_name;
-    driver.m_DeviceSDL = device_name_sdl;
     driver.m_Platform = DM_PLATFORM;
     driver.m_DeadZone = 0.2f;
 
     dmHID::GamepadPacket prev_packet;
     dmHID::GamepadPacket packet;
-    dmHID::GetGamepadPacket(gamepad, &packet);
+    if (debug_input)
+    {
+        printf("* GDC_DEBUG=1 HID input dump is enabled.\n");
+    }
+    printf("* Using SDL gamepad packet layout.\n");
+
+    if (!WaitForGamepadReady(window, gamepad, &packet, debug_input))
+    {
+        printf("* The selected gamepad is connected, but it reports no axes, buttons or hats.\n");
+        goto bail;
+    }
     prev_packet = packet;
 
     dmInputDDF::GamepadType gamepad_type;
@@ -430,17 +643,22 @@ retry:
 
     printf("* Waiting for the gamepad values to settle. Don't press anything on the gamepad...\n");
     settled = false;
-    wait_count = settle_wait_count;
+    wait_count = settle_timeout_count;
     timer = wait_delay;
     for (int w = wait_count; w > 0; --w, --wait_count)
     {
-        dmHID::Update(g_HidContext);
+        UpdateHID(window);
         if (!dmHID::GetGamepadPacket(gamepad, &packet))
         {
             printf("%d: Failed to get gamepad packet\n", __LINE__);
             break;
         }
-        GetDelta(&prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+        GetDelta(gamepad, &prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+        if (debug_input && dmMath::Abs(delta) >= 0.01f)
+        {
+            printf("\tdebug settle: type=%d index=%u value=%.3f delta=%.3f\n", gamepad_type, index, value, delta);
+            PrintGamepadPacketDebug(gamepad, &packet);
+        }
         if (dmMath::Abs(delta) < 0.01f)
         {
             timer -= dt;
@@ -476,18 +694,38 @@ retry:
         State state = STATE_WAITING;
         timer = wait_delay;
         bool run = true;
+        uint32_t debug_sample_count = 0;
+        dmHID::GamepadPacket debug_prev_packet = prev_packet;
         while (run && wait_count>0)
         {
             if (g_SkipTrigger) {
-                printf("Skipping trigger.\n");
+                dmLogInfo("Skipping trigger.\n");
                 driver.m_Triggers[i].m_Skip = true;
                 g_SkipTrigger = false;
                 break;
             }
 
-            dmHID::Update(g_HidContext);
-            dmHID::GetGamepadPacket(gamepad, &packet);
-            GetDelta(&prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+            UpdateHID(window);
+            if (!dmHID::GetGamepadPacket(gamepad, &packet))
+            {
+                printf("%d: Failed to get gamepad packet\n", __LINE__);
+                goto bail;
+            }
+            if (debug_input)
+            {
+                bool packet_changed = memcmp(&debug_prev_packet, &packet, sizeof(dmHID::GamepadPacket)) != 0;
+                if (packet_changed || debug_sample_count == 0 || (debug_sample_count % 30) == 0)
+                {
+                    PrintGamepadPacketDebug(gamepad, &packet);
+                    debug_prev_packet = packet;
+                }
+                ++debug_sample_count;
+            }
+            GetDelta(gamepad, &prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+            if (debug_input && gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS && dmMath::Abs(delta) > 0.05f)
+            {
+                printf("\tdebug axis: index=%u value=%.3f delta=%.3f\n", index, value, delta);
+            }
 
             switch (state)
             {
@@ -495,7 +733,7 @@ retry:
                 if (dmMath::Abs(delta) < 0.2f)
                 {
                     state = STATE_READING;
-                    printf("* Press %s...\n", dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name);
+                    dmLogInfo("* Press %s...\n", dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name);
                     timer = read_delay;
                     wait_count = 100;
                 }
@@ -517,32 +755,26 @@ retry:
                     printf("\ttype: %s, index: %d, value: %.2f\n", gamepad_types[gamepad_type], index, value);
                     run = false;
                 }
-                else if (dmMath::Abs(delta) > 0.7f)
+                else if (dmMath::Abs(delta) > AXIS_DETECT_THRESHOLD)
                 {
-                    timer -= dt;
-                    if (timer < 0.0f)
-                    {
-                        driver.m_Triggers[i].m_Type = gamepad_type;
-                        driver.m_Triggers[i].m_Index = index;
-                        if (dmMath::Abs(delta) > 1.5f)
-                            driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] = true;
-                        else if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS)
-                            driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] = true;
-                        if (delta < 0.0f)
-                            driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE] = true;
+                    driver.m_Triggers[i].m_Type = gamepad_type;
+                    driver.m_Triggers[i].m_Index = index;
+                    if (IsTriggerID(i) && gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS && IsFullRangeTriggerAxis(&prev_packet, index, delta))
+                        driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] = true;
+                    else if (dmMath::Abs(delta) > 1.5f)
+                        driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_SCALE] = true;
+                    else if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS)
+                        driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_CLAMP] = true;
+                    if (delta < 0.0f)
+                        driver.m_Triggers[i].m_Modifiers[dmInputDDF::GAMEPAD_MODIFIER_NEGATE] = true;
 
-                        if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_HAT) {
-                            driver.m_Triggers[i].m_HatMask = (uint32_t)value;
-                        }
-
-                        static const char* gamepad_types[] = {"axis", "button", "hat"};
-                        printf("\ttype: %s, index: %d, value: %.2f\n", gamepad_types[gamepad_type], index, value);
-                        run = false;
+                    if (gamepad_type == dmInputDDF::GAMEPAD_TYPE_HAT) {
+                        driver.m_Triggers[i].m_HatMask = (uint32_t)value;
                     }
-                }
-                else
-                {
-                    timer = read_delay;
+
+                    static const char* gamepad_types[] = {"axis", "button", "hat"};
+                    printf("\ttype: %s, index: %d, value: %.2f\n", gamepad_types[gamepad_type], index, value);
+                    run = false;
                 }
                 break;
             }
@@ -559,13 +791,17 @@ retry:
     out = fopen(filename, "w");
     if (out != 0x0)
     {
-        DumpDriver(out, &driver);
-        printf("Wrote '%s'\n", filename);
+        DumpSDLEntry(out, &driver);
+        printf("Wrote entry to '%s'\n", filename);
     }
     else
     {
-        printf("Could not open %s to write to, dumping to stdout instead.\n\n", filename);
+        dmLogInfo("Could not open %s to write to, dumping to stdout instead.\n\n", filename);
+#if defined(DM_PLATFORM_VENDOR)
+        LogDriver(&driver);
+#else
         DumpDriver(stdout, &driver);
+#endif
     }
 
     DumpSDLEntry(stdout, &driver);
@@ -581,14 +817,26 @@ bail:
     return result;
 }
 
-void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta)
+void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta)
 {
-    float max_delta = -1.0f;
-    for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_AXIS_COUNT; ++i)
+    if (gamepad_type != 0x0)
+        *gamepad_type = dmInputDDF::GAMEPAD_TYPE_AXIS;
+    if (index != 0x0)
+        *index = 0;
+    if (value != 0x0)
+        *value = packet->m_Axis[0];
+    if (delta != 0x0)
+        *delta = 0.0f;
+
+    float max_delta = 0.0f;
+    uint32_t axis_count = dmHID::GetGamepadAxisCount(gamepad);
+    for (uint32_t i = 0; i < axis_count; ++i)
     {
-        if (dmMath::Abs(packet->m_Axis[i] - prev_packet->m_Axis[i]) > max_delta)
+        float axis_delta = packet->m_Axis[i] - prev_packet->m_Axis[i];
+        float abs_axis_delta = dmMath::Abs(axis_delta);
+        if (abs_axis_delta > max_delta)
         {
-            max_delta = dmMath::Abs(packet->m_Axis[i] - prev_packet->m_Axis[i]);
+            max_delta = abs_axis_delta;
             if (gamepad_type != 0x0)
                 *gamepad_type = dmInputDDF::GAMEPAD_TYPE_AXIS;
             if (index != 0x0)
@@ -597,11 +845,12 @@ void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, d
                 *value = packet->m_Axis[i];
             if (delta != 0x0)
             {
-                *delta = packet->m_Axis[i] - prev_packet->m_Axis[i];
+                *delta = axis_delta;
             }
         }
     }
-    for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_HAT_COUNT; ++i)
+    uint32_t hat_count = dmHID::GetGamepadHatCount(gamepad);
+    for (uint32_t i = 0; i < hat_count; ++i)
     {
         if (prev_packet->m_Hat[i] != packet->m_Hat[i]) {
             if (gamepad_type != 0x0)
@@ -616,9 +865,12 @@ void GetDelta(dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, d
             }
         }
     }
-    for (uint32_t i = 0; i < dmHID::MAX_GAMEPAD_BUTTON_COUNT; ++i)
+    uint32_t button_count = dmHID::GetGamepadButtonCount(gamepad);
+    for (uint32_t i = 0; i < button_count; ++i)
     {
-        if (dmHID::GetGamepadButton(packet, i))
+        bool was_down = dmHID::GetGamepadButton(prev_packet, i);
+        bool is_down = dmHID::GetGamepadButton(packet, i);
+        if (!was_down && is_down)
         {
             if (gamepad_type != 0x0)
                 *gamepad_type = dmInputDDF::GAMEPAD_TYPE_BUTTON;
@@ -665,6 +917,57 @@ void DumpDriver(FILE* out, Driver* driver)
     fprintf(out, "}\n");
 }
 
+#if defined(DM_PLATFORM_VENDOR)
+void LogDriver(Driver* driver)
+{
+    char result[8*1024];
+    char line[1024];
+    result[0] = '\0';
+
+    dmStrlCat(result, "driver\n{\n", sizeof(result));
+    dmSnPrintf(line, sizeof(line), "    device: \"%s\"\n", driver->m_Device);
+    dmStrlCat(result, line, sizeof(result));
+    dmSnPrintf(line, sizeof(line), "    platform: \"%s\"\n", driver->m_Platform);
+    dmStrlCat(result, line, sizeof(result));
+    dmSnPrintf(line, sizeof(line), "    dead_zone: %.3f\n", driver->m_DeadZone);
+    dmStrlCat(result, line, sizeof(result));
+    for (uint32_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
+    {
+        // Ignore connected/disconnected triggers.
+
+        uint32_t trigger_id = dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Value;
+        if (trigger_id == dmInputDDF::GAMEPAD_CONNECTED ||
+            trigger_id == dmInputDDF::GAMEPAD_DISCONNECTED ||
+            driver->m_Triggers[i].m_Skip) {
+            continue;
+        }
+
+        dmSnPrintf(line, sizeof(line), "    map { input: %s type: %s index: %d ",
+                dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name,
+                dmInputDDF_GamepadType_DESCRIPTOR.m_EnumValues[driver->m_Triggers[i].m_Type].m_Name,
+                driver->m_Triggers[i].m_Index);
+        dmStrlCat(result, line, sizeof(result));
+        if (driver->m_Triggers[i].m_Type == dmInputDDF::GAMEPAD_TYPE_HAT) {
+            dmSnPrintf(line, sizeof(line), "hat_mask: %d ", driver->m_Triggers[i].m_HatMask);
+            dmStrlCat(result, line, sizeof(result));
+        }
+        for (uint32_t j = 0; j < dmInputDDF::MAX_GAMEPAD_MODIFIER_COUNT; ++j)
+        {
+            if (driver->m_Triggers[i].m_Modifiers[j])
+            {
+                dmSnPrintf(line, sizeof(line), "mod { mod: %s } ", dmInputDDF_GamepadModifier_DESCRIPTOR.m_EnumValues[j].m_Name);
+                dmStrlCat(result, line, sizeof(result));
+            }
+        }
+
+        dmStrlCat(result, "}\n", sizeof(result));
+    }
+    dmStrlCat(result, "}\n", sizeof(result));
+
+    dmLogInfo("DRIVER:\n%s", result);
+}
+#endif
+
 void DumpSDLEntry(FILE* out, Driver* driver)
 {
     static const uint32_t binding_order[] =
@@ -697,19 +1000,41 @@ void DumpSDLEntry(FILE* out, Driver* driver)
     };
 
     fprintf(out, "%s,", driver->m_Guid);
-    DumpSDLDeviceName(out, driver->m_DeviceSDL);
+    DumpSDLDeviceName(out, driver->m_Device);
+
+    bool written_triggers[dmInputDDF::MAX_GAMEPAD_COUNT];
+    memset(written_triggers, 0, sizeof(written_triggers));
 
     for (uint32_t i = 0; i < sizeof(binding_order) / sizeof(binding_order[0]); ++i)
     {
         const uint32_t trigger_id = binding_order[i];
-        if (driver->m_Triggers[trigger_id].m_Skip)
+        if (written_triggers[trigger_id] || driver->m_Triggers[trigger_id].m_Skip)
             continue;
 
         const char* input_name = GetSDLInputName(driver, trigger_id);
         if (input_name == 0x0)
             continue;
 
+        switch (trigger_id)
+        {
+        case dmInputDDF::GAMEPAD_LSTICK_LEFT:
+            DumpSDLStickAxis(out, driver, input_name, dmInputDDF::GAMEPAD_LSTICK_LEFT, dmInputDDF::GAMEPAD_LSTICK_RIGHT, written_triggers);
+            continue;
+        case dmInputDDF::GAMEPAD_LSTICK_UP:
+            DumpSDLStickAxis(out, driver, input_name, dmInputDDF::GAMEPAD_LSTICK_UP, dmInputDDF::GAMEPAD_LSTICK_DOWN, written_triggers);
+            continue;
+        case dmInputDDF::GAMEPAD_RSTICK_LEFT:
+            DumpSDLStickAxis(out, driver, input_name, dmInputDDF::GAMEPAD_RSTICK_LEFT, dmInputDDF::GAMEPAD_RSTICK_RIGHT, written_triggers);
+            continue;
+        case dmInputDDF::GAMEPAD_RSTICK_UP:
+            DumpSDLStickAxis(out, driver, input_name, dmInputDDF::GAMEPAD_RSTICK_UP, dmInputDDF::GAMEPAD_RSTICK_DOWN, written_triggers);
+            continue;
+        default:
+            break;
+        }
+
         DumpSDLBinding(out, input_name, &driver->m_Triggers[trigger_id]);
+        written_triggers[trigger_id] = true;
     }
 
     fprintf(out, ",platform:%s,\n", GetSDLPlatformName(driver->m_Platform));

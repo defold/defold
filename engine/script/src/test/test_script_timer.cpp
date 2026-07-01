@@ -1031,6 +1031,365 @@ TEST_F(ScriptTimerTest, TestLuaTimerGetInfo)
     dmScript::DeleteScriptWorld(script_world);
 }
 
+// Repro for https://github.com/defold/defold/issues/12436:
+// a repeating Lua timer cancels itself from inside its own callback, forces
+// GC/allocation pressure, and immediately starts a new repeating timer. This
+// exercises callback lifetime while the outer InvokeCallback is still unwinding.
+TEST_F(ScriptTimerTest, TestLuaRepeatingCancelRestartInCallback)
+{
+    int top = lua_gettop(L);
+    LuaInit(L);
+    int ref_count = dmScript::GetLuaRefCount();
+
+    dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
+
+    const char pre_script[] =
+    "handle = nil\n"
+    "local callback\n"
+    "local function gc_pressure()\n"
+    "    collectgarbage(\"collect\")\n"
+    "    local garbage = {}\n"
+    "    local vector4 = vmath and vmath.vector4\n"
+    "    for i = 1, 4096 do\n"
+    "        if vector4 then\n"
+    "            garbage[#garbage + 1] = vector4(i, i, i, i)\n"
+    "        end\n"
+    "        garbage[#garbage + 1] = { i, tostring(i), tostring({}) }\n"
+    "    end\n"
+    "    return garbage\n"
+    "end\n"
+    "callback = function(self, timer_handle, elapsed_time)\n"
+    "    test.callback_counter(timer_handle, elapsed_time)\n"
+    "    assert(timer.cancel(timer_handle))\n"
+    "    _G.__timer_restart_gc_pressure = gc_pressure()\n"
+    "    handle = timer.delay(0, true, callback)\n"
+    "    assert(handle ~= timer.INVALID_TIMER_HANDLE)\n"
+    "end\n"
+    "handle = timer.delay(0, true, callback)\n"
+    "assert(handle ~= timer.INVALID_TIMER_HANDLE)\n";
+
+    const char post_script[] =
+    "assert(timer.cancel(handle))\n"
+    "handle = nil\n"
+    "_G.__timer_restart_gc_pressure = nil\n"
+    "collectgarbage(\"collect\")\n";
+
+    cb_callback_counter = 0u;
+    cb_elapsed_time = 0.0f;
+
+    const char* SCRIPTINSTANCE = "TestScriptInstance";
+
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    CreateScriptInstance(L, SCRIPTINSTANCE);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+    dmScript::InitializeInstance(script_world);
+
+    ASSERT_TRUE(RunString(L, pre_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmScript::UpdateScriptWorld(script_world, 1.0f);
+    }
+    ASSERT_EQ(4u, cb_callback_counter);
+    ASSERT_EQ(4.0f, cb_elapsed_time);
+
+    ASSERT_TRUE(RunString(L, post_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    FinalizeInstance(script_world);
+
+    dmScript::GetInstance(L);
+    DeleteScriptInstance(L);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    dmScript::DeleteScriptWorld(script_world);
+    ASSERT_EQ(ref_count, dmScript::GetLuaRefCount());
+}
+
+// A one-shot Lua timer cancels itself from inside its own callback, forces
+// GC/allocation pressure, and immediately starts another one-shot timer. This verifies
+// that one-shot completion and explicit cancellation defer Lua callback destruction
+// until the outer InvokeCallback has unwound.
+TEST_F(ScriptTimerTest, TestLuaOneshotCancelRestartInCallback)
+{
+    int top = lua_gettop(L);
+    LuaInit(L);
+
+    dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
+
+    const char pre_script[] =
+    "handle = nil\n"
+    "local callback\n"
+    "local function gc_pressure()\n"
+    "    collectgarbage(\"collect\")\n"
+    "    local garbage = {}\n"
+    "    local vector4 = vmath and vmath.vector4\n"
+    "    for i = 1, 4096 do\n"
+    "        if vector4 then\n"
+    "            garbage[#garbage + 1] = vector4(i, i, i, i)\n"
+    "        end\n"
+    "        garbage[#garbage + 1] = { i, tostring(i), tostring({}) }\n"
+    "    end\n"
+    "    return garbage\n"
+    "end\n"
+    "callback = function(self, timer_handle, elapsed_time)\n"
+    "    test.callback_counter(timer_handle, elapsed_time)\n"
+    "    assert(timer.cancel(timer_handle))\n"
+    "    _G.__timer_oneshot_gc_pressure = gc_pressure()\n"
+    "    handle = timer.delay(0, false, callback)\n"
+    "    assert(handle ~= timer.INVALID_TIMER_HANDLE)\n"
+    "end\n"
+    "handle = timer.delay(0, false, callback)\n"
+    "assert(handle ~= timer.INVALID_TIMER_HANDLE)\n";
+
+    const char post_script[] =
+    "assert(timer.cancel(handle))\n"
+    "handle = nil\n"
+    "_G.__timer_oneshot_gc_pressure = nil\n"
+    "collectgarbage(\"collect\")\n";
+
+    cb_callback_handle = dmScript::INVALID_TIMER_HANDLE;
+    cb_callback_counter = 0u;
+    cb_elapsed_time = 0.0f;
+
+    const char* SCRIPTINSTANCE = "TestScriptInstance";
+
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    CreateScriptInstance(L, SCRIPTINSTANCE);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+    dmScript::InitializeInstance(script_world);
+
+    ASSERT_TRUE(RunString(L, pre_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        dmScript::UpdateScriptWorld(script_world, 1.0f);
+    }
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, cb_callback_handle);
+    ASSERT_EQ(4u, cb_callback_counter);
+    ASSERT_EQ(4.0f, cb_elapsed_time);
+
+    ASSERT_TRUE(RunString(L, post_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    FinalizeInstance(script_world);
+
+    dmScript::GetInstance(L);
+    DeleteScriptInstance(L);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    dmScript::DeleteScriptWorld(script_world);
+}
+
+// timer.trigger() invokes a Lua timer callback outside the timer update pass. The
+// callback cancels its own timer and pressures GC, verifying that the timer becomes
+// logically dead immediately while FreeTimer() is deferred until timer.trigger()
+// finishes unwinding.
+TEST_F(ScriptTimerTest, TestLuaTriggerCancelInCallback)
+{
+    int top = lua_gettop(L);
+    LuaInit(L);
+    int ref_count = dmScript::GetLuaRefCount();
+
+    dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
+
+    const char trigger_script[] =
+    "handle = nil\n"
+    "local function gc_pressure()\n"
+    "    collectgarbage(\"collect\")\n"
+    "    local garbage = {}\n"
+    "    local vector4 = vmath and vmath.vector4\n"
+    "    for i = 1, 4096 do\n"
+    "        if vector4 then\n"
+    "            garbage[#garbage + 1] = vector4(i, i, i, i)\n"
+    "        end\n"
+    "        garbage[#garbage + 1] = { i, tostring(i), tostring({}) }\n"
+    "    end\n"
+    "    return garbage\n"
+    "end\n"
+    "local function callback(self, timer_handle, elapsed_time)\n"
+    "    test.callback_counter(timer_handle, elapsed_time)\n"
+    "    assert(timer.cancel(timer_handle))\n"
+    "    assert(timer.get_info(timer_handle) == nil)\n"
+    "    assert(not timer.trigger(timer_handle))\n"
+    "    _G.__timer_trigger_gc_pressure = gc_pressure()\n"
+    "end\n"
+    "handle = timer.delay(10, true, callback)\n"
+    "assert(handle ~= timer.INVALID_TIMER_HANDLE)\n"
+    "assert(timer.trigger(handle))\n"
+    "assert(not timer.cancel(handle))\n"
+    "handle = nil\n"
+    "_G.__timer_trigger_gc_pressure = nil\n"
+    "collectgarbage(\"collect\")\n";
+
+    cb_callback_handle = dmScript::INVALID_TIMER_HANDLE;
+    cb_callback_counter = 0u;
+    cb_elapsed_time = 0.0f;
+
+    const char* SCRIPTINSTANCE = "TestScriptInstance";
+
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    CreateScriptInstance(L, SCRIPTINSTANCE);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+    dmScript::InitializeInstance(script_world);
+
+    ASSERT_TRUE(RunString(L, trigger_script));
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, cb_callback_handle);
+    ASSERT_EQ(1u, cb_callback_counter);
+    ASSERT_EQ(0.0f, cb_elapsed_time);
+
+    dmScript::UpdateScriptWorld(script_world, 10.0f);
+    ASSERT_EQ(1u, cb_callback_counter);
+    ASSERT_EQ(0.0f, cb_elapsed_time);
+
+    FinalizeInstance(script_world);
+
+    dmScript::GetInstance(L);
+    DeleteScriptInstance(L);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    dmScript::DeleteScriptWorld(script_world);
+    ASSERT_EQ(ref_count, dmScript::GetLuaRefCount());
+}
+
+// Cancelling a Lua timer from normal Lua code, outside both UpdateTimers and any
+// timer callback, should free the timer immediately, make get_info() return nil,
+// make a second cancel return false, and prevent later updates from invoking it.
+TEST_F(ScriptTimerTest, TestLuaCancelOutsideUpdate)
+{
+    int top = lua_gettop(L);
+    LuaInit(L);
+    int ref_count = dmScript::GetLuaRefCount();
+
+    dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
+
+    const char cancel_script[] =
+    "handle = timer.delay(1, false, function(self, timer_handle, elapsed_time)\n"
+    "    test.callback_counter(timer_handle, elapsed_time)\n"
+    "end)\n"
+    "assert(handle ~= timer.INVALID_TIMER_HANDLE)\n"
+    "assert(timer.get_info(handle) ~= nil)\n"
+    "assert(timer.cancel(handle))\n"
+    "assert(timer.get_info(handle) == nil)\n"
+    "assert(not timer.cancel(handle))\n"
+    "handle = nil\n"
+    "collectgarbage(\"collect\")\n";
+
+    cb_callback_handle = dmScript::INVALID_TIMER_HANDLE;
+    cb_callback_counter = 0u;
+    cb_elapsed_time = 0.0f;
+
+    const char* SCRIPTINSTANCE = "TestScriptInstance";
+
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    CreateScriptInstance(L, SCRIPTINSTANCE);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+    dmScript::InitializeInstance(script_world);
+
+    ASSERT_TRUE(RunString(L, cancel_script));
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(dmScript::INVALID_TIMER_HANDLE, cb_callback_handle);
+    ASSERT_EQ(0u, cb_callback_counter);
+    ASSERT_EQ(0.0f, cb_elapsed_time);
+
+    dmScript::UpdateScriptWorld(script_world, 2.0f);
+    ASSERT_EQ(0u, cb_callback_counter);
+    ASSERT_EQ(0.0f, cb_elapsed_time);
+
+    FinalizeInstance(script_world);
+
+    dmScript::GetInstance(L);
+    DeleteScriptInstance(L);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    dmScript::DeleteScriptWorld(script_world);
+    ASSERT_EQ(ref_count, dmScript::GetLuaRefCount());
+}
+
+// Finalizing a script instance removes all live Lua timers through KillTimers().
+// KillTimers() must destroy the timer-owned Lua callbacks without delivering
+// cancelled callbacks, and later script-world updates must not invoke them.
+TEST_F(ScriptTimerTest, TestLuaFinalizeKillsLiveTimers)
+{
+    int top = lua_gettop(L);
+    LuaInit(L);
+    int ref_count = dmScript::GetLuaRefCount();
+
+    dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
+
+    const char pre_script[] =
+    "local function callback(self, timer_handle, elapsed_time)\n"
+    "    test.callback_counter(timer_handle, elapsed_time)\n"
+    "end\n"
+    "handle_1 = timer.delay(0, true, callback)\n"
+    "handle_2 = timer.delay(1, false, callback)\n"
+    "handle_3 = timer.delay(2, true, callback)\n"
+    "assert(handle_1 ~= timer.INVALID_TIMER_HANDLE)\n"
+    "assert(handle_2 ~= timer.INVALID_TIMER_HANDLE)\n"
+    "assert(handle_3 ~= timer.INVALID_TIMER_HANDLE)\n"
+    "assert(timer.get_info(handle_1) ~= nil)\n"
+    "assert(timer.get_info(handle_2) ~= nil)\n"
+    "assert(timer.get_info(handle_3) ~= nil)\n";
+
+    cb_callback_handle = dmScript::INVALID_TIMER_HANDLE;
+    cb_callback_counter = 0u;
+    cb_elapsed_time = 0.0f;
+
+    const char* SCRIPTINSTANCE = "TestScriptInstance";
+
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    CreateScriptInstance(L, SCRIPTINSTANCE);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+    dmScript::InitializeInstance(script_world);
+
+    ASSERT_TRUE(RunString(L, pre_script));
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ(dmScript::INVALID_TIMER_HANDLE, cb_callback_handle);
+    ASSERT_EQ(0u, cb_callback_counter);
+    ASSERT_EQ(0.0f, cb_elapsed_time);
+
+    FinalizeInstance(script_world);
+
+    dmScript::UpdateScriptWorld(script_world, 10.0f);
+    ASSERT_EQ(dmScript::INVALID_TIMER_HANDLE, cb_callback_handle);
+    ASSERT_EQ(0u, cb_callback_counter);
+    ASSERT_EQ(0.0f, cb_elapsed_time);
+
+    dmScript::GetInstance(L);
+    DeleteScriptInstance(L);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    dmScript::DeleteScriptWorld(script_world);
+    ASSERT_EQ(ref_count, dmScript::GetLuaRefCount());
+}
 
 TEST_F(ScriptTimerTest, TestLuaStress)
 {

@@ -19,6 +19,9 @@
             [editor.camera :as camera]
             [editor.curve-view :as curve-view]
             [editor.handler :as handler]
+            [editor.mouse-binding :as mouse-binding]
+            [editor.mouse-binding-test :refer [with-mouse-bindings]]
+            [editor.properties :as properties]
             [editor.scene-selection :as selection]
             [editor.types :as types]
             [integration.test-util :as test-util])
@@ -35,14 +38,6 @@
 (defn- mouse-move! [view world-x world-y]
   (let [[x y] (world->screen view world-x world-y)]
     (test-util/mouse-move! view x y)))
-
-(defn- mouse-press! [view world-x world-y]
-  (let [[x y] (world->screen view world-x world-y)]
-    (test-util/mouse-press! view x y)))
-
-(defn- mouse-release! [view world-x world-y]
-  (let [[x y] (world->screen view world-x world-y)]
-    (test-util/mouse-release! view x y)))
 
 (defn- mouse-click!
   ([view world-x world-y]
@@ -81,6 +76,15 @@
       {:undoable false}
       (g/set-property curve-view :viewport (types/->Region 0 width 0 height)))
     curve-view))
+
+(defn- curve-controller [view]
+  (reduce
+    (fn [_ [node-id]]
+      (when (g/node-instance? curve-view/CurveController node-id)
+        (reduced node-id)))
+    nil
+    (g/sources-of view :input-handlers)))
+
 
 (deftest selection
   (test-util/with-loaded-project
@@ -169,3 +173,102 @@
       (test-util/handler-run :edit.delete [context] {})
       (is (every? (fn [i] (nil? (cp emitter :particle-key-alpha (+ i 2)))) (range 6)))
       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha)))))
+
+(deftest add-delete-control-point-mouse-binding-override
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/register!
+        ::curve-view/curve-view-camera
+        "Curve Editor"
+        [{:command :curve-view.add-control-point
+          :action ["Add Control Point"]
+          :binding {:button :middle :modifiers #{}}}
+         {:command :curve-view.delete-control-point
+          :action ["Delete Control Point"]
+          :binding {:button :secondary :modifiers #{}}}])
+      (let [view (make-curve-view! app-view 800 400)
+            node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
+            emitter (:node-id (test-util/outline node-id [0]))
+            original-curve (g/node-value emitter :particle-key-alpha)
+            controller (curve-controller view)
+            point-count #(properties/curve-point-count (g/node-value emitter :particle-key-alpha))]
+        (app-view/select! app-view [emitter])
+        (is (= 8 (point-count)))
+        (let [[x y] (world->screen view 0.05 0.5)]
+          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+          (is (= :curve (first (g/node-value view :curve-handle))))
+          (curve-view/handle-input controller nil {:type :mouse-pressed
+                                                   :button :middle
+                                                   :click-count 1
+                                                   :modifiers #{}
+                                                   :world-pos (Point3d. 0.05 0.5 0.0)}
+                                   nil))
+        (is (= 9 (point-count)))
+        (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+        (let [[x y] (world->screen view 0.05 0.62)]
+          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+          (is (= :control-point (first (g/node-value view :curve-handle))))
+          (curve-view/handle-input controller nil {:type :mouse-pressed
+                                                   :button :secondary
+                                                   :click-count 1
+                                                   :modifiers #{}
+                                                   :world-pos (Point3d. 0.05 0.62 0.0)}
+                                   nil))
+        (is (= 8 (point-count)))
+        (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+        ; Double-click should still add/delete despite mouse binding overrides
+        (mouse-dbl-click! view 0.05 0.5)
+        (is (= 9 (point-count)))
+        (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+        (mouse-dbl-click! view 0.05 0.62)
+        (is (= 8 (point-count)))
+        (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))))))
+
+(deftest add-delete-control-point-persisted-mouse-binding-override
+  (test-util/with-loaded-project
+    (with-mouse-bindings
+      (mouse-binding/register!
+        ::curve-view/curve-view-camera
+        "Curve Editor"
+        [{:command :curve-view.add-control-point
+          :action ["Add Control Point"]
+          :binding {:button :primary :modifiers #{:shift}}}
+         {:command :curve-view.delete-control-point
+          :action ["Delete Control Point"]
+          :binding {:button :primary :modifiers #{:alt}}}])
+      (mouse-binding/set-user-overrides!
+        {::curve-view/curve-view-camera
+         {:curve-view.add-control-point
+          {:bindings [{:button :middle :modifiers #{}}]}
+          :curve-view.delete-control-point
+          {:bindings [{:button :secondary :modifiers #{}}]}}})
+      (let [view (make-curve-view! app-view 800 400)
+            node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
+            emitter (:node-id (test-util/outline node-id [0]))
+            original-curve (g/node-value emitter :particle-key-alpha)
+            controller (curve-controller view)
+            point-count #(properties/curve-point-count (g/node-value emitter :particle-key-alpha))]
+        (app-view/select! app-view [emitter])
+        (is (= 8 (point-count)))
+        (let [[x y] (world->screen view 0.05 0.5)]
+          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+          (is (= :curve (first (g/node-value view :curve-handle))))
+          (curve-view/handle-input controller nil {:type :mouse-pressed
+                                                   :button :middle
+                                                   :click-count 1
+                                                   :modifiers #{}
+                                                   :world-pos (Point3d. 0.05 0.5 0.0)}
+                                   nil))
+        (is (= 9 (point-count)))
+        (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+        (let [[x y] (world->screen view 0.05 0.62)]
+          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+          (is (= :control-point (first (g/node-value view :curve-handle))))
+          (curve-view/handle-input controller nil {:type :mouse-pressed
+                                                   :button :secondary
+                                                   :click-count 1
+                                                   :modifiers #{}
+                                                   :world-pos (Point3d. 0.05 0.62 0.0)}
+                                   nil))
+        (is (= 8 (point-count)))
+        (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))))))

@@ -341,6 +341,7 @@ namespace dmPlatform
                 break;
             case WINDOW_GRAPHICS_API_DIRECTX:
             case WINDOW_GRAPHICS_API_VULKAN:
+            case WINDOW_GRAPHICS_API_METAL:
                 res = OpenWindowNoApi(window, params);
                 break;
             default: assert(0);
@@ -404,6 +405,8 @@ namespace dmPlatform
             window->m_HighDPI                 = params.m_HighDPI;
             window->m_Samples                 = params.m_Samples;
             window->m_WindowOpened            = 1;
+
+            InstallWindowCloseHandlerNative(window);
         }
 
         return res;
@@ -416,12 +419,13 @@ namespace dmPlatform
 
     void CloseWindow(HWindow window)
     {
+        UninstallWindowCloseHandlerNative(window);
         glfwDestroyWindow(window->m_Window);
         if (window->m_AuxWindow)
             glfwDestroyWindow(window->m_AuxWindow);
     }
 
-    void PollEvents(HWindow window)
+    void PollEvents(HWindow)
     {
         glfwPollEvents();
     }
@@ -625,7 +629,15 @@ namespace dmPlatform
 
     const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
     {
-        return glfwGetJoystickGUID((int) joystick_index);
+        const char* glfw_guid = glfwGetJoystickGUID((int) joystick_index);
+#if defined(_WIN32)
+        const char* native_guid = GetJoystickDeviceGuidNative(window, joystick_index, glfw_guid);
+        if (native_guid)
+        {
+            return native_guid;
+        }
+#endif
+        return glfw_guid;
     }
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)

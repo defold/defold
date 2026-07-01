@@ -37,6 +37,12 @@ function(defold_target_link_app target platform)
     target_link_libraries(${target} ${DAPP_SCOPE}
       user32.lib shell32.lib dbghelp.lib
       dinput8.lib dxguid.lib xinput9_1_0.lib)
+  elseif(_PLAT_OS STREQUAL "xbone")
+    target_link_libraries(${target} ${DAPP_SCOPE}
+      GameInput.lib
+      xgameruntime.lib
+      xgameplatform.lib
+      PIXEvt.lib)
   else()
     # iOS/Android/Web: no additional app libs beyond platform defaults
   endif()

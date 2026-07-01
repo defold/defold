@@ -14,12 +14,18 @@
 
 #include <dlib/time.h>
 #include <dlib/log.h>
+#include <dlib/dstrings.h>
+
+#include <stdint.h>
+#include <string.h>
 
 #include <glfw/glfw3.h>
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define GLFW_EXPOSE_NATIVE_WGL
 #include <glfw/glfw3native.h>
+
+#include <xinput.h>
 
 #include "platform_window_glfw3_private.h"
 #include "platform_window_win32.h"
@@ -31,6 +37,162 @@
 
 namespace dmPlatform
 {
+    struct XInputCapabilitiesEx
+    {
+        XINPUT_CAPABILITIES m_Capabilities;
+        WORD                m_VendorId;
+        WORD                m_ProductId;
+        WORD                m_ProductVersion;
+        WORD                m_Reserved;
+        DWORD               m_Reserved2;
+    };
+
+    typedef DWORD (WINAPI *XInputGetCapabilitiesFn)(DWORD user_index, DWORD flags, XINPUT_CAPABILITIES* capabilities);
+    typedef DWORD (WINAPI *XInputGetCapabilitiesExFn)(DWORD reserved, DWORD user_index, DWORD flags, XInputCapabilitiesEx* capabilities);
+
+    static XInputGetCapabilitiesFn g_XInputGetCapabilities = 0;
+    static XInputGetCapabilitiesExFn g_XInputGetCapabilitiesEx = 0;
+    static bool g_XInputCapabilitiesFunctionsResolved = false;
+    static char g_JoystickDeviceGuid[GLFW_JOYSTICK_LAST + 1][33];
+    static HWND g_ConsoleCloseWindow = 0;
+
+    static BOOL WINAPI ConsoleControlHandler(DWORD control_type)
+    {
+        switch (control_type)
+        {
+        case CTRL_C_EVENT:
+        case CTRL_BREAK_EVENT:
+        case CTRL_CLOSE_EVENT:
+            if (g_ConsoleCloseWindow)
+            {
+                PostMessageW(g_ConsoleCloseWindow, WM_CLOSE, 0, 0);
+                return TRUE;
+            }
+            return FALSE;
+        default:
+            return FALSE;
+        }
+    }
+
+    void InstallWindowCloseHandlerNative(HWindow window)
+    {
+        g_ConsoleCloseWindow = glfwGetWin32Window(window->m_Window);
+        SetConsoleCtrlHandler(ConsoleControlHandler, TRUE);
+    }
+
+    void UninstallWindowCloseHandlerNative(HWindow window)
+    {
+        if (g_ConsoleCloseWindow != glfwGetWin32Window(window->m_Window))
+        {
+            return;
+        }
+
+        SetConsoleCtrlHandler(ConsoleControlHandler, FALSE);
+        g_ConsoleCloseWindow = 0;
+    }
+
+    static bool IsGLFWXInputGuid(const char* guid)
+    {
+        return guid && strncmp(guid, "78696e707574", 12) == 0 && strlen(guid) == 32;
+    }
+
+    static void ResolveXInputCapabilitiesFunctions()
+    {
+        if (g_XInputCapabilitiesFunctionsResolved)
+        {
+            return;
+        }
+
+        g_XInputCapabilitiesFunctionsResolved = true;
+
+        const wchar_t* libraries[] = {
+            L"xinput9_1_0.dll",
+            L"xinput1_4.dll",
+            L"xinput1_3.dll",
+        };
+
+        for (uint32_t i = 0; i < sizeof(libraries) / sizeof(libraries[0]); ++i)
+        {
+            HMODULE xinput_module = GetModuleHandleW(libraries[i]);
+            if (!xinput_module)
+            {
+                continue;
+            }
+
+            if (!g_XInputGetCapabilities)
+            {
+                g_XInputGetCapabilities = (XInputGetCapabilitiesFn) GetProcAddress(xinput_module, "XInputGetCapabilities");
+            }
+            g_XInputGetCapabilitiesEx = (XInputGetCapabilitiesExFn) GetProcAddress(xinput_module, (LPCSTR) 108);
+            if (g_XInputGetCapabilities && g_XInputGetCapabilitiesEx)
+            {
+                return;
+            }
+        }
+    }
+
+    static bool GetConnectedXInputIndexByJoystickIndex(uint32_t joystick_index, DWORD* xinput_index)
+    {
+        uint32_t connected_xinput_count = 0;
+        for (DWORD index = 0; index < XUSER_MAX_COUNT; ++index)
+        {
+            XINPUT_CAPABILITIES capabilities = {};
+            if (g_XInputGetCapabilities(index, 0, &capabilities) != ERROR_SUCCESS)
+            {
+                continue;
+            }
+
+            if (connected_xinput_count == joystick_index)
+            {
+                *xinput_index = index;
+                return true;
+            }
+            ++connected_xinput_count;
+        }
+
+        return false;
+    }
+
+    const char* GetJoystickDeviceGuidNative(HWindow, uint32_t joystick_index, const char* glfw_guid)
+    {
+        if (!IsGLFWXInputGuid(glfw_guid) || joystick_index > GLFW_JOYSTICK_LAST)
+        {
+            return 0;
+        }
+
+        ResolveXInputCapabilitiesFunctions();
+        if (!g_XInputGetCapabilities || !g_XInputGetCapabilitiesEx)
+        {
+            return 0;
+        }
+
+        DWORD xinput_index = 0;
+        if (!GetConnectedXInputIndexByJoystickIndex(joystick_index, &xinput_index))
+        {
+            return 0;
+        }
+
+        XInputCapabilitiesEx capabilities = {};
+        if (g_XInputGetCapabilitiesEx(1, xinput_index, 0, &capabilities) != ERROR_SUCCESS)
+        {
+            return 0;
+        }
+
+        if (capabilities.m_VendorId == 0 || capabilities.m_ProductId == 0)
+        {
+            return 0;
+        }
+
+        dmSnPrintf(g_JoystickDeviceGuid[joystick_index], sizeof(g_JoystickDeviceGuid[joystick_index]),
+                   "03000000%02x%02x0000%02x%02x000000000000",
+                   (uint8_t) (capabilities.m_VendorId & 0xff),
+                   (uint8_t) (capabilities.m_VendorId >> 8),
+                   (uint8_t) (capabilities.m_ProductId & 0xff),
+                   (uint8_t) (capabilities.m_ProductId >> 8));
+
+        return g_JoystickDeviceGuid[joystick_index];
+    }
+
     HWND GetWindowsHWND(HWindow window)
     {
     	return glfwGetWin32Window(window->m_Window);
