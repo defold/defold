@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import com.dynamo.bob.pipeline.LuaScanner.Property;
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
+import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 
@@ -115,8 +116,15 @@ public class LuaScannerTest {
     }
 
     private void assertProperty(List<Property> properties, String name, Object value, int line) {
+        assertProperty(properties, name, null, value, line);
+    }
+
+    private void assertProperty(List<Property> properties, String name, PropertyType type, Object value, int line) {
         Property property = findProperty(properties, name);
         if (property != null && property.status() == Status.OK && property.name().equals(name)) {
+            if (type != null) {
+                assertEquals(type, property.type());
+            }
             assertEquals(value, property.value());
             assertEquals(line, property.startLine());
             return;
@@ -149,7 +157,7 @@ public class LuaScannerTest {
         assertProperty(properties, "prop5", Double.valueOf(0), 16);
         assertEquals(Status.INVALID_ARGS, properties.get(5).status());
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
-        assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
+        assertProperty(properties, "text_type", PropertyType.PROPERTY_TYPE_TEXT, "hello", 20);
     }
 
     @Test
@@ -166,7 +174,7 @@ public class LuaScannerTest {
         assertProperty(properties, "prop5", Double.valueOf(0), 16);
         assertEquals(Status.INVALID_ARGS, properties.get(5).status());
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
-        assertPropertyStatus(properties, "unknown_type", Status.INVALID_VALUE, 20);
+        assertProperty(properties, "text_type", PropertyType.PROPERTY_TYPE_TEXT, "hello", 20);
 
         int linesInSource = source.split("\r\n|\r|\n").length;
         int linesAfterScanner = result.code().split("\r\n|\r|\n").length;
@@ -217,6 +225,48 @@ public class LuaScannerTest {
         assertProperty(properties, "prop2", "", 1);
         assertPropertyStatus(properties, "prop3", Status.INVALID_VALUE, 2);
         assertProperty(properties, "prop4", "hash", 3);
+    }
+
+    @Test
+    public void testPropsText() throws Exception {
+        var result = LuaScanner.parse(
+                "go.property(\"pattern\", \".*\")\n" +
+                "go.property(\"name\", 'Player')\n" +
+                "go.property(\"escaped\", \"line\\n\\t\\\\\\\"\\'end\")\n" +
+                "go.property(\"long\", [[\nhello\nworld]])\n" +
+                "go.property(\"long_equals\", [=[hello ] inside]=])\n" +
+                "go.property(\"utf8\", \"Spelare \u00e5\u00e4\u00f6\")\n" +
+                "go.property(\"unicode_escape\", \"\\u{1F600}\")");
+
+        assertEquals(0, result.errors().size());
+        List<Property> properties = result.properties();
+        assertEquals(7, properties.size());
+        assertProperty(properties, "pattern", PropertyType.PROPERTY_TYPE_TEXT, ".*", 0);
+        assertProperty(properties, "name", PropertyType.PROPERTY_TYPE_TEXT, "Player", 1);
+        assertProperty(properties, "escaped", PropertyType.PROPERTY_TYPE_TEXT, "line\n\t\\\"'end", 2);
+        assertProperty(properties, "long", PropertyType.PROPERTY_TYPE_TEXT, "hello\nworld", 3);
+        assertProperty(properties, "long_equals", PropertyType.PROPERTY_TYPE_TEXT, "hello ] inside", 6);
+        assertProperty(properties, "utf8", PropertyType.PROPERTY_TYPE_TEXT, "Spelare \u00e5\u00e4\u00f6", 7);
+        assertProperty(properties, "unicode_escape", PropertyType.PROPERTY_TYPE_TEXT, "\uD83D\uDE00", 8);
+    }
+
+    @Test
+    public void testPropsTextFail() throws Exception {
+        var result = LuaScanner.parse(
+                "local value = \"text\"\n" +
+                "go.property(\"variable\", value)\n" +
+                "go.property(\"concat\", \"a\" .. \"b\")\n" +
+                "go.property(\"nul\", \"\\0\")");
+
+        List<Property> properties = result.properties();
+        assertEquals(3, properties.size());
+        assertPropertyStatus(properties, "variable", Status.INVALID_VALUE, 1);
+        assertPropertyStatus(properties, "concat", Status.INVALID_VALUE, 2);
+        assertPropertyStatus(properties, "nul", Status.INVALID_VALUE, 3);
+        assertEquals(3, result.errors().size());
+        assertEquals("expecting a function", result.errors().get(0).message());
+        assertEquals("unexpected argument", result.errors().get(1).message());
+        assertEquals("string properties cannot contain NUL bytes", result.errors().get(2).message());
     }
 
     @Test

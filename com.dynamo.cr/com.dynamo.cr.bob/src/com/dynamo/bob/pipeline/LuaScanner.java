@@ -509,6 +509,143 @@ public class LuaScanner {
         return getFirstStringLiteralArg(argsCtx, null);
     }
 
+    private static ParserRuleContext getStringLiteralContext(LuaParser.ExpContext expCtx) {
+        if (expCtx == null || expCtx.getChildCount() != 1) {
+            return null;
+        }
+        ParserRuleContext firstCtx = expCtx.getRuleContext(ParserRuleContext.class, 0);
+        if (firstCtx == null || firstCtx.getRuleIndex() != LuaParser.RULE_lstring) {
+            return null;
+        }
+        return firstCtx;
+    }
+
+    private static String decodeLuaStringLiteral(Token token) {
+        String text = token.getText();
+        int type = token.getType();
+        if (type == LuaParser.LONGSTRING) {
+            // Lua long strings can use matching delimiter levels, e.g. [[...]] or [=[...]=].
+            // The second '[' marks the end of the opening delimiter; remove the same length
+            // from both sides to keep only the payload.
+            int delimiterEnd = text.indexOf('[', 1);
+            if (delimiterEnd == -1) {
+                return null;
+            }
+            int delimiterLength = delimiterEnd + 1;
+            String value = text.substring(delimiterLength, text.length() - delimiterLength);
+            // Lua ignores the first newline in a long string. This makes [[\nfoo]] decode to
+            // "foo", not "\nfoo", and matches how multi-line script literals behave at runtime.
+            if (value.startsWith("\r\n")) {
+                value = value.substring(2);
+            } else if (value.startsWith("\n") || value.startsWith("\r")) {
+                value = value.substring(1);
+            }
+            return value;
+        }
+        if (type != LuaParser.NORMALSTRING && type != LuaParser.CHARSTRING) {
+            return null;
+        }
+
+        String value = text.substring(1, text.length() - 1);
+        StringBuilder builder = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); ++i) {
+            char c = value.charAt(i);
+            if (c != '\\') {
+                builder.append(c);
+                continue;
+            }
+
+            // The lexer already accepted this as an escape sequence, but keep the decoder
+            // defensive since it operates on raw token text.
+            if (++i >= value.length()) {
+                return null;
+            }
+            c = value.charAt(i);
+            switch (c) {
+                // Named escapes are Lua's one-character control escapes.
+                case 'a' -> builder.append('\u0007');
+                case 'b' -> builder.append('\b');
+                case 'f' -> builder.append('\f');
+                case 'n' -> builder.append('\n');
+                case 'r' -> builder.append('\r');
+                case 't' -> builder.append('\t');
+                case 'v' -> builder.append('\u000b');
+                case 'z' -> {
+                    // \z consumes all following whitespace, including newlines. Lua uses this to
+                    // let long source literals wrap without adding whitespace to the string value.
+                    while (i + 1 < value.length() && Character.isWhitespace(value.charAt(i + 1))) {
+                        ++i;
+                    }
+                }
+                // Quotes and backslash can be escaped to include the literal character.
+                case '"', '\'', '\\' -> builder.append(c);
+                case '\r' -> {
+                    // A backslash followed by a physical newline is a line continuation. Normalize
+                    // CRLF and CR to '\n' to match Lua's line-ending handling.
+                    if (i + 1 < value.length() && value.charAt(i + 1) == '\n') {
+                        ++i;
+                    }
+                    builder.append('\n');
+                }
+                case '\n' -> builder.append('\n');
+                case 'x' -> {
+                    // Hex byte escapes are exactly two hex digits: \xXX.
+                    if (i + 2 >= value.length()) {
+                        return null;
+                    }
+                    String hex = value.substring(i + 1, i + 3);
+                    try {
+                        builder.append((char)Integer.parseInt(hex, 16));
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
+                    i += 2;
+                }
+                case 'u' -> {
+                    // UTF-8 code point escapes use Lua 5.3 syntax: \u{X...}. Java stores strings
+                    // as UTF-16, so appendCodePoint handles supplementary code points correctly.
+                    if (i + 1 >= value.length() || value.charAt(i + 1) != '{') {
+                        return null;
+                    }
+                    int end = value.indexOf('}', i + 2);
+                    if (end == -1) {
+                        return null;
+                    }
+                    try {
+                        builder.appendCodePoint(Integer.parseInt(value.substring(i + 2, end), 16));
+                    } catch (IllegalArgumentException e) {
+                        return null;
+                    }
+                    i = end;
+                }
+                default -> {
+                    if (Character.isDigit(c)) {
+                        // Decimal byte escapes are one to three decimal digits and must fit in
+                        // an unsigned byte. We consume at most three digits, as Lua does.
+                        int start = i;
+                        int end = i + 1;
+                        while (end < value.length() && end - start < 3 && Character.isDigit(value.charAt(end))) {
+                            ++end;
+                        }
+                        try {
+                            int decimal = Integer.parseInt(value.substring(start, end));
+                            if (decimal > 255) {
+                                return null;
+                            }
+                            builder.append((char)decimal);
+                        } catch (NumberFormatException e) {
+                            return null;
+                        }
+                        i = end - 1;
+                    } else {
+                        return null;
+                    }
+                }
+            }
+        }
+        return builder.toString();
+    }
+
     private static List<String> getAllStringArgs(LuaParser.ArgsContext argsCtx) {
         if (argsCtx == null) {
             return null;
@@ -704,6 +841,19 @@ public class LuaScanner {
                 }
             } else if (type == LuaParser.FALSE || type == LuaParser.TRUE) {
                 return new Success(expCtx, PropertyType.PROPERTY_TYPE_BOOLEAN, Boolean.parseBoolean(initialToken.getText()));
+            } else if (type == LuaParser.NORMALSTRING || type == LuaParser.CHARSTRING || type == LuaParser.LONGSTRING) {
+                ParserRuleContext stringCtx = getStringLiteralContext(expCtx);
+                if (stringCtx == null) {
+                    return new InvalidValue("unexpected argument");
+                }
+                String value = decodeLuaStringLiteral(initialToken);
+                if (value == null) {
+                    return new InvalidValue("invalid string literal");
+                }
+                if (value.indexOf('\0') != -1) {
+                    return new InvalidValue("string properties cannot contain NUL bytes");
+                }
+                return new Success(stringCtx, PropertyType.PROPERTY_TYPE_TEXT, value);
             } else if (type == LuaParser.NAME) {
                 LuaParser.VariableContext varCtx = expCtx.variable();
                 // function expected

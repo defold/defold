@@ -18,7 +18,7 @@ go.property  ('prop5', 0)
 
 go.property(invalid_string, 2)
 go.property("three_args", 1, 2)
-go.property("unknown_type", "hello")
+go.property("text_type", "hello")
 
 local s1 = 'go.property("no_prop", 123)'
 local s2 = "go.property('no_prop', 123)"
