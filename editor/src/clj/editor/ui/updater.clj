@@ -95,6 +95,14 @@
     :description {:fx/type release-notes-update-dialog
                   :content content}))
 
+(defn- prompt-and-download! [stage updater localization download-confirmed?]
+  (if-let [content (updater/release-notes updater)]
+    (when (show-release-notes-update-dialog! content)
+      (updater/download-and-extract! updater))
+    (when (or download-confirmed?
+              (dialogs/make-download-update-dialog stage localization))
+      (updater/download-and-extract! updater))))
+
 (defn init! [^Stage stage link updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]
     (ui/on-closing! stage
@@ -105,32 +113,38 @@
     (localization/localize! link localization (localization/message "updater.button.update-available"))
     (ui/on-action! link
       (fn [_]
-        (cond
-          ;; An update has already been downloaded: confirm and restart.
-          (updater/can-install-update? updater)
-          (when (dialogs/make-confirmation-dialog
-                  localization
-                  {:title (localization/message "updater.dialog.title")
-                   :icon :icon/circle-question
-                   :header (localization/message "updater.dialog.header")
-                   :buttons [{:text (localization/message "updater.dialog.button.not-now")
-                              :cancel-button true
-                              :result false}
-                             {:text (localization/message "updater.dialog.button.install-and-restart")
-                              :default-button true
-                              :result true}]
-                   :owner stage})
-            (install-and-restart!))
+        (let [can-install? (updater/can-install-update? updater)
+              can-download? (updater/can-download-update? updater)
+              can-get-new? (and can-download? (updater/platform-supported? updater))]
+          (cond
+            (and can-install? can-get-new?)
+            (case (dialogs/make-download-update-or-restart-dialog stage localization)
+              :cancel nil
+              :download (prompt-and-download! stage updater localization true)
+              :restart (install-and-restart!))
 
-          ;; The current platform is no longer supported by newer releases.
-          (not (updater/platform-supported? updater))
-          (dialogs/make-platform-no-longer-supported-dialog stage localization)
+            can-get-new?
+            (prompt-and-download! stage updater localization false)
 
-          :else
-          (if-let [content (updater/release-notes updater)]
-            (when (show-release-notes-update-dialog! content)
-              (updater/download-and-extract! updater))
-            (updater/download-and-extract! updater)))))
+            can-install?
+            (when (dialogs/make-confirmation-dialog
+                    localization
+                    {:title (localization/message "updater.dialog.title")
+                     :icon :icon/circle-question
+                     :header (localization/message "updater.dialog.header")
+                     :buttons [{:text (localization/message "updater.dialog.button.not-now")
+                                :cancel-button true
+                                :result false}
+                               {:text (localization/message "updater.dialog.button.install-and-restart")
+                                :default-button true
+                                :result true}]
+                     :owner stage})
+              (install-and-restart!))
+
+            ;; A newer version exists, but newer releases no longer support this
+            ;; platform, so there's nothing to download.
+            can-download?
+            (dialogs/make-platform-no-longer-supported-dialog stage localization)))))
     (updater/add-progress-watch updater render-progress!)
     (updater/add-state-watch updater link-fn)
     (.addEventHandler stage
