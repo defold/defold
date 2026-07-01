@@ -217,6 +217,8 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_TYPE_VECTOR4
      * @member dmGameObject::PROPERTY_TYPE_QUAT
      * @member dmGameObject::PROPERTY_TYPE_BOOLEAN
+     * @member dmGameObject::PROPERTY_TYPE_MATRIX4
+     * @member dmGameObject::PROPERTY_TYPE_TEXT
      * @member dmGameObject::PROPERTY_TYPE_COUNT
      */
     enum PropertyType
@@ -230,6 +232,7 @@ namespace dmGameObject
         PROPERTY_TYPE_QUAT = 5,
         PROPERTY_TYPE_BOOLEAN = 6,
         PROPERTY_TYPE_MATRIX4 = 7,
+        PROPERTY_TYPE_TEXT = 8,
         PROPERTY_TYPE_COUNT
     };
 
