@@ -4097,22 +4097,25 @@
 (defn- node-type-info->add-handler-user-data [type-info]
   (dissoc type-info :custom-type :output-custom-type))
 
+(defn- scene->gui-node-type-infos [scene evaluation-context]
+  (-> scene
+      (g/node-value :resource-types evaluation-context)
+      gui-node-type-registry-from-resource-types
+      :type-infos))
+
 (defn- add-handler-options [node evaluation-context]
   (let [basis (:basis evaluation-context)
         node (g/override-root basis node)
         scene (node->gui-scene basis node)
-        gui-node-type-registry (gui-node-type-registry-from-resource-types
-                                 (g/node-value scene :resource-types evaluation-context))
-        type-infos (:type-infos gui-node-type-registry)
         node-options (cond
                        (g/node-instance? basis TemplateNode node)
                        (if-some [template-scene (g/override-root basis (g/node-feeding-into basis node :template-resource))]
                          (let [parent (g/node-value template-scene :node-tree evaluation-context)]
                            (mapv (fn [info]
-                                   (if-not (:deprecated info)
+                                   (when-not (:deprecated info)
                                      (make-add-handler template-scene parent (:display-name info) (:icon info)
                                                        add-gui-node-handler (node-type-info->add-handler-user-data info))))
-                                 type-infos))
+                                 (scene->gui-node-type-infos scene evaluation-context)))
                          [])
 
                        (g/node-instance-match basis node [GuiSceneNode GuiNode NodeTree])
@@ -4120,13 +4123,13 @@
                                       (g/node-value scene :node-tree evaluation-context)
                                       node)]
                          (mapv (fn [info]
-                                 (if-not (:deprecated info)
+                                 (when-not (:deprecated info)
                                    (let [add-handler (if (= (:type info) :type-template)
                                                        add-template-gui-node-handler
                                                        add-gui-node-handler)]
                                      (make-add-handler scene parent (:display-name info) (:icon info)
                                                        add-handler (node-type-info->add-handler-user-data info)))))
-                               type-infos))
+                               (scene->gui-node-type-infos scene evaluation-context)))
 
                        :else
                        [])
