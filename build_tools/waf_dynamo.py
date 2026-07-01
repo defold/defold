@@ -82,7 +82,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengl_compute':
         return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux', 'armv7-android', 'arm64-android']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-ios', 'arm64-ios']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     if feature == 'metal':
@@ -251,8 +251,12 @@ def platform_graphics_libs_and_symbols(platform):
     use_opengl = False
     use_opengles = False
     use_vulkan = False
+    use_metal = Options.options.with_metal and platform_supports_feature(platform, 'metal', {})
 
-    if platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
+    if platform in ('x86_64-ios', 'arm64-ios'):
+        use_opengles = True
+        use_vulkan = Options.options.with_vulkan
+    elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
         use_opengl = Options.options.with_opengl
         use_vulkan = True
     elif platform in ('arm64-linux'):
@@ -288,8 +292,11 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_libs += ['GRAPHICS_WEBGPU']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
 
-    if Options.options.with_metal and platform_supports_feature(platform, 'metal', {}):
-        graphics_libs += ['GRAPHICS_METAL', 'METAL']
+    if use_metal:
+        graphics_libs += ['GRAPHICS_METAL']
+        if platform in ('x86_64-ios', 'arm64-ios') and not use_opengl and not use_opengles and not use_vulkan:
+            graphics_libs += ['DMGLFW']
+        graphics_libs += ['METAL']
         graphics_lib_symbols.append('GraphicsAdapterMetal')
 
     if platform in ('arm64-nx64'):

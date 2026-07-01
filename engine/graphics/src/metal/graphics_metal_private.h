@@ -35,15 +35,11 @@ namespace dmGraphics
     typedef dmHashTable64<MetalPipeline> PipelineCache;
     typedef dmArray<ResourceToDestroy>   ResourcesToDestroyList;
 
-#if defined(DM_PLATFORM_MACOS)
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 2; // Keep two frames in flight on macOS for better CPU/GPU overlap
-#else
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 1;
-#endif
+    const static uint8_t  MAX_FRAMES_IN_FLIGHT       = 2; // Keep two frames in flight for better CPU/GPU overlap
     const static uint16_t MAX_ENCODER_RESOURCE_CACHE = 256;
     const static uint8_t  MAX_VERTEX_BUFFER_SLOTS    = MAX_BINDINGS_PER_SET_COUNT + MAX_VERTEX_BUFFERS;
-    const static uint32_t UNIFORM_BUFFER_ALIGNMENT = 256;
-    const static uint32_t STORAGE_BUFFER_ALIGNMENT = 16;
+    const static uint32_t UNIFORM_BUFFER_ALIGNMENT   = 256;
+    const static uint32_t STORAGE_BUFFER_ALIGNMENT   = 16;
 
     enum MetalResourceType
     {
