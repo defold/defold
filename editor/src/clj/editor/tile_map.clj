@@ -1229,7 +1229,7 @@
 ;; painting tiles from brush
 
 (defmethod begin-op :paint
-  [_op self _action state evaluation-context _cursor-mode]
+  [_op self action state evaluation-context _cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (when-let [current-tile (action->tile self action evaluation-context)]
       (let [brush (g/node-value self :brush evaluation-context)
@@ -1241,7 +1241,7 @@
          (g/update-property active-layer :cell-map paint current-tile brush)]))))
 
 (defmethod update-op :paint
-  [_op self _action state evaluation-context _cursor-mode]
+  [_op self action state evaluation-context _cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (when-let [current-tile (action->tile self action evaluation-context)]
       (when (not= current-tile (-> state deref :last-tile))
@@ -1312,7 +1312,8 @@
                       :paint-mode)
         tx (case (:type action)
              (:key-pressed :key-released)
-             (g/set-property self :cursor-mode cursor-mode)
+             (g/non-undoable
+               (g/set-property self :cursor-mode cursor-mode))
 
              :mouse-pressed
              (when (and (some? command)

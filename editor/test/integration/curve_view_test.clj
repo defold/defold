@@ -28,6 +28,8 @@
   (:import [editor.curve_view SubSelectionProvider]
            [javax.vecmath Point3d]))
 
+(set! *warn-on-reflection* true)
+
 (defn- world->screen [view x y]
   (let [world-p (Point3d. x y 0.0)
         camera (g/node-value view :camera)
@@ -194,8 +196,11 @@
             point-count #(properties/curve-point-count (g/node-value emitter :particle-key-alpha))]
         (app-view/select! app-view [emitter])
         (is (= 8 (point-count)))
-        (let [[x y] (world->screen view 0.05 0.5)]
-          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+        (let [[x y] (world->screen view 0.05 0.5)
+              tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0])]
+          (g/transact
+            {:undoable false}
+            (g/set-property view :tool-picking-rect tool-picking-rect))
           (is (= :curve (first (g/node-value view :curve-handle))))
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :middle
@@ -205,8 +210,11 @@
                                    nil))
         (is (= 9 (point-count)))
         (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
-        (let [[x y] (world->screen view 0.05 0.62)]
-          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+        (let [[x y] (world->screen view 0.05 0.62)
+              tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0])]
+          (g/transact
+            {:undoable false}
+            (g/set-property view :tool-picking-rect tool-picking-rect))
           (is (= :control-point (first (g/node-value view :curve-handle))))
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :secondary
@@ -250,8 +258,11 @@
             point-count #(properties/curve-point-count (g/node-value emitter :particle-key-alpha))]
         (app-view/select! app-view [emitter])
         (is (= 8 (point-count)))
-        (let [[x y] (world->screen view 0.05 0.5)]
-          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+        (let [[x y] (world->screen view 0.05 0.5)
+              tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0])]
+          (g/transact
+            {:undoable false}
+            (g/set-property view :tool-picking-rect tool-picking-rect))
           (is (= :curve (first (g/node-value view :curve-handle))))
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :middle
@@ -261,8 +272,11 @@
                                    nil))
         (is (= 9 (point-count)))
         (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
-        (let [[x y] (world->screen view 0.05 0.62)]
-          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+        (let [[x y] (world->screen view 0.05 0.62)
+              tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0])]
+          (g/transact
+            {:undoable false}
+            (g/set-property view :tool-picking-rect tool-picking-rect))
           (is (= :control-point (first (g/node-value view :curve-handle))))
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :secondary

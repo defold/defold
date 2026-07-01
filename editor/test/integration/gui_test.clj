@@ -221,6 +221,8 @@
     (g/connect resources-node :name-counts entry-node :name-counts)))
 
 (defn- register-test-gui-extensions [workspace]
+  ;; We're deliberately not supplying {:undoable false} to g/transact because we
+  ;; want to test that the transaction steps are all wrapped in g/non-undoable.
   (g/transact
     (concat
       (gui/register-custom-node-type-info
@@ -279,8 +281,10 @@
           test-vector4 (vector-of :float 4.0 5.0 6.0 7.0)
           test-hash "hash_value"
           source-resources [{:name "beta" :path "/beta.testguiresource"}
-                            {:name "alpha" :path "/alpha.testguiresource"}]]
+                            {:name "alpha" :path "/alpha.testguiresource"}]
+          undo-stack-count-before (g/undo-stack-count :undo/global)]
       (register-test-gui-extensions workspace)
+      (is (= undo-stack-count-before (g/undo-stack-count :undo/global)))
       (doseq [editability [:editable :non-editable]
               :let [gui-resource-type (get (workspace/get-resource-type-map workspace editability) "gui")
                     node-type-info (get-in gui-resource-type [:gui-node-type-registry :custom-type-name->type-info "TestCustom"])
@@ -1058,7 +1062,7 @@
 
 (deftest rename-referenced-gui-resource-ignores-visible-layout
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (project/get-resource-node project "/gui/resources/button.gui")
           font-node (gui-font scene "button_font")
           text-node (gui-node scene "text")]

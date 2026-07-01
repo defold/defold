@@ -5123,7 +5123,7 @@
   (apply update resource-types (:ext pb-def) f args))
 
 (defn- update-gui-resource-type-tx-data [workspace f & args]
-  (concat
+  (g/non-undoable
     (apply g/update-property workspace :resource-types update-gui-resource-type-map f args)
     (apply g/update-property workspace :resource-types-non-editable update-gui-resource-type-map f args)))
 
