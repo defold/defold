@@ -510,34 +510,34 @@
 (defn disconnect-source
   [graph source-id source-label target-id target-label]
   (cond-> graph
-          (node-id->node graph source-id)
-          (update :sarcs
-                  coll/removing-update-in [source-id source-label]
-                  (fn [arcs]
-                    (->> arcs
-                         (util/removev
-                           (fn [arc]
-                             (and (= source-id (gt/source-id arc))
-                                  (= target-id (gt/target-id arc))
-                                  (= source-label (gt/source-label arc))
-                                  (= target-label (gt/target-label arc)))))
-                         (coll/not-empty))))))
+    (node-id->node graph source-id)
+    (update :sarcs
+            coll/removing-update-in [source-id source-label]
+            (fn [arcs]
+              (->> arcs
+                   (util/removev
+                     (fn [arc]
+                       (and (= source-id (gt/source-id arc))
+                            (= target-id (gt/target-id arc))
+                            (= source-label (gt/source-label arc))
+                            (= target-label (gt/target-label arc)))))
+                   (coll/not-empty))))))
 
 (defn disconnect-target
   [graph source-id source-label target-id target-label]
   (cond-> graph
-          (node-id->node graph target-id)
-          (update :tarcs
-                  coll/removing-update-in [target-id target-label]
-                  (fn [arcs]
-                    (->> arcs
-                         (util/removev
-                           (fn [arc]
-                             (and (= source-id (gt/source-id arc))
-                                  (= target-id (gt/target-id arc))
-                                  (= source-label (gt/source-label arc))
-                                  (= target-label (gt/target-label arc)))))
-                         (coll/not-empty))))))
+    (node-id->node graph target-id)
+    (update :tarcs
+            coll/removing-update-in [target-id target-label]
+            (fn [arcs]
+              (->> arcs
+                   (util/removev
+                     (fn [arc]
+                       (and (= source-id (gt/source-id arc))
+                            (= target-id (gt/target-id arc))
+                            (= source-label (gt/source-label arc))
+                            (= target-label (gt/target-label arc)))))
+                   (coll/not-empty))))))
 
 (defn override-by-id
   [basis override-id]

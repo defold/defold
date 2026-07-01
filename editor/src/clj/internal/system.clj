@@ -71,15 +71,15 @@
 (defn undo-stack [undo]
   (-> undo tape/before vec))
 
-(defn last-graph [system] (-> system :last-graph))
-(defn system-cache [system] (some-> system :cache))
-(defn graphs [system] (-> system :graphs))
-(defn graph [system graph-id] (some-> system :graphs (get graph-id)))
-(defn graph-time [system graph-id] (some-> system :graphs (get graph-id) :tx-id))
-(defn undo [system undo-key] (-> system :undo (get undo-key)))
-(defn basis [system] (ig/multigraph-basis (:graphs system)))
-(defn id-generators [system] (-> system :id-generators))
-(defn override-id-generator [system] (-> system :override-id-generator))
+(defn last-graph            [system]          (-> system :last-graph))
+(defn system-cache          [system]          (some-> system :cache))
+(defn graphs                [system]          (-> system :graphs))
+(defn graph                 [system graph-id] (some-> system :graphs (get graph-id)))
+(defn graph-time            [system graph-id] (some-> system :graphs (get graph-id) :tx-id))
+(defn undo                  [system undo-key] (-> system :undo (get undo-key)))
+(defn basis                 [system]          (ig/multigraph-basis (:graphs system)))
+(defn id-generators         [system]          (-> system :id-generators))
+(defn override-id-generator [system]          (-> system :override-id-generator))
 
 (defn- bump-invalidate-counters
   [invalidate-map endpoints]
@@ -175,21 +175,23 @@
 
 (defn undo-action
   [system undo-key]
-  (let [undo (undo system undo-key)]
-    (if-let [state (tape/ivalue undo)]
+  (let [undo (undo system undo-key)
+        state (tape/ivalue undo)]
+    (if-not state
+      system
       (-> system
           (replay-changes (rseq (:undoable-changes state)) it/revert-change)
-          (update-undo undo-key (tape/iprev undo)))
-      system)))
+          (update-undo undo-key (tape/iprev undo))))))
 
 (defn redo-action
   [system undo-key]
-  (let [undo (undo system undo-key)]
-    (if-let [state (clojure.core/peek (tape/after undo))]
+  (let [undo (undo system undo-key)
+        state (clojure.core/peek (tape/after undo))]
+    (if-not state
+      system
       (-> system
           (replay-changes (:undoable-changes state) it/perform-change)
-          (update-undo undo-key (tape/inext undo)))
-      system)))
+          (update-undo undo-key (tape/inext undo))))))
 
 (defn redo-stack [undo]
   (-> undo tape/after vec))

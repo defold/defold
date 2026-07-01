@@ -2262,18 +2262,20 @@
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
     (let [keymap (keymap/from-prefs prefs)
-          app-view (first (g/tx-nodes-added (g/transact
-                                               {:undoable false}
-                                               (g/make-node view-graph AppView
-                                                            :stage stage
-                                                            :scene app-scene
-                                                            :editor-tabs-split editor-tabs-split
-                                                            :right-split right-split
-                                                            :tool-tab-pane tool-tab-pane
-                                                            :active-tool :move
-                                                            :manip-space :world
-                                                            :keymap keymap
-                                                            :localization localization))))]
+          app-view (first
+                     (g/tx-nodes-added
+                       (g/transact
+                         {:undoable false}
+                         (g/make-node view-graph AppView
+                                      :stage stage
+                                      :scene app-scene
+                                      :editor-tabs-split editor-tabs-split
+                                      :right-split right-split
+                                      :tool-tab-pane tool-tab-pane
+                                      :active-tool :move
+                                      :manip-space :world
+                                      :keymap keymap
+                                      :localization localization))))]
       (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)

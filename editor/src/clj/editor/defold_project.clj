@@ -996,7 +996,7 @@
          total-progress (progress/advance total-progress read-progress-span)
 
          ;; We can use full invalidation on the initial load since we have
-         ;; nothing in the cache, and the transaction is not undoable.
+         ;; nothing in the cache.
          full-invalidation-transact true
 
          transact-opts {:full-invalidation full-invalidation-transact
@@ -1435,9 +1435,9 @@
         (g/transact transact-opts tx-data)))
 
     ;; Invalidating outputs is the only change that does not reset undo. This
-    ;; is a quick way to find out if we have any significant
-    ;; changes, but we must take care to also exclude non-change information
-    ;; such as the list of :kept resources from this check.
+    ;; is a quick way to find out if we have any significant changes, but we
+    ;; must take care to also exclude non-change information such as the list of
+    ;; :kept resources from this check.
     (when (some seq (vals (dissoc plan :invalidate-outputs :kept)))
       (g/reset-undo! :undo/global))
 

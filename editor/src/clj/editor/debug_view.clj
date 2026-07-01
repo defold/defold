@@ -470,15 +470,15 @@
                          (.setId "debugger-variables")
                          (ui/customize-tree-view! {:double-click-expand true})
                          (.setShowRoot false))
-        view-id (setup-view! (first
-                               (g/tx-nodes-added
-                                 (g/transact
-                                   {:undoable false}
-                                   (g/make-node view-graph DebugView
-                                                :localization localization
-                                                :open-resource-fn (make-open-resource-fn project open-resource-fn)
-                                                :state-changed-fn state-changed-fn))))
-                             app-view)
+        view-id (first
+                  (g/tx-nodes-added
+                    (g/transact
+                      {:undoable false}
+                      (g/make-node view-graph DebugView
+                                   :localization localization
+                                   :open-resource-fn (make-open-resource-fn project open-resource-fn)
+                                   :state-changed-fn state-changed-fn))))
+        view-id (setup-view! view-id app-view)
         timer (make-update-timer project view-id)]
     (setup-controls! view-id console-grid-pane call-stack-view variables-view localization)
     (ui/timer-start! timer)

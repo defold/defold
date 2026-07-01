@@ -272,7 +272,7 @@
         grid-id (g/node-value scene-view-id :grid)]
     (g/transact
       {:undoable false}
-      [(g/invalidate-output grid-id :grids)])))
+      (g/invalidate-output grid-id :grids))))
 
 (defn show-settings! [^Parent owner app-view prefs keymap localization]
   (let [scene-view-id (g/node-value app-view :active-view)

@@ -213,7 +213,7 @@
       :mouse-moved (if start
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
                                       :multi
-                                     mode)]
+                                      mode)]
                        (when-not (g/node-value self :contextual?)
                          (g/transact
                            {:undoable false}

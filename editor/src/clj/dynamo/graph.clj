@@ -774,7 +774,7 @@
 (defn prev-sequence-label [undo-key]
   (let [sys @*the-system*]
     (when-let [prev-step (some-> (is/undo sys undo-key)
-                                 is/undo-stack
+                                 (is/undo-stack)
                                  (last))]
       (:sequence-label prev-step))))
 
@@ -2102,11 +2102,10 @@
     nil))
 
 (defn undo!
-  "Resets the graph system back to the last undo step.
+  "Reverts the changes from the top undo step and moves it to the redo stack.
 
   Example:
-
-  (undo! undo-key)"
+  `(undo! undo-key)`"
   [undo-key]
   (swap! *the-system* is/undo-action undo-key)
   nil)
@@ -2124,9 +2123,10 @@
     (count undo-stack)))
 
 (defn redo!
-  "Reverts an undo of the graph system
+  "Reapplies the changes from the top redo step and moves it to the undo stack.
 
-  Example: `(redo! undo-key)`"
+  Example:
+  `(redo! undo-key)`"
   [undo-key]
   (swap! *the-system* is/redo-action undo-key)
   nil)
