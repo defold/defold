@@ -64,6 +64,8 @@ namespace dmGameObject
      * @param m_Vector4Count [type:int32_t] Number of items of type vector4 (float[4])
      * @param m_QuatCount [type:int32_t] Number of items of type quaternion (float[4])
      * @param m_BoolCount [type:int32_t] Number of items of type bool
+     * @param m_TextCount [type:int32_t] Number of items of type const char*
+     * @param m_TextSize [type:int32_t] Size of all text strings combined, including null terminators
      */
     struct PropertyContainerBuilderParams
     {
@@ -77,6 +79,8 @@ namespace dmGameObject
         uint32_t m_Vector4Count;
         uint32_t m_QuatCount;
         uint32_t m_BoolCount;
+        uint32_t m_TextCount;
+        uint32_t m_TextSize;
     };
 
     /*#
@@ -149,6 +153,15 @@ namespace dmGameObject
      * @param value [type: const char*] The value of the property
      */
     void PropertyContainerPushURLString(HPropertyContainerBuilder builder, dmhash_t id, const char* value);
+
+    /*#
+     * Add a property of type text string to the container
+     * @name PropertyContainerPushText
+     * @param builder [type: HPropertyContainerBuilder] The container builder
+     * @param id [type: dmhash_t] The id of the property
+     * @param value [type: const char*] The value of the property
+     */
+    void PropertyContainerPushText(HPropertyContainerBuilder builder, dmhash_t id, const char* value);
 
     /*#
      * Add a property of type dmMessage::URL to the container
