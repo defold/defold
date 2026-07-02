@@ -29,7 +29,6 @@
             [editor.gui-attachment :as gui-attachment]
             [editor.id :as id]
             [editor.outline :as outline]
-            [editor.outline-order :as outline-order]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -796,12 +795,6 @@
         "id" default-new-animation-name-lua-value)
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
-(defmethod init-attachment :editor.atlas/AtlasImage [evaluation-context rt project parent-node-id _ child-node-id attachment]
-  (concat
-    (when (= :editor.atlas/AtlasAnimation (g/node-type-kw (:basis evaluation-context) parent-node-id))
-      (g/set-property child-node-id :order (outline-order/next-index parent-node-id :child-indices evaluation-context)))
-    (attachment->set-tx-steps attachment child-node-id rt project evaluation-context)))
-
 (def ^:private default-start-tile-lua-value (rt/->lua 1))
 (def ^:private default-end-tile-lua-value (rt/->lua 1))
 (defmethod init-attachment :editor.tile-source/TileAnimationNode [evaluation-context rt project _ _ child-node-id attachment]
@@ -906,7 +899,7 @@
 (defmethod init-attachment :editor.gui/LayerNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
   (let [layers-node (gui-attachment/scene-node->layers-node (:basis evaluation-context) parent-node-id)]
     (concat
-      (g/set-property child-node-id :child-index (outline-order/next-index layers-node :child-indices evaluation-context))
+      (g/set-property child-node-id :child-index (gui-attachment/next-child-index layers-node evaluation-context))
       (-> attachment
           (util/provide-defaults
             "name" (rt/->lua (id/gen "layer" (g/node-value layers-node :name-counts evaluation-context))))

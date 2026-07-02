@@ -34,7 +34,6 @@
             [editor.math :as math]
             [editor.mouse-binding :as mouse-binding]
             [editor.outline :as outline]
-            [editor.outline-order :as outline-order]
             [editor.pipeline :as pipeline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
@@ -68,6 +67,7 @@
            [editor.types Animation Image]
            [java.lang.ref WeakReference]
            [java.nio ByteBuffer]
+           [java.util List]
            [javax.vecmath AxisAngle4d Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -272,10 +272,6 @@
             (dynamic tooltip (properties/tooltip-dynamic :atlas.image :sprite-trim-mode))
             (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
 
-  (property order g/Int ; No protobuf counterpart.
-            (default 0)
-            (dynamic visible (g/constantly false)))
-
   (property image resource/Resource ; Required protobuf field.
             (value (gu/passthrough maybe-image-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -299,15 +295,16 @@
   (input maybe-image-size g/Any)
   (input rename-patterns g/Str)
 
-  (output node-id+order outline-order/OrderPair (g/fnk [_node-id order] [_node-id order]))
+  (input child->order g/Any)
+  (output order g/Any (g/fnk [_node-id child->order]
+                        (child->order _node-id)))
 
   (input scene-info g/Any)
 
-  (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size order pivot-x pivot-y sprite-trim-mode]
+  (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size pivot-x pivot-y sprite-trim-mode]
                               (with-meta
                                 (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) pivot-x pivot-y sprite-trim-mode)
-                                {:error-node-id _node-id
-                                 :order order})))
+                                {:error-node-id _node-id})))
   (output atlas-images [Image] (g/fnk [atlas-image] [atlas-image]))
   (output animation Animation (g/fnk [atlas-image id]
                                 (make-animation id [atlas-image])))
@@ -359,6 +356,7 @@
     (g/connect image-node :image-resource   atlas-node :image-resources)
     (g/connect image-node :node-outline     atlas-node :child-outlines)
     (g/connect image-node :scene            atlas-node :child-scenes)
+    (g/connect atlas-node :child->order     image-node :child->order)
     (g/connect atlas-node :id-counts        image-node :id-counts)
     (g/connect atlas-node :scene-info       image-node :scene-info)
     (g/connect atlas-node :rename-patterns  image-node :rename-patterns)))
@@ -372,7 +370,7 @@
     (g/connect image-node     :image-resource   animation-node :image-resources)
     (g/connect image-node     :node-outline     animation-node :child-outlines)
     (g/connect image-node     :scene            animation-node :child-scenes)
-    (g/connect image-node     :node-id+order    animation-node :child-indices)
+    (g/connect animation-node :child->order     image-node     :child->order)
     (g/connect animation-node :scene-info       image-node     :scene-info)
     (g/connect animation-node :rename-patterns  image-node     :rename-patterns)))
 
@@ -439,17 +437,18 @@
   (property flip-vertical g/Bool (default (protobuf/int->boolean (protobuf/default AtlasProto$AtlasAnimation :flip-vertical)))
             (dynamic label (properties/label-dynamic :atlas.animation :flip-vertical))
             (dynamic tooltip (properties/tooltip-dynamic :atlas.animation :flip-vertical)))
-  (property playback types/AnimationPlayback (default (protobuf/default AtlasProto$AtlasAnimation :playback))
+  (property playback        types/AnimationPlayback (default (protobuf/default AtlasProto$AtlasAnimation :playback))
             (dynamic label (properties/label-dynamic :atlas.animation :playback))
             (dynamic tooltip (properties/tooltip-dynamic :atlas.animation :playback))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$Playback))))
 
+  (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
+
   (input atlas-images Image :array)
-  (output atlas-images [Image] (g/fnk [atlas-images] (vec (sort-by (comp :order meta) atlas-images))))
+  (output atlas-images [Image] (gu/passthrough atlas-images))
 
   (input img-ddf g/Any :array)
   (input child-scenes g/Any :array)
-  (input child-indices outline-order/OrderPair :array)
   (input child-build-errors g/Any :array)
   (input id-counts NameCounts)
   (input anim-data g/Any)
@@ -771,6 +770,8 @@
             (dynamic tooltip (properties/tooltip-dynamic :atlas :rename-patterns))
             (dynamic error (g/fnk [_node-id rename-patterns] (validate-rename-patterns _node-id rename-patterns))))
 
+  (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
+
   (input build-settings g/Any)
   (input exclude-gles-sm100 g/Any)
   (input texture-profiles g/Any)
@@ -856,14 +857,12 @@
                                                               own-build-errors))))
 
 (defn- make-image-nodes
-  [attach-fn parent start-order image-msgs]
+  [attach-fn parent image-msgs]
   (let [graph-id (g/node-id->graph-id parent)]
-    (for [[offset image-msg] (map-indexed vector image-msgs)]
+    (for [image-msg image-msgs]
       (g/make-nodes
         graph-id
         [atlas-image AtlasImage]
-        (when start-order
-          (g/set-property atlas-image :order (+ start-order offset)))
         (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
           image :image
           sprite-trim-mode :sprite-trim-mode
@@ -878,7 +877,7 @@
 (defn add-images [atlas-node image-resources]
   ; used by tests
   (let [image-msgs (map #(assoc default-image-msg :image %) image-resources)]
-    (make-image-nodes-in-atlas atlas-node nil image-msgs)))
+    (make-image-nodes-in-atlas atlas-node image-msgs)))
 
 (defn- resolve-image-msgs [workspace image-msgs remove-duplicates]
   (let [resolve-workspace-resource (partial workspace/resolve-workspace-resource (g/now) workspace)]
@@ -907,7 +906,7 @@
         fps :fps
         playback :playback)
       (attach-animation-to-atlas atlas-node animation-node)
-      (make-image-nodes-in-animation animation-node 0 image-msgs))))
+      (make-image-nodes-in-animation animation-node image-msgs))))
 
 (defn load-atlas [project self resource atlas]
   {:pre [(map? atlas)]} ; AtlasProto$Atlas in map format.
@@ -926,7 +925,7 @@
         (when (or max-page-width max-page-height)
           (g/set-property self :max-page-size [(or max-page-width (default-max-page-size 0))
                                                (or max-page-height (default-max-page-size 1))])))
-      (make-image-nodes-in-atlas self nil image-msgs)
+      (make-image-nodes-in-atlas self image-msgs)
       (map (partial make-atlas-animation self)
            (:animations atlas)))))
 
@@ -980,14 +979,10 @@
                             (g/operation-label (localization/message "operation.atlas.add-images"))
                             (cond
                               (g/node-instance? AtlasNode parent)
-                              (make-image-nodes-in-atlas parent nil image-msgs)
+                              (make-image-nodes-in-atlas parent image-msgs)
 
                               (g/node-instance? AtlasAnimation parent)
-                              (g/with-auto-evaluation-context evaluation-context
-                                (make-image-nodes-in-animation
-                                  parent
-                                  (outline-order/next-index parent :child-indices evaluation-context)
-                                  image-msgs))
+                              (make-image-nodes-in-animation parent image-msgs)
 
                               :else
                               (let [parent-node-type @(g/node-type* parent)]
@@ -1011,6 +1006,32 @@
       (when (some? parent-node)
         (add-images-handler app-view workspace project parent-node accept-fn)))))
 
+(defn- vec-move
+  [v x offset]
+  (let [current-index (.indexOf ^List v x)
+        new-index (max 0 (+ current-index offset))
+        [before after] (split-at new-index (remove #(= x %) v))]
+    (vec (concat before [x] after))))
+
+(defn- move-node!
+  [node-id offset]
+  (let [parent (core/scope node-id)
+        children (vec (g/node-value parent :nodes))
+        new-children (vec-move children node-id offset)
+        connections (keep (fn [[source source-label target target-label]]
+                            (when (and (= source node-id)
+                                       (= target parent))
+                              [source-label target-label]))
+                          (g/outputs node-id))]
+    (g/transact
+      (concat
+        (for [child children
+              [source target] connections]
+          (g/disconnect child source parent target))
+        (for [child new-children
+              [source target] connections]
+          (g/connect child source parent target))))))
+
 (defn- move-active? [selection {:keys [basis] :as evaluation-context}]
   (some->> (selection->image selection evaluation-context)
            (core/scope basis)
@@ -1021,24 +1042,30 @@
   (enabled? [selection evaluation-context]
     (let [basis (:basis evaluation-context)
           node-id (selection->image selection evaluation-context)
-          parent (core/scope basis node-id)]
-      (outline-order/can-move? parent :child-indices node-id :order -1 evaluation-context)))
+          parent (core/scope basis node-id)
+          ^List children (vec (g/node-value parent :nodes evaluation-context))
+          node-child-index (.indexOf children node-id)]
+      (pos? node-child-index)))
   (run [selection]
-    (g/let-ec [basis (:basis evaluation-context)
-               node-id (selection->image selection evaluation-context)]
-      (outline-order/move! (core/scope basis node-id) :child-indices node-id :order -1))))
+    (move-node!
+      (g/with-auto-evaluation-context evaluation-context
+        (selection->image selection evaluation-context))
+      -1)))
 
 (handler/defhandler :edit.reorder-down :workbench
   (active? [selection evaluation-context] (move-active? selection evaluation-context))
   (enabled? [selection evaluation-context]
     (let [basis (:basis evaluation-context)
           node-id (selection->image selection evaluation-context)
-          parent (core/scope basis node-id)]
-      (outline-order/can-move? parent :child-indices node-id :order 1 evaluation-context)))
+          parent (core/scope basis node-id)
+          ^List children (vec (g/node-value parent :nodes evaluation-context))
+          node-child-index (.indexOf children node-id)]
+      (< node-child-index (dec (.size children)))))
   (run [selection]
-    (g/let-ec [basis (:basis evaluation-context)
-               node-id (selection->image selection evaluation-context)]
-      (outline-order/move! (core/scope basis node-id) :child-indices node-id :order 1))))
+    (move-node!
+      (g/with-auto-evaluation-context evaluation-context
+        (selection->image selection evaluation-context))
+      1)))
 
 (defn- snap-axis
   [^double threshold ^double v]
@@ -1139,11 +1166,9 @@
                     new-image? (complement existing-image-resources)]
                 (->> (filter new-image? image-resources)
                      (image-resources->image-msgs)
-                     (make-image-nodes-in-atlas parent nil)))
+                     (make-image-nodes-in-atlas parent)))
     AtlasAnimation (->> (image-resources->image-msgs image-resources)
-                        (make-image-nodes-in-animation
-                          parent
-                          (outline-order/next-index parent :child-indices evaluation-context)))))
+                        (make-image-nodes-in-animation parent))))
 
 (defn- handle-drop
   [root-id selection _workspace _world-pos resources]
@@ -1218,20 +1243,16 @@
   (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/constantly nil)))
 
-(defn- get-animation-images [parent evaluation-context]
-  (let [nodes ((attachment/nodes-by-type-getter AtlasImage) parent evaluation-context)]
-    (outline-order/ordered-node-ids nodes :order evaluation-context)))
-
-(defn- reorder-animation-images [reordered-image-node-ids]
-  (outline-order/reorder-tx-data :order reordered-image-node-ids))
+(defn- get-animation-images [animation evaluation-context]
+  (let [child->order (g/node-value animation :child->order evaluation-context)]
+    (vec (sort-by child->order (keys child->order)))))
 
 (defn register-resource-types [workspace]
   (concat
     (attachment/register
       workspace AtlasAnimation :images
       :add {AtlasImage attach-image-to-animation}
-      :get get-animation-images
-      :reorder reorder-animation-images)
+      :get get-animation-images)
     (attachment/register
       workspace AtlasNode :animations
       :add {AtlasAnimation attach-animation-to-atlas}
