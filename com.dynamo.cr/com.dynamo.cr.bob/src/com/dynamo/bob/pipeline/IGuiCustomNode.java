@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,20 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#import "BaseView.h"
-#import <UIKit/UIKit.h>
-#import <QuartzCore/QuartzCore.h>
+package com.dynamo.bob.pipeline;
 
-@interface VulkanView : BaseView {
-@private
+public interface IGuiCustomNode {
 }
-
-+ (BaseView*)createView:(CGRect)bounds recreate:(BOOL)recreate;
-- (void)swapBuffers;
-- (void)setupView;
-
-@end
-
-@interface VulkanView ()
-
-@end

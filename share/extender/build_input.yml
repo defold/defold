@@ -7,6 +7,7 @@ context:
                 "ComponentTypeMesh",
                 "ComponentTypeScript",
                 "ComponentTypeSound",
+                "ComponentTypeLight",
                 "CrashExt",
                 "DefaultSoundDevice",
                 "LiveUpdateExt",
@@ -28,6 +29,7 @@ context:
                 "ResourceTypeScript",
                 "ResourceTypeTTF",
                 "ResourceTypeWav",
+                "ResourceTypeLight",
                 "ScriptBox2DExt",
                 "ScriptFont",
                 "ScriptHttp",
@@ -54,6 +56,7 @@ context:
                 "rig", "rig.lib", "librig.lib",
                 "rig_null", "rig_null.lib", "librig_null.lib",
                 "graphics", "graphics.lib", "libgraphics.lib",
+                "graphics_metal", "graphics_metal.lib", "libgraphics_metal.lib",
                 "graphics_opengles", "graphics_opengles.lib", "libgraphics_opengles.lib",
                 "graphics_webgpu", "graphics_webgpu.lib", "libgraphics_webgpu.lib",
                 "graphics_webgpu_wagyu", "graphics_webgpu_wagyu.lib", "libgraphics_webgpu_wagyu.lib",
@@ -111,10 +114,10 @@ context:
                 "tremolo", "libtremolo.lib",
                 "vpx", "vpx.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "AudioDecoderOpus", "GraphicsAdapterWebGPU",
-                    "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
+                    "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterMetal", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt",
                     "ScriptFont", "ResourceTypeFont", "ResourceTypeTTF",
-                    "ResourceTypeOgg", "ResourceTypeWav", "ResourceTypeOpus"]
+                    "ResourceTypeOgg", "ResourceTypeWav", "ResourceTypeOpus", "ResourceTypeLight", "ComponentTypeLight"]
     defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
 
 main: |
@@ -230,10 +233,10 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_26_CLANG_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_CLANG_VERSION}}"
         MACOS_VERSION:          "{{env.MACOS_VERSION}}"
         MACOS_VERSION_MIN:      "{{env.MACOS_VERSION_MIN}}"
-        SWIFT_VERSION:          "{{env.SWIFT_6_2_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_VERSION}}"
         SYSROOT:                "{{env.PLATFORMSDK_DIR}}/MacOSX{{env.MACOS_VERSION}}.sdk"
     context:
         frameworks:     ["Foundation", "AppKit", "Cocoa", "Metal", "IOSurface", "OpenAL", "IOKit", "GameController", "Carbon", "CoreVideo", "QuartzCore", "AVFoundation", "CFNetwork", "Security"]
@@ -308,8 +311,8 @@ platforms:
         PLATFORMSDK_DIR:        "{{env.PLATFORMSDK_DIR}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
         XCODE_VERSION:          "{{env.XCODE_VERSION}}"
-        XCODE_CLANG_VERSION:    "{{env.XCODE_26_CLANG_VERSION}}"
-        SWIFT_VERSION:          "{{env.SWIFT_6_2_VERSION}}"
+        XCODE_CLANG_VERSION:    "{{env.XCODE_CLANG_VERSION}}"
+        SWIFT_VERSION:          "{{env.SWIFT_VERSION}}"
         IOS_VERSION:            "{{env.IOS_VERSION}}"
         IOS_VERSION_MIN:        "{{env.IOS_VERSION_MIN}}"
 

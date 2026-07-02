@@ -529,6 +529,7 @@ namespace dmRender
         if (render_context->m_LightUniformBuffer)
         {
             dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
+            render_context->m_LightUniformBuffer = 0;
         }
 
         uint32_t prototype_capacity = render_context->m_LightPrototypes.Capacity();
@@ -653,10 +654,19 @@ namespace dmRender
                                         light_buffer_binding);
     }
 
+    static inline void UnbindLightBuffer(HRenderContext render_context)
+    {
+        if (render_context->m_LightUniformBuffer)
+        {
+            dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
+        }
+    }
+
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material)
     {
         if (!material->m_HasLightBuffer)
         {
+            UnbindLightBuffer(render_context);
             return;
         }
         ApplyLightBufferForBinding(render_context, material->m_LightBufferSet, material->m_LightBufferBinding);
@@ -666,6 +676,7 @@ namespace dmRender
     {
         if (!compute_program->m_HasLightBuffer)
         {
+            UnbindLightBuffer(render_context);
             return;
         }
         ApplyLightBufferForBinding(render_context, compute_program->m_LightBufferSet, compute_program->m_LightBufferBinding);

@@ -37,6 +37,7 @@
             [editor.font :as font]
             [editor.game-object :as game-object]
             [editor.game-object-non-editable :as game-object-non-editable]
+            [editor.gamepads :as gamepads]
             [editor.game-project :as game-project]
             [editor.game-properties :as game-properties]
             [editor.gui :as gui]
@@ -86,6 +87,7 @@
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)
       (game-object-non-editable/register-resource-types workspace)
+      (gamepads/register-resource-types workspace)
       (game-project/register-resource-types workspace)
       (game-properties/register-resource-types workspace)
       (gui/register-resource-types workspace)

@@ -91,6 +91,10 @@ $spacing-largest: 40px;
   }
 }
 
+.ext-button.button-darker {
+  -fx-background-color: derive(-df-component-dark, -25%);
+}
+
 .button-icon {
   -fx-text-fill: -df-text;
   -fx-background-radius: 2px;

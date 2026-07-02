@@ -462,18 +462,6 @@ static void LogFrameBufferError(GLenum status)
         } \
     } \
 
-
-    #if defined(DM_PLATFORM_IOS)
-    struct ChooseEAGLView
-    {
-        ChooseEAGLView() {
-            // Let's us choose the CAEAGLLayer
-            // Note: We don't need a valid window here (and we don't have access to one)
-            dmPlatform::SetiOSViewTypeOpenGL((HWindow) 0);
-        }
-    } g_ChooseEAGLView;
-    #endif
-
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();
@@ -1967,8 +1955,14 @@ static void LogFrameBufferError(GLenum status)
 
             // GL has no separate "max vertex buffer bindings" before
             // GL 4.3 (GL_MAX_VERTEX_ATTRIB_BINDINGS); fall back to attrib count.
-        #ifdef GL_MAX_VERTEX_ATTRIB_BINDINGS
-            limits.m_MaxVertexBuffers = (uint32_t) OpenGLGetInteger(GL_MAX_VERTEX_ATTRIB_BINDINGS);
+            // Emscripten headers expose the define, but WebGL getParameter() support
+            // is not portable here and may report INVALID_ENUM, so keep the fallback.
+        #if defined(GL_MAX_VERTEX_ATTRIB_BINDINGS) && !defined(__EMSCRIPTEN__)
+            GLint max_vertex_attrib_bindings = OpenGLGetInteger(GL_MAX_VERTEX_ATTRIB_BINDINGS);
+            if (max_vertex_attrib_bindings > 0)
+            {
+                limits.m_MaxVertexBuffers = (uint32_t) max_vertex_attrib_bindings;
+            }
         #endif
 
         #if defined(GL_MAX_COMPUTE_WORK_GROUP_SIZE) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
@@ -2266,14 +2260,15 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*)_context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         {
-            return;
-        }
-
-        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
-        {
-            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentUniformBuffers[set][binding] == ubo)
+                {
+                    context->m_CurrentUniformBuffers[set][binding] = 0;
+                }
+            }
         }
 
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -2287,11 +2282,6 @@ static void LogFrameBufferError(GLenum status)
 
         ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
         ubo->m_BaseUniformBuffer.m_BoundSet     = set;
-
-        if (context->m_CurrentUniformBuffers[set][binding])
-        {
-            OpenGLDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
-        }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
@@ -2934,6 +2924,7 @@ static void LogFrameBufferError(GLenum status)
                             *pgm_layout);
 
                         // Fallback to the scratch buffer uniform setup
+                        OpenGLDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                         bound_ubo = 0;
                     }
                 }

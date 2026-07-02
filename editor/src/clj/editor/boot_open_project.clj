@@ -40,6 +40,7 @@
             [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
             [editor.localization :as localization]
+            [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
             [editor.notifications-view :as notifications-view]
             [editor.os :as os]
@@ -79,6 +80,7 @@
 (def the-root (atom nil))
 
 (defn initialize-systems! [prefs]
+  (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
   (code-view/initialize! prefs))
 
 (defn initialize-project! [system-config]

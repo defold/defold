@@ -37,6 +37,7 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dlib/memory.h>
 #include <dlib/time.h>
 #include <dlib/path.h>
@@ -1522,6 +1523,16 @@ class GamesysErrorLogCapture;
 static void CaptureGamesysErrorLog(LogSeverity severity, const char* domain, const char* formatted_string);
 static GamesysErrorLogCapture* g_GamesysErrorLogCapture = 0;
 
+static bool WaitForGamesysErrorLogCapture()
+{
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 5000000;
+    while (dmLog::GetPendingLogCount() != 0 && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    return dmLog::GetPendingLogCount() == 0;
+}
+
 class GamesysErrorLogCapture
 {
 public:
@@ -1530,6 +1541,8 @@ public:
         assert(g_GamesysErrorLogCapture == 0);
         g_GamesysErrorLogCapture = this;
         dmLogRegisterListener(CaptureGamesysErrorLog);
+        WaitForGamesysErrorLogCapture();
+        m_Output.SetSize(0);
     }
 
     ~GamesysErrorLogCapture()
@@ -1548,22 +1561,43 @@ public:
 
     bool Empty() const
     {
-        return m_Output.Size() == 0;
+        return WaitForGamesysErrorLogCapture() && m_Output.Size() == 0;
     }
 
     bool Contains(const char* needle)
     {
-        if (m_Output.Size() == 0 || m_Output[m_Output.Size() - 1] != '\0')
+        WaitForGamesysErrorLogCapture();
+        return strstr(Output(), needle) != 0;
+    }
+
+    const char* Output()
+    {
+        WaitForGamesysErrorLogCapture();
+        if (m_Output.Size() == 0)
+        {
+            return "";
+        }
+        if (m_Output[m_Output.Size() - 1] != '\0')
         {
             m_Output.OffsetCapacity(1);
             m_Output.Push('\0');
         }
-        return strstr(m_Output.Begin(), needle) != 0;
+        return m_Output.Begin();
     }
 
 private:
     dmArray<char> m_Output;
 };
+
+static bool GamesysErrorLogCaptureEmpty(GamesysErrorLogCapture& log_capture)
+{
+    bool empty = log_capture.Empty();
+    if (!empty)
+    {
+        printf("Unexpected GAMESYS error log output:\n%s", log_capture.Output());
+    }
+    return empty;
+}
 
 static void CaptureGamesysErrorLog(LogSeverity severity, const char* domain, const char* formatted_string)
 {
@@ -2272,7 +2306,7 @@ TEST_F(SpriteTest, SetImageThenPlayAnimationDoesNotLogErrors)
         ASSERT_EQ(atlas_b, GetHashProperty(go, sprite_comp_id, image_prop_id, &tex1_options));
         ASSERT_EQ(animation_b, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, atlas_resource);
@@ -2306,7 +2340,7 @@ TEST_F(SpriteTest, SetImageKeepsSharedAnimationWithoutLogging)
         RenderCollection(m_RenderContext, m_Collection);
 
         ASSERT_EQ(shared_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, image_resource);
@@ -2350,7 +2384,7 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstAnimationWithoutLogging)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         ASSERT_EQ(new_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, image_resource);
@@ -2398,7 +2432,7 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstTrimmedAnimationWithoutLogging)
 
         ASSERT_EQ(fallback_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
         ASSERT_EQ(0u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, image_resource);
@@ -2908,6 +2942,78 @@ TEST_F(GuiTest, TextureReloadRefreshesAtlasState)
     ASSERT_EQ(64.0f, size.getY());
 
     dmResource::Release(m_Factory, expected_atlas);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies that atlas resources assigned through gui.set(msg.url(), "textures", ...)
+// can be replaced and then explicitly removed. This guards the component-owned
+// resource references so script-side resource.release() can fully destroy the
+// old and current runtime atlases.
+TEST_F(GuiTest, GuiSetNilRemovesRuntimeTextureMapping)
+{
+    const char* atlas_a_path = "/gui/set_texture_nil_a.texturesetc";
+    const char* atlas_b_path = "/gui/set_texture_nil_b.texturesetc";
+    const dmhash_t atlas_a_hash = dmHashString64(atlas_a_path);
+    const dmhash_t atlas_b_hash = dmHashString64(atlas_b_path);
+    const dmhash_t texture_a_hash = dmHashString64("/gui/set_texture_nil_a.texturec");
+    const dmhash_t texture_b_hash = dmHashString64("/gui/set_texture_nil_b.texturec");
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/gui_set_texture_nil.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    uint32_t component_type_index        = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("guic"));
+    dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
+    dmGameSystem::GuiComponent* gui_comp = gui_world->m_Components[0];
+    dmGui::HNode box = dmGui::GetNodeById(gui_comp->m_Scene, "box");
+    ASSERT_NE(0, box);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+
+    dmGameSystem::TextureSetResource* atlas_a = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, atlas_a_path, (void**)&atlas_a));
+    ASSERT_NE((void*)0x0, atlas_a);
+    ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+
+    dmGui::NodeTextureType texture_type;
+    dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box, &texture_type);
+    ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, texture_type);
+    ASSERT_EQ((dmGui::HTextureSource) atlas_a, texture_source);
+
+    dmResource::Release(m_Factory, atlas_a);
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, atlas_b_hash));
+
+    dmGameSystem::TextureSetResource* atlas_b = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, atlas_b_path, (void**)&atlas_b));
+    ASSERT_NE((void*)0x0, atlas_b);
+    ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, atlas_b_hash));
+
+    texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box, &texture_type);
+    ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, texture_type);
+    ASSERT_EQ((dmGui::HTextureSource) atlas_b, texture_source);
+
+    dmResource::Release(m_Factory, atlas_b);
+    ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, atlas_b_hash));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    lua_getglobal(L, "gui_set_texture_nil_done");
+    bool done = lua_toboolean(L, -1);
+    lua_pop(L, 1);
+    ASSERT_TRUE(done);
+
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, atlas_a_hash));
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, atlas_b_hash));
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, texture_a_hash));
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, texture_b_hash));
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -8780,8 +8886,10 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, material);
 
     dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) render_ctx->m_LightUniformBuffer;
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     ASSERT_NE((void*)0, ubo);
     ASSERT_NE((void*)0, ubo->m_Buffer);
+    ASSERT_EQ(ubo, null_context->m_UniformBuffers[material->m_LightBufferSet][material->m_LightBufferBinding]);
 
     Vector4 light_info_written;
     memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
@@ -8801,9 +8909,22 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
     ASSERT_EQ(4u, small_material->m_LightBufferCapacity);
 
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, small_material);
+    ASSERT_EQ(ubo, null_context->m_UniformBuffers[small_material->m_LightBufferSet][small_material->m_LightBufferBinding]);
     memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
     ASSERT_VEC4(Vector4(0.5f, 1.0f, 1.5f, 10.0f), light_info_written);
 
+    dmGameSystem::MaterialResource* unlit_material_res = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/valid.materialc", (void**) &unlit_material_res));
+    ASSERT_NE((void*)0, unlit_material_res);
+    dmRender::HMaterial unlit_material = unlit_material_res->m_Material;
+    ASSERT_NE((void*)0, unlit_material);
+    ASSERT_FALSE(unlit_material->m_HasLightBuffer);
+
+    dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, unlit_material);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[material->m_LightBufferSet][material->m_LightBufferBinding]);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[small_material->m_LightBufferSet][small_material->m_LightBufferBinding]);
+
+    dmResource::Release(m_Factory, (void*) unlit_material_res);
     dmResource::Release(m_Factory, (void*) small_material_res);
     dmResource::Release(m_Factory, (void*) material_res);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -9690,6 +9811,47 @@ TEST_F(ModelTest, PbrProperties)
     exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
+    ///////////////////////////////////////////////////////
+    // Test 3: Test fallback defaults for meshes with no material entries
+    ///////////////////////////////////////////////////////
+    res = dmGameObject::GetComponent(go, dmHashString64("model_no_materials"), &component_type, &component, &world);
+    ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    GetModelComponentRenderConstants(component, 0, &render_constants);
+    ASSERT_NE((dmGameSystem::HComponentRenderConstants) 0, render_constants);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, &constant));
+    values = dmRender::GetConstantValues(constant, &num_values);
+    exp = dmVMath::Vector4(0.5f, 0.0f, 0.0f, 0.0f);
+    ASSERT_VEC4(exp, values[0]);
+
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+
+    ///////////////////////////////////////////////////////
+    // Test 4: Test model texture bindings for meshes with no material entries
+    ///////////////////////////////////////////////////////
+    res = dmGameObject::GetComponent(go, dmHashString64("model_no_materials_textured"), &component_type, &component, &world);
+    ASSERT_EQ(dmGameObject::RESULT_OK, res);
+
+    GetModelComponentRenderConstants(component, 0, &render_constants);
+    ASSERT_NE((dmGameSystem::HComponentRenderConstants) 0, render_constants);
+
+    // The no-material fallback uses default PBR material properties. Model-level texture
+    // bindings do not create PBR texture presence constants without glTF material entries.
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -9813,6 +9975,94 @@ TEST_F(GuiTest, PerPropertyPrecedence)
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(test_prop_hash));
     
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiCustomPropertiesFromDDF)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0x0, gui_component);
+
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "custom_props");
+    ASSERT_NE(dmGui::INVALID_HANDLE, node);
+
+    dmGui::CustomProperty property = {};
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("component", property.m_String);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiCustomPropertiesFromLayoutDDF)
+{
+    dmRender::HDisplayProfiles display_profiles = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/display_profiles/gui_layout_no_auto.display_profilesc", (void**)&display_profiles));
+    dmGui::SetDisplayProfiles(m_GuiContext, display_profiles);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/custom_properties_layout.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0x0, gui_component);
+
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "custom_props_layout");
+    ASSERT_NE(dmGui::INVALID_HANDLE, node);
+
+    dmGui::CustomProperty property = {};
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("default", property.m_String);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(1.0f, property.m_Number, EPSILON);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_TRUE(property.m_Boolean);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_VEC3(Vector3(1.0f, 2.0f, 3.0f), property.m_Vector3);
+
+    gui_component->m_Scene->m_ApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Landscape"));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("landscape", property.m_String);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(2.0f, property.m_Number, EPSILON);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_FALSE(property.m_Boolean);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_VEC3(Vector3(4.0f, 5.0f, 6.0f), property.m_Vector3);
+
+    gui_component->m_Scene->m_ApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Portrait"));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("default", property.m_String);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(1.0f, property.m_Number, EPSILON);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_TRUE(property.m_Boolean);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_VEC3(Vector3(1.0f, 2.0f, 3.0f), property.m_Vector3);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGui::SetDisplayProfiles(m_GuiContext, 0);
+    dmResource::Release(m_Factory, display_profiles);
 }
 
 extern "C" void dmExportedSymbols();

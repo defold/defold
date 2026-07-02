@@ -265,10 +265,12 @@
                             :data embedded-component-data}}
 
      "gui"
-     {:nodes {:id (required "node_id")}
+     {:nodes {:id (required "node_id")
+              :custom-properties (exactly nil)}
       :layouts {:name "layout_name"
                 :nodes {:id (required "node_id")
                         :alpha (required 0.5)
+                        :custom-properties (exactly nil)
                         :overridden-fields (required Gui$NodeDesc/ALPHA_FIELD_NUMBER)}}
       :layers {:name "layer_name"}
       :fonts {:name "font_name"

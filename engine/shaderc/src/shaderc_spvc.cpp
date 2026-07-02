@@ -623,6 +623,33 @@ namespace dmShaderc
         return ReplaceString(src, precision_buf, replace_buf, result_buf);
     }
 
+    static bool ApplyMediumpPrecisionOverride(const char* src, dmArray<char>* result_buf, bool is_float_type)
+    {
+        const char* type_str = is_float_type ? "float" : "int";
+
+        const char* highp_block_template =
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+            "    precision highp %s;\n"
+            "#else\n"
+            "    precision mediump %s;\n"
+            "#endif";
+
+        char highp_block_buf[256] = {};
+        dmSnPrintf(highp_block_buf, sizeof(highp_block_buf), highp_block_template, type_str, type_str);
+
+        char mediump_buf[32] = {};
+        dmSnPrintf(mediump_buf, sizeof(mediump_buf), "precision mediump %s;", type_str);
+
+        if (ReplaceString(src, highp_block_buf, mediump_buf, result_buf))
+        {
+            return true;
+        }
+
+        char highp_buf[32] = {};
+        dmSnPrintf(highp_buf, sizeof(highp_buf), "precision highp %s;", type_str);
+        return ReplaceString(src, highp_buf, mediump_buf, result_buf);
+    }
+
     ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options)
     {
         spvc_compiler_options spv_options = NULL;
@@ -772,15 +799,19 @@ namespace dmShaderc
             uint32_t transform_content_size = compile_result_size;
             dmArray<char> tmp_buffer;
 
-            if (options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_HIGHP &&
-                ApplyHighpWorkaround(transform_buffer.Begin(), &tmp_buffer, true))
+            if (((options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_HIGHP &&
+                  ApplyHighpWorkaround(transform_buffer.Begin(), &tmp_buffer, true)) ||
+                 (options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_MEDIUMP &&
+                  ApplyMediumpPrecisionOverride(transform_buffer.Begin(), &tmp_buffer, true))))
             {
                 EnsureSize(transform_buffer, tmp_buffer.Size());
                 memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
                 transform_content_size = tmp_buffer.Size() - 1;
             }
-            if (options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_HIGHP &&
-                ApplyHighpWorkaround(transform_buffer.Begin(), &tmp_buffer, false))
+            if (((options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_HIGHP &&
+                  ApplyHighpWorkaround(transform_buffer.Begin(), &tmp_buffer, false)) ||
+                 (options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_MEDIUMP &&
+                  ApplyMediumpPrecisionOverride(transform_buffer.Begin(), &tmp_buffer, false))))
             {
                 EnsureSize(transform_buffer, tmp_buffer.Size());
                 memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());

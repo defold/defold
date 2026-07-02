@@ -44,6 +44,7 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.GuiCustomTypeRegistry;
 import com.dynamo.bob.pipeline.GamepadBuilder;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
@@ -152,6 +153,7 @@ public class Project implements AutoCloseable {
     private TextureProfiles textureProfiles;
     private List<Class<? extends IBundler>> bundlerClasses = new ArrayList<>();
     private Set<Class<? extends IPlugin>> pluginClasses = new HashSet<>();
+    private final GuiCustomTypeRegistry guiCustomTypeRegistry = new GuiCustomTypeRegistry();
     private ClassLoader classLoader = null;
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
@@ -165,6 +167,10 @@ public class Project implements AutoCloseable {
 
     public ArchiveBuilder getArchiveBuilder() {
         return this.archiveBuilder;
+    }
+
+    public GuiCustomTypeRegistry getGuiCustomTypeRegistry() {
+        return guiCustomTypeRegistry;
     }
 
     public Project(IFileSystem fileSystem) {
@@ -461,6 +467,8 @@ public class Project implements AutoCloseable {
                         pluginClasses.add((Class<? extends IPlugin>) klass);
                     }
                 }
+
+                guiCustomTypeRegistry.register(klass);
                 TimeProfiler.stop();
             } catch (ClassNotFoundException e) {
                 TimeProfiler.stop();
@@ -1049,12 +1057,7 @@ public class Project implements AutoCloseable {
         }
 
         // If not found, try to get a built-in shader compiler for this platform
-        IShaderCompiler commonShaderCompiler = ShaderCompilers.GetCommonShaderCompiler(platform);
-        if (commonShaderCompiler != null) {
-            return commonShaderCompiler;
-        }
-
-        throw new CompileExceptionError(null, -1, String.format("No shader compiler registered for platform %s", platform.getPair()));
+        return new ShaderCompilers.CommonShaderCompiler(platform);
     }
 
     private boolean anyFailing(Collection<TaskResult> results) {
@@ -1588,6 +1591,8 @@ public class Project implements AutoCloseable {
                 return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
                 return ShaderCompilers.SHADER_ADAPTER_VULKAN;
+            case "graphics_metal":
+                return ShaderCompilers.SHADER_ADAPTER_METAL;
             case "graphics_opengles":
             case "graphics_gles":
                 return ShaderCompilers.SHADER_ADAPTER_OPENGLES;

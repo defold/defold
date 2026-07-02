@@ -309,18 +309,18 @@ def get_closing_issue(pr):
     return pr
 
 def get_closing_pr(issue):
-    issue_repository = issue.get("repository").get("name")
+    issue_repo = issue.get("repository").get("name")
     # an issue may reference multiple merged items on the
     # timeline - pick the last one! (ie newest)
     for node in reversed(issue["timelineItems"]["nodes"]):
         if not node["__typename"] == "CrossReferencedEvent":
             continue
-        source = node["source"]
+        source = node.get("source") or {}
         if source.get("merged") == True:
             closing_number = source["number"]
             # The closing PR can live in a different repo (e.g. an extension), so
             # use the source's own repository when present; fall back otherwise.
-            repository = (source.get("repository") or {}).get("name") or issue_repository
+            repository = (source.get("repository") or {}).get("name") or issue_repo
             pr = get_pullrequest(closing_number, repository)
             if pr is not None:
                 return pr

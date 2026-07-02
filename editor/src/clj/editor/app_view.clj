@@ -61,6 +61,7 @@
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.menu-items :as menu-items]
+            [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.pipeline :as pipeline]
@@ -733,6 +734,7 @@
   (run [workspace prefs app-view localization]
     (prefs-dialog/open! prefs localization)
     (workspace/update-build-settings! workspace prefs)
+    (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
       (when-not (= new-keymap (g/raw-property-value (g/now) app-view :keymap))
         (g/set-property! app-view :keymap new-keymap)))
