@@ -396,11 +396,10 @@
    ;; when strict evaluation-context scope checks are enabled.
    (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
          transaction-context (make-transaction-context opts)
+         undoable-changes (when (:undoable opts true)
+                            (transient []))
          tx-result (do-strict-evaluation-context-scope-body
-                     (it/transact* transaction-context
-                                   txs
-                                   (when (:undoable opts true)
-                                     (transient []))))]
+                     (it/transact* transaction-context undoable-changes txs))]
      (commit-tx-result! tx-result opts)
      tx-result)))
 

@@ -227,7 +227,7 @@
 
               (run-and-measure-task!
                 :apply-load-tx-data
-                (let [[transaction-context] (it/realize-tx transaction-context tx-data nil)]
+                (let [[transaction-context] (it/realize-tx transaction-context nil tx-data)]
                   transaction-context))
 
               (run-and-measure-task!
