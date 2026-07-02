@@ -2443,9 +2443,9 @@
       :timer (proxy [AnimationTimer] []
                (handle [^long now]
                  (profiler/profile "timer" name
-	                   (let [elapsed (- now start)
-	                         delta (- now (long @last))
-	                         interval (if (:focused @focus-state) interval unfocused-interval)]
+	                 (let [elapsed (- now start)
+	                       delta (- now (long @last))
+	                       interval (if (:focused @focus-state) interval unfocused-interval)]
                      (when (or (zero? interval) (> delta interval))
                        (run-later
                          (try
