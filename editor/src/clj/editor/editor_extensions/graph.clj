@@ -415,11 +415,7 @@
   :editor.view/WorkbenchView
   (fn WorkbenchView-getter [node-id property evaluation-context]
     (case property
-      "resource" (fn get-resource []
-                   (some-> (g/node-value node-id :view-data evaluation-context)
-                           second
-                           :resource-node
-                           rt/wrap-userdata))
+      "resource" #(rt/wrap-userdata (g/node-value node-id :resource-node evaluation-context))
       "dirty" #(g/node-value node-id :dirty evaluation-context)
       nil))
   (fn WorkbenchView-lister [_node-id _evaluation-context]

@@ -27,7 +27,8 @@
             [editor.lsp.async :as lsp.async]
             [editor.resource :as resource]
             [editor.scene :as scene]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 
@@ -121,14 +122,16 @@
                         "html" :editor.html-view/HtmlViewNode
                         "form" :editor.cljfx-form-view/CljfxFormView)]
     (gen-query acc [env cont]
-      (let [evaluation-context (or (:evaluation-context env)
-                                   (g/make-evaluation-context))]
-        (when-let [view (some-> (:app-view env)
-                                (g/node-value :active-view evaluation-context))]
-          (when (g/node-kw-instance? (:basis evaluation-context) expected-type view)
-            (when-not (:evaluation-context env)
-              (g/update-cache-from-evaluation-context! evaluation-context))
-            (cont assoc :active_view (editor-lookup-userdata view))))))))
+      (when-let [app-view (:app-view env)]
+        (let [evaluation-context (or (:evaluation-context env)
+                                     (g/make-evaluation-context))]
+          (try
+            (when-let [view (g/node-value app-view :active-view evaluation-context)]
+              (when (g/node-kw-instance? (:basis evaluation-context) expected-type view)
+                (cont assoc :active_view (editor-lookup-userdata view))))
+            (finally
+              (when-not (:evaluation-context env)
+                (g/update-cache-from-evaluation-context! evaluation-context)))))))))
 
 (defn- compile-query [q project]
   (reduce-kv
@@ -222,7 +225,7 @@
                          (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) {:evaluation-context (:evaluation-context env)} active (rt/->lua opts)))))))
 
             (and (not active) query)
-            (assoc :active? (lua-fn->env-fn (constantly true)))
+            (assoc :active? (lua-fn->env-fn fn/constantly-true))
 
             run
             (assoc :run
