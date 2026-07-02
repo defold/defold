@@ -157,17 +157,15 @@
               (is (g/connected? basis second-source-node-id :property-output target-node-id :array-input))
               (is (= [[target-node-id :array-input]] (g/targets basis first-source-node-id :property-output)))
               (is (= [[target-node-id :array-input]] (g/targets basis second-source-node-id :property-output)))
-              (is (= #{[first-source-node-id :property-output]
-                       [second-source-node-id :property-output]}
-                     (set (g/sources basis target-node-id :array-input))))
+              (is (= [[first-source-node-id :property-output] [second-source-node-id :property-output]] (g/sources basis target-node-id :array-input)))
               (testing "Internal arc indices."
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]]
                        (helpers/index-source-arc-tuples basis graph-id first-source-node-id :property-output)))
                 (is (= [[second-source-node-id :property-output target-node-id :array-input]]
                        (helpers/index-source-arc-tuples basis graph-id second-source-node-id :property-output)))
-                (is (= #{[first-source-node-id :property-output target-node-id :array-input]
-                         [second-source-node-id :property-output target-node-id :array-input]}
-                       (set (helpers/index-target-arc-tuples basis graph-id target-node-id :array-input)))))
+                (is (= [[first-source-node-id :property-output target-node-id :array-input]
+                        [second-source-node-id :property-output target-node-id :array-input]]
+                       (helpers/index-target-arc-tuples basis graph-id target-node-id :array-input))))
               (is (= [:first-value :second-value] (g/node-value target-node-id :array-output)))))
 
           ensure-after!
@@ -455,9 +453,7 @@
                   (is (= [[first-order-override-target-node-id :array-input]] (ig/explicit-targets basis shadowing-source-one-node-id :property-output)))
                   (is (= [[first-order-override-target-node-id :array-input]] (ig/explicit-targets basis shadowing-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output] [initial-source-two-node-id :property-output]] (ig/explicit-sources basis original-target-node-id :array-input)))
-                  (is (= #{[shadowing-source-one-node-id :property-output]
-                           [shadowing-source-two-node-id :property-output]}
-                         (set (ig/explicit-sources basis first-order-override-target-node-id :array-input))))
+                  (is (= [[shadowing-source-one-node-id :property-output] [shadowing-source-two-node-id :property-output]] (ig/explicit-sources basis first-order-override-target-node-id :array-input)))
                   (is (= [] (ig/explicit-sources basis second-order-override-target-node-id :array-input))))
 
                 (testing "Implicit connections."
@@ -466,12 +462,8 @@
                   (is (= [[first-order-override-target-node-id :array-input] [second-order-override-target-node-id :array-input]] (g/targets basis shadowing-source-one-node-id :property-output)))
                   (is (= [[first-order-override-target-node-id :array-input] [second-order-override-target-node-id :array-input]] (g/targets basis shadowing-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output] [initial-source-two-node-id :property-output]] (g/sources basis original-target-node-id :array-input)))
-                  (is (= #{[shadowing-source-one-node-id :property-output]
-                           [shadowing-source-two-node-id :property-output]}
-                         (set (g/sources basis first-order-override-target-node-id :array-input))))
-                  (is (= #{[shadowing-source-one-node-id :property-output]
-                           [shadowing-source-two-node-id :property-output]}
-                         (set (g/sources basis second-order-override-target-node-id :array-input)))))
+                  (is (= [[shadowing-source-one-node-id :property-output] [shadowing-source-two-node-id :property-output]] (g/sources basis first-order-override-target-node-id :array-input)))
+                  (is (= [[shadowing-source-one-node-id :property-output] [shadowing-source-two-node-id :property-output]] (g/sources basis second-order-override-target-node-id :array-input))))
 
                 (testing "Internal arc indices."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
@@ -485,9 +477,9 @@
                          (helpers/index-source-arc-tuples basis graph-id shadowing-source-one-node-id :property-output)))
                   (is (= [[shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
                          (helpers/index-source-arc-tuples basis graph-id shadowing-source-two-node-id :property-output)))
-                  (is (= #{[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]
-                           [shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]}
-                         (set (helpers/index-target-arc-tuples basis graph-id first-order-override-target-node-id :array-input)))))
+                  (is (= [[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]
+                          [shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
+                         (helpers/index-target-arc-tuples basis graph-id first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
