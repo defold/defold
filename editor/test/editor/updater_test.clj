@@ -283,7 +283,3 @@
           (#'updater/check! updater)
           (#'updater/check! updater)
           (is (= 2 @fetches)))))))
-
-
-
-

@@ -41,8 +41,6 @@
 (defn- update-url [archive-domain channel]
   (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
 
-(defonce dev-updater (atom nil))
-
 (defn- release-notes->markdown
   ^String [release-notes]
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
@@ -98,7 +96,7 @@
                  :other []}
                 issues)]
     (str "# Defold Release Summary - Version " version "\n"
-         "\nFor release notes, please visit our forum at " (:external-link release-notes)
+         "\nFor full release notes, please visit our forum at " (:external-link release-notes)
          "\n" (summary-markdown [engine editor other]))))
 
 (def ^:private release-notes-range-limit
@@ -450,16 +448,16 @@
       (log/info :message "Checking for updates" :url url)
       (with-open [reader (io/reader url)]
         (let [update (json/read reader :key-fn keyword)
-              update-sha1 (:sha1 update)]
-          (swap! state-atom assoc :server-sha1 update-sha1)
+              update-sha1 (:sha1 update)
+              state (swap! state-atom assoc :server-sha1 update-sha1)]
           (cond
             (not (can-download-update? updater))
             (log/info :message "No update found")
 
             ;; Complete notes for this update are already loaded, so don't
             ;; re-download them on every hourly check.
-            (and (= update-sha1 (:release-notes-sha @state-atom))
-                 (:release-notes-complete? @state-atom))
+            (and (= update-sha1 (:release-notes-sha state))
+                 (:release-notes-complete? state))
             (log/info :message "New version found; release notes already loaded" :sha1 update-sha1)
 
             :else

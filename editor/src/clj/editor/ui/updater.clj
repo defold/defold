@@ -51,11 +51,11 @@
     (updater/restart! updater)
     (Platform/exit)))
 
-(defn- release-notes-update-dialog [{:keys [content] :as props}]
+(defn- release-notes-update-dialog [{:keys [content localization] :as props}]
   {:fx/type fxui/dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
-   :title "Update Available"
+   :title (localization (localization/message "updater.release-notes-dialog.title"))
    :width 800
    :height 720
    :resizable true
@@ -77,27 +77,28 @@
                         :spacing 8
                         :children
                         [{:fx/type fxui/button
-                          :text "Maybe Later"
+                          :text (localization (localization/message "updater.release-notes-dialog.button.later"))
                           :cancel-button true
                           :on-action {:result false}}
                          {:fx/type fxui/button
-                          :text "Update Now"
+                          :text (localization (localization/message "updater.release-notes-dialog.button.update-now"))
                           :on-action {:result true}}]}]}}})
 
 (defn- show-release-notes-update-dialog!
   "Shows the release notes dialog, blocking the current thread until the user
   dismisses it. Must be called on the JavaFX application thread. Returns true if
   the user chose to update now, false otherwise."
-  [content]
+  [content localization]
   (fxui/show-dialog-and-await-result!
     :event-handler (fn [state event]
                      (assoc state ::fxui/result (:result event)))
     :description {:fx/type release-notes-update-dialog
-                  :content content}))
+                  :content content
+                  :localization localization}))
 
 (defn- prompt-and-download! [stage updater localization download-confirmed?]
   (if-let [content (updater/release-notes updater)]
-    (when (show-release-notes-update-dialog! content)
+    (when (show-release-notes-update-dialog! content localization)
       (updater/download-and-extract! updater))
     (when (or download-confirmed?
               (dialogs/make-download-update-dialog stage localization))

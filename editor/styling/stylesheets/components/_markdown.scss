@@ -132,3 +132,11 @@
     }
   }
 }
+
+.release-notes-dialog {
+  .md-scroll-pane,
+  .md-scroll-pane > .viewport,
+  .md-root.md-page-root {
+    -fx-background-color: -df-background-light;
+  }
+}
