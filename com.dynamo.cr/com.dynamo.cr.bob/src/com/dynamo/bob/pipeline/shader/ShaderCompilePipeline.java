@@ -240,6 +240,19 @@ public class ShaderCompilePipeline {
         return null;
     }
 
+    private boolean fragmentShaderUsesFragCoordXY() {
+        ShaderModule fragmentModule = getShaderModule(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+        if (fragmentModule == null || fragmentModule.desc.source == null) {
+            return false;
+        }
+        String source = fragmentModule.desc.source;
+        return source.contains("gl_FragCoord.xy") ||
+               source.contains("gl_FragCoord.yx") ||
+               source.contains("gl_FragCoord.xyz") ||
+               source.contains("gl_FragCoord.xyw") ||
+               source.contains("gl_FragCoord.x");
+    }
+
     protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
         return generateCrossCompiledShader(shaderType, shaderLanguage, versionOut, null);
     }
@@ -280,6 +293,9 @@ public class ShaderCompilePipeline {
             shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
             // Keep graphics-stage interface variables intact for HLSL so VS->PS linkage stays stable.
             opts.removeUnusedVariables = 0;
+            if (fragmentShaderUsesFragCoordXY()) {
+                opts.hLSLMoveSVPositionToFront = 1;
+            }
         }
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {

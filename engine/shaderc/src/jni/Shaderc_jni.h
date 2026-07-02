@@ -33,6 +33,7 @@ struct ShaderCompilerOptionsJNI {
     jfieldID no420PackExtension;
     jfieldID glslEmitUboAsPlainUniforms;
     jfieldID glslEs;
+    jfieldID hLSLMoveSVPositionToFront;
     jfieldID externalCompilerPath;
     jfieldID externalCompilerArgs;
     jfieldID rootSignatureOverride;

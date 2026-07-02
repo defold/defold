@@ -281,7 +281,8 @@ public class ShaderCompilers {
 
                     // Xbox precompiled validation compares runtime root signature against each emplaced shader signature.
                     // Recompile all stages with the merged signature so both blobs carry the same emplaced signature.
-                    if (compiled_shaders.size() > 1 && hlslRootSignature.hLSLRootSignature != null && hlslRootSignature.hLSLRootSignature.length > 0) {
+                    boolean recompileWithMergedRootSignature = platform != Platform.X86Win32 && platform != Platform.X86_64Win32;
+                    if (recompileWithMergedRootSignature && compiled_shaders.size() > 1 && hlslRootSignature.hLSLRootSignature != null && hlslRootSignature.hLSLRootSignature.length > 0) {
                         String mergedRootSignatureText = ShadercJni.HLSLRootSignatureToString(hlslRootSignature.hLSLRootSignature);
                         if (mergedRootSignatureText == null || mergedRootSignatureText.isEmpty()) {
                             throw new CompileExceptionError("Failed to convert merged HLSL root signature to text for shared-root-signature recompile");
@@ -293,6 +294,7 @@ public class ShaderCompilers {
                         for (int i = 0; i < shaderModules.size(); ++i) {
                             ShaderCompilePipeline.ShaderModuleDesc shaderModule = shaderModules.get(i);
                             Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompileWithRootSignature(shaderModule.type, shaderLanguage, mergedRootSignatureText);
+                            recompiledShader.hLSLRootSignature = hlslRootSignature.hLSLRootSignature;
                             compiled_shaders.set(i, recompiledShader);
                         }
 

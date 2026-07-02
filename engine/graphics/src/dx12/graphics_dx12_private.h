@@ -160,6 +160,7 @@ namespace dmGraphics
         DXGI_FORMAT           m_Format;
         DXGI_FORMAT           m_DsvFormat; // DXGI_FORMAT_UNKNOWN if no depth/stencil attachment
         DXGI_SAMPLE_DESC      m_SampleDesc;
+        D3D12_RECT            m_Scissor;
     };
 
     struct DX12DescriptorPool

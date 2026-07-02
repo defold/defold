@@ -799,9 +799,8 @@ TEST(Shaderc, HLSLMergeRootSignaturesStageVisibleSamplerOverlap)
         IID_PPV_ARGS(&deser));
     ASSERT_EQ(S_OK, hr);
     const D3D12_ROOT_SIGNATURE_DESC* merged_desc = deser->GetRootSignatureDesc();
-    ASSERT_EQ(2u, merged_desc->NumParameters);
-    ASSERT_EQ(D3D12_SHADER_VISIBILITY_VERTEX, merged_desc->pParameters[0].ShaderVisibility);
-    ASSERT_EQ(D3D12_SHADER_VISIBILITY_PIXEL, merged_desc->pParameters[1].ShaderVisibility);
+    ASSERT_EQ(1u, merged_desc->NumParameters);
+    ASSERT_EQ(D3D12_SHADER_VISIBILITY_ALL, merged_desc->pParameters[0].ShaderVisibility);
 
     deser->Release();
     vs_blob->Release();

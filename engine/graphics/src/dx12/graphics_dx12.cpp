@@ -209,6 +209,57 @@ namespace dmGraphics
         return (DXGI_FORMAT) -1;
     }
 
+    static DXGI_FORMAT GetDXGIDepthStencilResourceFormat(DXGI_FORMAT format)
+    {
+        switch (format)
+        {
+            case DXGI_FORMAT_D32_FLOAT:          return DXGI_FORMAT_R32_TYPELESS;
+            case DXGI_FORMAT_D24_UNORM_S8_UINT: return DXGI_FORMAT_R24G8_TYPELESS;
+            default:                            return format;
+        }
+    }
+
+    static DXGI_FORMAT GetDXGIShaderResourceViewFormat(DXGI_FORMAT format)
+    {
+        switch (format)
+        {
+            case DXGI_FORMAT_R32_TYPELESS:
+            case DXGI_FORMAT_D32_FLOAT:
+                return DXGI_FORMAT_R32_FLOAT;
+            case DXGI_FORMAT_R24G8_TYPELESS:
+            case DXGI_FORMAT_D24_UNORM_S8_UINT:
+                return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+            default:
+                return format;
+        }
+    }
+    static DXGI_FORMAT GetDXGIRenderTargetFormatFromTextureFormat(TextureFormat format)
+    {
+        switch (format)
+        {
+            case TEXTURE_FORMAT_LUMINANCE:
+            case TEXTURE_FORMAT_LUMINANCE_ALPHA:
+            case TEXTURE_FORMAT_RGB:
+            case TEXTURE_FORMAT_RGBA:
+                return DXGI_FORMAT_R8G8B8A8_UNORM;
+
+            case TEXTURE_FORMAT_R16F:
+            case TEXTURE_FORMAT_RG16F:
+            case TEXTURE_FORMAT_RGB16F:
+            case TEXTURE_FORMAT_RGBA16F:
+                return DXGI_FORMAT_R16G16B16A16_FLOAT;
+
+            case TEXTURE_FORMAT_R32F:
+            case TEXTURE_FORMAT_RG32F:
+            case TEXTURE_FORMAT_RGB32F:
+            case TEXTURE_FORMAT_RGBA32F:
+                return DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+            default:
+                return GetDXGIFormatFromTextureFormat(format);
+        }
+    }
+
     static void SetupSupportedTextureFormats(DX12Context* context)
     {
         // TODO: Compression formats!
@@ -256,6 +307,102 @@ namespace dmGraphics
         }
     }
 
+#if !defined(DM_PLATFORM_VENDOR)
+    static DXGI_FORMAT GetDXGIFormatFromShaderOutput(const D3D12_SIGNATURE_PARAMETER_DESC& output)
+    {
+        const uint32_t component_count =
+            ((output.Mask & 0x1) ? 1 : 0) +
+            ((output.Mask & 0x2) ? 1 : 0) +
+            ((output.Mask & 0x4) ? 1 : 0) +
+            ((output.Mask & 0x8) ? 1 : 0);
+
+        switch (output.ComponentType)
+        {
+            case D3D_REGISTER_COMPONENT_FLOAT32:
+                switch (component_count)
+                {
+                    case 1: return DXGI_FORMAT_R32_FLOAT;
+                    case 2: return DXGI_FORMAT_R32G32_FLOAT;
+                    case 3:
+                    case 4: return DXGI_FORMAT_R32G32B32A32_FLOAT;
+                    default: break;
+                }
+                break;
+
+            case D3D_REGISTER_COMPONENT_UINT32:
+                switch (component_count)
+                {
+                    case 1: return DXGI_FORMAT_R32_UINT;
+                    case 2: return DXGI_FORMAT_R32G32_UINT;
+                    case 3:
+                    case 4: return DXGI_FORMAT_R32G32B32A32_UINT;
+                    default: break;
+                }
+                break;
+
+            case D3D_REGISTER_COMPONENT_SINT32:
+                switch (component_count)
+                {
+                    case 1: return DXGI_FORMAT_R32_SINT;
+                    case 2: return DXGI_FORMAT_R32G32_SINT;
+                    case 3:
+                    case 4: return DXGI_FORMAT_R32G32B32A32_SINT;
+                    default: break;
+                }
+                break;
+
+            default:
+                break;
+        }
+
+        return DXGI_FORMAT_R8G8B8A8_UNORM;
+    }
+#endif
+
+    static uint32_t GetPixelShaderOutputFormats(DX12ShaderProgram* program, DXGI_FORMAT* output_formats, uint32_t output_formats_count)
+    {
+#if defined(DM_PLATFORM_VENDOR)
+        (void)program;
+        (void)output_formats;
+        (void)output_formats_count;
+        return 0;
+#else
+        if (!program || !program->m_FragmentModule || !program->m_FragmentModule->m_Data || program->m_FragmentModule->m_DataSize == 0)
+            return 0;
+
+        ID3D12ShaderReflection* reflection = 0;
+        HRESULT hr = D3DReflect(program->m_FragmentModule->m_Data, program->m_FragmentModule->m_DataSize, DM_IID_PPV_ARGS(&reflection));
+        if (FAILED(hr) || !reflection)
+            return 0;
+
+        D3D12_SHADER_DESC shader_desc = {};
+        hr = reflection->GetDesc(&shader_desc);
+        if (FAILED(hr))
+        {
+            reflection->Release();
+            return 0;
+        }
+
+        uint32_t required_count = 0;
+        for (uint32_t i = 0; i < shader_desc.OutputParameters; ++i)
+        {
+            D3D12_SIGNATURE_PARAMETER_DESC output = {};
+            if (FAILED(reflection->GetOutputParameterDesc(i, &output)) || output.SystemValueType != D3D_NAME_TARGET)
+                continue;
+
+            const uint32_t slot = output.Register;
+            if (slot >= output_formats_count)
+                continue;
+
+            output_formats[slot] = GetDXGIFormatFromShaderOutput(output);
+            required_count = dmMath::Max(required_count, slot + 1);
+        }
+
+        reflection->Release();
+        return required_count;
+#endif
+    }
+
     static bool MultiSamplingCountSupported(ID3D12Device* device, DXGI_FORMAT format, uint32_t requested_count)
     {
         D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS query = {};
@@ -268,9 +415,66 @@ namespace dmGraphics
         return SUCCEEDED(hr) && query.NumQualityLevels > 0;
     }
 
-    static uint32_t GetClosestMultiSamplingCount(ID3D12Device* device, DXGI_FORMAT format, uint32_t requested_count)
+    static bool FormatSupportsBlend(ID3D12Device* device, DXGI_FORMAT format)
     {
-        if (MultiSamplingCountSupported(device, format, requested_count))
+        D3D12_FEATURE_DATA_FORMAT_SUPPORT query = {};
+        query.Format = format;
+        HRESULT hr = device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &query, sizeof(query));
+        return SUCCEEDED(hr) && (query.Support1 & D3D12_FORMAT_SUPPORT1_BLENDABLE) != 0;
+    }
+
+    static uint8_t GetRenderTargetWriteMask(DXGI_FORMAT format, uint8_t write_color_mask)
+    {
+        switch (format)
+        {
+            case DXGI_FORMAT_R8_UNORM:
+            case DXGI_FORMAT_R8_SNORM:
+            case DXGI_FORMAT_R8_UINT:
+            case DXGI_FORMAT_R8_SINT:
+            case DXGI_FORMAT_R16_UNORM:
+            case DXGI_FORMAT_R16_SNORM:
+            case DXGI_FORMAT_R16_FLOAT:
+            case DXGI_FORMAT_R16_UINT:
+            case DXGI_FORMAT_R16_SINT:
+            case DXGI_FORMAT_R32_FLOAT:
+            case DXGI_FORMAT_R32_UINT:
+            case DXGI_FORMAT_R32_SINT:
+                return write_color_mask & D3D12_COLOR_WRITE_ENABLE_RED;
+
+            case DXGI_FORMAT_R8G8_UNORM:
+            case DXGI_FORMAT_R8G8_SNORM:
+            case DXGI_FORMAT_R8G8_UINT:
+            case DXGI_FORMAT_R8G8_SINT:
+            case DXGI_FORMAT_R16G16_UNORM:
+            case DXGI_FORMAT_R16G16_SNORM:
+            case DXGI_FORMAT_R16G16_FLOAT:
+            case DXGI_FORMAT_R16G16_UINT:
+            case DXGI_FORMAT_R16G16_SINT:
+            case DXGI_FORMAT_R32G32_FLOAT:
+            case DXGI_FORMAT_R32G32_UINT:
+            case DXGI_FORMAT_R32G32_SINT:
+                return write_color_mask & (D3D12_COLOR_WRITE_ENABLE_RED | D3D12_COLOR_WRITE_ENABLE_GREEN);
+
+            case DXGI_FORMAT_R32G32B32_FLOAT:
+            case DXGI_FORMAT_R32G32B32_UINT:
+            case DXGI_FORMAT_R32G32B32_SINT:
+            case DXGI_FORMAT_B5G6R5_UNORM:
+                return write_color_mask & (D3D12_COLOR_WRITE_ENABLE_RED | D3D12_COLOR_WRITE_ENABLE_GREEN | D3D12_COLOR_WRITE_ENABLE_BLUE);
+
+            default:
+                return write_color_mask;
+        }
+    }
+
+    static bool MultiSamplingCountSupported(ID3D12Device* device, DXGI_FORMAT color_format, DXGI_FORMAT depth_format, uint32_t requested_count)
+    {
+        return MultiSamplingCountSupported(device, color_format, requested_count) &&
+            MultiSamplingCountSupported(device, depth_format, requested_count);
+    }
+
+    static uint32_t GetClosestMultiSamplingCount(ID3D12Device* device, DXGI_FORMAT color_format, DXGI_FORMAT depth_format, uint32_t requested_count)
+    {
+        if (MultiSamplingCountSupported(device, color_format, depth_format, requested_count))
             return requested_count;
 
         // Same sample counts as vulkan
@@ -281,7 +485,7 @@ namespace dmGraphics
             if (sample_counts[i] > requested_count)
                 continue;
 
-            if (MultiSamplingCountSupported(device, format, sample_counts[i]))
+            if (MultiSamplingCountSupported(device, color_format, depth_format, sample_counts[i]))
             {
                 return sample_counts[i];
             }
@@ -460,9 +664,6 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*)_context;
 
         assert(context->m_Device != 0); // Needs m_Device to be created first
-
-        CreateDescriptorHeaps(context);
-
         // setup swap chain etc
         if (!DX12NativeInitialize(context))
         {
@@ -472,9 +673,11 @@ namespace dmGraphics
         DXGI_FORMAT color_format = DXGI_FORMAT_R8G8B8A8_UNORM;
         DXGI_FORMAT depth_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
+        context->m_MSAASampleCount = GetClosestMultiSamplingCount(context->m_Device, color_format, depth_format, dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_SAMPLE_COUNT));
 
         SetupSupportedTextureFormats(context);
+
+        CreateDescriptorHeaps(context);
 
         InitializeFrameBuffers(_context, color_format, depth_format);
 
@@ -503,13 +706,13 @@ namespace dmGraphics
         CreateTextureSampler(context, TEXTURE_FILTER_LINEAR, TEXTURE_FILTER_LINEAR, TEXTURE_WRAP_REPEAT, TEXTURE_WRAP_REPEAT, 1, 1.0f);
 
         // Populate the shared GraphicsContextLimits.
-        // D3D12 doesn't expose all of these as a single struct — many of the
+        // D3D12 doesn't expose all of these as a single struct â€” many of the
         // values below are documented Feature Level 11_0+ / Resource Binding
         // Tier guarantees rather than driver-queried numbers.
         {
             GraphicsContextLimits& limits = context->m_BaseContext.m_Limits;
 
-            // Query device options once — used for binding tier and resource tier below.
+            // Query device options once â€” used for binding tier and resource tier below.
             D3D12_FEATURE_DATA_D3D12_OPTIONS options = {};
             context->m_Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options));
 
@@ -521,7 +724,7 @@ namespace dmGraphics
             limits.m_MaxFramebufferHeight  = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
             limits.m_MaxColorAttachments   = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
 
-            // Binding limits — scale with D3D12_RESOURCE_BINDING_TIER.
+            // Binding limits â€” scale with D3D12_RESOURCE_BINDING_TIER.
             //   Tier 1: 16 samplers/stage, 128 SRVs/stage
             //   Tier 2+: samplers still capped at 2048 (heap size), SRVs effectively unlimited
             if (options.ResourceBindingTier >= D3D12_RESOURCE_BINDING_TIER_2)
@@ -558,7 +761,7 @@ namespace dmGraphics
             }
         }
 
-        // Adapter API version — report the highest D3D feature level as major.minor.
+        // Adapter API version â€” report the highest D3D feature level as major.minor.
         {
             static const D3D_FEATURE_LEVEL levels_to_check[] = {
 #if defined(D3D_FEATURE_LEVEL_12_2)
@@ -813,8 +1016,52 @@ namespace dmGraphics
 
     void* DX12ScratchBuffer::AllocateConstantBuffer(DX12Context* context, DX12PipelineType pipeline_type, uint32_t buffer_index, uint32_t non_aligned_byte_size)
     {
-        assert(non_aligned_byte_size < MAX_BLOCK_SIZE);
-        uint32_t pool_index     = non_aligned_byte_size / BLOCK_STEP_SIZE;
+        uint32_t aligned_byte_size = (uint32_t) DM_ALIGN(non_aligned_byte_size, BLOCK_STEP_SIZE);
+        if (aligned_byte_size < BLOCK_STEP_SIZE)
+            aligned_byte_size = BLOCK_STEP_SIZE;
+
+        if (aligned_byte_size > MAX_BLOCK_SIZE)
+        {
+            DX12FrameResource& frame_resource = context->m_FrameResources[context->m_CurrentFrameIndex];
+            uint8_t* cpu_ptr = 0;
+            D3D12_GPU_VIRTUAL_ADDRESS gpu_addr = 0;
+            uint32_t upload_offset = 0;
+            ID3D12Resource* upload_resource = 0;
+
+            if (!frame_resource.m_UploadRing.Allocate(aligned_byte_size, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, &cpu_ptr, &gpu_addr, &upload_offset, &upload_resource))
+            {
+                HRESULT hr = context->m_Device->CreateCommittedResource(
+                    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+                    D3D12_HEAP_FLAG_NONE,
+                    &CD3DX12_RESOURCE_DESC::Buffer(aligned_byte_size),
+                    D3D12_RESOURCE_STATE_GENERIC_READ,
+                    NULL,
+                    DM_IID_PPV_ARGS(&upload_resource));
+                CHECK_HR_ERROR(hr);
+
+                hr = upload_resource->Map(0, NULL, (void**)&cpu_ptr);
+                CHECK_HR_ERROR(hr);
+
+                gpu_addr = upload_resource->GetGPUVirtualAddress();
+
+                if (frame_resource.m_ResourcesToDestroy.Full())
+                    frame_resource.m_ResourcesToDestroy.OffsetCapacity(8);
+                frame_resource.m_ResourcesToDestroy.Push(upload_resource);
+            }
+
+            if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+            {
+                context->m_CommandList->SetGraphicsRootConstantBufferView(buffer_index, gpu_addr);
+            }
+            else
+            {
+                context->m_CommandList->SetComputeRootConstantBufferView(buffer_index, gpu_addr);
+            }
+
+            return cpu_ptr;
+        }
+
+        uint32_t pool_index     = aligned_byte_size / BLOCK_STEP_SIZE - 1;
         uint32_t memory_cursor  = m_MemoryPools[pool_index].m_MemoryCursor;
         uint8_t* base_ptr       = ((uint8_t*) m_MemoryPools[pool_index].m_MappedDataPtr) + memory_cursor;
 
@@ -853,7 +1100,7 @@ namespace dmGraphics
     void DX12ScratchBuffer::AllocateTexture2D(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t texture_index)
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC view_desc = {};
-        view_desc.Format                          = texture->m_ResourceDesc.Format;
+        view_desc.Format                          = GetDXGIShaderResourceViewFormat(texture->m_ResourceDesc.Format);
         view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_TEXTURE2D;
         view_desc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         view_desc.Texture2D.MipLevels             = texture->m_Base.m_MipMapCount;
@@ -1084,6 +1331,29 @@ namespace dmGraphics
         return true;
     }
 
+    static void ResetRenderTargetScissor(DX12Context* context, DX12RenderTarget* rt)
+    {
+        RenderTarget* brt = &rt->m_Base;
+        uint32_t width = context->m_CurrentViewport.m_W;
+        uint32_t height = context->m_CurrentViewport.m_H;
+
+        HTexture size_texture = brt->m_TextureColor[0] ? brt->m_TextureColor[0] : brt->m_TextureDepthStencil;
+        if (size_texture)
+        {
+            Texture* texture = GetAssetFromContainer<Texture>(context->m_BaseContext.m_AssetHandleContainer, size_texture);
+            if (texture)
+            {
+                width = texture->m_Width;
+                height = texture->m_Height;
+            }
+        }
+
+        rt->m_Scissor.left   = 0;
+        rt->m_Scissor.top    = 0;
+        rt->m_Scissor.right  = (LONG) width;
+        rt->m_Scissor.bottom = (LONG) height;
+    }
+
     static void BeginRenderPass(DX12Context* context, HRenderTarget render_target)
     {
         RenderTarget* current_rt     = GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
@@ -1099,7 +1369,8 @@ namespace dmGraphics
         ID3D12DescriptorHeap* rtv_heap = NULL;
         uint32_t num_attachments = 0;
 
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle;
+        D3D12_CPU_DESCRIPTOR_HANDLE null_cpu_descriptor_handle = {};
+        CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_handle(null_cpu_descriptor_handle);
 
         if (brt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
@@ -1138,8 +1409,11 @@ namespace dmGraphics
         }
         else
         {
-            rtv_heap = rt->m_ColorAttachmentDescriptorHeap;
-            rtv_handle = rt->m_ColorAttachmentDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+            if (rt->m_ColorAttachmentDescriptorHeap)
+            {
+                rtv_heap = rt->m_ColorAttachmentDescriptorHeap;
+                rtv_handle = rt->m_ColorAttachmentDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+            }
 
             for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
             {
@@ -1160,7 +1434,7 @@ namespace dmGraphics
 
         // Setup DSV if available
         D3D12_CPU_DESCRIPTOR_HANDLE* dsv_handle_ptr = NULL;
-        CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_handle;
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_handle(null_cpu_descriptor_handle);
 
         if (brt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
         {
@@ -1199,8 +1473,11 @@ namespace dmGraphics
         context->m_RtvHandle = rtv_handle;
         context->m_DsvHandle = dsv_handle;
 
+        ResetRenderTargetScissor(context, rt);
+
         // Bind render target(s) and optional depth-stencil
-        context->m_CommandList->OMSetRenderTargets(1, &context->m_RtvHandle, FALSE, dsv_handle_ptr);
+        D3D12_CPU_DESCRIPTOR_HANDLE* rtv_handle_ptr = num_attachments > 0 ? &context->m_RtvHandle : NULL;
+        context->m_CommandList->OMSetRenderTargets(num_attachments, rtv_handle_ptr, TRUE, dsv_handle_ptr);
 
         brt->m_IsBound = 1;
         context->m_CurrentRenderTarget = render_target;
@@ -1585,7 +1862,7 @@ namespace dmGraphics
         hr = upload_heap->Map(0, NULL, (void**)&upload_data);
         CHECK_HR_ERROR(hr);
 
-        // Compute only the target mip’s row pitch
+        // Compute only the target mipâ€™s row pitch
         uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
         uint32_t slice_row_pitch[1] = { (uint32_t)(params.m_Width * bpp_src) };
 
@@ -2261,150 +2538,6 @@ namespace dmGraphics
         return DXGI_FORMAT_UNKNOWN;
     }
 
-    static void LogShaderInputDiagnostics(DX12Context* context, const dmArray<D3D12_INPUT_ELEMENT_DESC>& input_layout)
-    {
-        DX12ShaderProgram* program = context->m_CurrentProgram;
-        if (!program)
-        {
-            dmLogError("DX12 shader diagnostics: no current program.");
-            return;
-        }
-
-        const uint64_t vertex_shader_hash   = program->m_VertexModule ? program->m_VertexModule->m_Hash : 0;
-        const uint64_t fragment_shader_hash = program->m_FragmentModule ? program->m_FragmentModule->m_Hash : 0;
-        dmLogError("DX12 shader diagnostics: program_hash=%llu vertex_shader_hash=%llu fragment_shader_hash=%llu input_layout_count=%u",
-                    (unsigned long long)program->m_Hash,
-                    (unsigned long long)vertex_shader_hash,
-                    (unsigned long long)fragment_shader_hash,
-                    input_layout.Size());
-
-        uint32_t input_index = 0;
-        for (uint32_t i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
-        {
-            const ShaderResourceBinding& input = program->m_BaseProgram.m_ShaderMeta.m_Inputs[i];
-
-            Type graphics_type = ShaderDataTypeToGraphicsType(input.m_Type.m_ShaderType);
-            dmLogError("  ShaderInput[%u]: name='%s' binding=%u set=%u stage_flags=0x%x type=%s",
-                        input_index++,
-                        input.m_Name ? input.m_Name : "<null>",
-                        input.m_Binding,
-                        input.m_Set,
-                        input.m_StageFlags,
-                        GetGraphicsTypeLiteral(graphics_type));
-        }
-
-        for (uint32_t slot = 0; slot < MAX_VERTEX_BUFFERS; ++slot)
-        {
-            VertexDeclaration* declaration = context->m_CurrentVertexDeclaration[slot];
-            if (!declaration)
-                continue;
-
-            dmLogError("  VertexDecl[slot=%u]: stream_count=%u stride=%u step_function=%u",
-                        slot,
-                        declaration->m_StreamCount,
-                        declaration->m_Stride,
-                        declaration->m_StepFunction);
-            for (uint32_t i = 0; i < declaration->m_StreamCount; ++i)
-            {
-                const VertexDeclaration::Stream& stream = declaration->m_Streams[i];
-                dmLogError("    Stream[%u]: name=%s name_hash=%llu location=%d offset=%u size=%u type=%s normalized=%u",
-                            i,
-                            dmHashReverseSafe64(stream.m_NameHash),
-                            (unsigned long long)stream.m_NameHash,
-                            stream.m_Location,
-                            stream.m_Offset,
-                            stream.m_Size,
-                            GetGraphicsTypeLiteral(stream.m_Type),
-                            stream.m_Normalize ? 1 : 0);
-            }
-        }
-
-        for (uint32_t i = 0; i < input_layout.Size(); ++i)
-        {
-            const D3D12_INPUT_ELEMENT_DESC& desc = input_layout[i];
-            dmLogError("  InputElement[%u]: semantic='%s' semantic_index=%u format=0x%x slot=%u offset=%u class=%u step_rate=%u",
-                        i,
-                        desc.SemanticName ? desc.SemanticName : "<null>",
-                        desc.SemanticIndex,
-                        (uint32_t)desc.Format,
-                        desc.InputSlot,
-                        desc.AlignedByteOffset,
-                        (uint32_t)desc.InputSlotClass,
-                        desc.InstanceDataStepRate);
-        }
-    }
-
-    static void LogVertexShaderInputSignature(DX12ShaderProgram* program)
-    {
-#if defined(DM_PLATFORM_VENDOR)
-        (void) program;
-#else
-        if (!program || !program->m_VertexModule || !program->m_VertexModule->m_Data || program->m_VertexModule->m_DataSize == 0)
-            return;
-
-        static uint64_t s_LoggedShaderHashes[64] = {};
-        const uint64_t shader_hash = program->m_VertexModule->m_Hash;
-        for (uint32_t i = 0; i < DM_ARRAY_SIZE(s_LoggedShaderHashes); ++i)
-        {
-            if (s_LoggedShaderHashes[i] == shader_hash)
-                return;
-            if (s_LoggedShaderHashes[i] == 0)
-            {
-                s_LoggedShaderHashes[i] = shader_hash;
-                break;
-            }
-        }
-
-        ID3DBlob* disassembly = 0;
-        HRESULT hr = D3DDisassemble(program->m_VertexModule->m_Data, program->m_VertexModule->m_DataSize, 0, "", &disassembly);
-        if (FAILED(hr) || !disassembly)
-        {
-            dmLogError("DX12 shader diagnostics: failed to disassemble vertex shader (hash=%llu, hr=0x%08x)",
-                        (unsigned long long) shader_hash,
-                        (uint32_t) hr);
-            return;
-        }
-
-        const char* text = (const char*) disassembly->GetBufferPointer();
-        if (!text)
-        {
-            disassembly->Release();
-            return;
-        }
-
-        const char* section = strstr(text, "Input signature:");
-        if (!section)
-            section = text;
-
-        dmLogError("  VertexShaderInputSignature(hash=%llu):", (unsigned long long) shader_hash);
-        uint32_t lines_printed = 0;
-        const char* cursor = section;
-        while (*cursor && lines_printed < 24)
-        {
-            const char* line_end = strchr(cursor, '\n');
-            uint32_t len = line_end ? (uint32_t)(line_end - cursor) : (uint32_t) strlen(cursor);
-            while (len > 0 && (cursor[len - 1] == '\r' || cursor[len - 1] == '\n'))
-                --len;
-
-            char line[256];
-            uint32_t copy_len = dmMath::Min(len, (uint32_t) (sizeof(line) - 1));
-            memcpy(line, cursor, copy_len);
-            line[copy_len] = 0;
-            dmLogError("    %s", line);
-            ++lines_printed;
-
-            if (line_end == 0)
-                break;
-
-            cursor = line_end + 1;
-            if (lines_printed > 6 && copy_len == 0)
-                break;
-        }
-
-        disassembly->Release();
-#endif
-    }
-
     static const ShaderResourceBinding* GetVertexShaderInputForStream(const DX12ShaderProgram* program, const VertexDeclaration::Stream& stream)
     {
         if (!program)
@@ -2476,8 +2609,9 @@ namespace dmGraphics
                 default:break;
             }
         }
-        // TODO: It doesn't exist on the vendor side, although the actual value also isn't used.
-        return (D3D12_COMPARISON_FUNC)0; // D3D12_COMPARISON_FUNC_NONE;
+        // D3D12 has no NONE comparison function. The value is still validated when
+        // depth testing is disabled, so keep it on a valid no-op comparison.
+        return D3D12_COMPARISON_FUNC_ALWAYS;
     }
 
     static inline D3D12_BLEND GetBlendFactor(BlendFactor factor)
@@ -2501,6 +2635,27 @@ namespace dmGraphics
             // case BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR: return ;
             // case BLEND_FACTOR_CONSTANT_ALPHA:           return ;
             // case BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA: return ;
+            default: break;
+        }
+        return D3D12_BLEND_ZERO;
+    }
+
+
+    static inline D3D12_BLEND GetBlendAlphaFactor(BlendFactor factor)
+    {
+        switch(factor)
+        {
+            case BLEND_FACTOR_ZERO:                 return D3D12_BLEND_ZERO;
+            case BLEND_FACTOR_ONE:                  return D3D12_BLEND_ONE;
+            case BLEND_FACTOR_SRC_COLOR:
+            case BLEND_FACTOR_SRC_ALPHA:            return D3D12_BLEND_SRC_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_SRC_COLOR:
+            case BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:  return D3D12_BLEND_INV_SRC_ALPHA;
+            case BLEND_FACTOR_DST_COLOR:
+            case BLEND_FACTOR_DST_ALPHA:            return D3D12_BLEND_DEST_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_DST_COLOR:
+            case BLEND_FACTOR_ONE_MINUS_DST_ALPHA:  return D3D12_BLEND_INV_DEST_ALPHA;
+            case BLEND_FACTOR_SRC_ALPHA_SATURATE:   return D3D12_BLEND_ONE;
             default: break;
         }
         return D3D12_BLEND_ZERO;
@@ -2667,7 +2822,7 @@ namespace dmGraphics
         CD3DX12_RASTERIZER_DESC rasterizerState = CD3DX12_RASTERIZER_DESC(
             D3D12_FILL_MODE_SOLID,
             GetCullMode(pipelineState),
-            true,                                       // FrontCounterClockwise
+            pipelineState.m_FaceWinding == FACE_WINDING_CCW, // FrontCounterClockwise
             D3D12_DEFAULT_DEPTH_BIAS,
             D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
             D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
@@ -2691,18 +2846,21 @@ namespace dmGraphics
         depthStencilDesc.BackFace  = defaultStencilOp;
 
         D3D12_BLEND_DESC blendDesc = {};
-        blendDesc.AlphaToCoverageEnable                 = false;
-        blendDesc.IndependentBlendEnable                = false;
-        blendDesc.RenderTarget[0].BlendEnable           = pipelineState.m_BlendEnabled;
-        blendDesc.RenderTarget[0].LogicOpEnable         = false;
-        blendDesc.RenderTarget[0].SrcBlend              = GetBlendFactor((BlendFactor) pipelineState.m_BlendSrcFactor);
-        blendDesc.RenderTarget[0].DestBlend             = GetBlendFactor((BlendFactor) pipelineState.m_BlendDstFactor);
-        blendDesc.RenderTarget[0].BlendOp               = GetBlendOp((BlendEquation) pipelineState.m_BlendEquationColor);
-        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) pipelineState.m_BlendSrcFactorAlpha);
-        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) pipelineState.m_BlendDstFactorAlpha);
-        blendDesc.RenderTarget[0].BlendOpAlpha          = GetBlendOp((BlendEquation) pipelineState.m_BlendEquationAlpha);
-        blendDesc.RenderTarget[0].LogicOp               = D3D12_LOGIC_OP_NOOP;
-        blendDesc.RenderTarget[0].RenderTargetWriteMask = pipelineState.m_WriteColorMask;
+        blendDesc.AlphaToCoverageEnable  = false;
+        blendDesc.IndependentBlendEnable = false;
+        for (uint32_t i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i)
+        {
+            blendDesc.RenderTarget[i].BlendEnable           = false;
+            blendDesc.RenderTarget[i].LogicOpEnable         = false;
+            blendDesc.RenderTarget[i].SrcBlend              = GetBlendFactor((BlendFactor) pipelineState.m_BlendSrcFactor);
+            blendDesc.RenderTarget[i].DestBlend             = GetBlendFactor((BlendFactor) pipelineState.m_BlendDstFactor);
+            blendDesc.RenderTarget[i].BlendOp               = GetBlendOp((BlendEquation) pipelineState.m_BlendEquationColor);
+            blendDesc.RenderTarget[i].SrcBlendAlpha         = GetBlendAlphaFactor((BlendFactor) pipelineState.m_BlendSrcFactorAlpha);
+            blendDesc.RenderTarget[i].DestBlendAlpha        = GetBlendAlphaFactor((BlendFactor) pipelineState.m_BlendDstFactorAlpha);
+            blendDesc.RenderTarget[i].BlendOpAlpha          = GetBlendOp((BlendEquation) pipelineState.m_BlendEquationAlpha);
+            blendDesc.RenderTarget[i].LogicOp               = D3D12_LOGIC_OP_NOOP;
+            blendDesc.RenderTarget[i].RenderTargetWriteMask = pipelineState.m_WriteColorMask;
+        }
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {}; // a structure to define a pso
         psoDesc.InputLayout           = inputLayoutDesc; // the structure describing our input layout
@@ -2713,17 +2871,54 @@ namespace dmGraphics
         psoDesc.SampleDesc            = rt->m_SampleDesc; // must be the same sample description as the swapchain and depth/stencil buffer
         psoDesc.SampleMask            = UINT_MAX; // TODO: sample mask has to do with multi-sampling. 0xffffffff means point sampling is done
         psoDesc.RasterizerState       = rasterizerState; // TODO? rasterizerState;
-        psoDesc.BlendState            = blendDesc; // TODO
         psoDesc.DepthStencilState     = depthStencilDesc;
         psoDesc.DSVFormat             = rt->m_DsvFormat;
-
-        // Configure an RTV only for passes that actually render color.
-        const bool has_color_target = rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || rt->m_Base.m_TextureColor[0] != 0;
-        psoDesc.NumRenderTargets = has_color_target ? 1 : 0;
-        if (has_color_target)
+        if (psoDesc.DSVFormat == DXGI_FORMAT_UNKNOWN)
         {
-            psoDesc.RTVFormats[0] = rt->m_Format;
+            psoDesc.DepthStencilState.DepthEnable    = false;
+            psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+            psoDesc.DepthStencilState.DepthFunc      = D3D12_COMPARISON_FUNC_ALWAYS;
+            psoDesc.DepthStencilState.StencilEnable  = false;
         }
+
+        if (rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            psoDesc.NumRenderTargets = 1;
+            psoDesc.RTVFormats[0]    = rt->m_Format;
+        }
+        else
+        {
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if (rt->m_Base.m_TextureColor[i])
+                {
+                    DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[i]);
+                    psoDesc.RTVFormats[psoDesc.NumRenderTargets++] = texture_color->m_ResourceDesc.Format;
+                }
+            }
+        }
+
+        const uint32_t bound_render_target_count = psoDesc.NumRenderTargets;
+        DXGI_FORMAT shader_output_formats[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
+        const uint32_t shader_output_count = GetPixelShaderOutputFormats(context->m_CurrentProgram, shader_output_formats, DM_ARRAY_SIZE(shader_output_formats));
+        if (bound_render_target_count > 0 && shader_output_count > psoDesc.NumRenderTargets)
+        {
+            const uint32_t output_count = dmMath::Min(shader_output_count, (uint32_t) D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT);
+            for (uint32_t i = psoDesc.NumRenderTargets; i < output_count; ++i)
+            {
+                psoDesc.RTVFormats[i] = shader_output_formats[i] != DXGI_FORMAT_UNKNOWN ? shader_output_formats[i] : psoDesc.RTVFormats[0];
+            }
+            psoDesc.NumRenderTargets = output_count;
+        }
+
+        blendDesc.IndependentBlendEnable = psoDesc.NumRenderTargets > 1;
+        for (uint32_t i = 0; i < psoDesc.NumRenderTargets; ++i)
+        {
+            const bool bound_render_target = i < bound_render_target_count;
+            blendDesc.RenderTarget[i].BlendEnable           = bound_render_target && pipelineState.m_BlendEnabled && FormatSupportsBlend(context->m_Device, psoDesc.RTVFormats[i]);
+            blendDesc.RenderTarget[i].RenderTargetWriteMask = bound_render_target ? GetRenderTargetWriteMask(psoDesc.RTVFormats[i], pipelineState.m_WriteColorMask) : 0;
+        }
+        psoDesc.BlendState = blendDesc;
 
         if (rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
         {
@@ -2731,17 +2926,45 @@ namespace dmGraphics
             psoDesc.SampleDesc.Count                  = context->m_MSAASampleCount;
             psoDesc.SampleDesc.Quality                = 0;
         }
-
         HRESULT hr = context->m_Device->CreateGraphicsPipelineState(&psoDesc, DM_IID_PPV_ARGS(pipeline));
         if (FAILED(hr))
         {
-            dmLogError("DX12 CreateGraphicsPipelineState failed: rtv_format=0x%x dsv_format=0x%x num_rtvs=%u sample_count=%u sample_quality=%u",
-                        (uint32_t)rt->m_Format,
+            dmLogError("DX12 CreateGraphicsPipelineState failed: hr=0x%08x dsv_format=0x%x num_rtvs=%u bound_rtvs=%u shader_outputs=%u sample_count=%u sample_quality=%u",
+                        (uint32_t)hr,
                         (uint32_t)psoDesc.DSVFormat,
                         psoDesc.NumRenderTargets,
+                        bound_render_target_count,
+                        shader_output_count,
                         psoDesc.SampleDesc.Count,
                         psoDesc.SampleDesc.Quality);
-            LogShaderInputDiagnostics(context, input_layout);
+            dmLogError("  DepthStencil: depth_enable=%u depth_write_mask=%u depth_func=%u stencil_enable=%u",
+                        (uint32_t)psoDesc.DepthStencilState.DepthEnable,
+                        (uint32_t)psoDesc.DepthStencilState.DepthWriteMask,
+                        (uint32_t)psoDesc.DepthStencilState.DepthFunc,
+                        (uint32_t)psoDesc.DepthStencilState.StencilEnable);
+            dmLogError("  Blend: enabled=%u src=%u dst=%u src_alpha=%u dst_alpha=%u op=%u op_alpha=%u",
+                        (uint32_t)pipelineState.m_BlendEnabled,
+                        (uint32_t)blendDesc.RenderTarget[0].SrcBlend,
+                        (uint32_t)blendDesc.RenderTarget[0].DestBlend,
+                        (uint32_t)blendDesc.RenderTarget[0].SrcBlendAlpha,
+                        (uint32_t)blendDesc.RenderTarget[0].DestBlendAlpha,
+                        (uint32_t)blendDesc.RenderTarget[0].BlendOp,
+                        (uint32_t)blendDesc.RenderTarget[0].BlendOpAlpha);
+            dmLogError("  ShaderBytecode: vs_len=%u ps_len=%u input_elements=%u topology=%u sample_mask=0x%x",
+                        (uint32_t)psoDesc.VS.BytecodeLength,
+                        (uint32_t)psoDesc.PS.BytecodeLength,
+                        (uint32_t)psoDesc.InputLayout.NumElements,
+                        (uint32_t)psoDesc.PrimitiveTopologyType,
+                        (uint32_t)psoDesc.SampleMask);
+            for (uint32_t i = 0; i < psoDesc.NumRenderTargets; ++i)
+            {
+                dmLogError("  RTV[%u]: format=0x%x blend=%u write_mask=0x%x blendable=%u",
+                            i,
+                            (uint32_t)psoDesc.RTVFormats[i],
+                            (uint32_t)blendDesc.RenderTarget[i].BlendEnable,
+                            (uint32_t)blendDesc.RenderTarget[i].RenderTargetWriteMask,
+                            (uint32_t)FormatSupportsBlend(context->m_Device, psoDesc.RTVFormats[i]));
+            }
         }
         CHECK_HR_ERROR(hr);
     }
@@ -2751,9 +2974,28 @@ namespace dmGraphics
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
         dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PipelineState, sizeof(context->m_PipelineState));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &pipelineState, sizeof(pipelineState));
         dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_Base.m_Id, sizeof(current_rt->m_Base.m_Id));
         dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_DsvFormat, sizeof(current_rt->m_DsvFormat));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_SampleDesc, sizeof(current_rt->m_SampleDesc));
+
+        DXGI_FORMAT rtv_formats[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
+        if (current_rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            rtv_formats[0] = current_rt->m_Format;
+        }
+        else
+        {
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if (current_rt->m_Base.m_TextureColor[i])
+                {
+                    DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_Base.m_TextureColor[i]);
+                    rtv_formats[i] = texture_color ? texture_color->m_ResourceDesc.Format : DXGI_FORMAT_UNKNOWN;
+                }
+            }
+        }
+        dmHashUpdateBuffer64(&pipeline_hash_state, rtv_formats, sizeof(rtv_formats));
         dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_RootSignature, sizeof(context->m_CurrentProgram->m_RootSignature));
         // dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count,  sizeof(vk_sample_count));
 
@@ -2793,9 +3035,8 @@ namespace dmGraphics
         viewport.MinDepth = 0.0f;
         viewport.MaxDepth = 1.0f;
 
-        // Offscreen targets: negative height matches Vulkan's swapchain-style Y mapping and
-        // compensates for SPIR-V (Vulkan) vs HLSL clip-space differences from the same shaders.
-        // Backbuffer stays a normal positive-height viewport.
+        // D3D and Vulkan use opposite viewport Y transforms for the same clip-space
+        // coordinates. Keep offscreen targets inverted here to match Vulkan output.
         if (rt->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
         {
             viewport.TopLeftY = (float) (y + height);
@@ -2807,10 +3048,7 @@ namespace dmGraphics
             viewport.Height   = (float) height;
         }
 
-        scissor.left   = x;
-        scissor.top    = y;
-        scissor.right  = x + width;
-        scissor.bottom = y + height;
+        scissor = rt->m_Scissor;
 
         context->m_CommandList->RSSetViewports(1, &viewport);
         context->m_CommandList->RSSetScissorRects(1, &scissor);
@@ -2942,7 +3180,26 @@ namespace dmGraphics
             context->m_ViewportChanged = 0;
         }
 
-        DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt, context->m_PipelineState, num_vx_buffers);
+        PipelineState pipeline_state_draw = context->m_PipelineState;
+
+        // Match Vulkan's offscreen culling semantics. Render scripts define cull side
+        // in the engine convention, but offscreen render targets have the opposite
+        // effective winding from the backbuffer path.
+        if (current_rt->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_BACK)
+            {
+                pipeline_state_draw.m_CullFaceType = FACE_TYPE_FRONT;
+            }
+            else if (pipeline_state_draw.m_CullFaceType == FACE_TYPE_FRONT)
+            {
+                pipeline_state_draw.m_CullFaceType = FACE_TYPE_BACK;
+            }
+        }
+
+        DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt, pipeline_state_draw, num_vx_buffers);
+        assert(pipeline && *pipeline);
+
         context->m_CommandList->SetGraphicsRootSignature(context->m_CurrentProgram->m_RootSignature);
         context->m_CommandList->SetPipelineState(*pipeline);
         context->m_CommandList->IASetPrimitiveTopology(GetPrimitiveTopology(prim_type));
@@ -3439,7 +3696,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                     color_buffer_params.m_Format = TEXTURE_FORMAT_RGBA;
                 }
 
-                DXGI_FORMAT dxgi_format = GetDXGIFormatFromTextureFormat(color_buffer_params.m_Format);
+                DXGI_FORMAT dxgi_format = GetDXGIRenderTargetFormatFromTextureFormat(color_buffer_params.m_Format);
                 if (color_attachment_count == 0)
                 {
                     rt->m_Format = dxgi_format;
@@ -3472,6 +3729,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
                 // Initial state (no mipmaps)
                 new_texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
+                new_texture_color->m_ResourceDesc       = texture_desc;
                 new_texture_color->m_Base.m_Format      = color_buffer_params.m_Format;
                 SetTextureResourceSize(&new_texture_color->m_Base, sizeof(DX12Texture));
 
@@ -3533,7 +3791,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             ds_desc.Height              = stencil_depth_create_params.m_Height;
             ds_desc.DepthOrArraySize    = 1;
             ds_desc.MipLevels           = 1;
-            ds_desc.Format              = ds_format;
+            ds_desc.Format              = GetDXGIDepthStencilResourceFormat(ds_format);
             ds_desc.SampleDesc.Count    = 1;
             ds_desc.SampleDesc.Quality  = 0;
             ds_desc.Layout              = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -3554,6 +3812,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             );
             CHECK_HR_ERROR(hr);
             texture_depth_stencil_ptr->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            texture_depth_stencil_ptr->m_ResourceDesc       = ds_desc;
             texture_depth_stencil_ptr->m_Base.m_Format      = rt->m_Base.m_DepthStencilTextureParams.m_Format;
             SetTextureResourceSize(&texture_depth_stencil_ptr->m_Base, sizeof(DX12Texture));
 
@@ -3576,6 +3835,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             brt->m_TextureDepthStencil = texture_depth_stencil;
             rt->m_DsvFormat            = ds_format;
         }
+
+        ResetRenderTargetScissor(context, rt);
 
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
@@ -3625,9 +3886,197 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         BeginRenderPass(context, render_target != 0x0 ? render_target : context->m_MainRenderTarget);
     }
 
-    static void DX12SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
+    static void DX12SetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
-        dmLogOnceError("%s: Not implemented", __FUNCTION__);
+        DX12Context* context = (DX12Context*) _context;
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
+        if (!rt)
+            return;
+
+        RenderTarget* brt = &rt->m_Base;
+        if (context->m_CurrentRenderTarget == render_target && brt->m_IsBound)
+        {
+            EndRenderPass(context);
+        }
+
+        if (rt->m_ColorAttachmentDescriptorHeap)
+        {
+            rt->m_ColorAttachmentDescriptorHeap->Release();
+            rt->m_ColorAttachmentDescriptorHeap = 0;
+        }
+        if (rt->m_DepthStencilDescriptorHeap)
+        {
+            rt->m_DepthStencilDescriptorHeap->Release();
+            rt->m_DepthStencilDescriptorHeap = 0;
+        }
+
+        uint32_t color_attachment_count = 0;
+        rt->m_Format = DXGI_FORMAT_UNKNOWN;
+
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            TextureParams& color_buffer_params = brt->m_ColorTextureParams[i];
+            color_buffer_params.m_Width        = width;
+            color_buffer_params.m_Height       = height;
+
+            if (!brt->m_TextureColor[i])
+                continue;
+
+            DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColor[i]);
+            if (!texture_color)
+                continue;
+
+            if (color_buffer_params.m_Format == TEXTURE_FORMAT_RGB)
+            {
+                color_buffer_params.m_Format = TEXTURE_FORMAT_RGBA;
+            }
+
+            DXGI_FORMAT dxgi_format = GetDXGIRenderTargetFormatFromTextureFormat(color_buffer_params.m_Format);
+            if (color_attachment_count == 0)
+            {
+                rt->m_Format = dxgi_format;
+            }
+
+            DestroyTextureResourceDeferred(context, texture_color);
+
+            D3D12_RESOURCE_DESC texture_desc = {};
+            texture_desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+            texture_desc.Width               = width;
+            texture_desc.Height              = height;
+            texture_desc.DepthOrArraySize    = 1;
+            texture_desc.MipLevels           = 1;
+            texture_desc.Format              = dxgi_format;
+            texture_desc.SampleDesc.Count    = 1;
+            texture_desc.SampleDesc.Quality  = 0;
+            texture_desc.Layout              = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+            texture_desc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+            D3D12_CLEAR_VALUE clear_value = {};
+            clear_value.Format            = dxgi_format;
+
+            HRESULT hr = context->m_Device->CreateCommittedResource(
+                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+                D3D12_HEAP_FLAG_NONE,
+                &texture_desc,
+                D3D12_RESOURCE_STATE_COMMON,
+                &clear_value,
+                DM_IID_PPV_ARGS(&texture_color->m_Resource)
+            );
+            CHECK_HR_ERROR(hr);
+
+            texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
+            texture_color->m_ResourceDesc      = texture_desc;
+            texture_color->m_Base.m_Width      = width;
+            texture_color->m_Base.m_Height     = height;
+            texture_color->m_Base.m_Format     = color_buffer_params.m_Format;
+            SetTextureResourceSize(&texture_color->m_Base, sizeof(DX12Texture));
+
+            color_attachment_count++;
+        }
+
+        brt->m_ColorAttachmentCount = color_attachment_count;
+
+        if (brt->m_TextureDepthStencil)
+        {
+            brt->m_DepthStencilTextureParams.m_Width = width;
+            brt->m_DepthStencilTextureParams.m_Height = height;
+            brt->m_DepthBufferParams.m_Width = width;
+            brt->m_DepthBufferParams.m_Height = height;
+            brt->m_StencilBufferParams.m_Width = width;
+            brt->m_StencilBufferParams.m_Height = height;
+
+            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureDepthStencil);
+            if (texture_depth_stencil)
+            {
+                DestroyTextureResourceDeferred(context, texture_depth_stencil);
+
+                DXGI_FORMAT ds_format = rt->m_DsvFormat != DXGI_FORMAT_UNKNOWN ? rt->m_DsvFormat : DXGI_FORMAT_D24_UNORM_S8_UINT;
+
+                D3D12_RESOURCE_DESC ds_desc = {};
+                ds_desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+                ds_desc.Width               = width;
+                ds_desc.Height              = height;
+                ds_desc.DepthOrArraySize    = 1;
+                ds_desc.MipLevels           = 1;
+                ds_desc.Format              = GetDXGIDepthStencilResourceFormat(ds_format);
+                ds_desc.SampleDesc.Count    = 1;
+                ds_desc.SampleDesc.Quality  = 0;
+                ds_desc.Layout              = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+                ds_desc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+                D3D12_CLEAR_VALUE clear_value    = {};
+                clear_value.Format               = ds_format;
+                clear_value.DepthStencil.Depth   = 1.0f;
+                clear_value.DepthStencil.Stencil = 0;
+
+                HRESULT hr = context->m_Device->CreateCommittedResource(
+                    &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+                    D3D12_HEAP_FLAG_NONE,
+                    &ds_desc,
+                    D3D12_RESOURCE_STATE_DEPTH_WRITE,
+                    &clear_value,
+                    DM_IID_PPV_ARGS(&texture_depth_stencil->m_Resource)
+                );
+                CHECK_HR_ERROR(hr);
+
+                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                texture_depth_stencil->m_ResourceDesc      = ds_desc;
+                texture_depth_stencil->m_Base.m_Width      = width;
+                texture_depth_stencil->m_Base.m_Height     = height;
+                texture_depth_stencil->m_Base.m_Format     = brt->m_DepthStencilTextureParams.m_Format;
+                SetTextureResourceSize(&texture_depth_stencil->m_Base, sizeof(DX12Texture));
+            }
+        }
+
+        if (color_attachment_count)
+        {
+            D3D12_DESCRIPTOR_HEAP_DESC rt_view_heap_desc = {};
+            rt_view_heap_desc.NumDescriptors             = color_attachment_count;
+            rt_view_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+            rt_view_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+            HRESULT hr = context->m_Device->CreateDescriptorHeap(&rt_view_heap_desc, DM_IID_PPV_ARGS(&rt->m_ColorAttachmentDescriptorHeap));
+            CHECK_HR_ERROR(hr);
+
+            D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = rt->m_ColorAttachmentDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+            UINT rtv_descriptor_size               = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if (brt->m_TextureColor[i])
+                {
+                    DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColor[i]);
+                    context->m_Device->CreateRenderTargetView(texture_color->m_Resource, NULL, rtv_handle);
+                    rtv_handle.ptr += rtv_descriptor_size;
+                }
+            }
+        }
+
+        if (brt->m_TextureDepthStencil)
+        {
+            D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc = {};
+            dsv_heap_desc.NumDescriptors             = 1;
+            dsv_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+            dsv_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+            HRESULT hr = context->m_Device->CreateDescriptorHeap(&dsv_heap_desc, DM_IID_PPV_ARGS(&rt->m_DepthStencilDescriptorHeap));
+            CHECK_HR_ERROR(hr);
+
+            D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
+            dsv_desc.Format                        = rt->m_DsvFormat;
+            dsv_desc.ViewDimension                 = D3D12_DSV_DIMENSION_TEXTURE2D;
+            dsv_desc.Flags                         = D3D12_DSV_FLAG_NONE;
+
+            DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureDepthStencil);
+            context->m_Device->CreateDepthStencilView(texture_depth_stencil->m_Resource, &dsv_desc, rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+        }
+
+        rt->m_Scissor.left   = 0;
+        rt->m_Scissor.top    = 0;
+        rt->m_Scissor.right  = (LONG) width;
+        rt->m_Scissor.bottom = (LONG) height;
+
+        context->m_ViewportChanged = 1;
     }
 
     static uint32_t DX12GetMaxTextureSize(HContext context)
@@ -4047,6 +4496,18 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static void DX12SetScissor(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
+        DX12Context* context = (DX12Context*) _context;
+        DX12RenderTarget* current_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        if (!current_rt)
+        {
+            return;
+        }
+
+        current_rt->m_Scissor.left   = x;
+        current_rt->m_Scissor.top    = y;
+        current_rt->m_Scissor.right  = x + width;
+        current_rt->m_Scissor.bottom = y + height;
+        context->m_ViewportChanged = 1;
     }
 
     static void DX12SetStencilMask(HContext context, uint32_t mask)
@@ -4104,7 +4565,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     static void DX12SetFaceWinding(HContext context, FaceWinding face_winding)
     {
-        // TODO: Add this to the DX12 pipeline handle aswell, for now it's a NOP
+        g_DX12Context->m_PipelineState.m_FaceWinding = face_winding;
     }
 
     static void DX12SetCullFace(HContext context, FaceType face_type)
