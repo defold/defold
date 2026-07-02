@@ -663,10 +663,10 @@
           ensure-before!
           (fn ensure-before! []
             (let [basis (g/now)]
-              (is (= #{[first-target-node-id :regular-input]
-                       [second-target-node-id :regular-input]
-                       [third-target-node-id :regular-input]}
-                     (set (g/targets basis source-node-id :property-output))))
+              (is (= [[first-target-node-id :regular-input]
+                      [second-target-node-id :regular-input]
+                      [third-target-node-id :regular-input]]
+                     (g/targets basis source-node-id :property-output)))
               (is (= [[source-node-id :property-output]]
                      (g/sources basis first-target-node-id :regular-input)
                      (g/sources basis second-target-node-id :regular-input)
@@ -675,9 +675,9 @@
           ensure-after!
           (fn ensure-after! []
             (let [basis (g/now)]
-              (is (= #{[second-target-node-id :regular-input]
-                       [third-target-node-id :regular-input]}
-                     (set (g/targets basis source-node-id :property-output))))
+              (is (= [[second-target-node-id :regular-input]
+                      [third-target-node-id :regular-input]]
+                     (g/targets basis source-node-id :property-output)))
               (is (= [] (g/sources basis first-target-node-id :regular-input)))
               (is (= [[source-node-id :property-output]]
                      (g/sources basis second-target-node-id :regular-input)
