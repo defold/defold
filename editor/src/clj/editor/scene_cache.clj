@@ -85,20 +85,20 @@
 
 (defn- consume-pending-deletions-in-object-caches [object-caches context]
   (reduce-kv
-    (fn [[object-caches pending-deletions :as acc] cache-id cache-meta]
+    (fn [acc cache-id cache-meta]
       (let [caches-by-context (:caches cache-meta)
             cache-for-context (get caches-by-context context)
             pending-deletions-from-cache (some-> cache-for-context meta :pending-deletions)]
         (if (coll/empty? pending-deletions-from-cache)
           acc
-          (pair (assoc object-caches
-                       cache-id
-                       (assoc cache-meta
-                              :caches
-                              (assoc caches-by-context
-                                     context
-                                     (vary-meta cache-for-context dissoc :pending-deletions))))
-                (into pending-deletions pending-deletions-from-cache)))))
+          (pair (assoc (key acc)
+                  cache-id
+                  (assoc cache-meta
+                    :caches
+                    (assoc caches-by-context
+                      context
+                      (vary-meta cache-for-context dissoc :pending-deletions))))
+                (into (val acc) pending-deletions-from-cache)))))
     (pair object-caches
           [])
     object-caches))
@@ -177,7 +177,7 @@
 
 (defn- prune-context-in-object-caches [object-caches context]
   (reduce-kv
-    (fn [[object-caches deletions :as acc] cache-id cache-meta]
+    (fn [acc cache-id cache-meta]
       (let [caches-by-context (:caches cache-meta)
             cached-object+request-data-by-request-id (get caches-by-context context)]
         (if (nil? cached-object+request-data-by-request-id)
@@ -195,8 +195,8 @@
                                                (vector)))
                 pruned-caches-by-context (assoc caches-by-context context pruned-cached-object+request-data-by-request-id)
                 pruned-cache-meta (assoc cache-meta :caches pruned-caches-by-context)]
-            (pair (assoc object-caches cache-id pruned-cache-meta)
-                  (into deletions deletions-from-cache))))))
+            (pair (assoc (key acc) cache-id pruned-cache-meta)
+                  (into (val acc) deletions-from-cache))))))
     (pair object-caches
           [])
     object-caches))

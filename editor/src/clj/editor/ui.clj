@@ -2429,6 +2429,8 @@
     (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler values)]))
       (.play))))
 
+(def ^:private ^:const unfocused-timer-interval (long (* 1e9 (/ 1.0 15.0))))
+
 (defn ->timer
   ([name tick-fn]
    (->timer nil name tick-fn))
@@ -2438,14 +2440,14 @@
          interval (if fps
                     (long (* 1e9 (/ 1 (double fps))))
                     0)
-         unfocused-interval (max interval (long (* 1e9 (/ 1.0 15.0))))]
+         unfocused-interval (max interval unfocused-timer-interval)]
      {:last last
       :timer (proxy [AnimationTimer] []
                (handle [^long now]
                  (profiler/profile "timer" name
-	                 (let [elapsed (- now start)
-	                       delta (- now (long @last))
-	                       interval (if (:focused @focus-state) interval unfocused-interval)]
+                   (let [elapsed (- now start)
+                         delta (- now (long @last))
+                         interval (if (:focused @focus-state) interval unfocused-interval)]
                      (when (or (zero? interval) (> delta interval))
                        (run-later
                          (try
