@@ -18,6 +18,7 @@
             [editor.math :as math]
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob.pipeline LuaScanner LuaScanner$ParseError LuaScanner$Property LuaScanner$Property$Status LuaScanner$Result]
+           [com.dynamo.gameobject.proto GameObject$PropertyType]
            [java.io Reader]
            [java.util.function Predicate]
            [javax.vecmath Quat4d Vector3d Vector4d]))
@@ -54,15 +55,15 @@
                        (assoc :name (.name property))
 
                        (.type property)
-                       (assoc :type (case (str (.type property))
-                                      "PROPERTY_TYPE_NUMBER" :script-property-type-number
-                                      "PROPERTY_TYPE_HASH" (if is-resource :script-property-type-resource :script-property-type-hash)
-                                      "PROPERTY_TYPE_URL" :script-property-type-url
-                                      "PROPERTY_TYPE_VECTOR3" :script-property-type-vector3
-                                      "PROPERTY_TYPE_VECTOR4" :script-property-type-vector4
-                                      "PROPERTY_TYPE_QUAT" :script-property-type-quat
-                                      "PROPERTY_TYPE_BOOLEAN" :script-property-type-boolean
-                                      "PROPERTY_TYPE_TEXT" :script-property-type-text))
+                       (assoc :type (condp identical? (.type property)
+                                      GameObject$PropertyType/PROPERTY_TYPE_NUMBER :script-property-type-number
+                                      GameObject$PropertyType/PROPERTY_TYPE_HASH (if is-resource :script-property-type-resource :script-property-type-hash)
+                                      GameObject$PropertyType/PROPERTY_TYPE_URL :script-property-type-url
+                                      GameObject$PropertyType/PROPERTY_TYPE_VECTOR3 :script-property-type-vector3
+                                      GameObject$PropertyType/PROPERTY_TYPE_VECTOR4 :script-property-type-vector4
+                                      GameObject$PropertyType/PROPERTY_TYPE_QUAT :script-property-type-quat
+                                      GameObject$PropertyType/PROPERTY_TYPE_BOOLEAN :script-property-type-boolean
+                                      GameObject$PropertyType/PROPERTY_TYPE_TEXT :script-property-type-text))
 
                        (some? value)
                        (assoc :value (if (and is-resource value)

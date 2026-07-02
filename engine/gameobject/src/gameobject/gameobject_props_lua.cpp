@@ -210,7 +210,7 @@ namespace dmGameObject
                         ++params.m_BoolCount;
                         break;
                     case PROPERTY_TYPE_TEXT:
-                        // Not supported for runtime Lua-created property containers in deliverable 1.
+                        // Not supported (TODO)
                     case PROPERTY_TYPE_MATRIX4:
                         // Not supported
                     case PROPERTY_TYPE_COUNT:
@@ -253,7 +253,7 @@ namespace dmGameObject
                         PropertyContainerPushBool(builder, id, lua_toboolean(L, -1) != 0);
                         break;
                     case PROPERTY_TYPE_TEXT:
-                        // Not supported for runtime Lua-created property containers in deliverable 1.
+                        // Not supported (TODO)
                     case PROPERTY_TYPE_MATRIX4:
                         // Not supported
                     case PROPERTY_TYPE_COUNT:
