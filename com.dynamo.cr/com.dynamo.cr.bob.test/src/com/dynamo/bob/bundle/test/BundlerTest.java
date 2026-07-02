@@ -139,6 +139,10 @@ public class BundlerTest {
         {
                 return String.format("Payload/%s.app/", projectName);
         }
+        else if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
+        {
+                return "Contents/Resources/";
+        }
         return "";
     }
 
@@ -603,6 +607,15 @@ public class BundlerTest {
             if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
                 expectedFiles.add("META-INF/BNDLTOOL.RSA");
             }
+            if (actualFiles.contains("assets/vkqualitydata.vkq")) {
+                expectedFiles.add("assets/vkqualitydata.vkq");
+            }
+            if (actualFiles.contains("lib/armeabi-v7a/libvkquality.so")) {
+                expectedFiles.add("lib/armeabi-v7a/libvkquality.so");
+            }
+            if (actualFiles.contains("lib/arm64-v8a/libvkquality.so")) {
+                expectedFiles.add("lib/arm64-v8a/libvkquality.so");
+            }
         }
         else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
         {
@@ -627,6 +640,9 @@ public class BundlerTest {
             expectedFiles.add("Contents/Resources/game.arci");
             expectedFiles.add("Contents/Resources/game.dmanifest");
             expectedFiles.add("Contents/Resources/game.projectc");
+            if (BundleHelper.isMacOS(Platform.getHostPlatform())) {
+                expectedFiles.add("Contents/_CodeSignature/CodeResources");
+            }
         }
         else if (platform == Platform.X86_64Linux)
         {

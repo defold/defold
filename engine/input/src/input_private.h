@@ -142,7 +142,8 @@ namespace dmInput
     struct Context
     {
         dmIndexPool8                    m_GamepadIndices;
-        dmHashTable32< GamepadConfig >  m_GamepadMaps;
+        dmArray<GamepadConfig>          m_GamepadConfigs;
+        dmHashTable32< uint32_t >       m_GamepadMaps;
         dmHashTable32<bool>             m_UnmappedGamepads;
         dmHID::HContext                 m_HidContext;
         Binding*                        m_Binding;

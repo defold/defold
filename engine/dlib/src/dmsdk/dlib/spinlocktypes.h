@@ -15,7 +15,7 @@
 #ifndef DMSDK_SPINLOCKTYPES_H
 #define DMSDK_SPINLOCKTYPES_H
 
-#if __has_include("spinlocktypes_vendor.h")
+#if defined(DM_PLATFORM_VENDOR)
 #include "spinlocktypes_vendor.h"
 #elif defined(_MSC_VER) || defined(__EMSCRIPTEN__)
 #include "spinlocktypes_atomic.h"

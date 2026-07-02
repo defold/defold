@@ -1,6 +1,7 @@
 #include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/log.h>
 #include "socket.h"
+#include "dstrings.h"
 
 #include <assert.h>
 #include <fcntl.h>
@@ -160,7 +161,14 @@ namespace dmSocket
 
     Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
     {
-        Socket sock = (Socket)::socket(DomainToNative(domain), TypeToNative(type), ProtocolToNative(protocol));
+        int native_domain = DomainToNative(domain);
+        if (native_domain == 0xff)
+        {
+            *socket = INVALID_SOCKET_HANDLE;
+            return RESULT_AFNOSUPPORT;
+        }
+
+        Socket sock = (Socket)::socket(native_domain, TypeToNative(type), ProtocolToNative(protocol));
         *socket = sock;
         if (sock >= 0)
         {

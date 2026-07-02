@@ -1945,14 +1945,15 @@ namespace dmGraphics
         MetalContext* context       = (MetalContext*) _context;
         MetalUniformBuffer* ubo     = (MetalUniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         {
-            return;
-        }
-
-        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
-        {
-            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentUniformBuffers[set][binding] == ubo)
+                {
+                    context->m_CurrentUniformBuffers[set][binding] = 0;
+                }
+            }
         }
 
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -1966,11 +1967,6 @@ namespace dmGraphics
 
         ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
         ubo->m_BaseUniformBuffer.m_BoundSet     = set;
-
-        if (context->m_CurrentUniformBuffers[set][binding])
-        {
-            MetalDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
-        }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
@@ -2737,6 +2733,7 @@ namespace dmGraphics
                                 bound_ubo->m_BaseUniformBuffer.m_Layout,
                                 res->m_Name,
                                 *pgm_layout);
+                            MetalDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                             bound_ubo = 0;
                         }
                     }
@@ -3793,6 +3790,7 @@ namespace dmGraphics
             case TEXTURE_TYPE_TEXTURE_CUBE:
                 desc->setTextureType(MTL::TextureTypeCube);
                 tex_depth = 1;
+                tex_layer_count = dmMath::Max((uint8_t) GetLayerCount(TEXTURE_TYPE_CUBE_MAP), tex_layer_count);
                 tex_array_length = 1;
                 break;
             default:
@@ -3822,6 +3820,7 @@ namespace dmGraphics
         texture->m_Base.m_Depth       = tex_depth;
         texture->m_Base.m_Format      = params.m_Format;
         texture->m_Base.m_MipMapCount = tex_mip_count;
+        texture->m_Base.m_PageCount   = tex_layer_count;
         texture->m_LayerCount         = tex_layer_count;
         SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture));
     }
@@ -4070,6 +4069,12 @@ namespace dmGraphics
     {
         MetalTexture* tex = new MetalTexture;
         memset(tex, 0, sizeof(MetalTexture));
+        uint8_t layer_count = params.m_LayerCount;
+        if (params.m_Type == TEXTURE_TYPE_CUBE_MAP || params.m_Type == TEXTURE_TYPE_TEXTURE_CUBE)
+        {
+            layer_count = (uint8_t) GetLayerCount(TEXTURE_TYPE_CUBE_MAP);
+        }
+
         tex->m_Base.m_Type           = params.m_Type;
         tex->m_Base.m_Format         = TEXTURE_FORMAT_RGBA;
         tex->m_Base.m_Width          = params.m_Width;
@@ -4077,12 +4082,12 @@ namespace dmGraphics
         tex->m_Base.m_Depth          = dmMath::Max((uint16_t)1, params.m_Depth);
         tex->m_Base.m_MipMapCount    = params.m_MipMapCount;
         tex->m_Base.m_UsageHintFlags = params.m_UsageHintBits;
-        tex->m_Base.m_PageCount      = params.m_LayerCount;
+        tex->m_Base.m_PageCount      = layer_count;
         tex->m_Base.m_ResourceSize   = 0;
         tex->m_Base.m_Mip0ResourceSize = 0;
         tex->m_Base.m_DataState      = 0;
         tex->m_Base.m_NumTextureIds  = 1;
-        tex->m_LayerCount            = dmMath::Max((uint8_t)1, params.m_LayerCount);
+        tex->m_LayerCount            = dmMath::Max((uint8_t)1, layer_count);
 
         tex->m_Usage = GetMetalUsageFromHints(params.m_UsageHintBits);
 
@@ -4262,6 +4267,10 @@ namespace dmGraphics
         {
             return 1;
         }
+        if (texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP || texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_CUBE)
+        {
+            return dmMath::Max((uint32_t) GetLayerCount(TEXTURE_TYPE_CUBE_MAP), (uint32_t) texture->m_LayerCount);
+        }
         if (params.m_LayerCount != 0)
         {
             return params.m_LayerCount;
@@ -4281,12 +4290,14 @@ namespace dmGraphics
 
         const uint32_t target_mip = params.m_MipMap;
         const bool is_3d_texture = IsTextureType3D(texture->m_Base.m_Type);
+        const bool is_cube_texture = texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP || texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_CUBE;
         const uint32_t layerCount = GetMetalTextureUploadLayerCount(texture, params);
+        const uint32_t baseSlice = is_cube_texture ? 0 : params.m_Slice;
 
-        if (!is_3d_texture && params.m_Slice + layerCount > texture->m_LayerCount)
+        if (!is_3d_texture && baseSlice + layerCount > texture->m_LayerCount)
         {
             dmLogError("MetalCopyToTexture: upload range [%u, %u) exceeds texture layer count %u",
-                params.m_Slice, params.m_Slice + layerCount, texture->m_LayerCount);
+                baseSlice, baseSlice + layerCount, texture->m_LayerCount);
             return;
         }
 
@@ -4372,8 +4383,13 @@ namespace dmGraphics
         const uint8_t* srcBase = pixels;
 
         // Source layout assumption: pixels holds `layerCount` slices contiguous for this mip.
-        // When m_DataSize is supplied it is the stride for one uploaded slice/cube face.
-        const uint64_t srcSliceStride = params.m_DataSize ? params.m_DataSize : unpaddedSliceSize * copyDepth;
+        // Most resource paths supply m_DataSize as the stride for one slice/cube face, while
+        // resource.create_texture_async() supplies the whole Lua buffer size.
+        uint64_t srcSliceStride = params.m_DataSize ? params.m_DataSize : unpaddedSliceSize * copyDepth;
+        if (is_cube_texture && params.m_DataSize == unpaddedSliceSize * copyDepth * layerCount)
+        {
+            srcSliceStride = unpaddedSliceSize * copyDepth;
+        }
 
         for (uint32_t slice = 0; slice < layerCount; ++slice)
         {
@@ -4415,7 +4431,7 @@ namespace dmGraphics
             const MetalPlacedSubresource& p = placed[slice];
 
             // destination slice (array index or cube face index)
-            NSUInteger destSlice = is_3d_texture ? 0 : (NSUInteger)(params.m_Slice + slice);
+            NSUInteger destSlice = is_3d_texture ? 0 : (NSUInteger)(baseSlice + slice);
 
             // destination origin (subupdate offsets)
             MTL::Origin destOrigin = { (NSUInteger)params.m_X, (NSUInteger)params.m_Y, (NSUInteger)params.m_Z };

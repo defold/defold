@@ -2006,21 +2006,23 @@ static void WebGPUDisableUniformBuffer(HContext _context, HUniformBuffer uniform
 {
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUUniformBuffer* ubo = (WebGPUUniformBuffer*) uniform_buffer;
-    uint32_t set = ubo->m_BaseUniformBuffer.m_BoundSet;
-
-    if (set == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+    for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
     {
-        return;
-    }
+        bool set_was_cleared = false;
 
-    if (context->m_CurrentUniformBuffers[set][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
-    {
-        context->m_CurrentUniformBuffers[set][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
-    }
+        for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+        {
+            if (context->m_CurrentUniformBuffers[set][binding] == ubo)
+            {
+                context->m_CurrentUniformBuffers[set][binding] = 0;
+                set_was_cleared = true;
+            }
+        }
 
-    if (context->m_CurrentProgram && set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet)
-    {
-        context->m_CurrentProgram->m_BindGroups[set] = NULL;
+        if (set_was_cleared && context->m_CurrentProgram && set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet)
+        {
+            context->m_CurrentProgram->m_BindGroups[set] = NULL;
+        }
     }
 
     ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -2034,11 +2036,6 @@ static void WebGPUEnableUniformBuffer(HContext _context, HUniformBuffer uniform_
 
     ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
     ubo->m_BaseUniformBuffer.m_BoundSet     = set;
-
-    if (context->m_CurrentUniformBuffers[set][binding])
-    {
-        WebGPUDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
-    }
 
     context->m_CurrentUniformBuffers[set][binding] = ubo;
 
@@ -2426,6 +2423,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                                 *pgm_layout);
 
                             // Fallback to the scratch buffer uniform setup
+                            WebGPUDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                             bound_ubo = 0;
                         }
                     }

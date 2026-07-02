@@ -54,6 +54,42 @@ namespace dmPlatform
     static XInputGetCapabilitiesExFn g_XInputGetCapabilitiesEx = 0;
     static bool g_XInputCapabilitiesFunctionsResolved = false;
     static char g_JoystickDeviceGuid[GLFW_JOYSTICK_LAST + 1][33];
+    static HWND g_ConsoleCloseWindow = 0;
+
+    static BOOL WINAPI ConsoleControlHandler(DWORD control_type)
+    {
+        switch (control_type)
+        {
+        case CTRL_C_EVENT:
+        case CTRL_BREAK_EVENT:
+        case CTRL_CLOSE_EVENT:
+            if (g_ConsoleCloseWindow)
+            {
+                PostMessageW(g_ConsoleCloseWindow, WM_CLOSE, 0, 0);
+                return TRUE;
+            }
+            return FALSE;
+        default:
+            return FALSE;
+        }
+    }
+
+    void InstallWindowCloseHandlerNative(HWindow window)
+    {
+        g_ConsoleCloseWindow = glfwGetWin32Window(window->m_Window);
+        SetConsoleCtrlHandler(ConsoleControlHandler, TRUE);
+    }
+
+    void UninstallWindowCloseHandlerNative(HWindow window)
+    {
+        if (g_ConsoleCloseWindow != glfwGetWin32Window(window->m_Window))
+        {
+            return;
+        }
+
+        SetConsoleCtrlHandler(ConsoleControlHandler, FALSE);
+        g_ConsoleCloseWindow = 0;
+    }
 
     static bool IsGLFWXInputGuid(const char* guid)
     {

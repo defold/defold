@@ -1,0 +1,97 @@
+local KEY = "runtime_atlas"
+
+local TEXTURE_PARAMS = {
+    width = 16,
+    height = 16,
+    type = graphics.TEXTURE_TYPE_2D,
+    format = graphics.TEXTURE_FORMAT_RGBA,
+}
+
+local function assert_error(func)
+    local ok, err = pcall(func)
+    if not ok then
+        print(err)
+    end
+    assert(not ok)
+end
+
+local function make_texture_buffer()
+    local tex_buffer = buffer.create(TEXTURE_PARAMS.width * TEXTURE_PARAMS.height, {{name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4}})
+    local stream = buffer.get_stream(tex_buffer, hash("rgba"))
+    for i = 1, TEXTURE_PARAMS.width * TEXTURE_PARAMS.height * 4 do
+        stream[i] = 0xff
+    end
+    return tex_buffer
+end
+
+local function make_atlas(atlas_path, texture)
+    return resource.create_atlas(atlas_path, {
+        texture = texture,
+        animations = {
+            {
+                id = "frame",
+                width = 16,
+                height = 16,
+                frames = {1},
+                fps = 30,
+                playback = go.PLAYBACK_ONCE_FORWARD,
+            }
+        },
+        geometries = {
+            {
+                vertices = {0, 0, 0, 16, 16, 16, 16, 0},
+                uvs = {0, 0, 0, 16, 16, 16, 16, 0},
+                indices = {0, 1, 2, 0, 2, 3},
+            }
+        }
+    })
+end
+
+function init(self)
+    self.step = 0
+    gui_set_texture_nil_step = 0
+    gui_set_texture_nil_done = false
+end
+
+function update(self, dt)
+    self.step = self.step + 1
+
+    if self.step == 1 then
+        self.texture_a = resource.create_texture("/gui/set_texture_nil_a.texturec", TEXTURE_PARAMS, make_texture_buffer())
+        self.atlas_a = make_atlas("/gui/set_texture_nil_a.texturesetc", self.texture_a)
+        gui.set(msg.url(), "textures", self.atlas_a, {key = KEY})
+
+        local node = gui.get_node("box")
+        gui.set_texture(node, KEY)
+        gui.play_flipbook(node, "frame")
+    elseif self.step == 2 then
+        self.texture_b = resource.create_texture("/gui/set_texture_nil_b.texturec", TEXTURE_PARAMS, make_texture_buffer())
+        self.atlas_b = make_atlas("/gui/set_texture_nil_b.texturesetc", self.texture_b)
+        gui.set(msg.url(), "textures", self.atlas_b, {key = KEY})
+
+        local node = gui.get_node("box")
+        gui.set_texture(node, KEY)
+        gui.play_flipbook(node, "frame")
+    elseif self.step == 3 then
+        local node = gui.get_node("box")
+
+        assert_error(function() gui.set(msg.url(), "textures", nil) end)
+        assert_error(function() gui.set(msg.url(), "textures", nil, {key = "missing_runtime_atlas"}) end)
+        assert_error(function() gui.set(node, "texture", nil) end)
+        assert_error(function() gui.set_texture(node, nil) end)
+
+        gui.set(msg.url(), "textures", nil, {key = KEY})
+
+        resource.release(self.atlas_a)
+        resource.release(self.texture_a)
+
+        resource.release(self.atlas_b)
+        local recreated_atlas_b = make_atlas("/gui/set_texture_nil_b.texturesetc", self.texture_b)
+        resource.release(recreated_atlas_b)
+        resource.release(self.texture_b)
+
+        gui_set_texture_nil_done = true
+    end
+
+    gui_set_texture_nil_step = self.step
+end

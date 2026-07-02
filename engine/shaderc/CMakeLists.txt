@@ -40,13 +40,7 @@ if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
 endif()
 
 find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
-find_program(DEFOLD_CLANGPP
-  NAMES clang++
-  HINTS
-    "${DEFOLD_VISUAL_STUDIO_ROOT}/VC/Tools/Llvm/x64/bin"
-    "${DEFOLD_VISUAL_STUDIO_ROOT}/VC/Tools/Llvm/ARM64/bin"
-    "C:/Program Files/LLVM/bin"
-    "C:/Program Files (x86)/LLVM/bin")
+defold_find_clang_cpp(DEFOLD_CLANGPP)
 if(NOT DEFOLD_CLANGPP)
   message(FATAL_ERROR "Could not find clang++. It is required to generate shaderc Java bindings.")
 endif()
@@ -138,6 +132,7 @@ if(SHADERC_IS_DESKTOP)
     ${SHADERC_SHARED_DEPENDENCIES}
     ${SHADERC_EXTRA_LIBS})
   defold_target_link_app(shaderc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_codesign_target(shaderc_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   add_dependencies(shaderc_jar shaderc_bindings)
 

@@ -18,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -146,10 +147,126 @@ public class ArchiveTest {
         outFileIndex.close();
         outFileData.close();
 
+        // A normal tiny archive now emits v6 and uses the packed entry layout even when
+        // offsets fit in 32 bits.
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "r")) {
+            assertEquals(ArchiveBuilder.VERSION_6, index.readInt());
+            index.readInt(); // Pad
+            assertEquals(0L, index.readLong());
+        }
+
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
         ar.read();
         ar.close();
+    }
+
+    // New builds no longer need v5 archive compatibility. This minimal v5 index
+    // verifies ArchiveReader fails fast with the unsupported-version error instead
+    // of trying to parse the old entry layout.
+    @Test
+    public void testReaderRejectsVersion5Archive() throws IOException {
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
+             RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
+            index.setLength(0);
+            index.writeInt(5);
+            data.setLength(0);
+        }
+
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
+        try {
+            ar.read();
+            fail("Expected v5 archives to be rejected.");
+        } catch (IOException e) {
+            assertTrue(e.getMessage().contains("Unsupported archive index version: 5"));
+        } finally {
+            ar.close();
+        }
+    }
+
+    // V6 stores archive flags in the high 4 bits of the first entry word and the offset
+    // in the low 60 bits. This hand-written v6 index uses the currently unused fourth
+    // flag bit and a sparse payload above 4 GiB, proving ArchiveReader decodes both
+    // values from the packed word before seeking to the resource data.
+    @Test
+    public void testReaderHandlesVersion6PackedOffsetAndFlags() throws IOException {
+        final long resourceOffset = ArchiveBuilder.MAX_UNSIGNED_INT_OFFSET + 1L;
+        final int flags = 1 << 3;
+        final int hashLength = 20;
+        final int hashOffset = 48;
+        final int entryOffset = hashOffset + ArchiveReader.HASH_BUFFER_BYTESIZE;
+        byte[] hash = new byte[ArchiveReader.HASH_BUFFER_BYTESIZE];
+        for (int i = 0; i < hashLength; ++i) {
+            hash[i] = (byte) (i * 11 + 5);
+        }
+        byte[] payload = new byte[] { 0x41, 0x52, 0x43, 0x36, 0x55, 0x66, 0x77, 0x01 };
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
+             RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
+            index.setLength(0);
+            index.writeInt(ArchiveReader.VERSION_6);
+            index.writeInt(0); // Pad
+            index.writeLong(0); // UserData
+            index.writeInt(1); // EntryCount
+            index.writeInt(entryOffset);
+            index.writeInt(hashOffset);
+            index.writeInt(hashLength);
+            index.write(new byte[16]); // Archive index MD5
+            index.write(hash);
+            index.writeLong(((long) flags << ArchiveBuilder.V6_FLAGS_SHIFT) | resourceOffset);
+            index.writeInt(payload.length);
+            index.writeInt(ArchiveEntry.FLAG_UNCOMPRESSED);
+
+            data.setLength(0);
+            data.seek(resourceOffset);
+            data.write(payload);
+        }
+
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
+        try {
+            ar.read();
+            ArchiveEntry entry = ar.getEntries().get(0);
+            assertEquals(resourceOffset, entry.getResourceOffset());
+            assertEquals(flags, entry.getFlags());
+            assertArrayEquals(payload, ar.getEntryContent(entry));
+        } finally {
+            ar.close();
+        }
+    }
+
+    // The builder always emits v6. Pre-seeking the data file past 0xffffffff before writing
+    // one tiny resource verifies the packed offset and readable payload.
+    @Test
+    public void testBuilderWritesVersion6ForResourceOffsetAbove4GiB() throws IOException, CompileExceptionError {
+        final long resourceOffset = ArchiveBuilder.MAX_UNSIGNED_INT_OFFSET + 1L;
+        byte[] payload = new byte[] { (byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef, 0x11, 0x22, 0x33, 0x44 };
+
+        ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder, 4, project);
+        ab.add(createDummyFile(contentRoot, "large-offset.bin", payload));
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
+             RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
+            index.setLength(0);
+            data.setLength(0);
+            data.seek(resourceOffset);
+            ab.write(index, data, new ArrayList<String>());
+        }
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "r")) {
+            assertEquals(ArchiveBuilder.VERSION_6, index.readInt());
+            index.readInt(); // Pad
+            assertEquals(0L, index.readLong());
+        }
+
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
+        try {
+            ar.read();
+            ArchiveEntry entry = ar.getEntries().get(0);
+            assertEquals(resourceOffset, entry.getResourceOffset());
+            assertArrayEquals(payload, ar.getEntryContent(entry));
+        } finally {
+            ar.close();
+        }
     }
 
     @Test

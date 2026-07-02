@@ -254,6 +254,9 @@ public class Shaderc {
         public byte no420PackExtension = 0;
         public byte glslEmitUboAsPlainUniforms = 0;
         public byte glslEs = 0;
+        public String externalCompilerPath;
+        public String externalCompilerArgs;
+        public String rootSignatureOverride;
     };
     public static class ResourceType {
         public BaseType baseType = BaseType.BASE_TYPE_UNKNOWN;

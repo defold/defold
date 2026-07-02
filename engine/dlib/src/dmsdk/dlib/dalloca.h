@@ -25,7 +25,7 @@
 
 #include <stdint.h>
 
-#if __has_include("alloca_vendor.h")
+#if defined(DM_PLATFORM_VENDOR)
     #include "alloca_vendor.h"
 #elif defined(_WIN32)
     #include <malloc.h>

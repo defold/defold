@@ -19,6 +19,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ import javax.imageio.ImageIO;
 
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.io.FileUtils;
+import org.junit.Assume;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -45,6 +47,7 @@ import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -55,6 +58,12 @@ import com.dynamo.liveupdate.proto.Manifest;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 public class ProjectBuildTest {
+
+    private static final int LARGE_ARCHIVE_CUSTOM_RESOURCE_COUNT = 6;
+    private static final long LARGE_ARCHIVE_CUSTOM_RESOURCE_SIZE = 16L;
+    private static final int LARGE_ARCHIVE_RESOURCE_PADDING = 512 * 1024 * 1024;
+    private static final long TWO_GIB = 2L * 1024L * 1024L * 1024L;
+    private static final long MIN_LARGE_ARCHIVE_TEST_FREE_SPACE = 6L * 1024L * 1024L * 1024L;
 
     private String contentRoot;
     private String projectName = "Unnamed";
@@ -330,6 +339,84 @@ public class ProjectBuildTest {
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
     }
 
+    @Test
+    public void testGamepadSourceFieldCombinations() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createDefaultFiles();
+        createFile(contentRoot, "input/custom.gamepads", ""
+                + "driver {\n"
+                + "  device: \"Manual Project Pad\"\n"
+                + "  platform: \"macos\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Manual Project Pad\"\n"
+                + "  platform: \"linux\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n"
+                + "driver {\n"
+                + "  device: \"Manual Project Pad\"\n"
+                + "  platform: \"windows\"\n"
+                + "  dead_zone: 0.2\n"
+                + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
+                + "}\n");
+        createFile(contentRoot, "input/gamecontrollerdb.txt", ""
+                + "03000000000000000000000000000001,SDL Only Pad,a:b1,platform:Mac OS X,\n"
+                + "03000000000000000000000000000002,SDL Only Pad,a:b1,platform:Linux,\n"
+                + "03000000000000000000000000000003,SDL Only Pad,a:b1,platform:Windows,\n");
+
+        checkGamepadSourceFieldCombination(
+                "/input/custom.gamepadsc", "/input/gamecontrollerdb.txt",
+                "/input/custom.gamepadsc", "input/custom.gamepadsc",
+                new String[]{"SDL Only Pad", "Manual Project Pad"});
+        checkGamepadSourceFieldCombination(
+                "/input/custom.gamepadsc", "",
+                "/input/custom.gamepadsc", "input/custom.gamepadsc",
+                new String[]{"Manual Project Pad"});
+        checkGamepadSourceFieldCombination(
+                "", "/input/gamecontrollerdb.txt",
+                "/input/gamecontrollerdb.gamepadsc", "input/gamecontrollerdb.gamepadsc",
+                new String[]{"SDL Only Pad"});
+        checkGamepadSourceFieldCombination("", "", "", null, new String[0]);
+    }
+
+    private void checkGamepadSourceFieldCombination(String gamepads,
+                                                    String gamepadDatabase,
+                                                    String expectedProjectGamepads,
+                                                    String expectedBuildPath,
+                                                    String[] expectedDevices) throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createFile(contentRoot, "game.project", ""
+                + "[display]\n"
+                + "width=640\n"
+                + "height=480\n"
+                + "[input]\n"
+                + "gamepads=" + gamepads + "\n"
+                + "gamepad_database=" + gamepadDatabase + "\n");
+
+        build();
+
+        BobProjectProperties outputProps = new BobProjectProperties();
+        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        checkProjectSetting(outputProps, "input", "gamepads", expectedProjectGamepads);
+        checkProjectSetting(outputProps, "input", "gamepad_database", null);
+
+        if (expectedBuildPath == null) {
+            assertFalse(new File(contentRoot, "build/input/custom.gamepadsc").exists());
+            assertFalse(new File(contentRoot, "build/input/gamecontrollerdb.gamepadsc").exists());
+            assertFalse(new File(contentRoot, "build/builtins/input/default.gamepadsc").exists());
+            assertFalse(new File(contentRoot, "build/builtins/input/gamecontrollerdb.gamepadsc").exists());
+        } else {
+            File output = new File(contentRoot, "build/" + expectedBuildPath);
+            assertTrue(output.exists());
+            GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(FileUtils.readFileToByteArray(output));
+            assertEquals(expectedDevices.length, maps.getMappingsCount());
+            for (int i = 0; i < expectedDevices.length; i++) {
+                assertEquals(expectedDevices[i], maps.getMappings(i).getDevice());
+            }
+        }
+    }
+
     static private void checkProjectSetting(BobProjectProperties properties, String category, String key, String expectedValue)
     {
         assertEquals(expectedValue, properties.getStringValue(category, key));
@@ -573,6 +660,115 @@ public class ProjectBuildTest {
         assertFalse(bundledManifestData.getHasExcludedResources());
         assertFalse(publishedManifestData.getHasExcludedResources());
         assertEquals(publishedManifestData, bundledManifestData);
+    }
+
+    @Test
+    // Tests that Bob can build archives with resource offsets above 2 GiB.
+    // It generates small custom resources, uses large archive-resource-padding to
+    // create sparse gaps, then verifies game.arcd crosses 2 GiB and the index
+    // contains at least one unsigned resource offset above that boundary.
+    public void testArchiveBuildGeneratedLargeCustomResources() throws Exception {
+        Assume.assumeTrue(
+                "Generated large archive test needs at least 6 GiB of free temp disk space.",
+                new File(contentRoot).getUsableSpace() >= MIN_LARGE_ARCHIVE_TEST_FREE_SPACE);
+
+        try {
+            createGeneratedLargeCustomResourceArchiveProject();
+            buildGeneratedLargeCustomResourceArchiveProject();
+
+            File archiveData = new File(contentRoot, "build/game.arcd");
+            File archiveIndex = new File(contentRoot, "build/game.arci");
+            File buildReportJson = new File(contentRoot, "large_archive_report.json");
+            File buildReportHtml = new File(contentRoot, "large_archive_report.html");
+            assertTrue("Expected game.arcd to exceed 2 GiB, was " + archiveData.length(), archiveData.length() > TWO_GIB);
+            assertTrue("Expected at least one archive entry to start beyond 2 GiB.", hasArchiveEntryOffsetAbove2GiB(archiveIndex));
+            assertTrue("Expected JSON build report to be written.", buildReportJson.isFile());
+            assertTrue("Expected HTML build report to be written.", buildReportHtml.isFile());
+        } finally {
+            FileUtils.deleteDirectory(new File(contentRoot));
+        }
+    }
+
+    private void createGeneratedLargeCustomResourceArchiveProject() throws IOException {
+        createDefaultFiles();
+        Files.deleteIfExists(new File(contentRoot, "test.png").toPath());
+        createFile(contentRoot, "game.project",
+                "[project]\n" +
+                "title = Large Archive Test\n" +
+                "compress_archive = 0\n" +
+                "custom_resources = /large\n" +
+                "\n" +
+                "[bootstrap]\n" +
+                "main_collection = /logic/main.collectionc\n" +
+                "\n" +
+                "[display]\n" +
+                "width=640\n" +
+                "height=480\n");
+
+        for (int i = 0; i < LARGE_ARCHIVE_CUSTOM_RESOURCE_COUNT; ++i) {
+            createLargeCustomResource(new File(contentRoot, String.format("large/blob_%02d.raw", i)), LARGE_ARCHIVE_CUSTOM_RESOURCE_SIZE, i);
+        }
+    }
+
+    private void buildGeneratedLargeCustomResourceArchiveProject() throws IOException, CompileExceptionError, MultipleCompileException {
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
+
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
+
+            project.setOption("archive", "true");
+            project.setOption("archive-resource-padding", Integer.toString(LARGE_ARCHIVE_RESOURCE_PADDING));
+            project.setOption("build-report-json", new File(contentRoot, "large_archive_report.json").getAbsolutePath());
+            project.setOption("build-report-html", new File(contentRoot, "large_archive_report.html").getAbsolutePath());
+            project.setOption("max-cpu-threads", "1");
+
+            List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
+            for (TaskResult taskResult : result) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
+        }
+    }
+
+    private static void createLargeCustomResource(File file, long size, int index) throws IOException {
+        File parent = file.getParentFile();
+        if (parent != null) {
+            parent.mkdirs();
+        }
+
+        try (RandomAccessFile output = new RandomAccessFile(file, "rw")) {
+            output.setLength(size);
+            output.seek(0);
+            output.writeLong(0xdef01d0000000000L + index);
+            output.seek(size - Long.BYTES);
+            output.writeLong(0x5eed000000000000L + index);
+        }
+    }
+
+    private static boolean hasArchiveEntryOffsetAbove2GiB(File archiveIndex) throws IOException {
+        try (RandomAccessFile input = new RandomAccessFile(archiveIndex, "r")) {
+            int version = input.readInt();
+            input.readInt();  // Padding
+            input.readLong(); // UserData
+            int entryCount = input.readInt();
+            long entryOffset = Integer.toUnsignedLong(input.readInt());
+            input.readInt(); // HashOffset
+            input.readInt(); // HashLength
+            input.seek(entryOffset);
+            if (version != ArchiveBuilder.VERSION_6) {
+                throw new IOException("Unsupported archive index version: " + version);
+            }
+            for (int i = 0; i < entryCount; ++i) {
+                long resourceOffset = input.readLong() & ArchiveBuilder.V6_OFFSET_MASK;
+                input.readInt(); // ResourceSize
+                input.readInt(); // ResourceCompressedSize
+                if (resourceOffset > TWO_GIB) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void createExcludedLiveUpdateProject(String extraLiveUpdateSettings) throws IOException {

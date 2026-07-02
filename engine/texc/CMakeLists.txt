@@ -28,13 +28,7 @@ endif()
 if(TEXC_IS_DESKTOP)
   find_package(JNI REQUIRED)
   find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
-  find_program(DEFOLD_CLANGPP
-    NAMES clang++
-    HINTS
-      "${DEFOLD_VISUAL_STUDIO_ROOT}/VC/Tools/Llvm/x64/bin"
-      "${DEFOLD_VISUAL_STUDIO_ROOT}/VC/Tools/Llvm/ARM64/bin"
-      "C:/Program Files/LLVM/bin"
-      "C:/Program Files (x86)/LLVM/bin")
+  defold_find_clang_cpp(DEFOLD_CLANGPP)
   if(NOT DEFOLD_CLANGPP)
     message(FATAL_ERROR "Could not find clang++. It is required to generate texc Java bindings.")
   endif()
@@ -98,6 +92,7 @@ if(TEXC_IS_DESKTOP)
   defold_target_link_libraries(texc_shared "${TARGET_PLATFORM}"
     ${TEXC_SHARED_DEPENDENCIES})
   defold_target_link_app(texc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_codesign_target(texc_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   set(TEXC_JAR "${CMAKE_CURRENT_BINARY_DIR}/texturecompiler.jar")
   set(TEXC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")

@@ -1,5 +1,12 @@
 defold_log("functions_libs.cmake:")
 
+if(TARGET_PLATFORM STREQUAL "x86_64-xbone")
+  include(functions_libs_xbox OPTIONAL RESULT_VARIABLE _DEFOLD_FUNCTIONS_LIBS_XBOX)
+  if(NOT _DEFOLD_FUNCTIONS_LIBS_XBOX)
+    message(FATAL_ERROR "x86_64-xbone requires functions_libs_xbox.cmake from a configured private Xbox repo. Run ./scripts/build.py add_private_repo --platform=x86_64-xbone --private-repo=<path> first.")
+  endif()
+endif()
+
 set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   basis_encoder
   basis_encoder_noasan
@@ -129,7 +136,15 @@ function(defold_target_link_libraries target platform)
   set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
   set(_LIBS)
   foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
-    if(_lib STREQUAL "graphics" AND DEFINED DEFOLD_PLATFORM_GRAPHICS_LIBS)
+    set(_vendor_libs)
+    set(_vendor_libs_found OFF)
+    if(COMMAND defold_xbox_resolve_library)
+      defold_xbox_resolve_library(_vendor_libs _vendor_libs_found "${_lib}" "${platform}")
+    endif()
+
+    if(_vendor_libs_found)
+      list(APPEND _LIBS ${_vendor_libs})
+    elseif(_lib STREQUAL "graphics" AND DEFINED DEFOLD_PLATFORM_GRAPHICS_LIBS)
       list(APPEND _LIBS ${DEFOLD_PLATFORM_GRAPHICS_LIBS})
     elseif(_lib STREQUAL "lua" AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
       list(APPEND _LIBS luajit-5.1)
@@ -272,6 +287,7 @@ function(defold_install_targets)
       endif()
       if(_runtime_dest)
         list(APPEND _install_args RUNTIME DESTINATION "${_runtime_dest}")
+        list(APPEND _install_args BUNDLE DESTINATION "${_runtime_dest}")
       endif()
       install(${_install_args})
     endif()

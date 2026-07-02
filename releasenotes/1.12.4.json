@@ -230,7 +230,10 @@
             ],
             "mergecommit": "0eb983abf9d351390032eb5702e60fc50e1945d0",
             "pr_number": 12100,
-            "referencecommits": [],
+            "referencecommits": [
+                "1cdf19ccde6760c1e9e521e1962a5faae4b193f8",
+                "db2bef85d811e7237bac6d65380f5c413d4f2f31"
+            ],
             "repository": "defold",
             "title": "Apply skeleton transforms for orphaned joints",
             "type": "FIX",
@@ -431,28 +434,6 @@
             "url": "https://github.com/defold/defold/pull/12110"
         },
         {
-            "author": "Jhonnyg",
-            "body": "An issue has been fixed where world transforms are applied twice for static non-skinned meshes that are anchored to skeletal bones. Essentially, in some cases meshes would render in an incorrect position when playing an animation as opposed to the bind pose (i.e when no animation is playing).",
-            "closed_issues": [
-                11196
-            ],
-            "duplicate": false,
-            "issue_number": 11196,
-            "labels": [
-                "bug",
-                "engine",
-                "3d",
-                "gltf"
-            ],
-            "mergecommit": "3edf549a1bda42e0b2b66a0291499a4598e6aa7f",
-            "pr_number": 12105,
-            "referencecommits": [],
-            "repository": "defold",
-            "title": "Don't apply skinning twice",
-            "type": "FIX",
-            "url": "https://github.com/defold/defold/pull/12105"
-        },
-        {
             "author": "JosephFerano",
             "body": "Fixed issue on Linux and Macos where glb models weren't being rendered correctly  on systems with locales that use commas for decimal numbers.",
             "closed_issues": [
@@ -501,7 +482,9 @@
             ],
             "duplicate": false,
             "issue_number": 12127,
-            "labels": [],
+            "labels": [
+                "html5"
+            ],
             "mergecommit": "eff19215df14336f05563b14782c3b28bb33914d",
             "pr_number": 12127,
             "referencecommits": [],
@@ -801,7 +784,7 @@
         },
         {
             "author": "sprocketc",
-            "body": "We have added a new 3D perspective free camera mode for navigating scenes! Click and hold the right mouse button to activate and move around with the WASD keys. There is a scene view popup on the perspective camera button with additional controls for the camera.  The left mouse button controls (orbit, zoom, pan) now warp around the editor window to allow you to keep going forever. There are also several smaller improvements, like smoother zooming and localization for the grid menu.\r\n\r\nShoutout to @sprocketc who started the PR and @delinx who contributed his winapi know-how to the mouse_capture_windows.cpp module.",
+            "body": "We have added a new 3D perspective free camera mode for navigating scenes! Click and hold the right mouse button to activate and move around with the WASD keys. There is a scene view popup on the perspective camera button with additional controls for the camera.  The left mouse button controls (orbit, zoom, pan) now warp around the editor window to allow you to keep going forever. There are also several smaller improvements, like smoother zooming and localization for the grid menu.\r\n\r\nhttps://github.com/user-attachments/assets/95d87155-2d0f-441c-a234-700b2a679ac2\r\n\r\nhttps://github.com/user-attachments/assets/65e5a7b4-70ec-4ac4-8a43-5c9436792bd9\r\n\r\nhttps://github.com/user-attachments/assets/c4f948d7-0312-4bdc-a458-9d65eca6016f\r\n\r\nhttps://github.com/user-attachments/assets/cd02e73e-2cce-459a-9669-103313eae09f\r\n\r\nhttps://github.com/user-attachments/assets/7f971d4a-bd6c-4852-a893-b515bc817233\r\n\r\nhttps://github.com/user-attachments/assets/455e3412-a00d-4942-8048-6aae894caa28\r\n\r\nShoutout to @sprocketc who started the PR and @delinx who contributed his winapi know-how to the mouse_capture_windows.cpp module.",
             "closed_issues": [
                 11185,
                 8840
@@ -815,7 +798,7 @@
                 "ux",
                 "3d"
             ],
-            "mergecommit": "f1a3237dd54b6fb271a77186a2311aaa0b036924",
+            "mergecommit": null,
             "pr_number": 11309,
             "referencecommits": [],
             "repository": "defold",
@@ -873,7 +856,8 @@
                 "feature request",
                 "engine",
                 "bob",
-                "live update"
+                "live update",
+                "html5"
             ],
             "mergecommit": "4d7fc05130c8858a21bf9f276c54fab5e52dfb5f",
             "pr_number": 12153,
@@ -963,7 +947,7 @@
         },
         {
             "author": "sprocketc",
-            "body": "We have added a new 3D perspective free camera mode for navigating scenes! Click and hold the right mouse button to activate and move around with the WASD keys. There is a scene view popup on the perspective camera button with additional controls for the camera.  The left mouse button controls (orbit, zoom, pan) now warp around the editor window to allow you to keep going forever. There are also several smaller improvements, like smoother zooming and localization for the grid menu.\r\n\r\nShoutout to @sprocketc who started the PR and @delinx who contributed his winapi know-how to the mouse_capture_windows.cpp module.",
+            "body": "We have added a new 3D perspective free camera mode for navigating scenes! Click and hold the right mouse button to activate and move around with the WASD keys. There is a scene view popup on the perspective camera button with additional controls for the camera.  The left mouse button controls (orbit, zoom, pan) now warp around the editor window to allow you to keep going forever. There are also several smaller improvements, like smoother zooming and localization for the grid menu.\r\n\r\nhttps://github.com/user-attachments/assets/95d87155-2d0f-441c-a234-700b2a679ac2\r\n\r\nhttps://github.com/user-attachments/assets/65e5a7b4-70ec-4ac4-8a43-5c9436792bd9\r\n\r\nhttps://github.com/user-attachments/assets/c4f948d7-0312-4bdc-a458-9d65eca6016f\r\n\r\nhttps://github.com/user-attachments/assets/cd02e73e-2cce-459a-9669-103313eae09f\r\n\r\nhttps://github.com/user-attachments/assets/7f971d4a-bd6c-4852-a893-b515bc817233\r\n\r\nhttps://github.com/user-attachments/assets/455e3412-a00d-4942-8048-6aae894caa28\r\n\r\nShoutout to @sprocketc who started the PR and @delinx who contributed his winapi know-how to the mouse_capture_windows.cpp module.",
             "closed_issues": [
                 8840
             ],
@@ -977,15 +961,167 @@
                 "scene editor",
                 "ux"
             ],
-            "mergecommit": "f1a3237dd54b6fb271a77186a2311aaa0b036924",
+            "mergecommit": null,
             "pr_number": 11309,
             "referencecommits": [],
             "repository": "defold",
             "title": "Free camera mode in scene view + enhanced camera controls",
             "type": "FIX",
             "url": "https://github.com/defold/defold/pull/11309"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue when trying to use collectionproxy.set_collection() to load a collection that is already loaded.\r\nIt will now fail with an error, whereas previously it would accidentally create a cyclic chain of dependencies.",
+            "closed_issues": [
+                12232
+            ],
+            "duplicate": false,
+            "issue_number": 12232,
+            "labels": [
+                "engine"
+            ],
+            "mergecommit": "7b23e2420a54a61667e304303ce665e6fc9972d0",
+            "pr_number": 12232,
+            "referencecommits": [
+                "0d7d5a1cadb60bc8e78b20e9afb65280961f7882"
+            ],
+            "repository": "defold",
+            "title": "Fixed an issue when using collectionproxy.set_collection() with already loaded collection",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12232"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed a crash that could happen when game objects were repeatedly reparented and deleted in the same collection.",
+            "closed_issues": [
+                12247
+            ],
+            "duplicate": false,
+            "issue_number": 12247,
+            "labels": [
+                "triage"
+            ],
+            "mergecommit": "ad92631b860ce57b579351ddffabcb62d9535da1",
+            "pr_number": 12251,
+            "referencecommits": [
+                "21af396b6de22d3edc5ae1f85d24e8fdd9743a38"
+            ],
+            "repository": "defold",
+            "title": "Fix a crash that can occur during GameObject parenting or deletion under specific rare conditions",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12251"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Fixed a memory out-of-bounds issue where setting a material from a render script containing custom vertex attributes did not factor in the source material attribute size.",
+            "closed_issues": [
+                12243
+            ],
+            "duplicate": false,
+            "issue_number": 12243,
+            "labels": [
+                "bug",
+                "engine",
+                "graphics"
+            ],
+            "mergecommit": "4c085fd2de4f1c5ab1e8d2f3d9d1d92e25796b10",
+            "pr_number": 12260,
+            "referencecommits": [
+                "96510847a863f52a7f75084e0ea7a934ca60899a"
+            ],
+            "repository": "defold",
+            "title": "Fix for custom vertex attribute with overridden render material",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12260"
+        },
+        {
+            "author": "matgis",
+            "body": "Fixed various issues around 180-degree axis rotations.",
+            "closed_issues": [
+                12222,
+                12278
+            ],
+            "duplicate": false,
+            "issue_number": 12222,
+            "labels": [
+                "bug",
+                "editor",
+                "model",
+                "scene editor"
+            ],
+            "mergecommit": "40fd7614000e4a6868c74ef742e9bc40e5c9644f",
+            "pr_number": 12292,
+            "referencecommits": [
+                "8a0c740a5d71c32f54f83b2242a9a753374b1722"
+            ],
+            "repository": "defold",
+            "title": "Fixed 180-degree rotation issues in the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12292"
+        },
+        {
+            "author": "matgis",
+            "body": "Fixed various issues around 180-degree axis rotations.",
+            "closed_issues": [
+                12278
+            ],
+            "duplicate": true,
+            "issue_number": 12278,
+            "labels": [
+                "bug",
+                "editor",
+                "gui",
+                "scene editor"
+            ],
+            "mergecommit": "40fd7614000e4a6868c74ef742e9bc40e5c9644f",
+            "pr_number": 12292,
+            "referencecommits": [
+                "8a0c740a5d71c32f54f83b2242a9a753374b1722"
+            ],
+            "repository": "defold",
+            "title": "Fixed 180-degree rotation issues in the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12292"
+        },
+        {
+            "author": "ivasilyeu",
+            "body": "Legacy text metrics calculation is now using the correct descent value.\r\nIt fixes wrongly spaced lines.",
+            "closed_issues": [
+                12291
+            ],
+            "duplicate": false,
+            "issue_number": 12291,
+            "labels": [],
+            "mergecommit": "70807f4c081c1573fec41e23e8d25db112d02002",
+            "pr_number": 12291,
+            "referencecommits": [
+                "4983f1d98b98790aea0bd61b709ee93812ee4a18"
+            ],
+            "repository": "defold",
+            "title": "Fix for calculating multiline text height",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12291"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue with `resource.get_text_metrics()` where it previously didn't return the correct bounding box of the text.",
+            "closed_issues": [
+                12302
+            ],
+            "duplicate": false,
+            "issue_number": 12302,
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "5e0dc447f7b9c7fb7322918c99ad8ed243e83f08",
+            "pr_number": 12306,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed line height calculations for the Skribidi text layout",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12306"
         }
     ],
-    "timestamp": 1776163739.811813,
+    "timestamp": 1777455856.663417,
     "version": "1.12.4"
 }

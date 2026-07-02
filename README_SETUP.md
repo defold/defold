@@ -50,6 +50,7 @@ While we try to be as vanilla as possible, on Windows we only use `git-bash`. Se
   * [Git For Windows](https://gitforwindows.org) - Installs `Git` (required), and also `git-bash`.
     * `git-bash` is currently our recommended shell for windows. ´git-bash´ can install as a Terminal add on.
       * During install, if asked, select the option to not do any CR/LF conversion.
+      * You can set this later using `git config --global core.autocrlf false`
 
 
 </p></details>

@@ -30,6 +30,10 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+#if ANDROID
+#include "android/graphics_vulkan_android.h"
+#endif
+
 #include <platform/platform_window_vulkan.h>
 
 #ifdef __MACH__
@@ -1581,6 +1585,14 @@ bail:
 #else
 
     #if ANDROID
+        // VkQuality is only useful when Vulkan can fall back to another linked graphics adapter.
+        // If Vulkan is the only linked adapter, continue with the regular Vulkan support probe.
+        const bool only_linked_graphics_adapter = GetLinkedGraphicsAdapterCount() == 1;
+        if (!only_linked_graphics_adapter && !AndroidVulkanIsRecommended())
+        {
+            return false;
+        }
+
         if (!LoadVulkanLibrary())
         {
             dmLogError("Could not load Vulkan functions.");
@@ -2266,14 +2278,15 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         {
-            return;
-        }
-
-        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
-        {
-            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentUniformBuffers[set][binding] == ubo)
+                {
+                    context->m_CurrentUniformBuffers[set][binding] = 0;
+                }
+            }
         }
 
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -2287,11 +2300,6 @@ bail:
 
         ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
         ubo->m_BaseUniformBuffer.m_BoundSet     = set;
-
-        if (context->m_CurrentUniformBuffers[set][binding])
-        {
-            VulkanDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
-        }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
@@ -2806,6 +2814,7 @@ bail:
                                 *pgm_layout);
 
                             // Fallback to the scratch buffer uniform setup
+                            VulkanDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                             bound_ubo = 0;
                         }
                     }
@@ -2934,6 +2943,7 @@ bail:
                         else
                         {
                             // Fallback to scratch buffer representation
+                            VulkanDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                             bound_ubo = 0;
                         }
                     }

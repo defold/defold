@@ -519,6 +519,48 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("", shaderAdapters);
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_no_adapters"));
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings(
+                "symbols", List.of("GraphicsAdapterMetal"),
+                "libs", List.of("graphics_metal"),
+                "engineLibs", List.of("platform"),
+                "excludeSymbols", List.of("GraphicsAdapterOpenGL", "GraphicsAdapterVulkan"),
+                "excludeLibs", List.of("graphics", "graphics_vulkan", "platform_vulkan", "MoltenVK"))));
+        assertEquals("metal", shaderAdapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_metal"),
+            ShaderDesc.Language.LANGUAGE_MSL_22);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
+            platformSettings(
+                "libs", List.of("graphics_metal"),
+                "excludeLibs", List.of("graphics", "graphics_vulkan", "platform_vulkan", "MoltenVK"))));
+        assertEquals("metal", shaderAdapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_metal_lib"),
+            ShaderDesc.Language.LANGUAGE_MSL_22);
+    }
+
+    @Test
+    public void testMetalAppManifestConfiguresMSLShaders() throws Exception {
+        getProject().setOption("platform", Platform.X86_64MacOS.getPair());
+        getProject().setOption("architectures", Platform.X86_64MacOS.getPair());
+        getProject().getProjectProperties().putStringValue("native_extension", "app_manifest", "metal.appmanifest");
+        addFile("/metal.appmanifest",
+            "platforms:\n" +
+            "  x86_64-osx:\n" +
+            "    context:\n" +
+            "      libs: [graphics_metal]\n" +
+            "      excludeLibs: [graphics, graphics_vulkan, platform_vulkan, MoltenVK]\n");
+
+        getProject().configurePreBuildProjectOptions();
+
+        String shaderAdapters = getProject().option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+        assertEquals("metal", shaderAdapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64MacOS, shaderAdapters, "manifest_macos_metal_from_project"),
+            ShaderDesc.Language.LANGUAGE_MSL_22);
     }
 
     @Test
