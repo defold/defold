@@ -19,9 +19,18 @@
 
 #if defined(DM_PLATFORM_VENDOR) && __has_include("graphics_dx12_vendor.h")
     #include "graphics_dx12_vendor.h"
+    #define DM_GRAPHICS_DX12_HAS_VENDOR 1
+#elif defined(DM_PLATFORM_VENDOR) && __has_include(<dx12/graphics_dx12_vendor.h>)
+    #include <dx12/graphics_dx12_vendor.h>
+    #define DM_GRAPHICS_DX12_HAS_VENDOR 1
 #else
     #include <d3d12.h>
     #include <d3dx12.h> // Optional, for helpers
+    #if defined(DM_PLATFORM_VENDOR) && defined(WINAPI_FAMILY) && defined(WINAPI_FAMILY_GAMES) && WINAPI_FAMILY == WINAPI_FAMILY_GAMES && !defined(HMONITOR_DECLARED)
+        struct HMONITOR__;
+        typedef HMONITOR__* HMONITOR;
+        #define HMONITOR_DECLARED
+    #endif
     #include <dxgi1_6.h>
     #include <d3d12shader.h>
     #include <D3DCompiler.h>
@@ -317,7 +326,7 @@ namespace dmGraphics
             HRESULT hr = S_OK;
 
 // TODO: clean up this somehow
-#if !defined(DM_PLATFORM_VENDOR)
+#if !defined(DM_GRAPHICS_DX12_HAS_VENDOR)
             // first we get the n'th buffer in the swap chain and store it in the n'th
             // position of our ID3D12Resource array
             hr = context->m_SwapChain->GetBuffer(i, DM_IID_PPV_ARGS(&texture_color->m_Resource));
@@ -1343,7 +1352,7 @@ namespace dmGraphics
             context->m_SamplerPool.m_DescriptorHeap->Release();
             context->m_SamplerPool.m_DescriptorHeap = 0;
         }
-#if !defined(DM_PLATFORM_VENDOR)
+#if !defined(DM_GRAPHICS_DX12_HAS_VENDOR)
         if (context->m_SwapChain)
         {
             context->m_SwapChain->Release();
@@ -2336,7 +2345,7 @@ namespace dmGraphics
 
     static void LogVertexShaderInputSignature(DX12ShaderProgram* program)
     {
-#if defined(DM_PLATFORM_VENDOR)
+#if defined(DM_GRAPHICS_DX12_HAS_VENDOR)
         (void) program;
 #else
         if (!program || !program->m_VertexModule || !program->m_VertexModule->m_Data || program->m_VertexModule->m_DataSize == 0)
