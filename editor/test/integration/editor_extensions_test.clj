@@ -874,6 +874,7 @@ editor.ui.image({image = 'foo', width = -1}) => -1 is not positive
 editor.ui.dialog({title = 'Dialog title', width = false}) => false is not a number
 editor.ui.dialog({title = 'Dialog title', height = -1}) => -1 is not positive
 editor.ui.dialog({title = 'Dialog title', resizable = 1}) => 1 is not a boolean
+editor.ui.check_box({indeterminate = 1}) => 1 is not a boolean
 editor.ui.tab({}) => {} must have the \"text\" key
 ")
 
