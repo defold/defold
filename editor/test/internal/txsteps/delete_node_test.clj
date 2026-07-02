@@ -393,6 +393,83 @@
         (g/undo! :undo/global)
         (ensure-user-data-absent-from-system!)))))
 
+(deftest undo-node-deletion-restores-connection-order-test
+  (testing "Source arcs."
+    (test-support/with-clean-system
+      (let [graph-id (g/make-graph!)
+
+            [source-node-id
+             first-target-node-id
+             second-target-node-id
+             third-target-node-id]
+            (g/tx-nodes-added
+              (g/transact
+                {:undoable false}
+                (g/make-nodes graph-id
+                  [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                   first-target-node-id helpers/ConnectionTargetNode
+                   second-target-node-id helpers/ConnectionTargetNode
+                   _third-target-node-id helpers/ConnectionTargetNode]
+                  (g/connect source-node-id :property-output first-target-node-id :regular-input)
+                  (g/connect source-node-id :property-output second-target-node-id :regular-input))))]
+
+        (g/transact
+          {:undo-key ::delete-target}
+          (g/delete-node first-target-node-id))
+
+        (g/transact
+          {:undo-key ::connect-later-target}
+          (g/connect source-node-id :property-output third-target-node-id :regular-input))
+
+        (is (= [[second-target-node-id :regular-input]
+                [third-target-node-id :regular-input]]
+               (g/targets (g/now) source-node-id :property-output)))
+
+        (g/undo! ::delete-target)
+
+        (is (= [[first-target-node-id :regular-input]
+                [second-target-node-id :regular-input]
+                [third-target-node-id :regular-input]]
+               (g/targets (g/now) source-node-id :property-output))))))
+
+  (testing "Target arcs."
+    (test-support/with-clean-system
+      (let [graph-id (g/make-graph!)
+
+            [first-source-node-id
+             second-source-node-id
+             third-source-node-id
+             target-node-id]
+            (g/tx-nodes-added
+              (g/transact
+                {:undoable false}
+                (g/make-nodes graph-id
+                  [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                   second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                   _third-source-node-id [helpers/ConnectionSourceNode :property :third-value]
+                   target-node-id helpers/ConnectionTargetNode]
+                  (g/connect first-source-node-id :property-output target-node-id :array-input)
+                  (g/connect second-source-node-id :property-output target-node-id :array-input))))]
+
+        (g/transact
+          {:undo-key ::delete-source}
+          (g/delete-node second-source-node-id))
+
+        (g/transact
+          {:undo-key ::connect-later-source}
+          (g/connect third-source-node-id :property-output target-node-id :array-input))
+
+        (is (= [[first-source-node-id :property-output]
+                [third-source-node-id :property-output]]
+               (g/sources (g/now) target-node-id :array-input)))
+
+        (g/undo! ::delete-source)
+
+        (is (= [[first-source-node-id :property-output]
+                [second-source-node-id :property-output]
+                [third-source-node-id :property-output]]
+               (g/sources (g/now) target-node-id :array-input)))))))
+
 (deftest undo-node-deletion-invalidates-restored-source-successors-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
