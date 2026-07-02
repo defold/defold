@@ -2437,13 +2437,15 @@
          last (atom start)
          interval (if fps
                     (long (* 1e9 (/ 1 (double fps))))
-                    0)]
+                    0)
+         unfocused-interval (max interval (long (* 1e9 (/ 1.0 15.0))))]
      {:last last
       :timer (proxy [AnimationTimer] []
                (handle [^long now]
                  (profiler/profile "timer" name
-                   (let [elapsed (- now start)
-                         delta (- now (long @last))]
+	                   (let [elapsed (- now start)
+	                         delta (- now (long @last))
+	                         interval (if (:focused @focus-state) interval unfocused-interval)]
                      (when (or (zero? interval) (> delta interval))
                        (run-later
                          (try

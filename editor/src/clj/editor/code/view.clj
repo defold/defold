@@ -865,6 +865,12 @@
 (g/defnk produce-cursor-repaint-info [canvas color-scheme cursor-opacity layout lines repaint-trigger visible-cursors :as cursor-repaint-info]
   cursor-repaint-info)
 
+(g/defnk produce-tick-info [cursor-opacity elapsed-time-at-last-action gesture-start layout lines :as tick-info]
+  tick-info)
+
+(g/defnk produce-repaint-info [canvas-repaint-info completions-showing cursor-repaint-info hover-showing-regions rename-cursor-range resource-node :as repaint-info]
+  repaint-info)
+
 (defn- make-cursor-rectangle
   ^Rectangle [^Paint fill opacity ^Rect cursor-rect]
   (doto (Rectangle. (.x cursor-rect) (.y cursor-rect) (.w cursor-rect) (.h cursor-rect))
@@ -1629,7 +1635,9 @@
   (output minimap-cursor-range-draw-infos CursorRangeDrawInfos :cached produce-minimap-cursor-range-draw-infos)
   (output execution-markers r/Regions :cached produce-execution-markers)
   (output canvas-repaint-info g/Any :cached produce-canvas-repaint-info)
-  (output cursor-repaint-info g/Any :cached produce-cursor-repaint-info))
+  (output cursor-repaint-info g/Any :cached produce-cursor-repaint-info)
+  (output tick-info g/Any :cached produce-tick-info)
+  (output repaint-info g/Any :cached produce-repaint-info))
 
 (defn- mouse-button [^MouseEvent event]
   (condp = (.getButton event)
@@ -2145,7 +2153,7 @@
 
 (def ^:private ^:const completion-icon-text-spacing 4.0)
 
-(defn- completion-list-cell-view [completion]
+(defn- completion-list-cell-view [view-node completion]
   (if completion
     (let [text (:display-string completion)
           matching-indices (fuzzy-choices/matching-indices completion)]
@@ -2162,14 +2170,15 @@
                             (fuzzy-choices/make-matched-text-flow-cljfx
                               text matching-indices
                               :deprecated (contains? (:tags completion) :deprecated))]}
-       :on-mouse-clicked {:event :accept :completion completion}})
+       :on-mouse-clicked (fn [_]
+                           (accept-suggestion! view-node (code-completion/insertion completion)))})
     {}))
 
 (defn- completion-popup-view
   [{:keys [canvas-repaint-info font font-name font-size
            visible-completion-ranges query screen-bounds completions-showing
            completions-doc project completions-combined completions-selected-index
-           completions-shortcut-text]}]
+           completions-shortcut-text view-node]}]
   (let [item-count (count completions-combined)]
     (if (or (not completions-showing) (zero? item-count))
       {:fx/type fxui/ext-value :value nil}
@@ -2244,14 +2253,26 @@
                   :props {:items [refresh-key completions-combined]}
                   :desc
                   {:fx/type fx.ext.list-view/with-selection-props
-                   :props {:on-selected-index-changed {:event :select}}
+                   :props {:on-selected-index-changed (fn [index]
+                                                        (set-properties! view-node nil {:completions-selected-index index})
+                                                        (resolve-selected-completion! view-node))}
                    :desc
                    {:fx/type fx.list-view/lifecycle
                     :style {:-fx-font-family (str \" font-name \") :-fx-font-size font-size}
                     :id "fuzzy-choices-list-view"
                     :style-class ["flat-list-view" "completion-popup-list-view"]
                     :fixed-cell-size cell-height
-                    :event-filter {:event :completion-list-view-event-filter}
+                    :event-filter (fn [e]
+                                    (when (instance? KeyEvent e)
+                                      (let [^KeyEvent e e
+                                            code (.getCode e)]
+                                        ;; redirect everything except arrows to canvas
+                                        (when-not (or (= KeyCode/UP code)
+                                                      (= KeyCode/DOWN code)
+                                                      (= KeyCode/PAGE_UP code)
+                                                      (= KeyCode/PAGE_DOWN code))
+                                          (ui/send-event! (get-property view-node :canvas) e)
+                                          (.consume e)))))
                     :min-width completions-width
                     :pref-width completions-width
                     :max-width completions-width
@@ -2259,7 +2280,7 @@
                     :pref-height (* cell-height item-count)
                     :max-height (min (* cell-height max-visible-completions-count) max-completions-height)
                     :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                   :describe completion-list-cell-view}}}}}]
+                                   :describe (fn/partial completion-list-cell-view view-node)}}}}}]
                completions-shortcut-text
                (conj {:fx/type fx.label/lifecycle
                       :style-class "completion-popup-hint"
@@ -2284,7 +2305,7 @@
                :showing completions-showing
                :auto-fix false
                :auto-hide true
-               :on-auto-hide {:event :auto-hide}
+               :on-auto-hide (fn [_] (hide-suggestions! view-node))
                :hide-on-escape false
                :content [{:fx/type fx/ext-get-ref :ref :content}]}}]
             completions-doc
@@ -2334,7 +2355,14 @@
                                         (cond->
                                           {:fx/type markdown/view
                                            :base-url (:base-url doc)
-                                           :event-filter {:event :doc-event-filter}
+                                           :event-filter (fn [e]
+                                                           (when (instance? KeyEvent e)
+                                                             (let [^KeyEvent e e
+                                                                   ^Node source (.getSource e)
+                                                                   ^PopupWindow window (.getWindow (.getScene source))
+                                                                   target (.getFocusOwner (.getScene (.getOwnerWindow window)))]
+                                                               (ui/send-event! target e)
+                                                               (.consume e))))
                                            :max-width doc-width
                                            :max-height doc-max-height
                                            :project project
@@ -2345,41 +2373,6 @@
                                                       :else "<small>no documentation</small>")}
                                           (not align-right)
                                           (assoc :min-width doc-width))]}]}})))}}))))
-
-(defn- handle-completion-popup-event [view-node e]
-  (case (:event e)
-    :doc-event-filter
-    (let [e (:fx/event e)]
-      (when (instance? KeyEvent e)
-        (let [^KeyEvent e e
-              ^Node source (.getSource e)
-              ^PopupWindow window (.getWindow (.getScene source))
-              target (.getFocusOwner (.getScene (.getOwnerWindow window)))]
-          (ui/send-event! target e)
-          (.consume e))))
-
-    :auto-hide
-    (hide-suggestions! view-node)
-
-    :completion-list-view-event-filter
-    (let [e (:fx/event e)]
-      (when (instance? KeyEvent e)
-        (let [^KeyEvent e e
-              code (.getCode e)]
-          ;; redirect everything except arrows to canvas
-          (when-not (or (= KeyCode/UP code)
-                        (= KeyCode/DOWN code)
-                        (= KeyCode/PAGE_UP code)
-                        (= KeyCode/PAGE_DOWN code))
-            (ui/send-event! (get-property view-node :canvas) e)
-            (.consume e)))))
-
-    :select
-    (do
-      (set-properties! view-node nil {:completions-selected-index (:fx/event e)})
-      (resolve-selected-completion! view-node))
-    :accept
-    (accept-suggestion! view-node (code-completion/insertion (:completion e)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -3668,14 +3661,13 @@
   (g/user-data! view-node :elapsed-time elapsed-time)
 
   ;; Perform necessary property updates in preparation for repaint.
-  (g/let-ec [tick-props (data/tick (g/node-value view-node :lines evaluation-context)
-                                   (g/node-value view-node :layout evaluation-context)
-                                   (g/node-value view-node :gesture-start evaluation-context))
+  (g/let-ec [{:keys [elapsed-time-at-last-action gesture-start layout lines]
+              old-cursor-opacity :cursor-opacity}
+             (g/node-value view-node :tick-info evaluation-context)
+             tick-props (data/tick lines layout gesture-start)
              props (if-not cursor-visible
                      tick-props
-                     (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
-                           old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
-                           new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
+                     (let [new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
                        (cond-> tick-props
                                (not= old-cursor-opacity new-cursor-opacity)
                                (assoc :cursor-opacity new-cursor-opacity))))]
@@ -3684,73 +3676,61 @@
   ;; Repaint the view.
   (g/let-ec [prev-canvas-repaint-info (g/user-data view-node :canvas-repaint-info)
              prev-cursor-repaint-info (g/user-data view-node :cursor-repaint-info)
-             resource-node (g/node-value view-node :resource-node evaluation-context)
-             canvas-repaint-info (g/node-value view-node :canvas-repaint-info evaluation-context)
-             cursor-repaint-info (g/node-value view-node :cursor-repaint-info evaluation-context)]
+             {:keys [canvas-repaint-info completions-showing cursor-repaint-info hover-showing-regions rename-cursor-range resource-node]}
+             (g/node-value view-node :repaint-info evaluation-context)]
 
     ;; Repaint canvas if needed.
-    (when (not= prev-canvas-repaint-info canvas-repaint-info)
+    (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
       (g/user-data! view-node :canvas-repaint-info canvas-repaint-info)
       (let [row (data/last-visible-row (:minimap-layout canvas-repaint-info))]
         (repaint-canvas! canvas-repaint-info (get-valid-syntax-info resource-node canvas-repaint-info row))))
 
     (when editable
-      (g/with-auto-evaluation-context evaluation-context
-        ;; Show rename popup if appropriate
-        (fxui/advance-graph-user-data-component!
-          view-node :rename-popup
-          (when (g/node-value view-node :rename-cursor-range evaluation-context)
-            (g/node-value view-node :rename-view evaluation-context)))
-        ;; Show completion suggestions if appropriate.
-        (let [renderer (or (g/user-data view-node :completion-popup-renderer)
-                           (g/user-data!
-                             view-node
-                             :completion-popup-renderer
-                             (fx/create-renderer
-                               :error-handler error-reporting/report-exception!
-                               :middleware (comp
-                                             fxui/wrap-dedupe-desc
-                                             (fx/wrap-map-desc #'completion-popup-view))
-                               :opts {:fx.opt/map-event-handler #(handle-completion-popup-event view-node %)})))
-              ^Canvas canvas (:canvas canvas-repaint-info)]
-          (renderer {:completions-combined (g/node-value view-node :completions-combined evaluation-context)
-                     :completions-selected-index (g/node-value view-node :completions-selected-index evaluation-context)
-                     :completions-showing (g/node-value view-node :completions-showing evaluation-context)
-                     :completions-doc (g/node-value view-node :completions-doc evaluation-context)
-                     :completions-shortcut-text (g/node-value view-node :completions-shortcut-text evaluation-context)
-                     :project (g/node-value view-node :project evaluation-context)
-                     :canvas-repaint-info canvas-repaint-info
-                     :visible-completion-ranges (g/node-value view-node :visible-completion-ranges evaluation-context)
-                     :query (:query (g/node-value view-node :completion-context evaluation-context))
-                     :font (g/node-value view-node :font evaluation-context)
-                     :font-name (g/node-value view-node :font-name evaluation-context)
-                     :font-size (g/node-value view-node :font-size evaluation-context)
-                     :window-x (some-> (.getScene canvas) .getWindow .getX)
-                     :window-y (some-> (.getScene canvas) .getWindow .getY)
-                     :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))}))))
+      ;; Show rename popup if appropriate
+      (fxui/advance-graph-user-data-component!
+        view-node :rename-popup
+        (when rename-cursor-range
+          (g/with-auto-evaluation-context evaluation-context
+            (g/node-value view-node :rename-view evaluation-context))))
+      ;; Show completion suggestions if appropriate.
+      (fxui/advance-graph-user-data-component!
+        view-node :completion-popup
+        (when completions-showing
+          (g/with-auto-evaluation-context evaluation-context
+            (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))]
+              {:fx/type completion-popup-view
+               :completions-combined (g/node-value view-node :completions-combined evaluation-context)
+               :completions-selected-index (g/node-value view-node :completions-selected-index evaluation-context)
+               :completions-showing completions-showing
+               :completions-doc (g/node-value view-node :completions-doc evaluation-context)
+               :completions-shortcut-text (g/node-value view-node :completions-shortcut-text evaluation-context)
+               :project (g/node-value view-node :project evaluation-context)
+               :canvas-repaint-info canvas-repaint-info
+               :visible-completion-ranges (g/node-value view-node :visible-completion-ranges evaluation-context)
+               :query (:query (g/node-value view-node :completion-context evaluation-context))
+               :font (g/node-value view-node :font evaluation-context)
+               :font-name (g/node-value view-node :font-name evaluation-context)
+               :font-size (g/node-value view-node :font-size evaluation-context)
+               :view-node view-node
+               :window-x (some-> scene .getWindow .getX)
+               :window-y (some-> scene .getWindow .getY)
+               :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))})))))
 
     ;; Repaint hovered regions
-    (g/with-auto-evaluation-context evaluation-context
-      (let [hover-renderer (or (g/user-data view-node :hover-popup-renderer)
-                               (g/user-data!
-                                 view-node
-                                 :hover-popup-renderer
-                                 (fx/create-renderer
-                                   :error-handler error-reporting/report-exception!
-                                   :middleware (comp fxui/wrap-dedupe-desc
-                                                     (fx/wrap-map-desc #'hover-popup-view)))))
-            hover-showing-regions (g/node-value view-node :hover-showing-regions evaluation-context)]
-        (hover-renderer
-          (when hover-showing-regions
-            (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))]
-              {:hover-showing-regions hover-showing-regions
-               :hover-showing-region (g/node-value view-node :hover-showing-region evaluation-context)
-               :canvas-repaint-info canvas-repaint-info
-               :project (g/node-value view-node :project evaluation-context)
-               :view-node view-node
-               :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))
-               :window-x (some-> scene .getWindow .getX)
-               :window-y (some-> scene .getWindow .getY)})))))
+    (fxui/advance-graph-user-data-component!
+      view-node :hover-popup
+      (when hover-showing-regions
+        (g/with-auto-evaluation-context evaluation-context
+          (let [scene (.getScene ^Canvas (:canvas canvas-repaint-info))]
+            {:fx/type hover-popup-view
+             :hover-showing-regions hover-showing-regions
+             :hover-showing-region (g/node-value view-node :hover-showing-region evaluation-context)
+             :canvas-repaint-info canvas-repaint-info
+             :project (g/node-value view-node :project evaluation-context)
+             :view-node view-node
+             :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))
+             :window-x (some-> scene .getWindow .getX)
+             :window-y (some-> scene .getWindow .getY)}))))
 
     ;; Repaint cursors if needed.
     (when-not (identical? prev-cursor-repaint-info cursor-repaint-info)
