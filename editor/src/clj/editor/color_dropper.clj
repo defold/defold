@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.color-dropper
-  (:require [editor.ui :as ui])
+  (:require [editor.ui :as ui]
+            [util.defonce :as defonce])
   (:import [javafx.beans.value ChangeListener]
            [javafx.geometry Point2D]
            [javafx.scene Cursor Node]
@@ -27,12 +28,12 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defrecord ColorDropper [^Color color
-                         ^StackPane dropper-area
-                         ^ChangeListener size-listener
-                         ^WritableImage image
-                         on-deactivated
-                         prev-focus-owner])
+(defonce/record ColorDropper [^Color color
+                              ^StackPane dropper-area
+                              ^ChangeListener size-listener
+                              ^WritableImage image
+                              on-deactivated
+                              prev-focus-owner])
 
 (defn- paint-pixel!
   [^GraphicsContext graphics-context x y size color]
