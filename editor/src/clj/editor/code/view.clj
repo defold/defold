@@ -43,6 +43,7 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
             [editor.defold-project :as project]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
@@ -2373,6 +2374,8 @@
                                                       :else "<small>no documentation</small>")}
                                           (not align-right)
                                           (assoc :min-width doc-width))]}]}})))}}))))
+
+(node-types/register-node-type-name! CodeEditorView "code")
 
 ;; -----------------------------------------------------------------------------
 

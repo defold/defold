@@ -114,11 +114,28 @@
                    (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
 
+(defn- gen-active-view-query [q acc]
+  (let [expected-type (case (:type q)
+                        "code" :editor.code.view/CodeEditorView
+                        "scene" :editor.scene/SceneView
+                        "html" :editor.html-view/HtmlViewNode
+                        "form" :editor.cljfx-form-view/CljfxFormView)]
+    (gen-query acc [env cont]
+      (let [evaluation-context (or (:evaluation-context env)
+                                   (g/make-evaluation-context))]
+        (when-let [view (some-> (:app-view env)
+                                (g/node-value :active-view evaluation-context))]
+          (when (g/node-kw-instance? (:basis evaluation-context) expected-type view)
+            (when-not (:evaluation-context env)
+              (g/update-cache-from-evaluation-context! evaluation-context))
+            (cont assoc :active_view (editor-lookup-userdata view))))))))
+
 (defn- compile-query [q project]
   (reduce-kv
     (fn [acc k v]
       (case k
         :selection (gen-selection-query v acc project)
+        :active_view (gen-active-view-query v acc)
         :argument (gen-query acc [env cont] (cont assoc :argument (:user-data env)))
         acc))
     (fn [lua-fn]
@@ -137,6 +154,9 @@
                    :opt {:selection (coerce/hash-map
                                       :req {:type (coerce/enum :resource :outline :scene)
                                             :cardinality (coerce/enum :one :many)})
+                         :active_view (coerce/hash-map
+                                        :req {:type (coerce/enum "code" "scene" "html" "form")}
+                                        :extra-keys false)
                          :argument (coerce/const true)})
           :id prefs-docs/serializable-keyword-coercer
           :active coerce/function

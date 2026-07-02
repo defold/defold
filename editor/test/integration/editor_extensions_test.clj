@@ -17,6 +17,8 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.cljfx-form-view :as cljfx-form-view]
+            [editor.code.view :as code-view]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
@@ -28,6 +30,7 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.html-view :as html-view]
             [editor.library :as library]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
@@ -37,7 +40,9 @@
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.scene :as scene]
             [editor.ui :as ui]
+            [editor.view :as view]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -2583,3 +2588,42 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       (expect-script-output expected-localization-output out))))
+
+(deftest editor-script-active-view-commands-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/active_view_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run!
+        (fn [[proj-path view-node-type view-node-args label]]
+          (let [resource-node (test-util/resource-node project proj-path)
+                view-graph (test-util/make-view-graph!)
+                view-node (first (g/take-node-ids view-graph 1))]
+            (g/transact
+              (concat
+                (g/add-node (apply g/construct view-node-type :_node-id view-node view-node-args))
+                (view/connect-resource-node view-node resource-node)
+                (g/set-property app-view :active-view view-node)))
+            (let [command-contexts (g/with-auto-evaluation-context evaluation-context
+                                     (handler/eval-contexts
+                                       [(handler/->context :global {:app-view app-view})]
+                                       false
+                                       evaluation-context))
+                  handler+context (->> (handler/realize-menu :editor.app-view/view-end)
+                                       (e/keep :command)
+                                       (e/filter handler/synthetic-command?)
+                                       (e/keep #(handler/active % command-contexts {}))
+                                       (coll/first-where #(= label (handler/label %))))]
+              (assert handler+context "Test bug: undefined test command")
+              (is (handler/enabled? handler+context))
+              @(handler/run handler+context))))
+        [["/main/main.script" code-view/CodeEditorView [:gutter-view (code-view/->CodeEditorGutterView)] "Inspect Active Code View"]
+         ["/main/main.collection" scene/SceneView [] "Inspect Active Scene View"]
+         ["/README.md" html-view/HtmlViewNode [] "Inspect Active HTML View"]
+         ["/game.project" cljfx-form-view/CljfxFormView [] "Inspect Active Form View"]])
+      (expect-script-output
+        "type=code resource=/main/main.script dirty=false
+type=scene resource=/main/main.collection dirty=false
+type=html resource=/README.md dirty=false
+type=form resource=/game.project dirty=false
+"
+        out))))
