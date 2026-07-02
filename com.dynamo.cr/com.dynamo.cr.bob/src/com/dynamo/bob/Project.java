@@ -1057,12 +1057,7 @@ public class Project implements AutoCloseable {
         }
 
         // If not found, try to get a built-in shader compiler for this platform
-        IShaderCompiler commonShaderCompiler = ShaderCompilers.GetCommonShaderCompiler(platform);
-        if (commonShaderCompiler != null) {
-            return commonShaderCompiler;
-        }
-
-        throw new CompileExceptionError(null, -1, String.format("No shader compiler registered for platform %s", platform.getPair()));
+        return new ShaderCompilers.CommonShaderCompiler(platform);
     }
 
     private boolean anyFailing(Collection<TaskResult> results) {

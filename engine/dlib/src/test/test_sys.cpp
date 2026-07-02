@@ -18,7 +18,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(_GAMING_XBOX)
     #include <Windows.h>
     #include <wchar.h>
 
