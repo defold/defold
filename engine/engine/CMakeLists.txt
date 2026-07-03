@@ -132,15 +132,17 @@ if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output glsl)
 endif()
-# App manifests can also relink Apple engines to Vulkan/MoltenVK.
+# App manifests can also relink Apple and Windows engines to Vulkan/MoltenVK.
 if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS
-    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios|x86-win32|x86_64-win32)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output spirv)
 endif()
 if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output wgsl)
 endif()
-if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+# App manifests can relink Windows engines to DX12.
+if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86-win32|x86_64-win32)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output hlsl)
 endif()
 if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS
