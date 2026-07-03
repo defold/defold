@@ -56,8 +56,10 @@ context:
                 "rig", "rig.lib", "librig.lib",
                 "rig_null", "rig_null.lib", "librig_null.lib",
                 "graphics", "graphics.lib", "libgraphics.lib",
+                "graphics_dx12", "graphics_dx12.lib", "libgraphics_dx12.lib",
                 "graphics_metal", "graphics_metal.lib", "libgraphics_metal.lib",
                 "graphics_opengles", "graphics_opengles.lib", "libgraphics_opengles.lib",
+                "graphics_vulkan", "graphics_vulkan.lib", "libgraphics_vulkan.lib",
                 "graphics_webgpu", "graphics_webgpu.lib", "libgraphics_webgpu.lib",
                 "graphics_webgpu_wagyu", "graphics_webgpu_wagyu.lib", "libgraphics_webgpu_wagyu.lib",
                 "graphics_null", "graphics_null.lib", "libgraphics_null.lib",
@@ -112,9 +114,13 @@ context:
                 "MoltenVK",
                 "opus", "libopus.lib",
                 "tremolo", "libtremolo.lib",
-                "vpx", "vpx.lib"]
+                "vpx", "vpx.lib",
+                "vulkan-1", "vulkan-1.lib",
+                "D3D12", "D3D12.lib",
+                "DXGI", "DXGI.lib",
+                "d3dcompiler", "d3dcompiler.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "AudioDecoderOpus", "GraphicsAdapterWebGPU",
-                    "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterMetal", "GraphicsAdapterNull",
+                    "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterMetal", "GraphicsAdapterDX12", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt",
                     "ScriptFont", "ResourceTypeFont", "ResourceTypeTTF",
                     "ResourceTypeOgg", "ResourceTypeWav", "ResourceTypeOpus", "ResourceTypeLight", "ComponentTypeLight"]

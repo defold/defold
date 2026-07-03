@@ -312,6 +312,57 @@
             (is (not-any? #{"graphics_metal"} (:libs context)))
             (is (not-any? #{"GraphicsAdapterMetal"} (:symbols context)))))))))
 
+(def windows-graphics-selections
+  [:open-gl :vulkan :dx12 :open-gl-vulkan :open-gl-dx12 :vulkan-dx12 :open-gl-vulkan-dx12])
+
+(deftest windows-graphics-setting-test
+  (testing "Windows supports every OpenGL/Vulkan/DX12 selection"
+    (doseq [selection windows-graphics-selections]
+      (let [manifest (-> {}
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-windows :open-gl-vulkan-dx12)
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-windows selection))]
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-windows))))))
+  (testing "DX12-only Windows includes DX12 and excludes OpenGL/Vulkan on 64-bit Windows"
+    (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-windows :dx12)
+          context (get-in manifest [:platforms :x86_64-win32 :context])]
+      (is (= :dx12 (app-manifest/get-setting-value manifest app-manifest/graphics-setting-windows)))
+      (is (some #{"graphics_dx12"} (:libs context)))
+      (is (some #{"D3D12"} (:libs context)))
+      (is (some #{"DXGI"} (:libs context)))
+      (is (some #{"d3dcompiler"} (:libs context)))
+      (is (some #{"GraphicsAdapterDX12"} (:symbols context)))
+      (is (some #{"graphics"} (:excludeLibs context)))
+      (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
+      (is (some #{"graphics_vulkan"} (:excludeLibs context)))
+      (is (some #{"platform_vulkan"} (:excludeLibs context)))
+      (is (some #{"vulkan-1"} (:excludeLibs context)))
+      (is (some #{"GraphicsAdapterVulkan"} (:excludeSymbols context)))))
+  (testing "DX12 choices keep 32-bit Windows on its OpenGL default"
+    (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-windows :dx12)
+          context (get-in manifest [:platforms :x86-win32 :context])]
+      (is (not-any? #{"graphics_dx12"} (:libs context)))
+      (is (not-any? #{"GraphicsAdapterDX12"} (:symbols context)))
+      (is (not-any? #{"graphics"} (:excludeLibs context)))
+      (is (not-any? #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))))
+  (testing "Windows selections without DX12 do not keep DX12 leftovers"
+    (doseq [selection [:open-gl :open-gl-vulkan :vulkan]]
+      (let [manifest (-> {}
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-windows :open-gl-vulkan-dx12)
+                         (app-manifest/set-setting-value app-manifest/graphics-setting-windows selection))
+            context (get-in manifest [:platforms :x86_64-win32 :context])]
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-windows)))
+        (is (not-any? #{"graphics_dx12"} (:libs context)))
+        (is (not-any? #{"D3D12"} (:libs context)))
+        (is (not-any? #{"DXGI"} (:libs context)))
+        (is (not-any? #{"d3dcompiler"} (:libs context)))
+        (is (not-any? #{"GraphicsAdapterDX12"} (:symbols context)))))))
+  (testing "Generic graphics changes do not clear Windows graphics"
+    (let [manifest (-> {}
+                       (app-manifest/set-setting-value app-manifest/graphics-setting-windows :open-gl-vulkan-dx12)
+                       (app-manifest/set-setting-value app-manifest/graphics-setting :vulkan))]
+      (is (= :vulkan (app-manifest/get-setting-value manifest app-manifest/graphics-setting)))
+      (is (= :open-gl-vulkan-dx12 (app-manifest/get-setting-value manifest app-manifest/graphics-setting-windows)))))
+
 (deftest ios-graphics-setting-test
   (testing "iOS supports every OpenGL/Metal/Vulkan selection"
     (doseq [selection apple-graphics-selections]

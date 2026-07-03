@@ -497,6 +497,34 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             compileShaderForPlatform(Platform.X86_64Win32, shaderAdapters, "manifest_win32_vulkan"),
             ShaderDesc.Language.LANGUAGE_SPIRV);
 
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterVulkan"))));
+        assertEquals("opengl,vulkan", shaderAdapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64Win32, shaderAdapters, "manifest_win32_opengl_vulkan"),
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330,
+            ShaderDesc.Language.LANGUAGE_SPIRV);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings(
+                "symbols", List.of("GraphicsAdapterDX12"),
+                "excludeSymbols", List.of("GraphicsAdapterOpenGL", "GraphicsAdapterVulkan"))));
+        assertEquals("dx12", shaderAdapters);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterDX12"))));
+        assertEquals("opengl,dx12", shaderAdapters);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings(
+                "symbols", List.of("GraphicsAdapterVulkan", "GraphicsAdapterDX12"),
+                "excludeSymbols", List.of("GraphicsAdapterOpenGL"))));
+        assertEquals("vulkan,dx12", shaderAdapters);
+
+        shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterVulkan", "GraphicsAdapterDX12"))));
+        assertEquals("opengl,vulkan,dx12", shaderAdapters);
+
         shaderAdapters = Project.getShaderAdaptersOption(Platform.WasmWeb, List.of(
             platformSettings("symbols", List.of("GraphicsAdapterWebGPU"))));
         String samplerSource =
