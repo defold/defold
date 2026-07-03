@@ -3112,32 +3112,38 @@
         (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
           (let [document-symbols (get-property view-node :document-symbols evaluation-context)
                 items (mapv #(select-keys % [:name :kind :selection-range :detail])
-                            document-symbols)]
-            (dialogs/make-select-list-dialog
-              items
-              localization
-              ;; TODO: Localize
-              {:title "Jump to Symbol"
-               :ok-label "Jump"
-               :prompt "Search for symbol..."
-               :filter-fn (partial fuzzy-choices/filter-options :name :name)
-               :cell-fn (fn [item _localization]
-                          {:style-class ["list-cell"]
-                           :graphic {:fx/type fxui/horizontal
-                                     :alignment :left
-                                     :spacing :small
-                                     ;; :matching-indices (:matching-indices (meta item))
-                                     :children [{:fx/type code-type-icon :type (:kind item)}
-                                                (fuzzy-choices/make-matched-text-flow-cljfx
-                                                  (:name item)
-                                                  (:matching-indices (meta item)))
-                                                {:fx/type fx.region/lifecycle
-                                                 :h-box/hgrow :always}
-                                                {:fx/type fx.label/lifecycle
-                                                 :style {:-fx-text-fill :-df-text-dark}
-                                                 :text (str (if-let [detail (:detail item)]
-                                                              (str " " (string/replace detail "function" "ƒ"))
-                                                              ""))}]}})}))
+                            document-symbols)
+                selection
+                (dialogs/make-select-list-dialog
+                  items
+                  localization
+                  ;; TODO: Localize
+                  {:title "Jump to Symbol"
+                   :ok-label "Jump"
+                   :prompt "Search for symbol..."
+                   :filter-fn (partial fuzzy-choices/filter-options :name :name)
+                   :cell-fn (fn [item _localization]
+                              {:style-class ["list-cell"]
+                               :graphic {:fx/type fxui/horizontal
+                                         :alignment :left
+                                         :spacing :small
+                                         ;; :matching-indices (:matching-indices (meta item))
+                                         :children [{:fx/type code-type-icon :type (:kind item)}
+                                                    (fuzzy-choices/make-matched-text-flow-cljfx
+                                                      (:name item)
+                                                      (:matching-indices (meta item)))
+                                                    {:fx/type fx.region/lifecycle
+                                                     :h-box/hgrow :always}
+                                                    {:fx/type fx.label/lifecycle
+                                                     :style {:-fx-text-fill :-df-text-dark}
+                                                     :text (str (if-let [detail (:detail item)]
+                                                                  (str " " (string/replace detail "function" "ƒ"))
+                                                                  ""))}]}})})]
+            (when selection
+              (set-properties! view-node :navigation
+                               (data/select-and-frame (get-property view-node :lines)
+                                                      (get-property view-node :layout)
+                                                      (:selection-range (first selection))))))
           (show-no-language-server-for-resource-language-notification! resource))))))
 
 ;; -----------------------------------------------------------------------------
