@@ -3111,7 +3111,7 @@
             localization (get-property view-node :localization evaluation-context)]
         (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
           (let [document-symbols (get-property view-node :document-symbols evaluation-context)
-                items (mapv #(select-keys % [:name :kind :selection-range :detail])
+                items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
                             document-symbols)
                 selection
                 (dialogs/make-select-list-dialog
@@ -3121,7 +3121,7 @@
                    :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
                    :prompt (localization/message "dialog.jump-to-symbol.prompt")
                    :filter-fn (partial fuzzy-choices/filter-options :name :name)
-                   :cell-fn (fn [{:keys [name kind detail] :as item} _localization]
+                   :cell-fn (fn [{:keys [name kind detail tags] :as item} _localization]
                               ;; The dialog is a fixed width, so a row must never grow wider than
                               ;; it and cause a horizontal scrollbar. A very long name gets cut
                               ;; short with a "…"; the signature (further down) trims the same way.
@@ -3148,7 +3148,8 @@
                                            (cond-> [{:fx/type code-type-icon :type kind}
                                                     (assoc (fuzzy-choices/make-matched-text-flow-cljfx
                                                              display-name
-                                                             indices)
+                                                             indices
+                                                             :deprecated (contains? tags :deprecated))
                                                            :min-width :use-pref-size)]
                                              (coll/not-empty detail)
                                              (conj {:fx/type fx.region/lifecycle
