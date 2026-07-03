@@ -81,7 +81,7 @@
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
-           [java.util Collection]
+           [java.util BitSet Collection]
            [java.util.regex Pattern]
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
@@ -3117,33 +3117,54 @@
                 (dialogs/make-select-list-dialog
                   items
                   localization
-                  ;; TODO: Localize
-                  {:title "Jump to Symbol"
-                   :ok-label "Jump"
-                   :prompt "Search for symbol..."
+                  {:title (localization/message "dialog.jump-to-symbol.title")
+                   :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
+                   :prompt (localization/message "dialog.jump-to-symbol.prompt")
                    :filter-fn (partial fuzzy-choices/filter-options :name :name)
-                   :cell-fn (fn [item _localization]
-                              {:style-class ["list-cell"]
-                               :graphic {:fx/type fxui/horizontal
-                                         :alignment :left
-                                         :spacing :small
-                                         ;; :matching-indices (:matching-indices (meta item))
-                                         :children [{:fx/type code-type-icon :type (:kind item)}
-                                                    (fuzzy-choices/make-matched-text-flow-cljfx
-                                                      (:name item)
-                                                      (:matching-indices (meta item)))
-                                                    {:fx/type fx.region/lifecycle
-                                                     :h-box/hgrow :always}
-                                                    {:fx/type fx.label/lifecycle
-                                                     :style {:-fx-text-fill :-df-text-dark}
-                                                     :text (str (if-let [detail (:detail item)]
-                                                                  (str " " (string/replace detail "function" "ƒ"))
-                                                                  ""))}]}})})]
+                   :cell-fn (fn [{:keys [name kind detail] :as item} _localization]
+                              ;; The dialog is a fixed width, so a row must never grow wider than
+                              ;; it and cause a horizontal scrollbar. A very long name gets cut
+                              ;; short with a "…"; the signature (further down) trims the same way.
+                              (let [max-name-length 56
+                                    indices (:matching-indices (meta item))
+                                    elide? (> (count name) max-name-length)
+                                    display-name (if elide?
+                                                   (str (subs name 0 max-name-length) "…")
+                                                   name)
+                                    ;; Once the name is cut, forget any highlighted spots that
+                                    ;; landed on characters we just removed — otherwise the
+                                    ;; highlighter reaches past the end of the shortened text.
+                                    indices (if (and elide? indices)
+                                              (doto ^BitSet (.clone ^BitSet indices)
+                                                (.clear (int max-name-length) (count name)))
+                                              indices)]
+                                {:style-class ["list-cell"]
+                                 :graphic {:fx/type fx.h-box/lifecycle
+                                           :alignment :center-left
+                                           :spacing 6
+                                           :pref-width 1.0
+                                           :max-width Double/MAX_VALUE
+                                           :children
+                                           (cond-> [{:fx/type code-type-icon :type kind}
+                                                    (assoc (fuzzy-choices/make-matched-text-flow-cljfx
+                                                             display-name
+                                                             indices)
+                                                           :min-width :use-pref-size)]
+                                             (coll/not-empty detail)
+                                             (conj {:fx/type fx.region/lifecycle
+                                                    :h-box/hgrow :always
+                                                    :min-width 10.0}
+                                                   {:fx/type fx.label/lifecycle
+                                                    :h-box/hgrow :never
+                                                    :min-width 0
+                                                    :style {:-fx-text-fill :-df-text-dark}
+                                                    :text (string/replace detail "function" "ƒ")}))}}))})]
             (when selection
               (set-properties! view-node :navigation
                                (data/select-and-frame (get-property view-node :lines)
                                                       (get-property view-node :layout)
-                                                      (:selection-range (first selection))))))
+                                                      (:selection-range (first selection)))))
+            (focus-code-editor! view-node))
           (show-no-language-server-for-resource-language-notification! resource))))))
 
 ;; -----------------------------------------------------------------------------
@@ -3587,7 +3608,8 @@
    {:command :code.zoom.decrease :label (localization/message "command.code.zoom.decrease")}
    {:command :code.zoom.reset :label (localization/message "command.code.zoom.reset")}
    {:label :separator}
-   {:command :code.goto-line :label (localization/message "command.code.goto-line")}])
+   {:command :code.goto-line :label (localization/message "command.code.goto-line")}
+   {:command :code.jump-to-symbol :label (localization/message "command.code.jump-to-symbol")}])
 
 ;; -----------------------------------------------------------------------------
 
