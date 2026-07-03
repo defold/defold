@@ -284,11 +284,13 @@ namespace dmGraphics
         uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_DsvDescriptorSize;
+        uint32_t                           m_SwapInterval;
         uint32_t                           m_NumFramesInFlight    : 2;
         uint32_t                           m_FrameBegun           : 1;
         uint32_t                           m_CullFaceChanged      : 1;
         uint32_t                           m_ViewportChanged      : 1;
         uint32_t                           m_UseValidationLayers  : 1;
+        uint32_t                           m_AllowTearing         : 1;
         uint32_t                           m_MSAASampleCount      : 8;
     };
 

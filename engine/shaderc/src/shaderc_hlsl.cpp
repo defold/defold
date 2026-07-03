@@ -169,113 +169,6 @@ namespace dmShaderc
         return true;
     }
 
-    static bool LineContainsChar(const char* begin, const char* end, char c)
-    {
-        for (const char* p = begin; p < end; ++p)
-        {
-            if (*p == c)
-                return true;
-        }
-        return false;
-    }
-
-    static char* FindLineStart(char* buffer_begin, char* p)
-    {
-        while (p > buffer_begin && p[-1] != '\n' && p[-1] != '\r')
-        {
-            --p;
-        }
-        return p;
-    }
-
-    static char* FindLineEnd(char* p)
-    {
-        while (*p && *p != '\n' && *p != '\r')
-        {
-            ++p;
-        }
-        return p;
-    }
-
-    static char* SkipLineEnding(char* p)
-    {
-        if (*p == '\r')
-            ++p;
-        if (*p == '\n')
-            ++p;
-        return p;
-    }
-
-    static char* SkipWhitespace(char* p)
-    {
-        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
-        {
-            ++p;
-        }
-        return p;
-    }
-
-    static bool MoveSVPositionStructMemberToFront(dmArray<char>& source)
-    {
-        if (source.Empty())
-            return true;
-
-        char* data = source.Begin();
-        char* search = data;
-        const char* sv_position = ": SV_Position";
-
-        while ((search = strstr(search, sv_position)) != 0)
-        {
-            char* line_start = FindLineStart(data, search);
-            char* line_end = FindLineEnd(search);
-            char* move_end = SkipLineEnding(line_end);
-
-            if (!LineContainsChar(line_start, line_end, ';'))
-            {
-                search = line_end;
-                continue;
-            }
-
-            char* open_brace = line_start;
-            while (open_brace > data && *open_brace != '{')
-            {
-                --open_brace;
-            }
-            if (*open_brace != '{')
-            {
-                search = line_end;
-                continue;
-            }
-
-            char* insert_pos = open_brace + 1;
-            insert_pos = SkipLineEnding(insert_pos);
-
-            if (SkipWhitespace(insert_pos) == line_start)
-            {
-                search = move_end;
-                continue;
-            }
-
-            const uint32_t text_size = (uint32_t) strlen(data) + 1;
-            const uint32_t line_size = (uint32_t) (move_end - line_start);
-            char* line = (char*) malloc(line_size);
-            if (!line)
-            {
-                dmLogError("Out of memory while reordering HLSL SV_Position member");
-                return false;
-            }
-
-            memcpy(line, line_start, line_size);
-            memmove(line_start, move_end, (data + text_size) - move_end);
-            memmove(insert_pos + line_size, insert_pos, (data + text_size - line_size) - insert_pos);
-            memcpy(insert_pos, line, line_size);
-            free(line);
-
-            search = insert_pos + line_size;
-        }
-
-        return true;
-    }
     static const char* GetStageShortName(ShaderStage stage);
 
     static bool BuildExternalCompilerCommand(const ShaderCompilerOptions* options, const char* input_path, const char* output_path, const char* profile, ShaderStage stage, int version, char* out_command, uint32_t out_command_size)
@@ -1414,14 +1307,6 @@ namespace dmShaderc
         }
         prepared_hlsl_source.Begin()[raw_hlsl->m_Data.Size()] = '\0';
 
-        if (options->m_HLSLMoveSVPositionToFront && !MoveSVPositionStructMemberToFront(prepared_hlsl_source))
-        {
-            goto cleanup;
-        }
-
-
-
-
         const uint32_t prepared_hlsl_source_size = prepared_hlsl_source.Size() > 0 ? prepared_hlsl_source.Size() - 1 : 0;
         D3D12_SHADER_DESC shaderDesc;
         // Step 1: Reflection pass with D3DCompiler to build deterministic resource mappings.
@@ -1867,6 +1752,7 @@ namespace dmShaderc
         patched_blob->Release();
         return true;
     }
+
 
     HLSLRootSignature* HLSLMergeRootSignatures(ShaderCompileResult* shaders, uint32_t shaders_size)
     {

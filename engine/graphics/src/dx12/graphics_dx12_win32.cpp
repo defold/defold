@@ -33,6 +33,7 @@ static void SetupDX12Context(const ContextParams& params, DX12Context* context)
     context->m_BaseContext.m_Window                  = params.m_Window;
     context->m_BaseContext.m_Width                   = params.m_Width;
     context->m_BaseContext.m_Height                  = params.m_Height;
+    context->m_SwapInterval                         = params.m_SwapInterval;
     context->m_UseValidationLayers     = params.m_UseValidationLayers;
     SetAllContextFeaturesSupported(&context->m_BaseContext);
 
@@ -85,6 +86,27 @@ static IDXGIAdapter1* CreateDeviceAdapter(IDXGIFactory4* dxgiFactory)
     return adapter;
 }
 
+static bool DX12IsTearingSupported(IDXGIFactory4* factory)
+{
+    if (!factory)
+    {
+        return false;
+    }
+
+    IDXGIFactory5* factory5 = 0;
+    HRESULT hr = factory->QueryInterface(IID_PPV_ARGS(&factory5));
+    if (FAILED(hr) || !factory5)
+    {
+        return false;
+    }
+
+    BOOL allow_tearing = FALSE;
+    hr = factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allow_tearing, sizeof(allow_tearing));
+    factory5->Release();
+
+    return SUCCEEDED(hr) && allow_tearing;
+}
+
 static void SetupSampleDesc(DXGI_SAMPLE_DESC* sample_desc)
 {
     // Note: These must be 1 and 0 - for MSAA we will render to an offscreen texture that is multisampled
@@ -112,6 +134,7 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     }
 
     IDXGIFactory4* factory = CreateDXGIFactory();
+    context->m_AllowTearing = DX12IsTearingSupported(factory);
     IDXGIAdapter1* adapter = CreateDeviceAdapter(factory);
 
     hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&context->m_Device));
@@ -144,9 +167,11 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     swap_chain_desc.OutputWindow         = dmPlatform::GetWindowsHWND(context->m_BaseContext.m_Window);
     swap_chain_desc.SampleDesc           = sample_desc;
     swap_chain_desc.Windowed             = true;
+    swap_chain_desc.Flags               = context->m_AllowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
     IDXGISwapChain* swap_chain_tmp = 0;
-    factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
+    hr = factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
+    CHECK_HR_ERROR(hr);
     context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
 
     factory->Release();
@@ -234,7 +259,9 @@ void DX12NativeBeginFrame(DX12Context* context)
 
 void DX12NativeEndFrame(DX12Context* context)
 {
-    HRESULT hr = context->m_SwapChain->Present(0, 0);
+    const uint32_t sync_interval = context->m_SwapInterval > 4 ? 4 : context->m_SwapInterval;
+    const uint32_t present_flags = sync_interval == 0 && context->m_AllowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0;
+    HRESULT hr = context->m_SwapChain->Present(sync_interval, present_flags);
     CHECK_HR_ERROR(hr);
 }
 

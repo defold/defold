@@ -240,25 +240,16 @@ public class ShaderCompilePipeline {
         return null;
     }
 
-    private boolean fragmentShaderUsesFragCoordXY() {
-        ShaderModule fragmentModule = getShaderModule(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
-        if (fragmentModule == null || fragmentModule.desc.source == null) {
-            return false;
-        }
-        String source = fragmentModule.desc.source;
-        return source.contains("gl_FragCoord.xy") ||
-               source.contains("gl_FragCoord.yx") ||
-               source.contains("gl_FragCoord.xyz") ||
-               source.contains("gl_FragCoord.xyw") ||
-               source.contains("gl_FragCoord.x");
-    }
-
     protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
-        return generateCrossCompiledShader(shaderType, shaderLanguage, versionOut, null);
+        return generateCrossCompiledShader(shaderType, shaderLanguage, versionOut, null, false);
     }
 
 // TODO: Try to remove the very language specific rootSignatureOverride
     protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut, String rootSignatureOverride) {
+        return generateCrossCompiledShader(shaderType, shaderLanguage, versionOut, rootSignatureOverride, false);
+    }
+
+    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) {
 
         long compiler = 0;
 
@@ -293,9 +284,6 @@ public class ShaderCompilePipeline {
             shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
             // Keep graphics-stage interface variables intact for HLSL so VS->PS linkage stays stable.
             opts.removeUnusedVariables = 0;
-            if (fragmentShaderUsesFragCoordXY()) {
-                opts.hLSLMoveSVPositionToFront = 1;
-            }
         }
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
@@ -310,6 +298,7 @@ public class ShaderCompilePipeline {
         opts.externalCompilerPath = this.options.externalToolPath;
         opts.externalCompilerArgs = this.options.externalToolArgs;
         opts.rootSignatureOverride = rootSignatureOverride;
+        opts.hLSLMoveSVPositionToFront = (byte) (hLSLMoveSVPositionToFront ? 1 : 0);
 
         Shaderc.ShaderCompileResult result = ShadercJni.Compile(module.spirvContext, compiler, opts);
         ShadercJni.DeleteShaderCompiler(compiler);
@@ -617,11 +606,24 @@ public class ShaderCompilePipeline {
     }
 
     public Shaderc.ShaderCompileResult crossCompileWithRootSignature(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride) throws IOException, CompileExceptionError {
+        return crossCompileWithRootSignature(shaderType, shaderLanguage, rootSignatureOverride, false);
+    }
+
+    public Shaderc.ShaderCompileResult crossCompileWithRootSignature(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws IOException, CompileExceptionError {
         assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
-        return crossCompile(shaderType, shaderLanguage, rootSignatureOverride);
+        return crossCompile(shaderType, shaderLanguage, rootSignatureOverride, hLSLMoveSVPositionToFront);
+    }
+
+    public Shaderc.ShaderCompileResult crossCompileWithHLSLSVPositionFirst(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
+        assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50);
+        return crossCompile(shaderType, shaderLanguage, null, true);
     }
 
     private Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride) throws IOException, CompileExceptionError {
+        return crossCompile(shaderType, shaderLanguage, rootSignatureOverride, false);
+    }
+
+    private Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws IOException, CompileExceptionError {
         int version = ShaderLanguageToVersion(shaderLanguage);
 
         ShaderModule module = getShaderModule(shaderType);
@@ -646,7 +648,7 @@ public class ShaderCompilePipeline {
             result.data = FileUtils.readFileToByteArray(fileCrossCompiled);
             return result;
         } else if (CanBeCrossCompiled(shaderLanguage)) {
-            Shaderc.ShaderCompileResult result = generateCrossCompiledShader(shaderType, shaderLanguage, version, rootSignatureOverride);
+            Shaderc.ShaderCompileResult result = generateCrossCompiledShader(shaderType, shaderLanguage, version, rootSignatureOverride, hLSLMoveSVPositionToFront);
             if (result == null) {
                 throw new CompileExceptionError("Cross-compilation of shader type: " + shaderType + ", to language: " + shaderLanguage + " failed, reason: shader compiler returned null result");
             }
