@@ -639,8 +639,8 @@
 
 (def dx12-windows-toggles
   (concat
-    (libs-toggles dx12-windows ["graphics_dx12"])
-    (generic-contains-toggles dx12-windows :libs ["D3D12" "DXGI" "d3dcompiler"])
+    (generic-contains-toggles dx12-windows :engineLibs ["graphics_dx12"])
+    (generic-contains-toggles dx12-windows :libs ["d3d12" "dxgi" "d3dcompiler"])
     (generic-contains-toggles dx12-windows :symbols ["GraphicsAdapterDX12"])))
 
 (def exclude-open-gl-windows-toggles
@@ -661,7 +661,7 @@
 (def exclude-dx12-windows-toggles
   (concat
     (exclude-libs-toggles dx12-windows ["graphics_dx12"])
-    (generic-contains-toggles dx12-windows :excludeLibs ["D3D12" "DXGI" "d3dcompiler"])
+    (generic-contains-toggles dx12-windows :excludeLibs ["d3d12" "dxgi" "d3dcompiler"])
     (generic-contains-toggles dx12-windows :excludeSymbols ["GraphicsAdapterDX12"])))
 
 (def graphics-setting-windows

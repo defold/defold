@@ -210,7 +210,7 @@ function(defold_target_link_graphics target platform)
     # DirectX 12
     unset(DX12)
     if(_PLAT_OS STREQUAL "win32")
-        set(DX12 D3D12.lib;DXGI.lib;d3dcompiler.lib)
+        set(DX12 d3d12.lib;dxgi.lib;d3dcompiler.lib)
     endif()
 
     # Metal

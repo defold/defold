@@ -326,9 +326,10 @@
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-windows :dx12)
           context (get-in manifest [:platforms :x86_64-win32 :context])]
       (is (= :dx12 (app-manifest/get-setting-value manifest app-manifest/graphics-setting-windows)))
-      (is (some #{"graphics_dx12"} (:libs context)))
-      (is (some #{"D3D12"} (:libs context)))
-      (is (some #{"DXGI"} (:libs context)))
+      (is (some #{"graphics_dx12"} (:engineLibs context)))
+      (is (not-any? #{"graphics_dx12"} (:libs context)))
+      (is (some #{"d3d12"} (:libs context)))
+      (is (some #{"dxgi"} (:libs context)))
       (is (some #{"d3dcompiler"} (:libs context)))
       (is (some #{"GraphicsAdapterDX12"} (:symbols context)))
       (is (some #{"graphics"} (:excludeLibs context)))
@@ -340,6 +341,7 @@
   (testing "DX12 choices keep 32-bit Windows on its OpenGL default"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-windows :dx12)
           context (get-in manifest [:platforms :x86-win32 :context])]
+      (is (not-any? #{"graphics_dx12"} (:engineLibs context)))
       (is (not-any? #{"graphics_dx12"} (:libs context)))
       (is (not-any? #{"GraphicsAdapterDX12"} (:symbols context)))
       (is (not-any? #{"graphics"} (:excludeLibs context)))
@@ -351,9 +353,10 @@
                          (app-manifest/set-setting-value app-manifest/graphics-setting-windows selection))
             context (get-in manifest [:platforms :x86_64-win32 :context])]
         (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-windows)))
+        (is (not-any? #{"graphics_dx12"} (:engineLibs context)))
         (is (not-any? #{"graphics_dx12"} (:libs context)))
-        (is (not-any? #{"D3D12"} (:libs context)))
-        (is (not-any? #{"DXGI"} (:libs context)))
+        (is (not-any? #{"d3d12"} (:libs context)))
+        (is (not-any? #{"dxgi"} (:libs context)))
         (is (not-any? #{"d3dcompiler"} (:libs context)))
         (is (not-any? #{"GraphicsAdapterDX12"} (:symbols context)))))))
   (testing "Generic graphics changes do not clear Windows graphics"

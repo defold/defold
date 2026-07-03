@@ -33,7 +33,7 @@ def configure(conf):
                      jni_outdir     = make_path('./jni'))
 
     if conf.env.PLATFORM in ('x86_64-win32', 'win32'):
-        conf.env.append_value('LINKFLAGS', ['d3dcompiler.lib', 'uuid.lib', 'dxcompiler.lib', 'D3D12.lib', 'DXGI.lib'])
+        conf.env.append_value('LINKFLAGS', ['d3dcompiler.lib', 'uuid.lib', 'dxcompiler.lib', 'd3d12.lib', 'dxgi.lib'])
 
 def build(bld):
     # We only need this library in the editor and bob

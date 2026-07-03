@@ -55,7 +55,7 @@ if(SHADERC_IS_DESKTOP)
     list(APPEND SHADERC_DEFINES DM_BINARY_HLSL_SUPPORTED)
     list(APPEND SHADERC_CORE_SOURCES "${SHADERC_SRC_DIR}/shaderc_hlsl.cpp")
     list(APPEND SHADERC_EXTRA_INCLUDES "${DEFOLD_EXT_INCLUDE_DIR}/directx")
-    list(APPEND SHADERC_EXTRA_LIBS d3dcompiler.lib uuid.lib dxcompiler.lib D3D12.lib DXGI.lib)
+    list(APPEND SHADERC_EXTRA_LIBS d3dcompiler.lib uuid.lib dxcompiler.lib d3d12.lib dxgi.lib)
   endif()
 
   set(SHADERC_JAVA_DIR "${CMAKE_CURRENT_BINARY_DIR}/java")

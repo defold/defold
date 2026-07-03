@@ -116,8 +116,8 @@ context:
                 "tremolo", "libtremolo.lib",
                 "vpx", "vpx.lib",
                 "vulkan-1", "vulkan-1.lib",
-                "D3D12", "D3D12.lib",
-                "DXGI", "DXGI.lib",
+                "d3d12", "d3d12.lib", "D3D12", "D3D12.lib",
+                "dxgi", "dxgi.lib", "DXGI", "DXGI.lib",
                 "d3dcompiler", "d3dcompiler.lib"]
     allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "AudioDecoderOpus", "GraphicsAdapterWebGPU",
                     "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterMetal", "GraphicsAdapterDX12", "GraphicsAdapterNull",
