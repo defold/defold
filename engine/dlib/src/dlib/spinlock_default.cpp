@@ -12,32 +12,29 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_SPINLOCKTYPES_MACH_H
-#define DM_SPINLOCKTYPES_MACH_H
+#include "spinlock.h"
 
-#include <libkern/OSAtomic.h>
 namespace dmSpinlock
 {
-    typedef OSSpinLock Spinlock;
-
-    static inline void Create(Spinlock* lock)
+    void Create(Spinlock* lock)
     {
-        *lock = 0;
+        lock->m_Handle = 0;
+        dmAtomicStore32(&lock->m_Lock, 0);
     }
 
-    static inline void Destroy(Spinlock* lock)
+    void Destroy(Spinlock* lock)
     {
+        (void) lock;
     }
 
-    static inline void Lock(Spinlock* lock)
+    void Lock(Spinlock* lock)
     {
-        OSSpinLockLock(lock);
+        while (dmAtomicCompareStore32(&lock->m_Lock, 1, 0) != 0) {
+        }
     }
 
-    static inline void Unlock(Spinlock* lock)
+    void Unlock(Spinlock* lock)
     {
-        OSSpinLockUnlock(lock);
+        dmAtomicStore32(&lock->m_Lock, 0);
     }
 }
-
-#endif

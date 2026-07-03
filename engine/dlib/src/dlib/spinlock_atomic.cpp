@@ -12,21 +12,29 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_SPINLOCKTYPES_H
-#define DMSDK_SPINLOCKTYPES_H
+#include "spinlock.h"
 
-#if defined(DM_PLATFORM_VENDOR)
-#include "spinlocktypes_vendor.h"
-#elif defined(_MSC_VER) || defined(__EMSCRIPTEN__)
-#include "spinlocktypes_atomic.h"
-#elif defined(ANDROID)
-#include "spinlocktypes_android.h"
-#elif defined(__linux__)
-#include "spinlocktypes_pthread.h"
-#elif defined(__MACH__)
-#include "spinlocktypes_mach.h"
-#else
-#error "Unsupported platform"
-#endif
+namespace dmSpinlock
+{
+    void Create(Spinlock* lock)
+    {
+        lock->m_Handle = 0;
+        dmAtomicStore32(&lock->m_Lock, 0);
+    }
 
-#endif // DMSDK_SPINLOCKTYPES_H
+    void Destroy(Spinlock* lock)
+    {
+        (void) lock;
+    }
+
+    void Lock(Spinlock* lock)
+    {
+        while (dmAtomicCompareStore32(&lock->m_Lock, 1, 0) != 0) {
+        }
+    }
+
+    void Unlock(Spinlock* lock)
+    {
+        dmAtomicStore32(&lock->m_Lock, 0);
+    }
+}

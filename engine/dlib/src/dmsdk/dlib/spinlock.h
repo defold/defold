@@ -25,28 +25,43 @@
  * @language C++
  */
 
-#include <dmsdk/dlib/spinlocktypes.h>
+#include <dmsdk/dlib/atomic.h>
 
 namespace dmSpinlock
 {
     /*# Spinlock type definition
      *
      * ```cpp
-     * typedef <..native type..> Spinlock;
+     * struct Spinlock;
      * ```
      *
      * @typedef
      * @name dmSpinlock::Spinlock
      *
      */
+    struct Spinlock
+    {
+        void*          m_Handle;
+        int32_atomic_t m_Lock;
+    };
 
-    /*# initalize spinlock.
+    /*# initialize spinlock.
      *
      * Initialize a Spinlock
      *
-     * @name dmSpinlock::Init
+     * @name dmSpinlock::Create
      * @param spinlock [type:dmSpinlock::Spinlock*] spinlock to initialize.
      */
+    void Create(Spinlock* lock);
+
+    /*# destroy spinlock.
+     *
+     * Destroy a Spinlock
+     *
+     * @name dmSpinlock::Destroy
+     * @param spinlock [type:dmSpinlock::Spinlock*] spinlock to destroy.
+     */
+    void Destroy(Spinlock* lock);
 
     /*# lock spinlock.
      *
@@ -55,6 +70,7 @@ namespace dmSpinlock
      * @name dmSpinlock::Lock
      * @param spinlock [type:dmSpinlock::Spinlock*] spinlock to lock.
      */
+    void Lock(Spinlock* lock);
 
     /*# unlock spinlock.
      *
@@ -63,6 +79,7 @@ namespace dmSpinlock
      * @name dmSpinlock::Unlock
      * @param spinlock [type:dmSpinlock::Spinlock*] spinlock to unlock.
      */
+    void Unlock(Spinlock* lock);
 
     /*# macro for using a spinlock during a scope
      *
