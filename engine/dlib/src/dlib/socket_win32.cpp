@@ -17,13 +17,29 @@
 
 #include <dmsdk/dlib/log.h>
 
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#include <iphlpapi.h>
+
 #include <assert.h>
 #include <malloc.h> // malloc/free
 #include <stdlib.h> // wcstombs
 #include <string.h>
 
+typedef int socklen_t;
+
 namespace dmSocket
 {
+    int GetSocketLastError()
+    {
+        return WSAGetLastError();
+    }
+
+    int GetSocketInterruptedError()
+    {
+        return WSAEINTR;
+    }
+
     void GetIfAddresses(IfAddr* addresses, uint32_t addresses_count, uint32_t* count)
     {
         *count = 0;
@@ -117,7 +133,7 @@ namespace dmSocket
         WORD    version_requested = MAKEWORD(2, 2);
         WSADATA wsa_data;
         int     result = WSAStartup(version_requested, &wsa_data);
-        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     Result PlatformFinalize()
@@ -203,8 +219,8 @@ namespace dmSocket
             return ss.iAddressFamily == AF_INET;
         }
         dmLogError("Failed to retrieve address family (%d): %s",
-                   NATIVETORESULT(DM_SOCKET_ERRNO),
-                   ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
+                   NATIVETORESULT(DM_SOCKET_ERRNO()),
+                   ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO())));
 
         return false;
     }
@@ -220,8 +236,8 @@ namespace dmSocket
         }
 
         dmLogError("Failed to retrieve address family (%d): %s",
-                   NATIVETORESULT(DM_SOCKET_ERRNO),
-                   ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO)));
+                   NATIVETORESULT(DM_SOCKET_ERRNO()),
+                   ResultToString(NATIVETORESULT(DM_SOCKET_ERRNO())));
         return false;
     }
 
@@ -272,7 +288,7 @@ namespace dmSocket
             return RESULT_OK;
         }
 
-        int result = DM_SOCKET_ERRNO;
+        int result = DM_SOCKET_ERRNO();
         return NATIVETORESULT(result);
     }
 
@@ -280,7 +296,7 @@ namespace dmSocket
     {
         int on = (int)option;
         int ret = setsockopt(socket, level, name, (char*)&on, sizeof(on));
-        return ret >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return ret >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     Result SetReuseAddress(Socket socket, bool reuse)
@@ -320,7 +336,7 @@ namespace dmSocket
             return RESULT_AFNOSUPPORT;
         }
 
-        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     Result SetMulticastIf(Socket socket, Address address)
@@ -347,7 +363,7 @@ namespace dmSocket
             return RESULT_AFNOSUPPORT;
         }
 
-        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     Result Delete(Socket socket)
@@ -357,7 +373,7 @@ namespace dmSocket
             return RESULT_BADF;
         }
         int result = closesocket(socket);
-        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     int GetFD(Socket socket)
@@ -393,7 +409,7 @@ namespace dmSocket
         }
 
         *accept_socket = result;
-        return result >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return result >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     Result Bind(Socket socket, Address address, int port)
@@ -427,7 +443,7 @@ namespace dmSocket
             return RESULT_AFNOSUPPORT;
         }
 
-        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     Result Connect(Socket socket, Address address, int port)
@@ -461,9 +477,9 @@ namespace dmSocket
             return RESULT_AFNOSUPPORT;
         }
 
-        if (result == -1 && !((NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_INPROGRESS) || (NATIVETORESULT(DM_SOCKET_ERRNO) == RESULT_WOULDBLOCK)))
+        if (result == -1 && !((NATIVETORESULT(DM_SOCKET_ERRNO()) == RESULT_INPROGRESS) || (NATIVETORESULT(DM_SOCKET_ERRNO()) == RESULT_WOULDBLOCK)))
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NATIVETORESULT(DM_SOCKET_ERRNO());
         }
 
         return RESULT_OK;
@@ -472,7 +488,7 @@ namespace dmSocket
     Result Listen(Socket socket, int backlog)
     {
         int result = listen(socket, backlog);
-        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     static int ShutdownTypeToNative(ShutdownType type)
@@ -494,7 +510,7 @@ namespace dmSocket
         int ret = shutdown(socket, ShutdownTypeToNative(how));
         if (ret < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NATIVETORESULT(DM_SOCKET_ERRNO());
         }
         else
         {
@@ -508,7 +524,7 @@ namespace dmSocket
         int s = send(socket, (const char*)buffer, length, 0);
         if (s < 0)
         {
-            return NativeToResultCompat(DM_SOCKET_ERRNO);
+            return NativeToResultCompat(DM_SOCKET_ERRNO());
         }
         else
         {
@@ -551,7 +567,7 @@ namespace dmSocket
         }
 
         *sent_bytes = result >= 0 ? result : 0;
-        return result >= 0 ? RESULT_OK : NativeToResultCompat(DM_SOCKET_ERRNO);
+        return result >= 0 ? RESULT_OK : NativeToResultCompat(DM_SOCKET_ERRNO());
     }
 
     Result Receive(Socket socket, void* buffer, int length, int* received_bytes)
@@ -561,7 +577,7 @@ namespace dmSocket
 
         if (r < 0)
         {
-            return NativeToResultCompat(DM_SOCKET_ERRNO);
+            return NativeToResultCompat(DM_SOCKET_ERRNO());
         }
         else
         {
@@ -611,7 +627,7 @@ namespace dmSocket
             return RESULT_AFNOSUPPORT;
         }
 
-        return result >= 0 ? RESULT_OK : NativeToResultCompat(DM_SOCKET_ERRNO);
+        return result >= 0 ? RESULT_OK : NativeToResultCompat(DM_SOCKET_ERRNO());
     }
 
     Result GetName(Socket socket, Address* address, uint16_t* port)
@@ -649,7 +665,7 @@ namespace dmSocket
             return RESULT_AFNOSUPPORT;
         }
 
-        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     Result GetHostname(char* hostname, int hostname_length)
@@ -657,7 +673,7 @@ namespace dmSocket
         int r = gethostname(hostname, hostname_length);
         if (hostname_length > 0)
             hostname[hostname_length - 1] = '\0';
-        return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+        return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO());
     }
 
     Result GetLocalAddress(Address* address)
@@ -707,7 +723,7 @@ namespace dmSocket
         }
         else
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NATIVETORESULT(DM_SOCKET_ERRNO());
         }
     }
 
@@ -732,7 +748,7 @@ namespace dmSocket
         int ret = setsockopt(socket, level, name, (char*)&timeval, sizeof(timeval));
         if (ret < 0)
         {
-            return NATIVETORESULT(DM_SOCKET_ERRNO);
+            return NATIVETORESULT(DM_SOCKET_ERRNO());
         }
         else
         {

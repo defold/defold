@@ -271,7 +271,7 @@ namespace dmSocket
         int r = dmFileDescriptor::Wait(&selector->m_Poller, (timeout < 0) ? 0 : timeout);
         if (r < 0)
         {
-            return NativeToResult(__FUNCTION__, __LINE__, DM_SOCKET_ERRNO);
+            return NativeToResult(__FUNCTION__, __LINE__, DM_SOCKET_ERRNO());
         }
         else if(timeout > 0 && r == 0)
         {
