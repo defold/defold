@@ -43,6 +43,7 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
             [editor.defold-project :as project]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
@@ -2374,6 +2375,8 @@
                                           (not align-right)
                                           (assoc :min-width doc-width))]}]}})))}}))))
 
+(node-types/register-node-type-name! CodeEditorView "code")
+
 ;; -----------------------------------------------------------------------------
 
 (defn move! [view-node move-type cursor-type]
@@ -4160,6 +4163,7 @@
         dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas tab)
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :editable editable
+                     :app-view app-view
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
                      :replace-bar replace-bar
