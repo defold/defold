@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "VulkanView.h"
+#include "MetalView.h"
 #import "TextUtil.h"
 #import "AppDelegate.h"
 #import <QuartzCore/CAMetalLayer.h>
@@ -24,9 +24,47 @@ extern _GLFWwin         g_Savewin;
 extern UIWindow*        g_ApplicationWindow;
 extern AppDelegate*     g_ApplicationDelegate;
 
-static VulkanView* 		g_VulkanView = 0;
+static MetalView*        g_MetalView = 0;
 
-@implementation VulkanView
+static CGSize GetDrawableSize(MetalView* view)
+{
+    CGRect view_bounds = view.bounds;
+    CGFloat scale_factor = view.contentScaleFactor;
+
+    if (view_bounds.size.width <= 0.0f || view_bounds.size.height <= 0.0f)
+    {
+        view_bounds = [[UIScreen mainScreen] bounds];
+        scale_factor = [[UIScreen mainScreen] scale];
+    }
+
+    return CGSizeMake(view_bounds.size.width * scale_factor, view_bounds.size.height * scale_factor);
+}
+
+static void UpdateWindowSize(MetalView* view, BOOL notify)
+{
+    CGSize drawable_size = GetDrawableSize(view);
+    const int width = (int)(drawable_size.width + 0.5f);
+    const int height = (int)(drawable_size.height + 0.5f);
+
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    const BOOL changed = _glfwWin.width != width || _glfwWin.height != height;
+    [view setWindowWidth:width];
+    [view setWindowHeight:height];
+    ((CAMetalLayer*)view.layer).drawableSize = drawable_size;
+    _glfwWin.width = width;
+    _glfwWin.height = height;
+
+    if (notify && changed && _glfwWin.windowSizeCallback)
+    {
+        _glfwWin.windowSizeCallback(width, height);
+    }
+}
+
+@implementation MetalView
 
 /** Returns a Metal-compatible layer. */
 +(Class) layerClass {
@@ -36,15 +74,21 @@ static VulkanView* 		g_VulkanView = 0;
 + (BaseView*)createView:(CGRect)bounds recreate:(BOOL)recreate
 {
     CGFloat scaleFactor = [[UIScreen mainScreen] scale];
-    g_VulkanView = [[[VulkanView alloc] initWithFrame: bounds] autorelease];
-    g_VulkanView.contentScaleFactor = scaleFactor;
-    g_VulkanView.layer.contentsScale = scaleFactor;
-    return g_VulkanView;
+    g_MetalView = [[[MetalView alloc] initWithFrame: bounds] autorelease];
+    g_MetalView.contentScaleFactor = scaleFactor;
+    g_MetalView.layer.contentsScale = scaleFactor;
+    return g_MetalView;
 }
 
 // called from initWithFrame
 - (void)setupView
 {
+}
+
+- (void)layoutSubviews
+{
+    [super layoutSubviews];
+    UpdateWindowSize(self, YES);
 }
 
 // called from dealloc
@@ -82,13 +126,7 @@ int  _glfwPlatformOpenWindowVulkan( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
-    CGRect view_bounds = g_VulkanView.bounds;
-
-    [g_VulkanView setWindowWidth:view_bounds.size.width * g_VulkanView.contentScaleFactor];
-    [g_VulkanView setWindowHeight:view_bounds.size.height * g_VulkanView.contentScaleFactor];
-
-    _glfwWin.width = [g_VulkanView getWindowWidth];
-    _glfwWin.height = [g_VulkanView getWindowHeight];
+    UpdateWindowSize(g_MetalView, NO);
 
     _glfwWin.portrait = height > width ? GL_TRUE : GL_FALSE;
 
@@ -98,14 +136,14 @@ int  _glfwPlatformOpenWindowVulkan( int width, int height,
     _glfwWin.pixelFormat = nil;
     _glfwWin.delegate = g_ApplicationDelegate;
 
-    _glfwWin.view = g_VulkanView;
+    _glfwWin.view = g_MetalView;
     _glfwWin.window = g_ApplicationWindow;
 
     // opengl
     _glfwWin.context = nil;
     _glfwWin.aux_context = nil;
 
-	// vulkan
+	// no API
     _glfwWin.clientAPI = GLFW_NO_API;
 
     return GL_TRUE;

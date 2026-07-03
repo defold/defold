@@ -7,6 +7,7 @@ context:
                 "ComponentTypeMesh",
                 "ComponentTypeScript",
                 "ComponentTypeSound",
+                "ComponentTypeLight",
                 "CrashExt",
                 "DefaultSoundDevice",
                 "LiveUpdateExt",
@@ -28,6 +29,7 @@ context:
                 "ResourceTypeScript",
                 "ResourceTypeTTF",
                 "ResourceTypeWav",
+                "ResourceTypeLight",
                 "ScriptBox2DExt",
                 "ScriptFont",
                 "ScriptHttp",
@@ -115,7 +117,7 @@ context:
                     "ProfilerExt", "ProfilerBasic", "ProfilerJS", "ProfilerRemotery", "GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan", "GraphicsAdapterMetal", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt",
                     "ScriptFont", "ResourceTypeFont", "ResourceTypeTTF",
-                    "ResourceTypeOgg", "ResourceTypeWav", "ResourceTypeOpus"]
+                    "ResourceTypeOgg", "ResourceTypeWav", "ResourceTypeOpus", "ResourceTypeLight", "ComponentTypeLight"]
     defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
 
 main: |

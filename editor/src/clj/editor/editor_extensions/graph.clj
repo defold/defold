@@ -412,6 +412,16 @@
     (cond-> ["path"] (textual-resource-node? node-id evaluation-context) (conj "text"))))
 
 (register-property-getter!
+  :editor.view/WorkbenchView
+  (fn WorkbenchView-getter [node-id property evaluation-context]
+    (case property
+      "resource" #(rt/wrap-userdata (g/node-value node-id :resource-node evaluation-context))
+      "dirty" #(g/node-value node-id :dirty evaluation-context)
+      nil))
+  (fn WorkbenchView-lister [_node-id _evaluation-context]
+    ["dirty" "resource"]))
+
+(register-property-getter!
   :editor.tile-source/TileSourceNode
   (fn TileSourceNode-getter [node-id property evaluation-context]
     (case property
