@@ -19,22 +19,22 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- index-arc-tuples [basis graph-id arc-index-key source-or-target-id label]
-  {:pre [(#{:sarcs :tarcs} arc-index-key)]}
+(defn- arc-table-tuples [basis graph-id arc-table-key source-or-target-id label]
+  {:pre [(#{:sarcs :tarcs} arc-table-key)]}
   (ig/arcs->tuples
-    (get-in basis [:graphs graph-id arc-index-key source-or-target-id label])))
+    (get-in basis [:graphs graph-id arc-table-key source-or-target-id label])))
 
-(defn index-source-arcs-by-label [basis graph-id source-id]
+(defn source-arc-tables-by-label [basis graph-id source-id]
   (get-in basis [:graphs graph-id :sarcs source-id]))
 
-(defn index-target-arcs-by-label [basis graph-id target-id]
+(defn target-arc-tables-by-label [basis graph-id target-id]
   (get-in basis [:graphs graph-id :tarcs target-id]))
 
-(defn index-source-arc-tuples [basis graph-id source-id source-label]
-  (index-arc-tuples basis graph-id :sarcs source-id source-label))
+(defn source-arc-table-tuples [basis graph-id source-id source-label]
+  (arc-table-tuples basis graph-id :sarcs source-id source-label))
 
-(defn index-target-arc-tuples [basis graph-id target-id target-label]
-  (index-arc-tuples basis graph-id :tarcs target-id target-label))
+(defn target-arc-table-tuples [basis graph-id target-id target-label]
+  (arc-table-tuples basis graph-id :tarcs target-id target-label))
 
 (defn encache-endpoints! [endpoints]
   (run! #(g/node-value (g/endpoint-node-id %) (g/endpoint-label %))

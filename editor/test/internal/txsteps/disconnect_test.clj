@@ -17,7 +17,8 @@
             [dynamo.graph :as g]
             [internal.graph :as ig]
             [internal.txsteps.helpers :as helpers]
-            [support.test-support :as test-support]))
+            [support.test-support :as test-support]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -40,10 +41,10 @@
                   (is (= [[target-node-id :regular-input]] (g/targets basis source-node-id :property-output)))
                   (is (= [[source-node-id :property-output]] (g/sources basis target-node-id :regular-input))))
 
-                (testing "Internal arc indices."
+                (testing "Internal arc tables."
                   (is (= [[source-node-id :property-output target-node-id :regular-input]]
-                         (helpers/index-source-arc-tuples basis graph-id source-node-id :property-output)
-                         (helpers/index-target-arc-tuples basis graph-id target-node-id :regular-input))))
+                         (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :source-value (g/node-value target-node-id :regular-output evaluation-context)))))))
@@ -56,9 +57,9 @@
                   (is (= [] (g/targets basis source-node-id :property-output)))
                   (is (= [] (g/sources basis target-node-id :regular-input))))
 
-                (testing "Internal arc indices."
-                  (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id source-node-id) :property-output)))
-                  (is (not (contains? (helpers/index-target-arcs-by-label basis graph-id target-node-id) :regular-input))))
+                (testing "Internal arc tables."
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= nil (g/node-value target-node-id :regular-output evaluation-context)))))))]
@@ -98,10 +99,10 @@
                   (is (= [[target-node-id :array-input]] (g/targets basis source-node-id :property-output)))
                   (is (= [[source-node-id :property-output]] (g/sources basis target-node-id :array-input))))
 
-                (testing "Internal arc indices."
+                (testing "Internal arc tables."
                   (is (= [[source-node-id :property-output target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id source-node-id :property-output)
-                         (helpers/index-target-arc-tuples basis graph-id target-node-id :array-input))))
+                         (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:source-value] (g/node-value target-node-id :array-output evaluation-context)))))))
@@ -114,9 +115,9 @@
                   (is (= [] (g/targets basis source-node-id :property-output)))
                   (is (= [] (g/sources basis target-node-id :array-input))))
 
-                (testing "Internal arc indices."
-                  (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id source-node-id) :property-output)))
-                  (is (not (contains? (helpers/index-target-arcs-by-label basis graph-id target-node-id) :array-input))))
+                (testing "Internal arc tables."
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [] (g/node-value target-node-id :array-output evaluation-context)))))))]
@@ -158,14 +159,14 @@
               (is (= [[target-node-id :array-input]] (g/targets basis first-source-node-id :property-output)))
               (is (= [[target-node-id :array-input]] (g/targets basis second-source-node-id :property-output)))
               (is (= [[first-source-node-id :property-output] [second-source-node-id :property-output]] (g/sources basis target-node-id :array-input)))
-              (testing "Internal arc indices."
+              (testing "Internal arc tables."
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/index-source-arc-tuples basis graph-id first-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis graph-id first-source-node-id :property-output)))
                 (is (= [[second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/index-source-arc-tuples basis graph-id second-source-node-id :property-output)))
+                       (helpers/source-arc-table-tuples basis graph-id second-source-node-id :property-output)))
                 (is (= [[first-source-node-id :property-output target-node-id :array-input]
                         [second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/index-target-arc-tuples basis graph-id target-node-id :array-input))))
+                       (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
               (is (= [:first-value :second-value] (g/node-value target-node-id :array-output)))))
 
           ensure-after!
@@ -176,11 +177,11 @@
               (is (= [] (g/targets basis first-source-node-id :property-output)))
               (is (= [[target-node-id :array-input]] (g/targets basis second-source-node-id :property-output)))
               (is (= [[second-source-node-id :property-output]] (g/sources basis target-node-id :array-input)))
-              (testing "Internal arc indices."
-                (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id first-source-node-id) :property-output)))
+              (testing "Internal arc tables."
+                (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id first-source-node-id :property-output)))
                 (is (= [[second-source-node-id :property-output target-node-id :array-input]]
-                       (helpers/index-source-arc-tuples basis graph-id second-source-node-id :property-output)
-                       (helpers/index-target-arc-tuples basis graph-id target-node-id :array-input))))
+                       (helpers/source-arc-table-tuples basis graph-id second-source-node-id :property-output)
+                       (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
               (is (= [:second-value] (g/node-value target-node-id :array-output)))))]
 
       (testing "Before transact."
@@ -242,13 +243,13 @@
                   (is (= [[shadowing-source-node-id :property-output]] (g/sources basis first-order-override-target-node-id :regular-input)))
                   (is (= [[shadowing-source-node-id :property-output]] (g/sources basis second-order-override-target-node-id :regular-input))))
 
-                (testing "Internal arc indices."
+                (testing "Internal arc tables."
                   (is (= [[initial-source-node-id :property-output original-target-node-id :regular-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-node-id :property-output)
-                         (helpers/index-target-arc-tuples basis graph-id original-target-node-id :regular-input)))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :regular-input)))
                   (is (= [[shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input]]
-                         (helpers/index-source-arc-tuples basis graph-id shadowing-source-node-id :property-output)
-                         (helpers/index-target-arc-tuples basis graph-id first-order-override-target-node-id :regular-input))))
+                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -273,12 +274,12 @@
                   (is (= [[initial-source-node-id :property-output]] (g/sources basis first-order-override-target-node-id :regular-input)))
                   (is (= [[initial-source-node-id :property-output]] (g/sources basis second-order-override-target-node-id :regular-input))))
 
-                (testing "Internal arc indices."
+                (testing "Internal arc tables."
                   (is (= [[initial-source-node-id :property-output original-target-node-id :regular-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-node-id :property-output)
-                         (helpers/index-target-arc-tuples basis graph-id original-target-node-id :regular-input)))
-                  (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id shadowing-source-node-id) :property-output)))
-                  (is (not (contains? (helpers/index-target-arcs-by-label basis graph-id first-order-override-target-node-id) :regular-input))))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :regular-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id shadowing-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :regular-input))))
 
                 (testing "Output values."
                   (is (= :initial-source-value (g/node-value original-target-node-id :regular-output evaluation-context)))
@@ -348,17 +349,17 @@
                   (is (= [[shadowing-source-node-id :property-output]] (g/sources basis first-order-override-target-node-id :array-input)))
                   (is (= [[shadowing-source-node-id :property-output]] (g/sources basis second-order-override-target-node-id :array-input))))
 
-                (testing "Internal arc indices."
+                (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-target-arc-tuples basis graph-id original-target-node-id :array-input)))
+                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :array-input)))
                   (is (= [[shadowing-source-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id shadowing-source-node-id :property-output)
-                         (helpers/index-target-arc-tuples basis graph-id first-order-override-target-node-id :array-input))))
+                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -385,16 +386,16 @@
                   (is (= [[initial-source-one-node-id :property-output] [initial-source-two-node-id :property-output]] (g/sources basis first-order-override-target-node-id :array-input)))
                   (is (= [[initial-source-one-node-id :property-output] [initial-source-two-node-id :property-output]] (g/sources basis second-order-override-target-node-id :array-input))))
 
-                (testing "Internal arc indices."
+                (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-target-arc-tuples basis graph-id original-target-node-id :array-input)))
-                  (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id shadowing-source-node-id) :property-output)))
-                  (is (not (contains? (helpers/index-target-arcs-by-label basis graph-id first-order-override-target-node-id) :array-input))))
+                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :array-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id shadowing-source-node-id :property-output)))
+                  (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -465,21 +466,21 @@
                   (is (= [[shadowing-source-one-node-id :property-output] [shadowing-source-two-node-id :property-output]] (g/sources basis first-order-override-target-node-id :array-input)))
                   (is (= [[shadowing-source-one-node-id :property-output] [shadowing-source-two-node-id :property-output]] (g/sources basis second-order-override-target-node-id :array-input))))
 
-                (testing "Internal arc indices."
+                (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-target-arc-tuples basis graph-id original-target-node-id :array-input)))
+                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :array-input)))
                   (is (= [[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id shadowing-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-one-node-id :property-output)))
                   (is (= [[shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id shadowing-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-two-node-id :property-output)))
                   (is (= [[shadowing-source-one-node-id :property-output first-order-override-target-node-id :array-input]
                           [shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/index-target-arc-tuples basis graph-id first-order-override-target-node-id :array-input))))
+                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :array-input))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -508,18 +509,18 @@
                   (is (= [[shadowing-source-two-node-id :property-output]] (g/sources basis first-order-override-target-node-id :array-input)))
                   (is (= [[shadowing-source-two-node-id :property-output]] (g/sources basis second-order-override-target-node-id :array-input))))
 
-                (testing "Internal arc indices."
+                (testing "Internal arc tables."
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-one-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-one-node-id :property-output)))
                   (is (= [[initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id initial-source-two-node-id :property-output)))
+                         (helpers/source-arc-table-tuples basis graph-id initial-source-two-node-id :property-output)))
                   (is (= [[initial-source-one-node-id :property-output original-target-node-id :array-input]
                           [initial-source-two-node-id :property-output original-target-node-id :array-input]]
-                         (helpers/index-target-arc-tuples basis graph-id original-target-node-id :array-input)))
+                         (helpers/target-arc-table-tuples basis graph-id original-target-node-id :array-input)))
                   (is (= [[shadowing-source-two-node-id :property-output first-order-override-target-node-id :array-input]]
-                         (helpers/index-source-arc-tuples basis graph-id shadowing-source-two-node-id :property-output)
-                         (helpers/index-target-arc-tuples basis graph-id first-order-override-target-node-id :array-input)))
-                  (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id shadowing-source-one-node-id) :property-output))))
+                         (helpers/source-arc-table-tuples basis graph-id shadowing-source-two-node-id :property-output)
+                         (helpers/target-arc-table-tuples basis graph-id first-order-override-target-node-id :array-input)))
+                  (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id shadowing-source-one-node-id :property-output))))
 
                 (testing "Output values."
                   (is (= [:initial-source-one-value :initial-source-two-value] (g/node-value original-target-node-id :array-output evaluation-context)))
@@ -592,11 +593,11 @@
                        second-order-override-indirectly-owned-node-id}
                      (set (g/node-ids graph))))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/index-source-arc-tuples basis graph-id indirectly-owned-node-id :property-output)
-                     (helpers/index-target-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
               (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/index-source-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
-                     (helpers/index-target-arc-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))))
+                     (helpers/source-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
+                     (helpers/target-arc-table-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))))
 
           ensure-after!
           (fn ensure-after! []
@@ -605,10 +606,10 @@
               (is (empty? (g/overrides basis directly-owned-node-id)))
               (is (empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/index-source-arc-tuples basis graph-id indirectly-owned-node-id :property-output)
-                     (helpers/index-target-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
-              (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id directly-owned-node-id) :regular-cascade-delete-output)))
-              (is (not (contains? (helpers/index-target-arcs-by-label basis graph-id owner-node-id) :regular-cascade-delete-input)))
+                     (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
+              (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)))
+              (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
               (is (= #{indirectly-owned-node-id
                        directly-owned-node-id
                        owner-node-id

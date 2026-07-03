@@ -14,16 +14,12 @@
 
 (ns internal.graph.generator
   "test.check generator to create a randomly populated graph"
-  (:require [clojure.test.check :as tc]
-            [clojure.test.check.clojure-test :refer [defspec]]
+  (:require [clojure.test :refer :all]
             [clojure.test.check.generators :as gen]
-            [clojure.test.check.properties :as prop]
-            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.node :as in])
-  (:import [java.util.concurrent.atomic AtomicLong]))
+            [internal.node :as in]))
 
 (def min-node-count 80)
 (def max-node-count 100)
@@ -99,15 +95,15 @@
 (defn- populate-arcs
   [new-arcs]
   (mapcat (fn [a]
-            `[(ig/connect-target ~@(flatten a))
-              (ig/connect-source ~@(flatten a))])
+            `[(ig/connect-target (gt/->Arc ~@(flatten a)))
+              (ig/connect-source (gt/->Arc ~@(flatten a)))])
           new-arcs))
 
 (defn- remove-arcs
   [dead-arcs]
   (mapcat (fn [a]
-            `[(ig/disconnect-target ~@(flatten a))
-              (ig/disconnect-source ~@(flatten a))])
+            `[(ig/disconnect-target (gt/->Arc ~@(flatten a)))
+              (ig/disconnect-source (gt/->Arc ~@(flatten a)))])
           dead-arcs))
 
 (defn subselect
@@ -153,4 +149,3 @@
 
   (= ((make-random-graph-builder)) ((make-random-graph-builder))))
   ;; => false
-

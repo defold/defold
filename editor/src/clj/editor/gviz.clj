@@ -56,7 +56,9 @@
     (:name @t)))
 
 (defn- flatten-arcs [arcs]
-  (mapcat (fn [[nid label-arc]] (mapcat second label-arc)) arcs))
+  (mapcat (fn [[_node-id label->arc-table]]
+            (mapcat (comp vals val) label->arc-table))
+          arcs))
 
 (defn- nodes->arcs [basis nodes]
   (let [nodes (set nodes)]

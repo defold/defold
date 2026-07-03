@@ -64,13 +64,13 @@
                 (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis owner-node-id :regular-cascade-delete-input)))
                 (is (= [[indirectly-owned-node-id :property-output]] (g/sources basis directly-owned-node-id :regular-cascade-delete-input))))
 
-              (testing "Internal arc indices."
+              (testing "Internal arc tables."
                 (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                       (helpers/index-source-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
-                       (helpers/index-target-arc-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
+                       (helpers/source-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
+                       (helpers/target-arc-table-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
                 (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                       (helpers/index-source-arc-tuples basis graph-id indirectly-owned-node-id :property-output)
-                       (helpers/index-target-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input))))))
+                       (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
+                       (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input))))))
 
           ensure-after!
           (fn ensure-after! []
@@ -118,17 +118,17 @@
                 (is (= [[first-order-override-directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis first-order-override-owner-node-id :regular-cascade-delete-input)))
                 (is (= [[first-order-override-indirectly-owned-node-id :property-output]] (g/sources basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
 
-              (testing "Internal arc indices."
+              (testing "Internal arc tables."
                 (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                       (helpers/index-source-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
-                       (helpers/index-target-arc-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
+                       (helpers/source-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
+                       (helpers/target-arc-table-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
                 (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                       (helpers/index-source-arc-tuples basis graph-id indirectly-owned-node-id :property-output)
-                       (helpers/index-target-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
-                (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id first-order-override-directly-owned-node-id) :regular-cascade-delete-output)))
-                (is (not (contains? (helpers/index-target-arcs-by-label basis graph-id first-order-override-owner-node-id) :regular-cascade-delete-input)))
-                (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id first-order-override-indirectly-owned-node-id) :property-output)))
-                (is (not (contains? (helpers/index-target-arcs-by-label basis graph-id first-order-override-directly-owned-node-id) :regular-cascade-delete-input))))))]
+                       (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
+                       (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
+                (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id first-order-override-owner-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id first-order-override-indirectly-owned-node-id :property-output)))
+                (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id first-order-override-directly-owned-node-id :regular-cascade-delete-input))))))]
 
       (testing "Before transact."
         (ensure-before!))
@@ -193,13 +193,13 @@
                 (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis owner-node-id :regular-cascade-delete-input)))
                 (is (= [[indirectly-owned-node-id :property-output]] (g/sources basis directly-owned-node-id :regular-cascade-delete-input))))
 
-              (testing "Internal arc indices."
+              (testing "Internal arc tables."
                 (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                       (helpers/index-source-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
-                       (helpers/index-target-arc-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
+                       (helpers/source-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
+                       (helpers/target-arc-table-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
                 (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                       (helpers/index-source-arc-tuples basis graph-id indirectly-owned-node-id :property-output)
-                       (helpers/index-target-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input))))))
+                       (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
+                       (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input))))))
 
           ensure-after!
           (fn ensure-after! []
@@ -242,16 +242,16 @@
                 (is (= [[first-order-override-directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis first-order-override-owner-node-id :regular-cascade-delete-input)))
                 (is (= [[indirectly-owned-node-id :property-output]] (g/sources basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
 
-              (testing "Internal arc indices."
+              (testing "Internal arc tables."
                 (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                       (helpers/index-source-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
-                       (helpers/index-target-arc-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
+                       (helpers/source-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-output)
+                       (helpers/target-arc-table-tuples basis graph-id owner-node-id :regular-cascade-delete-input)))
                 (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                       (helpers/index-source-arc-tuples basis graph-id indirectly-owned-node-id :property-output)
-                       (helpers/index-target-arc-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
-                (is (not (contains? (helpers/index-source-arcs-by-label basis graph-id first-order-override-directly-owned-node-id) :regular-cascade-delete-output)))
-                (is (not (contains? (helpers/index-target-arcs-by-label basis graph-id first-order-override-owner-node-id) :regular-cascade-delete-input)))
-                (is (not (contains? (helpers/index-target-arcs-by-label basis graph-id first-order-override-directly-owned-node-id) :regular-cascade-delete-input))))))]
+                       (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
+                       (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
+                (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id first-order-override-owner-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (helpers/target-arc-table-tuples basis graph-id first-order-override-directly-owned-node-id :regular-cascade-delete-input))))))]
 
       (testing "Before transact."
         (ensure-before!))

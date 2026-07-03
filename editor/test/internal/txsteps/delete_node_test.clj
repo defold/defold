@@ -470,6 +470,79 @@
                 [third-source-node-id :property-output]]
                (g/sources (g/now) target-node-id :array-input)))))))
 
+(deftest undo-node-deletion-preserves-empty-arc-table-next-pkid-test
+  (testing "Source arcs."
+    (test-support/with-clean-system
+      (let [graph-id (g/make-graph!)
+
+            [source-node-id
+             first-target-node-id
+             second-target-node-id]
+            (g/tx-nodes-added
+              (g/transact
+                {:undoable false}
+                (g/make-nodes graph-id
+                  [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                   first-target-node-id helpers/ConnectionTargetNode
+                   _second-target-node-id helpers/ConnectionTargetNode]
+                  (g/connect source-node-id :property-output first-target-node-id :regular-input))))]
+
+        (g/transact
+          {:undo-key ::disconnect-first-target}
+          (g/disconnect source-node-id :property-output first-target-node-id :regular-input))
+
+        (g/transact
+          {:undo-key ::delete-source}
+          (g/delete-node source-node-id))
+
+        (g/undo! ::delete-source)
+
+        (g/transact
+          {:undo-key ::connect-second-target}
+          (g/connect source-node-id :property-output second-target-node-id :regular-input))
+
+        (g/undo! ::disconnect-first-target)
+
+        (is (= [[first-target-node-id :regular-input]
+                [second-target-node-id :regular-input]]
+               (g/targets (g/now) source-node-id :property-output))))))
+
+  (testing "Target arcs."
+    (test-support/with-clean-system
+      (let [graph-id (g/make-graph!)
+
+            [first-source-node-id
+             second-source-node-id
+             target-node-id]
+            (g/tx-nodes-added
+              (g/transact
+                {:undoable false}
+                (g/make-nodes graph-id
+                  [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                   _second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                   target-node-id helpers/ConnectionTargetNode]
+                  (g/connect first-source-node-id :property-output target-node-id :array-input))))]
+
+        (g/transact
+          {:undo-key ::disconnect-first-source}
+          (g/disconnect first-source-node-id :property-output target-node-id :array-input))
+
+        (g/transact
+          {:undo-key ::delete-target}
+          (g/delete-node target-node-id))
+
+        (g/undo! ::delete-target)
+
+        (g/transact
+          {:undo-key ::connect-second-source}
+          (g/connect second-source-node-id :property-output target-node-id :array-input))
+
+        (g/undo! ::disconnect-first-source)
+
+        (is (= [[first-source-node-id :property-output]
+                [second-source-node-id :property-output]]
+               (g/sources (g/now) target-node-id :array-input)))))))
+
 (deftest undo-node-deletion-invalidates-restored-source-successors-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)

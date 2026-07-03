@@ -1646,11 +1646,11 @@
              node-id target-id
              override-chain '()
              followed-inputs (in/cascade-deletes (gt/node-type target-node))]
-        (let [arcs-by-input-label (graph-tarcs node-id)
-              explicit-arcs (when arcs-by-input-label
+        (let [arc-tables-by-input-label (graph-tarcs node-id)
+              explicit-arcs (when arc-tables-by-input-label
                               (into []
                                     (comp
-                                      (mapcat arcs-by-input-label)
+                                      (mapcat (comp vals arc-tables-by-input-label))
                                       (filter (fn [^Arc arc]
                                                 (and (= graph-id (gt/node-id->graph-id (.source-id arc)))
                                                      (pred basis arc)))))
