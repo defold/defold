@@ -109,17 +109,22 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void PostProxyErrorMessage(CollectionProxyComponent* proxy, uint32_t code)
+    void PostProxyErrorMessage(uint32_t code, dmMessage::URL* sender, dmMessage::URL* receiver, uintptr_t callback_ref)
     {
-        assert(proxy->m_AsyncLoadAndInitCallbackRef != 0);
-
+        dmLogInfo("PostProxyErrorMessage");
         dmCollectionProxyDDF::ProxyError message;
         message.m_Code = code;
-        dmGameObject::Result result = dmGameObject::PostDDF(&message, &proxy->m_LoadReceiver, &proxy->m_LoadSender, proxy->m_AsyncLoadAndInitCallbackRef, true);
+        dmGameObject::Result result = dmGameObject::PostDDF(&message, sender, receiver, callback_ref, true);
         if (result != dmGameObject::RESULT_OK)
         {
             dmLogWarning("proxy_error could not be posted: %d", result);
+            dmGameObject::PostScriptUnrefMessage(sender, receiver, callback_ref);
         }
+    }
+    void PostProxyErrorMessage(CollectionProxyComponent* proxy, uint32_t code)
+    {
+        assert(proxy->m_AsyncLoadAndInitCallbackRef != 0);
+        PostProxyErrorMessage(code, &proxy->m_LoadReceiver, &proxy->m_LoadSender, proxy->m_AsyncLoadAndInitCallbackRef);
         proxy->m_AsyncLoadAndInitCallbackRef = 0;
     }
 
@@ -157,7 +162,13 @@ namespace dmGameSystem
                 else
                 {
                     dmCollectionProxyDDF::ProxyReady message;
-                    dmGameObject::Result go_result = dmGameObject::PostDDF(&message, &proxy->m_LoadReceiver, &proxy->m_LoadSender, proxy->m_AsyncLoadAndInitCallbackRef, true);
+                    int32_t callback_ref = proxy->m_AsyncLoadAndInitCallbackRef;
+                    dmGameObject::Result go_result = dmGameObject::PostDDF(&message, &proxy->m_LoadReceiver, &proxy->m_LoadSender, callback_ref, true);
+                    if (go_result != dmGameObject::RESULT_OK)
+                    {
+                        dmLogWarning("proxy_ready could not be posted: %d", go_result);
+                        dmGameObject::PostScriptUnrefMessage(&proxy->m_LoadReceiver, &proxy->m_LoadSender, callback_ref);
+                    }
                     proxy->m_AsyncLoadAndInitCallbackRef = 0;
                 }
             }
@@ -170,6 +181,10 @@ namespace dmGameSystem
                     dmLogWarning("proxy_loaded could not be posted: %d", msg_result);
                 }
             }
+        }
+        else if (proxy->m_AsyncLoadAndInitCallbackRef)
+        {
+            PostProxyErrorMessage(proxy, result);
         }
     }
 
@@ -746,6 +761,13 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == COLLECTION_PROXY_ASYNC_LOAD_AND_INIT_HASH)
         {
+            // already async loading the collection, send error and exit early
+            if (proxy->m_AsyncLoadAndInitCallbackRef)
+            {
+                PostProxyErrorMessage(dmGameObject::RESULT_UNKNOWN_ERROR, &params.m_Message->m_Receiver, &params.m_Message->m_Sender, params.m_Message->m_UserData1);
+                return dmGameObject::UPDATE_RESULT_OK;
+            }
+
             bool load_async = true;
             proxy->m_AsyncLoadAndInitCallbackRef = params.m_Message->m_UserData1;
             dmGameObject::Result r = CompCollectionProxyLoadInternal(context, proxy, 0, 0,

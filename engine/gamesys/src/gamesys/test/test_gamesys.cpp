@@ -1409,6 +1409,53 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
     lua_pop(L, 1);
 }
 
+TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const char* go_path = "/collection_proxy/script_load_api.goc";
+    dmhash_t go_hash = dmHashString64("/go");
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool callback1_ready = false;
+    bool callback2_error = false;
+    for (uint32_t i = 0; i < 64; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+
+        lua_getglobal(L, "cp_script_load1_ready");
+        callback1_ready = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        
+        lua_getglobal(L, "cp_script_load2_error");
+        callback2_error = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(callback1_ready);
+    ASSERT_TRUE(callback2_error);
+
+    lua_getglobal(L, "cp_script_load1_error");
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_script_load1_loading_count");
+    ASSERT_GE((int)lua_tointeger(L, -1), 1);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_script_load1_last_progress");
+    ASSERT_NEAR(1.0f, (float)lua_tonumber(L, -1), 0.01f);
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+}
+
 TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadInitialize)
 {
     const char* go_path = "/collection_proxy/set_collection_cpp_cycle_proxy.goc";
