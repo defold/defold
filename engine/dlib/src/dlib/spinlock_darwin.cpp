@@ -31,7 +31,6 @@ namespace dmSpinlock
         assert(native_lock != 0);
         *native_lock = 0;
         lock->m_Handle = native_lock;
-        lock->m_Lock = 0;
     }
 
     void Destroy(Spinlock* lock)

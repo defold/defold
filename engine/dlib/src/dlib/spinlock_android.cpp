@@ -20,7 +20,6 @@ namespace dmSpinlock
 {
     void Create(Spinlock* lock)
     {
-        lock->m_Handle = 0;
         lock->m_Lock = 0;
     }
 

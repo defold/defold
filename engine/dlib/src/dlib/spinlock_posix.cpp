@@ -32,7 +32,6 @@ namespace dmSpinlock
         int ret = pthread_spin_init(native_lock, PTHREAD_PROCESS_PRIVATE);
         assert(ret == 0);
         lock->m_Handle = native_lock;
-        lock->m_Lock = 0;
     }
 
     void Destroy(Spinlock* lock)

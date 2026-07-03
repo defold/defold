@@ -35,14 +35,17 @@ namespace dmSpinlock
      * struct Spinlock;
      * ```
      *
-     * @typedef
+     * @struct
      * @name dmSpinlock::Spinlock
      *
      */
     struct Spinlock
     {
-        void*          m_Handle;
-        int32_atomic_t m_Lock;
+        union
+        {
+            void*          m_Handle;
+            int32_atomic_t m_Lock;
+        };
     };
 
     /*# initialize spinlock.
