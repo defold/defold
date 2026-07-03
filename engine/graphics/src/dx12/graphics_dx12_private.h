@@ -25,20 +25,11 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#if defined(DM_PLATFORM_VENDOR) && __has_include("graphics_dx12_vendor.h")
-    #include "graphics_dx12_vendor.h"
-    #define DM_GRAPHICS_DX12_HAS_VENDOR 1
-#elif defined(DM_PLATFORM_VENDOR) && __has_include(<dx12/graphics_dx12_vendor.h>)
-    #include <dx12/graphics_dx12_vendor.h>
-    #define DM_GRAPHICS_DX12_HAS_VENDOR 1
+#if defined(DM_PLATFORM_XBOX)
+    #include "graphics_dx12_xbox.h"
 #else
     #include <d3d12.h>
     #include <d3dx12.h>
-    #if defined(DM_PLATFORM_VENDOR) && defined(WINAPI_FAMILY) && defined(WINAPI_FAMILY_GAMES) && WINAPI_FAMILY == WINAPI_FAMILY_GAMES && !defined(HMONITOR_DECLARED)
-        struct HMONITOR__;
-        typedef HMONITOR__* HMONITOR;
-        #define HMONITOR_DECLARED
-    #endif
     #include <dxgi1_6.h>
     #include <D3DCompiler.h>
 
@@ -254,7 +245,7 @@ namespace dmGraphics
         GraphicsContext                    m_BaseContext;
         ID3D12Device*                      m_Device;
 
-#if defined(DM_GRAPHICS_DX12_HAS_VENDOR)
+#if defined(DM_PLATFORM_XBOX)
         DX12VendorContext                  m_VendorContext;
 #else
         IDXGISwapChain3*                   m_SwapChain;

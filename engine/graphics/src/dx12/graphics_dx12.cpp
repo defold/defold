@@ -17,20 +17,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#if defined(DM_PLATFORM_VENDOR) && __has_include("graphics_dx12_vendor.h")
-    #include "graphics_dx12_vendor.h"
-    #define DM_GRAPHICS_DX12_HAS_VENDOR 1
-#elif defined(DM_PLATFORM_VENDOR) && __has_include(<dx12/graphics_dx12_vendor.h>)
-    #include <dx12/graphics_dx12_vendor.h>
-    #define DM_GRAPHICS_DX12_HAS_VENDOR 1
+#if defined(DM_PLATFORM_XBOX)
+    #include "graphics_dx12_xbox.h"
 #else
     #include <d3d12.h>
     #include <d3dx12.h> // Optional, for helpers
-    #if defined(DM_PLATFORM_VENDOR) && defined(WINAPI_FAMILY) && defined(WINAPI_FAMILY_GAMES) && WINAPI_FAMILY == WINAPI_FAMILY_GAMES && !defined(HMONITOR_DECLARED)
-        struct HMONITOR__;
-        typedef HMONITOR__* HMONITOR;
-        #define HMONITOR_DECLARED
-    #endif
     #include <dxgi1_6.h>
     #include <d3d12shader.h>
     #include <D3DCompiler.h>
@@ -326,7 +317,7 @@ namespace dmGraphics
             HRESULT hr = S_OK;
 
 // TODO: clean up this somehow
-#if !defined(DM_GRAPHICS_DX12_HAS_VENDOR)
+#if !defined(DM_PLATFORM_XBOX)
             // first we get the n'th buffer in the swap chain and store it in the n'th
             // position of our ID3D12Resource array
             hr = context->m_SwapChain->GetBuffer(i, DM_IID_PPV_ARGS(&texture_color->m_Resource));
@@ -1352,7 +1343,7 @@ namespace dmGraphics
             context->m_SamplerPool.m_DescriptorHeap->Release();
             context->m_SamplerPool.m_DescriptorHeap = 0;
         }
-#if !defined(DM_GRAPHICS_DX12_HAS_VENDOR)
+#if !defined(DM_PLATFORM_XBOX)
         if (context->m_SwapChain)
         {
             context->m_SwapChain->Release();
@@ -1893,15 +1884,14 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*)_context;
         DX12UniformBuffer* ubo = (DX12UniformBuffer*) uniform_buffer;
 
-        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
         {
-            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
-            {
-                if (context->m_CurrentUniformBuffers[set][binding] == ubo)
-                {
-                    context->m_CurrentUniformBuffers[set][binding] = 0;
-                }
-            }
+            return;
+        }
+
+        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
+        {
+            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
         }
 
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -1915,6 +1905,11 @@ namespace dmGraphics
 
         ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
         ubo->m_BaseUniformBuffer.m_BoundSet     = set;
+
+        if (context->m_CurrentUniformBuffers[set][binding])
+        {
+            DX12DisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
+        }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
@@ -2345,7 +2340,7 @@ namespace dmGraphics
 
     static void LogVertexShaderInputSignature(DX12ShaderProgram* program)
     {
-#if defined(DM_GRAPHICS_DX12_HAS_VENDOR)
+#if defined(DM_PLATFORM_XBOX)
         (void) program;
 #else
         if (!program || !program->m_VertexModule || !program->m_VertexModule->m_Data || program->m_VertexModule->m_DataSize == 0)
@@ -2883,7 +2878,6 @@ namespace dmGraphics
                                 *pgm_layout);
 
                             // Fallback to the scratch buffer uniform setup
-                            DX12DisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                             bound_ubo = 0;
                         }
                     }
