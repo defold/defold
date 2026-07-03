@@ -43,6 +43,7 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
@@ -56,6 +57,7 @@
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -1428,6 +1430,10 @@
   (and (not (g/error-value? resource-properties))
        (reduce-kv #(if (:visible %3 true) (reduced true) false) false (:properties resource-properties))))
 
+;; endregion
+
+;; region jump to symbol
+(defn- flatten-document-symbols [])
 ;; endregion
 
 (g/defnode CodeEditorView
@@ -3091,6 +3097,48 @@
               (fx/on-fx-thread
                 (show-goto-popup! view-node open-resource-fn results)))))
         (show-no-language-server-for-resource-language-notification! resource)))))
+
+(handler/defhandler :code.jump-to-symbol :code-view
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)
+          resource (g/node-value resource-node :resource evaluation-context)]
+      (resource/file-resource? resource)))
+  (run [view-node user-data open-resource-fn]
+    (g/with-auto-evaluation-context evaluation-context
+      (let [resource-node (get-property view-node :resource-node evaluation-context)
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+            resource (g/node-value resource-node :resource evaluation-context)
+            localization (get-property view-node :localization evaluation-context)]
+        (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+          (let [document-symbols (get-property view-node :document-symbols evaluation-context)
+                items (mapv #(select-keys % [:name :kind :selection-range :detail])
+                            document-symbols)]
+            (dialogs/make-select-list-dialog
+              items
+              localization
+              ;; TODO: Localize
+              {:title "Jump to Symbol"
+               :ok-label "Jump"
+               :prompt "Search for symbol..."
+               :filter-fn (partial fuzzy-choices/filter-options :name :name)
+               :cell-fn (fn [item _localization]
+                          {:style-class ["list-cell"]
+                           :graphic {:fx/type fxui/horizontal
+                                     :alignment :left
+                                     :spacing :small
+                                     ;; :matching-indices (:matching-indices (meta item))
+                                     :children [{:fx/type code-type-icon :type (:kind item)}
+                                                (fuzzy-choices/make-matched-text-flow-cljfx
+                                                  (:name item)
+                                                  (:matching-indices (meta item)))
+                                                {:fx/type fx.region/lifecycle
+                                                 :h-box/hgrow :always}
+                                                {:fx/type fx.label/lifecycle
+                                                 :style {:-fx-text-fill :-df-text-dark}
+                                                 :text (str (if-let [detail (:detail item)]
+                                                              (str " " (string/replace detail "function" "ƒ"))
+                                                              ""))}]}})}))
+          (show-no-language-server-for-resource-language-notification! resource))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
