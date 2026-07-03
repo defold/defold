@@ -374,11 +374,11 @@
 
 (def ^:private empty-arc-table (arc-table-set-next-pkid (int-map/int-map) 0))
 
-(defn- arc-table-arcs [arc-table]
+(defn arc-table-arcs [arc-table]
   (when-not (coll/empty? arc-table)
     (vals arc-table)))
 
-(defn- arc-table-assoc [arc-table arc-pkid arc]
+(defn- arc-table-assoc [arc-table arc-pkid ^Arc arc]
   (let [arc-table (or arc-table empty-arc-table)
         old-next-pkid (arc-table-next-pkid arc-table)
         arc-pkid (or arc-pkid old-next-pkid)
@@ -394,51 +394,47 @@
             arc-table)
       (arc-table-next-pkid arc-table))))
 
-(defn- arc-table-find-arc-pkid [arc-table arc]
+(defn- arc-table-find-arc-pkid [arc-table ^Arc arc]
   (when-let [entry (coll/first-where #(= arc (val %)) arc-table)]
     (key entry)))
 
-(defn- find-source-arc-pkid [basis ^Arc arc]
-  (let [source-id (gt/source-id arc)
-        source-label (gt/source-label arc)]
-    (arc-table-find-arc-pkid
-      (get-in basis [:graphs (gt/node-id->graph-id source-id) :sarcs source-id source-label])
-      arc)))
-
-(defn- find-target-arc-pkid [basis ^Arc arc]
-  (let [target-id (gt/target-id arc)
-        target-label (gt/target-label arc)]
-    (arc-table-find-arc-pkid
-      (get-in basis [:graphs (gt/node-id->graph-id target-id) :tarcs target-id target-label])
-      arc)))
-
-(defn find-source-and-target-arc-pkids [basis ^Arc arc]
-  (pair (find-source-arc-pkid basis arc)
-        (find-target-arc-pkid basis arc)))
-
-(defn next-source-and-target-arc-pkids [basis ^Arc arc]
+(defn- graphs-source-arc-table [graphs ^Arc arc]
   (let [source-id (gt/source-id arc)
         source-label (gt/source-label arc)
-        target-id (gt/target-id arc)
-        target-label (gt/target-label arc)
-        source-arc-table (get-in basis [:graphs (gt/node-id->graph-id source-id) :sarcs source-id source-label])
-        target-arc-table (get-in basis [:graphs (gt/node-id->graph-id target-id) :tarcs target-id target-label])]
-    (pair (arc-table-next-pkid source-arc-table)
-          (arc-table-next-pkid target-arc-table))))
+        graph-id (gt/node-id->graph-id source-id)]
+    (-> graphs (get graph-id) :sarcs (get source-id) (get source-label))))
 
-(defn- update-existing-arc-table [node-id->label->arc-table path f & args]
-  (if-let [arc-table (get-in node-id->label->arc-table path)]
-    (assoc-in node-id->label->arc-table path (apply f arc-table args))
+(defn- graphs-target-arc-table [graphs ^Arc arc]
+  (let [target-id (gt/target-id arc)
+        target-label (gt/target-label arc)
+        graph-id (gt/node-id->graph-id target-id)]
+    (-> graphs (get graph-id) :tarcs (get target-id) (get target-label))))
+
+(defn find-source-and-target-arc-pkids [basis ^Arc arc]
+  (let [graphs (:graphs basis)]
+    (pair (arc-table-find-arc-pkid (graphs-source-arc-table graphs arc) arc)
+          (arc-table-find-arc-pkid (graphs-target-arc-table graphs arc) arc))))
+
+(defn next-source-and-target-arc-pkids [basis ^Arc arc]
+  (let [graphs (:graphs basis)]
+    (pair (arc-table-next-pkid (graphs-source-arc-table graphs arc))
+          (arc-table-next-pkid (graphs-target-arc-table graphs arc)))))
+
+(defn- update-existing-arc-table [node-id->label->arc-table node-id+label arc-table-fn & args]
+  (if-let [arc-table (get-in node-id->label->arc-table node-id+label)]
+    (assoc-in node-id->label->arc-table node-id+label (apply arc-table-fn arc-table args))
+    node-id->label->arc-table))
+
+(defn- update-existing-arc-tables-for-node [node-id->label->arc-table node-id arc-table-transform-fn]
+  (if-let [label->arc-table (get node-id->label->arc-table node-id)]
+    (assoc node-id->label->arc-table node-id (coll/update-vals label->arc-table arc-table-transform-fn))
     node-id->label->arc-table))
 
 (defn arcs->tuples [arcs]
   ;; TODO: Get rid of this and expose Arc instances directly.
-  (into []
-        (map (fn [^Arc arc]
-               [(.source-id arc) (.source-label arc) (.target-id arc) (.target-label arc)]))
-        (if (map? arcs)
-          (arc-table-arcs arcs)
-          arcs)))
+  (mapv (fn [^Arc arc]
+          [(.source-id arc) (.source-label arc) (.target-id arc) (.target-label arc)])
+        arcs))
 
 (defn arc-endpoints-p [p ^Arc arc]
   (and (p (.source-id arc) (.source-label arc))
@@ -480,15 +476,11 @@
 (defn- arc-cross-graph? [^Arc arc]
   (not= (gt/node-id->graph-id (.source-id arc)) (gt/node-id->graph-id (.target-id arc))))
 
-(defn- node-label-arcs [node-id->label->arc-table node-id]
-  (into []
-        (mapcat (comp arc-table-arcs val))
-        (get node-id->label->arc-table node-id)))
-
-(defn- filter-node-arc-tables [node-id->label->arc-table node-id f]
-  (if-let [label->arc-table (get node-id->label->arc-table node-id)]
-    (assoc node-id->label->arc-table node-id (coll/update-vals label->arc-table f))
-    node-id->label->arc-table))
+(defn- arcs-for-node [node-id->label->arc-table node-id]
+  (let [label->arc-table (node-id->label->arc-table node-id)]
+    (coll/into-> label->arc-table :eduction
+      (map val)
+      (mapcat arc-table-arcs))))
 
 (defn basis-remove-node
   ([basis node-id]
@@ -497,8 +489,8 @@
    (let [graph (node-id->graph basis node-id)]
      (if-not (contains? (:nodes graph) node-id)
        basis
-       (let [sarcs (node-label-arcs (:sarcs graph) node-id)
-             tarcs (node-label-arcs (:tarcs graph) node-id)
+       (let [sarcs (into [] (arcs-for-node (:sarcs graph) node-id))
+             tarcs (into [] (arcs-for-node (:tarcs graph) node-id))
              override-id (when original-id (gt/override-id (get-in graph [:nodes node-id])))
              override (when override-id (get-in graph [:overrides override-id]))
              keep-arc? (fn keep-arc? [arc]
@@ -527,13 +519,13 @@
                                             (reduce
                                               (fn [node-id->label->arc-table arc]
                                                 (update-existing-arc-table node-id->label->arc-table (gt/source arc) filter-arcs))
-                                              (filter-node-arc-tables node-id->label->arc-table node-id filter-arcs)
+                                              (update-existing-arc-tables-for-node node-id->label->arc-table node-id filter-arcs)
                                               tarcs)))
                            (update :tarcs (fn [node-id->label->arc-table]
                                             (reduce
                                               (fn [node-id->label->arc-table arc]
                                                 (update-existing-arc-table node-id->label->arc-table (gt/target arc) filter-arcs))
-                                              (filter-node-arc-tables node-id->label->arc-table node-id filter-arcs)
+                                              (update-existing-arc-tables-for-node node-id->label->arc-table node-id filter-arcs)
                                               sarcs))))))
              basis (coll/reduce-> sarcs basis
                      (filter arc-cross-graph?)
@@ -738,7 +730,11 @@
             (recur (inc i))))))))
 
 (defn- node-id->arcs [graph node-id arc-kw]
-  (node-label-arcs (get graph arc-kw) node-id))
+  (-> graph
+      (get arc-kw)
+      (arcs-for-node node-id)
+      (coll/into-> [])
+      (coll/not-empty)))
 
 ;; This should really be made interface methods of IBasis
 

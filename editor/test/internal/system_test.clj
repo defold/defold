@@ -17,6 +17,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.localization :as localization]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.system :as is]
             [support.test-support :as ts]))
@@ -539,10 +540,12 @@
   (g/successors (g/now) node-id label))
 
 (defn- sarcs [node-id label]
-  (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :sarcs node-id label]))
+  (ig/arc-table-arcs
+    (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :sarcs node-id label])))
 
 (defn- tarcs [node-id label]
-  (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :tarcs node-id label]))
+  (ig/arc-table-arcs
+    (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :tarcs node-id label])))
 
 (defn- cached?
   [endpoint]

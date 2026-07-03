@@ -19,16 +19,11 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- arc-table-tuples [basis graph-id arc-table-key source-or-target-id label]
-  {:pre [(#{:sarcs :tarcs} arc-table-key)]}
+(defn- arc-table-tuples [basis graph-id arc-registry-key source-or-target-id label]
+  {:pre [(#{:sarcs :tarcs} arc-registry-key)]}
   (ig/arcs->tuples
-    (get-in basis [:graphs graph-id arc-table-key source-or-target-id label])))
-
-(defn source-arc-tables-by-label [basis graph-id source-id]
-  (get-in basis [:graphs graph-id :sarcs source-id]))
-
-(defn target-arc-tables-by-label [basis graph-id target-id]
-  (get-in basis [:graphs graph-id :tarcs target-id]))
+    (ig/arc-table-arcs
+      (get-in basis [:graphs graph-id arc-registry-key source-or-target-id label]))))
 
 (defn source-arc-table-tuples [basis graph-id source-id source-label]
   (arc-table-tuples basis graph-id :sarcs source-id source-label))
