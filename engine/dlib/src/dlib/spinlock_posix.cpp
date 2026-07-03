@@ -31,14 +31,14 @@ namespace dmSpinlock
         assert(native_lock != 0);
         int ret = pthread_spin_init(native_lock, PTHREAD_PROCESS_PRIVATE);
         assert(ret == 0);
-        lock->m_Handle = native_lock;
+        lock->m_Handle = (void*) native_lock;
     }
 
     void Destroy(Spinlock* lock)
     {
         int ret = pthread_spin_destroy(ToNative(lock));
         assert(ret == 0);
-        free(ToNative(lock));
+        free((void*) ToNative(lock));
         lock->m_Handle = 0;
     }
 
