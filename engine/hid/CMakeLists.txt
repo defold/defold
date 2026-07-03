@@ -24,7 +24,6 @@ set(HID_PRIVATE_SRC_DIR "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
 file(GLOB_RECURSE HID_DMSDK_HEADERS CONFIGURE_DEPENDS
     "${HID_SRC_DIR}/dmsdk/*.h"
     "${HID_SRC_DIR}/dmsdk/*.hpp")
-set(HID_PRIVATE_DMSDK_HEADERS)
 
 # hid (native backend)
 set(hid_SOURCES
@@ -71,13 +70,6 @@ target_include_directories(hid PUBLIC
 ) # match Waf include layout for hid sources
 
 if(HID_PRIVATE_SRC_DIR)
-    foreach(_hid_private_dmsdk_dir IN LISTS DEFOLD_PLATFORM_HID_DMSDK_DIRS)
-        file(GLOB_RECURSE _hid_private_platform_headers CONFIGURE_DEPENDS
-            "${_hid_private_dmsdk_dir}/*.h"
-            "${_hid_private_dmsdk_dir}/*.hpp")
-        list(APPEND HID_PRIVATE_DMSDK_HEADERS ${_hid_private_platform_headers})
-    endforeach()
-
     target_include_directories(hid PUBLIC
         "${HID_PRIVATE_SRC_DIR}"
         "${HID_PRIVATE_SRC_DIR}/native"
@@ -218,14 +210,6 @@ defold_add_sdk_headers_target(hid_dmsdk_sdk_headers
     FILES ${HID_DMSDK_HEADERS}
     DEPENDS hid)
 set(HID_SDK_HEADER_TARGETS hid_public_sdk_headers hid_dmsdk_sdk_headers)
-if(HID_PRIVATE_DMSDK_HEADERS)
-    defold_add_sdk_headers_target(hid_private_dmsdk_sdk_headers
-        DESTINATION sdk/include/dmsdk/hid
-        SOURCE_ROOT "${HID_PRIVATE_SRC_DIR}/dmsdk/hid"
-        FILES ${HID_PRIVATE_DMSDK_HEADERS}
-        DEPENDS hid)
-    list(APPEND HID_SDK_HEADER_TARGETS hid_private_dmsdk_sdk_headers)
-endif()
 add_custom_target(hid_sdk_headers
     DEPENDS ${HID_SDK_HEADER_TARGETS})
 
@@ -237,11 +221,3 @@ install(DIRECTORY "${HID_SRC_DIR}/dmsdk/"
                 FILES_MATCHING
                 PATTERN "*.h"
                 PATTERN "*.hpp")
-
-if(HID_PRIVATE_DMSDK_HEADERS)
-    install(DIRECTORY "${HID_PRIVATE_SRC_DIR}/dmsdk/hid/"
-            DESTINATION sdk/include/dmsdk/hid
-            FILES_MATCHING
-            PATTERN "*.h"
-            PATTERN "*.hpp")
-endif()
