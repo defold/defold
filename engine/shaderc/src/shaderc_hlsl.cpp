@@ -857,8 +857,10 @@ namespace dmShaderc
     static uint32_t GetD3DCompileFlags(const ShaderCompilerOptions* options)
     {
         uint32_t compile_flags = D3DCOMPILE_ENABLE_STRICTNESS;
-        // SPIRV-Cross can generate harmless flow-control warnings that the Xbox One compiler promotes to errors.
-        if (!options || options->m_TargetPlatform != SHADER_COMPILER_PLATFORM_XBONE)
+        // SPIRV-Cross can generate harmless flow-control warnings for shader model 5.x HLSL.
+        // Keep strict validation, but do not reject generated HLSL solely because D3DCompile
+        // decided to unroll a statically small loop.
+        if (!options || options->m_Version < 50)
         {
             compile_flags |= D3DCOMPILE_WARNINGS_ARE_ERRORS;
         }
