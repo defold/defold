@@ -126,7 +126,7 @@ namespace dmSocket
 
         if (ret == ERROR_BUFFER_OVERFLOW)
         {
-            context->m_IfAddrCache = (PIP_ADAPTER_ADDRESSES)realloc(context->m_IfAddrCache, out_buf_len);;
+            context->m_IfAddrCache = (PIP_ADAPTER_ADDRESSES)realloc(context->m_IfAddrCache, out_buf_len);
             context->m_IfAddrCacheSize = out_buf_len;
             ret = GetAdaptersAddresses(family, flags, NULL, context->m_IfAddrCache, &out_buf_len);
         }
@@ -149,7 +149,11 @@ namespace dmSocket
         }
 
         SocketContext* context = g_SocketContext;
-        assert(context);
+        if (context == 0)
+        {
+            return;
+        }
+
         assert(context->m_IfAddrCacheMutex);
         DM_MUTEX_SCOPED_LOCK(context->m_IfAddrCacheMutex);
 
