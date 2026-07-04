@@ -7,8 +7,8 @@ import copy
 import os
 import re
 import shutil
-import subprocess
 import sys
+import time
 import uuid
 import xml.etree.ElementTree as ElementTree
 from glob import glob
@@ -165,8 +165,6 @@ _XBONE_VS_PLATFORM = 'Gaming.Xbox.XboxOne.x64'
 _XBONE_CMAKE_PROJECT_PLATFORM = 'x64'
 _XBONE_DEBUG_PROJECT_PLATFORMS = (_XBONE_VS_PLATFORM,)
 _MSBUILD_NS = 'http://schemas.microsoft.com/developer/msbuild/2003'
-_XBONE_DEFAULT_REMOTE_ADDRESS = None
-
 ElementTree.register_namespace('', _MSBUILD_NS)
 
 
@@ -224,56 +222,6 @@ def _gdk_tool_path(name):
         if os.path.exists(candidate):
             return candidate
     return name
-
-
-def _default_xbox_console_address():
-    global _XBONE_DEFAULT_REMOTE_ADDRESS
-
-    if _XBONE_DEFAULT_REMOTE_ADDRESS is not None:
-        return _XBONE_DEFAULT_REMOTE_ADDRESS
-
-    _XBONE_DEFAULT_REMOTE_ADDRESS = ''
-    xbconnect_path = _gdk_tool_path('xbconnect.exe')
-    if not xbconnect_path:
-        candidate_roots = [
-            os.environ.get('GameDKXboxLatest'),
-            os.environ.get('GameDKCoreLatest'),
-            os.environ.get('GameDK'),
-            os.path.join(os.environ.get('ProgramFiles(x86)', r'C:\Program Files (x86)'), 'Microsoft GDK'),
-        ]
-        for root in candidate_roots:
-            if not root:
-                continue
-            candidate = os.path.join(root, 'bin', 'xbconnect.exe')
-            if os.path.exists(candidate):
-                xbconnect_path = candidate
-                break
-    if not xbconnect_path:
-        return _XBONE_DEFAULT_REMOTE_ADDRESS
-
-    for args in ([xbconnect_path, '/Q'], [xbconnect_path]):
-        try:
-            output = subprocess.check_output(
-                args,
-                stderr=subprocess.DEVNULL,
-                universal_newlines=True,
-                timeout=5)
-        except Exception:
-            continue
-
-        for line in output.splitlines():
-            match = re.search(r'\b\d{1,3}(?:\.\d{1,3}){3}(?:\+\S+)?\b', line)
-            if match:
-                _XBONE_DEFAULT_REMOTE_ADDRESS = match.group(0)
-                return _XBONE_DEFAULT_REMOTE_ADDRESS
-
-        for line in output.splitlines():
-            match = re.search(r'(?i)\bdefault\s+console\s*[:=]\s*(\S+)', line)
-            if match:
-                _XBONE_DEFAULT_REMOTE_ADDRESS = match.group(1)
-                return _XBONE_DEFAULT_REMOTE_ADDRESS
-
-    return _XBONE_DEFAULT_REMOTE_ADDRESS
 
 
 def _raw_command_path_prefix(paths):
@@ -566,6 +514,9 @@ def _patch_xbone_executable_vcxproj(project_path, private_repo_root, defold_root
     root = tree.getroot()
     target_name = _target_name_from_project(project_path)
     stage_command = _xbone_stage_post_build_command(project_path, private_repo_root, defold_root)
+    target_binary_dir = os.path.dirname(os.path.abspath(project_path))
+    working_dir = _read_vs_debugger_working_directory(project_path) or target_binary_dir
+    symbol_search_path = ';'.join(['$(LayoutDir)', '$(OutDir)'])
     changed = False
 
     for property_group in root.iter():
@@ -582,11 +533,12 @@ def _patch_xbone_executable_vcxproj(project_path, private_repo_root, defold_root
             'LayoutDir': '$(OutDir)',
             'DeployMode': 'Push',
             'LogModuleLoads': 'true',
+            'DebuggerSymbolsPath': symbol_search_path,
         }
         debug_args = '--use-validation-layers' if target_name in _XBONE_DEBUG_ENGINE_TARGETS and 'Debug|' in condition else ''
         desired_properties['LocalDebuggerCommand'] = '$(TargetPath)'
         desired_properties['LocalDebuggerCommandArguments'] = debug_args
-        desired_properties['LocalDebuggerWorkingDirectory'] = _read_vs_debugger_working_directory(project_path) or os.path.dirname(os.path.abspath(project_path))
+        desired_properties['LocalDebuggerWorkingDirectory'] = working_dir
 
         for name, value in desired_properties.items():
             child = _xml_find_child(property_group, name)
@@ -637,23 +589,16 @@ def _patch_xbone_vcxproj_user(project_path):
             if f'|{_XBONE_VS_PLATFORM}' in condition:
                 root.remove(child)
                 changed = True
-
-    root_property_group = None
-    for child in root:
-        if _xml_local_name(child.tag) == 'PropertyGroup' and not child.get('Condition'):
-            root_property_group = child
-            break
-    if root_property_group is None:
-        root_property_group = ElementTree.SubElement(root, _xml_tag(root, 'PropertyGroup'))
-        changed = True
-    remote_address = _xml_find_child(root_property_group, 'RemoteAddress')
-    default_remote_address = _default_xbox_console_address()
-    if remote_address is None or (default_remote_address and not (remote_address.text or '').strip()):
-        _xml_set_child(root_property_group, 'RemoteAddress', default_remote_address)
-        changed = True
+            elif not condition:
+                for stale_property_name in ('RemoteAddress', 'LastRemoteDirectory', 'LastConfigDeployed'):
+                    stale_property = _xml_find_child(child, stale_property_name)
+                    if stale_property is not None:
+                        child.remove(stale_property)
+                        changed = True
 
     target_name = _target_name_from_project(project_path)
     working_dir = _read_vs_debugger_working_directory(project_path) or os.path.dirname(os.path.abspath(project_path))
+    symbol_search_path = ';'.join(['$(LayoutDir)', '$(OutDir)'])
     for configuration in _XBONE_DEBUG_CONFIGURATIONS:
         condition = f"'$(Configuration)|$(Platform)'=='{configuration}|{_XBONE_CMAKE_PROJECT_PLATFORM}'"
         property_group = None
@@ -669,6 +614,8 @@ def _patch_xbone_vcxproj_user(project_path):
             'LocalDebuggerCommand': '$(LayoutDir)\\$(TargetName).exe',
             'LocalDebuggerCommandArguments': debug_args,
             'LocalDebuggerWorkingDirectory': working_dir,
+            'DebuggerSymbolsPath': symbol_search_path,
+            'LocalDebuggerSymbolSearchPath': symbol_search_path,
             'DeployMode': 'Push',
             'LogModuleLoads': 'true',
         }
@@ -949,7 +896,6 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
     git_path = _tool_path('git', '')
     xbapp_path = _gdk_tool_path('xbapp.exe')
     path_prefix = _command_path_prefix([cmake_path, python_path, git_path, xbapp_path])
-    remote_address = _default_xbox_console_address()
 
     pdb_args = ''.join(
         f' --pdb {_msbuild_command_arg(pdb_path)}'
@@ -963,19 +909,14 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
         f'--artwork-dir {_msbuild_command_arg(artwork_dir)} '
         f'--app-name "{_xml_escape(project_name)}"'
         f'{pdb_args}')
-    deploy_invocation = (
-        f'{_msbuild_command_arg(xbapp_path)} deploy {_msbuild_command_arg(layout_dir)} '
-        f'/S /Drive:development')
-    if remote_address:
-        deploy_invocation += f' /X:{_xml_escape(remote_address)}'
-    stage_command = f'{path_prefix}{stage_invocation}'
     build_command = (
         f'{path_prefix}{_msbuild_command_arg(cmake_path)} --build {_msbuild_command_arg(build_dir)} '
         f'--config "$(Configuration)" --target "{_xml_escape(target_name)}"'
         f' -- /nodeReuse:false /v:minimal'
         f' &amp;&amp; {stage_invocation}'
-        f' &amp;&amp; {deploy_invocation}')
-    symbol_search_path = ';'.join([layout_dir, os.path.dirname(exe_path), target_binary_dir])
+        f' &amp;&amp; {_msbuild_command_arg(xbapp_path)} deploy {_msbuild_command_arg(layout_dir)} /S /Drive:development')
+    symbol_search_path = ';'.join([layout_dir, os.path.dirname(exe_path)])
+    debugger_command = os.path.join(layout_dir, f'{target_name}.exe')
 
     project_path = os.path.join(project_dir, f'{project_name}.vcxproj')
     project_user_path = os.path.join(project_dir, f'{project_name}.vcxproj.user')
@@ -1000,6 +941,7 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
             nmake_groups.append(f'''  <PropertyGroup Condition="{_xml_escape(condition)}">
     <DebuggerFlavor>XboxGamingVCppDebugger</DebuggerFlavor>
     <LocalDebuggerDebuggerType>NativeOnly</LocalDebuggerDebuggerType>
+    <DebuggerSymbolsPath>{_xml_escape(symbol_search_path)}</DebuggerSymbolsPath>
     <NMakeBuildCommandLine>{build_command}</NMakeBuildCommandLine>
     <NMakeReBuildCommandLine>{build_command}</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>@echo Clean skipped.</NMakeCleanCommandLine>
@@ -1007,9 +949,10 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
   </PropertyGroup>''')
             debug_args = '--use-validation-layers' if configuration == 'Debug' and target_name in _XBONE_DEBUG_ENGINE_TARGETS else ''
             user_groups.append(f'''  <PropertyGroup Condition="{_xml_escape(condition)}">
-    <LocalDebuggerCommand>{_xml_escape(exe_path)}</LocalDebuggerCommand>
+    <LocalDebuggerCommand>{_xml_escape(debugger_command)}</LocalDebuggerCommand>
     <LocalDebuggerCommandArguments>{_xml_escape(debug_args)}</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>{_xml_escape(working_dir)}</LocalDebuggerWorkingDirectory>
+    <DebuggerSymbolsPath>{_xml_escape(symbol_search_path)}</DebuggerSymbolsPath>
     <LocalDebuggerSymbolSearchPath>{_xml_escape(symbol_search_path)}</LocalDebuggerSymbolSearchPath>
     <DeployMode>Push</DeployMode>
     <LogModuleLoads>true</LogModuleLoads>
@@ -1023,15 +966,20 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
     </MGCCompile>
   </ItemGroup>'''
 
-    pdb_deployment_items = []
+    layout_deployment_items = []
     for configuration in _XBONE_DEBUG_CONFIGURATIONS:
         condition = _project_configuration_condition(configuration, _XBONE_VS_PLATFORM)
+        exe_path = os.path.join(project_dir, 'layout', configuration, f'{target_name}.exe')
         pdb_path = os.path.join(project_dir, 'layout', configuration, f'{target_name}.pdb')
-        pdb_deployment_items.append(f'''    <None Include="{_xml_escape(pdb_path)}">
+        layout_deployment_items.append(f'''    <None Include="{_xml_escape(exe_path)}">
+      <DeploymentContent Condition="{_xml_escape(condition)}">true</DeploymentContent>
+    </None>
+
+    <None Include="{_xml_escape(pdb_path)}">
       <DeploymentContent Condition="{_xml_escape(condition)}">true</DeploymentContent>
     </None>''')
-    pdb_deployment_item_group = f'''  <ItemGroup>
-{os.linesep.join(pdb_deployment_items)}
+    layout_deployment_item_group = f'''  <ItemGroup>
+{os.linesep.join(layout_deployment_items)}
   </ItemGroup>'''
 
     project_xml = f'''<?xml version="1.0" encoding="utf-8"?>
@@ -1068,16 +1016,13 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
 {os.linesep.join(nmake_groups)}
 {source_item_groups}
 {manifest_item_group}
-{pdb_deployment_item_group}
+{layout_deployment_item_group}
   <Import Project="$(VCTargetsPath)\\Microsoft.Cpp.targets" />
 </Project>
 '''
 
     user_xml = f'''<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup>
-    <RemoteAddress>{_xml_escape(remote_address)}</RemoteAddress>
-  </PropertyGroup>
 {os.linesep.join(user_groups)}
 </Project>
 '''
@@ -1102,7 +1047,7 @@ def _write_xbone_debug_project(project_dir, project_name, target_name, target_pr
 def _folder_sort_key(folder):
     top_level_order = {
         'Engine': 0,
-        'Extender': 1,
+        'share': 1,
         'CMake configs': 2,
     }
     top_level = folder.split('/')[0]
@@ -1335,6 +1280,54 @@ def _slnx_merge_solution_files(root, folder_files):
     return added_files
 
 
+def _private_clcompile_engine_sources(project_paths, private_repo_root):
+    source_extensions = {'.c', '.cc', '.cpp', '.cxx', '.m', '.mm'}
+    private_repo_root = os.path.abspath(private_repo_root)
+    private_engine_root = os.path.join(private_repo_root, 'engine')
+    folder_files = {}
+    seen = set()
+
+    for project_path in project_paths:
+        if not project_path or not os.path.exists(project_path):
+            continue
+        try:
+            tree = ElementTree.parse(project_path)
+        except Exception:
+            continue
+
+        project_dir = os.path.dirname(os.path.abspath(project_path))
+        for item_group in tree.getroot():
+            if _xml_local_name(item_group.tag) != 'ItemGroup':
+                continue
+            for item in item_group:
+                if _xml_local_name(item.tag) != 'ClCompile':
+                    continue
+                include = item.get('Include')
+                if not include or '$(' in include or '%(' in include:
+                    continue
+                source_path = include.replace('/', os.sep).replace('\\', os.sep)
+                if not os.path.isabs(source_path):
+                    source_path = os.path.join(project_dir, source_path)
+                source_path = os.path.abspath(source_path)
+                if os.path.splitext(source_path)[1].lower() not in source_extensions:
+                    continue
+                try:
+                    rel_path = relpath(source_path, private_engine_root)
+                except ValueError:
+                    continue
+                if rel_path.startswith('..' + os.sep) or rel_path == '..' or os.path.isabs(rel_path):
+                    continue
+                key = normpath(source_path).lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                folder = _engine_solution_folder_for_file(source_path, [private_repo_root])
+                if folder:
+                    folder_files.setdefault(folder, set()).add(solution_msvs._solution_file_path(source_path))
+
+    return folder_files
+
+
 def _engine_solution_folder_for_file(file_path, repo_roots):
     if not file_path:
         return None
@@ -1415,10 +1408,16 @@ def _slnx_relocate_engine_solution_files(root, repo_roots):
     return moved_files, removed_folders
 
 
-def _slnx_merge_private_xbox_sources(root, private_repo_root):
+def _slnx_merge_private_xbox_sources(root, private_repo_root, project_paths):
     if not private_repo_root or not os.path.isdir(os.path.join(private_repo_root, 'engine')):
         return 0
-    return _slnx_merge_solution_files(root, solution_msvs._engine_source_files(private_repo_root))
+    return _slnx_merge_solution_files(root, _private_clcompile_engine_sources(project_paths, private_repo_root))
+
+
+def _slnx_merge_private_extender_sources(root, private_repo_root):
+    if not private_repo_root:
+        return 0
+    return _slnx_merge_solution_files(root, solution_msvs._extender_source_files(private_repo_root, platform_tag='xbone'))
 
 
 def _replace_xbone_slnx_projects(solution_path, source_slnx_path, debug_projects_by_source, log, defold_root=None, private_repo_root=None):
@@ -1446,6 +1445,13 @@ def _replace_xbone_slnx_projects(solution_path, source_slnx_path, debug_projects
     replacement_paths = {}
     for source_path, debug_project in debug_projects_by_source.items():
         replacement_paths[source_path] = _slnx_project_reference(solution_dir, debug_project['path'])
+
+    source_project_paths = []
+    for project in root.iter('Project'):
+        project_path = project.get('Path')
+        resolved_path = _resolve_solution_project_path(source_solution_dir, project_path)
+        if resolved_path and project_path and project_path.lower().endswith('.vcxproj'):
+            source_project_paths.append(resolved_path)
 
     replaced_projects = 0
     for project in root.iter('Project'):
@@ -1478,7 +1484,8 @@ def _replace_xbone_slnx_projects(solution_path, source_slnx_path, debug_projects
             elif resolved_dependency:
                 dependency.set('Project', _slnx_project_reference(solution_dir, resolved_dependency))
 
-    added_private_sources = _slnx_merge_private_xbox_sources(root, private_repo_root)
+    added_private_sources = _slnx_merge_private_xbox_sources(root, private_repo_root, source_project_paths)
+    added_private_extender_sources = _slnx_merge_private_extender_sources(root, private_repo_root)
     moved_engine_files, removed_virtual_folders = _slnx_relocate_engine_solution_files(
         root,
         [defold_root, private_repo_root])
@@ -1490,6 +1497,8 @@ def _replace_xbone_slnx_projects(solution_path, source_slnx_path, debug_projects
     tree.write(solution_path, encoding='utf-8', xml_declaration=True)
     if added_private_sources:
         log(f'Added {added_private_sources} private Xbox source files to Visual Studio solution folders')
+    if added_private_extender_sources:
+        log(f'Added {added_private_extender_sources} private extender source files to Visual Studio solution folders')
     if moved_engine_files or removed_virtual_folders:
         log(f'Relocated {moved_engine_files} engine solution files and removed {removed_virtual_folders} virtual folders')
     log(f'Xbox solution generated from organized Visual Studio solution: {solution_path} ({replaced_projects} launchable projects)')
@@ -1501,8 +1510,22 @@ def generate_xbone_solution(solution_dir, build_dir, target_name, private_repo_r
         log('Warning: Xbox solution skipped because no private Xbox repository root is configured')
         return None
 
+    timing_start = time.time()
+    timing_previous = timing_start
+
+    def log_step(step):
+        nonlocal timing_previous
+        now = time.time()
+        log('Xbox solution step timing: %s %.2fs (total %.2fs)' % (
+            step,
+            now - timing_previous,
+            now - timing_start))
+        timing_previous = now
+
     cmake_projects = _collect_xbone_cmake_solution_projects(solution_path)
+    log_step(f'collect CMake projects ({len(cmake_projects)})')
     target_projects = _find_xbone_debug_target_projects(build_dir, solution_path)
+    log_step(f'find launchable targets ({len(target_projects)})')
     if not target_projects:
         log('Warning: Xbox solution skipped because no dmengine/test Visual Studio projects were found')
         return None
@@ -1513,6 +1536,7 @@ def generate_xbone_solution(solution_dir, build_dir, target_name, private_repo_r
             aliased_projects += 1
     if aliased_projects:
         log(f'Added Xbox Visual Studio platform aliases to {aliased_projects} CMake projects')
+    log_step(f'add Xbox platform aliases ({aliased_projects})')
 
     solution_dir = os.path.abspath(solution_dir)
     project_root = os.path.join(solution_dir, 'xbox')
@@ -1537,6 +1561,7 @@ def generate_xbone_solution(solution_dir, build_dir, target_name, private_repo_r
             toolset,
             windows_sdk_version)
         debug_projects_by_source[normpath(os.path.abspath(project_path)).lower()] = debug_project
+    log_step(f'write Xbox debug projects ({len(debug_projects_by_source)})')
 
     projects = []
     added_project_guids = set()
@@ -1587,6 +1612,7 @@ def generate_xbone_solution(solution_dir, build_dir, target_name, private_repo_r
                 os.remove(stale_path)
             except Exception as e:
                 log(f'Warning: Failed to remove stale Xbox solution {stale_path}: {e}')
+    log_step('remove stale Xbox solution files')
 
     if not _replace_xbone_slnx_projects(
             solution_file,
@@ -1598,6 +1624,10 @@ def generate_xbone_solution(solution_dir, build_dir, target_name, private_repo_r
         solution_file = os.path.join(solution_dir, f'{target_name}.sln')
         _write_xbone_debug_solution(solution_file, projects, os.path.abspath(defold_root))
         log(f'Xbox solution generated: {solution_file}')
+        log_step('write Xbox .sln fallback')
+    else:
+        log_step('rewrite Xbox .slnx')
+    log('Xbox solution step timing: total %.2fs' % (time.time() - timing_start))
     return solution_file
 
 

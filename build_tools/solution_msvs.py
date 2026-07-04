@@ -119,7 +119,7 @@ def _solution_folder_for_project(project_path):
         return f'Engine/{engine_module}/targets'
 
     if '/share/extender/' in project_path_lower:
-        return 'Extender'
+        return 'share/extender/targets'
 
     return 'CMake configs'
 
@@ -202,6 +202,49 @@ def _engine_source_files(defold_root):
     }
 
 
+def _extender_source_files(*repo_roots, platform_tag=None):
+    folder_files = {}
+    generated_variant_names = {
+        'debug.appmanifest',
+        'release.appmanifest',
+        'headless.appmanifest',
+    }
+
+    def add_file(path):
+        rel_path = relpath(path, extender_root).replace('\\', '/')
+        rel_dir = os.path.dirname(rel_path).replace('\\', '/')
+        folder = 'share/extender'
+        if rel_dir:
+            folder = f'{folder}/{rel_dir}'
+        folder_files.setdefault(folder, set()).add(_solution_file_path(path))
+
+    for repo_root in repo_roots:
+        if not repo_root:
+            continue
+        extender_root = join(repo_root, 'share', 'extender')
+        if not os.path.isdir(extender_root):
+            continue
+
+        if platform_tag:
+            for path in sorted(glob(join(extender_root, f'build_{platform_tag}.yml'))):
+                add_file(path)
+            for path in sorted(glob(join(extender_root, 'variants', f'*_{platform_tag}.appmanifest'))):
+                add_file(path)
+        else:
+            for path in sorted(glob(join(extender_root, '*.yml'))):
+                if os.path.basename(path).lower() != 'build.yml':
+                    add_file(path)
+            for path in sorted(glob(join(extender_root, 'variants', '*.appmanifest'))):
+                file_name = os.path.basename(path).lower()
+                if file_name not in generated_variant_names:
+                    add_file(path)
+
+    return {
+        folder: sorted(files, key=lambda path: path.lower())
+        for folder, files in folder_files.items()
+    }
+
+
 def organize_slnx(solution_path, defold_root, log):
     try:
         tree = ElementTree.parse(solution_path)
@@ -264,6 +307,9 @@ def organize_slnx(solution_path, defold_root, log):
         log(f'Warning: Could not find dmengine project to set as Visual Studio startup project in {solution_path}')
 
     folder_files = _engine_source_files(defold_root)
+    for folder, files in _extender_source_files(defold_root).items():
+        folder_files.setdefault(folder, [])
+        folder_files[folder] = sorted(set(folder_files[folder]) | set(files), key=lambda path: path.lower())
     folder_names = set()
     for folder in folder_projects:
         parts = folder.split('/')
@@ -291,7 +337,7 @@ def organize_slnx(solution_path, defold_root, log):
     def folder_sort_key(folder):
         top_level_order = {
             'Engine': 0,
-            'Extender': 1,
+            'share': 1,
             'CMake configs': 2,
         }
         top_level = folder.split('/')[0]
