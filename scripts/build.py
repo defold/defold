@@ -2383,7 +2383,7 @@ class Configuration(object):
 
         self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
 
-    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False):
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
         platform = self._cmake_target_platform(platform)
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
@@ -2424,7 +2424,7 @@ class Configuration(object):
             f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
-            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}',
+            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_existing_bob_light) else "OFF"}',
             f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}',
             f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
             f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
@@ -2483,13 +2483,12 @@ class Configuration(object):
 
         self.build_tracker.end_command(log_cmd_build)
 
-        # Keep install as a separate phase. CMake's install target depends on
-        # 'all', but not on our custom 'build_tests' aggregate. Some installed
-        # test-side artifacts can otherwise race the install step.
+        # Keep install as a separate phase. Use cmake --install instead of the
+        # generated install target so the install phase does not re-enter 'all'.
         log_cmd_install = f'CMake install {name}'
         self.build_tracker.start_command(log_cmd_install)
 
-        cmake_install_args = ['cmake', '--build', builddir, '--target', 'install']
+        cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
         if is_verbose:
             cmake_install_args.append('--verbose')
         run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
@@ -2632,7 +2631,7 @@ class Configuration(object):
             reuse_builddir = host == target_platform
             target_lib_set = 'all' if reuse_builddir else 'target'
             self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir)
+            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir, use_existing_bob_light = True)
             self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if with_waf:
