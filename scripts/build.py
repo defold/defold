@@ -27,7 +27,7 @@ import codesigning
 import run
 import s3
 import sdk
-from cross_build import DEFOLD_PLATFORMS_FILE, get_configured_platforms, get_platform_root, get_platforms_config_path, load_platforms_config, save_platforms_config
+from cross_build import DEFOLD_PLATFORMS_FILE, get_configured_platforms, get_platform_root, get_platforms_config_path, load_platforms_config, save_platforms_config, write_merged_platform_sdks
 from private_hooks import call_hook, has_hook_module
 import wasm_runner
 import release_to_github
@@ -2650,8 +2650,8 @@ class Configuration(object):
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
-        self._log("Copy platform.sdks.json")
-        shutil.copyfile(join(self.defold_root, "share", "platform.sdks.json"), join(self.dynamo_home, "platform.sdks.json"))
+        self._log("Write platform.sdks.json")
+        write_merged_platform_sdks(self.defold_root, self.target_platform, join(self.dynamo_home, "platform.sdks.json"))
 
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
             print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
@@ -2961,7 +2961,9 @@ class Configuration(object):
         self.upload_to_archive(join(dirname(sdkpath), sig_filename), '%s/defoldsdk.sha256' % sdkurl)
 
         print("Upload platform sdks mappings")
-        self.upload_to_archive(join(self.defold_root, "share", "platform.sdks.json"), '%s/platform.sdks.json' % sdkurl)
+        platform_sdks_path = join(tempdir, 'platform.sdks.json')
+        write_merged_platform_sdks(self.defold_root, self.target_platform, platform_sdks_path)
+        self.upload_to_archive(platform_sdks_path, '%s/platform.sdks.json' % sdkurl)
 
         self.wait_uploads()
         shutil.rmtree(tempdir)
