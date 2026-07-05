@@ -650,6 +650,148 @@ namespace dmShaderc
         return ReplaceString(src, highp_buf, mediump_buf, result_buf);
     }
 
+    static bool LineContainsChar(const char* begin, const char* end, char c)
+    {
+        for (const char* p = begin; p < end; ++p)
+        {
+            if (*p == c)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static char* FindLineStart(char* buffer_begin, char* p)
+    {
+        while (p > buffer_begin && p[-1] != '\n' && p[-1] != '\r')
+        {
+            --p;
+        }
+        return p;
+    }
+
+    static char* FindLineEnd(char* p)
+    {
+        while (*p && *p != '\n' && *p != '\r')
+        {
+            ++p;
+        }
+        return p;
+    }
+
+    static char* SkipLineEnding(char* p)
+    {
+        if (*p == '\r')
+        {
+            ++p;
+        }
+        if (*p == '\n')
+        {
+            ++p;
+        }
+        return p;
+    }
+
+    static char* SkipWhitespace(char* p)
+    {
+        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+        {
+            ++p;
+        }
+        return p;
+    }
+
+    // SPIRV-Cross can emit HLSL structs with regular varyings before
+    // gl_Position/gl_FragCoord's HLSL system-value semantic, for example:
+    //
+    //     struct SPIRV_Cross_Input
+    //     {
+    //         float2 var_texcoord0 : TEXCOORD0;
+    //         float3 var_normal : TEXCOORD1;
+    //         float4 gl_FragCoord : SV_Position;
+    //     };
+    //
+    // D3DCompiler assigns shader signature registers in declaration order. When a
+    // fragment shader consumes gl_FragCoord, its SV_Position input must therefore
+    // be packed in the same register as the vertex shader's SV_Position output.
+    // The Java shader pipeline reflects the compiled fragment bytecode; if it has
+    // an SV_Position input, it recompiles both graphics stages with this option so
+    // both generated structs put SV_Position first.
+    //
+    // Do not enable this for every vertex shader. A common GBuffer shader writes
+    // SV_Position but the fragment shader only reads TEXCOORD varyings. Moving the
+    // vertex SV_Position to the front in that case shifts TEXCOORD output registers
+    // by one while fragment TEXCOORD inputs still start at zero, which makes DX12
+    // reject the PSO with a VS/PS linkage error.
+    //
+    // Keep this in Defold rather than patching the bundled SPIRV-Cross package:
+    // the decision depends on the paired fragment shader, not on a single stage in
+    // isolation.
+    static bool MoveSVPositionStructMemberToFront(dmArray<char>& source)
+    {
+        if (source.Empty())
+        {
+            return true;
+        }
+
+        char* data = source.Begin();
+        char* search = data;
+        const char* sv_position = ": SV_Position";
+
+        while ((search = strstr(search, sv_position)) != 0)
+        {
+            char* line_start = FindLineStart(data, search);
+            char* line_end = FindLineEnd(search);
+            char* move_end = SkipLineEnding(line_end);
+
+            if (!LineContainsChar(line_start, line_end, ';'))
+            {
+                search = line_end;
+                continue;
+            }
+
+            char* open_brace = line_start;
+            while (open_brace > data && *open_brace != '{')
+            {
+                --open_brace;
+            }
+            if (*open_brace != '{')
+            {
+                search = line_end;
+                continue;
+            }
+
+            char* insert_pos = open_brace + 1;
+            insert_pos = SkipLineEnding(insert_pos);
+
+            if (SkipWhitespace(insert_pos) == line_start)
+            {
+                search = move_end;
+                continue;
+            }
+
+            const uint32_t text_size = (uint32_t) strlen(data) + 1;
+            const uint32_t line_size = (uint32_t) (move_end - line_start);
+            char* line = (char*) malloc(line_size);
+            if (!line)
+            {
+                dmLogError("Out of memory while reordering HLSL SV_Position member");
+                return false;
+            }
+
+            memcpy(line, line_start, line_size);
+            memmove(line_start, move_end, (data + text_size) - move_end);
+            memmove(insert_pos + line_size, insert_pos, (data + text_size - line_size) - insert_pos);
+            memcpy(insert_pos, line, line_size);
+            free(line);
+
+            search = insert_pos + line_size;
+        }
+
+        return true;
+    }
+
     ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options)
     {
         spvc_compiler_options spv_options = NULL;
@@ -788,15 +930,38 @@ namespace dmShaderc
         uint32_t final_compile_result_size = compile_result_size;
 
         dmArray<char> transform_buffer;
+        const char* compile_error = 0;
 
-        // highp qualifier might not be supported on ES2, so we need to apply a workaround.
-        if (compile_result && options.m_GlslEs && options.m_Version == 100 && context->m_Stage == SHADER_STAGE_FRAGMENT)
+        if (compile_result &&
+            compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_HLSL &&
+            options.m_HLSLMoveSVPositionToFront &&
+            (context->m_Stage == SHADER_STAGE_VERTEX || context->m_Stage == SHADER_STAGE_FRAGMENT))
         {
             EnsureSize(transform_buffer, compile_result_size + 1);
             memcpy(transform_buffer.Begin(), compile_result, compile_result_size);
             transform_buffer.Begin()[compile_result_size] = '\0';
 
-            uint32_t transform_content_size = compile_result_size;
+            if (!MoveSVPositionStructMemberToFront(transform_buffer))
+            {
+                final_compile_result = 0;
+                final_compile_result_size = 0;
+                compile_error = "Out of memory while normalizing HLSL SV_Position semantic";
+            }
+            else
+            {
+                final_compile_result = transform_buffer.Begin();
+                final_compile_result_size = (uint32_t) strlen(transform_buffer.Begin());
+            }
+        }
+
+        // highp qualifier might not be supported on ES2, so we need to apply a workaround.
+        if (final_compile_result && options.m_GlslEs && options.m_Version == 100 && context->m_Stage == SHADER_STAGE_FRAGMENT)
+        {
+            EnsureSize(transform_buffer, final_compile_result_size + 1);
+            memcpy(transform_buffer.Begin(), final_compile_result, final_compile_result_size);
+            transform_buffer.Begin()[final_compile_result_size] = '\0';
+
+            uint32_t transform_content_size = final_compile_result_size;
             dmArray<char> tmp_buffer;
 
             if (((options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_HIGHP &&
@@ -843,7 +1008,7 @@ namespace dmShaderc
         }
         else
         {
-            result->m_LastError = spvc_context_get_last_error_string(context->m_SPVCContext);
+            result->m_LastError = compile_error ? compile_error : spvc_context_get_last_error_string(context->m_SPVCContext);
         }
 
         return result;

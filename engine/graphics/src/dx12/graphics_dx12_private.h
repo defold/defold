@@ -160,6 +160,7 @@ namespace dmGraphics
         DXGI_FORMAT           m_Format;
         DXGI_FORMAT           m_DsvFormat; // DXGI_FORMAT_UNKNOWN if no depth/stencil attachment
         DXGI_SAMPLE_DESC      m_SampleDesc;
+        D3D12_RECT            m_Scissor;
     };
 
     struct DX12DescriptorPool
@@ -283,11 +284,13 @@ namespace dmGraphics
         uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_DsvDescriptorSize;
+        uint32_t                           m_SwapInterval;
         uint32_t                           m_NumFramesInFlight    : 2;
         uint32_t                           m_FrameBegun           : 1;
         uint32_t                           m_CullFaceChanged      : 1;
         uint32_t                           m_ViewportChanged      : 1;
         uint32_t                           m_UseValidationLayers  : 1;
+        uint32_t                           m_AllowTearing         : 1;
         uint32_t                           m_MSAASampleCount      : 8;
     };
 

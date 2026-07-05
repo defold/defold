@@ -471,6 +471,16 @@ namespace dmShaderc
         return true;
     }
 
+    static bool CopySerializedRootSignature(const void* blob_data, uint32_t blob_size, dmArray<uint8_t>& out_root_signature)
+    {
+        if (!blob_data || blob_size == 0)
+            return false;
+
+        out_root_signature.SetCapacity(blob_size);
+        out_root_signature.SetSize(blob_size);
+        memcpy(out_root_signature.Begin(), blob_data, blob_size);
+        return true;
+    }
     static const char* RootVisibilityToString(D3D12_SHADER_VISIBILITY visibility)
     {
         switch (visibility)
@@ -512,14 +522,25 @@ namespace dmShaderc
         if (!blob_data || blob_size == 0)
             return false;
 
-        ID3D12RootSignatureDeserializer* deserializer = 0;
-        HRESULT hr = D3D12CreateRootSignatureDeserializer(blob_data, blob_size, IID_PPV_ARGS(&deserializer));
+        dmArray<uint8_t> serialized_root_signature;
+        if (!CopySerializedRootSignature(blob_data, blob_size, serialized_root_signature))
+            return false;
+
+        ID3D12VersionedRootSignatureDeserializer* deserializer = 0;
+        HRESULT hr = D3D12CreateVersionedRootSignatureDeserializer(serialized_root_signature.Begin(), serialized_root_signature.Size(), IID_PPV_ARGS(&deserializer));
         if (FAILED(hr) || !deserializer)
         {
             return false;
         }
 
-        const D3D12_ROOT_SIGNATURE_DESC* desc = deserializer->GetRootSignatureDesc();
+        const D3D12_VERSIONED_ROOT_SIGNATURE_DESC* versioned_desc = 0;
+        hr = deserializer->GetRootSignatureDescAtVersion(D3D_ROOT_SIGNATURE_VERSION_1, &versioned_desc);
+        if (FAILED(hr) || !versioned_desc)
+        {
+            deserializer->Release();
+            return false;
+        }
+        const D3D12_ROOT_SIGNATURE_DESC* desc = &versioned_desc->Desc_1_0;
 
         const uint32_t MAX_ROOTSIG_TEXT = 16384;
         out_text.SetCapacity(MAX_ROOTSIG_TEXT);
@@ -740,6 +761,164 @@ namespace dmShaderc
         }
 
         buffer.SetSize(pos + 1);
+    }
+
+    static D3D12_SHADER_VISIBILITY GetD3D12RootSignatureVisibility(ShaderStage stage)
+    {
+        switch (stage)
+        {
+            case SHADER_STAGE_VERTEX:   return D3D12_SHADER_VISIBILITY_VERTEX;
+            case SHADER_STAGE_FRAGMENT: return D3D12_SHADER_VISIBILITY_PIXEL;
+            case SHADER_STAGE_COMPUTE:  return D3D12_SHADER_VISIBILITY_ALL;
+            default:                    return D3D12_SHADER_VISIBILITY_ALL;
+        }
+    }
+
+    static D3D12_ROOT_SIGNATURE_FLAGS GetD3D12RootSignatureFlags(ShaderStage stage)
+    {
+        switch (stage)
+        {
+            case SHADER_STAGE_VERTEX:
+            case SHADER_STAGE_FRAGMENT:
+                return (D3D12_ROOT_SIGNATURE_FLAGS)
+                    (
+                        D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+                        D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+                        D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+                        D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS
+                    );
+            case SHADER_STAGE_COMPUTE:
+                return (D3D12_ROOT_SIGNATURE_FLAGS)
+                    (
+                        D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
+                        D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+                        D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+                        D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
+                        D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS
+                    );
+            default:
+                return D3D12_ROOT_SIGNATURE_FLAG_NONE;
+        }
+    }
+
+    static bool IsSupportedRootSignatureResourceType(D3D_SHADER_INPUT_TYPE type)
+    {
+        return type == D3D_SIT_CBUFFER ||
+               type == D3D_SIT_TEXTURE ||
+               type == D3D_SIT_SAMPLER ||
+               type == D3D_SIT_UAV_RWTYPED;
+    }
+
+    static bool SerializeRootSignatureFromReflection(ID3D12ShaderReflection* reflection, const D3D12_SHADER_DESC* shader_desc, ShaderStage stage, dmArray<uint8_t>& out_root_signature)
+    {
+        uint32_t parameter_count = 0;
+        for (uint32_t i = 0; i < shader_desc->BoundResources; ++i)
+        {
+            D3D12_SHADER_INPUT_BIND_DESC bind_desc;
+            reflection->GetResourceBindingDesc(i, &bind_desc);
+            if (IsSupportedRootSignatureResourceType(bind_desc.Type))
+            {
+                ++parameter_count;
+            }
+        }
+
+        dmArray<D3D12_ROOT_PARAMETER> root_params;
+        dmArray<D3D12_DESCRIPTOR_RANGE> ranges;
+        root_params.SetCapacity(parameter_count);
+        root_params.SetSize(parameter_count);
+        ranges.SetCapacity(parameter_count);
+        ranges.SetSize(parameter_count);
+        memset(root_params.Begin(), 0, sizeof(D3D12_ROOT_PARAMETER) * parameter_count);
+        memset(ranges.Begin(), 0, sizeof(D3D12_DESCRIPTOR_RANGE) * parameter_count);
+
+        const D3D12_SHADER_VISIBILITY visibility = GetD3D12RootSignatureVisibility(stage);
+        uint32_t parameter_index = 0;
+        for (uint32_t i = 0; i < shader_desc->BoundResources; ++i)
+        {
+            D3D12_SHADER_INPUT_BIND_DESC bind_desc;
+            reflection->GetResourceBindingDesc(i, &bind_desc);
+            if (!IsSupportedRootSignatureResourceType(bind_desc.Type))
+            {
+                continue;
+            }
+
+            D3D12_ROOT_PARAMETER& param = root_params[parameter_index];
+            param.ShaderVisibility = visibility;
+
+            switch (bind_desc.Type)
+            {
+                case D3D_SIT_CBUFFER:
+                    param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+                    param.Descriptor.ShaderRegister = bind_desc.BindPoint;
+                    param.Descriptor.RegisterSpace = bind_desc.Space;
+                    break;
+                case D3D_SIT_TEXTURE:
+                    ranges[parameter_index].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+                    ranges[parameter_index].NumDescriptors = 1;
+                    ranges[parameter_index].BaseShaderRegister = bind_desc.BindPoint;
+                    ranges[parameter_index].RegisterSpace = bind_desc.Space;
+                    ranges[parameter_index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                    param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    param.DescriptorTable.NumDescriptorRanges = 1;
+                    param.DescriptorTable.pDescriptorRanges = &ranges[parameter_index];
+                    break;
+                case D3D_SIT_SAMPLER:
+                    ranges[parameter_index].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+                    ranges[parameter_index].NumDescriptors = 1;
+                    ranges[parameter_index].BaseShaderRegister = bind_desc.BindPoint;
+                    ranges[parameter_index].RegisterSpace = bind_desc.Space;
+                    ranges[parameter_index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                    param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    param.DescriptorTable.NumDescriptorRanges = 1;
+                    param.DescriptorTable.pDescriptorRanges = &ranges[parameter_index];
+                    break;
+                case D3D_SIT_UAV_RWTYPED:
+                    ranges[parameter_index].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+                    ranges[parameter_index].NumDescriptors = 1;
+                    ranges[parameter_index].BaseShaderRegister = bind_desc.BindPoint;
+                    ranges[parameter_index].RegisterSpace = bind_desc.Space;
+                    ranges[parameter_index].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+                    param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+                    param.DescriptorTable.NumDescriptorRanges = 1;
+                    param.DescriptorTable.pDescriptorRanges = &ranges[parameter_index];
+                    break;
+                default:
+                    break;
+            }
+
+            ++parameter_index;
+        }
+
+        D3D12_ROOT_SIGNATURE_DESC desc = {};
+        desc.NumParameters = parameter_count;
+        desc.pParameters = parameter_count > 0 ? root_params.Begin() : 0;
+        desc.NumStaticSamplers = 0;
+        desc.pStaticSamplers = 0;
+        desc.Flags = GetD3D12RootSignatureFlags(stage);
+
+        ID3DBlob* signature_blob = 0;
+        ID3DBlob* error_blob = 0;
+        HRESULT hr = D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature_blob, &error_blob);
+        if (FAILED(hr))
+        {
+            if (error_blob)
+            {
+                dmLogError("Failed to serialize generated HLSL root signature: %s", (const char*) error_blob->GetBufferPointer());
+                error_blob->Release();
+            }
+            return false;
+        }
+        if (error_blob)
+        {
+            error_blob->Release();
+        }
+
+        uint32_t signature_size = (uint32_t) signature_blob->GetBufferSize();
+        out_root_signature.SetCapacity(signature_size);
+        out_root_signature.SetSize(signature_size);
+        memcpy(out_root_signature.Begin(), signature_blob->GetBufferPointer(), signature_size);
+        signature_blob->Release();
+        return true;
     }
 
     static bool InjectRootSignatureIntoSource(const char* source, const char* root_signature, dmArray<char>& injected_buffer)
@@ -977,9 +1156,9 @@ namespace dmShaderc
         return success;
     }
 
-    static bool CreateReflectionData(const ShaderCompileResult* raw_hlsl, const char* entry_point, const char* reflection_profile, ID3DBlob** out_shader_blob, ID3DBlob** out_error_blob, ID3D12ShaderReflection** out_reflection, D3D12_SHADER_DESC* out_shader_desc)
+    static bool CreateReflectionData(const void* source, uint32_t source_size, const char* entry_point, const char* reflection_profile, ID3DBlob** out_shader_blob, ID3DBlob** out_error_blob, ID3D12ShaderReflection** out_reflection, D3D12_SHADER_DESC* out_shader_desc)
     {
-        if (!CompileShaderD3DCompiler(raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size(), entry_point, reflection_profile, out_shader_blob, out_error_blob, "Shader compile error"))
+        if (!CompileShaderD3DCompiler(source, source_size, entry_point, reflection_profile, out_shader_blob, out_error_blob, "Shader compile error"))
         {
             return false;
         }
@@ -1058,6 +1237,15 @@ namespace dmShaderc
             return false;
         }
 
+        if (IsNullOrEmpty(options->m_RootSignatureOverride))
+        {
+            if (!SerializeRootSignatureFromReflection(reflection, shader_desc, stage, out_root_signature))
+            {
+                return false;
+            }
+            return true;
+        }
+
         ID3DBlob* root_signature_blob = NULL;
         HRESULT hr = D3DGetBlobPart((*inout_shader_blob)->GetBufferPointer(), (*inout_shader_blob)->GetBufferSize(), D3D_BLOB_ROOT_SIGNATURE, 0, &root_signature_blob);
         if (FAILED(hr))
@@ -1066,10 +1254,12 @@ namespace dmShaderc
             return false;
         }
 
-        uint32_t root_signature_size = root_signature_blob->GetBufferSize();
-        out_root_signature.SetCapacity(root_signature_size);
-        out_root_signature.SetSize(root_signature_size);
-        memcpy(out_root_signature.Begin(), root_signature_blob->GetBufferPointer(), root_signature_size);
+        if (!CopySerializedRootSignature(root_signature_blob->GetBufferPointer(), (uint32_t) root_signature_blob->GetBufferSize(), out_root_signature))
+        {
+            dmLogError("Failed to normalize hlsl root signature");
+            root_signature_blob->Release();
+            return false;
+        }
         root_signature_blob->Release();
         return true;
     }
@@ -1087,6 +1277,7 @@ namespace dmShaderc
         dmArray<uint8_t> output_blob;
         dmArray<uint8_t> root_signature_data;
         dmArray<char> binary_source;
+        dmArray<char> prepared_hlsl_source;
         dmArray<CombinedSampler> combined_samplers;
 
         const int version = options->m_Version;
@@ -1108,9 +1299,18 @@ namespace dmShaderc
         char reflection_profile[32];
         BuildShaderProfile(context->m_Stage, reflection_version, reflection_profile);
 
+        prepared_hlsl_source.SetCapacity(raw_hlsl->m_Data.Size() + 1);
+        prepared_hlsl_source.SetSize(raw_hlsl->m_Data.Size() + 1);
+        if (raw_hlsl->m_Data.Size() > 0)
+        {
+            memcpy(prepared_hlsl_source.Begin(), raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size());
+        }
+        prepared_hlsl_source.Begin()[raw_hlsl->m_Data.Size()] = '\0';
+
+        const uint32_t prepared_hlsl_source_size = prepared_hlsl_source.Size() > 0 ? prepared_hlsl_source.Size() - 1 : 0;
         D3D12_SHADER_DESC shaderDesc;
         // Step 1: Reflection pass with D3DCompiler to build deterministic resource mappings.
-        if (!CreateReflectionData(raw_hlsl, entry_point, reflection_profile, &shader_blob, &error_blob, &reflection, &shaderDesc))
+        if (!CreateReflectionData(prepared_hlsl_source.Begin(), prepared_hlsl_source_size, entry_point, reflection_profile, &shader_blob, &error_blob, &reflection, &shaderDesc))
         {
             goto cleanup;
         }
@@ -1120,19 +1320,19 @@ namespace dmShaderc
     #endif
 
         // Explicitly null-terminate the incoming string before source text processing.
-        src_data = (char*) malloc(raw_hlsl->m_Data.Size()+1);
+        src_data = (char*) malloc(prepared_hlsl_source_size + 1);
         if (!src_data)
         {
             dmLogError("Out of memory while preparing HLSL source");
             goto cleanup;
         }
 
-        memcpy((void*) src_data, raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size());
-        src_data[raw_hlsl->m_Data.Size()] = '\0';
+        memcpy((void*) src_data, prepared_hlsl_source.Begin(), prepared_hlsl_source_size);
+        src_data[prepared_hlsl_source_size] = '\0';
 
-        binary_source.SetCapacity(raw_hlsl->m_Data.Size());
-        binary_source.SetSize(raw_hlsl->m_Data.Size());
-        memcpy(binary_source.Begin(), raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size());
+        binary_source.SetCapacity(prepared_hlsl_source_size);
+        binary_source.SetSize(prepared_hlsl_source_size);
+        memcpy(binary_source.Begin(), prepared_hlsl_source.Begin(), prepared_hlsl_source_size);
 
         // Step 2: Create root signature and inject it into the source for SM5.1+.
         if (version > 50)
@@ -1161,10 +1361,10 @@ namespace dmShaderc
         else
         {
             // Backwards-compatible path: keep shipping HLSL source when no external toolchain is configured.
-            uint32_t data_size = raw_hlsl->m_Data.Size();
+            uint32_t data_size = prepared_hlsl_source_size;
             output_blob.SetCapacity(data_size);
             output_blob.SetSize(data_size);
-            memcpy(output_blob.Begin(), raw_hlsl->m_Data.Begin(), data_size);
+            memcpy(output_blob.Begin(), prepared_hlsl_source.Begin(), data_size);
         }
 
         result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
@@ -1239,21 +1439,31 @@ namespace dmShaderc
 
         *out_blob = NULL;
 
-        ID3D12RootSignatureDeserializer* deserializer = NULL;
-        HRESULT hr = D3D12CreateRootSignatureDeserializer(blob_ptr, blob_size, IID_PPV_ARGS(&deserializer));
+        dmArray<uint8_t> serialized_root_signature;
+        if (!CopySerializedRootSignature(blob_ptr, (uint32_t) blob_size, serialized_root_signature))
+        {
+            DM_TRACE_LINE();
+            return E_INVALIDARG;
+        }
+
+        ID3D12VersionedRootSignatureDeserializer* deserializer = NULL;
+        HRESULT hr = D3D12CreateVersionedRootSignatureDeserializer(serialized_root_signature.Begin(), serialized_root_signature.Size(), IID_PPV_ARGS(&deserializer));
         if (FAILED(hr))
         {
             DM_TRACE_LINE();
+            dmLogError("Failed to deserialize HLSL root signature while applying flags (HRESULT 0x%08X, bytes=%u)", (uint32_t) hr, serialized_root_signature.Size());
             return hr;
         }
 
-        const D3D12_ROOT_SIGNATURE_DESC* desc = deserializer->GetRootSignatureDesc();
-        if (!desc)
+        const D3D12_VERSIONED_ROOT_SIGNATURE_DESC* versioned_desc = NULL;
+        hr = deserializer->GetRootSignatureDescAtVersion(D3D_ROOT_SIGNATURE_VERSION_1, &versioned_desc);
+        if (FAILED(hr) || !versioned_desc)
         {
             DM_TRACE_LINE();
             deserializer->Release();
-            return E_FAIL;
+            return FAILED(hr) ? hr : E_FAIL;
         }
+        const D3D12_ROOT_SIGNATURE_DESC* desc = &versioned_desc->Desc_1_0;
 
         D3D12_ROOT_SIGNATURE_DESC patched_desc = *desc;
         patched_desc.Flags = (D3D12_ROOT_SIGNATURE_FLAGS) (desc->Flags | flags_to_or);
@@ -1275,8 +1485,97 @@ namespace dmShaderc
         return hr;
     }
 
-    // We may want to update this to support more than 2 root signatures
-    // Concatenate two serialized root signature blobs given as raw pointer + size
+    static bool RootDescriptorRangeEqual(const D3D12_DESCRIPTOR_RANGE& a, const D3D12_DESCRIPTOR_RANGE& b)
+    {
+        return a.RangeType == b.RangeType &&
+               a.NumDescriptors == b.NumDescriptors &&
+               a.BaseShaderRegister == b.BaseShaderRegister &&
+               a.RegisterSpace == b.RegisterSpace &&
+               a.OffsetInDescriptorsFromTableStart == b.OffsetInDescriptorsFromTableStart;
+    }
+
+    static bool RootParameterBindingsEqual(const D3D12_ROOT_PARAMETER& a, const D3D12_ROOT_PARAMETER& b)
+    {
+        if (a.ParameterType != b.ParameterType)
+            return false;
+
+        switch (a.ParameterType)
+        {
+            case D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE:
+                if (a.DescriptorTable.NumDescriptorRanges != b.DescriptorTable.NumDescriptorRanges)
+                    return false;
+                for (uint32_t i = 0; i < a.DescriptorTable.NumDescriptorRanges; ++i)
+                {
+                    if (!RootDescriptorRangeEqual(a.DescriptorTable.pDescriptorRanges[i], b.DescriptorTable.pDescriptorRanges[i]))
+                        return false;
+                }
+                return true;
+            case D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS:
+                return a.Constants.ShaderRegister == b.Constants.ShaderRegister &&
+                       a.Constants.RegisterSpace == b.Constants.RegisterSpace &&
+                       a.Constants.Num32BitValues == b.Constants.Num32BitValues;
+            case D3D12_ROOT_PARAMETER_TYPE_CBV:
+            case D3D12_ROOT_PARAMETER_TYPE_SRV:
+            case D3D12_ROOT_PARAMETER_TYPE_UAV:
+                return a.Descriptor.ShaderRegister == b.Descriptor.ShaderRegister &&
+                       a.Descriptor.RegisterSpace == b.Descriptor.RegisterSpace;
+            default:
+                return false;
+        }
+    }
+
+    static D3D12_SHADER_VISIBILITY MergeRootParameterVisibility(D3D12_SHADER_VISIBILITY a, D3D12_SHADER_VISIBILITY b)
+    {
+        return a == b ? a : D3D12_SHADER_VISIBILITY_ALL;
+    }
+
+    static void AddRootParameterDeduplicated(D3D12_ROOT_PARAMETER* root_params, UINT* root_param_count, const D3D12_ROOT_PARAMETER& param)
+    {
+        for (UINT i = 0; i < *root_param_count; ++i)
+        {
+            if (RootParameterBindingsEqual(root_params[i], param))
+            {
+                root_params[i].ShaderVisibility = MergeRootParameterVisibility(root_params[i].ShaderVisibility, param.ShaderVisibility);
+                return;
+            }
+        }
+
+        root_params[*root_param_count] = param;
+        *root_param_count += 1;
+    }
+
+    static bool StaticSamplerDescEqualIgnoringVisibility(const D3D12_STATIC_SAMPLER_DESC& a, const D3D12_STATIC_SAMPLER_DESC& b)
+    {
+        return a.Filter == b.Filter &&
+               a.AddressU == b.AddressU &&
+               a.AddressV == b.AddressV &&
+               a.AddressW == b.AddressW &&
+               a.MipLODBias == b.MipLODBias &&
+               a.MaxAnisotropy == b.MaxAnisotropy &&
+               a.ComparisonFunc == b.ComparisonFunc &&
+               a.BorderColor == b.BorderColor &&
+               a.MinLOD == b.MinLOD &&
+               a.MaxLOD == b.MaxLOD &&
+               a.ShaderRegister == b.ShaderRegister &&
+               a.RegisterSpace == b.RegisterSpace;
+    }
+
+    static void AddStaticSamplerDeduplicated(D3D12_STATIC_SAMPLER_DESC* static_samplers, UINT* static_sampler_count, const D3D12_STATIC_SAMPLER_DESC& sampler)
+    {
+        for (UINT i = 0; i < *static_sampler_count; ++i)
+        {
+            if (StaticSamplerDescEqualIgnoringVisibility(static_samplers[i], sampler))
+            {
+                static_samplers[i].ShaderVisibility = MergeRootParameterVisibility(static_samplers[i].ShaderVisibility, sampler.ShaderVisibility);
+                return;
+            }
+        }
+
+        static_samplers[*static_sampler_count] = sampler;
+        *static_sampler_count += 1;
+    }
+
+    // We may want to update this to support more than 2 root signatures    // Concatenate two serialized root signature blobs given as raw pointer + size
     static HRESULT ConcatenateRootSignatures(const void* blob_a_ptr, size_t blob_a_size, const void* blob_b_ptr, size_t blob_b_size, ID3DBlob** out_merged_blob)
     {
         DM_TRACE_LINE();
@@ -1286,29 +1585,58 @@ namespace dmShaderc
             return E_INVALIDARG;
         }
 
-        ID3D12RootSignatureDeserializer* deserializer_a = NULL;
-        ID3D12RootSignatureDeserializer* deserializer_b = NULL;
+        dmArray<uint8_t> root_signature_a;
+        dmArray<uint8_t> root_signature_b;
+        if (!CopySerializedRootSignature(blob_a_ptr, (uint32_t) blob_a_size, root_signature_a) ||
+            !CopySerializedRootSignature(blob_b_ptr, (uint32_t) blob_b_size, root_signature_b))
+        {
+        DM_TRACE_LINE();
+            return E_INVALIDARG;
+        }
+
+        ID3D12VersionedRootSignatureDeserializer* deserializer_a = NULL;
+        ID3D12VersionedRootSignatureDeserializer* deserializer_b = NULL;
 
         DM_TRACE_LINE();
-        HRESULT hr = D3D12CreateRootSignatureDeserializer(blob_a_ptr, blob_a_size, IID_PPV_ARGS(&deserializer_a));
+        HRESULT hr = D3D12CreateVersionedRootSignatureDeserializer(root_signature_a.Begin(), root_signature_a.Size(), IID_PPV_ARGS(&deserializer_a));
         if (FAILED(hr))
         {
         DM_TRACE_LINE();
+            dmLogError("Failed to deserialize first HLSL root signature while merging (HRESULT 0x%08X, bytes=%u, prefix=%02X %02X %02X %02X %02X %02X %02X %02X)", (uint32_t) hr, root_signature_a.Size(), root_signature_a.Size() > 0 ? root_signature_a[0] : 0, root_signature_a.Size() > 1 ? root_signature_a[1] : 0, root_signature_a.Size() > 2 ? root_signature_a[2] : 0, root_signature_a.Size() > 3 ? root_signature_a[3] : 0, root_signature_a.Size() > 4 ? root_signature_a[4] : 0, root_signature_a.Size() > 5 ? root_signature_a[5] : 0, root_signature_a.Size() > 6 ? root_signature_a[6] : 0, root_signature_a.Size() > 7 ? root_signature_a[7] : 0);
             return hr;
         }
 
         DM_TRACE_LINE();
-        hr = D3D12CreateRootSignatureDeserializer(blob_b_ptr, blob_b_size, IID_PPV_ARGS(&deserializer_b));
+        hr = D3D12CreateVersionedRootSignatureDeserializer(root_signature_b.Begin(), root_signature_b.Size(), IID_PPV_ARGS(&deserializer_b));
         if (FAILED(hr))
         {
         DM_TRACE_LINE();
+            dmLogError("Failed to deserialize second HLSL root signature while merging (HRESULT 0x%08X, bytes=%u, prefix=%02X %02X %02X %02X %02X %02X %02X %02X)", (uint32_t) hr, root_signature_b.Size(), root_signature_b.Size() > 0 ? root_signature_b[0] : 0, root_signature_b.Size() > 1 ? root_signature_b[1] : 0, root_signature_b.Size() > 2 ? root_signature_b[2] : 0, root_signature_b.Size() > 3 ? root_signature_b[3] : 0, root_signature_b.Size() > 4 ? root_signature_b[4] : 0, root_signature_b.Size() > 5 ? root_signature_b[5] : 0, root_signature_b.Size() > 6 ? root_signature_b[6] : 0, root_signature_b.Size() > 7 ? root_signature_b[7] : 0);
             deserializer_a->Release();
             return hr;
         }
 
         DM_TRACE_LINE();
-        const D3D12_ROOT_SIGNATURE_DESC* desc_a = deserializer_a->GetRootSignatureDesc();
-        const D3D12_ROOT_SIGNATURE_DESC* desc_b = deserializer_b->GetRootSignatureDesc();
+        const D3D12_VERSIONED_ROOT_SIGNATURE_DESC* versioned_desc_a = NULL;
+        const D3D12_VERSIONED_ROOT_SIGNATURE_DESC* versioned_desc_b = NULL;
+        hr = deserializer_a->GetRootSignatureDescAtVersion(D3D_ROOT_SIGNATURE_VERSION_1, &versioned_desc_a);
+        if (FAILED(hr) || !versioned_desc_a)
+        {
+        DM_TRACE_LINE();
+            deserializer_a->Release();
+            deserializer_b->Release();
+            return FAILED(hr) ? hr : E_FAIL;
+        }
+        hr = deserializer_b->GetRootSignatureDescAtVersion(D3D_ROOT_SIGNATURE_VERSION_1, &versioned_desc_b);
+        if (FAILED(hr) || !versioned_desc_b)
+        {
+        DM_TRACE_LINE();
+            deserializer_a->Release();
+            deserializer_b->Release();
+            return FAILED(hr) ? hr : E_FAIL;
+        }
+        const D3D12_ROOT_SIGNATURE_DESC* desc_a = &versioned_desc_a->Desc_1_0;
+        const D3D12_ROOT_SIGNATURE_DESC* desc_b = &versioned_desc_b->Desc_1_0;
 
         // Allocate combined arrays
         UINT total_params = desc_a->NumParameters + desc_b->NumParameters;
@@ -1322,21 +1650,33 @@ namespace dmShaderc
             static_samplers = (D3D12_STATIC_SAMPLER_DESC*) calloc(total_samplers, sizeof(D3D12_STATIC_SAMPLER_DESC));
         }
 
-        // Copy root parameters
-        memcpy(root_params, desc_a->pParameters, sizeof(D3D12_ROOT_PARAMETER) * desc_a->NumParameters);
-        memcpy(root_params + desc_a->NumParameters, desc_b->pParameters, sizeof(D3D12_ROOT_PARAMETER) * desc_b->NumParameters);
+        UINT unique_params = 0;
+        for (UINT i = 0; i < desc_a->NumParameters; ++i)
+        {
+            AddRootParameterDeduplicated(root_params, &unique_params, desc_a->pParameters[i]);
+        }
+        for (UINT i = 0; i < desc_b->NumParameters; ++i)
+        {
+            AddRootParameterDeduplicated(root_params, &unique_params, desc_b->pParameters[i]);
+        }
 
-        // Copy static samplers if any
+        UINT unique_samplers = 0;
         if (static_samplers)
         {
-            memcpy(static_samplers, desc_a->pStaticSamplers, sizeof(D3D12_STATIC_SAMPLER_DESC) * desc_a->NumStaticSamplers);
-            memcpy(static_samplers + desc_a->NumStaticSamplers, desc_b->pStaticSamplers, sizeof(D3D12_STATIC_SAMPLER_DESC) * desc_b->NumStaticSamplers);
+            for (UINT i = 0; i < desc_a->NumStaticSamplers; ++i)
+            {
+                AddStaticSamplerDeduplicated(static_samplers, &unique_samplers, desc_a->pStaticSamplers[i]);
+            }
+            for (UINT i = 0; i < desc_b->NumStaticSamplers; ++i)
+            {
+                AddStaticSamplerDeduplicated(static_samplers, &unique_samplers, desc_b->pStaticSamplers[i]);
+            }
         }
 
         D3D12_ROOT_SIGNATURE_DESC merged_desc;
-        merged_desc.NumParameters     = total_params;
+        merged_desc.NumParameters     = unique_params;
         merged_desc.pParameters       = root_params;
-        merged_desc.NumStaticSamplers = total_samplers;
+        merged_desc.NumStaticSamplers = unique_samplers;
         merged_desc.pStaticSamplers   = static_samplers;
         const D3D12_ROOT_SIGNATURE_FLAGS graphics_root_flags =
             (D3D12_ROOT_SIGNATURE_FLAGS)
@@ -1346,7 +1686,7 @@ namespace dmShaderc
                 D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
                 D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS
             );
-        merged_desc.Flags             = (D3D12_ROOT_SIGNATURE_FLAGS) (desc_a->Flags | desc_b->Flags | graphics_root_flags);
+        merged_desc.Flags             = graphics_root_flags;
 
         DM_TRACE_LINE();
         ID3DBlob* error_blob = NULL;
@@ -1354,6 +1694,7 @@ namespace dmShaderc
         if (FAILED(hr))
         {
         DM_TRACE_LINE();
+            dmLogError("Failed to serialize merged HLSL root signature (HRESULT 0x%08X, params %u/%u -> %u, static samplers %u/%u -> %u)", (uint32_t) hr, desc_a->NumParameters, desc_b->NumParameters, unique_params, desc_a->NumStaticSamplers, desc_b->NumStaticSamplers, unique_samplers);
             if (error_blob)
             {
                 dmLogError("%s", error_blob->GetBufferPointer());
@@ -1412,12 +1753,14 @@ namespace dmShaderc
         return true;
     }
 
+
     HLSLRootSignature* HLSLMergeRootSignatures(ShaderCompileResult* shaders, uint32_t shaders_size)
     {
         DM_TRACE_LINE();
 
         HRESULT hr = S_OK;
         const char* _errstring = 0;
+        static char merge_error[512];
 
         HLSLRootSignature* result = new HLSLRootSignature;
         ID3DBlob* merged_signature_blob = 0;
@@ -1473,8 +1816,8 @@ namespace dmShaderc
                 hr = EnsureRootSignatureFlags(a_ptr, a_sz, graphics_root_flags, &merged_signature_blob);
                 if (FAILED(hr))
                 {
-                    static const char* _err = "Failed to apply required root signature flags";
-                    _errstring = _err;
+                    dmSnPrintf(merge_error, sizeof(merge_error), "Failed to apply required root signature flags (HRESULT 0x%08X, bytes=%u)", (uint32_t) hr, (uint32_t) a_sz);
+                    _errstring = merge_error;
                     goto cleanup;
                 }
             }
@@ -1483,8 +1826,8 @@ namespace dmShaderc
                 hr = ConcatenateRootSignatures(a_ptr, a_sz, b_ptr, b_sz, &merged_signature_blob);
                 if (FAILED(hr))
                 {
-                    static const char* _err = "Failed to merge root signatures";
-                    _errstring = _err;
+                    dmSnPrintf(merge_error, sizeof(merge_error), "Failed to merge root signatures (HRESULT 0x%08X, bytes=%u/%u)", (uint32_t) hr, (uint32_t) a_sz, (uint32_t) b_sz);
+                    _errstring = merge_error;
                     goto cleanup;
                 }
             }
