@@ -2910,12 +2910,16 @@ class Configuration(object):
         root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = None
-        # when we build the sdk in a private repo we only include the private platforms
+        # When a public checkout has a private platform added, only merge the
+        # requested private platform SDK. Public releases still merge all SDKs.
+        private_platforms = build_private.get_target_platforms()
         if build_private.is_repo_private():
-            platforms = build_private.get_target_platforms()
+            platforms = private_platforms
+        elif self.target_platform in private_platforms:
+            platforms = [self.target_platform]
         else:
             platforms = get_target_platforms()
+        print("Building combined SDK from platform SDK archives:", platforms)
 
         zipmerge_path = shutil.which('zipmerge')
         if zipmerge_path:
