@@ -111,7 +111,6 @@ namespace dmGameSystem
 
     void PostProxyErrorMessage(uint32_t code, dmMessage::URL* sender, dmMessage::URL* receiver, uintptr_t callback_ref)
     {
-        dmLogInfo("PostProxyErrorMessage");
         dmCollectionProxyDDF::ProxyError message;
         message.m_Code = code;
         dmGameObject::Result result = dmGameObject::PostDDF(&message, sender, receiver, callback_ref, true);
@@ -131,7 +130,6 @@ namespace dmGameSystem
     void PostProxyLoadingMessage(CollectionProxyComponent* proxy, float progress)
     {
         assert(proxy->m_AsyncLoadAndInitCallbackRef != 0);
-
         dmCollectionProxyDDF::ProxyLoading message;
         message.m_Progress = progress;
         dmGameObject::Result result = dmGameObject::PostDDF(&message, &proxy->m_LoadReceiver, &proxy->m_LoadSender, proxy->m_AsyncLoadAndInitCallbackRef, false);
