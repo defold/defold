@@ -58,7 +58,6 @@
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
-            [editor.resource-dialog :as resource-dialog]
             [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -3108,7 +3107,7 @@
     (let [resource-node (get-property view-node :resource-node evaluation-context)
           resource (g/node-value resource-node :resource evaluation-context)]
       (resource/file-resource? resource)))
-  (run [view-node user-data open-resource-fn]
+  (run [view-node user-data]
     (g/with-auto-evaluation-context evaluation-context
       (let [resource-node (get-property view-node :resource-node evaluation-context)
             lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
@@ -3174,7 +3173,9 @@
                                                     :h-box/hgrow :never
                                                     :min-width 0
                                                     :style {:-fx-text-fill :-df-text-dark}
-                                                    :text (string/replace detail "function" "ƒ")}))}}))})]
+                                                    :text (if (= kind :function)
+                                                            (string/replace-first detail #"^function\b" "ƒ")
+                                                            detail)}))}}))})]
             (if selection
               (navigate-to-document-symbol! view-node (first selection))
               (set-properties! view-node :navigation original-view))
