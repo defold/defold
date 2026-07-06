@@ -138,14 +138,23 @@ def install_linux(args):
     # call("sudo apt-get install -y apt-fast aria2")
 
     call("sudo apt-get install -y software-properties-common")
-    call("sudo add-apt-repository -y universe")
-    call("sudo apt-get update")
 
     call("update-alternatives --display clang")
     call("update-alternatives --display clang++")
 
-    # libtinfo needed when building wasm-web
-    call("sudo apt-get install -y --no-install-recommends libtinfo5 libncurses5")
+    # Legacy ncurses 5 libraries needed when building wasm-web.
+    # Ubuntu 24.04/Noble runners no longer provide these package names in apt.
+    if platform.machine() in ('aarch64', 'arm64'):
+        ncurses_url = "http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2_arm64.deb"
+        libncurses_deb = "libncurses5_6.3-2_arm64.deb"
+    else:
+        ncurses_url = "http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2ubuntu0.2_amd64.deb"
+        libncurses_deb = "libncurses5_6.3-2ubuntu0.2_amd64.deb"
+
+    call(f"wget {ncurses_url}/{libtinfo_deb} {ncurses_url}/{libncurses_deb}")
+    call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
 
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
     clang_version = 17

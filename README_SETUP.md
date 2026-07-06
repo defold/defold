@@ -402,6 +402,22 @@ Then retry the install:
 sudo apt-get install libtinfo5 libncurses5
 ```
 
+On Ubuntu 24.04 and newer, where the legacy package names are no longer available, install the Ubuntu 22.04 packages directly:
+
+```sh
+wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.2_amd64.deb
+wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libncurses5_6.3-2ubuntu0.2_amd64.deb
+sudo apt install ./libtinfo5_6.3-2ubuntu0.2_amd64.deb ./libncurses5_6.3-2ubuntu0.2_amd64.deb
+```
+
+For arm64 Linux:
+
+```sh
+wget http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses/libtinfo5_6.3-2_arm64.deb
+wget http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses/libncurses5_6.3-2_arm64.deb
+sudo apt install ./libtinfo5_6.3-2_arm64.deb ./libncurses5_6.3-2_arm64.deb
+```
+
 </p></details>
 
 <details><summary>Android...</summary><p>

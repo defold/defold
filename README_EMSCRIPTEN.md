@@ -18,7 +18,7 @@ https://github.com/emscripten-core/emscripten/blob/main/ChangeLog.md
 * Create a tarball of the package
 * Upload packages to s3-bucket `defold-packages`
 
-In order to run on 64-bit Ubuntu install the following packages `lib32z1 lib32ncurses5 lib32bz2-1.0 lib32stdc++6`. If apt fails to find `lib32ncurses5`, enable the `universe` repository and run `apt-get update` before retrying.
+In order to run on 64-bit Ubuntu install the following packages `lib32z1 lib32ncurses5 lib32bz2-1.0 lib32stdc++6`. If apt fails to find `lib32ncurses5`, enable the `universe` repository and run `apt-get update` before retrying. On Ubuntu 24.04 and newer, where the legacy package is no longer available, install the Ubuntu 22.04 package directly from `security.ubuntu.com`.
 
 ### Rebuild 3rd party engine packages
 
