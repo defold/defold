@@ -30,7 +30,6 @@ sudo apt-get install -y --no-install-recommends \
 	libgl1-mesa-dev \
 	libglw1-mesa-dev \
 	freeglut3-dev \
-	libtinfo5 \
 	unzip \
 	zip \
 	# for use when debugging
