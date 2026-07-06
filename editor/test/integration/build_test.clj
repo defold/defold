@@ -898,17 +898,19 @@
 (deftest build-with-dependencies-metadata
   (with-loaded-project "test/resources/custom_resources_project"
     (let [game-project (test-util/resource-node project "/game.project")
+          dependency-url "https://user:secret@example.com/library.zip?token=abc"
+          anonymized-dependency-url "https://example.com/library.zip"
+          expected-metadata-json (str "[{\"url\":\"" anonymized-dependency-url "\",\"commit-sha1\":\"\",\"problem\":\"missing\"}]")
           build-metadata-file (build-path workspace DependencyMetadata/OUTPUT_PATH)]
       (workspace/set-project-dependencies!
         workspace
         [(Library$Result.
-           (URI/create "https://example.com/library.zip")
+           (URI/create dependency-url)
            nil
            (Library$Problem$Missing.))])
       (with-setting "project/dependencies_metadata" true
         (is (nil? (:error (project-build! project game-project))))
-        (is (= "[{\"url\":\"https://example.com/library.zip\",\"commit-sha1\":\"\",\"problem\":\"missing\"}]"
-               (slurp build-metadata-file))))
+        (is (= expected-metadata-json (slurp build-metadata-file))))
       (with-setting "project/dependencies_metadata" false
         (is (nil? (:error (project-build! project game-project))))
         (is (false? (.exists build-metadata-file)))))))
