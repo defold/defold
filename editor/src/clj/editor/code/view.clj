@@ -1392,19 +1392,23 @@
                                           :text (summarize-document-symbol-detail detail)
                                           :color :hint}))}})))
 
-(defn- navigate-to-document-symbol! [view-node ^TreeItem maybe-item]
-  (when maybe-item
+(defn- navigate-to-document-symbol! [view-node document-symbol]
+  (when document-symbol
     (set-properties! view-node :navigation
                      (data/select-and-frame (get-property view-node :lines)
                                             (get-property view-node :layout)
-                                            (:selection-range (.getValue maybe-item))))))
+                                            (:selection-range document-symbol)))))
+
+(defn- navigate-to-document-symbol-tree-item! [view-node ^TreeItem maybe-item]
+  (when maybe-item
+    (navigate-to-document-symbol! view-node (.getValue maybe-item))))
 
 (defn- focus-code-editor! [view-node]
   (.requestFocus ^Canvas (get-property view-node :canvas)))
 
 (defn- handle-structure-pane-key-pressed! [view-node ^KeyEvent event]
   (when (= KeyCode/ENTER (.getCode event))
-    (navigate-to-document-symbol! view-node (-> event ^TreeView (.getSource) .getSelectionModel .getSelectedItem))
+    (navigate-to-document-symbol-tree-item! view-node (-> event ^TreeView (.getSource) .getSelectionModel .getSelectedItem))
     (focus-code-editor! view-node)
     (.consume event)))
 
@@ -1421,7 +1425,7 @@
   {:fx/type fxui/titled-pane
    :title (localization-state structure-pane-message)
    :content {:fx/type fx.ext.tree-view/with-selection-props
-             :props {:on-selected-item-changed #(navigate-to-document-symbol! view-node %)}
+             :props {:on-selected-item-changed #(navigate-to-document-symbol-tree-item! view-node %)}
              :desc {:fx/type fxui/tree-view
                     :show-root false
                     :on-key-pressed #(handle-structure-pane-key-pressed! view-node %)
@@ -1437,10 +1441,6 @@
   (and (not (g/error-value? resource-properties))
        (reduce-kv #(if (:visible %3 true) (reduced true) false) false (:properties resource-properties))))
 
-;; endregion
-
-;; region jump to symbol
-(defn- flatten-document-symbols [])
 ;; endregion
 
 (g/defnode CodeEditorView
@@ -3094,6 +3094,15 @@
                 (show-goto-popup! view-node open-resource-fn results)))))
         (show-no-language-server-for-resource-language-notification! resource)))))
 
+(defn- flatten-document-symbols [document-symbols]
+  (letfn [(walk [acc {:keys [kind children] :as symbol}]
+            (let [acc (conj acc (dissoc symbol :children))]
+              (if (and (coll/not-empty children)
+                       (contains? #{:object :class :enum :struct :namespace} kind))
+                (reduce walk acc children)
+                acc)))]
+    (reduce walk [] document-symbols)))
+
 (handler/defhandler :code.jump-to-symbol :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
@@ -3105,10 +3114,11 @@
             lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
             resource (g/node-value resource-node :resource evaluation-context)
             localization (get-property view-node :localization evaluation-context)]
-        (if (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+        (if (not (lsp/has-language-servers-running-for-language? lsp (resource/language resource)))
+          (show-no-language-server-for-resource-language-notification! resource)
           (let [document-symbols (get-property view-node :document-symbols evaluation-context)
                 items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
-                            document-symbols)
+                            (flatten-document-symbols document-symbols))
                 selection
                 (dialogs/make-select-list-dialog
                   items
@@ -3156,13 +3166,10 @@
                                                     :min-width 0
                                                     :style {:-fx-text-fill :-df-text-dark}
                                                     :text (string/replace detail "function" "ƒ")}))}}))})]
-            (when selection
-              (set-properties! view-node :navigation
-                               (data/select-and-frame (get-property view-node :lines)
-                                                      (get-property view-node :layout)
-                                                      (:selection-range (first selection)))))
-            (focus-code-editor! view-node))
-          (show-no-language-server-for-resource-language-notification! resource))))))
+            (if selection
+              (navigate-to-document-symbol! view-node (first selection))
+              (set-properties! view-node :navigation original-view))
+            (focus-code-editor! view-node)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
