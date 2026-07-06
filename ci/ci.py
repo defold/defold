@@ -63,22 +63,6 @@ def call(args, failonerror = True):
     return output
 
 
-def platform_from_host():
-    system = platform.system()
-    machine = platform.machine()
-    if system == "Linux":
-        if machine == 'aarch64':
-            return "arm64-linux"
-        else:
-            return "x86_64-linux"
-    elif system == "Darwin":
-        if machine in ['aarch64', 'arm64']:
-            return "arm64-macos"
-        else:
-            return "x86_64-macos"
-    else:
-        return "x86_64-win32"
-
 def aptget(package):
     call("sudo apt-get install -y --no-install-recommends " + package)
 
@@ -144,8 +128,6 @@ def get_github_token():
     return os.environ.get('SERVICES_GITHUB_TOKEN', None)
 
 def install_linux(args):
-    host_platform = platform_from_host()
-
     # # we use apt-fast to speed up apt-get downloads
     # # https://github.com/ilikenwf/apt-fast
     # call("sudo add-apt-repository ppa:apt-fast/stable")
@@ -160,13 +142,19 @@ def install_linux(args):
     call("update-alternatives --display clang")
     call("update-alternatives --display clang++")
 
-    # libtinfo needed when building wasm-web
-    if host_platform == "arm64-linux":
-        call("wget http://ports.ubuntu.com/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_arm64.deb")
-        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_arm64.deb")
+    # Legacy ncurses 5 libraries needed when building wasm-web.
+    # Ubuntu 24.04/Noble runners no longer provide these package names in apt.
+    if platform.machine() in ('aarch64', 'arm64'):
+        ncurses_url = "http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2_arm64.deb"
+        libncurses_deb = "libncurses5_6.3-2_arm64.deb"
     else:
-        call("wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb")
-        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+        ncurses_url = "http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2ubuntu0.2_amd64.deb"
+        libncurses_deb = "libncurses5_6.3-2ubuntu0.2_amd64.deb"
+
+    call(f"wget {ncurses_url}/{libtinfo_deb} {ncurses_url}/{libncurses_deb}")
+    call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
 
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
     clang_version = 17
