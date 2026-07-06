@@ -9,10 +9,11 @@ def configure(conf):
     pass
 
 def build(bld):
+    print ("PLATFORM", bld.env.PLATFORM, is_platform_private(bld.env.PLATFORM))
     if is_platform_private(bld.env.PLATFORM):
         build_util = create_build_utility(bld.env)
 
-        platform_source = ['window.cpp', '%s/platform_window_native.cpp' % build_util.get_target_os()]
+        platform_source = ['%s/platform_window_native.cpp' % build_util.get_target_os()]
         sources = bld.path.ant_glob(platform_source)
 
         if not sources:
@@ -26,6 +27,8 @@ def build(bld):
             print("Source doesn't exist for private platform:", platform_source)
             print("Fallback to null implementation")
             sources = bld.path.ant_glob(['window.cpp', 'platform_window_null.cpp'])
+
+        sources += bld.path.ant_glob(['window.cpp'])
 
         lib = bld.stlib(features = 'cxx c ddf',
                 includes = '.',

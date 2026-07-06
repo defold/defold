@@ -77,6 +77,53 @@ static void* ReadFile(const char* path, uint32_t* file_size)
     return mem;
 }
 
+#if defined(_WIN32)
+static ID3DBlob* CreateTestRootSignatureBlobWin32(UINT register_space)
+{
+    D3D12_DESCRIPTOR_RANGE1 range = {};
+    range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+    range.NumDescriptors = 1;
+    range.BaseShaderRegister = 0;
+    range.RegisterSpace = register_space;
+    range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    range.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC;
+
+    D3D12_ROOT_PARAMETER1 parameter = {};
+    parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    parameter.DescriptorTable.NumDescriptorRanges = 1;
+    parameter.DescriptorTable.pDescriptorRanges = &range;
+
+    D3D12_VERSIONED_ROOT_SIGNATURE_DESC rs_desc = {};
+    rs_desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+    rs_desc.Desc_1_1.NumParameters = 1;
+    rs_desc.Desc_1_1.pParameters = &parameter;
+    rs_desc.Desc_1_1.NumStaticSamplers = 0;
+    rs_desc.Desc_1_1.pStaticSamplers = 0;
+    rs_desc.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+
+    ID3DBlob* signature_blob = 0;
+    ID3DBlob* error_blob = 0;
+    HRESULT hr = D3D12SerializeVersionedRootSignature(&rs_desc, &signature_blob, &error_blob);
+    if (FAILED(hr))
+    {
+        if (error_blob)
+        {
+            dmLogError("CreateTestRootSignatureBlobWin32 failed: %s", (const char*)error_blob->GetBufferPointer());
+            error_blob->Release();
+        }
+        return 0;
+    }
+
+    if (error_blob)
+    {
+        error_blob->Release();
+    }
+
+    return signature_blob;
+}
+#endif
+
 TEST(Shaderc, TestSimpleShader)
 {
     uint32_t data_size;
@@ -618,6 +665,22 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     ASSERT_NE((const char*) 0, FindFirstOccurance(src, int_highp_block));
 
     dmShaderc::FreeShaderCompileResult(dst);
+
+    // Case 3: mediump float, mediump int
+    options.m_GlslEsDefaultFloatPrecision = dmShaderc::SHADER_PRECISION_MEDIUMP;
+    options.m_GlslEsDefaultIntPrecision   = dmShaderc::SHADER_PRECISION_MEDIUMP;
+
+    dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, dst);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
+
+    src = (const char*) dst->m_Data.Begin();
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump float;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance(src, "precision mediump int;"));
+    ASSERT_EQ((const char*) 0, FindFirstOccurance(src, "precision highp float;"));
+    ASSERT_EQ((const char*) 0, FindFirstOccurance(src, "precision highp int;"));
+
+    dmShaderc::FreeShaderCompileResult(dst);
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
     free(data);
@@ -625,51 +688,29 @@ TEST(Shaderc, GlslEsPrecisionOptions)
 
 TEST(Shaderc, HLSLMergeRootSignatures)
 {
-#if !defined(DM_BINARY_HLSL_SUPPORTED)
+#if !defined(_WIN32)
     // Skip on non-Windows platforms
-    ASSERT_TRUE(true);
+    SKIP();
     return;
 #else
-    // Prepare two shaders with resources to produce root signatures
-    uint32_t vs_size = 0;
-    void* vs_spv = ReadFile("./build/src/test/data/bindings.spv", &vs_size);
-    ASSERT_NE((void*)0, vs_spv);
+    ID3DBlob* vs_rs_blob = CreateTestRootSignatureBlobWin32(0);
+    ID3DBlob* fs_rs_blob = CreateTestRootSignatureBlobWin32(1);
+    ASSERT_NE((void*)0, vs_rs_blob);
+    ASSERT_NE((void*)0, fs_rs_blob);
 
-    uint32_t fs_size = 0;
-    void* fs_spv = ReadFile("./build/src/test/data/reflection.spv", &fs_size);
-    ASSERT_NE((void*)0, fs_spv);
-
-    dmShaderc::HShaderContext vs_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_VERTEX, vs_spv, vs_size);
-    dmShaderc::HShaderContext fs_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, fs_spv, fs_size);
-
-    dmShaderc::HShaderCompiler vs_comp = dmShaderc::NewShaderCompiler(vs_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
-    dmShaderc::HShaderCompiler fs_comp = dmShaderc::NewShaderCompiler(fs_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
-
-    dmShaderc::ShaderCompilerOptions opts = {};
-    opts.m_Version = 51; // ensure RS path
-    opts.m_EntryPoint = "main";
-
-    dmShaderc::ShaderCompileResult* vs_res = dmShaderc::Compile(vs_ctx, vs_comp, opts);
-    dmShaderc::ShaderCompileResult* fs_res = dmShaderc::Compile(fs_ctx, fs_comp, opts);
-
-    ASSERT_NE((void*)0, vs_res);
-    ASSERT_NE((void*)0, fs_res);
-    ASSERT_GT(vs_res->m_HLSLRootSignature.Size(), 0u);
-    ASSERT_GT(fs_res->m_HLSLRootSignature.Size(), 0u);
-
-    dmShaderc::ShaderCompileResult arr[2];
-    uint32_t vs_root_signature_size = vs_res->m_HLSLRootSignature.Size();
-    arr[0].m_HLSLRootSignature.SetCapacity(vs_root_signature_size);
-    arr[0].m_HLSLRootSignature.SetSize(vs_root_signature_size);
-    memcpy(arr[0].m_HLSLRootSignature.Begin(), vs_res->m_HLSLRootSignature.Begin(), vs_root_signature_size);
-
-    uint32_t fs_root_signature_size = fs_res->m_HLSLRootSignature.Size();
-    arr[1].m_HLSLRootSignature.SetCapacity(fs_root_signature_size);
-    arr[1].m_HLSLRootSignature.SetSize(fs_root_signature_size);
-    memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_res->m_HLSLRootSignature.Begin(), fs_root_signature_size);
+    dmShaderc::ShaderCompileResult arr[2] = {};
+    uint32_t vs_rs_size = (uint32_t)vs_rs_blob->GetBufferSize();
+    uint32_t fs_rs_size = (uint32_t)fs_rs_blob->GetBufferSize();
+    arr[0].m_HLSLRootSignature.SetCapacity(vs_rs_size);
+    arr[0].m_HLSLRootSignature.SetSize(vs_rs_size);
+    memcpy(arr[0].m_HLSLRootSignature.Begin(), vs_rs_blob->GetBufferPointer(), vs_rs_size);
+    arr[1].m_HLSLRootSignature.SetCapacity(fs_rs_size);
+    arr[1].m_HLSLRootSignature.SetSize(fs_rs_size);
+    memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_rs_blob->GetBufferPointer(), fs_rs_size);
 
     dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
     ASSERT_NE((void*)0, merged);
+    ASSERT_EQ('\0', merged->m_LastError[0]);
     ASSERT_GT(merged->m_HLSLRootSignature.Size(), 0u);
 
     // Validate the merged blob deserializes
@@ -682,14 +723,11 @@ TEST(Shaderc, HLSLMergeRootSignatures)
     const D3D12_ROOT_SIGNATURE_DESC* desc = deser->GetRootSignatureDesc();
     ASSERT_NE((void*)0, desc);
     ASSERT_GT(desc->NumParameters, 0u);
+    ASSERT_NE(0u, desc->Flags & D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     deser->Release();
-
-    dmShaderc::FreeShaderCompileResult(vs_res);
-    dmShaderc::FreeShaderCompileResult(fs_res);
-    dmShaderc::DeleteShaderCompiler(vs_comp);
-    dmShaderc::DeleteShaderCompiler(fs_comp);
-    dmShaderc::DeleteShaderContext(vs_ctx);
-    dmShaderc::DeleteShaderContext(fs_ctx);
+    vs_rs_blob->Release();
+    fs_rs_blob->Release();
+    delete merged;
 #endif
 }
 

@@ -2429,6 +2429,8 @@
     (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler values)]))
       (.play))))
 
+(def ^:private ^:const unfocused-timer-interval (long (* 1e9 (/ 1.0 15.0))))
+
 (defn ->timer
   ([name tick-fn]
    (->timer nil name tick-fn))
@@ -2437,13 +2439,15 @@
          last (atom start)
          interval (if fps
                     (long (* 1e9 (/ 1 (double fps))))
-                    0)]
+                    0)
+         unfocused-interval (max interval unfocused-timer-interval)]
      {:last last
       :timer (proxy [AnimationTimer] []
                (handle [^long now]
                  (profiler/profile "timer" name
                    (let [elapsed (- now start)
-                         delta (- now (long @last))]
+                         delta (- now (long @last))
+                         interval (if (:focused @focus-state) interval unfocused-interval)]
                      (when (or (zero? interval) (> delta interval))
                        (run-later
                          (try
@@ -2669,6 +2673,15 @@
   (doto (MenuItem.)
     (.setText str)))
 
+(defn hide-context-menu-on-anchor-pressed!
+  [^ContextMenu context-menu ^Node anchor-node]
+  (let [hide-event-handler (event-handler event
+                             (.hide context-menu))]
+    (.addEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)
+    (on-closed! context-menu (fn [_]
+                               (.removeEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)))
+    context-menu))
+
 (defn show-simple-context-menu!
   [menu-item-fn item-action-fn items ^Node anchor-node ^Point2D offset]
   (let [handle-action! (fn [^Event event]
@@ -2682,12 +2695,8 @@
                         items)
         context-menu (doto (make-context-menu menu-items)
                        (on-closed! (fn [_]
-                                     (item-action-fn nil))))
-        hide-event-handler (event-handler event (.hide context-menu))]
-    (.addEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)
-    (on-closed! context-menu (fn [_]
-                               (.removeEventFilter anchor-node MouseEvent/MOUSE_PRESSED hide-event-handler)
-                               (item-action-fn nil)))
+                                     (item-action-fn nil))))]
+    (hide-context-menu-on-anchor-pressed! context-menu anchor-node)
     (.show context-menu anchor-node (.getX offset) (.getY offset))))
 
 (defn show-simple-context-menu-at-mouse!

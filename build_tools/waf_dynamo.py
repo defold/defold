@@ -82,7 +82,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengl_compute':
         return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux', 'armv7-android', 'arm64-android']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-ios', 'arm64-ios']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     if feature == 'metal':
@@ -233,6 +233,9 @@ def platform_get_glfw_lib(platform):
     return 'dmglfw'
 
 def platform_get_platform_lib(platform):
+    if is_platform_private(platform):
+        return 'PLATFORM'
+
     if not (platform_supports_feature(platform, "opengl", None) or platform_supports_feature(platform, "vulkan", None)):
         return 'PLATFORM_NULL'
 
@@ -248,8 +251,12 @@ def platform_graphics_libs_and_symbols(platform):
     use_opengl = False
     use_opengles = False
     use_vulkan = False
+    use_metal = Options.options.with_metal and platform_supports_feature(platform, 'metal', {})
 
-    if platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
+    if platform in ('x86_64-ios', 'arm64-ios'):
+        use_opengles = True
+        use_vulkan = Options.options.with_vulkan
+    elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
         use_opengl = Options.options.with_opengl
         use_vulkan = True
     elif platform in ('arm64-linux'):
@@ -285,8 +292,11 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_libs += ['GRAPHICS_WEBGPU']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
 
-    if Options.options.with_metal and platform_supports_feature(platform, 'metal', {}):
-        graphics_libs += ['GRAPHICS_METAL', 'METAL']
+    if use_metal:
+        graphics_libs += ['GRAPHICS_METAL']
+        if platform in ('x86_64-ios', 'arm64-ios') and not use_opengl and not use_opengles and not use_vulkan:
+            graphics_libs += ['DMGLFW']
+        graphics_libs += ['METAL']
         graphics_lib_symbols.append('GraphicsAdapterMetal')
 
     if platform in ('arm64-nx64'):
@@ -1178,7 +1188,7 @@ def create_app_bundle(self):
 
     self.app_bundle_task = app_bundle_task
 
-    if not Options.options.skip_codesign and not self.env["CODESIGN_UNSUPPORTED"]:
+    if Options.options.codesign and not self.env["CODESIGN_UNSUPPORTED"]:
         signed_exe = self.path.get_bld().make_node("%s.app/%s" % (exe_name, exe_name))
 
         codesign = self.create_task('codesign')
@@ -1801,7 +1811,7 @@ def detect(conf):
         print ("Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), host_platform))
 
         conf.env['CODESIGN_UNSUPPORTED'] = True
-        print ("Codesign disabled", Options.options.skip_codesign)
+        print ("Codesign unsupported (%s cannot codesign for %s)" % (host_platform, build_util.get_target_platform()))
 
     # Vulkan support
     if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'wasm-web', 'wasm_pthread-web'):
@@ -1817,7 +1827,7 @@ def detect(conf):
         else:
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
 
-        if not Options.options.skip_codesign:
+        if Options.options.codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
 
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
@@ -1966,7 +1976,7 @@ def detect(conf):
             conf.env['LIBPATH']  = libdirs
             conf.load('msvc', funs='no_autodetect')
 
-            if not Options.options.skip_codesign:
+            if Options.options.codesign:
                 conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
         else:
             conf.options.check_c_compiler = 'clang gcc'
@@ -2221,7 +2231,8 @@ def detect(conf):
 
     if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
-        conf.env.append_value('LINKFLAGS_DLIB', ['ole32.lib']) # CoTaskMemFree in sys_win32.cpp
+        conf.env['LINKFLAGS_DLIB']        = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp
+        conf.env['LINKFLAGS_DLIB_NOASAN'] = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp (mirrors LINKFLAGS_DLIB for noasan consumers like shaderc_shared/texc_shared/modelc_shared)
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
@@ -2276,6 +2287,11 @@ def detect(conf):
     if Options.options.generate_compile_commands:
         conf.load('clang_compilation_database')
 
+    conf.load('waf_csharp')
+
+    if Options.options.generate_compile_commands:
+        conf.load('clang_compilation_database')
+
 
 def configure(conf):
     detect(conf)
@@ -2293,7 +2309,7 @@ def options(opt):
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-ios')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
-    opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
+    opt.add_option('--codesign', action="store_true", default=False, dest='codesign', help='enable code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')

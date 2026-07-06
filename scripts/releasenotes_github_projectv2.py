@@ -62,6 +62,9 @@ QUERY_ISSUE = r"""
                 ... on PullRequest {
                   number
                   merged
+                  repository {
+                    name
+                  }
                 }
               }
             }
@@ -276,14 +279,15 @@ def get_closing_issue(pr):
     return pr
 
 def get_closing_pr(issue):
-    repository = issue.get("repository").get("name")
     # an issue may reference multiple merged items on the
     # timeline - pick the last one! (ie newest)
     for node in reversed(issue["timelineItems"]["nodes"]):
         if not node["__typename"] == "CrossReferencedEvent":
             continue
-        if node["source"].get("merged") == True:
-            closing_number = node["source"]["number"]
+        source = node.get("source") or {}
+        if source.get("merged") == True:
+            closing_number = source["number"]
+            repository = (source.get("repository") or issue.get("repository")).get("name")
             return get_pullrequest(closing_number, repository)
     return issue
 

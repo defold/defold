@@ -75,6 +75,8 @@ namespace dmPlatform
 #if defined(_WIN32)
     const char* GetJoystickDeviceGuidNative(HWindow window, uint32_t joystick_index, const char* glfw_guid);
 #endif
+    void InstallWindowCloseHandlerNative(HWindow window);
+    void UninstallWindowCloseHandlerNative(HWindow window);
 }
 
 #endif // DM_PLATFORM_WINDOW_GLFW3_PRIVATE_H

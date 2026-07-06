@@ -12,21 +12,23 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef HID_NATIVE_DEFINES_H
-#define HID_NATIVE_DEFINES_H
+#ifndef DMSDK_HID_DEFINES_H
+#define DMSDK_HID_DEFINES_H
+
+#include <stdint.h>
+
+// Stable Defold HID limits and input constants. Platform backends translate
+// native input data to these values internally.
 
 #define HID_NATIVE_MAX_GAMEPAD_COUNT 16
 #define HID_NATIVE_MAX_KEYBOARD_COUNT 1
 #define HID_NATIVE_MAX_MOUSE_COUNT 1
-#define HID_NATIVE_MAX_TOUCH_DEVICE_COUNT 1
+#define HID_NATIVE_MAX_TOUCH_DEVICE_COUNT 4
 
 #define HID_NATIVE_MAX_GAMEPAD_AXIS_COUNT 32
 #define HID_NATIVE_MAX_GAMEPAD_BUTTON_COUNT 32
 #define HID_NATIVE_MAX_GAMEPAD_HAT_COUNT 4
-/// Maximum number of simultaneous touches supported
-// An iPad supports a maximum of 11 simultaneous touches
-#define HID_NATIVE_MAX_TOUCH_COUNT 11
-
+#define HID_NATIVE_MAX_TOUCH_COUNT 16
 
 #define HID_KEY_SPACE ' '
 #define HID_KEY_EXCLAIM '!'
@@ -175,4 +177,4 @@
 #define HID_MOUSE_BUTTON_RIGHT  HID_MOUSE_BUTTON_2
 #define HID_MOUSE_BUTTON_MIDDLE HID_MOUSE_BUTTON_3
 
-#endif
+#endif // DMSDK_HID_DEFINES_H

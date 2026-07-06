@@ -113,6 +113,13 @@
                                                                  {:name "cardinality"
                                                                   :types ["string"]
                                                                   :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}
+                                                   {:name "active_view"
+                                                    :types ["table"]
+                                                    :doc (str "current active editor view, a table with the following keys:"
+                                                              (lua-completion/args-doc-html
+                                                                [{:name "type"
+                                                                  :types ["string"]
+                                                                  :doc "either <code>\"code\"</code>, <code>\"scene\"</code>, <code>\"html\"</code>, or <code>\"form\"</code>"}]))}
                                                    {:name "argument"
                                                     :types ["table"]
                                                     :doc "the command argument"}]))}

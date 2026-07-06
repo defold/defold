@@ -187,7 +187,22 @@
                              :properties {;; custom shortcuts to add to keymap
                                           :add {:type :set :item {:type :string}}
                                           ;; built-in shortcuts to remove from keymap
-                                          :remove {:type :set :item {:type :string}}}}}}}
+                                          :remove {:type :set :item {:type :string}}}}}
+              :mouse-bindings {:type :object-of
+                               :key {:type :keyword} ;; context
+                               :val {:type :object-of
+                                     :key {:type :keyword} ;; command
+                                     :val {:type :object
+                                           :properties {:bindings {:type :array
+                                                                   :item {:type :object
+                                                                          :properties
+                                                                          {:button {:type :enum
+                                                                                    :values [:primary :middle :secondary]}
+                                                                           :modifiers {:type :set
+                                                                                       :item {:type :enum
+                                                                                              :values [:shift :alt :control]}}}}}
+                                                        :modifier {:type :enum
+                                                                   :values [:shift :alt :control]}}}}}}}
     :workflow {:type :object
                :properties
                {:load-external-changes-on-app-focus {:type :boolean

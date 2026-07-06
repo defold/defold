@@ -30,7 +30,7 @@ defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 # ******************************************************************
 # test_platform_app (windowed test application)
 
-if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web"))
+if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web|x86_64-xbone"))
 
     defold_add_executable(test_platform_app
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_app.cpp")

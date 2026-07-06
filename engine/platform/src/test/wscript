@@ -10,12 +10,16 @@ def build(bld):
                 use = 'TESTMAIN DLIB PROFILE_NULL platform_null',
                 target = 'test_platform')
 
-
     if bld.env.PLATFORM not in ['wasm-web', 'wasm_pthread-web']:
-        if platform_supports_feature(bld.env.PLATFORM, "opengl", None):
-            use_libs = ["TESTMAIN", "APP", "DDF", "DLIB", "PROFILE_NULL", "DMGLFW", "OPENGL", "platform"]
+        supports_opengl = platform_supports_feature(bld.env.PLATFORM, "opengl", None)
+        supports_dx12 = platform_supports_feature(bld.env.PLATFORM, "dx12", None)
+        if supports_opengl or supports_dx12:
+            use_libs = ["TESTMAIN", "APP", "DDF", "DLIB", "PROFILE_NULL", "platform"]
 
-            if waflib.Options.options.with_vulkan:
+            if supports_opengl:
+                use_libs += ["DMGLFW", "OPENGL"]
+
+            if supports_opengl and waflib.Options.options.with_vulkan:
                 use_libs.append('VULKAN')
 
             bld.program(features = 'cxx cprogram test skip_test',

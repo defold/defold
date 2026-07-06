@@ -2623,7 +2623,11 @@ void dmEngineInitialize()
     dmEngineSetRenderEnabled(1);
 #endif
 
-    dmEngine::PlatformInitialize();
+    if (!dmEngine::PlatformInitialize())
+    {
+        dmLogError("Failed to initialize engine for target platform.");
+        return;
+    }
 
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 

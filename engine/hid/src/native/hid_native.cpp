@@ -29,6 +29,16 @@ namespace dmHID
 {
     static const uint8_t DRIVER_HANDLE_FREE = 0xff;
 
+    static uint32_t GetTouchData(HContext context, uint32_t index, WindowTouchData* touch_data, uint32_t touch_data_count)
+    {
+        if (index != 0)
+        {
+            return 0;
+        }
+
+        return dmPlatform::GetTouchData(context->m_Window, touch_data, touch_data_count);
+    }
+
     struct NativeContextUserData
     {
         dmArray<GamepadDriver*> m_GamepadDrivers;
@@ -313,7 +323,7 @@ namespace dmHID
                 TouchDevicePacket* packet = &device->m_Packet;
 
                 WindowTouchData touch_data[dmHID::MAX_TOUCH_COUNT] = {};
-                packet->m_TouchCount = dmPlatform::GetTouchData(context->m_Window, touch_data, dmHID::MAX_TOUCH_COUNT);
+                packet->m_TouchCount = GetTouchData(context, t, touch_data, dmHID::MAX_TOUCH_COUNT);
 
                 if (packet->m_TouchCount > 0)
                 {

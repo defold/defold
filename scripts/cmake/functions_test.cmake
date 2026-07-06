@@ -256,6 +256,120 @@ function(_defold_build_stage_file_args out_var)
   set(${out_var} "${_stage_args}" PARENT_SCOPE)
 endfunction()
 
+function(_defold_force_load_ios_testmain target_name)
+  if(TARGET_PLATFORM MATCHES "ios$" AND TARGET testmain)
+    target_link_options(${target_name} PRIVATE "-Wl,-force_load,$<TARGET_FILE:testmain>")
+  endif()
+endfunction()
+
+function(_defold_ios_bundle_component out_var value)
+  string(TOLOWER "${value}" _component)
+  string(REGEX REPLACE "[^a-z0-9-]+" "-" _component "${_component}")
+  string(REGEX REPLACE "^-+" "" _component "${_component}")
+  string(REGEX REPLACE "-+$" "" _component "${_component}")
+  if(NOT _component)
+    set(_component "test")
+  endif()
+  if(NOT _component MATCHES "^[a-z]")
+    set(_component "t${_component}")
+  endif()
+  set(${out_var} "${_component}" PARENT_SCOPE)
+endfunction()
+
+function(_defold_ios_test_bundle_id out_var target_name)
+  if(DEFOLD_IOS_TEST_BUNDLE_ID_PREFIX)
+    set(_prefix "${DEFOLD_IOS_TEST_BUNDLE_ID_PREFIX}")
+  else()
+    set(_prefix "com.defold.tests")
+  endif()
+  string(REGEX REPLACE "\\.+$" "" _prefix "${_prefix}")
+  _defold_ios_bundle_component(_bundle_component "${target_name}")
+  set(${out_var} "${_prefix}.${_bundle_component}" PARENT_SCOPE)
+endfunction()
+
+function(_defold_ios_stage_target out_var source target)
+  string(REPLACE "\\" "/" _target "${target}")
+  string(REGEX REPLACE "^/+" "" _target "${_target}")
+  if(NOT _target)
+    get_filename_component(_target "${source}" NAME)
+  endif()
+  set(${out_var} "${_target}" PARENT_SCOPE)
+endfunction()
+
+function(_defold_stage_ios_xcode_test_app target_name run_dir_norm configfile)
+  if(NOT (TARGET_PLATFORM MATCHES "ios$" AND CMAKE_GENERATOR STREQUAL "Xcode"))
+    return()
+  endif()
+
+  set(_stage_files ${ARGN})
+  get_filename_component(_library_name "${run_dir_norm}" NAME)
+  if(NOT _library_name)
+    set(_library_name "test")
+  endif()
+  set(_stage_root "defold-tests/${_library_name}")
+  set(_copy_script "${DEFOLD_HOME}/scripts/cmake/functions_ios.cmake")
+
+  if(configfile)
+    if(IS_ABSOLUTE "${configfile}")
+      set(_config_source "${configfile}")
+    else()
+      set(_config_source "${run_dir_norm}/${configfile}")
+    endif()
+    add_custom_command(TARGET ${target_name} POST_BUILD
+      COMMAND "${CMAKE_COMMAND}"
+        "-DDEFOLD_IOS_STAGE_SOURCE=${_config_source}"
+        "-DDEFOLD_IOS_STAGE_BUNDLE_DESTINATION=${_stage_root}/unittest.cfg"
+        -P "${_copy_script}"
+      VERBATIM)
+  endif()
+
+  list(LENGTH _stage_files _stage_len)
+  math(EXPR _stage_remainder "${_stage_len} % 2")
+  if(NOT _stage_remainder EQUAL 0)
+    message(FATAL_ERROR "defold_register_test_target: STAGE_FILES requires SOURCE TARGET pairs")
+  endif()
+
+  set(_idx 0)
+  while(_idx LESS _stage_len)
+    list(GET _stage_files ${_idx} _source)
+    math(EXPR _target_idx "${_idx} + 1")
+    list(GET _stage_files ${_target_idx} _target)
+    if(IS_ABSOLUTE "${_source}")
+      set(_source_path "${_source}")
+    else()
+      set(_source_path "${run_dir_norm}/${_source}")
+    endif()
+    _defold_ios_stage_target(_stage_target "${_source_path}" "${_target}")
+    add_custom_command(TARGET ${target_name} POST_BUILD
+      COMMAND "${CMAKE_COMMAND}"
+        "-DDEFOLD_IOS_STAGE_SOURCE=${_source_path}"
+        "-DDEFOLD_IOS_STAGE_BUNDLE_DESTINATION=${_stage_root}/${_stage_target}"
+        -P "${_copy_script}"
+      VERBATIM)
+    math(EXPR _idx "${_idx} + 2")
+  endwhile()
+endfunction()
+
+function(_defold_configure_ios_xcode_test_app target_name run_dir_norm configfile)
+  if(NOT (TARGET_PLATFORM MATCHES "ios$" AND CMAKE_GENERATOR STREQUAL "Xcode"))
+    return()
+  endif()
+  if(NOT DEFINED DEFOLD_HOME)
+    get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../.." ABSOLUTE)
+  endif()
+
+  _defold_ios_test_bundle_id(_bundle_id "${target_name}")
+  defold_xcode_configure_ios_app(${target_name}
+    BUNDLE_ID "${_bundle_id}"
+    SHORT_VERSION "1.0"
+    BUNDLE_VERSION "1")
+  set_target_properties(${target_name} PROPERTIES
+    XCODE_ATTRIBUTE_INFOPLIST_KEY_UIRequiresFullScreen "YES"
+    XCODE_ATTRIBUTE_INFOPLIST_KEY_NSLocalNetworkUsageDescription "Defold iOS tests connect to the local test server running on the build host.")
+
+  _defold_stage_ios_xcode_test_app(${target_name} "${run_dir_norm}" "${configfile}" ${ARGN})
+endfunction()
+
 function(_defold_register_android_batch_target out_var target_name run_dir_norm configfile)
   set(_stage_files ${ARGN})
   _defold_find_python(_python)
@@ -303,17 +417,49 @@ function(_defold_register_android_batch_target out_var target_name run_dir_norm 
   set(${out_var} "${_stop_target}" PARENT_SCOPE)
 endfunction()
 
+function(_defold_add_ios_run_target run_target target_name run_dir_norm configfile ios_runner_platform)
+  set(_stage_files ${ARGN})
+  _defold_find_python(_python)
+  set(_runner "${DEFOLD_HOME}/build_tools/build_ios.py")
+
+  set(_config_args "")
+  if(configfile)
+    list(APPEND _config_args --config "${configfile}")
+  endif()
+
+  _defold_build_stage_file_args(_stage_args ${_stage_files})
+
+  add_custom_target(${run_target}
+    COMMAND ${_run_env} "${_python}" "${_runner}" run-test
+      --platform "${ios_runner_platform}"
+      --cwd "${run_dir_norm}"
+      --program "$<TARGET_FILE:${target_name}>"
+      --target "${target_name}"
+      ${_config_args}
+      ${_stage_args}
+    DEPENDS ${target_name}
+    USES_TERMINAL
+    COMMAND_EXPAND_LISTS
+    COMMENT "Running ${target_name} on iOS ${ios_runner_platform}")
+endfunction()
+
 function(defold_register_test_target target_name)
   if(NOT TARGET ${target_name})
     message(FATAL_ERROR "defold_register_test_target: target '${target_name}' does not exist")
   endif()
 
-  if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+  if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
     target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=1)
+  elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
+    target_compile_definitions(${target_name} PRIVATE
+      JC_TEST_NO_DEATH_TEST
+      JC_TEST_USE_COLORS=1
+      JC_TEST_USE_PRINTF)
   endif()
   if(DEFINED DEFOLD_PLATFORM_TEST_DEFINES)
     target_compile_definitions(${target_name} PRIVATE ${DEFOLD_PLATFORM_TEST_DEFINES})
   endif()
+  _defold_force_load_ios_testmain(${target_name})
 
   # Keep tests out of the default 'all' build. They are built via build_tests
   # or when directly requested. This mirrors typical Waf behavior.
@@ -370,6 +516,26 @@ function(defold_register_test_target target_name)
     get_filename_component(_RUN_DIR_NORM "${_RUN_DIR_NORM}" REALPATH)
   endif()
 
+  set(_IOS_RUNNER_PLATFORM "")
+  set(_IOS_RUN_DIR_NORM "")
+  if(TARGET_PLATFORM MATCHES "^(arm64-ios|x86_64-ios)$")
+    if(_RUN_DIR_NORM)
+      set(_IOS_RUN_DIR_NORM "${_RUN_DIR_NORM}")
+    else()
+      get_filename_component(_IOS_RUN_DIR_NORM "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
+      get_filename_component(_IOS_RUN_DIR_NORM "${_IOS_RUN_DIR_NORM}" REALPATH)
+    endif()
+    if(TARGET_PLATFORM STREQUAL "x86_64-ios")
+      set(_IOS_RUNNER_PLATFORM "simulator")
+    else()
+      set(_IOS_RUNNER_PLATFORM "device")
+    endif()
+  endif()
+
+  if(_IOS_RUNNER_PLATFORM)
+    _defold_configure_ios_xcode_test_app(${target_name} "${_IOS_RUN_DIR_NORM}" "${_TEST_CONFIGFILE}" ${DEFOLD_TEST_STAGE_FILES})
+  endif()
+
   if(CMAKE_GENERATOR STREQUAL "Xcode")
     set(_xcode_test_metadata "${CMAKE_BINARY_DIR}/defold_xcode_test_schemes.tsv")
     get_property(_xcode_test_metadata_initialized GLOBAL PROPERTY DEFOLD_XCODE_TEST_METADATA_INITIALIZED)
@@ -377,7 +543,17 @@ function(defold_register_test_target target_name)
       file(WRITE "${_xcode_test_metadata}" "")
       set_property(GLOBAL PROPERTY DEFOLD_XCODE_TEST_METADATA_INITIALIZED TRUE)
     endif()
-    file(APPEND "${_xcode_test_metadata}" "${target_name}\t${_RUN_DIR_NORM}\n")
+    if(_IOS_RUNNER_PLATFORM)
+      set(_xcode_run_dir "${_IOS_RUN_DIR_NORM}")
+    else()
+      set(_xcode_run_dir "${_RUN_DIR_NORM}")
+    endif()
+    set(_xcode_test_metadata_line "${target_name}\t${_xcode_run_dir}\t${TARGET_PLATFORM}\t${_IOS_RUNNER_PLATFORM}\t${_TEST_CONFIGFILE}")
+    foreach(_stage_file IN LISTS DEFOLD_TEST_STAGE_FILES)
+      string(APPEND _xcode_test_metadata_line "\t${_stage_file}")
+    endforeach()
+    string(APPEND _xcode_test_metadata_line "\n")
+    file(APPEND "${_xcode_test_metadata}" "${_xcode_test_metadata_line}")
   endif()
 
   if(_RUN_TEST)
@@ -458,6 +634,9 @@ function(defold_register_test_target target_name)
           USES_TERMINAL
           COMMAND_EXPAND_LISTS
           COMMENT "Running ${target_name} on Android device")
+      elseif(TARGET_PLATFORM MATCHES "^(arm64-ios|x86_64-ios)$")
+        _defold_add_ios_run_target(${_run_target} ${target_name} "${_IOS_RUN_DIR_NORM}" "${_TEST_CONFIGFILE}" "${_IOS_RUNNER_PLATFORM}" ${DEFOLD_TEST_STAGE_FILES})
+
       elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
         _defold_find_python(_python)
         set(_runner "")
@@ -517,7 +696,7 @@ function(defold_register_test_target target_name)
       set(_sequential_dep ${_prepare_target})
     endif()
 
-    if(NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-xbone")
+    if(NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios|x86_64-xbone")
       set(_sequential_command ${_run_env})
       if(_RUN_DIR_NORM)
         list(APPEND _sequential_command ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe})
@@ -530,7 +709,7 @@ function(defold_register_test_target target_name)
         DEPENDS ${_sequential_dep})
     endif()
 
-    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+    if(NOT CMAKE_GENERATOR STREQUAL "Xcode" OR TARGET_PLATFORM MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
       if(NOT TARGET run_tests)
         add_custom_target(run_tests)
       endif()
@@ -538,6 +717,8 @@ function(defold_register_test_target target_name)
     if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
       _defold_register_android_batch_target(_android_stop_target ${target_name} "${_RUN_DIR_NORM}" "${_TEST_CONFIGFILE}" ${DEFOLD_TEST_STAGE_FILES})
       add_dependencies(run_tests ${_android_stop_target})
+    elseif(TARGET_PLATFORM MATCHES "^(arm64-ios|x86_64-ios)$")
+      add_dependencies(run_tests ${_run_target})
     elseif(NOT CMAKE_GENERATOR STREQUAL "Xcode")
       add_dependencies(run_tests ${_run_target})
     endif()

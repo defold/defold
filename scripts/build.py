@@ -22,6 +22,7 @@ import shutil, zipfile, re, itertools, json, platform, math, mimetypes, hashlib
 import optparse, pprint, subprocess, urllib, urllib.parse, tempfile, time
 import github
 import build_android
+import build_ios
 import codesigning
 import run
 import s3
@@ -75,6 +76,15 @@ _CMAKE_FEATURE_LIST_OPTIONS = {
 JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
 MINIMUM_PYTHON_VERSION = (3, 12)
 
+def get_legacy_private_target_platforms():
+    try:
+        import build_vendor
+    except ModuleNotFoundError as e:
+        if "No module named 'build_vendor'" in str(e):
+            return []
+        raise
+    return build_vendor.get_target_platforms() if hasattr(build_vendor, 'get_target_platforms') else []
+
 class build_private(object):
     _target_platform = None
 
@@ -89,7 +99,7 @@ class build_private(object):
 
     @classmethod
     def get_target_platforms(cls):
-        return get_configured_platforms()
+        return get_configured_platforms() + get_legacy_private_target_platforms()
 
     @classmethod
     def get_install_host_packages(cls, platform): # Returns the packages that should be installed for the host
@@ -574,8 +584,12 @@ class Configuration(object):
                  target_platform = None,
                  skip_tests = False,
                  test_device = None,
+                 ios_identity = None,
+                 ios_mobileprovision = None,
+                 ios_team_id = None,
+                 ios_bundle_id_prefix = None,
                  keep_bob_uncompressed = False,
-                 skip_codesign = False,
+                 codesign = False,
                  skip_docs = False,
                  incremental = False,
                  skip_builtins = False,
@@ -628,8 +642,12 @@ class Configuration(object):
 
         self.skip_tests = skip_tests
         self.test_device = test_device
+        self.ios_identity = ios_identity
+        self.ios_mobileprovision = ios_mobileprovision
+        self.ios_team_id = ios_team_id
+        self.ios_bundle_id_prefix = ios_bundle_id_prefix
         self.keep_bob_uncompressed = keep_bob_uncompressed
-        self.skip_codesign = skip_codesign
+        self.codesign = codesign
         self.skip_docs = skip_docs
         self.incremental = incremental
         self.skip_builtins = skip_builtins
@@ -698,6 +716,19 @@ class Configuration(object):
         if 'android' in tp:
             self._log('Android: Open the top-level CMakeLists.txt directly in Android Studio to create a project.')
             return
+        ios_signing_cmake_args = []
+        if tp == build_ios.IOS_DEVICE_PLATFORM:
+            try:
+                ios_signing_cmake_args = build_ios.xcode_solution_signing_cmake_args(
+                    identity=self.ios_identity,
+                    mobileprovision=self.ios_mobileprovision,
+                    team_id=self.ios_team_id,
+                    env=os.environ,
+                    log_fn=self._log)
+            except build_ios.IOSTestError as e:
+                self.fatal(str(e))
+            if not ios_signing_cmake_args:
+                self._warn(build_ios.IOS_XCODE_UNSIGNED_WARNING)
 
         # Choose generator
         generator = None
@@ -729,7 +760,12 @@ class Configuration(object):
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}'
         ]
+        cmake_cmd += build_ios.ios_test_cmake_args(
+            tp,
+            bundle_id_prefix=self.ios_bundle_id_prefix,
+            env=os.environ)
         cmake_cmd += self._cmake_feature_defines()
+        cmake_cmd += ios_signing_cmake_args
         if generator:
             cmake_cmd += ['-G', generator]
         if arch_args:
@@ -826,6 +862,14 @@ class Configuration(object):
         sys.stdout.flush()
         sys.stderr.flush()
 
+    def _colorize(self, msg, color_code):
+        if self.no_colors or os.environ.get('NOCOLOR'):
+            return msg
+        return '\033[%sm%s\033[0m' % (color_code, msg)
+
+    def _warn(self, msg):
+        self._log(self._colorize(msg, '33'))
+
     def _remove_tree(self, path):
         if os.path.exists(path):
             self._log('Removing %s' % path)
@@ -887,7 +931,10 @@ class Configuration(object):
         self._mkdirs(path)
         suffix = os.path.splitext(file)[1]
         fmts = {'.gz': 'z', '.xz': 'J', '.bzip2': 'j'}
-        run.env_command(self._form_env(), ['tar', 'xf%s' % fmts.get(suffix, 'z'), file], cwd = path)
+        cmd = ['tar', 'xf%s' % fmts.get(suffix, 'z'), file]
+        if os.name == 'nt':
+            cmd.append('--unlink-first')
+        run.env_command(self._form_env(), cmd, cwd = path)
 
     def _extract_tgz_rename_folder(self, src, target_folder, strip_components=1, format=None):
         src = src.replace('\\', '/')
@@ -909,6 +956,8 @@ class Configuration(object):
         cmd = ['tar', 'xf%s' % format, src, '-C', dirname]
         if strip_components:
             cmd.extend(['--strip-components', '%d' % strip_components])
+        if os.name == 'nt':
+            cmd.append('--unlink-first')
         if force_local:
             cmd.append(force_local)
 
@@ -1867,6 +1916,28 @@ class Configuration(object):
                 supported_tests['x86_64-linux'].extend(android_tests)
                 supported_tests['x86_64-win32'].extend(android_tests)
 
+        if build_ios.is_ios_test_platform(self.target_platform):
+            strict_ios_tests = not self.skip_tests and '--skip-build-tests' not in self.waf_options
+            try:
+                can_run_ios_tests = build_ios.can_run_tests_for_platform(
+                    self.target_platform,
+                    log_fn=self._log,
+                    env=self._form_env(),
+                    device=self.test_device,
+                    identity=self.ios_identity,
+                    mobileprovision=self.ios_mobileprovision,
+                    team_id=self.ios_team_id,
+                    bundle_id_prefix=self.ios_bundle_id_prefix,
+                    strict=strict_ios_tests)
+            except build_ios.IOSTestError as e:
+                self.fatal(str(e))
+            if self.test_device and not can_run_ios_tests:
+                self.fatal("Requested iOS test target '%s' is not available" % self.test_device)
+
+            if can_run_ios_tests:
+                supported_tests['x86_64-macos'].append(self.target_platform)
+                supported_tests['arm64-macos'].append(self.target_platform)
+
         if self.target_platform == 'x86_64-xbone':
             can_run_xbone_tests = build_private.can_run_tests(self.target_platform, self._log, self._form_env(), self.test_device)
             if self.test_device and not can_run_xbone_tests:
@@ -1893,10 +1964,10 @@ class Configuration(object):
     def _get_build_flags(self):
         supports_tests = self._can_run_tests()
         skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
-        skip_codesign = '--skip-codesign' if self.skip_codesign else ''
+        codesign = '--codesign' if self.codesign else ''
         disable_ccache = '--disable-ccache' if self.disable_ccache else ''
         generate_compile_commands = '--generate-compile-commands' if self.generate_compile_commands else ''
-        return {'skip_tests':skip_tests, 'skip_codesign':skip_codesign, 'disable_ccache':disable_ccache, 'generate_compile_commands':generate_compile_commands, 'prefix':None}
+        return {'skip_tests':skip_tests, 'codesign':codesign, 'disable_ccache':disable_ccache, 'generate_compile_commands':generate_compile_commands, 'prefix':None}
 
     def get_base_platforms(self):
         # Base platforms is the platforms to build the base libs for.
@@ -1940,13 +2011,13 @@ class Configuration(object):
     def _waf_forward_options(self):
         return [option for option in self.waf_options if option != '--with-waf']
 
-    def _build_engine_cmd_waf(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix, incremental = None):
+    def _build_engine_cmd_waf(self, skip_tests, codesign, disable_ccache, generate_compile_commands, prefix, incremental = None):
         prefix = prefix and prefix or self.dynamo_home
         incremental = self.incremental if incremental is None else incremental
         commands = "build install"
         if not incremental:
             commands = "distclean configure " + commands
-        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
+        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, codesign, disable_ccache, generate_compile_commands, commands)
 
     def _has_waf_configure_state(self, cwd):
         return os.path.exists(join(cwd, 'build', 'c4che', '_cache.py'))
@@ -2271,7 +2342,7 @@ class Configuration(object):
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
             f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}',
-            f'-DDEFOLD_SKIP_CODESIGN:BOOL={"ON" if self.skip_codesign else "OFF"}',
+            f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
             f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
             f'-DDEFOLD_GCLOUD_PROJECTID:STRING={self.gcloud_projectid or ""}',
             f'-DDEFOLD_GCLOUD_LOCATION:STRING={self.gcloud_location or ""}',
@@ -2348,7 +2419,13 @@ class Configuration(object):
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
         self.build_tracker.start_component(lib, platform)
-        self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
+
+        if lib in CMAKE_SUPPORT:
+            if platform == 'win32':
+                platform = 'x86-win32'
+            self._build_engine_lib_cmake(lib, platform, skip_tests, directory)
+        else:
+            self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
 
         self.build_tracker.end_component(lib, platform)
 
@@ -2361,6 +2438,28 @@ class Configuration(object):
             return join('.', 'gradlew.bat')
         else:  # Linux, macOS, or other Unix-like OS
             return join('.', 'gradlew')
+
+    def build_bob_plugins(self):
+        gradle = join('..', 'com.dynamo.cr.bob', os.name == 'nt' and 'gradlew.bat' or 'gradlew')
+        gradle_args = []
+        if self.verbose:
+            gradle_args += ['--info']
+
+        env = self._form_env()
+        env['GRADLE_OPTS'] = f'-Dorg.gradle.parallel=true {JAVA_RUNTIME_FLAGS}'
+
+        for plugin_name in ('xbox', 'switch', 'playstation'):
+            plugin_dir = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.%s' % plugin_name)
+            if not os.path.isdir(plugin_dir):
+                continue
+
+            self.build_tracker.start_component('bob_plugin_%s' % plugin_name, self.host)
+
+            s = run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=plugin_dir, shell=True, env=env)
+            if self.verbose:
+                print(s)
+
+            self.build_tracker.end_component('bob_plugin_%s' % plugin_name, self.host)
 
     def _run_bob_copy_script(self):
         """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
@@ -2393,6 +2492,7 @@ class Configuration(object):
                 self.build_tracker.end_command(log_cmd_build)
             if self.verbose:
                 print (s)
+            self.build_bob_plugins()
         finally:
             self.build_tracker.end_component('bob_light', self.host)
 
@@ -2673,6 +2773,8 @@ class Configuration(object):
             # Build, install and test Bob in one Gradle graph so shared dependencies such as distBob run only once.
             run.command(" ".join([gradle] + flags + gradle_args + ['clean', 'install', 'testJar']), cwd = test_dir, shell = True, env = env, stdout = None)
 
+        self.build_bob_plugins()
+
     def test_bob(self):
         bob_jar = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
@@ -2882,9 +2984,8 @@ class Configuration(object):
         if self.skip_tests:
             cmd.append("--skip-tests")
 
-        if self.skip_codesign:
-            cmd.append('--skip-codesign')
-        else:
+        if self.codesign:
+            cmd.append('--codesign')
             if self.gcloud_keyname:
                 cmd.append('--gcloud-keyname=%s' % self.gcloud_keyname)
             if self.gcloud_certfile:
@@ -3706,6 +3807,15 @@ class Configuration(object):
         elif self.test_device and self.target_platform == 'x86_64-xbone':
             env['XBOX_CONSOLE'] = self.test_device
 
+        build_ios.apply_build_options_to_env(
+            env,
+            self.target_platform,
+            test_device=self.test_device,
+            identity=self.ios_identity,
+            mobileprovision=self.ios_mobileprovision,
+            team_id=self.ios_team_id,
+            bundle_id_prefix=self.ios_bundle_id_prefix)
+
         # XMLHttpRequest Emulation for node.js
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in os.environ:
@@ -3769,17 +3879,33 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
 
     parser.add_option('--test-device', dest='test_device',
                       default = None,
-                      help = 'Android device serial to target when running Android tests')
+                      help = 'Device to target when running mobile tests. Android uses a device serial; iOS uses a physical device or simulator identifier, name, serial number or UDID')
+
+    parser.add_option('--ios-identity', dest='ios_identity',
+                      default = None,
+                      help = 'iOS code signing identity name or SHA-1 to use for device tests')
+
+    parser.add_option('--ios-mobileprovision', dest='ios_mobileprovision',
+                      default = None,
+                      help = 'Path to a .mobileprovision file to use for iOS device tests')
+
+    parser.add_option('--ios-team-id', dest='ios_team_id',
+                      default = None,
+                      help = 'Apple development team id to use when selecting iOS device-test provisioning profiles')
+
+    parser.add_option('--ios-bundle-id-prefix', dest='ios_bundle_id_prefix',
+                      default = None,
+                      help = 'Bundle id prefix for generated iOS device-test apps. Default is com.defold.tests')
 
     parser.add_option('--keep-bob-uncompressed', dest='keep_bob_uncompressed',
                     action = 'store_true',
                     default = False,
                     help = 'do not apply compression to bob.jar. Default is false')
 
-    parser.add_option('--skip-codesign', dest='skip_codesign',
+    parser.add_option('--codesign', dest='codesign',
                       action = 'store_true',
                       default = False,
-                      help = 'skip code signing (engine and editor). Default is false')
+                      help = 'enable code signing (engine and editor). Default is false')
 
     parser.add_option('--skip-docs', dest='skip_docs',
                       action = 'store_true',
@@ -3958,8 +4084,12 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       target_platform = target_platform,
                       skip_tests = options.skip_tests,
                       test_device = options.test_device,
+                      ios_identity = options.ios_identity,
+                      ios_mobileprovision = options.ios_mobileprovision,
+                      ios_team_id = options.ios_team_id,
+                      ios_bundle_id_prefix = options.ios_bundle_id_prefix,
                       keep_bob_uncompressed = options.keep_bob_uncompressed,
-                      skip_codesign = options.skip_codesign,
+                      codesign = options.codesign,
                       skip_docs = options.skip_docs,
                       incremental = options.incremental,
                       skip_builtins = options.skip_builtins,

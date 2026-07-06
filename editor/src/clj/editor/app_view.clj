@@ -61,6 +61,7 @@
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.menu-items :as menu-items]
+            [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.pipeline :as pipeline]
@@ -385,6 +386,7 @@
   (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
+  (output scene-view-ids g/Any :cached (gu/passthrough scene-view-ids))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
   (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
   (output active-tab-pane TabPane (g/fnk [^Tab active-tab ^SplitPane editor-tabs-split]
@@ -733,6 +735,7 @@
   (run [workspace prefs app-view localization]
     (prefs-dialog/open! prefs localization)
     (workspace/update-build-settings! workspace prefs)
+    (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
       (when-not (= new-keymap (g/raw-property-value (g/now) app-view :keymap))
         (g/set-property! app-view :keymap new-keymap)))

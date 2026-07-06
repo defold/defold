@@ -12,15 +12,28 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_SOCKETTYPES_H
-#define DMSDK_SOCKETTYPES_H
+#include "spinlock.h"
 
-#if __has_include("sockettypes_vendor.h")
-#include "sockettypes_vendor.h"
-#elif defined(_MSC_VER)
-#include "sockettypes_win32.h"
-#else
-#include "sockettypes_posix.h"
-#endif
+namespace dmSpinlock
+{
+    void Create(Spinlock* lock)
+    {
+        dmAtomicStore32(&lock->m_Lock, 0);
+    }
 
-#endif // DMSDK_SOCKETTYPES_H
+    void Destroy(Spinlock* lock)
+    {
+        (void) lock;
+    }
+
+    void Lock(Spinlock* lock)
+    {
+        while (dmAtomicCompareStore32(&lock->m_Lock, 1, 0) != 0) {
+        }
+    }
+
+    void Unlock(Spinlock* lock)
+    {
+        dmAtomicStore32(&lock->m_Lock, 0);
+    }
+}

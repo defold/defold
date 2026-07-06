@@ -366,7 +366,9 @@ public class ShaderCompilePipelineTest {
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
 
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testRemapping");
-        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.remapVertexFragmentIOForHLSL = true;
+        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, options);
 
         SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
         SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
