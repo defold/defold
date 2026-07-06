@@ -21,7 +21,7 @@
            [java.io BufferedInputStream BufferedOutputStream File]
            [java.net URI URL]
            [java.nio.charset Charset StandardCharsets]
-           [java.nio.file CopyOption FileVisitResult FileVisitor Files LinkOption NoSuchFileException OpenOption Path StandardOpenOption]
+           [java.nio.file AtomicMoveNotSupportedException CopyOption FileVisitResult FileVisitor Files LinkOption NoSuchFileException OpenOption Path StandardCopyOption StandardOpenOption]
            [java.nio.file.attribute BasicFileAttributes FileAttribute FileTime]
            [java.util Set]
            [java.util.regex Pattern]))
@@ -30,6 +30,8 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce ^:private ^CopyOption/1 empty-copy-option-array (make-array CopyOption 0))
+(defonce ^:private ^CopyOption/1 atomic-replace-copy-options (into-array CopyOption [StandardCopyOption/ATOMIC_MOVE StandardCopyOption/REPLACE_EXISTING]))
+(defonce ^:private ^CopyOption/1 replace-existing-copy-options (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
 (defonce ^:private ^FileAttribute/1 empty-file-attribute-array (make-array FileAttribute 0))
 (defonce ^:private ^String/1 empty-string-array (make-array String 0))
 
@@ -413,6 +415,31 @@
   (let [path (to-path x)]
     (when-let [parent (.getParent path)]
       (create-directories! parent))
+    path))
+
+(defn atomic-replace!
+  "Coerces the argument to a java.nio.file.Path, creates a temporary file in
+  the same directory, passes the temp Path to write-temp-path-fn, then replaces
+  the target path with the temp file.
+
+  The same-directory temp file gives Files/move with ATOMIC_MOVE the best
+  chance to be supported by the filesystem. If atomic move is unsupported, this
+  falls back to a replace-only move. This avoids exposing partially-written
+  target files during normal operation, but it does not fsync the temp file or
+  directory and should not be treated as durable transaction storage. Returns
+  the target Path."
+  ^Path
+  [path write-temp-path-fn]
+  (let [path (create-parent-directories! path)
+        temp-path (Files/createTempFile (parent path) (str (leaf path) ".") ".tmp" empty-file-attribute-array)]
+    (try
+      (write-temp-path-fn temp-path)
+      (try
+        (Files/move temp-path path atomic-replace-copy-options)
+        (catch AtomicMoveNotSupportedException _
+          (Files/move temp-path path replace-existing-copy-options)))
+      (finally
+        (Files/deleteIfExists temp-path)))
     path))
 
 (defn create-symlink!

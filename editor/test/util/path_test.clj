@@ -17,7 +17,7 @@
             [editor.fs :as fs]
             [integration.test-util :as test-util]
             [util.path :as path])
-  (:import [java.nio.file NoSuchFileException]))
+  (:import [java.nio.file Files NoSuchFileException]))
 
 (set! *warn-on-reflection* true)
 
@@ -80,3 +80,37 @@
         (is (= expected (path/real dir "SymlinkDirectory" "ExistingFile.txt")))
         (when-not fs/is-case-sensitive
           (is (= expected (path/real dir "symlinkDIRECTORY" "existingFILE.txt"))))))))
+
+(deftest atomic-replace-test
+  (test-util/with-temp-dir! dir
+    (testing "Creates parent directories and replaces the target."
+      (let [target (path/of dir "MissingDirectory" "target.txt")]
+        (is (= target (path/atomic-replace!
+                        target
+                        (fn write-temp-path [temp-path]
+                          (spit temp-path "first")))))
+        (is (= "first" (slurp target)))
+
+        (path/atomic-replace!
+          target
+          (fn write-temp-path [temp-path]
+            (spit temp-path "second")))
+        (is (= "second" (slurp target)))))
+
+    (testing "Propagates write failures, preserves the target, and cleans up the temp file."
+      (let [target (path/of dir "Failure" "target.txt")]
+        (path/create-parent-directories! target)
+        (spit target "original")
+
+        (is (thrown-with-msg?
+              Exception
+              #"write failed"
+              (path/atomic-replace!
+                target
+                (fn write-temp-path [temp-path]
+                  (spit temp-path "replacement")
+                  (throw (Exception. "write failed"))))))
+
+        (is (= "original" (slurp target)))
+        (with-open [paths (Files/list (path/parent target))]
+          (is (= #{target} (set (vec (.toArray paths))))))))))
