@@ -15,6 +15,12 @@ out vec4 out_fragColor;
 uniform highp sampler2D curve_texture;
 uniform highp sampler2D band_texture;
 
+uniform fs_uniforms
+{
+    highp vec4 scanline_debug;
+    highp vec4 scanline_debug_filter;
+};
+
 const float CURVE_TEXTURE_WIDTH = 512.0;
 const float CURVE_TEXTURE_HEIGHT = 64.0;
 const int CURVE_TEXTURE_WIDTH_TEXELS = 512;
@@ -80,29 +86,22 @@ vec2 CalculateQuadraticRoots(float a, float b, float c)
 
 float intersect_monotonic(float qa, float c0, float c1, float c2, float target)
 {
-    const float epsilon = 0.000001;
-    float min_c = min(c0, c2);
-    float max_c = max(c0, c2);
-    if (target <= min_c)
-    {
-        return c0 < c2 ? 0.0 : 1.0;
-    }
-    if (target >= max_c)
-    {
-        return c0 < c2 ? 1.0 : 0.0;
-    }
+    // Match the Scanline Sweeper reference cutoff. With the smaller epsilon,
+    // nearly-linear font edges can take the quadratic branch in float32 and
+    // collapse both scanline intersections to the same root.
+    const float epsilon = 0.001;
 
     if (abs(qa) < epsilon)
     {
         float denom = c2 - c0;
-        return abs(denom) < epsilon ? 0.0 : clamp((target - c0) / denom, 0.0, 1.0);
+        return abs(denom) < 0.000001 ? 0.0 : (target - c0) / denom;
     }
 
     float qb = 2.0 * (c1 - c0);
     float qc = c0 - target;
     float discriminant = max(qb * qb - 4.0 * qa * qc, 0.0);
     float direction = c2 >= c0 ? 1.0 : -1.0;
-    return clamp((-qb + direction * sqrt(discriminant)) * (0.5 / qa), 0.0, 1.0);
+    return (-qb + direction * sqrt(discriminant)) * (0.5 / qa);
 }
 
 float scanline_sweep_area_to_right(float t0, float t1, float right, vec2 p0, vec2 p1, vec2 p2)
@@ -145,23 +144,33 @@ float scanline_sweep(vec2 size, vec2 offset, vec2 p0, vec2 p1, vec2 p2)
     p1 -= offset;
     p2 -= offset;
 
-    if (abs(delta.y) < 0.000001)
+    const float segment_epsilon = 0.000001;
+    if (abs(p0.x - p1.x) < segment_epsilon && abs(p0.x - p2.x) < segment_epsilon)
     {
-        return 0.0;
+        if (p0.x >= size.x)
+        {
+            return 0.0;
+        }
+
+        float top = min(max(p0.y, p2.y), size.y);
+        float bottom = max(min(p0.y, p2.y), 0.0);
+        float h = top - bottom;
+        float b = min(size.x, size.x - p0.x);
+        return sign(delta.y) * b * h;
     }
 
-    float qa_y = p0.y + p2.y - 2.0 * p1.y;
-    float y0_t = intersect_monotonic(qa_y, p0.y, p1.y, p2.y, 0.0);
-    float y1_t = intersect_monotonic(qa_y, p0.y, p1.y, p2.y, size.y);
-    float y_min_t = min(y0_t, y1_t);
-    float y_max_t = max(y0_t, y1_t);
+    float qa = p0.y + p2.y - 2.0 * p1.y;
+    float bt = intersect_monotonic(qa, p0.y, p1.y, p2.y, 0.0);
+    float tt = intersect_monotonic(qa, p0.y, p1.y, p2.y, size.y);
+    float v_min_t = delta.y > 0.0 ? bt : tt;
+    float v_max_t = delta.y > 0.0 ? tt : bt;
 
-    vec2 v_min = evaluate_bezier(p0, p1, p2, y_min_t);
-    vec2 v_max = evaluate_bezier(p0, p1, p2, y_max_t);
-    float y_delta = v_max.y - v_min.y;
+    vec2 v_min = evaluate_bezier(p0, p1, p2, clamp(v_min_t, 0.0, 1.0));
+    vec2 v_max = evaluate_bezier(p0, p1, p2, clamp(v_max_t, 0.0, 1.0));
+
     if (max(v_min.x, v_max.x) <= 0.0)
     {
-        return y_delta * size.x;
+        return (v_max.y - v_min.y) * size.x;
     }
 
     if (min(v_min.x, v_max.x) >= size.x)
@@ -169,43 +178,256 @@ float scanline_sweep(vec2 size, vec2 offset, vec2 p0, vec2 p1, vec2 p2)
         return 0.0;
     }
 
-    if (abs(delta.x) < 0.000001)
+    qa = p0.x + p2.x - 2.0 * p1.x;
+    vec4 h_check = delta.x > 0.0
+        ? vec4(p0.x, p2.x, 0.0, 0.0)
+        : vec4(p2.x, p0.x, size.x, 1.0);
+
+    float h_min_t;
+    if (h_check.x >= h_check.z)
     {
-        return clamp(size.x - v_min.x, 0.0, size.x) * y_delta;
+        h_min_t = h_check.w;
     }
-
-    float qa_x = p0.x + p2.x - 2.0 * p1.x;
-    float x0_t = intersect_monotonic(qa_x, p0.x, p1.x, p2.x, 0.0);
-    float x1_t = intersect_monotonic(qa_x, p0.x, p1.x, p2.x, size.x);
-    float x_enter_t = delta.x > 0.0 ? x0_t : x1_t;
-    float x_exit_t = delta.x > 0.0 ? x1_t : x0_t;
-
-    float coverage = 0.0;
-    if (delta.x > 0.0)
+    else if (h_check.y <= h_check.z)
     {
-        float left_end_t = min(y_max_t, x_enter_t);
-        if (left_end_t > y_min_t)
-        {
-            coverage += size.x * (QuadraticAxis(left_end_t, p0.y, p1.y, p2.y) - v_min.y);
-        }
+        h_min_t = 1.0 - h_check.w;
     }
     else
     {
-        float left_start_t = max(y_min_t, x_exit_t);
-        if (y_max_t > left_start_t)
-        {
-            coverage += size.x * (v_max.y - QuadraticAxis(left_start_t, p0.y, p1.y, p2.y));
-        }
+        h_min_t = intersect_monotonic(qa, p0.x, p1.x, p2.x, h_check.z);
     }
 
-    float middle_start_t = max(y_min_t, x_enter_t);
-    float middle_end_t = min(y_max_t, x_exit_t);
-    if (middle_end_t > middle_start_t)
+    h_check.z = size.x - h_check.z;
+
+    float h_max_t;
+    if (h_check.x >= h_check.z)
     {
-        coverage += scanline_sweep_area_to_right(middle_start_t, middle_end_t, size.x, p0, p1, p2);
+        h_max_t = h_check.w;
+    }
+    else if (h_check.y <= h_check.z)
+    {
+        h_max_t = 1.0 - h_check.w;
+    }
+    else
+    {
+        h_max_t = intersect_monotonic(qa, p0.x, p1.x, p2.x, h_check.z);
     }
 
+    float min_t = clamp(max(v_min_t, h_min_t), 0.0, 1.0);
+    float max_t = clamp(min(v_max_t, h_max_t), 0.0, 1.0);
+
+    vec2 q0 = v_min_t >= h_min_t ? v_min : evaluate_bezier(p0, p1, p2, min_t);
+    vec2 q1 = v_max_t <= h_max_t ? v_max : evaluate_bezier(p0, p1, p2, max_t);
+
+    float coverage = 0.0;
+    if (min_t > 0.0 && delta.x > 0.0)
+    {
+        float h = delta.y > 0.0
+            ? q0.y - max(0.0, p0.y)
+            : min(size.y, p0.y) - q0.y;
+        coverage = sign(delta.y) * h * size.x;
+    }
+
+    if (max_t < 1.0 && delta.x < 0.0)
+    {
+        float h = delta.y > 0.0
+            ? min(size.y, p2.y) - q1.y
+            : q1.y - max(0.0, p2.y);
+        coverage += sign(delta.y) * h * size.x;
+    }
+
+    float h = q1.y - q0.y;
+    float b = size.x - 0.5 * (q0.x + q1.x);
+    coverage += b * h;
     return coverage;
+}
+
+float EncodeDebugUnit(float value)
+{
+    return clamp(value, 0.0, 1.0);
+}
+
+float EncodeDebugSigned(float value)
+{
+    return clamp(0.5 + value * 0.25, 0.0, 1.0);
+}
+
+vec4 EncodeDebugUnit4(vec4 value)
+{
+    return clamp(value, vec4(0.0), vec4(1.0));
+}
+
+vec4 EncodeDebugSigned4(vec4 value)
+{
+    return clamp(vec4(0.5) + value * 0.25, vec4(0.0), vec4(1.0));
+}
+
+vec4 ScanlineSweepDebugPageForCurve(vec2 render_coord,
+                                    vec2 filter_width,
+                                    int page,
+                                    vec2 p0,
+                                    vec2 p1,
+                                    vec2 p2)
+{
+    vec2 inv_filter_width = 1.0 / max(filter_width, vec2(1.0 / 65536.0));
+    vec2 size = vec2(1.0);
+    vec2 offset = render_coord * inv_filter_width - size * 0.5;
+
+    p0 *= inv_filter_width;
+    p1 *= inv_filter_width;
+    p2 *= inv_filter_width;
+
+    if (max(p0.y, p2.y) <= offset.y || min(p0.y, p2.y) >= offset.y + size.y)
+    {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec2 delta = p2 - p0;
+    p0 -= offset;
+    p1 -= offset;
+    p2 -= offset;
+
+    const float segment_epsilon = 0.000001;
+    if (abs(p0.x - p1.x) < segment_epsilon && abs(p0.x - p2.x) < segment_epsilon)
+    {
+        float top = min(max(p0.y, p2.y), size.y);
+        float bottom = max(min(p0.y, p2.y), 0.0);
+        float h = top - bottom;
+        float b = p0.x >= size.x ? 0.0 : min(size.x, size.x - p0.x);
+        float coverage = sign(delta.y) * b * h;
+        if (page == 4)
+        {
+            return EncodeDebugSigned4(vec4(0.0, 0.0, coverage, coverage));
+        }
+        return vec4(0.0, EncodeDebugSigned(coverage), 0.0, 1.0);
+    }
+
+    float qa_y = p0.y + p2.y - 2.0 * p1.y;
+    float bt = intersect_monotonic(qa_y, p0.y, p1.y, p2.y, 0.0);
+    float tt = intersect_monotonic(qa_y, p0.y, p1.y, p2.y, size.y);
+    float v_min_t = delta.y > 0.0 ? bt : tt;
+    float v_max_t = delta.y > 0.0 ? tt : bt;
+
+    vec2 v_min = evaluate_bezier(p0, p1, p2, clamp(v_min_t, 0.0, 1.0));
+    vec2 v_max = evaluate_bezier(p0, p1, p2, clamp(v_max_t, 0.0, 1.0));
+
+    if (page == 1)
+    {
+        return EncodeDebugUnit4(vec4(bt, tt, v_min_t, v_max_t));
+    }
+
+    if (max(v_min.x, v_max.x) <= 0.0)
+    {
+        float coverage = (v_max.y - v_min.y) * size.x;
+        return page == 4 ? EncodeDebugSigned4(vec4(0.0, 0.0, coverage, coverage)) : vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    if (min(v_min.x, v_max.x) >= size.x)
+    {
+        return page == 4 ? EncodeDebugSigned4(vec4(0.0)) : vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    float qa_x = p0.x + p2.x - 2.0 * p1.x;
+    vec4 h_check = delta.x > 0.0
+        ? vec4(p0.x, p2.x, 0.0, 0.0)
+        : vec4(p2.x, p0.x, size.x, 1.0);
+
+    float h_min_t;
+    if (h_check.x >= h_check.z)
+    {
+        h_min_t = h_check.w;
+    }
+    else if (h_check.y <= h_check.z)
+    {
+        h_min_t = 1.0 - h_check.w;
+    }
+    else
+    {
+        h_min_t = intersect_monotonic(qa_x, p0.x, p1.x, p2.x, h_check.z);
+    }
+
+    h_check.z = size.x - h_check.z;
+
+    float h_max_t;
+    if (h_check.x >= h_check.z)
+    {
+        h_max_t = h_check.w;
+    }
+    else if (h_check.y <= h_check.z)
+    {
+        h_max_t = 1.0 - h_check.w;
+    }
+    else
+    {
+        h_max_t = intersect_monotonic(qa_x, p0.x, p1.x, p2.x, h_check.z);
+    }
+
+    float min_t = clamp(max(v_min_t, h_min_t), 0.0, 1.0);
+    float max_t = clamp(min(v_max_t, h_max_t), 0.0, 1.0);
+
+    if (page == 2)
+    {
+        return EncodeDebugUnit4(vec4(h_min_t, h_max_t, min_t, max_t));
+    }
+
+    vec2 q0 = v_min_t >= h_min_t ? v_min : evaluate_bezier(p0, p1, p2, min_t);
+    vec2 q1 = v_max_t <= h_max_t ? v_max : evaluate_bezier(p0, p1, p2, max_t);
+
+    if (page == 3)
+    {
+        return EncodeDebugUnit4(vec4(q0.x, q0.y, q1.x, q1.y));
+    }
+
+    float pre_coverage = 0.0;
+    if (min_t > 0.0 && delta.x > 0.0)
+    {
+        float h = delta.y > 0.0
+            ? q0.y - max(0.0, p0.y)
+            : min(size.y, p0.y) - q0.y;
+        pre_coverage = sign(delta.y) * h * size.x;
+    }
+
+    float post_coverage = 0.0;
+    if (max_t < 1.0 && delta.x < 0.0)
+    {
+        float h = delta.y > 0.0
+            ? min(size.y, p2.y) - q1.y
+            : q1.y - max(0.0, p2.y);
+        post_coverage = sign(delta.y) * h * size.x;
+    }
+
+    float h = q1.y - q0.y;
+    float b = size.x - 0.5 * (q0.x + q1.x);
+    float body_coverage = b * h;
+    float coverage = pre_coverage + post_coverage + body_coverage;
+
+    if (page == 4)
+    {
+        return EncodeDebugSigned4(vec4(pre_coverage, post_coverage, body_coverage, coverage));
+    }
+
+    return vec4(EncodeDebugUnit(filter_width.x * 512.0),
+                EncodeDebugUnit(filter_width.y * 512.0),
+                EncodeDebugUnit(abs(delta.x)),
+                EncodeDebugUnit(abs(delta.y)));
+}
+
+vec4 ScanlineSweepDebugPage(vec2 render_coord,
+                            float curve_start,
+                            float curve_count,
+                            vec2 filter_width,
+                            int curve_index,
+                            int page)
+{
+    if (curve_index < 0 || float(curve_index) >= curve_count)
+    {
+        return vec4(1.0, 0.0, 1.0, 1.0);
+    }
+
+    float curve_texel = curve_start + float(curve_index * 2);
+    vec4 curve_a = SampleCurveTexel(curve_texel);
+    vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
+    return ScanlineSweepDebugPageForCurve(render_coord, filter_width, page, curve_a.xy, curve_a.zw, curve_b.xy);
 }
 
 float ScanlineSweepRender(vec2 render_coord, float curve_start, float curve_count, vec2 filter_width)
@@ -508,6 +730,29 @@ void main()
     vec2 glyph_metric_scale = max(var_params.xy, vec2(0.0001));
     vec2 pixel_filter_width = max(fwidth(p), vec2(1.0 / 65536.0));
     vec2 glyph_screen_scale = 1.0 / pixel_filter_width;
+
+    if (scanline_debug.x > 0.5 && abs(layer_mode - LAYER_MODE_FACE) < 0.5)
+    {
+        vec2 debug_filter_width = scanline_debug_filter.x > 0.0 && scanline_debug_filter.y > 0.0
+            ? scanline_debug_filter.xy
+            : pixel_filter_width;
+        int debug_band = int(floor(clamp(var_texcoord.x, 0.0, 0.999) * 20.0));
+        int debug_page = debug_band / 4 + 1;
+        int debug_component = debug_band - (debug_page - 1) * 4;
+        vec4 debug_value = ScanlineSweepDebugPage(scanline_debug.zw,
+                                                  curve_start,
+                                                  curve_count,
+                                                  debug_filter_width,
+                                                  int(scanline_debug.y + 0.5),
+                                                  debug_page);
+        float debug_scalar = debug_component == 0 ? debug_value.x
+            : debug_component == 1 ? debug_value.y
+            : debug_component == 2 ? debug_value.z
+            : debug_value.w;
+        out_fragColor = vec4(vec3(debug_scalar), 1.0);
+        return;
+    }
+
     float coverage = ComputeGlyphCoverage(p, curve_start, curve_count, glyph_screen_scale);
 
     if (abs(layer_mode - LAYER_MODE_FACE) < 0.5)

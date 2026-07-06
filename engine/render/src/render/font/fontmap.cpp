@@ -1492,6 +1492,19 @@ namespace dmRender
                                   encoded_curves[i].m_P0,
                                   encoded_curves[i].m_P1,
                                   encoded_curves[i].m_P2);
+            if (font_map->m_DebugGlyphBBoxes)
+            {
+                printf("FONT_VECTOR_CURVE font=%s glyph_index=%u curve=%u p0=(%.6f,%.6f) p1=(%.6f,%.6f) p2=(%.6f,%.6f)\n",
+                       dmHashReverseSafe64(font_map->m_NameHash),
+                       glyph->m_GlyphIndex,
+                       i,
+                       encoded_curves[i].m_P0.m_X,
+                       encoded_curves[i].m_P0.m_Y,
+                       encoded_curves[i].m_P1.m_X,
+                       encoded_curves[i].m_P1.m_Y,
+                       encoded_curves[i].m_P2.m_X,
+                       encoded_curves[i].m_P2.m_Y);
+            }
         }
 
         float* band_data = font_map->m_VectorBandData;
