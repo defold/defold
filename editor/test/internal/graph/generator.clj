@@ -19,7 +19,8 @@
             [dynamo.graph :as g]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.node :as in]))
+            [internal.node :as in]
+            [util.coll :as coll]))
 
 (def min-node-count 80)
 (def max-node-count 100)
@@ -95,16 +96,29 @@
 (defn- populate-arcs
   [new-arcs]
   (mapcat (fn [a]
-            `[(ig/connect-target (gt/->Arc ~@(flatten a)))
-              (ig/connect-source (gt/->Arc ~@(flatten a)))])
+            `[(connect-arc (gt/->Arc ~@(flatten a)))])
           new-arcs))
+
+(defn connect-arc
+  [graph arc]
+  (-> (ig/multigraph-basis [graph])
+      (ig/connect-arc-at arc nil nil)
+      :graphs
+      (nth 0)))
 
 (defn- remove-arcs
   [dead-arcs]
   (mapcat (fn [a]
-            `[(ig/disconnect-target (gt/->Arc ~@(flatten a)))
-              (ig/disconnect-source (gt/->Arc ~@(flatten a)))])
+            `[(remove-arc (gt/->Arc ~@(flatten a)))])
           dead-arcs))
+
+(defn remove-arc
+  [graph arc]
+  (let [basis (ig/multigraph-basis [graph])
+        basis (coll/reduce-> (ig/find-source-and-target-arc-pkid-entries basis arc) basis
+                (fn [basis [arc source-arc-pkid target-arc-pkid]]
+                  (ig/disconnect-arc-at basis arc source-arc-pkid target-arc-pkid)))]
+    (nth (:graphs basis) 0)))
 
 (defn subselect
   [coll fraction]

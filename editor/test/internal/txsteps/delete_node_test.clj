@@ -438,7 +438,8 @@
 
             [first-source-node-id
              second-source-node-id
-             third-source-node-id
+             duplicated-source-node-id
+             later-source-node-id
              target-node-id]
             (g/tx-nodes-added
               (g/transact
@@ -446,30 +447,34 @@
                 (g/make-nodes graph-id
                   [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
                    second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
-                   _third-source-node-id [helpers/ConnectionSourceNode :property :third-value]
+                   duplicated-source-node-id [helpers/ConnectionSourceNode :property :duplicated-value]
+                   _later-source-node-id [helpers/ConnectionSourceNode :property :later-value]
                    target-node-id helpers/ConnectionTargetNode]
                   (g/connect first-source-node-id :property-output target-node-id :array-input)
+                  (g/connect duplicated-source-node-id :property-output target-node-id :array-input)
                   (g/connect second-source-node-id :property-output target-node-id :array-input)
-                  (g/connect second-source-node-id :property-output target-node-id :array-input))))]
+                  (g/connect duplicated-source-node-id :property-output target-node-id :array-input))))]
 
         (g/transact
           {:undo-key ::delete-source}
-          (g/delete-node second-source-node-id))
+          (g/delete-node duplicated-source-node-id))
 
         (g/transact
           {:undo-key ::connect-later-source}
-          (g/connect third-source-node-id :property-output target-node-id :array-input))
+          (g/connect later-source-node-id :property-output target-node-id :array-input))
 
         (is (= [[first-source-node-id :property-output]
-                [third-source-node-id :property-output]]
+                [second-source-node-id :property-output]
+                [later-source-node-id :property-output]]
                (g/sources (g/now) target-node-id :array-input)))
 
         (g/undo! ::delete-source)
 
         (is (= [[first-source-node-id :property-output]
+                [duplicated-source-node-id :property-output]
                 [second-source-node-id :property-output]
-                [second-source-node-id :property-output]
-                [third-source-node-id :property-output]]
+                [duplicated-source-node-id :property-output]
+                [later-source-node-id :property-output]]
                (g/sources (g/now) target-node-id :array-input)))))))
 
 (deftest undo-node-deletion-preserves-empty-arc-table-next-pkid-test

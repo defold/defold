@@ -360,7 +360,7 @@
 
 (set! *warn-on-reflection* true)
 
-(definline ^:private arc
+(definline arc
   [source-id source-label target-id target-label]
   `(Arc. ~source-id ~source-label ~target-id ~target-label))
 
@@ -611,69 +611,6 @@
           [(gt/target-id arc) (gt/target-label arc)]
           arc-table-dissoc
           target-arc-pkid))
-
-(defn- connect-source-at
-  [graph ^Arc arc source-arc-pkid]
-  (let [from (node-id->node graph (gt/source-id arc))]
-    (assert (not (nil? from)) (str "Attempt to connect " (pr-str arc)))
-    (assoc-source-arc-at graph arc source-arc-pkid)))
-
-(defn- connect-target-at
-  [graph ^Arc arc target-arc-pkid]
-  (let [to (node-id->node graph (gt/target-id arc))]
-    (assert (not (nil? to)) (str "Attempt to connect " (pr-str arc)))
-    (assoc-target-arc-at graph arc target-arc-pkid)))
-
-(defn connect-source
-  [graph ^Arc arc]
-  (connect-source-at graph arc nil))
-
-(defn connect-target
-  [graph ^Arc arc]
-  (connect-target-at graph arc nil))
-
-(defn disconnect-source
-  [graph ^Arc arc]
-  (cond-> graph
-    (node-id->node graph (gt/source-id arc))
-    (update :sarcs
-            update-existing-arc-table
-            [(gt/source-id arc) (gt/source-label arc)]
-            arc-table-filter-arcs
-            #(not= arc %))))
-
-(defn disconnect-target
-  [graph ^Arc arc]
-  (cond-> graph
-    (node-id->node graph (gt/target-id arc))
-    (update :tarcs
-            update-existing-arc-table
-            [(gt/target-id arc) (gt/target-label arc)]
-            arc-table-filter-arcs
-            #(not= arc %))))
-
-(defn disconnect-arc [basis ^Arc arc]
-  (let [source-id (.source-id arc)
-        source-graph-id (gt/node-id->graph-id source-id)
-        source-graph (get-in basis [:graphs source-graph-id])
-        target-id (.target-id arc)
-        target-graph-id (gt/node-id->graph-id target-id)
-        target-graph (get-in basis [:graphs target-graph-id])]
-    (cond
-      (not (and (node-id->node source-graph source-id)
-                (node-id->node target-graph target-id)))
-      basis
-
-      (= source-graph-id target-graph-id)
-      (update basis :graphs assoc
-              source-graph-id (-> source-graph
-                                  (disconnect-source arc)
-                                  (disconnect-target arc)))
-
-      :else
-      (update basis :graphs assoc
-              source-graph-id (disconnect-source source-graph arc)
-              target-graph-id (disconnect-target target-graph arc)))))
 
 (defn connect-arc-at [basis ^Arc arc source-arc-pkid target-arc-pkid]
   (let [source-id (.source-id arc)
@@ -1302,20 +1239,6 @@
     [this override-id]
     (let [graph-id (gt/override-id->graph-id override-id)]
       (update-in this [:graphs graph-id :overrides] dissoc override-id)))
-
-  (connect
-    [this source-id source-label target-id target-label]
-    (let [target-graph-id (gt/node-id->graph-id target-id)
-          target-graph (get graphs target-graph-id)
-          target-node (node-id->node target-graph target-id)
-          target-node-type (gt/node-type target-node)]
-      (assert (<= (:_volatility (node-id->graph this source-id) 0) (:_volatility target-graph 0)))
-      (assert (in/has-input? target-node-type target-label) (str "No label " target-label " exists on node " target-node))
-      (connect-arc-at this (arc source-id source-label target-id target-label) nil nil)))
-
-  (disconnect
-    [this source-id source-label target-id target-label]
-    (disconnect-arc this (arc source-id source-label target-id target-label)))
 
   (connected?
     [this source-id source-label target-id target-label]

@@ -143,8 +143,6 @@
   (add-override     [this override-id override])
   (delete-override  [this override-id])
   (replace-override [this override-id value])
-  (connect          [this source-id source-label target-id target-label])
-  (disconnect       [this source-id source-label target-id target-label])
   (connected?       [this source-id source-label target-id target-label])
   (dependencies     [this endpoints]
     "Follow arcs through the graphs, from outputs to the inputs
