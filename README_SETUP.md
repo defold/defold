@@ -352,6 +352,7 @@ defold$ ./scripts/build.py check_sdk --verbose
   * **libcurl4-openssl-dev** - Development files and documentation for libcurl
   * **uuid-dev** - Universally Unique ID library
   * **libopenal-dev** - Software implementation of the OpenAL audio API
+  * **libncurses5** -  Needed by clang
 
   **Tools**
   * **build-essential** - Compilers
@@ -375,6 +376,7 @@ defold$ ./scripts/build.py check_sdk --verbose
           libopenal-dev \
           libgl1-mesa-dev \
           libglw1-mesa-dev \
+          libncurses5 \
           openssl \
           valgrind \
           uuid-dev \
@@ -384,6 +386,18 @@ defold$ ./scripts/build.py check_sdk --verbose
 Once installed, verify the installation with
 ```sh
 defold$ ./scripts/build.py check_sdk --verbose
+```
+
+If you're using Ubuntu and it fails to install `libncurses5`, try:
+
+```sh
+sudo ln -s /usr/lib/x86_64-linux-gnu/libtinfo.so.5 /usr/lib/libtinfo.so.5
+```
+
+and:
+
+```sh
+sudo ln -s /usr/lib/x86_64-linux-gnu/libncurses.so.5 /usr/lib/libncurses.so.5
 ```
 
 </p></details>

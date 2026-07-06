@@ -18,7 +18,7 @@ https://github.com/emscripten-core/emscripten/blob/main/ChangeLog.md
 * Create a tarball of the package
 * Upload packages to s3-bucket `defold-packages`
 
-In order to run on 64-bit Ubuntu install the following packages `lib32z1 lib32bz2-1.0 lib32stdc++6`
+In order to run on 64-bit Ubuntu install the following packages `lib32z1 lib32ncurses5 lib32bz2-1.0 lib32stdc++6`
 
 ### Rebuild 3rd party engine packages
 
