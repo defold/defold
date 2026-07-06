@@ -101,6 +101,7 @@ namespace dmRender
 
         uint8_t m_IsMonospaced:1;
         uint8_t m_IsDynamic:1;
+        uint8_t m_DebugGlyphBBoxes:1;
         uint8_t m_Padding:6;        // Note: Not C struct padding, but actual glyph padding.
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
@@ -200,6 +201,13 @@ namespace dmRender
      * @return true if the font map uses the vector path
      */
     bool GetFontMapIsVector(HFontMap font_map);
+
+    /**
+     * Get the SDF spread used for this font map.
+     * @param font_map Font map handle
+     * @return SDF spread in pixels
+     */
+    float GetFontMapSdfSpread(HFontMap font_map);
 
     struct TextMetrics
     {

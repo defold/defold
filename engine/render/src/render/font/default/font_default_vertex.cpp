@@ -14,8 +14,10 @@
 
 #include <assert.h>                        // for assert
 #include <stdint.h>                         // for uint32_t, int16_t
+#include <stdio.h>                          // for printf
 #include <string.h>                         // for memset
 #include <dlib/align.h>                     // for DM_ALIGNED
+#include <dlib/hash.h>                      // for dmHashReverseSafe64
 #include <dlib/log.h>                       // for dmLog*
 #include <dlib/math.h>                      // for dmMath::Max
 #include <dlib/profile.h>                   // for DM_PROFILE, DM_PROPERTY_*
@@ -128,6 +130,78 @@ static void ClearGlyphQuad(uint32_t vertexindex, GlyphVertex* vertices)
     {
         ClearGlyphVertex(vertices[vertexindex + i]);
     }
+}
+
+static void LogGlyphBBox(HFontMap font_map,
+                         const char* mode,
+                         uint32_t codepoint,
+                         uint32_t glyph_index,
+                         const GlyphVertex* vertices)
+{
+    if (!font_map->m_DebugGlyphBBoxes)
+    {
+        return;
+    }
+
+    float min_x = vertices[0].m_Position[0];
+    float max_x = min_x;
+    float min_y = vertices[0].m_Position[1];
+    float max_y = min_y;
+
+    for (uint32_t i = 1; i < 6; ++i)
+    {
+        min_x = dmMath::Min(min_x, vertices[i].m_Position[0]);
+        max_x = dmMath::Max(max_x, vertices[i].m_Position[0]);
+        min_y = dmMath::Min(min_y, vertices[i].m_Position[1]);
+        max_y = dmMath::Max(max_y, vertices[i].m_Position[1]);
+    }
+
+    struct GlyphBBoxLogKey
+    {
+        uint64_t m_Font;
+        uint32_t m_Codepoint;
+        uint32_t m_GlyphIndex;
+        uint8_t  m_Mode;
+        int32_t  m_X0;
+        int32_t  m_Y0;
+        int32_t  m_X1;
+        int32_t  m_Y1;
+    };
+
+    GlyphBBoxLogKey key;
+    memset(&key, 0, sizeof(key));
+    key.m_Font       = font_map->m_NameHash;
+    key.m_Codepoint  = codepoint;
+    key.m_GlyphIndex = glyph_index;
+    key.m_Mode       = (uint8_t) mode[0];
+    key.m_X0         = (int32_t)(min_x * 1000.0f);
+    key.m_Y0         = (int32_t)(min_y * 1000.0f);
+    key.m_X1         = (int32_t)(max_x * 1000.0f);
+    key.m_Y1         = (int32_t)(max_y * 1000.0f);
+
+    uint64_t key_hash = dmHashBufferNoReverse64(&key, sizeof(key));
+    if (font_map->m_DebugGlyphBBoxesLogged.Get(key_hash))
+    {
+        return;
+    }
+    if (font_map->m_DebugGlyphBBoxesLogged.Full())
+    {
+        font_map->m_DebugGlyphBBoxesLogged.OffsetCapacity(32);
+    }
+    uint8_t logged = 1;
+    font_map->m_DebugGlyphBBoxesLogged.Put(key_hash, logged);
+
+    printf("FONT_GLYPH_BBOX mode=%s font=%s codepoint=U+%04X glyph_index=%u x0=%.3f y0=%.3f x1=%.3f y1=%.3f width=%.3f height=%.3f\n",
+           mode,
+           dmHashReverseSafe64(font_map->m_NameHash),
+           codepoint,
+           glyph_index,
+           min_x,
+           min_y,
+           max_x,
+           max_y,
+           max_x - min_x,
+           max_y - min_y);
 }
 
 static void OutputGlyph(FontGlyph* glyph,
@@ -345,7 +419,8 @@ static void OutputGlyphVector(uint32_t vertexindex,
                               float x,
                               float y,
                               float width,
-                              float left_bearing,
+                              float placement_width,
+                              float placement_left_bearing,
                               float ascent,
                               float descent,
                               float curve_start,
@@ -381,7 +456,8 @@ static void OutputGlyphVector(uint32_t vertexindex,
     ClearGlyphVertex(v3);
     ClearGlyphVertex(v6);
 
-    float quad_left = x + left_bearing + offset_x;
+    float size_diff = width - placement_width;
+    float quad_left = x - size_diff * 0.5f + placement_left_bearing + offset_x;
     float quad_bottom = y - descent + offset_y;
     float height = dmMath::Max(0.0001f, ascent + descent);
 
@@ -557,12 +633,13 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                 continue;
             }
 
+            float glyph_width = glyph->m_Bitmap.m_Width > 0 ? (float)glyph->m_Bitmap.m_Width : glyph->m_Width;
             float glyph_height = dmMath::Max(0.0001f, glyph->m_Ascent + glyph->m_Descent);
-            float outline_width_u = font_map->m_OutlineWidth / dmMath::Max(0.0001f, glyph->m_Width);
+            float outline_width_u = font_map->m_OutlineWidth / dmMath::Max(0.0001f, glyph_width);
             float outline_width_v = font_map->m_OutlineWidth / glyph_height;
             float shadow_outline_width = emit_outline ? font_map->m_OutlineWidth : 0.0f;
             float shadow_radius = shadow_outline_width + font_map->m_ShadowBlur;
-            float shadow_width_u = shadow_radius / dmMath::Max(0.0001f, glyph->m_Width);
+            float shadow_width_u = shadow_radius / dmMath::Max(0.0001f, glyph_width);
             float shadow_width_v = shadow_radius / glyph_height;
             float shadow_texcoord_min_x = -shadow_width_u;
             float shadow_texcoord_min_y = -shadow_width_v;
@@ -575,8 +652,9 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   te.m_Transform,
                                   x,
                                   y,
-                                  glyph->m_Width,
-                                  glyph->m_LeftBearing,
+                                  glyph_width,
+                                  g->m_Width,
+                                  g->m_LeftBearing,
                                   glyph->m_Ascent,
                                   glyph->m_Descent,
                                   cache_glyph->m_VectorCurveTexel,
@@ -607,8 +685,9 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   te.m_Transform,
                                   x,
                                   y,
-                                  glyph->m_Width,
-                                  glyph->m_LeftBearing,
+                                  glyph_width,
+                                  g->m_Width,
+                                  g->m_LeftBearing,
                                   glyph->m_Ascent,
                                   glyph->m_Descent,
                                   cache_glyph->m_VectorCurveTexel,
@@ -637,8 +716,9 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                               te.m_Transform,
                               x,
                               y,
-                              glyph->m_Width,
-                              glyph->m_LeftBearing,
+                              glyph_width,
+                              g->m_Width,
+                              g->m_LeftBearing,
                               glyph->m_Ascent,
                               glyph->m_Descent,
                               cache_glyph->m_VectorCurveTexel,
@@ -661,6 +741,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                               0.0f,
                               face_color,
                               vertices);
+
+            LogGlyphBBox(font_map, "vector", g->m_Codepoint, glyph_index, &vertices[face_vertexindex]);
 
             glyph_slot++;
         }
@@ -836,6 +918,12 @@ static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t f
                         shadow_y,
                         is_metrics_ttf,
                         vertices);
+
+            if (FONT_RESULT_OK == r && glyph)
+            {
+                uint32_t face_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count - 1);
+                LogGlyphBBox(font_map, "sdf", c, glyph_index, &vertices[face_index]);
+            }
 
             vertexindex += vertices_per_quad;
         }

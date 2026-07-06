@@ -74,6 +74,7 @@ namespace dmRender
 
         dmHashTable64<FontGlyph*>   m_Glyphs;       // Ache with generated glyphs (with bitmap data!)
         dmHashTable64<CacheGlyph*>  m_GlyphCache;   // Quick check what glyphs are in the cache texture
+        dmHashTable64<uint8_t>      m_DebugGlyphBBoxesLogged;
         CacheGlyph*                 m_Cache;        // The data (i.e. the pool)
         uint16_t*                   m_CacheIndices; // Indices into the cache array
         uint32_t                    m_CacheCursor;
@@ -130,7 +131,8 @@ namespace dmRender
         uint8_t                 m_CacheChannels:3;      // Number of channels (1-4)
         uint8_t                 m_IsSdf:1;
         uint8_t                 m_IsVector:1;
-        uint8_t                 :7;
+        uint8_t                 m_DebugGlyphBBoxes:1;
+        uint8_t                 :6;
     };
 }
 

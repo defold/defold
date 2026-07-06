@@ -24,16 +24,19 @@
 
 #include <algorithm> // std::sort
 #include <math.h>
+#include <stdio.h>
 #include <vector>
 
 namespace dmRender
 {
+    static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
     static const dmhash_t BAND_TEXTURE_HASH = dmHashString64("band_texture");
     static const uint32_t VECTOR_CURVE_TEXTURE_WIDTH = 512;
     static const uint32_t VECTOR_CURVE_TEXTURE_HEIGHT = 64;
     static const uint32_t VECTOR_BAND_TEXTURE_WIDTH = 2048;
     static const uint32_t VECTOR_BAND_TEXTURE_HEIGHT = 128;
     static const uint8_t VECTOR_MAX_BANDS = 8;
+    static const uint32_t VECTOR_MAX_SHADER_CURVES = 256;
 
     FontMapParams::FontMapParams()
     : m_FontCollection(0)
@@ -61,6 +64,7 @@ namespace dmRender
     , m_CacheCellPadding(0)
     , m_LayerMask(FACE)
     , m_IsMonospaced(false)
+    , m_DebugGlyphBBoxes(false)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     {
     }
@@ -317,6 +321,7 @@ namespace dmRender
         font_map->m_LayerMask = params.m_LayerMask;
         font_map->m_IsMonospaced = params.m_IsMonospaced;
         font_map->m_IsDynamic = params.m_IsDynamic;
+        font_map->m_DebugGlyphBBoxes = params.m_DebugGlyphBBoxes;
         font_map->m_Padding = params.m_Padding;
 
         font_map->m_OnGlyphCacheMiss = params.m_OnGlyphCacheMiss;
@@ -434,7 +439,8 @@ namespace dmRender
         bool is_vector_material = false;
         if (material)
         {
-            is_vector_material = GetMaterialSamplerUnit(material, BAND_TEXTURE_HASH) != INVALID_SAMPLER_UNIT;
+            is_vector_material = GetMaterialSamplerUnit(material, CURVE_TEXTURE_HASH) != INVALID_SAMPLER_UNIT ||
+                                 GetMaterialSamplerUnit(material, BAND_TEXTURE_HASH) != INVALID_SAMPLER_UNIT;
         }
 
         if (is_vector_material)
@@ -459,6 +465,12 @@ namespace dmRender
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
         return font_map->m_IsVector != 0;
+    }
+
+    float GetFontMapSdfSpread(HFontMap font_map)
+    {
+        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
+        return font_map->m_SdfSpread;
     }
 
     float GetFontMapSize(dmRender::HFontMap font_map)
@@ -1023,6 +1035,232 @@ namespace dmRender
         curves.push_back(curve);
     }
 
+    static bool FindInteriorAxisExtremum(float p0, float p1, float p2, float* t)
+    {
+        const float epsilon = 0.0001f;
+        float denominator = p0 - 2.0f * p1 + p2;
+        if (fabsf(denominator) < 0.000001f)
+        {
+            return false;
+        }
+
+        float extremum = (p0 - p1) / denominator;
+        if (extremum <= epsilon || extremum >= 1.0f - epsilon)
+        {
+            return false;
+        }
+
+        *t = extremum;
+        return true;
+    }
+
+    static bool IsQuadraticMonotonic(const FontCurvePoint& p0,
+                                     const FontCurvePoint& p1,
+                                     const FontCurvePoint& p2)
+    {
+        float t = 0.0f;
+        return !FindInteriorAxisExtremum(p0.m_X, p1.m_X, p2.m_X, &t) &&
+               !FindInteriorAxisExtremum(p0.m_Y, p1.m_Y, p2.m_Y, &t);
+    }
+
+    static void AddUniqueSplit(float* splits, uint32_t* split_count, float t)
+    {
+        const float epsilon = 0.0001f;
+        if (t <= epsilon || t >= 1.0f - epsilon)
+        {
+            return;
+        }
+
+        for (uint32_t i = 0; i < *split_count; ++i)
+        {
+            if (fabsf(splits[i] - t) < epsilon)
+            {
+                return;
+            }
+        }
+
+        splits[(*split_count)++] = t;
+    }
+
+    static void AddAxisExtremumSplit(float* splits, uint32_t* split_count, float p0, float p1, float p2)
+    {
+        float t = 0.0f;
+        if (FindInteriorAxisExtremum(p0, p1, p2, &t))
+        {
+            AddUniqueSplit(splits, split_count, t);
+        }
+    }
+
+    static void SortSplits(float* splits, uint32_t split_count)
+    {
+        for (uint32_t i = 1; i < split_count; ++i)
+        {
+            float value = splits[i];
+            uint32_t j = i;
+            while (j > 0 && splits[j - 1] > value)
+            {
+                splits[j] = splits[j - 1];
+                --j;
+            }
+            splits[j] = value;
+        }
+    }
+
+    static FontCurvePoint LerpOutlinePoint(const FontCurvePoint& a, const FontCurvePoint& b, float t)
+    {
+        FontCurvePoint point;
+        point.m_X = a.m_X + (b.m_X - a.m_X) * t;
+        point.m_Y = a.m_Y + (b.m_Y - a.m_Y) * t;
+        return point;
+    }
+
+    static void SplitQuadraticDeCasteljau(const FontCurvePoint& p0,
+                                          const FontCurvePoint& p1,
+                                          const FontCurvePoint& p2,
+                                          float t,
+                                          FontCurvePoint* left_p0,
+                                          FontCurvePoint* left_p1,
+                                          FontCurvePoint* left_p2,
+                                          FontCurvePoint* right_p0,
+                                          FontCurvePoint* right_p1,
+                                          FontCurvePoint* right_p2)
+    {
+        FontCurvePoint p01 = LerpOutlinePoint(p0, p1, t);
+        FontCurvePoint p12 = LerpOutlinePoint(p1, p2, t);
+        FontCurvePoint p012 = LerpOutlinePoint(p01, p12, t);
+
+        *left_p0 = p0;
+        *left_p1 = p01;
+        *left_p2 = p012;
+
+        *right_p0 = p012;
+        *right_p1 = p12;
+        *right_p2 = p2;
+    }
+
+    static void PushMonotonicEncodedQuadratic(std::vector<EncodedVectorCurve>& curves,
+                                              const FontGlyph* glyph,
+                                              const FontCurvePoint& p0,
+                                              const FontCurvePoint& p1,
+                                              const FontCurvePoint& p2)
+    {
+        if (IsQuadraticMonotonic(p0, p1, p2))
+        {
+            PushEncodedQuadratic(curves, glyph, p0, p1, p2);
+            return;
+        }
+
+        float splits[4] = { 0.0f, 1.0f, 0.0f, 0.0f };
+        uint32_t split_count = 2;
+        AddAxisExtremumSplit(splits, &split_count, p0.m_X, p1.m_X, p2.m_X);
+        AddAxisExtremumSplit(splits, &split_count, p0.m_Y, p1.m_Y, p2.m_Y);
+        SortSplits(splits, split_count);
+
+        FontCurvePoint remaining_p0 = p0;
+        FontCurvePoint remaining_p1 = p1;
+        FontCurvePoint remaining_p2 = p2;
+        float previous_t = 0.0f;
+
+        for (uint32_t i = 1; i + 1 < split_count; ++i)
+        {
+            float global_t = splits[i];
+            float remaining_interval = 1.0f - previous_t;
+            if (remaining_interval <= 0.0001f)
+            {
+                continue;
+            }
+
+            float local_t = (global_t - previous_t) / remaining_interval;
+            local_t = dmMath::Clamp(local_t, 0.0f, 1.0f);
+
+            FontCurvePoint left_p0;
+            FontCurvePoint left_p1;
+            FontCurvePoint left_p2;
+            FontCurvePoint right_p0;
+            FontCurvePoint right_p1;
+            FontCurvePoint right_p2;
+            SplitQuadraticDeCasteljau(remaining_p0,
+                                      remaining_p1,
+                                      remaining_p2,
+                                      local_t,
+                                      &left_p0,
+                                      &left_p1,
+                                      &left_p2,
+                                      &right_p0,
+                                      &right_p1,
+                                      &right_p2);
+
+            PushEncodedQuadratic(curves, glyph, left_p0, left_p1, left_p2);
+
+            remaining_p0 = right_p0;
+            remaining_p1 = right_p1;
+            remaining_p2 = right_p2;
+            previous_t = global_t;
+        }
+
+        PushEncodedQuadratic(curves, glyph, remaining_p0, remaining_p1, remaining_p2);
+    }
+
+    static bool ValidateEncodedQuadratics(HFontMap font_map, const FontGlyph* glyph, const std::vector<EncodedVectorCurve>& curves)
+    {
+        uint32_t violation_count = 0;
+        const uint32_t max_logged_violations = 8;
+
+        for (uint32_t i = 0; i < curves.size(); ++i)
+        {
+            const EncodedVectorCurve& curve = curves[i];
+            float tx = 0.0f;
+            float ty = 0.0f;
+            bool non_monotonic_x = FindInteriorAxisExtremum(curve.m_P0.m_X, curve.m_P1.m_X, curve.m_P2.m_X, &tx);
+            bool non_monotonic_y = FindInteriorAxisExtremum(curve.m_P0.m_Y, curve.m_P1.m_Y, curve.m_P2.m_Y, &ty);
+
+            if (!non_monotonic_x && !non_monotonic_y)
+            {
+                continue;
+            }
+
+            if (violation_count < max_logged_violations)
+            {
+                dmLogWarning("Vector glyph %u in %s has non-monotonic encoded curve %u: x=%d tx=%.6f y=%d ty=%.6f p0=(%.6f, %.6f) p1=(%.6f, %.6f) p2=(%.6f, %.6f)",
+                             glyph->m_GlyphIndex,
+                             dmHashReverseSafe64(font_map->m_NameHash),
+                             i,
+                             non_monotonic_x ? 1 : 0,
+                             tx,
+                             non_monotonic_y ? 1 : 0,
+                             ty,
+                             curve.m_P0.m_X,
+                             curve.m_P0.m_Y,
+                             curve.m_P1.m_X,
+                             curve.m_P1.m_Y,
+                             curve.m_P2.m_X,
+                             curve.m_P2.m_Y);
+            }
+
+            ++violation_count;
+        }
+
+        if (violation_count > 0)
+        {
+            dmLogWarning("Vector glyph %u in %s failed monotonic curve validation: %u of %u encoded curves are invalid. Skipping vector texture upload for this glyph.",
+                         glyph->m_GlyphIndex,
+                         dmHashReverseSafe64(font_map->m_NameHash),
+                         violation_count,
+                         (uint32_t)curves.size());
+            return false;
+        }
+
+        if (font_map->m_DebugGlyphBBoxes)
+        {
+            printf("FONT_VECTOR_MONOTONIC font=%s glyph_index=%u curves=%u result=ok\n",
+                   dmHashReverseSafe64(font_map->m_NameHash),
+                   glyph->m_GlyphIndex,
+                   (uint32_t)curves.size());
+        }
+
+        return true;
+    }
+
     static void CollectEncodedQuadratics(const FontGlyph* glyph, std::vector<EncodedVectorCurve>& curves)
     {
         FontCurvePoint current = {0.0f, 0.0f};
@@ -1045,21 +1283,21 @@ namespace dmRender
                     if (has_current)
                     {
                         FontCurvePoint next = command.m_Points[0];
-                        PushEncodedQuadratic(curves, glyph, current, MakeMidpoint(current, next), next);
+                        PushMonotonicEncodedQuadratic(curves, glyph, current, MakeMidpoint(current, next), next);
                         current = next;
                     }
                     break;
                 case FONT_CURVE_QUADRATIC_TO:
                     if (has_current)
                     {
-                        PushEncodedQuadratic(curves, glyph, current, command.m_Points[0], command.m_Points[1]);
+                        PushMonotonicEncodedQuadratic(curves, glyph, current, command.m_Points[0], command.m_Points[1]);
                         current = command.m_Points[1];
                     }
                     break;
                 case FONT_CURVE_CLOSE:
                     if (has_current && has_contour && !IsSameOutlinePoint(current, contour_start))
                     {
-                        PushEncodedQuadratic(curves, glyph, current, MakeMidpoint(current, contour_start), contour_start);
+                        PushMonotonicEncodedQuadratic(curves, glyph, current, MakeMidpoint(current, contour_start), contour_start);
                     }
                     has_current = false;
                     has_contour = false;
@@ -1154,6 +1392,15 @@ namespace dmRender
         {
             return false;
         }
+        if (!ValidateEncodedQuadratics(font_map, glyph, encoded_curves))
+        {
+            return false;
+        }
+        if (curve_count > VECTOR_MAX_SHADER_CURVES)
+        {
+            dmLogWarning("The vector glyph %u in %s has %u monotonic curves, exceeding shader limit %u", glyph->m_GlyphIndex, dmHashReverseSafe64(font_map->m_NameHash), curve_count, VECTOR_MAX_SHADER_CURVES);
+            return false;
+        }
 
         uint32_t required_curve_texels = curve_count * 2;
         uint8_t num_hbands = dmMath::Clamp((uint8_t)(curve_count / 2), (uint8_t)1, VECTOR_MAX_BANDS);
@@ -1169,6 +1416,23 @@ namespace dmRender
             min_y = dmMath::Min(min_y, encoded_curves[i].m_MinY);
             max_x = dmMath::Max(max_x, encoded_curves[i].m_MaxX);
             max_y = dmMath::Max(max_y, encoded_curves[i].m_MaxY);
+        }
+
+        if (font_map->m_DebugGlyphBBoxes)
+        {
+            printf("FONT_VECTOR_OUTLINE_BOUNDS font=%s glyph_index=%u curves=%u width=%.3f height=%.3f ascent=%.3f descent=%.3f left_bearing=%.3f nx0=%.6f ny0=%.6f nx1=%.6f ny1=%.6f\n",
+                   dmHashReverseSafe64(font_map->m_NameHash),
+                   glyph->m_GlyphIndex,
+                   curve_count,
+                   glyph->m_Width,
+                   glyph->m_Ascent + glyph->m_Descent,
+                   glyph->m_Ascent,
+                   glyph->m_Descent,
+                   glyph->m_LeftBearing,
+                   min_x,
+                   min_y,
+                   max_x,
+                   max_y);
         }
 
         std::vector< std::vector<uint32_t> > hbands(num_hbands);
