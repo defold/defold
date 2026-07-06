@@ -449,6 +449,7 @@
                    _third-source-node-id [helpers/ConnectionSourceNode :property :third-value]
                    target-node-id helpers/ConnectionTargetNode]
                   (g/connect first-source-node-id :property-output target-node-id :array-input)
+                  (g/connect second-source-node-id :property-output target-node-id :array-input)
                   (g/connect second-source-node-id :property-output target-node-id :array-input))))]
 
         (g/transact
@@ -466,6 +467,7 @@
         (g/undo! ::delete-source)
 
         (is (= [[first-source-node-id :property-output]
+                [second-source-node-id :property-output]
                 [second-source-node-id :property-output]
                 [third-source-node-id :property-output]]
                (g/sources (g/now) target-node-id :array-input)))))))

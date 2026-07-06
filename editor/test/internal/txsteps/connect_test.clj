@@ -306,6 +306,99 @@
         (g/redo! :undo/global)
         (ensure-after!)))))
 
+(deftest append-duplicated-connection-on-array-input-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [first-source-node-id
+           duplicated-source-node-id
+           second-source-node-id
+           target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                                      duplicated-source-node-id [helpers/ConnectionSourceNode :property :duplicated-value]
+                                      second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                                      target-node-id helpers/ConnectionTargetNode]
+                (g/connect first-source-node-id :property-output target-node-id :array-input)
+                (g/connect duplicated-source-node-id :property-output target-node-id :array-input)
+                (g/connect second-source-node-id :property-output target-node-id :array-input))))
+
+          ensure-before!
+          (fn ensure-before! []
+            (let [basis (g/now)]
+              (testing "Connections."
+                (is (= [[target-node-id :array-input]] (g/targets basis first-source-node-id :property-output)))
+                (is (= [[target-node-id :array-input]] (g/targets basis duplicated-source-node-id :property-output)))
+                (is (= [[target-node-id :array-input]] (g/targets basis second-source-node-id :property-output)))
+                (is (= [[first-source-node-id :property-output]
+                        [duplicated-source-node-id :property-output]
+                        [second-source-node-id :property-output]]
+                       (g/sources basis target-node-id :array-input))))
+
+              (testing "Internal arc tables."
+                (is (= [[first-source-node-id :property-output target-node-id :array-input]]
+                       (helpers/source-arc-table-tuples basis graph-id first-source-node-id :property-output)))
+                (is (= [[duplicated-source-node-id :property-output target-node-id :array-input]]
+                       (helpers/source-arc-table-tuples basis graph-id duplicated-source-node-id :property-output)))
+                (is (= [[second-source-node-id :property-output target-node-id :array-input]]
+                       (helpers/source-arc-table-tuples basis graph-id second-source-node-id :property-output)))
+                (is (= [[first-source-node-id :property-output target-node-id :array-input]
+                        [duplicated-source-node-id :property-output target-node-id :array-input]
+                        [second-source-node-id :property-output target-node-id :array-input]]
+                       (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
+
+              (testing "Output values."
+                (is (= [:first-value :duplicated-value :second-value] (g/node-value target-node-id :array-output))))))
+
+          ensure-after!
+          (fn ensure-after! []
+            (let [basis (g/now)]
+              (testing "Connections."
+                (is (= [[target-node-id :array-input]] (g/targets basis first-source-node-id :property-output)))
+                (is (= [[target-node-id :array-input]
+                        [target-node-id :array-input]]
+                       (g/targets basis duplicated-source-node-id :property-output)))
+                (is (= [[target-node-id :array-input]] (g/targets basis second-source-node-id :property-output)))
+                (is (= [[first-source-node-id :property-output]
+                        [duplicated-source-node-id :property-output]
+                        [second-source-node-id :property-output]
+                        [duplicated-source-node-id :property-output]]
+                       (g/sources basis target-node-id :array-input))))
+
+              (testing "Internal arc tables."
+                (is (= [[first-source-node-id :property-output target-node-id :array-input]]
+                       (helpers/source-arc-table-tuples basis graph-id first-source-node-id :property-output)))
+                (is (= [[duplicated-source-node-id :property-output target-node-id :array-input]
+                        [duplicated-source-node-id :property-output target-node-id :array-input]]
+                       (helpers/source-arc-table-tuples basis graph-id duplicated-source-node-id :property-output)))
+                (is (= [[second-source-node-id :property-output target-node-id :array-input]]
+                       (helpers/source-arc-table-tuples basis graph-id second-source-node-id :property-output)))
+                (is (= [[first-source-node-id :property-output target-node-id :array-input]
+                        [duplicated-source-node-id :property-output target-node-id :array-input]
+                        [second-source-node-id :property-output target-node-id :array-input]
+                        [duplicated-source-node-id :property-output target-node-id :array-input]]
+                       (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
+
+              (testing "Output values."
+                (is (= [:first-value :duplicated-value :second-value :duplicated-value] (g/node-value target-node-id :array-output))))))]
+
+      (testing "Before transact."
+        (ensure-before!))
+
+      (testing "Transact."
+        (g/transact
+          (g/connect duplicated-source-node-id :property-output target-node-id :array-input))
+        (ensure-after!))
+
+      (testing "Undo."
+        (g/undo! :undo/global)
+        (ensure-before!))
+
+      (testing "Redo."
+        (g/redo! :undo/global)
+        (ensure-after!)))))
+
 (deftest introduce-shadowing-connection-on-regular-input-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)

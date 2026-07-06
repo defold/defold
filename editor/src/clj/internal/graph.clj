@@ -385,6 +385,12 @@
         new-next-pkid (max old-next-pkid (inc (long arc-pkid)))]
     (arc-table-set-next-pkid (assoc arc-table arc-pkid arc) new-next-pkid)))
 
+(defn- arc-table-dissoc [arc-table arc-pkid]
+  (when arc-table
+    (arc-table-set-next-pkid
+      (dissoc arc-table arc-pkid)
+      (arc-table-next-pkid arc-table))))
+
 (defn- arc-table-filter-arcs [arc-table keep-arc?]
   (when arc-table
     (arc-table-set-next-pkid
@@ -394,9 +400,11 @@
             arc-table)
       (arc-table-next-pkid arc-table))))
 
-(defn- arc-table-find-arc-pkid [arc-table ^Arc arc]
-  (when-let [entry (coll/first-where #(= arc (val %)) arc-table)]
-    (key entry)))
+(defn- arc-table-find-arc-pkids [arc-table ^Arc arc]
+  (coll/into-> arc-table []
+    (keep (fn [[arc-pkid table-arc]]
+            (when (= arc table-arc)
+              arc-pkid)))))
 
 (defn- graphs-source-arc-table [graphs ^Arc arc]
   (let [source-id (gt/source-id arc)
@@ -410,10 +418,15 @@
         graph-id (gt/node-id->graph-id target-id)]
     (-> graphs (get graph-id) :tarcs (get target-id) (get target-label))))
 
-(defn find-source-and-target-arc-pkids [basis ^Arc arc]
-  (let [graphs (:graphs basis)]
-    (pair (arc-table-find-arc-pkid (graphs-source-arc-table graphs arc) arc)
-          (arc-table-find-arc-pkid (graphs-target-arc-table graphs arc) arc))))
+(defn find-source-and-target-arc-pkid-entries [basis ^Arc arc]
+  (let [graphs (:graphs basis)
+        source-arc-pkids (arc-table-find-arc-pkids (graphs-source-arc-table graphs arc) arc)
+        target-arc-pkids (arc-table-find-arc-pkids (graphs-target-arc-table graphs arc) arc)]
+    (assert (= (count source-arc-pkids) (count target-arc-pkids)))
+    (mapv (fn [source-arc-pkid target-arc-pkid]
+            [arc source-arc-pkid target-arc-pkid])
+          source-arc-pkids
+          target-arc-pkids)))
 
 (defn next-source-and-target-arc-pkids [basis ^Arc arc]
   (let [graphs (:graphs basis)]
@@ -583,6 +596,22 @@
              target-arc-pkid
              arc))
 
+(defn- dissoc-source-arc-at
+  [graph ^Arc arc source-arc-pkid]
+  (update graph :sarcs
+          update-existing-arc-table
+          [(gt/source-id arc) (gt/source-label arc)]
+          arc-table-dissoc
+          source-arc-pkid))
+
+(defn- dissoc-target-arc-at
+  [graph ^Arc arc target-arc-pkid]
+  (update graph :tarcs
+          update-existing-arc-table
+          [(gt/target-id arc) (gt/target-label arc)]
+          arc-table-dissoc
+          target-arc-pkid))
+
 (defn- connect-source-at
   [graph ^Arc arc source-arc-pkid]
   (let [from (node-id->node graph (gt/source-id arc))]
@@ -668,6 +697,29 @@
       (update basis :graphs assoc
               source-graph-id (assoc-source-arc-at source-graph arc source-arc-pkid)
               target-graph-id (assoc-target-arc-at target-graph arc target-arc-pkid)))))
+
+(defn disconnect-arc-at [basis ^Arc arc source-arc-pkid target-arc-pkid]
+  (let [source-id (.source-id arc)
+        source-graph-id (gt/node-id->graph-id source-id)
+        source-graph (get-in basis [:graphs source-graph-id])
+        target-id (.target-id arc)
+        target-graph-id (gt/node-id->graph-id target-id)
+        target-graph (get-in basis [:graphs target-graph-id])]
+    (cond
+      (not (and (node-id->node source-graph source-id)
+                (node-id->node target-graph target-id)))
+      basis
+
+      (= source-graph-id target-graph-id)
+      (update basis :graphs assoc
+              source-graph-id (-> source-graph
+                                  (dissoc-source-arc-at arc source-arc-pkid)
+                                  (dissoc-target-arc-at arc target-arc-pkid)))
+
+      :else
+      (update basis :graphs assoc
+              source-graph-id (dissoc-source-arc-at source-graph arc source-arc-pkid)
+              target-graph-id (dissoc-target-arc-at target-graph arc target-arc-pkid)))))
 
 (defn override-by-id
   [basis override-id]
