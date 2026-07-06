@@ -101,6 +101,20 @@
                             replacement)
            :type :defold/prefer-util-coll)))
 
+(defn- warn-defn-return-type-hint-placement! [finding-meta]
+  (api/reg-finding!
+    (assoc finding-meta
+           :message "Put defn return type hint and argument vector on the next line."
+           :type :defold/defn-return-type-hint-placement)))
+
+(defn- single-arity-arg-vector-node [children]
+  (loop [previous-node nil
+         children children]
+    (when-some [child-node (first children)]
+      (if (= :vector (:tag child-node))
+        [previous-node child-node]
+        (recur child-node (next children))))))
+
 (defn bounded-count [{:keys [node]}]
   (warn-prefer-util-coll! node "bounded-count")
   {:node node})
@@ -127,6 +141,19 @@
 
 (defn deftype [{:keys [node]}]
   (warn-prefer-defonce! node "type" "deftype"))
+
+(defn defn-call [{:keys [node]}]
+  (let [[_defn-node & tail-nodes] (:children node)
+        [previous-node arg-vector-node] (single-arity-arg-vector-node tail-nodes)]
+    (when (and previous-node
+               arg-vector-node
+               (= (:row (meta previous-node)) (:row (meta arg-vector-node)))
+               (< (inc (:end-col (meta previous-node)))
+                  (:col (meta arg-vector-node))))
+      (warn-defn-return-type-hint-placement!
+        (assoc (meta arg-vector-node)
+               :col (inc (:end-col (meta previous-node))))))
+    {:node node}))
 
 (defn fn-call [{:keys [node]}]
   (let [[fn-node] (:children node)
