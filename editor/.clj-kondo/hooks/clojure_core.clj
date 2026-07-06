@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns hooks.clojure-core
-  (:refer-clojure :exclude [bounded-count empty? every? map not-any? not-empty not-every? some])
+  (:refer-clojure :exclude [bounded-count definterface defprotocol defrecord deftype empty? every? map not-any? not-empty not-every? some])
   (:require [clj-kondo.hooks-api :as api]))
 
 (defn- warn-prefer-util-coll! [node function-name]
@@ -104,6 +104,29 @@
 (defn bounded-count [{:keys [node]}]
   (warn-prefer-util-coll! node "bounded-count")
   {:node node})
+
+(defn- warn-prefer-defonce! [node defonce-form core-form]
+  (let [[form-node] (:children node)]
+    (when-not (:defold/defonce (meta form-node))
+      (api/reg-finding!
+        (assoc (meta form-node)
+               :message (format "Use util.defonce/%s instead of clojure.core/%s."
+                                defonce-form
+                                core-form)
+               :type :defold/prefer-defonce))))
+  {:node node})
+
+(defn defprotocol [{:keys [node]}]
+  (warn-prefer-defonce! node "protocol" "defprotocol"))
+
+(defn definterface [{:keys [node]}]
+  (warn-prefer-defonce! node "interface" "definterface"))
+
+(defn defrecord [{:keys [node]}]
+  (warn-prefer-defonce! node "record" "defrecord"))
+
+(defn deftype [{:keys [node]}]
+  (warn-prefer-defonce! node "type" "deftype"))
 
 (defn fn-call [{:keys [node]}]
   (let [[fn-node] (:children node)
