@@ -42,6 +42,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.form :as form]
@@ -93,6 +94,8 @@
   (property renderer g/Any)
   (output sidebar-panes g/Any (g/constantly [:outline-pane]))
   (output form-view g/Any :cached produce-form-view))
+
+(node-types/register-node-type-name! CljfxFormView "form")
 
 (defmulti handle-event :event-type)
 

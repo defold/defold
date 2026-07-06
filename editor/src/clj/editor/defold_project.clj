@@ -1843,11 +1843,13 @@
 (defn cache-retain?
   ([endpoint]
    (case (g/endpoint-label endpoint)
+     (:repaint-info :right-split-desc :scene-view-ids :tick-info) true
      (:build-targets) (project-resource-node? (g/now) (g/endpoint-node-id endpoint))
      (:save-data :save-value) (project-file-resource-node? (g/now) (g/endpoint-node-id endpoint))
      false))
   ([basis endpoint]
    (case (g/endpoint-label endpoint)
+     (:repaint-info :right-split-desc :scene-view-ids :tick-info) true
      (:build-targets) (project-resource-node? basis (g/endpoint-node-id endpoint))
      (:save-data :save-value) (project-file-resource-node? basis (g/endpoint-node-id endpoint))
      false)))

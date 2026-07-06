@@ -12,32 +12,40 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_SPINLOCKTYPES_MACH_H
-#define DM_SPINLOCKTYPES_MACH_H
+#include "spinlock.h"
 
+#include <assert.h>
 #include <libkern/OSAtomic.h>
+#include <stdlib.h>
+
 namespace dmSpinlock
 {
-    typedef OSSpinLock Spinlock;
-
-    static inline void Create(Spinlock* lock)
+    static OSSpinLock* ToNative(Spinlock* lock)
     {
-        *lock = 0;
+        return (OSSpinLock*) lock->m_Handle;
     }
 
-    static inline void Destroy(Spinlock* lock)
+    void Create(Spinlock* lock)
     {
+        OSSpinLock* native_lock = (OSSpinLock*) malloc(sizeof(OSSpinLock));
+        assert(native_lock != 0);
+        *native_lock = 0;
+        lock->m_Handle = native_lock;
     }
 
-    static inline void Lock(Spinlock* lock)
+    void Destroy(Spinlock* lock)
     {
-        OSSpinLockLock(lock);
+        free(ToNative(lock));
+        lock->m_Handle = 0;
     }
 
-    static inline void Unlock(Spinlock* lock)
+    void Lock(Spinlock* lock)
     {
-        OSSpinLockUnlock(lock);
+        OSSpinLockLock(ToNative(lock));
+    }
+
+    void Unlock(Spinlock* lock)
+    {
+        OSSpinLockUnlock(ToNative(lock));
     }
 }
-
-#endif

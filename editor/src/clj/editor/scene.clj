@@ -24,6 +24,7 @@
             [editor.background :as background]
             [editor.camera :as c]
             [editor.colors :as colors]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.geom :as geom]
@@ -1331,6 +1332,8 @@
   (output displayed-node-properties g/Any :cached
           (g/fnk [selected-node-properties preview-overrides]
             (displayed-node-properties selected-node-properties preview-overrides))))
+
+(node-types/register-node-type-name! SceneView "scene")
 
 (defn cursor
   "Maps inconsistent cursor types across platforms.

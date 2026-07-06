@@ -135,7 +135,7 @@
 (defn input-dependencies       [nt]        (some-> nt deref :input-dependencies))
 (defn property-display-order   [nt]        (some-> nt deref :property-display-order))
 (defn cascade-deletes          [nt]        (some-> nt deref :cascade-deletes))
-(defn behavior                 [nt label]  (some-> nt deref (get-in [:behavior label])))
+(defn behavior                 [nt label]  (some-> nt deref :behavior (get label)))
 (defn property-behavior        [nt label]  (some-> nt deref (get-in [:property-behavior label])))
 (defn declared-property-labels [nt]        (some-> nt deref :declared-property))
 
@@ -1675,8 +1675,8 @@
          (let [~node-id-sym (gt/node-id ~node-sym)]
            ~(check-jammed-form description label node-sym node-id-sym label-sym evaluation-context-sym
               (apply-default-property-shortcut-form description label node-sym node-id-sym label-sym evaluation-context-sym
-                (mark-in-production-form node-id-sym label-sym evaluation-context-sym
-                  (check-caches-form description label node-id-sym label-sym evaluation-context-sym
+                (check-caches-form description label node-id-sym label-sym evaluation-context-sym
+                  (mark-in-production-form node-id-sym label-sym evaluation-context-sym
                     (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym tracer-label-type
                       (gather-arguments-form description label node-sym node-id-sym evaluation-context-sym arguments-sym
                         (call-production-function-form description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym
