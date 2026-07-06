@@ -2360,7 +2360,14 @@
                      :localization localization
                      :tab tab})
         make-view-fn (:make-view-fn view-type)
+        undo-stack-count-before (g/undo-stack-count :undo/global)
         view (make-view-fn view-graph parent resource-node opts)]
+    (when (not= undo-stack-count-before (g/undo-stack-count :undo/global))
+      (throw
+        (ex-info
+          "The view must not create undo steps during initialization."
+          {:resource-type resource-type
+           :view-type view-type})))
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs resource view-type)
     (g/transact
