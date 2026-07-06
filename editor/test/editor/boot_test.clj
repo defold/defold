@@ -25,11 +25,11 @@
 
 (deftest write-installations-json-test
   (test-util/with-temp-dir! dir
-    (let [config-root (path/of dir "config")
+    (let [support-root (path/of dir "support")
           install-root (path/of dir "install")
           launcher-a (path/of install-root "DefoldA")
           launcher-b (path/of install-root "DefoldB")
-          registry-path (path/of config-root "Defold" "installations.json")
+          registry-path (path/of support-root "Defold" "installations.json")
           resources-a (path/of install-root "DefoldA.app" "Contents" "Resources")
           resources-b (path/of install-root "DefoldB.app" "Contents" "Resources")
           launcher-c (path/of install-root "DefoldC")
@@ -43,7 +43,7 @@
 
       (with-redefs [fs/evaluate-path (fn evaluate-path [raw-path]
                                        (case raw-path
-                                         "~/Library/Preferences" (str config-root)
+                                         "~/Library/Application Support" (str support-root)
                                          nil))
                     os/os (constantly :macos)]
         (boot/write-installations-json! launcher-a resources-a)

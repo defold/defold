@@ -130,11 +130,11 @@
           launcher-path (str (path/real launcher-path))
           registry-path (path/of
                           (case os
-                            :macos (fs/evaluate-path "~/Library/Preferences")
-                            :linux (or (fs/evaluate-path "$XDG_CONFIG_HOME")
-                                       (fs/evaluate-path "~/.config"))
-                            :win32 (or (fs/evaluate-path "$APPDATA")
-                                       (fs/evaluate-path "~/AppData/Roaming")))
+                            :macos (fs/evaluate-path "~/Library/Application Support")
+                            :linux (or (fs/evaluate-path "$XDG_STATE_HOME")
+                                       (fs/evaluate-path "~/.local/state"))
+                            :win32 (or (fs/evaluate-path "$LOCALAPPDATA")
+                                       (fs/evaluate-path "~/AppData/Local")))
                           "Defold"
                           "installations.json")]
       (path/atomic-replace!
