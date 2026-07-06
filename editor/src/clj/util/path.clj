@@ -427,10 +427,11 @@
   falls back to a replace-only move. This avoids exposing partially-written
   target files during normal operation, but it does not fsync the temp file or
   directory and should not be treated as durable transaction storage. Returns
-  the target Path."
+  the absolute target Path."
   ^Path
   [path write-temp-path-fn]
-  (let [path (create-parent-directories! path)
+  (let [path (absolute path)
+        path (create-parent-directories! path)
         temp-path (Files/createTempFile (parent path) (str (leaf path) ".") ".tmp" empty-file-attribute-array)]
     (try
       (write-temp-path-fn temp-path)

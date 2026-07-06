@@ -142,8 +142,10 @@
         (fn write-installations-json-temp-file [temp-path]
           (with-open [writer (io/writer temp-path :encoding "UTF-8")]
             (-> (when (path/exists? registry-path)
-                  (with-open [reader (io/reader registry-path :encoding "UTF-8")]
-                    (json/read reader :key-fn keyword)))
+                  (try
+                    (with-open [reader (io/reader registry-path :encoding "UTF-8")]
+                      (json/read reader :key-fn keyword))
+                    (catch Exception _)))
                 (coll/into->
                   [{:launcherPath launcher-path
                     :installPath (str (case os

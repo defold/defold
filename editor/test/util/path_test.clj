@@ -85,10 +85,7 @@
   (test-util/with-temp-dir! dir
     (testing "Creates parent directories and replaces the target."
       (let [target (path/of dir "MissingDirectory" "target.txt")]
-        (is (= target (path/atomic-replace!
-                        target
-                        (fn write-temp-path [temp-path]
-                          (spit temp-path "first")))))
+        (is (= (path/absolute target) (path/atomic-replace! target #(spit % "first"))))
         (is (= "first" (slurp target)))
 
         (path/atomic-replace!
@@ -96,6 +93,15 @@
           (fn write-temp-path [temp-path]
             (spit temp-path "second")))
         (is (= "second" (slurp target)))))
+
+    (testing "Supports target paths without a parent."
+      (let [target (path/of (str "atomic-replace-test-" (random-uuid) ".txt"))]
+        (try
+          (is (= (path/absolute target) (path/atomic-replace! target #(spit % "content"))))
+          (is (= "content" (slurp target)))
+          (finally
+            (when (path/exists? target)
+              (path/delete! target))))))
 
     (testing "Propagates write failures, preserves the target, and cleans up the temp file."
       (let [target (path/of dir "Failure" "target.txt")]

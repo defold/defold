@@ -31,11 +31,15 @@
           launcher-b (path/of install-root "DefoldB")
           registry-path (path/of config-root "Defold" "installations.json")
           resources-a (path/of install-root "DefoldA.app" "Contents" "Resources")
-          resources-b (path/of install-root "DefoldB.app" "Contents" "Resources")]
+          resources-b (path/of install-root "DefoldB.app" "Contents" "Resources")
+          launcher-c (path/of install-root "DefoldC")
+          resources-c (path/of install-root "DefoldC.app" "Contents" "Resources")]
       (path/create-directories! resources-a)
       (path/create-directories! resources-b)
+      (path/create-directories! resources-c)
       (spit launcher-a "")
       (spit launcher-b "")
+      (spit launcher-c "")
 
       (with-redefs [fs/evaluate-path (fn evaluate-path [raw-path]
                                        (case raw-path
@@ -45,8 +49,17 @@
         (boot/write-installations-json! launcher-a resources-a)
         (boot/write-installations-json! launcher-b resources-b)
         (boot/write-installations-json! launcher-a resources-a)
+        (boot/write-installations-json! (path/relativize (path/absolute ".") launcher-c) resources-c)
 
         (let [installations (json/read-str (slurp registry-path) :key-fn keyword)]
-          (is (= [(str (path/real launcher-a))
+          (is (= [(str (path/real launcher-c))
+                  (str (path/real launcher-a))
                   (str (path/real launcher-b))]
+                 (mapv :launcherPath installations))))
+
+        (spit registry-path "{")
+        (boot/write-installations-json! launcher-b resources-b)
+
+        (let [installations (json/read-str (slurp registry-path) :key-fn keyword)]
+          (is (= [(str (path/real launcher-b))]
                  (mapv :launcherPath installations))))))))
