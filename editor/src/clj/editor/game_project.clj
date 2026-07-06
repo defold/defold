@@ -31,7 +31,10 @@
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
-            [util.defonce :as defonce]))
+            [util.defonce :as defonce])
+  (:import [com.dynamo.bob.util DependencyMetadata]
+           [com.fasterxml.jackson.databind ObjectMapper]
+           [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,6 +42,8 @@
 
 (def ^:private gamepads-setting-path ["input" "gamepads"])
 (def ^:private gamepad-database-setting-path ["input" "gamepad_database"])
+(def ^:private dependencies-metadata-setting-path ["project" "dependencies_metadata"])
+(def ^:private ^ObjectMapper dependency-metadata-object-mapper (ObjectMapper.))
 
 (defn- ignored-setting?
   [{:keys [path]}]
@@ -89,6 +94,47 @@
                        (sort-by first settings-map))
         user-data-content (settings-core/settings->str settings meta-settings :comma-separated-list)]
     {:resource resource :content (.getBytes user-data-content)}))
+
+(defn- build-dependency-metadata [resource _dep-resources dependency-metadata-json]
+  {:resource resource
+   :content dependency-metadata-json})
+
+(defonce/record DependencyMetadataResource [workspace]
+  resource/Resource
+  (children [_] nil)
+  (ext [_] "json")
+  (resource-type [_]
+    {:ext "json"
+     :label (localization/message "resource.type.custom")
+     :build-ext "json"})
+  (source-type [_] :file)
+  (exists? [_] true)
+  (read-only? [_] false)
+  (symlink? [_] false)
+  (path [_] DependencyMetadata/OUTPUT_PATH)
+  (abs-path [_] (.getAbsolutePath (io/file (workspace/project-directory workspace) DependencyMetadata/OUTPUT_PATH)))
+  (proj-path [_] (str "/" DependencyMetadata/OUTPUT_PATH))
+  (resource-name [_] DependencyMetadata/DATA_FILE_NAME)
+  (workspace [_] workspace)
+  (resource-hash [_] (hash DependencyMetadata/OUTPUT_PATH))
+  (openable? [_] false)
+  (editable? [_] false)
+  (loaded? [_] true)
+
+  io/IOFactory
+  (make-input-stream [_ _opts] (ByteArrayInputStream. (byte-array 0)))
+  (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [_ opts] (io/make-output-stream (ByteArrayOutputStream.) opts))
+  (make-writer [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
+
+(defn- make-dependency-metadata-build-target [node-id workspace dependencies]
+  (let [dependency-metadata (DependencyMetadata/collect dependencies)]
+    (when (coll/not-empty dependency-metadata)
+      (bt/with-content-hash
+        {:node-id node-id
+         :resource (workspace/make-build-resource (->DependencyMetadataResource workspace))
+         :build-fn build-dependency-metadata
+         :user-data (.writeValueAsBytes dependency-metadata-object-mapper dependency-metadata)}))))
 
 (defonce/record CustomResource [resource]
   ;; Only purpose is to provide resource-type with :build-ext = :ext
@@ -153,7 +199,7 @@
     (g/->error _node-id :build-targets :fatal gamepad-database-resource
                (localization/message "error.game-project.gamepad-database-must-be-txt"))))
 
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map raw-settings meta-info custom-build-targets resource-settings dep-build-targets gamepads-build-targets gamepads-node-id gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map raw-settings meta-info custom-build-targets resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-node-id gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (let [gamepads-empty (explicit-empty-setting? raw-settings gamepads-setting-path)
         gamepad-database-empty (explicit-empty-setting? raw-settings gamepad-database-setting-path)
         gamepads-build-targets (when-not gamepads-empty gamepads-build-targets)
@@ -179,16 +225,21 @@
                                                                     [path (deps-by-source value)])))
                                                                 resource-settings)
                                          gamepads-build-target
-                                         (assoc gamepads-setting-path (:resource gamepads-build-target)))]
-       [(bt/with-content-hash
-          {:node-id _node-id
-           :resource (workspace/make-build-resource resource)
-           :build-fn build-game-project
-           :user-data {:settings-map settings-map
-                       :raw-settings raw-settings
-                       :meta-settings (:settings meta-info)
-                       :path->built-resource-settings path->built-resource-settings}
-           :deps dep-build-targets})]))))
+                                         (assoc gamepads-setting-path (:resource gamepads-build-target)))
+           game-project-build-target (bt/with-content-hash
+                                       {:node-id _node-id
+                                        :resource (workspace/make-build-resource resource)
+                                        :build-fn build-game-project
+                                        :user-data {:settings-map settings-map
+                                                    :raw-settings raw-settings
+                                                    :meta-settings (:settings meta-info)
+                                                    :path->built-resource-settings path->built-resource-settings}
+                                        :deps dep-build-targets})
+           dependency-metadata-build-target (when (true? (get settings-map dependencies-metadata-setting-path))
+                                              (make-dependency-metadata-build-target _node-id (resource/workspace resource) dependencies))]
+       (cond-> [game-project-build-target]
+               dependency-metadata-build-target
+               (conj dependency-metadata-build-target))))))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)
@@ -219,6 +270,7 @@
   (input resource-map g/Any)
   (input resource-snapshot g/Any)
   (input dep-build-targets g/Any :array)
+  (input dependencies g/Any)
   (input meta-info g/Any)
 
   (input build-errors g/Any :array)
@@ -306,6 +358,7 @@
     (concat
       (g/connect workspace :resource-map self :resource-map)
       (g/connect workspace :resource-snapshot self :resource-snapshot)
+      (g/connect workspace :dependencies self :dependencies)
       (g/make-nodes graph-id [settings-node settings/SettingsNode]
         (g/connect settings-node :_node-id self :nodes)
         (g/connect settings-node :settings-map self :settings-map)

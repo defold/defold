@@ -22,7 +22,6 @@
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
-            [editor.library :as library]
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
@@ -34,7 +33,7 @@
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
             [util.murmur :as murmur])
-  (:import [com.dynamo.bob.util DependencyMetadata TextureUtil]
+  (:import [com.dynamo.bob.util DependencyMetadata Library$Problem$Missing Library$Result TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto DataProto$Data GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
@@ -42,7 +41,7 @@
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
-           [java.nio.file Files]
+           [java.net URI]
            [org.apache.commons.io IOUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
@@ -899,22 +898,20 @@
 (deftest build-with-dependencies-metadata
   (with-loaded-project "test/resources/custom_resources_project"
     (let [game-project (test-util/resource-node project "/game.project")
-          source-metadata-file (.toFile
-                                 (DependencyMetadata/metadataPath
-                                   (library/directory (workspace/project-directory workspace))))
           build-metadata-file (build-path workspace DependencyMetadata/OUTPUT_PATH)]
-      (.mkdirs (.getParentFile source-metadata-file))
-      (spit source-metadata-file "[ {\n  \"url\" : \"https://example.com/library.zip\"\n} ]")
-      (try
-        (with-setting "project/dependencies_metadata" true
-          (is (nil? (:error (project-build! project game-project))))
-          (is (= "[{\"url\":\"https://example.com/library.zip\"}]"
-                 (slurp build-metadata-file))))
-        (with-setting "project/dependencies_metadata" false
-          (is (nil? (:error (project-build! project game-project))))
-          (is (false? (.exists build-metadata-file))))
-        (finally
-          (Files/deleteIfExists (.toPath source-metadata-file)))))))
+      (workspace/set-project-dependencies!
+        workspace
+        [(Library$Result.
+           (URI/create "https://example.com/library.zip")
+           nil
+           (Library$Problem$Missing.))])
+      (with-setting "project/dependencies_metadata" true
+        (is (nil? (:error (project-build! project game-project))))
+        (is (= "[{\"url\":\"https://example.com/library.zip\",\"commit-sha1\":\"\",\"problem\":\"missing\"}]"
+               (slurp build-metadata-file))))
+      (with-setting "project/dependencies_metadata" false
+        (is (nil? (:error (project-build! project game-project))))
+        (is (false? (.exists build-metadata-file)))))))
 
 (deftest build-with-ssl-certificates
   (with-loaded-project "test/resources/custom_resources_project"

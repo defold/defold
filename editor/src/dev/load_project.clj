@@ -281,7 +281,7 @@
         (let [build-results
               (run-and-measure-task!
                 :build-build-targets
-                (build/build-build-targets! all-build-targets project workspace {} progress/null-render-progress! evaluation-context))]
+                (build/build-build-targets! all-build-targets workspace {} progress/null-render-progress! evaluation-context))]
           (when-some [error-value (:error build-results)]
             (doseq [error-line (string/split-lines (localization (g/error-message error-value)))]
               (log/error :message "build-failure" :cause error-line)))

@@ -67,8 +67,6 @@
 (defonce load-metrics-atom (du/when-metrics (atom nil)))
 (defonce resource-change-metrics-atom (du/when-metrics (atom nil)))
 
-(def ^:private dependencies-metadata-setting-path ["project" "dependencies_metadata"])
-
 (def ^:private TBreakpoint
   {:resource s/Any
    :row Long
@@ -1475,9 +1473,6 @@
   ([project evaluation-context]
    (when-let [settings (settings project evaluation-context)]
      (settings ["project" "dependencies"]))))
-
-(defn include-dependencies-metadata? [settings]
-  (true? (get settings dependencies-metadata-setting-path)))
 
 (defn update-fetch-libraries-notification
   "Create transaction steps for showing or hiding a 'Fetch Libraries' suggestion
