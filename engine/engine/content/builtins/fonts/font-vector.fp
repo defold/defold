@@ -140,6 +140,11 @@ float scanline_sweep(vec2 size, vec2 offset, vec2 p0, vec2 p1, vec2 p2)
     }
 
     vec2 delta = p2 - p0;
+    if (abs(delta.y) < 0.000001)
+    {
+        return 0.0;
+    }
+
     p0 -= offset;
     p1 -= offset;
     p2 -= offset;
@@ -236,9 +241,7 @@ float scanline_sweep(vec2 size, vec2 offset, vec2 p0, vec2 p1, vec2 p2)
         coverage += sign(delta.y) * h * size.x;
     }
 
-    float h = q1.y - q0.y;
-    float b = size.x - 0.5 * (q0.x + q1.x);
-    coverage += b * h;
+    coverage += scanline_sweep_area_to_right(min_t, max_t, size.x, p0, p1, p2);
     return coverage;
 }
 
@@ -396,9 +399,7 @@ vec4 ScanlineSweepDebugPageForCurve(vec2 render_coord,
         post_coverage = sign(delta.y) * h * size.x;
     }
 
-    float h = q1.y - q0.y;
-    float b = size.x - 0.5 * (q0.x + q1.x);
-    float body_coverage = b * h;
+    float body_coverage = scanline_sweep_area_to_right(min_t, max_t, size.x, p0, p1, p2);
     float coverage = pre_coverage + post_coverage + body_coverage;
 
     if (page == 4)
@@ -753,7 +754,12 @@ void main()
         return;
     }
 
-    float coverage = ComputeGlyphCoverage(p, curve_start, curve_count, glyph_screen_scale);
+    float coverage = ScanlineSweepRender(p, curve_start, curve_count, pixel_filter_width);
+    float edge_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_screen_scale));
+    if (edge_distance > 1.0)
+    {
+        coverage = IsInsideGlyph(p, curve_start, curve_count);
+    }
 
     if (abs(layer_mode - LAYER_MODE_FACE) < 0.5)
     {
@@ -761,7 +767,8 @@ void main()
         {
             discard;
         }
-        out_fragColor = vec4(var_color.rgb, var_color.a * coverage);
+        float alpha = var_color.a * coverage;
+        out_fragColor = vec4(var_color.rgb * alpha, alpha);
         return;
     }
 
@@ -780,7 +787,8 @@ void main()
             discard;
         }
 
-        out_fragColor = vec4(var_color.rgb, var_color.a * shadow_alpha);
+        float alpha = var_color.a * shadow_alpha;
+        out_fragColor = vec4(var_color.rgb * alpha, alpha);
         return;
     }
 
@@ -790,5 +798,5 @@ void main()
         discard;
     }
 
-    out_fragColor = var_color;
+    out_fragColor = vec4(var_color.rgb * var_color.a, var_color.a);
 }
