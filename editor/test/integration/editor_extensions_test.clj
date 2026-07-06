@@ -2600,6 +2600,7 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
                 view-graph (test-util/make-view-graph!)
                 view-node (first (g/take-node-ids view-graph 1))]
             (g/transact
+              {:undoable false}
               (concat
                 (g/add-node (apply g/construct view-node-type :_node-id view-node view-node-args))
                 (view/connect-resource-node view-node resource-node)
