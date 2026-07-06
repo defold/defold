@@ -3119,6 +3119,11 @@
           (let [document-symbols (get-property view-node :document-symbols evaluation-context)
                 items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
                             (flatten-document-symbols document-symbols))
+                ;; Previewing moves the cursor as the selection changes, so remember
+                ;; where we started to put it back if the dialog is cancelled.
+                original-view {:cursor-ranges (get-property view-node :cursor-ranges evaluation-context)
+                               :scroll-x (get-property view-node :scroll-x evaluation-context)
+                               :scroll-y (get-property view-node :scroll-y evaluation-context)}
                 selection
                 (dialogs/make-select-list-dialog
                   items
@@ -3127,6 +3132,10 @@
                    :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
                    :prompt (localization/message "dialog.jump-to-symbol.prompt")
                    :filter-fn (partial fuzzy-choices/filter-options :name :name)
+                   ;; Preview the highlighted symbol as the user navigates or
+                   ;; filters; the dialog stays quiet on open so the cursor only
+                   ;; moves once the user engages.
+                   :preview-item-fn #(navigate-to-document-symbol! view-node %)
                    :cell-fn (fn [{:keys [name kind detail tags] :as item} _localization]
                               ;; The dialog is a fixed width, so a row must never grow wider than
                               ;; it and cause a horizontal scrollbar. A very long name gets cut

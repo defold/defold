@@ -592,8 +592,37 @@
                               ;; This keeps the anchor at the top so shift+click selects from the start instead of the end:
                               (.put properties "isDefaultAnchor" true)))))))
 
+(defn- install-selection-preview!
+  "Call `preview-item-fn` with the item to preview.
+  Preview is triggered by user interaction in two cases:
+
+    - when the list gains focus or its focused item changes;
+    - when filtering changes the item list while the filter term is non-empty.
+
+  When opened without an initial filter, neither trigger fires during setup."
+  [preview-item-fn preview-on-items-changed? ^ListView view]
+  (let [focus-model ^javafx.scene.control.FocusModel (.getFocusModel view)
+        preview! (fn [item]
+                   (when item
+                     (preview-item-fn item)))]
+    (.addListener (.focusedIndexProperty focus-model)
+                  (reify javafx.beans.value.ChangeListener
+                    (changed [_ _ _ _]
+                      (when (.isFocused view)
+                        (preview! (.getFocusedItem focus-model))))))
+    (.addListener (.focusedProperty view)
+                  (reify javafx.beans.value.ChangeListener
+                    (changed [_ _ _ focused]
+                      (when focused
+                        (preview! (.getFocusedItem focus-model))))))
+    (.addListener (.getItems view)
+                  (reify ListChangeListener
+                    (onChanged [_ _]
+                      (when (preview-on-items-changed?)
+                        (preview! (first (.getItems view)))))))))
+
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization]
+  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn preview-on-items-changed?]
     :as props}]
   {:fx/type dialog-stage
    :title (localization title)
@@ -610,7 +639,10 @@
              :props {:selection-mode selection
                      :on-selected-indices-changed {:event-type :set-selected-indices}}
              :desc {:fx/type fx/ext-on-instance-lifecycle
-                    :on-created select-first-list-item-on-items-changed!
+                    :on-created (fn [view]
+                                  (select-first-list-item-on-items-changed! view)
+                                  (when preview-item-fn
+                                    (install-selection-preview! preview-item-fn preview-on-items-changed? view)))
                     :desc {:fx/type ext-with-identity-items-props
                            :props {:items filtered-items}
                            :desc {:fx/type fx.list-view/lifecycle
@@ -725,7 +757,13 @@
                       default filtering; stringifies item by default
       :prompt         filter text field's prompt, string or MessagePattern,
                       defaults to \"dialog.select-item.prompt\" message
-      :owner          the owner window, defaults to main stage"
+      :owner          the owner window, defaults to main stage
+      :preview-item-fn
+                      optional side-effecting fn of one arg, called with the
+                      item to preview when the list gains focus, its focused
+                      item changes, or filtering changes the item list while
+                      the filter term is non-empty; when opened without an
+                      initial filter, it is not called during setup"
   ([items localization]
    (make-select-list-dialog items localization {}))
   ([items localization options]
@@ -770,7 +808,6 @@
                  (assoc state
                    :filter-term filter-term
                    :filter-in-progress true))))
-
          _ (swap! state-atom set-filter-term filter-term)
          event-handler (select-list-dialog-event-handler set-filter-term)
          result (fxui/show-dialog-and-await-result!
@@ -778,6 +815,8 @@
                   :event-handler event-handler
                   :description {:fx/type select-list-dialog
                                 :localization localization
+                                :preview-item-fn (:preview-item-fn options)
+                                :preview-on-items-changed? #(coll/not-empty (:filter-term @state-atom))
                                 :title (or (:title options)
                                            (localization/message "dialog.select-item.title"))
                                 :ok-label (or (:ok-label options)
