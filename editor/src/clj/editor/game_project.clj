@@ -31,11 +31,11 @@
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
-            [util.defonce :as defonce])
+            [util.defonce :as defonce]
+            [util.path :as path])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Archive Library$Result]
            [com.fasterxml.jackson.databind ObjectMapper]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]
-           [java.nio.file Files LinkOption]))
+           [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
 
@@ -94,9 +94,8 @@
                           :problem (some-> (.problem dependency) str)}
                    archive
                    (assoc :archive {:path (str (.path archive))
-                                    :size (Files/size (.path archive))
-                                    :modified-time (str (Files/getLastModifiedTime (.path archive)
-                                                                                   (make-array LinkOption 0)))
+                                    :size (path/byte-size (.path archive))
+                                    :modified-time (path/last-modified-ms (.path archive))
                                     :base-dir (.baseDir archive)
                                     :include-dirs (.includeDirs archive)
                                     :zip-comment (.zipComment archive)})))))
