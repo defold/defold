@@ -386,6 +386,7 @@
   (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
+  (output scene-view-ids g/Any :cached (gu/passthrough scene-view-ids))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
   (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
   (output active-tab-pane TabPane (g/fnk [^Tab active-tab ^SplitPane editor-tabs-split]

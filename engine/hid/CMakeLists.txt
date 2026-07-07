@@ -71,10 +71,6 @@ target_include_directories(hid PUBLIC
 ) # match Waf include layout for hid sources
 
 if(HID_PRIVATE_SRC_DIR)
-    target_compile_definitions(hid PUBLIC DM_HID_USE_VENDOR_NATIVE_DEFINES)
-    file(GLOB HID_PRIVATE_DMSDK_HEADERS CONFIGURE_DEPENDS
-        "${HID_PRIVATE_SRC_DIR}/dmsdk/hid/hid_native_defines_vendor.h")
-
     foreach(_hid_private_dmsdk_dir IN LISTS DEFOLD_PLATFORM_HID_DMSDK_DIRS)
         file(GLOB_RECURSE _hid_private_platform_headers CONFIGURE_DEPENDS
             "${_hid_private_dmsdk_dir}/*.h"
@@ -107,7 +103,6 @@ defold_target_link_libraries(hid_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_NU
 set_target_properties(hid_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET hid_sdk_headers)
 
 if(HID_PRIVATE_SRC_DIR)
-    target_compile_definitions(hid_null PUBLIC DM_HID_USE_VENDOR_NATIVE_DEFINES)
     target_include_directories(hid_null PUBLIC
         "${HID_PRIVATE_SRC_DIR}"
         "${HID_PRIVATE_SRC_DIR}/native"

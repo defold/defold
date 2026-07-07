@@ -471,13 +471,15 @@
 
 (fxui/defc check-box-view
   {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
-  [{:keys [rt text text_alignment alignment issue tooltip enabled value on_value_changed localization-state]
+  [{:keys [rt text text_alignment alignment issue tooltip enabled value indeterminate on_value_changed localization-state]
     :or {enabled true
+         indeterminate false
          value false}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-check-box-props
      :desc (-> {:fx/type fxui/check-box
                 :disable (not enabled)
+                :indeterminate indeterminate
                 :selected value}
                (set-tooltip-and-issue tooltip issue localization-state)
                (cond->

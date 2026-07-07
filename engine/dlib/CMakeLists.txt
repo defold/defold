@@ -150,6 +150,7 @@ foreach(_feature IN ITEMS
     dlib/log
     dlib/mutex
     dlib/socket
+    dlib/spinlock
     dlib/sslsocket
     dlib/sys
     dlib/time
@@ -173,6 +174,14 @@ foreach(_feature IN ITEMS
   elseif(_feature STREQUAL "dlib/sys")
     if(DLIB_TARGET_OS MATCHES "^(android|linux|macos|ios|web|nx64|ps4|ps5)$")
       set(_extra_tags posix)
+    endif()
+  elseif(_feature STREQUAL "dlib/spinlock")
+    if(DLIB_TARGET_OS MATCHES "^(win32|web)$")
+      set(_preferred_tags atomic)
+    elseif(DLIB_TARGET_OS STREQUAL "linux")
+      set(_preferred_tags posix)
+    elseif(DLIB_TARGET_OS MATCHES "^(nx64|ps4|ps5|xbone)$")
+      set(_preferred_tags ${DLIB_TARGET_OS})
     endif()
   endif()
   dlib_select_feature(_selected _all "${_feature}" EXTRA_TAGS ${_extra_tags} PREFERRED_TAGS ${_preferred_tags})

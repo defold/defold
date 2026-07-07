@@ -405,11 +405,11 @@
 
 (defn user-data [system node-id key]
   (let [graph-id (gt/node-id->graph-id node-id)]
-    (get-in (:user-data system) [graph-id node-id key])))
+    (-> system :user-data (get graph-id) (get node-id) (get key))))
 
 (defn assoc-user-data [system node-id key value]
   (let [graph-id (gt/node-id->graph-id node-id)]
-    (assoc-in system [:user-data graph-id node-id key] value)))
+    (update system :user-data update graph-id update node-id assoc key value)))
 
 (defn update-user-data [system node-id key f & args]
   (let [graph-id (gt/node-id->graph-id node-id)]

@@ -101,6 +101,7 @@ def build(bld):
                          'dlib/log',
                          'dlib/mutex',
                          'dlib/socket',
+                         'dlib/spinlock',
                          'dlib/sslsocket',
                          'dlib/sys',
                          'dlib/time',
@@ -120,6 +121,8 @@ def build(bld):
         elif feature_name == 'dlib/sys':
             extra_tags = {'android': ['posix'], 'linux': ['posix'], 'macos': ['posix'], 'ios': ['posix'], 'web': ['posix'],
                           'nx64': ['posix'], 'ps4': ['posix'], 'ps5': ['posix']}
+        elif feature_name == 'dlib/spinlock':
+            preferred_tags = {'win32': ['atomic'], 'web': ['atomic'], 'linux': ['posix']}
         selected_files, all_files = find_feature_files(bld, feature_name, bld.env.PLATFORM, extra_tags, preferred_tags)
         feature_sources += selected_files
         feature_files += all_files
@@ -520,6 +523,5 @@ def build(bld):
     for p in platforms:
         platform_include_dir = 'dlib/%s' % p
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/mutex.h')
-        check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/spinlocktypes.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/memory.h')
         check_install(bld, '${PREFIX}/include/dlib/%s' % p, platform_include_dir + '/alloca_%s.h' % p)
