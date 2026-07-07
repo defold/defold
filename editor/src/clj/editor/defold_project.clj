@@ -1837,11 +1837,13 @@
 (defn cache-retain?
   ([endpoint]
    (case (g/endpoint-label endpoint)
+     (:repaint-info :right-split-desc :scene-view-ids :tick-info) true
      (:build-targets) (project-resource-node? (g/now) (g/endpoint-node-id endpoint))
      (:save-data :save-value) (project-file-resource-node? (g/now) (g/endpoint-node-id endpoint))
      false))
   ([basis endpoint]
    (case (g/endpoint-label endpoint)
+     (:repaint-info :right-split-desc :scene-view-ids :tick-info) true
      (:build-targets) (project-resource-node? basis (g/endpoint-node-id endpoint))
      (:save-data :save-value) (project-file-resource-node? basis (g/endpoint-node-id endpoint))
      false)))
@@ -1892,7 +1894,10 @@
         progress (atom (progress/make (localization/message "progress.updating-dependencies") 13 0))]
     (render-progress! @progress)
 
-    (->> (library/fetch! (workspace/project-directory workspace-id) dependencies (progress/nest-render-progress render-progress! @progress 4))
+    (->> (library/fetch!
+           (workspace/project-directory workspace-id)
+           dependencies
+           (progress/nest-render-progress render-progress! @progress 4))
          (workspace/set-project-dependencies! workspace-id))
 
     (render-progress! (swap! progress progress/advance 4 (localization/message "progress.syncing-resources")))

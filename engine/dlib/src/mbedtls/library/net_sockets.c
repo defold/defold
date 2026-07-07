@@ -25,6 +25,15 @@
 
 #define IS_EINTR(ret) ((ret) == WSAEINTR)
 
+// DM_MBEDTLS_NO_SIGNAL_H uses getaddrinfo(), so if we' have that set, we don't care about the
+#if !defined(DM_MBEDTLS_NO_SIGNAL_H)
+    #if !defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0501)
+    #undef _WIN32_WINNT
+    /* Enables getaddrinfo() & Co */
+    #define _WIN32_WINNT 0x0501
+    #endif
+#endif // DM_MBEDTLS_NO_SIGNAL_H
+
 #include <ws2tcpip.h>
 
 #include <winsock2.h>
@@ -33,13 +42,15 @@
 #include <wspiapi.h>
 #endif
 
-#if defined(_MSC_VER)
-#if defined(_WIN32_WCE)
-#pragma comment( lib, "ws2.lib" )
-#else
-#pragma comment( lib, "ws2_32.lib" )
-#endif
-#endif /* _MSC_VER */
+#if !defined(DM_PLATFORM_VENDOR)
+    #if defined(_MSC_VER)
+    #if defined(_WIN32_WCE)
+    #pragma comment( lib, "ws2.lib" )
+    #else
+    #pragma comment( lib, "ws2_32.lib" )
+    #endif
+    #endif /* _MSC_VER */
+#endif // DM_PLAATFORM_VENDOR
 
 #define read(fd, buf, len)        recv(fd, (char *) (buf), (int) (len), 0)
 #define write(fd, buf, len)       send(fd, (char *) (buf), (int) (len), 0)

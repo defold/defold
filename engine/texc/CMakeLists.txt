@@ -28,6 +28,10 @@ endif()
 if(TEXC_IS_DESKTOP)
   find_package(JNI REQUIRED)
   find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
+  defold_find_clang_cpp(DEFOLD_CLANGPP)
+  if(NOT DEFOLD_CLANGPP)
+    message(FATAL_ERROR "Could not find clang++. It is required to generate texc Java bindings.")
+  endif()
 
   set(TEXC_CORE_SOURCES
     "${TEXC_SRC_DIR}/texc.cpp"
@@ -48,6 +52,7 @@ if(TEXC_IS_DESKTOP)
     COMMAND "${CMAKE_COMMAND}" -E env
             "DEFOLD_HOME=${DEFOLD_HOME}"
             "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+            "CLANGPP=${DEFOLD_CLANGPP}"
             "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
             --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
             --header "${TEXC_SRC_DIR}/texc.h"
@@ -87,7 +92,7 @@ if(TEXC_IS_DESKTOP)
   defold_target_link_libraries(texc_shared "${TARGET_PLATFORM}"
     ${TEXC_SHARED_DEPENDENCIES})
   defold_target_link_app(texc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
-  defold_codesign_target(texc_shared)
+  defold_codesign_target(texc_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   set(TEXC_JAR "${CMAKE_CURRENT_BINARY_DIR}/texturecompiler.jar")
   set(TEXC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")

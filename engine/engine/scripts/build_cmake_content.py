@@ -47,6 +47,11 @@ RAW_ARCHIVE_FILES = {
     "builtins/connect/game.project",
 }
 
+PROJECT_OWNED_BUILD_INPUTS = {
+    "builtins/input/default.gamepads",
+    "builtins/input/gamecontrollerdb.txt",
+}
+
 
 def run(args, cwd):
     subprocess.check_call(args, cwd=str(cwd))
@@ -79,12 +84,16 @@ def iter_content_files(root):
 
 
 def should_build_input(path):
+    rel_path = path.as_posix()
     if path.name in ARCHIVE_NAME_EXCLUDES:
         return False
     if path.suffix in BUILD_INPUT_EXT_EXCLUDES:
         return False
-    if path.as_posix().endswith("/builtins/connect/game.project"):
+    if rel_path.endswith("/builtins/connect/game.project"):
         return False
+    for project_owned_input in PROJECT_OWNED_BUILD_INPUTS:
+        if rel_path.endswith("/" + project_owned_input):
+            return False
     return True
 
 
@@ -134,6 +143,30 @@ def rebuild_builtin_fonts(args, stage_root, build_root, bob_classpath):
 def remove_root_generated_font_outputs(build_root):
     for path in build_root.glob("_generated_*.glyph_bankc"):
         path.unlink()
+
+
+def rebuild_builtin_gamepads(args, stage_root, build_root, bob_classpath):
+    default_gamepads = stage_root / "builtins/input/default.gamepads"
+    gamecontrollerdb = stage_root / "builtins/input/gamecontrollerdb.txt"
+    output = build_root / "builtins/input/default.gamepadsc"
+    inputs = []
+
+    if gamecontrollerdb.exists():
+        inputs.append(str(gamecontrollerdb))
+    if default_gamepads.exists():
+        inputs.append(str(default_gamepads))
+    if not inputs:
+        return
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    run(java_command(
+        args.java,
+        "com.dynamo.bob.pipeline.GamepadBuilder",
+        bob_classpath,
+        *inputs,
+        str(output),
+        args.platform,
+    ), stage_root)
 
 
 def collect_archive_inputs(build_root):
@@ -190,6 +223,7 @@ def build_builtins(args):
     run(java_cmd, work_root)
 
     build_root = work_root / "build/default"
+    rebuild_builtin_gamepads(args, work_root, build_root, bob_classpath)
     rebuild_builtin_fonts(args, work_root, build_root, bob_classpath)
     remove_root_generated_font_outputs(build_root)
     stage_raw_archive_inputs(work_root, build_root)

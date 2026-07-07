@@ -82,6 +82,9 @@ function(defold_target_link_socket target platform)
     if(_PLAT_OS STREQUAL "win32")
         # Based on waf_dynamo.py: WS2_32 Iphlpapi AdvAPI32 Bcrypt.lib
         list(APPEND _socket_libs WS2_32.lib Iphlpapi.lib AdvAPI32.lib Bcrypt.lib)
+    elseif(_PLAT_OS STREQUAL "xbone")
+        # Based on waf_dynamo_vendor.py: LIB_SOCKET and LINKFLAGS_DLIB.
+        list(APPEND _socket_libs Ws2_32.lib Iphlpapi.lib Bcrypt.lib)
     else()
         # Other platforms do not require additional socket libs in waf
     endif()

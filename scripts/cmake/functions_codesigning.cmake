@@ -1,11 +1,11 @@
 defold_log("functions_codesigning.cmake:")
 
-function(defold_codesign_target target)
+function(defold_codesign_target target entitlements)
     if(NOT TARGET "${target}")
         message(FATAL_ERROR "defold_codesign_target: target not found: ${target}")
     endif()
 
-    if(DEFOLD_SKIP_CODESIGN)
+    if(NOT DEFOLD_CODESIGN)
         return()
     endif()
     if(NOT TARGET_PLATFORM MATCHES "macos|win32$")
@@ -41,6 +41,13 @@ function(defold_codesign_target target)
     endif()
     if(DEFOLD_GCLOUD_KEYFILE)
         list(APPEND _defold_codesign_args --gcloud-keyfile "${DEFOLD_GCLOUD_KEYFILE}")
+    endif()
+    if(entitlements)
+        if(IS_ABSOLUTE "${entitlements}")
+            list(APPEND _defold_codesign_args --codesigning_entitlements "${entitlements}")
+        else()
+            list(APPEND _defold_codesign_args --codesigning_entitlements "${CMAKE_CURRENT_SOURCE_DIR}/${entitlements}")
+        endif()
     endif()
 
     add_custom_command(TARGET "${target}" POST_BUILD

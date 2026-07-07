@@ -16,13 +16,6 @@
 #define DMSDK_FILE_DESCRIPTOR_H
 
 #include <dmsdk/dlib/array.h>
-#if __has_include(<dmsdk/dlib/file_descriptor_vendor.h>)
-    #include <dmsdk/dlib/file_descriptor_vendor.h>
-#elif defined(_WIN32)
-    #include <dmsdk/dlib/file_descriptor_win32.h>
-#else
-    #include <dmsdk/dlib/file_descriptor_posix.h>
-#endif
 
 /*# File Descriptor API documentation
  * File Descriptor functions.
@@ -34,6 +27,13 @@
  */
 namespace dmFileDescriptor
 {
+    struct PollFD
+    {
+        int m_Fd;
+        int m_Events;
+        int m_REvents;
+    };
+
     /*#
      * Poll events
      * @enum

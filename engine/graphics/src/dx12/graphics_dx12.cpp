@@ -14,13 +14,16 @@
 
 #include <string.h>
 #include <assert.h>
+#include <stdlib.h>
+#include <stdint.h>
 
-#if __has_include("graphics_dx12_xbox.h")
+#if defined(DM_PLATFORM_XBOX)
     #include "graphics_dx12_xbox.h"
 #else
     #include <d3d12.h>
     #include <d3dx12.h> // Optional, for helpers
     #include <dxgi1_6.h>
+    #include <d3d12shader.h>
     #include <D3DCompiler.h>
 #endif
 
@@ -47,6 +50,10 @@ namespace dmGraphics
 {
     static const D3D12_RESOURCE_STATES DM_DX12_RESOURCE_STATE_BUFFER_READ = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER;
 
+    // Per-frame persistently-mapped upload ring size. Bump this if the ring starts falling
+    // back to one-shot upload heaps (visible in RenderDoc as `Buffer Upload Resource Heap`).
+    static const uint32_t DX12_UPLOAD_RING_INITIAL_SIZE = 8 * 1024 * 1024;
+
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable();
     bool                                DX12IsSupported();
     static HContext                     DX12GetContext();
@@ -60,6 +67,96 @@ namespace dmGraphics
     static void DX12DeleteTexture(HContext context, HTexture texture);
 
     static const dmhash_t HASH_SPIRV_Cross_NumWorkgroups = dmHashString64("SPIRV_Cross_NumWorkgroups");
+
+    // Builds a per-root-parameter sampler mask from a serialized root signature blob.
+    // We use this at bind time to choose the correct descriptor heap type for each root table slot
+    // (SAMPLER vs CBV_SRV_UAV), independent of shader reflection/resource ordering.
+    static void BuildRootSignatureParamSamplerMask(DX12ShaderProgram* program, const uint8_t* rs_blob_data, uint32_t rs_blob_size)
+    {
+        program->m_RootSignatureParamIsSampler.SetCapacity(0);
+        program->m_RootSignatureParamIsSampler.SetSize(0);
+
+        if (!rs_blob_data || rs_blob_size == 0)
+            return;
+
+        ID3D12VersionedRootSignatureDeserializer* versioned_deserializer = 0;
+        HRESULT hr = D3D12CreateVersionedRootSignatureDeserializer(rs_blob_data, rs_blob_size, DM_IID_PPV_ARGS(&versioned_deserializer));
+        if (SUCCEEDED(hr) && versioned_deserializer != 0)
+        {
+            const D3D12_VERSIONED_ROOT_SIGNATURE_DESC* versioned_desc = versioned_deserializer->GetUnconvertedRootSignatureDesc();
+            if (versioned_desc)
+            {
+                const D3D12_ROOT_PARAMETER1* params = 0;
+                uint32_t num_params = 0;
+                if (versioned_desc->Version == D3D_ROOT_SIGNATURE_VERSION_1_0)
+                {
+                    num_params = versioned_desc->Desc_1_0.NumParameters;
+                    program->m_RootSignatureParamIsSampler.SetCapacity(num_params);
+                    program->m_RootSignatureParamIsSampler.SetSize(num_params);
+                    memset(program->m_RootSignatureParamIsSampler.Begin(), 0, num_params);
+                    for (uint32_t i = 0; i < num_params; ++i)
+                    {
+                        const D3D12_ROOT_PARAMETER& p = versioned_desc->Desc_1_0.pParameters[i];
+                        bool is_sampler = p.ParameterType == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE &&
+                            p.DescriptorTable.NumDescriptorRanges > 0 &&
+                            p.DescriptorTable.pDescriptorRanges[0].RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+                        program->m_RootSignatureParamIsSampler[i] = is_sampler ? 1 : 0;
+                    }
+                    versioned_deserializer->Release();
+                    return;
+                }
+                else if (versioned_desc->Version == D3D_ROOT_SIGNATURE_VERSION_1_1)
+                {
+                    params = versioned_desc->Desc_1_1.pParameters;
+                    num_params = versioned_desc->Desc_1_1.NumParameters;
+                }
+
+                if (params && num_params > 0)
+                {
+                    program->m_RootSignatureParamIsSampler.SetCapacity(num_params);
+                    program->m_RootSignatureParamIsSampler.SetSize(num_params);
+                    memset(program->m_RootSignatureParamIsSampler.Begin(), 0, num_params);
+                    for (uint32_t i = 0; i < num_params; ++i)
+                    {
+                        bool is_sampler = params[i].ParameterType == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE &&
+                            params[i].DescriptorTable.NumDescriptorRanges > 0 &&
+                            params[i].DescriptorTable.pDescriptorRanges[0].RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+                        program->m_RootSignatureParamIsSampler[i] = is_sampler ? 1 : 0;
+                    }
+                }
+            }
+            versioned_deserializer->Release();
+            return;
+        }
+
+        ID3D12RootSignatureDeserializer* deserializer = 0;
+        hr = D3D12CreateRootSignatureDeserializer(rs_blob_data, rs_blob_size, DM_IID_PPV_ARGS(&deserializer));
+        if (FAILED(hr) || deserializer == 0)
+            return;
+
+        const D3D12_ROOT_SIGNATURE_DESC* desc = deserializer->GetRootSignatureDesc();
+        if (!desc)
+        {
+            deserializer->Release();
+            return;
+        }
+
+        uint32_t num_params = desc->NumParameters;
+        program->m_RootSignatureParamIsSampler.SetCapacity(num_params);
+        program->m_RootSignatureParamIsSampler.SetSize(num_params);
+        memset(program->m_RootSignatureParamIsSampler.Begin(), 0, num_params);
+
+        for (uint32_t i = 0; i < num_params; ++i)
+        {
+            const D3D12_ROOT_PARAMETER& p = desc->pParameters[i];
+            bool is_sampler = p.ParameterType == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE &&
+                p.DescriptorTable.NumDescriptorRanges > 0 &&
+                p.DescriptorTable.pDescriptorRanges[0].RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+            program->m_RootSignatureParamIsSampler[i] = is_sampler ? 1 : 0;
+        }
+
+        deserializer->Release();
+    }
 
     static DXGI_FORMAT GetDXGIFormatFromTextureFormat(TextureFormat format)
     {
@@ -220,7 +317,7 @@ namespace dmGraphics
             HRESULT hr = S_OK;
 
 // TODO: clean up this somehow
-#if !defined(DM_PLATFORM_VENDOR)
+#if !defined(DM_PLATFORM_XBOX)
             // first we get the n'th buffer in the swap chain and store it in the n'th
             // position of our ID3D12Resource array
             hr = context->m_SwapChain->GetBuffer(i, DM_IID_PPV_ARGS(&texture_color->m_Resource));
@@ -229,6 +326,7 @@ namespace dmGraphics
             texture_color->m_Resource = context->m_FrameResources[i].m_RenderTarget.m_Resource;
             texture_color->m_Resource->AddRef();
 #endif
+            texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_PRESENT;
 
             // we "create" a render target view which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
             context->m_Device->CreateRenderTargetView(texture_color->m_Resource, NULL, rtv_handle);
@@ -321,13 +419,14 @@ namespace dmGraphics
 
             context->m_FrameResources[i].m_FenceValue = RENDER_CONTEXT_STATE_FREE;
             context->m_FrameResources[i].m_ScratchBuffer.Initialize(context, i);
+            context->m_FrameResources[i].m_UploadRing.Initialize(context, DX12_UPLOAD_RING_INITIAL_SIZE);
         }
     }
 
     static void CreateDescriptorHeaps(DX12Context* context)
     {
         D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc = {};
-        sampler_heap_desc.NumDescriptors             = 128; // TODO, I don't know if this is a good value, the sampler pool should be fully dynamic I think
+        sampler_heap_desc.NumDescriptors             = 512; // TODO, I don't know if this is a good value, the sampler pool should be fully dynamic I think
         sampler_heap_desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         sampler_heap_desc.Type                       = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
         HRESULT hr = context->m_Device->CreateDescriptorHeap(&sampler_heap_desc, DM_IID_PPV_ARGS(&context->m_SamplerPool.m_DescriptorHeap));
@@ -378,6 +477,12 @@ namespace dmGraphics
         SetupSupportedTextureFormats(context);
 
         InitializeFrameBuffers(_context, color_format, depth_format);
+
+        {
+            DX12RenderTarget* main_rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+            assert(main_rt);
+            main_rt->m_DsvFormat = depth_format;
+        }
 
         context->m_FenceEvent = CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE);
         if (!context->m_FenceEvent)
@@ -579,6 +684,79 @@ namespace dmGraphics
 
         context->m_MainRenderTarget    = StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
+    }
+
+    // ------------------------------------------------------------------------------------
+    // DX12UploadRing
+    //
+    // Per-frame linear allocator backed by a single persistently-mapped UPLOAD heap.
+    // Used for staging CPU->GPU copies (vertex/index/texture uploads) so we don't call
+    // CreateCommittedResource on every SetBufferData/SetTextureData in the frame.
+    // Reset at BeginFrame (safe because the frame's fence has been waited on).
+    // ------------------------------------------------------------------------------------
+
+    void DX12UploadRing::Initialize(DX12Context* context, uint32_t initial_size)
+    {
+        m_Resource      = 0;
+        m_MappedDataPtr = 0;
+        m_Capacity      = 0;
+        m_Cursor        = 0;
+
+        if (initial_size == 0)
+            return;
+
+        HRESULT hr = context->m_Device->CreateCommittedResource(
+            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+            D3D12_HEAP_FLAG_NONE,
+            &CD3DX12_RESOURCE_DESC::Buffer(initial_size),
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            NULL,
+            DM_IID_PPV_ARGS(&m_Resource));
+        CHECK_HR_ERROR(hr);
+
+        m_Resource->SetName(L"DX12 Upload Ring");
+
+        hr = m_Resource->Map(0, NULL, (void**)&m_MappedDataPtr);
+        CHECK_HR_ERROR(hr);
+
+        m_Capacity = initial_size;
+        m_Cursor   = 0;
+    }
+
+    void DX12UploadRing::Destroy()
+    {
+        if (m_Resource)
+        {
+            m_Resource->Unmap(0, NULL);
+            m_Resource->Release();
+            m_Resource = 0;
+        }
+        m_MappedDataPtr = 0;
+        m_Capacity      = 0;
+        m_Cursor        = 0;
+    }
+
+    void DX12UploadRing::Reset()
+    {
+        m_Cursor = 0;
+    }
+
+    bool DX12UploadRing::Allocate(uint32_t size, uint32_t alignment, uint8_t** out_cpu, D3D12_GPU_VIRTUAL_ADDRESS* out_gpu, uint32_t* out_offset, ID3D12Resource** out_resource)
+    {
+        if (m_Resource == 0 || size == 0)
+            return false;
+
+        uint32_t aligned_cursor = (alignment > 1) ? DM_ALIGN(m_Cursor, alignment) : m_Cursor;
+        if (aligned_cursor + size > m_Capacity)
+            return false;
+
+        *out_cpu      = m_MappedDataPtr + aligned_cursor;
+        *out_gpu      = m_Resource->GetGPUVirtualAddress() + aligned_cursor;
+        *out_offset   = aligned_cursor;
+        *out_resource = m_Resource;
+
+        m_Cursor = aligned_cursor + size;
+        return true;
     }
 
     void DX12ScratchBuffer::Initialize(DX12Context* context, uint32_t frame_index)
@@ -799,7 +977,9 @@ namespace dmGraphics
         const float a = ((float)alpha) / 255.0f;
         const float clearColor[] = { r, g, b, a };
 
-        bool has_depth_stencil_texture = current_rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID; // || current_rt->m_TextureDepthStencil;
+        // Must clear whenever this RT has a depth/stencil attachment, not only the swapchain.
+        // Otherwise offscreen targets keep undefined depth (often read as 0) and every depth test fails.
+        bool has_depth_stencil_texture = current_rt->m_TextureDepthStencil != 0;
         bool clear_depth_stencil       = flags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT);
 
         if (flags & BUFFER_TYPE_COLOR0_BIT)
@@ -851,7 +1031,11 @@ namespace dmGraphics
                 ID3D12Resource* msaaRT = context->m_FrameResources[context->m_CurrentFrameIndex].m_MsaaRenderTarget;
 
                 // Transition targets into dest and source (TODO: We should track the state of the resources, or actually _all_ resources)
-                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RESOLVE_DEST));
+                if (texture_color->m_ResourceStates[0] != D3D12_RESOURCE_STATE_RESOLVE_DEST)
+                {
+                    context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, texture_color->m_ResourceStates[0], D3D12_RESOURCE_STATE_RESOLVE_DEST));
+                    texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_RESOLVE_DEST;
+                }
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(msaaRT, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_RESOLVE_SOURCE));
 
                 // Resolve from MSAA to swapchain
@@ -863,12 +1047,17 @@ namespace dmGraphics
 
                 // Transition resources back to previous state (to be used for next frame)
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_PRESENT));
+                texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_PRESENT;
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(msaaRT, D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET));
             }
             else
             {
                 // No MSAA: just transition swapchain RT to PRESENT
-                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+                if (texture_color->m_ResourceStates[0] != D3D12_RESOURCE_STATE_PRESENT)
+                {
+                    context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(color, texture_color->m_ResourceStates[0], D3D12_RESOURCE_STATE_PRESENT));
+                    texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_PRESENT;
+                }
             }
 
             DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
@@ -931,7 +1120,7 @@ namespace dmGraphics
             }
             else
             {
-                DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureColor[0]);
+                DX12Texture* texture_color = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, brt->m_TextureColor[0]);
 
                 // No MSAA: use the regular swapchain RT
                 rtv_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(
@@ -940,7 +1129,11 @@ namespace dmGraphics
                     context->m_RtvDescriptorSize
                 );
 
-                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_color->m_Resource, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+                if (texture_color->m_ResourceStates[0] != D3D12_RESOURCE_STATE_RENDER_TARGET)
+                {
+                    context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_color->m_Resource, texture_color->m_ResourceStates[0], D3D12_RESOURCE_STATE_RENDER_TARGET));
+                    texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                }
             }
         }
         else
@@ -1121,6 +1314,8 @@ namespace dmGraphics
                     pool.m_DescriptorHeap = 0;
                 }
             }
+
+            fr.m_UploadRing.Destroy();
         }
 
         if (context->m_CommandList)
@@ -1148,7 +1343,7 @@ namespace dmGraphics
             context->m_SamplerPool.m_DescriptorHeap->Release();
             context->m_SamplerPool.m_DescriptorHeap = 0;
         }
-#if !defined(DM_PLATFORM_VENDOR)
+#if !defined(DM_PLATFORM_XBOX)
         if (context->m_SwapChain)
         {
             context->m_SwapChain->Release();
@@ -1188,6 +1383,9 @@ namespace dmGraphics
         CHECK_HR_ERROR(hr);
 
         current_frame_resource.m_ScratchBuffer.Reset(context);
+        // Safe to reset: SyncronizeFrame above waited on this slot's fence, so no in-flight
+        // copies still reference ring memory.
+        current_frame_resource.m_UploadRing.Reset();
 
         context->m_FrameBegun = 1;
 
@@ -1490,6 +1688,7 @@ namespace dmGraphics
         device_buffer->m_Resource->SetName(L"Vertex Buffer Resource Heap");
         device_buffer->m_Destroyed = 0;
         device_buffer->m_MappedDataPtr = 0;
+        device_buffer->m_Capacity      = size;
     }
 
     static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data, D3D12_RESOURCE_STATES state_before_copy)
@@ -1512,21 +1711,41 @@ namespace dmGraphics
             // TODO: Should we warn in the logs?
         }
 
-        ID3D12Resource* upload_heap;
-        HRESULT hr = context->m_Device->CreateCommittedResource(
-            &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
-            D3D12_HEAP_FLAG_NONE,
-            &CD3DX12_RESOURCE_DESC::Buffer(data_size),
-            D3D12_RESOURCE_STATE_GENERIC_READ,
-            NULL,
-            DM_IID_PPV_ARGS(&upload_heap));
-        CHECK_HR_ERROR(hr);
+        ID3D12Resource* upload_heap    = 0;
+        uint32_t        upload_offset  = 0;
+        uint8_t*        mapped_data    = 0;
+        bool            using_ring     = false;
 
-        upload_heap->SetName(L"Buffer Upload Resource Heap");
+        // In-frame path: sub-alloc from the persistently-mapped per-frame upload ring.
+        // This avoids a CreateCommittedResource + deferred Release on every call.
+        if (context->m_FrameBegun)
+        {
+            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+            D3D12_GPU_VIRTUAL_ADDRESS gpu_addr = 0;
+            if (fr.m_UploadRing.Allocate(data_size, 16, &mapped_data, &gpu_addr, &upload_offset, &upload_heap))
+            {
+                using_ring = true;
+            }
+        }
 
-        uint8_t* mapped_data = 0;
-        hr = upload_heap->Map(0, 0, (void**)&mapped_data);
-        CHECK_HR_ERROR(hr);
+        // Fallback (pre-frame or oversized allocation): one-shot committed upload heap.
+        if (!using_ring)
+        {
+            HRESULT hr = context->m_Device->CreateCommittedResource(
+                &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+                D3D12_HEAP_FLAG_NONE,
+                &CD3DX12_RESOURCE_DESC::Buffer(data_size),
+                D3D12_RESOURCE_STATE_GENERIC_READ,
+                NULL,
+                DM_IID_PPV_ARGS(&upload_heap));
+            CHECK_HR_ERROR(hr);
+
+            upload_heap->SetName(L"Buffer Upload Resource Heap");
+
+            hr = upload_heap->Map(0, 0, (void**)&mapped_data);
+            CHECK_HR_ERROR(hr);
+            upload_offset = 0;
+        }
 
         if (data)
         {
@@ -1538,7 +1757,10 @@ namespace dmGraphics
             memset(mapped_data, 0, data_size);
         }
 
-        upload_heap->Unmap(0, 0);
+        if (!using_ring)
+        {
+            upload_heap->Unmap(0, 0);
+        }
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
 
@@ -1553,15 +1775,18 @@ namespace dmGraphics
         {
             cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, state_before_copy, D3D12_RESOURCE_STATE_COPY_DEST));
         }
-        cmd_list->CopyBufferRegion(device_buffer->m_Resource, offset, upload_heap, 0, data_size);
+        cmd_list->CopyBufferRegion(device_buffer->m_Resource, offset, upload_heap, upload_offset, data_size);
         cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, DM_DX12_RESOURCE_STATE_BUFFER_READ));
 
         if (context->m_FrameBegun)
         {
-            DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
-            if (fr.m_ResourcesToDestroy.Full())
-                fr.m_ResourcesToDestroy.OffsetCapacity(8);
-            fr.m_ResourcesToDestroy.Push(upload_heap);
+            if (!using_ring)
+            {
+                DX12FrameResource& fr = context->m_FrameResources[context->m_CurrentFrameIndex];
+                if (fr.m_ResourcesToDestroy.Full())
+                    fr.m_ResourcesToDestroy.OffsetCapacity(8);
+                fr.m_ResourcesToDestroy.Push(upload_heap);
+            }
         }
         else
         {
@@ -1583,13 +1808,24 @@ namespace dmGraphics
         }
 
         D3D12_RESOURCE_STATES state_before_copy = DM_DX12_RESOURCE_STATE_BUFFER_READ;
+
+        // Only (re)allocate the default heap when we must. Reuse the existing GPU resource
+        // whenever the new upload fits, which avoids a CreateCommittedResource call and the
+        // deferred release on every SetBufferData when sizes are stable across frames.
         if (device_buffer->m_Destroyed || device_buffer->m_Resource == 0x0)
         {
             CreateDeviceBuffer(context, device_buffer, data_size);
             state_before_copy = D3D12_RESOURCE_STATE_COPY_DEST;
         }
+        else if (device_buffer->m_Capacity < data_size)
+        {
+            DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], device_buffer);
+            CreateDeviceBuffer(context, device_buffer, data_size);
+            state_before_copy = D3D12_RESOURCE_STATE_COPY_DEST;
+        }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, data_size, data, state_before_copy);
+        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, device_buffer->m_Capacity, data, state_before_copy);
+        device_buffer->m_DataSize = data_size;
         device_buffer->m_Base.m_Size = data_size;
     }
 
@@ -1617,6 +1853,8 @@ namespace dmGraphics
         CHECK_HR_ERROR(hr);
 
         buffer->m_Resource->Map(0, NULL, (void**)&buffer->m_MappedDataPtr);
+        buffer->m_DataSize = aligned_size;
+        buffer->m_Capacity = aligned_size;
         buffer->m_Base.m_Size = aligned_size;
     }
 
@@ -1717,11 +1955,8 @@ namespace dmGraphics
         }
 
         DX12VertexBuffer* vx_buffer = (DX12VertexBuffer*) _buffer;
-        //if (size != vx_buffer->m_DeviceBuffer.m_Base.m_Size)
-        {
-            DestroyResourceDeferred(g_DX12Context->m_FrameResources[g_DX12Context->m_CurrentFrameIndex], &vx_buffer->m_DeviceBuffer);
-        }
-
+        // DeviceBufferUploadHelper keeps the existing GPU resource when it fits and only grows
+        // on demand, so we deliberately avoid pre-destroying the buffer here.
         DeviceBufferUploadHelper(g_DX12Context, &vx_buffer->m_DeviceBuffer, data, size);
     }
 
@@ -1771,13 +2006,8 @@ namespace dmGraphics
         }
 
         DX12IndexBuffer* ix_buffer = (DX12IndexBuffer*) buffer;
-        //if (ix_buffer->m_DeviceBuffer.m_Resource == 0x0)
-        //{
-        //    CreateDeviceBuffer(g_DX12Context, &ix_buffer->m_DeviceBuffer, size);
-        //}
-
-        DestroyResourceDeferred(g_DX12Context->m_FrameResources[g_DX12Context->m_CurrentFrameIndex], &ix_buffer->m_DeviceBuffer);
-
+        // See DX12SetVertexBufferData: DeviceBufferUploadHelper reuses the existing GPU resource
+        // whenever it fits, so we don't pre-destroy here anymore.
         DeviceBufferUploadHelper(g_DX12Context, &ix_buffer->m_DeviceBuffer, data, size);
     }
 
@@ -1845,7 +2075,10 @@ namespace dmGraphics
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
             if (context->m_CurrentVertexBuffer[i] == (DX12VertexBuffer*) vertex_buffer)
-                context->m_CurrentVertexBuffer[i] = 0;
+            {
+                context->m_CurrentVertexBuffer[i]       = 0;
+                context->m_CurrentVertexBufferOffset[i] = 0;
+            }
         }
     }
 
@@ -1860,6 +2093,7 @@ namespace dmGraphics
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
+        context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
         // Allocate stream storage for this binding (m_Streams would otherwise be null after = {})
         if (context->m_MainVertexDeclarationStreams[binding_index].Size() < vertex_declaration->m_StreamCount)
@@ -1903,7 +2137,10 @@ namespace dmGraphics
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
             if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
-                context->m_CurrentVertexDeclaration[i] = 0;
+            {
+                context->m_CurrentVertexDeclaration[i]  = 0;
+                context->m_CurrentVertexBufferOffset[i] = 0;
+            }
         }
     }
 
@@ -1940,6 +2177,8 @@ namespace dmGraphics
                 case 2: return DXGI_FORMAT_R32G32_FLOAT;
                 case 3: return DXGI_FORMAT_R32G32B32_FLOAT;
                 case 4: return DXGI_FORMAT_R32G32B32A32_FLOAT;
+                case 9: return DXGI_FORMAT_R32G32B32_FLOAT;
+                case 16: return DXGI_FORMAT_R32G32B32A32_FLOAT;
                 default:break;
             }
         }
@@ -1951,6 +2190,8 @@ namespace dmGraphics
                 case 2: return DXGI_FORMAT_R32G32_SINT;
                 case 3: return DXGI_FORMAT_R32G32B32_SINT;
                 case 4: return DXGI_FORMAT_R32G32B32A32_SINT;
+                case 9: return DXGI_FORMAT_R32G32B32_SINT;
+                case 16: return DXGI_FORMAT_R32G32B32A32_SINT;
                 default:break;
             }
         }
@@ -1962,6 +2203,8 @@ namespace dmGraphics
                 case 2: return DXGI_FORMAT_R32G32_UINT;
                 case 3: return DXGI_FORMAT_R32G32B32_UINT;
                 case 4: return DXGI_FORMAT_R32G32B32A32_UINT;
+                case 9: return DXGI_FORMAT_R32G32B32_UINT;
+                case 16: return DXGI_FORMAT_R32G32B32A32_UINT;
                 default:break;
             }
         }
@@ -1971,8 +2214,8 @@ namespace dmGraphics
             {
                 case 1: return normalized ? DXGI_FORMAT_R8_SNORM : DXGI_FORMAT_R8_SINT;
                 case 2: return normalized ? DXGI_FORMAT_R8G8_SNORM : DXGI_FORMAT_R8G8_SINT;
-                // case 3: return normalized ? DXGI_FORMAT_R8G8B8_SNORM : DXGI_FORMAT_R8G8B8_SINT;
                 case 4: return normalized ? DXGI_FORMAT_R8G8B8A8_SNORM : DXGI_FORMAT_R8G8B8A8_SINT;
+                case 16: return normalized ? DXGI_FORMAT_R8G8B8A8_SNORM : DXGI_FORMAT_R8G8B8A8_SINT;
                 default:break;
             }
         }
@@ -1982,8 +2225,8 @@ namespace dmGraphics
             {
                 case 1: return normalized ? DXGI_FORMAT_R8_UNORM : DXGI_FORMAT_R8_UINT;
                 case 2: return normalized ? DXGI_FORMAT_R8G8_UNORM : DXGI_FORMAT_R8G8_UINT;
-                // case 3: return normalized ? DXGI_FORMAT_R8G8B8_UNORM : DXGI_FORMAT_R8G8B8_UINT;
                 case 4: return normalized ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R8G8B8A8_UINT;
+                case 16: return normalized ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R8G8B8A8_UINT;
                 default:break;
             }
         }
@@ -1993,8 +2236,8 @@ namespace dmGraphics
             {
                 case 1: return normalized ? DXGI_FORMAT_R16_SNORM : DXGI_FORMAT_R16_SINT;
                 case 2: return normalized ? DXGI_FORMAT_R16G16_SNORM : DXGI_FORMAT_R16G16_SINT;
-                //case 3: return normalized ? DXGI_FORMAT_R16G16B16_SNORM : DXGI_FORMAT_R16G16B16_SINT;
                 case 4: return normalized ? DXGI_FORMAT_R16G16B16A16_SNORM : DXGI_FORMAT_R16G16B16A16_SINT;
+                case 16: return normalized ? DXGI_FORMAT_R16G16B16A16_SNORM : DXGI_FORMAT_R16G16B16A16_SINT;
                 default:break;
             }
         }
@@ -2004,12 +2247,12 @@ namespace dmGraphics
             {
                 case 1: return normalized ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R16_UINT;
                 case 2: return normalized ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R16G16_UINT;
-                //case 3: return normalized ? DXGI_FORMAT_R16G16B16_UNORM : DXGI_FORMAT_R16G16B16_UINT;
                 case 4: return normalized ? DXGI_FORMAT_R16G16B16A16_UNORM : DXGI_FORMAT_R16G16B16A16_UINT;
+                case 16: return normalized ? DXGI_FORMAT_R16G16B16A16_UNORM : DXGI_FORMAT_R16G16B16A16_UINT;
                 default:break;
             }
         }
-        else if (type == TYPE_FLOAT_MAT4)
+        else if (type == TYPE_FLOAT_MAT4 || type == TYPE_FLOAT_MAT3 || type == TYPE_FLOAT_MAT2)
         {
             return DXGI_FORMAT_R32_FLOAT;
         }
@@ -2018,8 +2261,193 @@ namespace dmGraphics
             return DXGI_FORMAT_R32G32B32A32_FLOAT;
         }
 
-        assert(0 && "Unable to deduce type from dmGraphics::Type");
+        dmLogError("DX12 vertex format mapping unsupported: type=%s size=%u normalized=%d", GetGraphicsTypeLiteral(type), size, normalized ? 1 : 0);
         return DXGI_FORMAT_UNKNOWN;
+    }
+
+    static void LogShaderInputDiagnostics(DX12Context* context, const dmArray<D3D12_INPUT_ELEMENT_DESC>& input_layout)
+    {
+        DX12ShaderProgram* program = context->m_CurrentProgram;
+        if (!program)
+        {
+            dmLogError("DX12 shader diagnostics: no current program.");
+            return;
+        }
+
+        const uint64_t vertex_shader_hash   = program->m_VertexModule ? program->m_VertexModule->m_Hash : 0;
+        const uint64_t fragment_shader_hash = program->m_FragmentModule ? program->m_FragmentModule->m_Hash : 0;
+        dmLogError("DX12 shader diagnostics: program_hash=%llu vertex_shader_hash=%llu fragment_shader_hash=%llu input_layout_count=%u",
+                    (unsigned long long)program->m_Hash,
+                    (unsigned long long)vertex_shader_hash,
+                    (unsigned long long)fragment_shader_hash,
+                    input_layout.Size());
+
+        uint32_t input_index = 0;
+        for (uint32_t i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size(); ++i)
+        {
+            const ShaderResourceBinding& input = program->m_BaseProgram.m_ShaderMeta.m_Inputs[i];
+
+            Type graphics_type = ShaderDataTypeToGraphicsType(input.m_Type.m_ShaderType);
+            dmLogError("  ShaderInput[%u]: name='%s' binding=%u set=%u stage_flags=0x%x type=%s",
+                        input_index++,
+                        input.m_Name ? input.m_Name : "<null>",
+                        input.m_Binding,
+                        input.m_Set,
+                        input.m_StageFlags,
+                        GetGraphicsTypeLiteral(graphics_type));
+        }
+
+        for (uint32_t slot = 0; slot < MAX_VERTEX_BUFFERS; ++slot)
+        {
+            VertexDeclaration* declaration = context->m_CurrentVertexDeclaration[slot];
+            if (!declaration)
+                continue;
+
+            dmLogError("  VertexDecl[slot=%u]: stream_count=%u stride=%u step_function=%u",
+                        slot,
+                        declaration->m_StreamCount,
+                        declaration->m_Stride,
+                        declaration->m_StepFunction);
+            for (uint32_t i = 0; i < declaration->m_StreamCount; ++i)
+            {
+                const VertexDeclaration::Stream& stream = declaration->m_Streams[i];
+                dmLogError("    Stream[%u]: name=%s name_hash=%llu location=%d offset=%u size=%u type=%s normalized=%u",
+                            i,
+                            dmHashReverseSafe64(stream.m_NameHash),
+                            (unsigned long long)stream.m_NameHash,
+                            stream.m_Location,
+                            stream.m_Offset,
+                            stream.m_Size,
+                            GetGraphicsTypeLiteral(stream.m_Type),
+                            stream.m_Normalize ? 1 : 0);
+            }
+        }
+
+        for (uint32_t i = 0; i < input_layout.Size(); ++i)
+        {
+            const D3D12_INPUT_ELEMENT_DESC& desc = input_layout[i];
+            dmLogError("  InputElement[%u]: semantic='%s' semantic_index=%u format=0x%x slot=%u offset=%u class=%u step_rate=%u",
+                        i,
+                        desc.SemanticName ? desc.SemanticName : "<null>",
+                        desc.SemanticIndex,
+                        (uint32_t)desc.Format,
+                        desc.InputSlot,
+                        desc.AlignedByteOffset,
+                        (uint32_t)desc.InputSlotClass,
+                        desc.InstanceDataStepRate);
+        }
+    }
+
+    static void LogVertexShaderInputSignature(DX12ShaderProgram* program)
+    {
+#if defined(DM_PLATFORM_XBOX)
+        (void) program;
+#else
+        if (!program || !program->m_VertexModule || !program->m_VertexModule->m_Data || program->m_VertexModule->m_DataSize == 0)
+            return;
+
+        static uint64_t s_LoggedShaderHashes[64] = {};
+        const uint64_t shader_hash = program->m_VertexModule->m_Hash;
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(s_LoggedShaderHashes); ++i)
+        {
+            if (s_LoggedShaderHashes[i] == shader_hash)
+                return;
+            if (s_LoggedShaderHashes[i] == 0)
+            {
+                s_LoggedShaderHashes[i] = shader_hash;
+                break;
+            }
+        }
+
+        ID3DBlob* disassembly = 0;
+        HRESULT hr = D3DDisassemble(program->m_VertexModule->m_Data, program->m_VertexModule->m_DataSize, 0, "", &disassembly);
+        if (FAILED(hr) || !disassembly)
+        {
+            dmLogError("DX12 shader diagnostics: failed to disassemble vertex shader (hash=%llu, hr=0x%08x)",
+                        (unsigned long long) shader_hash,
+                        (uint32_t) hr);
+            return;
+        }
+
+        const char* text = (const char*) disassembly->GetBufferPointer();
+        if (!text)
+        {
+            disassembly->Release();
+            return;
+        }
+
+        const char* section = strstr(text, "Input signature:");
+        if (!section)
+            section = text;
+
+        dmLogError("  VertexShaderInputSignature(hash=%llu):", (unsigned long long) shader_hash);
+        uint32_t lines_printed = 0;
+        const char* cursor = section;
+        while (*cursor && lines_printed < 24)
+        {
+            const char* line_end = strchr(cursor, '\n');
+            uint32_t len = line_end ? (uint32_t)(line_end - cursor) : (uint32_t) strlen(cursor);
+            while (len > 0 && (cursor[len - 1] == '\r' || cursor[len - 1] == '\n'))
+                --len;
+
+            char line[256];
+            uint32_t copy_len = dmMath::Min(len, (uint32_t) (sizeof(line) - 1));
+            memcpy(line, cursor, copy_len);
+            line[copy_len] = 0;
+            dmLogError("    %s", line);
+            ++lines_printed;
+
+            if (line_end == 0)
+                break;
+
+            cursor = line_end + 1;
+            if (lines_printed > 6 && copy_len == 0)
+                break;
+        }
+
+        disassembly->Release();
+#endif
+    }
+
+    static const ShaderResourceBinding* GetVertexShaderInputForStream(const DX12ShaderProgram* program, const VertexDeclaration::Stream& stream)
+    {
+        if (!program)
+            return 0;
+
+        const dmArray<ShaderResourceBinding>& inputs = program->m_BaseProgram.m_ShaderMeta.m_Inputs;
+        const ShaderResourceBinding* location_match = 0;
+
+        for (uint32_t i = 0; i < inputs.Size(); ++i)
+        {
+            const ShaderResourceBinding& input = inputs[i];
+            if ((input.m_StageFlags & SHADER_STAGE_FLAG_VERTEX) == 0)
+                continue;
+
+            if (stream.m_NameHash != 0 && input.m_NameHash == stream.m_NameHash)
+                return &input;
+
+            if (stream.m_Location >= 0 && input.m_Binding == (uint16_t)stream.m_Location)
+                location_match = &input;
+        }
+
+        // Fallback to location only if this stream doesn't have a stable name hash.
+        // This avoids stale stream/program bindings from colliding on reused locations.
+        return stream.m_NameHash == 0 ? location_match : 0;
+    }
+
+    static uint32_t GetMatrixVertexInputVectorCount(const ShaderResourceBinding* input)
+    {
+        if (!input)
+            return 0;
+
+        const Type graphics_type = ShaderDataTypeToGraphicsType(input->m_Type.m_ShaderType);
+        switch (graphics_type)
+        {
+            case TYPE_FLOAT_MAT2: return 2;
+            case TYPE_FLOAT_MAT3: return 3;
+            case TYPE_FLOAT_MAT4: return 4;
+            default: return 0;
+        }
     }
 
     static inline D3D12_CULL_MODE GetCullMode(const PipelineState& state)
@@ -2144,7 +2572,7 @@ namespace dmGraphics
         return cached_pipeline;
     }
 
-    static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, DX12Pipeline* pipeline)
+    static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, const PipelineState& pipelineState, DX12Pipeline* pipeline)
     {
         D3D12_SHADER_BYTECODE vs_byte_code = {};
         vs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_VertexModule->m_DataSize;
@@ -2154,47 +2582,95 @@ namespace dmGraphics
         fs_byte_code.BytecodeLength        = context->m_CurrentProgram->m_FragmentModule->m_DataSize;
         fs_byte_code.pShaderBytecode       = context->m_CurrentProgram->m_FragmentModule->m_Data;
 
-        uint32_t stream_count = 0;
         dmArray<D3D12_INPUT_ELEMENT_DESC> input_layout;
+        input_layout.OffsetCapacity(32);
+        char matrix_semantic_names[64][32];
+        uint32_t matrix_semantic_name_count = 0;
 
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
             if (context->m_CurrentVertexDeclaration[i])
             {
-                stream_count += context->m_CurrentVertexDeclaration[i]->m_StreamCount;
-            }
-        }
+                const VertexDeclaration* declaration = context->m_CurrentVertexDeclaration[i];
+                bool slot_step_per_instance = declaration->m_StepFunction == VERTEX_STEP_FUNCTION_INSTANCE;
 
-        input_layout.SetCapacity(stream_count);
+                // Fallback for cases where instance step function wasn't propagated correctly.
+                // InputSlotClass/InstanceDataStepRate must be identical for all elements in a slot.
+                if (!slot_step_per_instance)
+                {
+                    static const dmhash_t hash_mtx_world      = dmHashString64("mtx_world");
+                    static const dmhash_t hash_mtx_normal     = dmHashString64("mtx_normal");
+                    static const dmhash_t hash_animation_data = dmHashString64("animation_data");
+                    for (int j = 0; j < declaration->m_StreamCount; ++j)
+                    {
+                        const dmhash_t name_hash = declaration->m_Streams[j].m_NameHash;
+                        if (name_hash == hash_mtx_world || name_hash == hash_mtx_normal || name_hash == hash_animation_data)
+                        {
+                            slot_step_per_instance = true;
+                            break;
+                        }
+                    }
+                }
 
-        for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
-        {
-            if (context->m_CurrentVertexDeclaration[i])
-            {
                 for (int j = 0; j < context->m_CurrentVertexDeclaration[i]->m_StreamCount; ++j)
                 {
                     VertexDeclaration::Stream& stream = context->m_CurrentVertexDeclaration[i]->m_Streams[j];
+                    const ShaderResourceBinding* vertex_input = GetVertexShaderInputForStream(context->m_CurrentProgram, stream);
+                    if (!vertex_input)
+                    {
+                        continue;
+                    }
+
+                    const uint32_t matrix_vector_count = GetMatrixVertexInputVectorCount(vertex_input);
+                    const bool is_matrix_input = matrix_vector_count > 0;
+                    const uint32_t location_base = vertex_input->m_Binding;
+
+                    // SPIRV-Cross emits a `matN` vertex input as N float4 inputs with semantic
+                    // "TEXCOORD{location}_" and SemanticIndex 0..N-1 (e.g. TEXCOORD3_0..TEXCOORD3_3
+                    // for a mat4 at location 3). Mirror that here so the PSO signature matches.
+                    const char* semantic_name = "TEXCOORD";
+                    if (is_matrix_input)
+                    {
+                        if (matrix_semantic_name_count < DM_ARRAY_SIZE(matrix_semantic_names))
+                        {
+                            dmSnPrintf(matrix_semantic_names[matrix_semantic_name_count], sizeof(matrix_semantic_names[0]), "TEXCOORD%d_", location_base);
+                            semantic_name = matrix_semantic_names[matrix_semantic_name_count++];
+                        }
+                        else
+                        {
+                            dmLogError("DX12 matrix semantic name buffer exhausted, falling back to TEXCOORD");
+                        }
+                    }
 
                     D3D12_INPUT_ELEMENT_DESC desc;
-                    desc.SemanticName         = "TEXCOORD";
-                    desc.SemanticIndex        = stream.m_Location;
+                    desc.SemanticName         = semantic_name;
                     desc.Format               = GetDXGIFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
                     desc.InputSlot            = i;
-                    desc.AlignedByteOffset    = stream.m_Offset;
-                    desc.InputSlotClass       = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
-                    desc.InstanceDataStepRate = 0;
-                    input_layout.Push(desc);
+                    desc.InputSlotClass       = slot_step_per_instance ? D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA : D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+                    desc.InstanceDataStepRate = slot_step_per_instance ? 1 : 0;
+
+                    const uint32_t num_vectors = is_matrix_input ? matrix_vector_count : 1;
+                    for (uint32_t v = 0; v < num_vectors; ++v)
+                    {
+                        desc.SemanticIndex     = is_matrix_input ? v : location_base + v;
+                        desc.AlignedByteOffset = stream.m_Offset + v * 16;
+                        if (input_layout.Full())
+                        {
+                            input_layout.OffsetCapacity(32);
+                        }
+                        input_layout.Push(desc);
+                    }
                 }
             }
         }
 
         D3D12_INPUT_LAYOUT_DESC inputLayoutDesc = {};
-        inputLayoutDesc.NumElements             = stream_count;
+        inputLayoutDesc.NumElements             = input_layout.Size();
         inputLayoutDesc.pInputElementDescs      = input_layout.Begin();
 
         CD3DX12_RASTERIZER_DESC rasterizerState = CD3DX12_RASTERIZER_DESC(
             D3D12_FILL_MODE_SOLID,
-            GetCullMode(context->m_PipelineState),
+            GetCullMode(pipelineState),
             true,                                       // FrontCounterClockwise
             D3D12_DEFAULT_DEPTH_BIAS,
             D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
@@ -2206,10 +2682,10 @@ namespace dmGraphics
             D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF); // conservativeRaster
 
         D3D12_DEPTH_STENCIL_DESC depthStencilDesc = {};
-        depthStencilDesc.DepthEnable      = context->m_PipelineState.m_DepthTestEnabled;
-        depthStencilDesc.DepthWriteMask   = (D3D12_DEPTH_WRITE_MASK) context->m_PipelineState.m_WriteDepth; // D3D12_DEPTH_WRITE_MASK_ZERO or D3D12_DEPTH_WRITE_MASK_ALL
-        depthStencilDesc.DepthFunc        = GetDepthTestFunc(context->m_PipelineState);
-        depthStencilDesc.StencilEnable    = context->m_PipelineState.m_StencilEnabled;
+        depthStencilDesc.DepthEnable      = pipelineState.m_DepthTestEnabled;
+        depthStencilDesc.DepthWriteMask   = (D3D12_DEPTH_WRITE_MASK) pipelineState.m_WriteDepth; // D3D12_DEPTH_WRITE_MASK_ZERO or D3D12_DEPTH_WRITE_MASK_ALL
+        depthStencilDesc.DepthFunc        = GetDepthTestFunc(pipelineState);
+        depthStencilDesc.StencilEnable    = pipelineState.m_StencilEnabled;
         depthStencilDesc.StencilReadMask  = D3D12_DEFAULT_STENCIL_READ_MASK; // TODO
         depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK; // TODO
 
@@ -2221,16 +2697,16 @@ namespace dmGraphics
         D3D12_BLEND_DESC blendDesc = {};
         blendDesc.AlphaToCoverageEnable                 = false;
         blendDesc.IndependentBlendEnable                = false;
-        blendDesc.RenderTarget[0].BlendEnable           = context->m_PipelineState.m_BlendEnabled;
+        blendDesc.RenderTarget[0].BlendEnable           = pipelineState.m_BlendEnabled;
         blendDesc.RenderTarget[0].LogicOpEnable         = false;
-        blendDesc.RenderTarget[0].SrcBlend              = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactor);
-        blendDesc.RenderTarget[0].DestBlend             = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactor);
-        blendDesc.RenderTarget[0].BlendOp               = GetBlendOp((BlendEquation) context->m_PipelineState.m_BlendEquationColor);
-        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactorAlpha);
-        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactorAlpha);
-        blendDesc.RenderTarget[0].BlendOpAlpha          = GetBlendOp((BlendEquation) context->m_PipelineState.m_BlendEquationAlpha);
+        blendDesc.RenderTarget[0].SrcBlend              = GetBlendFactor((BlendFactor) pipelineState.m_BlendSrcFactor);
+        blendDesc.RenderTarget[0].DestBlend             = GetBlendFactor((BlendFactor) pipelineState.m_BlendDstFactor);
+        blendDesc.RenderTarget[0].BlendOp               = GetBlendOp((BlendEquation) pipelineState.m_BlendEquationColor);
+        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) pipelineState.m_BlendSrcFactorAlpha);
+        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) pipelineState.m_BlendDstFactorAlpha);
+        blendDesc.RenderTarget[0].BlendOpAlpha          = GetBlendOp((BlendEquation) pipelineState.m_BlendEquationAlpha);
         blendDesc.RenderTarget[0].LogicOp               = D3D12_LOGIC_OP_NOOP;
-        blendDesc.RenderTarget[0].RenderTargetWriteMask = context->m_PipelineState.m_WriteColorMask;
+        blendDesc.RenderTarget[0].RenderTargetWriteMask = pipelineState.m_WriteColorMask;
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {}; // a structure to define a pso
         psoDesc.InputLayout           = inputLayoutDesc; // the structure describing our input layout
@@ -2238,14 +2714,20 @@ namespace dmGraphics
         psoDesc.VS                    = vs_byte_code;
         psoDesc.PS                    = fs_byte_code;
         psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // SHould we support points?
-        psoDesc.RTVFormats[0]         = rt->m_Format;
         psoDesc.SampleDesc            = rt->m_SampleDesc; // must be the same sample description as the swapchain and depth/stencil buffer
         psoDesc.SampleMask            = UINT_MAX; // TODO: sample mask has to do with multi-sampling. 0xffffffff means point sampling is done
         psoDesc.RasterizerState       = rasterizerState; // TODO? rasterizerState;
         psoDesc.BlendState            = blendDesc; // TODO
         psoDesc.DepthStencilState     = depthStencilDesc;
-        psoDesc.NumRenderTargets      = 1; // TODO
-        psoDesc.DSVFormat             = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        psoDesc.DSVFormat             = rt->m_DsvFormat;
+
+        // Configure an RTV only for passes that actually render color.
+        const bool has_color_target = rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID || rt->m_Base.m_TextureColor[0] != 0;
+        psoDesc.NumRenderTargets = has_color_target ? 1 : 0;
+        if (has_color_target)
+        {
+            psoDesc.RTVFormats[0] = rt->m_Format;
+        }
 
         if (rt->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
         {
@@ -2255,16 +2737,27 @@ namespace dmGraphics
         }
 
         HRESULT hr = context->m_Device->CreateGraphicsPipelineState(&psoDesc, DM_IID_PPV_ARGS(pipeline));
+        if (FAILED(hr))
+        {
+            dmLogError("DX12 CreateGraphicsPipelineState failed: rtv_format=0x%x dsv_format=0x%x num_rtvs=%u sample_count=%u sample_quality=%u",
+                        (uint32_t)rt->m_Format,
+                        (uint32_t)psoDesc.DSVFormat,
+                        psoDesc.NumRenderTargets,
+                        psoDesc.SampleDesc.Count,
+                        psoDesc.SampleDesc.Quality);
+            LogShaderInputDiagnostics(context, input_layout);
+        }
         CHECK_HR_ERROR(hr);
     }
 
-    static DX12Pipeline* GetOrCreatePipeline(DX12Context* context, DX12RenderTarget* current_rt, uint32_t num_vx_decls)
+    static DX12Pipeline* GetOrCreatePipeline(DX12Context* context, DX12RenderTarget* current_rt, const PipelineState& pipelineState, uint32_t num_vx_decls)
     {
         HashState64 pipeline_hash_state;
         dmHashInit64(&pipeline_hash_state, false);
-        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash,          sizeof(context->m_CurrentProgram->m_Hash));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PipelineState,                   sizeof(context->m_PipelineState));
-        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_Base.m_Id,                           sizeof(current_rt->m_Base.m_Id));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_PipelineState, sizeof(context->m_PipelineState));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_Base.m_Id, sizeof(current_rt->m_Base.m_Id));
+        dmHashUpdateBuffer64(&pipeline_hash_state, &current_rt->m_DsvFormat, sizeof(current_rt->m_DsvFormat));
         dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_RootSignature, sizeof(context->m_CurrentProgram->m_RootSignature));
         // dmHashUpdateBuffer64(&pipeline_hash_state, &vk_sample_count,  sizeof(vk_sample_count));
 
@@ -2286,7 +2779,7 @@ namespace dmGraphics
 
             context->m_PipelineCache.Put(pipeline_hash, {});
             cached_pipeline = context->m_PipelineCache.Get(pipeline_hash);
-            CreatePipeline(context, current_rt, cached_pipeline);
+            CreatePipeline(context, current_rt, pipelineState, cached_pipeline);
 
             dmLogDebug("Created new DX12 Pipeline with hash %llu", (unsigned long long) pipeline_hash);
         }
@@ -2294,22 +2787,34 @@ namespace dmGraphics
         return cached_pipeline;
     }
 
-    static inline void SetViewportAndScissorHelper(DX12Context* context, int32_t x, int32_t y, int32_t width, int32_t height)
+    static inline void SetViewportAndScissorHelper(DX12Context* context, DX12RenderTarget* rt, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         D3D12_VIEWPORT viewport;
         D3D12_RECT scissor;
 
         viewport.TopLeftX = (float) x;
-        viewport.TopLeftY = (float) y;
         viewport.Width    = (float) width;
-        viewport.Height   = (float) height;
         viewport.MinDepth = 0.0f;
         viewport.MaxDepth = 1.0f;
 
-        scissor.left   = (float) x;
-        scissor.top    = (float) y;
-        scissor.right  = (float) width;
-        scissor.bottom = (float) height;
+        // Offscreen targets: negative height matches Vulkan's swapchain-style Y mapping and
+        // compensates for SPIR-V (Vulkan) vs HLSL clip-space differences from the same shaders.
+        // Backbuffer stays a normal positive-height viewport.
+        if (rt->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            viewport.TopLeftY = (float) (y + height);
+            viewport.Height   = (float) -height;
+        }
+        else
+        {
+            viewport.TopLeftY = (float) y;
+            viewport.Height   = (float) height;
+        }
+
+        scissor.left   = x;
+        scissor.top    = y;
+        scissor.right  = x + width;
+        scissor.bottom = y + height;
 
         context->m_CommandList->RSSetViewports(1, &viewport);
         context->m_CommandList->RSSetScissorRects(1, &scissor);
@@ -2332,8 +2837,9 @@ namespace dmGraphics
                 case BINDING_FAMILY_TEXTURE:
                 {
                     DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
+                    bool root_param_is_sampler = i < program->m_RootSignatureParamIsSampler.Size() && program->m_RootSignatureParamIsSampler[i] != 0;
 
-                    if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                    if (root_param_is_sampler || pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                     {
                         const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
                         frame_resources.m_ScratchBuffer.AllocateSampler(context, pipeline_type, sampler, i);
@@ -2421,8 +2927,11 @@ namespace dmGraphics
                 assert(current_vb->m_DeviceBuffer.m_Resource);
                 assert(current_vb->m_DeviceBuffer.m_Base.m_Size > 0);
 
-                vx_buffer_views[num_vx_buffers].BufferLocation = current_vb->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress();
-                vx_buffer_views[num_vx_buffers].SizeInBytes    = current_vb->m_DeviceBuffer.m_Base.m_Size;
+                const uint32_t base_offset = context->m_CurrentVertexBufferOffset[i];
+                assert(base_offset <= current_vb->m_DeviceBuffer.m_DataSize);
+
+                vx_buffer_views[num_vx_buffers].BufferLocation = current_vb->m_DeviceBuffer.m_Resource->GetGPUVirtualAddress() + base_offset;
+                vx_buffer_views[num_vx_buffers].SizeInBytes    = current_vb->m_DeviceBuffer.m_DataSize - base_offset;
                 vx_buffer_views[num_vx_buffers].StrideInBytes  = context->m_CurrentVertexDeclaration[i]->m_Stride;
                 num_vx_buffers++;
             }
@@ -2432,11 +2941,11 @@ namespace dmGraphics
         if (context->m_ViewportChanged)
         {
             DX12Viewport& vp = context->m_CurrentViewport;
-            SetViewportAndScissorHelper(context, vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
+            SetViewportAndScissorHelper(context, current_rt, vp.m_X, vp.m_Y, vp.m_W, vp.m_H);
             context->m_ViewportChanged = 0;
         }
 
-        DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt, num_vx_buffers);
+        DX12Pipeline* pipeline = GetOrCreatePipeline(context, current_rt, context->m_PipelineState, num_vx_buffers);
         context->m_CommandList->SetGraphicsRootSignature(context->m_CurrentProgram->m_RootSignature);
         context->m_CommandList->SetPipelineState(*pipeline);
         context->m_CommandList->IASetPrimitiveTopology(GetPrimitiveTopology(prim_type));
@@ -2679,9 +3188,19 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
             CreateRootSignatureResourceBindings(program, &ddf_cp, 1);
 
-            // Extract the embedded root signature blob
-            hr = context->m_Device->CreateRootSignature(0, program->m_ComputeModule->m_Data, program->m_ComputeModule->m_DataSize, DM_IID_PPV_ARGS(&program->m_RootSignature));
-            //hr = context->m_Device->CreateRootSignature(0, ddf_cp->m_HLSLRootSignature.m_Data, ddf_cp->m_HLSLRootSignature.m_Count, DM_IID_PPV_ARGS(&program->m_RootSignature));
+            // Prefer the serialized root signature from ShaderDesc so compute behaves like graphics (VS/PS),
+            // and so offline-compiled blobs can safely strip embedded root signature data.
+            if (ddf->m_HlslRootSignature.m_Count > 0)
+            {
+                BuildRootSignatureParamSamplerMask(program, ddf->m_HlslRootSignature.m_Data, ddf->m_HlslRootSignature.m_Count);
+                hr = context->m_Device->CreateRootSignature(0, ddf->m_HlslRootSignature.m_Data, ddf->m_HlslRootSignature.m_Count, DM_IID_PPV_ARGS(&program->m_RootSignature));
+            }
+            else
+            {
+                // Compatibility fallback for older assets where only embedded root signature data exists in the shader blob.
+                BuildRootSignatureParamSamplerMask(program, (const uint8_t*) program->m_ComputeModule->m_Data, program->m_ComputeModule->m_DataSize);
+                hr = context->m_Device->CreateRootSignature(0, program->m_ComputeModule->m_Data, program->m_ComputeModule->m_DataSize, DM_IID_PPV_ARGS(&program->m_RootSignature));
+            }
             CHECK_HR_ERROR(hr);
 
             // Create the hash
@@ -2705,6 +3224,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             ShaderDesc::Shader* shaders[] = { ddf_vp, ddf_fp };
             CreateRootSignatureResourceBindings(program, shaders, 2);
 
+            BuildRootSignatureParamSamplerMask(program, ddf->m_HlslRootSignature.m_Data, ddf->m_HlslRootSignature.m_Count);
             hr = context->m_Device->CreateRootSignature(0, ddf->m_HlslRootSignature.m_Data, ddf->m_HlslRootSignature.m_Count, DM_IID_PPV_ARGS(&program->m_RootSignature));
             CHECK_HR_ERROR(hr);
 
@@ -2875,7 +3395,13 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static HRenderTarget DX12NewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
         DX12Context* context = (DX12Context*) _context;
-        DX12RenderTarget* rt = new DX12RenderTarget();
+
+        DX12RenderTarget* rt     = new DX12RenderTarget();
+        rt->m_Format             = DXGI_FORMAT_UNKNOWN;
+        rt->m_DsvFormat          = DXGI_FORMAT_UNKNOWN;
+        rt->m_SampleDesc.Count   = 1;
+        rt->m_SampleDesc.Quality = 0;
+
         RenderTarget* brt = &rt->m_Base;
         brt->m_Id         = GetNextRenderTargetId();
 
@@ -2917,6 +3443,10 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 }
 
                 DXGI_FORMAT dxgi_format = GetDXGIFormatFromTextureFormat(color_buffer_params.m_Format);
+                if (color_attachment_count == 0)
+                {
+                    rt->m_Format = dxgi_format;
+                }
 
                 D3D12_RESOURCE_DESC texture_desc = {};
                 texture_desc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -2982,6 +3512,11 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
         if (has_depth_stencil)
         {
+            brt->m_DepthStencilTextureParams = (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) ?
+                params.m_DepthBufferParams :
+                params.m_StencilBufferParams;
+            ClearTextureParamsData(brt->m_DepthStencilTextureParams);
+
             const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
 
             HTexture texture_depth_stencil         = NewTexture(_context, stencil_depth_create_params);
@@ -3040,6 +3575,9 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             dsv_desc.Flags               = D3D12_DSV_FLAG_NONE;
 
             context->m_Device->CreateDepthStencilView(texture_depth_stencil_ptr->m_Resource, &dsv_desc, rt->m_DepthStencilDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+            brt->m_TextureDepthStencil = texture_depth_stencil;
+            rt->m_DsvFormat            = ds_format;
         }
 
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
@@ -3078,7 +3616,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             rt->m_DepthStencilDescriptorHeap = 0;
         }
 
-        ctx->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        ctx->m_BaseContext.m_AssetHandleContainer.Release(GetOpaqueHandle(render_target));
         delete rt;
     }
 
@@ -3139,7 +3677,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             return;
 
         DestroyTextureResourceDeferred(ctx, tex);
-        ctx->m_BaseContext.m_AssetHandleContainer.Release(texture);
+        ctx->m_BaseContext.m_AssetHandleContainer.Release(GetOpaqueHandle(texture));
         delete tex;
     }
 
@@ -3166,7 +3704,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 sampler.m_MaxLod        == maxLod    &&
                 sampler.m_MaxAnisotropy == max_anisotropy)
             {
-                return (uint8_t) i;
+                return (int16_t)i;
             }
         }
 
@@ -3178,8 +3716,13 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         return dmMath::Min(max_anisotropy_requested, (float)D3D12_REQ_MAXANISOTROPY); // D3D12_REQ_MAXANISOTROPY=16
     }
 
-    static inline D3D12_FILTER GetSamplerFilter(TextureFilter minfilter, TextureFilter magfilter)
+    static inline D3D12_FILTER GetSamplerFilter(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter)
     {
+        if (minfilter == TEXTURE_FILTER_DEFAULT)
+            minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
+        if (magfilter == TEXTURE_FILTER_DEFAULT)
+            magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
+
         if (magfilter == TEXTURE_FILTER_NEAREST)
         {
             if (minfilter == TEXTURE_FILTER_NEAREST || minfilter == TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST)
@@ -3235,6 +3778,11 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
 
     int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
+        if (minfilter == TEXTURE_FILTER_DEFAULT)
+            minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
+        if (magfilter == TEXTURE_FILTER_DEFAULT)
+            magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
+
         DX12TextureSampler new_sampler  = {};
         new_sampler.m_MinFilter     = minfilter;
         new_sampler.m_MagFilter     = magfilter;
@@ -3250,7 +3798,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         }
 
         D3D12_SAMPLER_DESC desc  = {};
-        desc.Filter              = GetSamplerFilter(minfilter, magfilter);
+        desc.Filter              = GetSamplerFilter(context, minfilter, magfilter);
         desc.AddressU            = GetAddressMode(uwrap);
         desc.AddressV            = GetAddressMode(vwrap);
         desc.AddressW            = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -3274,6 +3822,11 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     {
         const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
         float anisotropy_clamped = GetMaxAnisotrophyClamped(max_anisotropy);
+
+        if (minfilter == TEXTURE_FILTER_DEFAULT)
+            minfilter = context->m_BaseContext.m_DefaultTextureMinFilter;
+        if (magfilter == TEXTURE_FILTER_DEFAULT)
+            magfilter = context->m_BaseContext.m_DefaultTextureMagFilter;
 
         if (sampler.m_MinFilter     != minfilter              ||
             sampler.m_MagFilter     != magfilter              ||
@@ -3313,7 +3866,9 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         TextureFormat format_orig    = params.m_Format;
         TextureFormat format_actual  = params.m_Format;
         void* tex_data_ptr           = (void*) params.m_Data;
-        uint32_t depth_or_array_size = dmMath::Max(1U, dmMath::Max((uint32_t) params.m_Depth, (uint32_t) params.m_LayerCount));
+        uint16_t tex_layer_count     = dmMath::Max((uint16_t)1, dmMath::Max(tex->m_LayerCount, (uint16_t) params.m_LayerCount));
+        uint16_t tex_depth           = dmMath::Max((uint16_t)1, dmMath::Max(tex->m_Base.m_Depth, (uint16_t) params.m_Depth));
+        uint32_t depth_or_array_size = dmMath::Max((uint32_t)tex_depth, (uint32_t)tex_layer_count);
         uint32_t tex_data_size       = params.m_DataSize;
         DXGI_FORMAT dxgi_format      = GetDXGIFormatFromTextureFormat(format_orig);
 
@@ -3339,8 +3894,25 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             tex_data_ptr  = data_new;
         }
 
-        if (!tex->m_Resource)
+        bool recreate_resource = tex->m_Resource == 0;
+        if (!recreate_resource && !params.m_SubUpdate && params.m_MipMap == 0)
         {
+            recreate_resource =
+                tex->m_ResourceDesc.Format != dxgi_format ||
+                tex->m_Base.m_Width != params.m_Width ||
+                tex->m_Base.m_Height != params.m_Height ||
+                tex->m_Base.m_Depth != tex_depth ||
+                tex->m_LayerCount != tex_layer_count ||
+                tex->m_ResourceDesc.DepthOrArraySize != depth_or_array_size;
+        }
+
+        if (recreate_resource)
+        {
+            if (tex->m_Resource)
+            {
+                DestroyTextureResourceDeferred(g_DX12Context, tex);
+            }
+
             D3D12_RESOURCE_DESC desc = {};
             desc.Format              = dxgi_format;
             desc.Width               = params.m_Width;
@@ -3359,11 +3931,16 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             HRESULT hr = g_DX12Context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, NULL, DM_IID_PPV_ARGS(&tex->m_Resource));
             CHECK_HR_ERROR(hr);
 
-            for (int i = 0; i < tex->m_Base.m_MipMapCount; ++i)
+            uint32_t resource_state_count = dmMath::Min((uint32_t)tex->m_Base.m_MipMapCount, (uint32_t)DM_ARRAY_SIZE(tex->m_ResourceStates));
+            for (uint32_t i = 0; i < resource_state_count; ++i)
             {
                 tex->m_ResourceStates[i] = D3D12_RESOURCE_STATE_COPY_DEST;
             }
 
+            tex->m_Base.m_Width  = params.m_Width;
+            tex->m_Base.m_Height = params.m_Height;
+            tex->m_Base.m_Depth  = tex_depth;
+            tex->m_LayerCount = tex_layer_count;
             tex->m_ResourceDesc = desc;
         }
 

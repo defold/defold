@@ -147,6 +147,7 @@ dialog.button.report = Report
 dialog.button.disable-scene-editor = Disable Scene Editor
 dialog.button.cancel = Cancel
 dialog.button.delete = Delete
+dialog.button.apply = Apply
 
 # Error Dialog
 
@@ -498,6 +499,9 @@ dialog.select-gui-component.title = Select {component}
 dialog.select-resource.title = Select Resource
 dialog.recent-files.title = Recent Files
 dialog.recent-files.button.ok = Open
+dialog.jump-to-symbol.title = Jump to Symbol
+dialog.jump-to-symbol.prompt = Search for symbol…
+dialog.jump-to-symbol.button.ok = OK
 
 # Open resource dialogs
 
@@ -706,6 +710,8 @@ prefs.label.dev.custom-engine = Custom Engine
 prefs.keymap.filter.prompt = Filter keymap…
 prefs.keymap.command = Command
 prefs.keymap.shortcuts = Shortcuts
+prefs.keymap.badge.mouse-binding = Mouse Binding
+prefs.keymap.badge.mouse-modifier = Mouse Modifier
 prefs.keymap.context-menu.new-shortcut = New Shortcut…
 prefs.keymap.context-menu.reset-to-default = Reset to Default
 prefs.keymap.context-menu.remove = Remove {shortcut}
@@ -718,6 +724,16 @@ prefs.keymap.warnings = Warnings:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)
 prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
+prefs.keymap.warning.duplicate = Binding already exists, will be ignored
+prefs.keymap.mouse-binding.button.left = Left
+prefs.keymap.mouse-binding.button.middle = Middle
+prefs.keymap.mouse-binding.button.right = Right
+prefs.keymap.mouse-binding.section.button = Mouse Button
+prefs.keymap.mouse-binding.section.modifiers = Modifiers
+prefs.keymap.context-menu.add-mouse-binding = Add Mouse Binding
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = Reset to Defaults
+prefs.keymap.context-menu.edit-modifier = Edit Modifier
+prefs.keymap.inherited-from = Inherited from {context}
 
 # Progress
 
@@ -951,6 +967,7 @@ command.code.duplicate-selection = Duplicate Selection
 command.code.split-selection-into-lines = Split Selection Into Lines
 command.code.goto-definition = Go to Definition
 command.code.goto-line = Go to Line…
+command.code.jump-to-symbol = Jump to Symbol…
 command.code.show-references = Find References
 command.code.toggle-minimap = Minimap
 command.code.toggle-indentation-guides = Indentation Guides
@@ -1610,6 +1627,8 @@ form.label.project.project.compress_archive = Compress Archive
 form.help.project.project.compress_archive = Compress archive (not for Android)
 form.label.project.project.dependencies = Dependencies
 form.help.project.project.dependencies = A list of URLs to projects required by this project
+form.label.project.project.dependencies_metadata = Dependencies Metadata
+form.help.project.project.dependencies_metadata = Include dependency metadata in the runtime bundle
 form.label.project.project.custom_resources = Custom Resources
 form.help.project.project.custom_resources = A comma separated list of resources that will be included in the project. If directories are specified, all files and directories in that directory are recursively included
 form.label.project.project.bundle_resources = Bundle Resources

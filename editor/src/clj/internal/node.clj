@@ -128,7 +128,7 @@
 (defn input-dependencies       [nt]        (some-> nt deref :input-dependencies))
 (defn property-display-order   [nt]        (some-> nt deref :property-display-order))
 (defn cascade-deletes          [nt]        (some-> nt deref :cascade-deletes))
-(defn behavior                 [nt label]  (some-> nt deref (get-in [:behavior label])))
+(defn behavior                 [nt label]  (some-> nt deref :behavior (get label)))
 (defn property-behavior        [nt label]  (some-> nt deref (get-in [:property-behavior label])))
 (defn declared-property-labels [nt]        (some-> nt deref :declared-property))
 
@@ -149,6 +149,15 @@
   "Beware, more expensive than you might think."
   [nt]
   (into {} (filter (comp (declared-property-labels nt) key)) (all-properties nt)))
+
+(defn property-statics
+  [nt label]
+  (into {}
+        (keep (fn [[property-label property-info]]
+                (let [static-value (get (:statics property-info) label ::not-found)]
+                  (when-not (identical? ::not-found static-value)
+                    (pair property-label static-value)))))
+        (all-properties nt)))
 
 (defn abstract-output-labels [nt]
   (into #{}
@@ -887,6 +896,10 @@
   (assert-symbol "dynamic" label) ; "dynamic" argument is for debug printing
   {:dynamics {(keyword label) {:fn (maybe-macroexpand forms)}}})
 
+(defmethod process-property-form 'static [[_ label form]]
+  (assert-symbol "static" label)
+  {:statics {(keyword label) form}})
+
 (defmethod process-property-form 'value [[_ form]]
   {:value {:fn (maybe-macroexpand form)}})
 
@@ -918,7 +931,7 @@
         register-type-info (:register-type-info propdef)
         propdef (dissoc propdef :register-type-info)
         prop-value-fn (-> propdef :value :fn)
-        outdef (cond-> (dissoc propdef :setter :dynamics :value :default)
+        outdef (cond-> (dissoc propdef :setter :dynamics :statics :value :default)
 
                        (some? prop-value-fn)
                        (assoc :fn prop-value-fn)
@@ -1598,8 +1611,8 @@
          (let [~node-id-sym (gt/node-id ~node-sym)]
            ~(check-jammed-form description label node-sym node-id-sym label-sym evaluation-context-sym
               (apply-default-property-shortcut-form description label node-sym node-id-sym label-sym evaluation-context-sym
-                (mark-in-production-form node-id-sym label-sym evaluation-context-sym
-                  (check-caches-form description label node-id-sym label-sym evaluation-context-sym
+                (check-caches-form description label node-id-sym label-sym evaluation-context-sym
+                  (mark-in-production-form node-id-sym label-sym evaluation-context-sym
                     (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym tracer-label-type
                       (gather-arguments-form description label node-sym node-id-sym evaluation-context-sym arguments-sym
                         (call-production-function-form description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym

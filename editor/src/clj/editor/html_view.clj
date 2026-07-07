@@ -14,6 +14,7 @@
 
 (ns editor.html-view
   (:require [dynamo.graph :as g]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
             [editor.markdown :as markdown]
@@ -44,6 +45,8 @@
   (input html g/Str)
   (input project g/NodeID)
   (output desc g/Any :cached produce-desc))
+
+(node-types/register-node-type-name! HtmlViewNode "html")
 
 (defn- repaint! [view-node]
   (fxui/advance-graph-user-data-component! view-node :view (g/node-value view-node :desc)))

@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <assert.h>
 #include <stdlib.h>
 
 #include <dlib/platform.h>
@@ -29,6 +30,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/time.h>
+#include <dlib/dstrings.h>
 #include <ddf/ddf.h>
 
 #include <hid/hid.h>
@@ -64,6 +66,8 @@ struct Driver
 };
 
 void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
+void DumpDriver(FILE* out, Driver* driver);
+void LogDriver(Driver* driver);
 void DumpSDLEntry(FILE* out, Driver* driver);
 
 static const char* GetSDLPlatformName(const char* platform)
@@ -80,7 +84,26 @@ static const char* GetSDLPlatformName(const char* platform)
         return "iOS";
     if (strcmp(platform, DM_PLATFORM_NAME_WEB) == 0)
         return "Web";
+    if (strcmp(platform, DM_PLATFORM_NAME_XBOX) == 0)
+        return "Xbox";
     return platform;
+}
+
+static WindowsGraphicsApi AdapterFamilyToWindowApi(dmGraphics::AdapterFamily family)
+{
+    switch (family)
+    {
+    case dmGraphics::ADAPTER_FAMILY_NULL:     return WINDOW_GRAPHICS_API_NULL;
+    case dmGraphics::ADAPTER_FAMILY_OPENGL:   return WINDOW_GRAPHICS_API_OPENGL;
+    case dmGraphics::ADAPTER_FAMILY_OPENGLES: return WINDOW_GRAPHICS_API_OPENGLES;
+    case dmGraphics::ADAPTER_FAMILY_VULKAN:   return WINDOW_GRAPHICS_API_VULKAN;
+    case dmGraphics::ADAPTER_FAMILY_VENDOR:   return WINDOW_GRAPHICS_API_VENDOR;
+    case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return WINDOW_GRAPHICS_API_WEBGPU;
+    case dmGraphics::ADAPTER_FAMILY_DIRECTX:  return WINDOW_GRAPHICS_API_DIRECTX;
+    default: break;
+    }
+    assert(0);
+    return (WindowsGraphicsApi) -1;
 }
 
 static int HexCharToInt(char c)
@@ -288,6 +311,12 @@ bool IsIgnoredID(uint32_t trigger_id) {
         return true;
     }
 
+#if defined(_GAMING_XBOX)
+    if (trigger_id == dmInputDDF::GAMEPAD_GUIDE ||
+        trigger_id == dmInputDDF::GAMEPAD_RAW)
+        return true;
+#endif
+
     return false;
 }
 
@@ -441,6 +470,7 @@ int main(int argc, char *argv[])
     dmHID::HGamepad gamepads[dmHID::MAX_GAMEPAD_COUNT];
 
     float wait_delay = 1.0f;
+    float read_delay = 0.5f;
     float timer = 0.0f;
     float dt = 0.016667f;
     bool settled = false;
@@ -462,7 +492,7 @@ int main(int argc, char *argv[])
     window_params.m_Title = "gdc";
     window_params.m_PrintDeviceInfo = false;
     window_params.m_OpenGLVersionHint = 33;
-    window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+    window_params.m_GraphicsApi = AdapterFamilyToWindowApi(dmGraphics::GetInstalledAdapterFamily());
     window_params.m_ContextAlphabits = 8;
     window_params.m_Hidden = 1;
 
@@ -560,6 +590,7 @@ retry:
                 gamepad = gamepads[index-1];
                 break;
             }
+
             printf("Invalid input!");
             fflush(stdout);
             goto bail;
@@ -670,7 +701,7 @@ retry:
         while (run && wait_count>0)
         {
             if (g_SkipTrigger) {
-                printf("Skipping trigger.\n");
+                dmLogInfo("Skipping trigger.\n");
                 driver.m_Triggers[i].m_Skip = true;
                 g_SkipTrigger = false;
                 break;
@@ -704,7 +735,8 @@ retry:
                 if (dmMath::Abs(delta) < 0.2f)
                 {
                     state = STATE_READING;
-                    printf("* Press %s...\n", dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name);
+                    dmLogInfo("* Press %s...\n", dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name);
+                    timer = read_delay;
                     wait_count = 100;
                 }
                 else
@@ -764,6 +796,17 @@ retry:
         DumpSDLEntry(out, &driver);
         printf("Wrote entry to '%s'\n", filename);
     }
+    else
+    {
+        dmLogInfo("Could not open %s to write to, dumping to stdout instead.\n\n", filename);
+#if defined(DM_PLATFORM_VENDOR)
+        LogDriver(&driver);
+#else
+        DumpDriver(stdout, &driver);
+#endif
+    }
+
+    DumpSDLEntry(stdout, &driver);
 
     printf("Bye!\n");
 
@@ -875,6 +918,57 @@ void DumpDriver(FILE* out, Driver* driver)
     }
     fprintf(out, "}\n");
 }
+
+#if defined(DM_PLATFORM_VENDOR)
+void LogDriver(Driver* driver)
+{
+    char result[8*1024];
+    char line[1024];
+    result[0] = '\0';
+
+    dmStrlCat(result, "driver\n{\n", sizeof(result));
+    dmSnPrintf(line, sizeof(line), "    device: \"%s\"\n", driver->m_Device);
+    dmStrlCat(result, line, sizeof(result));
+    dmSnPrintf(line, sizeof(line), "    platform: \"%s\"\n", driver->m_Platform);
+    dmStrlCat(result, line, sizeof(result));
+    dmSnPrintf(line, sizeof(line), "    dead_zone: %.3f\n", driver->m_DeadZone);
+    dmStrlCat(result, line, sizeof(result));
+    for (uint32_t i = 0; i < dmInputDDF::MAX_GAMEPAD_COUNT; ++i)
+    {
+        // Ignore connected/disconnected triggers.
+
+        uint32_t trigger_id = dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Value;
+        if (trigger_id == dmInputDDF::GAMEPAD_CONNECTED ||
+            trigger_id == dmInputDDF::GAMEPAD_DISCONNECTED ||
+            driver->m_Triggers[i].m_Skip) {
+            continue;
+        }
+
+        dmSnPrintf(line, sizeof(line), "    map { input: %s type: %s index: %d ",
+                dmInputDDF_Gamepad_DESCRIPTOR.m_EnumValues[i].m_Name,
+                dmInputDDF_GamepadType_DESCRIPTOR.m_EnumValues[driver->m_Triggers[i].m_Type].m_Name,
+                driver->m_Triggers[i].m_Index);
+        dmStrlCat(result, line, sizeof(result));
+        if (driver->m_Triggers[i].m_Type == dmInputDDF::GAMEPAD_TYPE_HAT) {
+            dmSnPrintf(line, sizeof(line), "hat_mask: %d ", driver->m_Triggers[i].m_HatMask);
+            dmStrlCat(result, line, sizeof(result));
+        }
+        for (uint32_t j = 0; j < dmInputDDF::MAX_GAMEPAD_MODIFIER_COUNT; ++j)
+        {
+            if (driver->m_Triggers[i].m_Modifiers[j])
+            {
+                dmSnPrintf(line, sizeof(line), "mod { mod: %s } ", dmInputDDF_GamepadModifier_DESCRIPTOR.m_EnumValues[j].m_Name);
+                dmStrlCat(result, line, sizeof(result));
+            }
+        }
+
+        dmStrlCat(result, "}\n", sizeof(result));
+    }
+    dmStrlCat(result, "}\n", sizeof(result));
+
+    dmLogInfo("DRIVER:\n%s", result);
+}
+#endif
 
 void DumpSDLEntry(FILE* out, Driver* driver)
 {

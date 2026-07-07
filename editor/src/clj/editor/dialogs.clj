@@ -52,9 +52,10 @@
            [java.nio.file Path Paths]
            [java.util Collection List]
            [javafx.application Platform]
+           [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener]
            [javafx.event Event]
-           [javafx.scene.control ListView TextField]
+           [javafx.scene.control FocusModel ListView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Screen Stage Window]
            [org.apache.commons.io FilenameUtils]))
@@ -592,8 +593,43 @@
                               ;; This keeps the anchor at the top so shift+click selects from the start instead of the end:
                               (.put properties "isDefaultAnchor" true)))))))
 
+(def list-view-selection-preview-prop
+  "Prop for following along with whatever the list is showing, e.g. to keep
+  another view in sync.
+
+  Value is a function called with the item to preview and the source event:
+
+    :focused    the list gained focus, or you moved through it
+    :items      the list's contents changed"
+  (fx/make-binding-prop
+    (fn [^ListView view preview-fn]
+      (let [focus-model ^FocusModel (.getFocusModel view)
+            items (.getItems view)
+            preview! (fn [item source]
+                       (when item
+                         (preview-fn item source)))
+            focused-index-listener (reify ChangeListener
+                                     (changed [_ _ _ _]
+                                       (when (.isFocused view)
+                                         (preview! (.getFocusedItem focus-model) :focused))))
+            focused-listener (reify ChangeListener
+                               (changed [_ _ _ focused]
+                                 (when focused
+                                   (preview! (.getFocusedItem focus-model) :focused))))
+            items-listener (reify ListChangeListener
+                             (onChanged [_ _]
+                               (preview! (first items) :items)))]
+        (.addListener (.focusedIndexProperty focus-model) focused-index-listener)
+        (.addListener (.focusedProperty view) focused-listener)
+        (.addListener items items-listener)
+        #(do
+           (.removeListener (.focusedIndexProperty focus-model) focused-index-listener)
+           (.removeListener (.focusedProperty view) focused-listener)
+           (.removeListener items items-listener))))
+    fx.lifecycle/scalar))
+
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization]
+  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn]
     :as props}]
   {:fx/type dialog-stage
    :title (localization title)
@@ -613,10 +649,12 @@
                     :on-created select-first-list-item-on-items-changed!
                     :desc {:fx/type ext-with-identity-items-props
                            :props {:items filtered-items}
-                           :desc {:fx/type fx.list-view/lifecycle
-                                  :fixed-cell-size 27
-                                  :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                                 :describe cell-fn}}}}}
+                           :desc (cond-> {:fx/type fx.list-view/lifecycle
+                                          :fixed-cell-size 27
+                                          :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                         :describe cell-fn}}
+                                   preview-item-fn
+                                   (assoc list-view-selection-preview-prop preview-item-fn))}}}
    :footer {:fx/type fx.h-box/lifecycle
             :alignment :center-left
             :children [{:fx/type fx.progress-indicator/lifecycle
@@ -725,7 +763,14 @@
                       default filtering; stringifies item by default
       :prompt         filter text field's prompt, string or MessagePattern,
                       defaults to \"dialog.select-item.prompt\" message
-      :owner          the owner window, defaults to main stage"
+      :owner          the owner window, defaults to main stage
+      :preview-item-fn
+                      optional side-effecting fn of two args, an item to preview
+                      and a source keyword describing what triggered it:
+                        :opened    items changed while the filter is empty
+                        :filtered  items changed while the filter is non-empty
+                        :focused   the list gained focus or its focused item
+                                   changed"
   ([items localization]
    (make-select-list-dialog items localization {}))
   ([items localization options]
@@ -770,7 +815,6 @@
                  (assoc state
                    :filter-term filter-term
                    :filter-in-progress true))))
-
          _ (swap! state-atom set-filter-term filter-term)
          event-handler (select-list-dialog-event-handler set-filter-term)
          result (fxui/show-dialog-and-await-result!
@@ -778,6 +822,19 @@
                   :event-handler event-handler
                   :description {:fx/type select-list-dialog
                                 :localization localization
+                                ;; The list only tells us focus moved or its items
+                                ;; changed. Split "items changed" into :opened (nothing
+                                ;; searched yet) or :filtered so the caller can tell the
+                                ;; two apart.
+                                :preview-item-fn (when-let [preview-item-fn (:preview-item-fn options)]
+                                                   (fn [item source]
+                                                     (preview-item-fn
+                                                       item
+                                                       (case source
+                                                         :focused :focused
+                                                         :items (if (coll/empty? (:filter-term @state-atom))
+                                                                  :opened
+                                                                  :filtered)))))
                                 :title (or (:title options)
                                            (localization/message "dialog.select-item.title"))
                                 :ok-label (or (:ok-label options)

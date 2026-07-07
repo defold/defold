@@ -26,6 +26,10 @@ endif()
 if(MODELC_IS_DESKTOP)
   find_package(JNI REQUIRED)
   find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
+  defold_find_clang_cpp(DEFOLD_CLANGPP)
+  if(NOT DEFOLD_CLANGPP)
+    message(FATAL_ERROR "Could not find clang++. It is required to generate modelc Java bindings.")
+  endif()
 
   set(MODELC_CORE_SOURCES
     "${MODELC_SRC_DIR}/modelimporter.cpp"
@@ -43,6 +47,7 @@ if(MODELC_IS_DESKTOP)
     COMMAND "${CMAKE_COMMAND}" -E env
             "DEFOLD_HOME=${DEFOLD_HOME}"
             "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+            "CLANGPP=${DEFOLD_CLANGPP}"
             "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
             --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
             --header "${MODELC_SRC_DIR}/modelimporter.h"
@@ -79,7 +84,7 @@ if(MODELC_IS_DESKTOP)
   defold_target_link_libraries(modelc_shared "${TARGET_PLATFORM}"
     ${MODELC_SHARED_DEPENDENCIES})
   defold_target_link_app(modelc_shared "${TARGET_PLATFORM}" SCOPE PRIVATE)
-  defold_codesign_target(modelc_shared)
+  defold_codesign_target(modelc_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   set(MODELC_JAR "${CMAKE_CURRENT_BINARY_DIR}/modelimporter.jar")
   set(MODELC_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/classes")

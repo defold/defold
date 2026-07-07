@@ -17,6 +17,7 @@
 
 #include <testmain/testmain.h>
 #include <dlib/log.h>
+#include <dlib/socket.h>
 
 class ScriptSysTest : public dmScriptTest::ScriptTest
 {
@@ -52,6 +53,9 @@ int main(int argc, char **argv)
 {
     dmExportedSymbols();
     TestMainPlatformInit();
+    dmSocket::Initialize();
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int ret = jc_test_run_all();
+    dmSocket::Finalize();
+    return ret;
 }

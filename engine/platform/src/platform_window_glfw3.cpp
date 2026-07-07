@@ -405,6 +405,8 @@ namespace dmPlatform
             window->m_HighDPI                 = params.m_HighDPI;
             window->m_Samples                 = params.m_Samples;
             window->m_WindowOpened            = 1;
+
+            InstallWindowCloseHandlerNative(window);
         }
 
         return res;
@@ -417,12 +419,13 @@ namespace dmPlatform
 
     void CloseWindow(HWindow window)
     {
+        UninstallWindowCloseHandlerNative(window);
         glfwDestroyWindow(window->m_Window);
         if (window->m_AuxWindow)
             glfwDestroyWindow(window->m_AuxWindow);
     }
 
-    void PollEvents(HWindow window)
+    void PollEvents(HWindow)
     {
         glfwPollEvents();
     }

@@ -125,10 +125,16 @@ set(ENGINE_BUILTINS_COMPILED_DIR "${ENGINE_BUILTINS_WORK_ROOT}/build/default/bui
 set(ENGINE_BUILTINS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/content/builtins.stamp")
 defold_get_graphics_symbols(ENGINE_GRAPHICS_SYMBOLS "${TARGET_PLATFORM}")
 set(ENGINE_SHADER_OUTPUT_ARGS)
-if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS OR "GraphicsAdapterOpenGLES" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+# App manifests can relink Apple engines to GL/GLES even when the default
+# CMake graphics symbols only include Vulkan/Metal-capable adapters.
+if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR "GraphicsAdapterOpenGLES" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output glsl)
 endif()
-if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+# App manifests can also relink Apple engines to Vulkan/MoltenVK.
+if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output spirv)
 endif()
 if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
@@ -137,7 +143,8 @@ endif()
 if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output hlsl)
 endif()
-if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
+if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output msl)
 endif()
 add_custom_command(
@@ -481,7 +488,7 @@ engine_configure_executable(dmengine debug engine engine_service graphics "${ENG
 defold_xcode_configure_ios_app(dmengine
   BUNDLE_ID "${DEFOLD_IOS_BUNDLE_IDENTIFIER}"
   VERSION "${ENGINE_VERSION}")
-defold_codesign_target(dmengine)
+defold_codesign_target(dmengine darwin/entitlements-macos-debug.plist)
 
 set(ENGINE_RELEASE_SYMBOLS
   ${ENGINE_EXPORTED_SYMBOLS}
@@ -492,7 +499,7 @@ set(ENGINE_RELEASE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmeng
 defold_create_exported_symbols_file("${ENGINE_RELEASE_EXPORTS}" "${ENGINE_RELEASE_SYMBOLS}")
 engine_add_binary(dmengine_release ${ENGINE_MAIN_SOURCES} "${ENGINE_RELEASE_EXPORTS}")
 engine_configure_executable(dmengine_release release engine_release engine_service_null graphics "profile_null;profilerext_null" "ProfilerExt")
-defold_codesign_target(dmengine_release)
+defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
   LiveUpdateExt
@@ -505,7 +512,7 @@ set(ENGINE_HEADLESS_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmen
 defold_create_exported_symbols_file("${ENGINE_HEADLESS_EXPORTS}" "${ENGINE_HEADLESS_SYMBOLS}")
 engine_add_binary(dmengine_headless ${ENGINE_MAIN_SOURCES} "${ENGINE_HEADLESS_EXPORTS}")
 engine_configure_executable(dmengine_headless headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
-defold_codesign_target(dmengine_headless)
+defold_codesign_target(dmengine_headless darwin/entitlements-macos-debug.plist)
 
 if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
   set_target_properties(dmengine dmengine_release dmengine_headless PROPERTIES
@@ -552,7 +559,7 @@ defold_install_targets(TARGETS dmengine dmengine_release dmengine_headless
   LIBRARY DESTINATION bin/${TARGET_PLATFORM}
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
-if(TARGET_PLATFORM MATCHES "win32")
+if(TARGET_PLATFORM MATCHES "win32|x86_64-xbone")
   foreach(_engine_pdb_target IN ITEMS dmengine dmengine_release dmengine_headless)
     install(FILES "$<TARGET_PDB_FILE:${_engine_pdb_target}>"
       DESTINATION bin/${TARGET_PLATFORM}

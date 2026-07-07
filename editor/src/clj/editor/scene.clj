@@ -24,6 +24,7 @@
             [editor.background :as background]
             [editor.camera :as c]
             [editor.colors :as colors]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.geom :as geom]
@@ -38,6 +39,7 @@
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.mouse-binding :as mouse-binding]
             [editor.os :as os]
             [editor.pose :as pose]
             [editor.properties :as properties]
@@ -1296,6 +1298,7 @@
   (input picking-rect Rect)
   (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
+  (input mouse-binding-context g/Keyword)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input updatables g/Any)
@@ -1329,6 +1332,8 @@
   (output displayed-node-properties g/Any :cached
           (g/fnk [selected-node-properties preview-overrides]
             (displayed-node-properties selected-node-properties preview-overrides))))
+
+(node-types/register-node-type-name! SceneView "scene")
 
 (defn cursor
   "Maps inconsistent cursor types across platforms.
@@ -1701,6 +1706,33 @@
               ((g/node-value node-id label) node-id input-state action user-data)))
           action input-handlers))
 
+(defn input-dispatch-context [view-id]
+  (g/with-auto-evaluation-context evaluation-context
+    {:input-handlers (g/sources-of (:basis evaluation-context) view-id :input-handlers)
+     :user-data (g/node-value view-id :selected-tool-renderables evaluation-context)
+     :mouse-binding-context (g/node-value view-id :mouse-binding-context evaluation-context)}))
+
+(defn dispatch-input-action [{:keys [input-handlers user-data mouse-binding-context]} input-state action]
+  (let [input-state (i/update-input-state input-state action)
+        action (if (and mouse-binding-context
+                        (#{:mouse-pressed :mouse-moved} (:type action)))
+                 (let [binding-action (assoc action :type :drag)
+                       command (mouse-binding/command-for-action mouse-binding-context binding-action)]
+                   (cond-> action
+                     command (assoc :mouse-binding-command command)))
+                 action)]
+    (dispatch-input input-handlers input-state action user-data)
+    input-state))
+
+(defn update-tick-handlers [view-id input-state dt]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [update-tick-handlers (g/sources-of (:basis evaluation-context) view-id :update-tick-handlers)]
+      (reduce (fn [input-state [node-id label]]
+                (when input-state
+                  ((g/node-value node-id label evaluation-context) node-id input-state dt)))
+              input-state
+              update-tick-handlers))))
+
 (defn- update-updatables
   [updatable-states play-mode active-updatables dt]
   (let [context {:dt (if (= play-mode :playing) dt 0)}]
@@ -1715,10 +1747,9 @@
 
 (defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (let [action-queue (g/user-data view-id ::input-action-queue)
-        [render-mode tool-user-data play-mode active-updatables updatable-states]
+        [render-mode play-mode active-updatables updatable-states]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value view-id :render-mode evaluation-context)
-           (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
            (g/node-value view-id :play-mode evaluation-context)
            (g/node-value view-id :active-updatables evaluation-context)
            (g/node-value view-id :updatable-states evaluation-context)])
@@ -1735,24 +1766,15 @@
                             (and has-active-updatables (= :playing play-mode)))
                         inc)]
     (profiler/profile "input-dispatch" -1
-      (let [input-handlers (g/sources-of view-id :input-handlers)]
+      (let [input-dispatch-context (input-dispatch-context view-id)]
         (g/user-data! view-id ::input-state
-                      (reduce (fn [input-state action]
-                                (let [input-state (i/update-input-state input-state action)]
-                                  (dispatch-input input-handlers input-state action tool-user-data)
-                                  input-state))
+                      (reduce (partial dispatch-input-action input-dispatch-context)
                               (g/user-data view-id ::input-state)
                               action-queue))
         (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
           (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (profiler/profile "update-tick" -1
-      (g/with-auto-evaluation-context evaluation-context
-        (let [update-tick-handlers (g/sources-of (:basis evaluation-context) view-id :update-tick-handlers)
-              input-state (g/user-data view-id ::input-state)]
-          (reduce (fn [input-state [node-id label]]
-                    (when input-state
-                      ((g/node-value node-id label evaluation-context) node-id input-state dt)))
-                  input-state update-tick-handlers))))
+      (update-tick-handlers view-id (g/user-data view-id ::input-state) dt))
     (when (seq action-queue)
       (g/user-data! view-id ::input-action-queue [])
       (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
@@ -2022,6 +2044,7 @@
 
   (input input-handlers Runnable :array)
   (input update-tick-handlers Runnable :array)
+  (input mouse-binding-context g/Keyword)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input localization g/Any)
@@ -2124,6 +2147,7 @@
                   (g/connect app-view-id     :keymap                        camera          :keymap)
 
                   (g/connect tool-controller :input-handler                 view-id         :input-handlers)
+                  (g/connect tool-controller :mouse-binding-context         view-id         :mouse-binding-context)
                   (g/connect tool-controller :info-text                     view-id         :tool-info-text)
                   (g/connect tool-controller :renderables                   view-id         :tool-renderables)
                   (g/connect tool-controller :preview-overrides             view-id         :preview-overrides)

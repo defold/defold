@@ -12,15 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_THREAD_NATIVE_WIN32_H
-#define DMSDK_THREAD_NATIVE_WIN32_H
+package com.dynamo.bob.pipeline;
 
-#include <dmsdk/dlib/safe_windows.h>
-
-namespace dmThread
-{
-    typedef HANDLE Thread;
-    typedef DWORD TlsKey;
+public interface IGuiCustomNode {
 }
-
-#endif

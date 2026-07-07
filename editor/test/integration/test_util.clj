@@ -392,7 +392,10 @@
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
-    (->> (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)
+    (->> (library/fetch!
+           (workspace/project-directory workspace)
+           dependencies
+           progress/null-render-progress!)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
@@ -410,7 +413,10 @@
                   :else (throw (ex-info "library-uris contain invalid values."
                                         {:library-uris library-uris}))))
               library-uris)]
-    (->> (library/fetch! (workspace/project-directory workspace) library-uris progress/null-render-progress!)
+    (->> (library/fetch!
+           (workspace/project-directory workspace)
+           library-uris
+           progress/null-render-progress!)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
@@ -434,6 +440,10 @@
 
      {:editable (mapv val editable-protobuf-resource-types)
       :non-editable (mapv val distinctly-non-editable-protobuf-resource-types)})))
+
+(defn gui-node-type-info [workspace node-type]
+  (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
+          [:gui-node-type-registry :node-type->type-info node-type]))
 
 (defn setup-project!
   ([workspace]
@@ -564,9 +574,12 @@
                                         g/tx-nodes-added
                                         first)))))
 
-(defn open-scene-view! [project app-view path width height]
-  (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+(defn open-scene-view!
+  ([project app-view path width height]
+   (open-scene-view! project app-view path width height {}))
+  ([project app-view path width height tool-opts]
+   (make-tab! project app-view path (fn [view-graph resource-node]
+                                      (scene/make-preview view-graph resource-node (merge {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} tool-opts) width height)))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
@@ -769,9 +782,8 @@
      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
    (let [handlers (g/sources-of view :input-handlers)
          user-data (g/node-value view :selected-tool-renderables)
-         action (reduce #(assoc %1 %2 true)
-                        {:type type :x x :y y :click-count click-count :button button}
-                        modifiers)
+         action (-> {:type type :x x :y y :click-count click-count :button button}
+                    (assoc :modifiers (set modifiers)))
          action (scene/augment-action view action)]
      ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
      (scene/dispatch-input handlers (input/make-input-state) action user-data))))

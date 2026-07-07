@@ -31,10 +31,10 @@ namespace dmFileDescriptor
     {
         for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
         {
-            if (poller->m_Pollfds[i].fd == fd)
+            if (poller->m_Pollfds[i].m_Fd == fd)
             {
                 int e = PollEventToNative(event);
-                poller->m_Pollfds[i].events &= ~e;
+                poller->m_Pollfds[i].m_Events &= ~e;
                 return;
             }
         }
@@ -45,9 +45,9 @@ namespace dmFileDescriptor
         int e = PollEventToNative(event);
         for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
         {
-            if (poller->m_Pollfds[i].fd == fd)
+            if (poller->m_Pollfds[i].m_Fd == fd)
             {
-                poller->m_Pollfds[i].events |= e;
+                poller->m_Pollfds[i].m_Events |= e;
                 return;
             }
         }
@@ -58,8 +58,9 @@ namespace dmFileDescriptor
         }
 
         PollFD pfd;
-        pfd.fd = fd;
-        pfd.events = e;
+        pfd.m_Fd = fd;
+        pfd.m_Events = e;
+        pfd.m_REvents = 0;
         poller->m_Pollfds.Push(pfd);
     }
 
@@ -67,10 +68,10 @@ namespace dmFileDescriptor
     {
         for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
         {
-            if (poller->m_Pollfds[i].fd == fd)
+            if (poller->m_Pollfds[i].m_Fd == fd)
             {
                 int e = PollReturnEventToNative(event);
-                return poller->m_Pollfds[i].revents & e;
+                return poller->m_Pollfds[i].m_REvents & e;
             }
         }
         return false;
@@ -89,7 +90,7 @@ namespace dmFileDescriptor
         dmLogInfo("poller size = %d ", poller->m_Pollfds.Size());
         for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
         {
-            dmLogInfo("poller i = %d fd = %d events = %d revents = %d", i, poller->m_Pollfds[i].fd, poller->m_Pollfds[i].events, poller->m_Pollfds[i].revents);
+            dmLogInfo("poller i = %d fd = %d events = %d revents = %d", i, poller->m_Pollfds[i].m_Fd, poller->m_Pollfds[i].m_Events, poller->m_Pollfds[i].m_REvents);
         }
     }
 } // namespace dmFileDescriptor
