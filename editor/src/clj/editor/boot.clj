@@ -23,7 +23,6 @@
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.gl :as gl]
-            [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.os :as os]
             [editor.prefs :as prefs]
@@ -72,7 +71,7 @@
             render-project-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 1) 4)
             project-file (io/file project)
             project-dir (.getParentFile project-file)
-            project-prefs (doto (prefs/project project-dir user-prefs) prefs/migrate-project-prefs!)]
+            project-prefs (prefs/project project-dir user-prefs)]
         (welcome/add-recent-project! project-prefs project-file)
         (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
 
@@ -164,11 +163,9 @@
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         cli-options (:options opts)
-        prefs (doto
-                (if-let [prefs-path (:preferences cli-options)]
-                  (prefs/global prefs-path)
-                  (doto (prefs/global) prefs/migrate-global-prefs!))
-                keymap/migrate-from-file!)
+        prefs (if-let [prefs-path (:preferences cli-options)]
+                (prefs/global prefs-path)
+                (prefs/global))
         localization (localization/make-editor prefs error-reporting/report-exception!)
         analytics-url (:analytics-url connection-properties)
         analytics-send-interval 300
