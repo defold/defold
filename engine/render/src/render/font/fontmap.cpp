@@ -25,6 +25,7 @@
 #include <algorithm> // std::sort
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include <vector>
 
 namespace dmRender
@@ -32,10 +33,75 @@ namespace dmRender
     static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
     static const uint32_t VECTOR_CURVE_TEXTURE_WIDTH = 512;
     static const uint32_t VECTOR_CURVE_TEXTURE_HEIGHT = 64;
-    static const uint32_t VECTOR_BAND_TEXTURE_WIDTH = 2048;
-    static const uint32_t VECTOR_BAND_TEXTURE_HEIGHT = 128;
-    static const uint8_t VECTOR_MAX_BANDS = 8;
     static const uint32_t VECTOR_MAX_SHADER_CURVES = 256;
+
+    static uint16_t FloatToHalf(float value)
+    {
+        uint32_t bits;
+        memcpy(&bits, &value, sizeof(bits));
+
+        uint32_t sign = (bits >> 16) & 0x8000u;
+        uint32_t mantissa = bits & 0x007fffffu;
+        int32_t exponent = (int32_t)((bits >> 23) & 0xffu) - 127 + 15;
+
+        if (exponent <= 0)
+        {
+            if (exponent < -10)
+            {
+                return (uint16_t)sign;
+            }
+
+            mantissa |= 0x00800000u;
+            uint32_t shift = (uint32_t)(14 - exponent);
+            uint32_t half_mantissa = mantissa >> shift;
+            if ((mantissa >> (shift - 1)) & 1u)
+            {
+                half_mantissa += 1u;
+            }
+            return (uint16_t)(sign | half_mantissa);
+        }
+
+        if (exponent >= 31)
+        {
+            if ((bits & 0x7fffffffu) > 0x7f800000u)
+            {
+                return (uint16_t)(sign | 0x7e00u);
+            }
+            return (uint16_t)(sign | 0x7c00u);
+        }
+
+        uint32_t half = sign | ((uint32_t)exponent << 10) | (mantissa >> 13);
+        if (mantissa & 0x00001000u)
+        {
+            half += 1u;
+        }
+        return (uint16_t)half;
+    }
+
+    static bool SelectVectorCurveTextureFormat(HFontMap font_map)
+    {
+        if (dmGraphics::IsTextureFormatSupported(font_map->m_GraphicsContext, dmGraphics::TEXTURE_FORMAT_RGBA16F))
+        {
+            font_map->m_VectorCurveFormat = dmGraphics::TEXTURE_FORMAT_RGBA16F;
+            font_map->m_VectorCurveComponentSize = sizeof(uint16_t);
+            return true;
+        }
+
+        if (dmGraphics::IsTextureFormatSupported(font_map->m_GraphicsContext, dmGraphics::TEXTURE_FORMAT_RGBA32F))
+        {
+            dmLogWarning("RGBA16F is not supported for vector font %s; falling back to RGBA32F curve texture",
+                         dmHashReverseSafe64(font_map->m_NameHash));
+            font_map->m_VectorCurveFormat = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+            font_map->m_VectorCurveComponentSize = sizeof(float);
+            return true;
+        }
+
+        dmLogError("Vector font %s requires RGBA16F or RGBA32F texture support",
+                   dmHashReverseSafe64(font_map->m_NameHash));
+        font_map->m_VectorCurveFormat = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+        font_map->m_VectorCurveComponentSize = 0;
+        return false;
+    }
 
     FontMapParams::FontMapParams()
     : m_FontCollection(0)
@@ -221,51 +287,44 @@ namespace dmRender
     static void CreateVectorTextures(HFontMap font_map)
     {
         font_map->m_VectorCurveCapacity = VECTOR_CURVE_TEXTURE_WIDTH * VECTOR_CURVE_TEXTURE_HEIGHT;
-        font_map->m_VectorBandCapacity = VECTOR_BAND_TEXTURE_WIDTH * VECTOR_BAND_TEXTURE_HEIGHT;
         font_map->m_VectorCurveCursor = 0;
-        font_map->m_VectorBandCursor = 0;
 
-        uint32_t curve_float_count = font_map->m_VectorCurveCapacity * 4;
-        uint32_t band_float_count = font_map->m_VectorBandCapacity * 4;
+        uint32_t curve_component_count = font_map->m_VectorCurveCapacity * 4;
 
         free(font_map->m_VectorCurveData);
-        free(font_map->m_VectorBandData);
+        font_map->m_VectorCurveData = 0;
 
-        font_map->m_VectorCurveData = (float*)malloc(sizeof(float) * curve_float_count);
-        font_map->m_VectorBandData = (float*)malloc(sizeof(float) * band_float_count);
-
-        if (!font_map->m_VectorCurveData || !font_map->m_VectorBandData)
+        if (!SelectVectorCurveTextureFormat(font_map))
         {
-            dmLogError("Failed to allocate vector font textures for %s", dmHashReverseSafe64(font_map->m_NameHash));
-            free(font_map->m_VectorCurveData);
-            free(font_map->m_VectorBandData);
-            font_map->m_VectorCurveData = 0;
-            font_map->m_VectorBandData = 0;
             font_map->m_VectorCurveCapacity = 0;
             font_map->m_VectorCurveCursor = 0;
-            font_map->m_VectorBandCapacity = 0;
-            font_map->m_VectorBandCursor = 0;
             return;
         }
 
-        memset(font_map->m_VectorCurveData, 0, sizeof(float) * curve_float_count);
-        memset(font_map->m_VectorBandData, 0, sizeof(float) * band_float_count);
+        font_map->m_VectorCurveData = malloc(font_map->m_VectorCurveComponentSize * curve_component_count);
 
-        if (font_map->m_BandTexture)
+        if (!font_map->m_VectorCurveData)
         {
-            dmGraphics::DeleteTexture(font_map->m_GraphicsContext, font_map->m_BandTexture);
-            font_map->m_BandTexture = 0;
+            dmLogError("Failed to allocate vector font textures for %s", dmHashReverseSafe64(font_map->m_NameHash));
+            free(font_map->m_VectorCurveData);
+            font_map->m_VectorCurveData = 0;
+            font_map->m_VectorCurveCapacity = 0;
+            font_map->m_VectorCurveCursor = 0;
+            font_map->m_VectorCurveComponentSize = 0;
+            return;
         }
+
+        memset(font_map->m_VectorCurveData, 0, font_map->m_VectorCurveComponentSize * curve_component_count);
 
         RecreateTextureWithData(font_map->m_GraphicsContext,
                                 &font_map->m_Texture,
                                 VECTOR_CURVE_TEXTURE_WIDTH,
                                 VECTOR_CURVE_TEXTURE_HEIGHT,
-                                dmGraphics::TEXTURE_FORMAT_RGBA32F,
+                                font_map->m_VectorCurveFormat,
                                 dmGraphics::TEXTURE_FILTER_NEAREST,
                                 dmGraphics::TEXTURE_FILTER_NEAREST,
                                 font_map->m_VectorCurveData,
-                                sizeof(float) * curve_float_count);
+                                font_map->m_VectorCurveComponentSize * curve_component_count);
     }
 
     static void RestoreLegacyTexture(HFontMap font_map)
@@ -273,19 +332,9 @@ namespace dmRender
         free(font_map->m_VectorCurveData);
         font_map->m_VectorCurveData = 0;
 
-        free(font_map->m_VectorBandData);
-        font_map->m_VectorBandData = 0;
-
         font_map->m_VectorCurveCapacity = 0;
         font_map->m_VectorCurveCursor = 0;
-        font_map->m_VectorBandCapacity = 0;
-        font_map->m_VectorBandCursor = 0;
-
-        if (font_map->m_BandTexture)
-        {
-            dmGraphics::DeleteTexture(font_map->m_GraphicsContext, font_map->m_BandTexture);
-            font_map->m_BandTexture = 0;
-        }
+        font_map->m_VectorCurveComponentSize = 0;
 
         RecreateTexture(font_map, font_map->m_GraphicsContext, font_map->m_CacheWidth, font_map->m_CacheHeight);
     }
@@ -905,11 +954,11 @@ namespace dmRender
 
         UpdateVectorTexture(font_map,
                             font_map->m_Texture,
-                            dmGraphics::TEXTURE_FORMAT_RGBA32F,
+                            font_map->m_VectorCurveFormat,
                             VECTOR_CURVE_TEXTURE_WIDTH,
                             VECTOR_CURVE_TEXTURE_HEIGHT,
                             font_map->m_VectorCurveData,
-                            sizeof(float) * font_map->m_VectorCurveCapacity * 4);
+                            font_map->m_VectorCurveComponentSize * font_map->m_VectorCurveCapacity * 4);
     }
 
     static void ResetVectorCache(HFontMap font_map)
@@ -917,7 +966,6 @@ namespace dmRender
         font_map->m_GlyphCache.Clear();
         font_map->m_CacheCursor = 0;
         font_map->m_VectorCurveCursor = 0;
-        font_map->m_VectorBandCursor = 0;
 
         for (uint32_t i = 0; i < font_map->m_CacheCellCount; ++i)
         {
@@ -927,20 +975,12 @@ namespace dmRender
             glyph->m_GlyphKey = 0;
             glyph->m_VectorCurveTexel = 0;
             glyph->m_VectorCurveTexelCount = 0;
-            glyph->m_VectorBandIndex = 0;
             glyph->m_VectorCurveCount = 0;
-            glyph->m_VectorBandMaxX = 0;
-            glyph->m_VectorBandMaxY = 0;
-            glyph->m_VectorBandScaleX = 0.0f;
-            glyph->m_VectorBandScaleY = 0.0f;
-            glyph->m_VectorBandOffsetX = 0.0f;
-            glyph->m_VectorBandOffsetY = 0.0f;
         }
 
-        if (font_map->m_VectorCurveData && font_map->m_VectorBandData)
+        if (font_map->m_VectorCurveData)
         {
-            memset(font_map->m_VectorCurveData, 0, sizeof(float) * font_map->m_VectorCurveCapacity * 4);
-            memset(font_map->m_VectorBandData, 0, sizeof(float) * font_map->m_VectorBandCapacity * 4);
+            memset(font_map->m_VectorCurveData, 0, font_map->m_VectorCurveComponentSize * font_map->m_VectorCurveCapacity * 4);
             UploadVectorTextures(font_map);
         }
     }
@@ -976,19 +1016,35 @@ namespace dmRender
                                       const FontCurvePoint& p1,
                                       const FontCurvePoint& p2)
     {
-        float* curve_data = font_map->m_VectorCurveData;
         uint32_t texel0 = curve_texel * 4;
         uint32_t texel1 = (curve_texel + 1) * 4;
 
-        curve_data[texel0 + 0] = p0.m_X;
-        curve_data[texel0 + 1] = p0.m_Y;
-        curve_data[texel0 + 2] = p1.m_X;
-        curve_data[texel0 + 3] = p1.m_Y;
+        if (font_map->m_VectorCurveFormat == dmGraphics::TEXTURE_FORMAT_RGBA16F)
+        {
+            uint16_t* curve_data = (uint16_t*) font_map->m_VectorCurveData;
+            curve_data[texel0 + 0] = FloatToHalf(p0.m_X);
+            curve_data[texel0 + 1] = FloatToHalf(p0.m_Y);
+            curve_data[texel0 + 2] = FloatToHalf(p1.m_X);
+            curve_data[texel0 + 3] = FloatToHalf(p1.m_Y);
 
-        curve_data[texel1 + 0] = p2.m_X;
-        curve_data[texel1 + 1] = p2.m_Y;
-        curve_data[texel1 + 2] = 0.0f;
-        curve_data[texel1 + 3] = 0.0f;
+            curve_data[texel1 + 0] = FloatToHalf(p2.m_X);
+            curve_data[texel1 + 1] = FloatToHalf(p2.m_Y);
+            curve_data[texel1 + 2] = 0;
+            curve_data[texel1 + 3] = 0;
+        }
+        else
+        {
+            float* curve_data = (float*) font_map->m_VectorCurveData;
+            curve_data[texel0 + 0] = p0.m_X;
+            curve_data[texel0 + 1] = p0.m_Y;
+            curve_data[texel0 + 2] = p1.m_X;
+            curve_data[texel0 + 3] = p1.m_Y;
+
+            curve_data[texel1 + 0] = p2.m_X;
+            curve_data[texel1 + 1] = p2.m_Y;
+            curve_data[texel1 + 2] = 0.0f;
+            curve_data[texel1 + 3] = 0.0f;
+        }
     }
 
     struct EncodedVectorCurve
@@ -1295,75 +1351,6 @@ namespace dmRender
 
     }
 
-    struct CurveBandRef
-    {
-        uint32_t m_CurveIndex;
-        float    m_SortKey;
-    };
-
-    static void CollectHorizontalBand(const std::vector<EncodedVectorCurve>& curves,
-                                      float band_min_y,
-                                      float band_max_y,
-                                      std::vector<uint32_t>& out_curve_indices)
-    {
-        std::vector<CurveBandRef> refs;
-        refs.reserve(curves.size());
-
-        for (uint32_t i = 0; i < curves.size(); ++i)
-        {
-            const EncodedVectorCurve& curve = curves[i];
-            if (curve.m_MaxY >= band_min_y && curve.m_MinY <= band_max_y)
-            {
-                CurveBandRef ref = { i, curve.m_MaxX };
-                refs.push_back(ref);
-            }
-        }
-
-        std::sort(refs.begin(), refs.end(), [](const CurveBandRef& a, const CurveBandRef& b) {
-            return a.m_SortKey > b.m_SortKey;
-        });
-
-        out_curve_indices.reserve(refs.size());
-        for (uint32_t i = 0; i < refs.size(); ++i)
-        {
-            out_curve_indices.push_back(refs[i].m_CurveIndex);
-        }
-    }
-
-    static void CollectVerticalBand(const std::vector<EncodedVectorCurve>& curves,
-                                    float band_min_x,
-                                    float band_max_x,
-                                    std::vector<uint32_t>& out_curve_indices)
-    {
-        std::vector<CurveBandRef> refs;
-        refs.reserve(curves.size());
-
-        for (uint32_t i = 0; i < curves.size(); ++i)
-        {
-            const EncodedVectorCurve& curve = curves[i];
-            if (curve.m_MaxX >= band_min_x && curve.m_MinX <= band_max_x)
-            {
-                CurveBandRef ref = { i, curve.m_MaxY };
-                refs.push_back(ref);
-            }
-        }
-
-        std::sort(refs.begin(), refs.end(), [](const CurveBandRef& a, const CurveBandRef& b) {
-            return a.m_SortKey > b.m_SortKey;
-        });
-
-        out_curve_indices.reserve(refs.size());
-        for (uint32_t i = 0; i < refs.size(); ++i)
-        {
-            out_curve_indices.push_back(refs[i].m_CurveIndex);
-        }
-    }
-
-    static inline uint32_t GetVectorBandTexelOffset(uint32_t row, uint32_t column)
-    {
-        return (row * VECTOR_BAND_TEXTURE_WIDTH + column) * 4;
-    }
-
     static bool EncodeGlyphOutlineToVectorCache(HFontMap font_map, CacheGlyph* cache_glyph, FontGlyph* glyph)
     {
         if (!glyph->m_Outline.m_Commands || glyph->m_Outline.m_CommandCount == 0)
@@ -1389,9 +1376,6 @@ namespace dmRender
         }
 
         uint32_t required_curve_texels = curve_count * 2;
-        uint8_t num_hbands = dmMath::Clamp((uint8_t)(curve_count / 2), (uint8_t)1, VECTOR_MAX_BANDS);
-        uint8_t num_vbands = dmMath::Clamp((uint8_t)(curve_count / 2), (uint8_t)1, VECTOR_MAX_BANDS);
-
         float min_x = encoded_curves[0].m_MinX;
         float min_y = encoded_curves[0].m_MinY;
         float max_x = encoded_curves[0].m_MaxX;
@@ -1421,54 +1405,18 @@ namespace dmRender
                    max_y);
         }
 
-        std::vector< std::vector<uint32_t> > hbands(num_hbands);
-        std::vector< std::vector<uint32_t> > vbands(num_vbands);
-        uint32_t total_loc_entries = 0;
-
-        float bb_h = dmMath::Max(0.0001f, max_y - min_y);
-        float bb_w = dmMath::Max(0.0001f, max_x - min_x);
-        float hband_height = bb_h / (float)num_hbands;
-        float vband_width = bb_w / (float)num_vbands;
-
-        for (uint32_t i = 0; i < num_hbands; ++i)
-        {
-            float band_min_y = min_y + hband_height * i;
-            float band_max_y = min_y + hband_height * (i + 1);
-            CollectHorizontalBand(encoded_curves, band_min_y, band_max_y, hbands[i]);
-            total_loc_entries += hbands[i].size();
-        }
-
-        for (uint32_t i = 0; i < num_vbands; ++i)
-        {
-            float band_min_x = min_x + vband_width * i;
-            float band_max_x = min_x + vband_width * (i + 1);
-            CollectVerticalBand(encoded_curves, band_min_x, band_max_x, vbands[i]);
-            total_loc_entries += vbands[i].size();
-        }
-
-        uint32_t header_size = num_hbands + num_vbands;
-        uint32_t row_width_needed = header_size + total_loc_entries;
-        if (row_width_needed > VECTOR_BAND_TEXTURE_WIDTH)
-        {
-            dmLogWarning("The vector band row is too wide to fit glyph %u in %s", glyph->m_GlyphIndex, dmHashReverseSafe64(font_map->m_NameHash));
-            return false;
-        }
-
-        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity ||
-            font_map->m_VectorBandCursor + 1 > VECTOR_BAND_TEXTURE_HEIGHT)
+        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity)
         {
             ResetVectorCache(font_map);
         }
 
-        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity ||
-            font_map->m_VectorBandCursor + 1 > VECTOR_BAND_TEXTURE_HEIGHT)
+        if (font_map->m_VectorCurveCursor + required_curve_texels > font_map->m_VectorCurveCapacity)
         {
             dmLogWarning("The vector font cache is too small to fit glyph %u in %s", glyph->m_GlyphIndex, dmHashReverseSafe64(font_map->m_NameHash));
             return false;
         }
 
         uint16_t curve_texel = font_map->m_VectorCurveCursor;
-        uint16_t band_index = font_map->m_VectorBandCursor;
 
         for (uint32_t i = 0; i < encoded_curves.size(); ++i)
         {
@@ -1493,58 +1441,11 @@ namespace dmRender
             }
         }
 
-        float* band_data = font_map->m_VectorBandData;
-        uint32_t loc_cursor = header_size;
-
-        for (uint32_t i = 0; i < num_hbands; ++i)
-        {
-            uint32_t texel = GetVectorBandTexelOffset(band_index, i);
-            band_data[texel + 0] = (float)hbands[i].size();
-            band_data[texel + 1] = (float)loc_cursor;
-            band_data[texel + 2] = 0.0f;
-            band_data[texel + 3] = 0.0f;
-
-            for (uint32_t j = 0; j < hbands[i].size(); ++j)
-            {
-                uint32_t loc_texel = GetVectorBandTexelOffset(band_index, loc_cursor++);
-                band_data[loc_texel + 0] = (float)encoded_curves[hbands[i][j]].m_CurveTexel;
-                band_data[loc_texel + 1] = 0.0f;
-                band_data[loc_texel + 2] = 0.0f;
-                band_data[loc_texel + 3] = 0.0f;
-            }
-        }
-
-        for (uint32_t i = 0; i < num_vbands; ++i)
-        {
-            uint32_t texel = GetVectorBandTexelOffset(band_index, num_hbands + i);
-            band_data[texel + 0] = (float)vbands[i].size();
-            band_data[texel + 1] = (float)loc_cursor;
-            band_data[texel + 2] = 0.0f;
-            band_data[texel + 3] = 0.0f;
-
-            for (uint32_t j = 0; j < vbands[i].size(); ++j)
-            {
-                uint32_t loc_texel = GetVectorBandTexelOffset(band_index, loc_cursor++);
-                band_data[loc_texel + 0] = (float)encoded_curves[vbands[i][j]].m_CurveTexel;
-                band_data[loc_texel + 1] = 0.0f;
-                band_data[loc_texel + 2] = 0.0f;
-                band_data[loc_texel + 3] = 0.0f;
-            }
-        }
-
         font_map->m_VectorCurveCursor += required_curve_texels;
-        font_map->m_VectorBandCursor += 1;
 
         cache_glyph->m_VectorCurveTexel = curve_texel;
         cache_glyph->m_VectorCurveTexelCount = required_curve_texels;
-        cache_glyph->m_VectorBandIndex = band_index;
         cache_glyph->m_VectorCurveCount = curve_count;
-        cache_glyph->m_VectorBandMaxX = num_vbands - 1;
-        cache_glyph->m_VectorBandMaxY = num_hbands - 1;
-        cache_glyph->m_VectorBandScaleX = bb_w > 0.0f ? (float)num_vbands / bb_w : 0.0f;
-        cache_glyph->m_VectorBandScaleY = bb_h > 0.0f ? (float)num_hbands / bb_h : 0.0f;
-        cache_glyph->m_VectorBandOffsetX = -min_x * cache_glyph->m_VectorBandScaleX;
-        cache_glyph->m_VectorBandOffsetY = -min_y * cache_glyph->m_VectorBandScaleY;
 
         UploadVectorTextures(font_map);
         return true;
@@ -1712,8 +1613,6 @@ namespace dmRender
         // The texture size
         if (font_map->m_Texture)
             size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_Texture);
-        if (font_map->m_BandTexture)
-            size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_BandTexture);
         return size;
     }
 

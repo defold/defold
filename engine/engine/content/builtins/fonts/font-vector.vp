@@ -4,13 +4,11 @@
 in highp vec4 position;
 in highp vec4 texcoord;
 in highp vec4 jacobian;
-in highp vec4 banding;
 in lowp vec4 color;
 in highp vec4 sdf_params;
 
 out highp vec2 var_texcoord;
 out mediump vec4 var_color;
-out highp vec4 var_banding;
 flat out highp vec4 var_jacobian;
 flat out highp vec4 var_glyph;
 flat out highp vec4 var_params;
@@ -25,7 +23,6 @@ void main()
 {
     var_texcoord = texcoord.xy;
     var_color = color;
-    var_banding = banding;
     var_jacobian = jacobian;
     var_glyph = vec4(texcoord.z, texcoord.w, position.z, position.w);
     var_params = sdf_params;

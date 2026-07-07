@@ -42,11 +42,10 @@ static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
 struct DM_ALIGNED(16) GlyphVertex
 {
     // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
-    // The first 68 bytes mirror the Slug Vertex4U layout used by the vector font MVP.
+    // The first streams carry the vector font path metadata.
     float m_Position[4];
     float m_VectorTexcoord[4];
     float m_VectorJacobian[4];
-    float m_VectorBanding[4];
     uint8_t m_VectorColor[4];
     float m_UV[2];
     float m_FaceColor[4];
@@ -87,7 +86,6 @@ dmGraphics::HVertexDeclaration CreateVertexDeclaration(HFontRenderBackend backen
     dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "texcoord", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "jacobian", 4, dmGraphics::TYPE_FLOAT, false);
-    dmGraphics::AddVertexStream(stream_declaration, "banding", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_UNSIGNED_BYTE, true);
     dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "face_color", 4, dmGraphics::TYPE_FLOAT, true);
@@ -425,13 +423,6 @@ static void OutputGlyphVector(uint32_t vertexindex,
                               float descent,
                               float curve_start,
                               float curve_count,
-                              float band_index,
-                              float band_max_x,
-                              float band_max_y,
-                              float band_scale_x,
-                              float band_scale_y,
-                              float band_offset_x,
-                              float band_offset_y,
                               float texcoord_min_x,
                               float texcoord_min_y,
                               float texcoord_max_x,
@@ -470,15 +461,11 @@ static void OutputGlyphVector(uint32_t vertexindex,
         v.m_VectorTexcoord[0] = u; \
         v.m_VectorTexcoord[1] = vv; \
         v.m_VectorTexcoord[2] = curve_count; \
-        v.m_VectorTexcoord[3] = band_index; \
-        v.m_VectorJacobian[0] = band_max_x; \
-        v.m_VectorJacobian[1] = band_max_y; \
+        v.m_VectorTexcoord[3] = 0.0f; \
+        v.m_VectorJacobian[0] = 0.0f; \
+        v.m_VectorJacobian[1] = 0.0f; \
         v.m_VectorJacobian[2] = outline_width; \
         v.m_VectorJacobian[3] = shadow_blur; \
-        v.m_VectorBanding[0] = band_scale_x; \
-        v.m_VectorBanding[1] = band_scale_y; \
-        v.m_VectorBanding[2] = band_offset_x; \
-        v.m_VectorBanding[3] = band_offset_y; \
         v.m_Position[2] = curve_start; \
         v.m_Position[3] = layer_mode; \
         v.m_SdfParams[0] = width; \
@@ -663,13 +650,6 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   glyph->m_Descent,
                                   cache_glyph->m_VectorCurveTexel,
                                   cache_glyph->m_VectorCurveCount,
-                                  cache_glyph->m_VectorBandIndex,
-                                  cache_glyph->m_VectorBandMaxX,
-                                  cache_glyph->m_VectorBandMaxY,
-                                  cache_glyph->m_VectorBandScaleX,
-                                  cache_glyph->m_VectorBandScaleY,
-                                  cache_glyph->m_VectorBandOffsetX,
-                                  cache_glyph->m_VectorBandOffsetY,
                                   shadow_texcoord_min_x,
                                   shadow_texcoord_min_y,
                                   shadow_texcoord_max_x,
@@ -696,13 +676,6 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   glyph->m_Descent,
                                   cache_glyph->m_VectorCurveTexel,
                                   cache_glyph->m_VectorCurveCount,
-                                  cache_glyph->m_VectorBandIndex,
-                                  cache_glyph->m_VectorBandMaxX,
-                                  cache_glyph->m_VectorBandMaxY,
-                                  cache_glyph->m_VectorBandScaleX,
-                                  cache_glyph->m_VectorBandScaleY,
-                                  cache_glyph->m_VectorBandOffsetX,
-                                  cache_glyph->m_VectorBandOffsetY,
                                   -outline_width_u,
                                   -outline_width_v,
                                   1.0f + outline_width_u,
@@ -727,13 +700,6 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                               glyph->m_Descent,
                               cache_glyph->m_VectorCurveTexel,
                               cache_glyph->m_VectorCurveCount,
-                              cache_glyph->m_VectorBandIndex,
-                              cache_glyph->m_VectorBandMaxX,
-                              cache_glyph->m_VectorBandMaxY,
-                              cache_glyph->m_VectorBandScaleX,
-                              cache_glyph->m_VectorBandScaleY,
-                              cache_glyph->m_VectorBandOffsetX,
-                              cache_glyph->m_VectorBandOffsetY,
                               0.0f,
                               0.0f,
                               1.0f,

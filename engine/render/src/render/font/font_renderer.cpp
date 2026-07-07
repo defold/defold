@@ -388,7 +388,6 @@ namespace dmRender
         ro->m_SetBlendFactors = 1;
         ro->m_Material = first_te.m_Material;
         ro->m_Textures[0] = font_map->m_Texture;
-        ro->m_Textures[1] = font_map->m_BandTexture;
         ro->m_VertexStart = text_context.m_VertexIndex;
         ro->m_StencilTestParams = first_te.m_StencilTestParams;
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
