@@ -35,7 +35,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto DataProto$Data GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
+           [com.dynamo.gamesys.proto DataProto$Data CollectionProxy$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
@@ -57,7 +57,7 @@
                         "animationsetc" Rig$AnimationSet
                         "meshsetc" Rig$MeshSet
                         "texturesetc" TextureSetProto$TextureSet
-                        "collectionproxyc" GameSystem$CollectionProxyDesc
+                        "collectionproxyc" CollectionProxy$CollectionProxyDesc
                         "collectionc" GameObject$CollectionDesc})
 
 (defn- target [path targets]
@@ -182,7 +182,7 @@
                "/collection_proxy/with_collection.collectionproxy"
                [{:label "Collection proxy"
                  :path "/collection_proxy/with_collection.collectionproxy"
-                 :pb-class GameSystem$CollectionProxyDesc
+                 :pb-class CollectionProxy$CollectionProxyDesc
                  :resource-fields [:collection]}]
                "/model/book_of_defold_no_tex.model"
                [{:label "Model with empty texture"
