@@ -561,6 +561,26 @@ public class ProjectBuildTest {
     }
 
     @Test
+    public void testArchiveBuildWithLuaCustomResourceTreatsItAsLeaf() throws IOException, CompileExceptionError, MultipleCompileException {
+        createDefaultFiles();
+        createFile(contentRoot, "game.project",
+                "[project]\n" +
+                "custom_resources = /custom\n" +
+                "\n" +
+                "[display]\n" +
+                "width=640\n" +
+                "height=480\n");
+        createFile(contentRoot, "custom/payload.lua",
+                "function init(self)\n" +
+                "end\n");
+
+        buildArchive(false);
+
+        assertTrue(new File(contentRoot, "build/custom/payload.lua").isFile());
+        assertFalse(new File(contentRoot, "build/custom/payload.luac").exists());
+    }
+
+    @Test
     public void testArchiveBuildStripsExcludedEntriesFromBundledManifestByDefault() throws IOException, CompileExceptionError, MultipleCompileException {
         createExcludedLiveUpdateProject(null);
 
