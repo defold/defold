@@ -31,11 +31,18 @@
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
-            [util.defonce :as defonce]))
+            [util.defonce :as defonce]
+            [util.path :as path])
+  (:import [com.dynamo.bob.util DependencyMetadata Library$Archive Library$Result]
+           [com.fasterxml.jackson.databind ObjectMapper]
+           [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
 
 (def game-project-icon "icons/32/Icons_04-Project-file.png")
+
+(def ^:private dependencies-metadata-setting-path ["project" "dependencies_metadata"])
+(def ^:private ^ObjectMapper dependency-metadata-object-mapper (ObjectMapper.))
 
 (defn- ignored-setting?
   [{:keys [path]}]
@@ -73,6 +80,54 @@
                        (sort-by first (transform-settings! settings-map)))
         user-data-content (settings-core/settings->str settings meta-settings :comma-separated-list)]
     {:resource resource :content (.getBytes user-data-content)}))
+
+(defn- build-dependency-metadata [resource _dep-resources user-data]
+  {:resource resource
+   :content (.writeValueAsBytes dependency-metadata-object-mapper
+                                (DependencyMetadata/collect (:digest-ignored/dependencies user-data)))})
+
+(defn- dependency-content-hash-data [dependencies]
+  (into []
+        (map (fn [^Library$Result dependency]
+               (let [archive ^Library$Archive (.archive dependency)]
+                 (cond-> {:uri (.uri dependency)
+                          :problem (some-> (.problem dependency) str)}
+                   archive
+                   (assoc :archive {:path (str (.path archive))
+                                    :size (path/byte-size (.path archive))
+                                    :modified-time (path/last-modified-ms (.path archive))
+                                    :base-dir (.baseDir archive)
+                                    :include-dirs (.includeDirs archive)
+                                    :zip-comment (.zipComment archive)})))))
+        dependencies))
+
+(defonce/record DependencyMetadataResource [workspace]
+  resource/Resource
+  (children [_] nil)
+  (ext [_] "json")
+  (resource-type [_]
+    {:ext "json"
+     :label (localization/message "resource.type.custom")
+     :build-ext "json"})
+  (source-type [_] :file)
+  (exists? [_] true)
+  (read-only? [_] false)
+  (symlink? [_] false)
+  (path [_] DependencyMetadata/OUTPUT_PATH)
+  (abs-path [_] (.getAbsolutePath (io/file (workspace/project-directory workspace) DependencyMetadata/OUTPUT_PATH)))
+  (proj-path [_] (str "/" DependencyMetadata/OUTPUT_PATH))
+  (resource-name [_] DependencyMetadata/DATA_FILE_NAME)
+  (workspace [_] workspace)
+  (resource-hash [_] (hash DependencyMetadata/OUTPUT_PATH))
+  (openable? [_] false)
+  (editable? [_] false)
+  (loaded? [_] true)
+
+  io/IOFactory
+  (make-input-stream [_ _opts] (ByteArrayInputStream. (byte-array 0)))
+  (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [_ opts] (io/make-output-stream (ByteArrayOutputStream.) opts))
+  (make-writer [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
 
 (defonce/record CustomResource [resource]
   ;; Only purpose is to provide resource-type with :build-ext = :ext
@@ -129,7 +184,7 @@
                                  [:lines :gamepad-database-lines]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
-(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
+(g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets dependencies gamepads-build-targets gamepads-resource gamepads-pb gamepad-database-resource gamepad-database-lines]
   (g/precluding-errors [(some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
                         gamepads-pb
                         gamepad-database-lines
@@ -153,15 +208,25 @@
                                                                 [path (deps-by-source value)])))
                                                       resource-settings)
                                           gamepads-build-target
-                                          (assoc ["input" "gamepads"] (:resource gamepads-build-target)))]
-      [(bt/with-content-hash
-         {:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-game-project
-          :user-data {:settings-map settings-map
-                      :meta-settings (:settings meta-info)
-                      :path->built-resource-settings path->built-resource-settings}
-          :deps dep-build-targets})])))
+                                          (assoc ["input" "gamepads"] (:resource gamepads-build-target)))
+          game-project-build-target (bt/with-content-hash
+                                      {:node-id _node-id
+                                       :resource (workspace/make-build-resource resource)
+                                       :build-fn build-game-project
+                                       :user-data {:settings-map settings-map
+                                                   :meta-settings (:settings meta-info)
+                                                   :path->built-resource-settings path->built-resource-settings}
+                                       :deps dep-build-targets})]
+      (cond-> [game-project-build-target]
+        (and (get settings-map dependencies-metadata-setting-path)
+             (coll/not-empty dependencies))
+        (conj (bt/with-content-hash
+                {:node-id _node-id
+                 :resource (workspace/make-build-resource
+                              (->DependencyMetadataResource (resource/workspace resource)))
+                 :build-fn build-dependency-metadata
+                 :user-data {:digest-ignored/dependencies dependencies
+                             :dependency-content-hash-data (dependency-content-hash-data dependencies)}}))))))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)
@@ -190,6 +255,7 @@
   (input resource-map g/Any)
   (input resource-snapshot g/Any)
   (input dep-build-targets g/Any :array)
+  (input dependencies g/Any)
   (input meta-info g/Any)
 
   (input build-errors g/Any :array)
@@ -277,6 +343,7 @@
     (concat
       (g/connect workspace :resource-map self :resource-map)
       (g/connect workspace :resource-snapshot self :resource-snapshot)
+      (g/connect workspace :dependencies self :dependencies)
       (g/make-nodes graph-id [settings-node settings/SettingsNode]
         (g/connect settings-node :_node-id self :nodes)
         (g/connect settings-node :settings-map self :settings-map)

@@ -43,6 +43,7 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
             [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
@@ -80,7 +81,7 @@
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
-           [java.util Collection]
+           [java.util BitSet Collection]
            [java.util.regex Pattern]
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
@@ -1393,19 +1394,23 @@
                                           :text (summarize-document-symbol-detail detail)
                                           :color :hint}))}})))
 
-(defn- navigate-to-document-symbol! [view-node ^TreeItem maybe-item]
-  (when maybe-item
+(defn- navigate-to-document-symbol! [view-node document-symbol]
+  (when document-symbol
     (set-properties! view-node :navigation
                      (data/select-and-frame (get-property view-node :lines)
                                             (get-property view-node :layout)
-                                            (:selection-range (.getValue maybe-item))))))
+                                            (:selection-range document-symbol)))))
+
+(defn- navigate-to-document-symbol-tree-item! [view-node ^TreeItem maybe-item]
+  (when maybe-item
+    (navigate-to-document-symbol! view-node (.getValue maybe-item))))
 
 (defn- focus-code-editor! [view-node]
   (.requestFocus ^Canvas (get-property view-node :canvas)))
 
 (defn- handle-structure-pane-key-pressed! [view-node ^KeyEvent event]
   (when (= KeyCode/ENTER (.getCode event))
-    (navigate-to-document-symbol! view-node (-> event ^TreeView (.getSource) .getSelectionModel .getSelectedItem))
+    (navigate-to-document-symbol-tree-item! view-node (-> event ^TreeView (.getSource) .getSelectionModel .getSelectedItem))
     (focus-code-editor! view-node)
     (.consume event)))
 
@@ -1422,7 +1427,7 @@
   {:fx/type fxui/titled-pane
    :title (localization-state structure-pane-message)
    :content {:fx/type fx.ext.tree-view/with-selection-props
-             :props {:on-selected-item-changed #(navigate-to-document-symbol! view-node %)}
+             :props {:on-selected-item-changed #(navigate-to-document-symbol-tree-item! view-node %)}
              :desc {:fx/type fxui/tree-view
                     :show-root false
                     :on-key-pressed #(handle-structure-pane-key-pressed! view-node %)
@@ -3091,6 +3096,96 @@
                 (show-goto-popup! view-node open-resource-fn results)))))
         (show-no-language-server-for-resource-language-notification! resource)))))
 
+(defn- flatten-document-symbols [document-symbols]
+  (coll/into-> document-symbols []
+    (coll/tree-xf
+      (fn [{:keys [kind children]}]
+        (and (coll/not-empty children)
+             (contains? #{:object :class :enum :struct :namespace} kind)))
+      :children)
+    (map #(dissoc % :children))))
+
+(handler/defhandler :code.jump-to-symbol :code-view
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)
+          resource (g/node-value resource-node :resource evaluation-context)]
+      (resource/file-resource? resource)))
+  (run [view-node]
+    (g/with-auto-evaluation-context evaluation-context
+      (let [resource-node (get-property view-node :resource-node evaluation-context)
+            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+            resource (g/node-value resource-node :resource evaluation-context)
+            localization (get-property view-node :localization evaluation-context)]
+        (if (not (lsp/has-language-servers-running-for-language? lsp (resource/language resource)))
+          (show-no-language-server-for-resource-language-notification! resource)
+          (let [document-symbols (get-property view-node :document-symbols evaluation-context)
+                items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
+                            (flatten-document-symbols document-symbols))
+                ;; Previewing moves the cursor as the selection changes, so remember
+                ;; where we started to put it back if the dialog is cancelled.
+                original-view {:cursor-ranges (get-property view-node :cursor-ranges evaluation-context)
+                               :scroll-x (get-property view-node :scroll-x evaluation-context)
+                               :scroll-y (get-property view-node :scroll-y evaluation-context)}
+                selection
+                (dialogs/make-select-list-dialog
+                  items
+                  localization
+                  {:title (localization/message "dialog.jump-to-symbol.title")
+                   :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
+                   :prompt (localization/message "dialog.jump-to-symbol.prompt")
+                   :filter-fn (partial fuzzy-choices/filter-options :name :name)
+                   ;; Follow the highlighted symbol as you move through or filter
+                   ;; the list, but ignore empty-filter item changes so the cursor
+                   ;; only moves once you've started looking.
+                   :preview-item-fn (fn [item source]
+                                      (when (not= source :opened)
+                                        (navigate-to-document-symbol! view-node item)))
+                   :cell-fn (fn [{:keys [name kind detail tags] :as item} _localization]
+                              ;; The dialog is a fixed width, so a row must never grow wider than
+                              ;; it and cause a horizontal scrollbar. A very long name gets cut
+                              ;; short with a "…"; the signature (further down) trims the same way.
+                              (let [max-name-length 56
+                                    indices (:matching-indices (meta item))
+                                    elide (> (count name) max-name-length)
+                                    display-name (if elide
+                                                   (str (subs name 0 max-name-length) "…")
+                                                   name)
+                                    ;; Once the name is cut, forget any highlighted spots that
+                                    ;; landed on characters we just removed — otherwise the
+                                    ;; highlighter reaches past the end of the shortened text.
+                                    indices (if (and elide indices)
+                                              (doto ^BitSet (.clone ^BitSet indices)
+                                                (.clear (int max-name-length) (count name)))
+                                              indices)]
+                                {:style-class ["list-cell"]
+                                 :graphic {:fx/type fx.h-box/lifecycle
+                                           :alignment :center-left
+                                           :spacing 6
+                                           :pref-width 1.0
+                                           :max-width Double/MAX_VALUE
+                                           :children
+                                           (cond-> [{:fx/type code-type-icon :type kind}
+                                                    (assoc (fuzzy-choices/make-matched-text-flow-cljfx
+                                                             display-name
+                                                             indices
+                                                             :deprecated (contains? tags :deprecated))
+                                                           :min-width :use-pref-size)]
+                                             (coll/not-empty detail)
+                                             (conj {:fx/type fx.region/lifecycle
+                                                    :h-box/hgrow :always
+                                                    :min-width 10.0}
+                                                   {:fx/type fx.label/lifecycle
+                                                    :h-box/hgrow :never
+                                                    :min-width 0
+                                                    :style {:-fx-text-fill :-df-text-dark}
+                                                    :text (if (= kind :function)
+                                                            (string/replace-first detail #"^function\b" "ƒ")
+                                                            detail)}))}}))})]
+            (if selection
+              (navigate-to-document-symbol! view-node (first selection))
+              (set-properties! view-node :navigation original-view))
+            (focus-code-editor! view-node)))))))
+
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
 ;; -----------------------------------------------------------------------------
@@ -3532,7 +3627,8 @@
    {:command :code.zoom.decrease :label (localization/message "command.code.zoom.decrease")}
    {:command :code.zoom.reset :label (localization/message "command.code.zoom.reset")}
    {:label :separator}
-   {:command :code.goto-line :label (localization/message "command.code.goto-line")}])
+   {:command :code.goto-line :label (localization/message "command.code.goto-line")}
+   {:command :code.jump-to-symbol :label (localization/message "command.code.jump-to-symbol")}])
 
 ;; -----------------------------------------------------------------------------
 

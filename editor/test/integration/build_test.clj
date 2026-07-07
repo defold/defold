@@ -33,7 +33,7 @@
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
             [util.murmur :as murmur])
-  (:import [com.dynamo.bob.util TextureUtil]
+  (:import [com.dynamo.bob.util DependencyMetadata Library$Problem$Missing Library$Result TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto DataProto$Data GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
@@ -41,6 +41,7 @@
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
+           [java.net URI]
            [org.apache.commons.io IOUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
@@ -918,6 +919,26 @@
               error-message (some :message (tree-seq :causes :causes build-error))]
           (is (g/error? build-error))
           (is (= "Custom resources directory not found: '/nonexistent_path'" error-message)))))))))
+
+(deftest build-with-dependencies-metadata
+  (with-loaded-project "test/resources/custom_resources_project"
+    (let [game-project (test-util/resource-node project "/game.project")
+          dependency-url "https://user:secret@example.com/library.zip?token=abc"
+          anonymized-dependency-url "https://example.com/library.zip"
+          expected-metadata-json (str "[{\"url\":\"" anonymized-dependency-url "\",\"commit-sha1\":\"\",\"problem\":\"missing\"}]")
+          build-metadata-file (build-path workspace DependencyMetadata/OUTPUT_PATH)]
+      (workspace/set-project-dependencies!
+        workspace
+        [(Library$Result.
+           (URI/create dependency-url)
+           nil
+           (Library$Problem$Missing.))])
+      (with-setting "project/dependencies_metadata" true
+        (is (nil? (:error (project-build! project game-project))))
+        (is (= expected-metadata-json (slurp build-metadata-file))))
+      (with-setting "project/dependencies_metadata" false
+        (is (nil? (:error (project-build! project game-project))))
+        (is (false? (.exists build-metadata-file)))))))
 
 (deftest build-with-ssl-certificates
   (with-loaded-project "test/resources/custom_resources_project"

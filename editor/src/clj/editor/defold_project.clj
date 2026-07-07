@@ -1900,7 +1900,10 @@
         progress (atom (progress/make (localization/message "progress.updating-dependencies") 13 0))]
     (render-progress! @progress)
 
-    (->> (library/fetch! (workspace/project-directory workspace-id) dependencies (progress/nest-render-progress render-progress! @progress 4))
+    (->> (library/fetch!
+           (workspace/project-directory workspace-id)
+           dependencies
+           (progress/nest-render-progress render-progress! @progress 4))
          (workspace/set-project-dependencies! workspace-id))
 
     (render-progress! (swap! progress progress/advance 4 (localization/message "progress.syncing-resources")))
