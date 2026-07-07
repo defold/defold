@@ -3094,13 +3094,13 @@
         (show-no-language-server-for-resource-language-notification! resource)))))
 
 (defn- flatten-document-symbols [document-symbols]
-  (letfn [(walk [acc {:keys [kind children] :as symbol}]
-            (let [acc (conj acc (dissoc symbol :children))]
-              (if (and (coll/not-empty children)
-                       (contains? #{:object :class :enum :struct :namespace} kind))
-                (reduce walk acc children)
-                acc)))]
-    (reduce walk [] document-symbols)))
+  (coll/into-> document-symbols []
+    (comp (coll/tree-xf
+            (fn [{:keys [kind children]}]
+              (and (coll/not-empty children)
+                   (contains? #{:object :class :enum :struct :namespace} kind)))
+            :children)
+          (map #(dissoc % :children)))))
 
 (handler/defhandler :code.jump-to-symbol :code-view
   (enabled? [view-node evaluation-context]
@@ -3131,24 +3131,26 @@
                    :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
                    :prompt (localization/message "dialog.jump-to-symbol.prompt")
                    :filter-fn (partial fuzzy-choices/filter-options :name :name)
-                   ;; Preview the highlighted symbol as the user navigates or
-                   ;; filters; the dialog stays quiet on open so the cursor only
-                   ;; moves once the user engages.
-                   :preview-item-fn #(navigate-to-document-symbol! view-node %)
+                   ;; Follow the highlighted symbol as you move through or filter
+                   ;; the list, but ignore empty-filter item changes so the cursor
+                   ;; only moves once you've started looking.
+                   :preview-item-fn (fn [item source]
+                                      (when (not= source :opened)
+                                        (navigate-to-document-symbol! view-node item)))
                    :cell-fn (fn [{:keys [name kind detail tags] :as item} _localization]
                               ;; The dialog is a fixed width, so a row must never grow wider than
                               ;; it and cause a horizontal scrollbar. A very long name gets cut
                               ;; short with a "…"; the signature (further down) trims the same way.
                               (let [max-name-length 56
                                     indices (:matching-indices (meta item))
-                                    elide? (> (count name) max-name-length)
-                                    display-name (if elide?
+                                    elide (> (count name) max-name-length)
+                                    display-name (if elide
                                                    (str (subs name 0 max-name-length) "…")
                                                    name)
                                     ;; Once the name is cut, forget any highlighted spots that
                                     ;; landed on characters we just removed — otherwise the
                                     ;; highlighter reaches past the end of the shortened text.
-                                    indices (if (and elide? indices)
+                                    indices (if (and elide indices)
                                               (doto ^BitSet (.clone ^BitSet indices)
                                                 (.clear (int max-name-length) (count name)))
                                               indices)]

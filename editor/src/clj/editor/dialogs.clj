@@ -592,37 +592,11 @@
                               ;; This keeps the anchor at the top so shift+click selects from the start instead of the end:
                               (.put properties "isDefaultAnchor" true)))))))
 
-(defn- install-selection-preview!
-  "Call `preview-item-fn` with the item to preview.
-  Preview is triggered by user interaction in two cases:
-
-    - when the list gains focus or its focused item changes;
-    - when filtering changes the item list while the filter term is non-empty.
-
-  When opened without an initial filter, neither trigger fires during setup."
-  [preview-item-fn preview-on-items-changed? ^ListView view]
-  (let [focus-model ^javafx.scene.control.FocusModel (.getFocusModel view)
-        preview! (fn [item]
-                   (when item
-                     (preview-item-fn item)))]
-    (.addListener (.focusedIndexProperty focus-model)
-                  (reify javafx.beans.value.ChangeListener
-                    (changed [_ _ _ _]
-                      (when (.isFocused view)
-                        (preview! (.getFocusedItem focus-model))))))
-    (.addListener (.focusedProperty view)
-                  (reify javafx.beans.value.ChangeListener
-                    (changed [_ _ _ focused]
-                      (when focused
-                        (preview! (.getFocusedItem focus-model))))))
-    (.addListener (.getItems view)
-                  (reify ListChangeListener
-                    (onChanged [_ _]
-                      (when (preview-on-items-changed?)
-                        (preview! (first (.getItems view)))))))))
+(def ^:private ext-with-selection-preview-prop
+  (fx/make-ext-with-props {:selection-preview fxui/list-view-selection-preview-prop}))
 
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn preview-on-items-changed?]
+  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn]
     :as props}]
   {:fx/type dialog-stage
    :title (localization title)
@@ -639,16 +613,17 @@
              :props {:selection-mode selection
                      :on-selected-indices-changed {:event-type :set-selected-indices}}
              :desc {:fx/type fx/ext-on-instance-lifecycle
-                    :on-created (fn [view]
-                                  (select-first-list-item-on-items-changed! view)
-                                  (when preview-item-fn
-                                    (install-selection-preview! preview-item-fn preview-on-items-changed? view)))
-                    :desc {:fx/type ext-with-identity-items-props
-                           :props {:items filtered-items}
-                           :desc {:fx/type fx.list-view/lifecycle
-                                  :fixed-cell-size 27
-                                  :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                                 :describe cell-fn}}}}}
+                    :on-created select-first-list-item-on-items-changed!
+                    :desc {:fx/type ext-with-selection-preview-prop
+                           :props (if (some? preview-item-fn)
+                                    {:selection-preview preview-item-fn}
+                                    {})
+                           :desc {:fx/type ext-with-identity-items-props
+                                  :props {:items filtered-items}
+                                  :desc {:fx/type fx.list-view/lifecycle
+                                         :fixed-cell-size 27
+                                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                        :describe cell-fn}}}}}}
    :footer {:fx/type fx.h-box/lifecycle
             :alignment :center-left
             :children [{:fx/type fx.progress-indicator/lifecycle
@@ -759,11 +734,12 @@
                       defaults to \"dialog.select-item.prompt\" message
       :owner          the owner window, defaults to main stage
       :preview-item-fn
-                      optional side-effecting fn of one arg, called with the
-                      item to preview when the list gains focus, its focused
-                      item changes, or filtering changes the item list while
-                      the filter term is non-empty; when opened without an
-                      initial filter, it is not called during setup"
+                      optional side-effecting fn of two args, an item to preview
+                      and a source keyword describing what triggered it:
+                        :opened    items changed while the filter is empty
+                        :filtered  items changed while the filter is non-empty
+                        :focused   the list gained focus or its focused item
+                                   changed"
   ([items localization]
    (make-select-list-dialog items localization {}))
   ([items localization options]
@@ -815,8 +791,19 @@
                   :event-handler event-handler
                   :description {:fx/type select-list-dialog
                                 :localization localization
-                                :preview-item-fn (:preview-item-fn options)
-                                :preview-on-items-changed? #(coll/not-empty (:filter-term @state-atom))
+                                ;; The list only tells us focus moved or its items
+                                ;; changed. Split "items changed" into :opened (nothing
+                                ;; searched yet) or :filtered so the caller can tell the
+                                ;; two apart.
+                                :preview-item-fn (when-let [preview-item-fn (:preview-item-fn options)]
+                                                   (fn [item source]
+                                                     (preview-item-fn
+                                                       item
+                                                       (case source
+                                                         :focused :focused
+                                                         :items (if (coll/empty? (:filter-term @state-atom))
+                                                                  :opened
+                                                                  :filtered)))))
                                 :title (or (:title options)
                                            (localization/message "dialog.select-item.title"))
                                 :ok-label (or (:ok-label options)

@@ -65,12 +65,12 @@
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
            [javafx.beans.value ChangeListener ObservableValue]
-           [javafx.collections ObservableList]
+           [javafx.collections ListChangeListener ObservableList]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
            [javafx.scene Node Parent]
-           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextInputControl Tooltip]
+           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper FocusModel ListView MenuButton ScrollPane TextInputControl Tooltip]
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region StackPane]
@@ -328,6 +328,41 @@
                      props @props-vol]
                  (proxy-super updateItem item empty)
                  (vreset! props-vol (% props this item empty))))))))))
+
+(def list-view-selection-preview-prop
+  "Prop for following along with whatever the list is showing, e.g. to keep
+  another view in sync.
+
+  Value is a function called with the item to preview and the source event:
+
+    :focused    the list gained focus, or you moved through it
+    :items      the list's contents changed"
+  (fx/make-binding-prop
+    (fn [^ListView view preview-fn]
+      (let [focus-model ^FocusModel (.getFocusModel view)
+            items (.getItems view)
+            preview! (fn [item source]
+                       (when item
+                         (preview-fn item source)))
+            focused-index-listener (reify ChangeListener
+                                     (changed [_ _ _ _]
+                                       (when (.isFocused view)
+                                         (preview! (.getFocusedItem focus-model) :focused))))
+            focused-listener (reify ChangeListener
+                               (changed [_ _ _ focused]
+                                 (when focused
+                                   (preview! (.getFocusedItem focus-model) :focused))))
+            items-listener (reify ListChangeListener
+                             (onChanged [_ _]
+                               (preview! (first items) :items)))]
+        (.addListener (.focusedIndexProperty focus-model) focused-index-listener)
+        (.addListener (.focusedProperty view) focused-listener)
+        (.addListener items items-listener)
+        #(do
+           (.removeListener (.focusedIndexProperty focus-model) focused-index-listener)
+           (.removeListener (.focusedProperty view) focused-listener)
+           (.removeListener items items-listener))))
+    fx.lifecycle/scalar))
 
 (defn wrap-dedupe-desc
   "Renderer middleware that skips advancing if new description is the same"
