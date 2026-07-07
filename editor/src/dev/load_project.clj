@@ -222,8 +222,11 @@
               (if separate-load-tx-data-generation [] :eduction)
               coll/flatten-xf)))
 
+        transaction-context (g/make-transaction-context transact-opts)
+        original-graph-identities (it/ctx-graph-identities transaction-context)
+
         tx-result
-        (as-> (g/make-transaction-context transact-opts) transaction-context
+        (as-> transaction-context transaction-context
 
               (run-and-measure-task!
                 :apply-load-tx-data
@@ -235,19 +238,16 @@
                 (let [[transaction-context] (it/realize-update-overrides transaction-context nil)]
                   transaction-context))
 
-              (it/mark-nodes-modified transaction-context)
-
               (run-and-measure-task!
                 :update-successors
                 (it/update-successors transaction-context))
 
               (when transaction-context
                 (it/trace-dependencies transaction-context)
-                (it/finalize-update transaction-context)
-                (it/apply-tx-label transaction-context)))
+                (it/finalize-update transaction-context)))
 
         _ (when tx-result
-            (g/commit-tx-result! tx-result transact-opts))
+            (g/commit-tx-result! tx-result transact-opts original-graph-identities))
 
         migrated-resource-node-ids
         (let [basis (:basis tx-result)]

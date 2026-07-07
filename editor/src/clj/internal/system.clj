@@ -160,12 +160,36 @@
       (update :user-data remove-deleted-user-data (keys nodes-deleted))
       (update :invalidate-counters bump-invalidate-counters outputs-modified)))
 
+(defn modified-graph-states
+  [post-tx-graphs original-graph-identities]
+  (coll/transform-> post-tx-graphs
+    (filter (fn [[graph-id graph]]
+              (not= (original-graph-identities graph-id)
+                    (it/graph-identity graph))))))
+
+(defn- ensure-no-concurrent-modifications!
+  [system modified-post-tx-graphs]
+  (coll/reduce-kv-> modified-post-tx-graphs nil
+    (fn [_ graph-id modified-graph]
+      (let [start-tx (:tx-id modified-graph -1)
+            sidereal-tx (graph-time system graph-id)]
+        (when (< start-tx sidereal-tx)
+          ;; graph was modified concurrently by a different transaction.
+          (throw
+            (ex-info
+              "Concurrent modification of graph"
+              {:graph-id graph-id
+               :start-tx start-tx
+               :sidereal-tx sidereal-tx})))))))
+
 (defn- commit-graph-states
-  [system post-tx-graphs]
-  (reduce-kv (fn [system graph-id graph]
-               (assoc-in system [:graphs graph-id] (update graph :tx-id util/safe-inc)))
-             system
-             post-tx-graphs))
+  [system modified-post-tx-graphs]
+  (update
+    system :graphs
+    (fn [graphs]
+      (coll/reduce-kv-> modified-post-tx-graphs graphs
+        (fn [graphs graph-id modified-graph]
+          (assoc graphs graph-id (update modified-graph :tx-id util/safe-inc)))))))
 
 (defn- replay-changes
   [system transaction-changes change-fn]
@@ -176,18 +200,20 @@
               {}
               nil
               false)
+        original-graph-identities (it/ctx-graph-identities ctx)
         ctx (reduce (fn [ctx transaction-change]
                       (-> ctx
                           (change-fn transaction-change)
                           (update :completed-action-count inc)))
                     ctx
                     transaction-changes)
-        tx-result (it/finalize-applied-changes ctx)]
+        {:keys [nodes-deleted outputs-modified] :as tx-result} (it/finalize-applied-changes ctx)
+        post-tx-graphs (get-in tx-result [:basis :graphs])
+        modified-post-tx-graphs (modified-graph-states post-tx-graphs original-graph-identities)]
+    (ensure-no-concurrent-modifications! system modified-post-tx-graphs)
     (-> system
-        (commit-graph-states (select-keys (get-in tx-result [:basis :graphs])
-                                          (:graphs-modified tx-result)))
-        (commit-transaction-effects (:outputs-modified tx-result)
-                                    (:nodes-deleted tx-result)))))
+        (commit-graph-states modified-post-tx-graphs)
+        (commit-transaction-effects outputs-modified nodes-deleted))))
 
 (defn- set-undo
   [system undo-key undo]
@@ -297,26 +323,13 @@
           (update-in [:undo undo-key]
                      #(merge-or-push-undo (or % (new-undo)) label sequence-label undoable-changes))))
 
-(defn- prepare-transaction-graphs
-  [system post-tx-graphs]
-  (reduce-kv (fn [post-tx-graphs graph-id graph]
-               (let [start-tx (:tx-id graph -1)
-                     sidereal-tx (graph-time system graph-id)]
-                 (when (< start-tx sidereal-tx)
-                   ;; graph was modified concurrently by a different transaction.
-                   (throw (ex-info "Concurrent modification of graph"
-                                   {:_graph-id graph-id :start-tx start-tx :sidereal-tx sidereal-tx})))
-                 (assoc post-tx-graphs graph-id graph)))
-             {}
-             post-tx-graphs))
-
 (defn merge-graphs
-  [system undo-key post-tx-graphs outputs-modified nodes-deleted undoable-changes label sequence-label]
-  (let [post-tx-graphs (prepare-transaction-graphs system post-tx-graphs)]
-    (-> system
-        (register-undoable-changes undo-key label sequence-label undoable-changes)
-        (commit-graph-states post-tx-graphs)
-        (commit-transaction-effects outputs-modified nodes-deleted))))
+  [system modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes]
+  (ensure-no-concurrent-modifications! system modified-post-tx-graphs)
+  (-> system
+      (register-undoable-changes undo-key label sequence-label undoable-changes)
+      (commit-graph-states modified-post-tx-graphs)
+      (commit-transaction-effects outputs-modified nodes-deleted)))
 
 (defn basis-graphs-identical? [basis1 basis2]
   (let [graph-ids (keys (:graphs basis1))]

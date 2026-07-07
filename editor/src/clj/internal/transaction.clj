@@ -1497,6 +1497,13 @@
    :metrics metrics-collector
    :full-invalidation full-invalidation})
 
+(def graph-identity System/identityHashCode)
+
+(defn ctx-graph-identities
+  [{:keys [basis] :as _ctx}]
+  {:pre [(gt/basis? basis)]}
+  (coll/map-vals graph-identity (:graphs basis)))
+
 (defn update-successors
   [{:keys [^long completed-action-count successors-changed] :as ctx}]
   (du/measuring (:metrics ctx) :update-successors
