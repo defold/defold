@@ -360,10 +360,6 @@
 
 (set! *warn-on-reflection* true)
 
-(definline arc
-  [source-id source-label target-id target-label]
-  `(Arc. ~source-id ~source-label ~target-id ~target-label))
-
 (defn- arc-table-next-pkid
   ^long [arc-table]
   (long (get (meta arc-table) :next-pkid 0)))

@@ -22,6 +22,8 @@
             [internal.node :as in]
             [util.coll :as coll]))
 
+(set! *warn-on-reflection* true)
+
 (def min-node-count 80)
 (def max-node-count 100)
 (def node-deletion-factor 5)

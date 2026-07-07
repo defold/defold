@@ -343,17 +343,17 @@
         (ensure-nodes-absent-from-graph!)))))
 
 (deftest undo-redo-node-user-data-deletion-test
-  ;; TODO(decouple-undo-from-graph): Revise user-data semantics?
-  ;;   The user-data associated with a node is removed from the system when the
-  ;;   node is deleted from its graph. However, if the graph has history, the
-  ;;   deletion is undoable. But since user-data is outside of the undo system,
-  ;;   undoing the deletion will not restore the user-data associated with the
-  ;;   deleted node.
+  ;; TODO(decouple-undo-from-graph-cleanup): Revise user-data semantics?
+  ;;   In accordance with the previous rules, the user-data associated with a
+  ;;   node is removed from the system when the node is deleted from its graph.
+  ;;   However, the deletion may be undoable. But since user-data is outside of
+  ;;   the undo system according to the previous rules, undoing the deletion
+  ;;   will not restore the user-data associated with the deleted node.
   ;;   It might be more correct to not delete user-data along with the node at
-  ;;   all, and instead delete user-data explicitly. However, once we decouple
-  ;;   the undo system from the graph state, we could potentially remove graph
-  ;;   user-data as a concept and just store the information in regular
-  ;;   properties.
+  ;;   all, and instead delete user-data explicitly. However, now that we've
+  ;;   decoupled the undo system from the graph state, we could potentially
+  ;;   remove graph user-data as a concept and just store the information in
+  ;;   regular properties without any loss of functionality.
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
           {:keys [owner-node-id] :as key->node-id} (setup-override-hierarchy! graph-id OwnerTestNode OwnedTestNode)
@@ -394,88 +394,78 @@
         (ensure-user-data-absent-from-system!)))))
 
 (deftest undo-node-deletion-restores-connection-order-test
-  (testing "Source arcs."
-    (test-support/with-clean-system
-      (let [graph-id (g/make-graph!)
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
 
-            [source-node-id
-             first-target-node-id
-             second-target-node-id
-             third-target-node-id]
-            (g/tx-nodes-added
-              (g/transact
-                {:undoable false}
-                (g/make-nodes graph-id
-                  [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                   first-target-node-id helpers/ConnectionTargetNode
-                   second-target-node-id helpers/ConnectionTargetNode
-                   _third-target-node-id helpers/ConnectionTargetNode]
-                  (g/connect source-node-id :property-output first-target-node-id :regular-input)
-                  (g/connect source-node-id :property-output second-target-node-id :regular-input))))]
+          [target-node-id
+           first-source-node-id
+           second-source-node-id
+           deleted-source-node-id
+           later-source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [target-node-id helpers/ConnectionTargetNode
+                 first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                 second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                 deleted-source-node-id [helpers/ConnectionSourceNode :property :duplicated-value]
+                 _later-source-node-id [helpers/ConnectionSourceNode :property :later-value]]
+                (g/connect first-source-node-id :property-output target-node-id :array-input)
+                (g/connect deleted-source-node-id :property-output target-node-id :array-input)
+                (g/connect second-source-node-id :property-output target-node-id :array-input)
+                (g/connect deleted-source-node-id :property-output target-node-id :array-input))))
 
-        (g/transact
-          {:undo-key ::delete-target}
-          (g/delete-node first-target-node-id))
+          ensure-arcs!
+          (fn ensure-arcs! [expected-arcs]
+            (let [basis (g/now)]
+              (doseq [source-node-id (coll/into-> expected-arcs [] (map first) (distinct))]
+                (is (= (coll/into-> expected-arcs []
+                         (keep (fn [[expected-source-node-id _source-label expected-target-node-id expected-target-label]]
+                                 (when (= source-node-id expected-source-node-id)
+                                   [expected-target-node-id expected-target-label]))))
+                       (g/targets basis source-node-id :property-output))))
 
-        (g/transact
-          {:undo-key ::connect-later-target}
-          (g/connect source-node-id :property-output third-target-node-id :regular-input))
+              (is (= (coll/into-> expected-arcs []
+                       (map (fn [[expected-source-node-id expected-source-label _target-node-id _target-label]]
+                              [expected-source-node-id expected-source-label])))
+                     (g/sources basis target-node-id :array-input)))))]
 
-        (is (= [[second-target-node-id :regular-input]
-                [third-target-node-id :regular-input]]
-               (g/targets (g/now) source-node-id :property-output)))
+      (testing "Before deleting source."
+        (ensure-arcs!
+          [[first-source-node-id :property-output target-node-id :array-input]
+           [deleted-source-node-id :property-output target-node-id :array-input]
+           [second-source-node-id :property-output target-node-id :array-input]
+           [deleted-source-node-id :property-output target-node-id :array-input]]))
 
-        (g/undo! ::delete-target)
-
-        (is (= [[first-target-node-id :regular-input]
-                [second-target-node-id :regular-input]
-                [third-target-node-id :regular-input]]
-               (g/targets (g/now) source-node-id :property-output))))))
-
-  (testing "Target arcs."
-    (test-support/with-clean-system
-      (let [graph-id (g/make-graph!)
-
-            [first-source-node-id
-             second-source-node-id
-             duplicated-source-node-id
-             later-source-node-id
-             target-node-id]
-            (g/tx-nodes-added
-              (g/transact
-                {:undoable false}
-                (g/make-nodes graph-id
-                  [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
-                   second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
-                   duplicated-source-node-id [helpers/ConnectionSourceNode :property :duplicated-value]
-                   _later-source-node-id [helpers/ConnectionSourceNode :property :later-value]
-                   target-node-id helpers/ConnectionTargetNode]
-                  (g/connect first-source-node-id :property-output target-node-id :array-input)
-                  (g/connect duplicated-source-node-id :property-output target-node-id :array-input)
-                  (g/connect second-source-node-id :property-output target-node-id :array-input)
-                  (g/connect duplicated-source-node-id :property-output target-node-id :array-input))))]
-
+      (testing "After deleting source."
         (g/transact
           {:undo-key ::delete-source}
-          (g/delete-node duplicated-source-node-id))
+          (g/delete-node deleted-source-node-id))
 
+        (ensure-arcs!
+          [[first-source-node-id :property-output target-node-id :array-input]
+           [second-source-node-id :property-output target-node-id :array-input]]))
+
+      (testing "After connecting later source."
         (g/transact
           {:undo-key ::connect-later-source}
           (g/connect later-source-node-id :property-output target-node-id :array-input))
 
-        (is (= [[first-source-node-id :property-output]
-                [second-source-node-id :property-output]
-                [later-source-node-id :property-output]]
-               (g/sources (g/now) target-node-id :array-input)))
+        (ensure-arcs!
+          [[first-source-node-id :property-output target-node-id :array-input]
+           [second-source-node-id :property-output target-node-id :array-input]
+           [later-source-node-id :property-output target-node-id :array-input]]))
 
+      (testing "After undoing source deletion."
         (g/undo! ::delete-source)
 
-        (is (= [[first-source-node-id :property-output]
-                [duplicated-source-node-id :property-output]
-                [second-source-node-id :property-output]
-                [duplicated-source-node-id :property-output]
-                [later-source-node-id :property-output]]
-               (g/sources (g/now) target-node-id :array-input)))))))
+        (ensure-arcs!
+          [[first-source-node-id :property-output target-node-id :array-input]
+           [deleted-source-node-id :property-output target-node-id :array-input]
+           [second-source-node-id :property-output target-node-id :array-input]
+           [deleted-source-node-id :property-output target-node-id :array-input]
+           [later-source-node-id :property-output target-node-id :array-input]])))))
 
 (deftest undo-node-deletion-preserves-empty-arc-table-next-pkid-test
   (testing "Source arcs."
