@@ -23,6 +23,7 @@
             [editor.system :as system]
             [service.log :as log]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.net :as net])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
@@ -45,17 +46,17 @@
   ^String [release-notes]
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
         issue->closed-issues (fn [{:keys [closed_issues repository]}]
-                               (string/join ","
-                                            (into []
-                                                  (map (fn [issue-number]
-                                                         (let [issue-text (if (= "defold" repository)
-                                                                            (str "#" issue-number)
-                                                                            (str repository "#" issue-number))
-                                                               issue-url (format "https://github.com/defold/%s/issues/%s"
-                                                                                 repository
-                                                                                 issue-number)]
-                                                           (format "[%s](%s)" issue-text issue-url))))
-                                                  closed_issues)))
+                               (coll/join-to-string
+                                 ","
+                                 (e/map (fn [issue-number]
+                                          (let [issue-text (if (= "defold" repository)
+                                                             (str "#" issue-number)
+                                                             (str repository "#" issue-number))
+                                                issue-url (format "https://github.com/defold/%s/issues/%s"
+                                                                  repository
+                                                                  issue-number)]
+                                            (format "[%s](%s)" issue-text issue-url)))
+                                        closed_issues)))
         issue->markdown (fn [{:keys [author pr_number title type url] :as issue}]
                           (let [closed-issues (issue->closed-issues issue)]
                             (format "* __%s__: (%s) %s (by %s) (PR [#%s](%s))\n"
@@ -243,13 +244,13 @@
         slots (:release-notes state)]
     (when (and (= (:release-notes-sha state) (:server-sha1 state))
                (not (coll/empty? slots)))
-      (string/join "\n\n---\n\n"
-                   (map (fn [{:keys [version notes]}]
-                          (if notes
-                            (release-notes->markdown notes)
-                            (str "# Defold Release Summary - Version " version
-                                 "\n\n_Failed to download these release notes._")))
-                        slots)))))
+      (coll/join-to-string "\n\n---\n\n"
+                           (e/map (fn [{:keys [version notes]}]
+                                    (if notes
+                                      (release-notes->markdown notes)
+                                      (str "# Defold Release Summary - Version " version
+                                           "\n\n_Failed to download these release notes._")))
+                                  slots)))))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))

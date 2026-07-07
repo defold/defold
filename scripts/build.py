@@ -33,6 +33,7 @@ import wasm_runner
 import release_to_github
 import release_to_steam
 import release_to_egs
+import releasenotes
 import BuildUtility
 import http_cache
 import sdk_merge
@@ -3212,81 +3213,15 @@ class Configuration(object):
         cmd = 'git push -f origin %s' % tag
         run.shell_command(cmd)
 
-    def _build_editor_release_notes(self):
-        # Returns the per-version release notes JSON (releasenotes/<version>.json)
-        # as produced by releasenotes_github_projectv2.py (which already includes
-        # the forum 'external-link'). None if it hasn't been generated yet.
-        release_notes_path = os.path.join(self.defold_root, 'releasenotes', '%s.json' % self.version)
-        if not os.path.exists(release_notes_path):
-            return None
-        with open(release_notes_path) as f:
-            return f.read()
-
-    @staticmethod
-    def _parse_semver(version):
-        # "1.13.2" -> (1, 13, 2). Non-numeric parts sort lowest so a malformed
-        # entry never displaces real versions at the top of the manifest.
-        parts = []
-        for part in str(version).split('.'):
-            try:
-                parts.append(int(part))
-            except ValueError:
-                parts.append(-1)
-        return tuple(parts)
-
-    def _update_release_notes_manifest(self, bucket):
-        # The manifest is an ordered (newest first) JSON array of every version
-        # that has published notes on this channel. The editor reads it to work
-        # out which versions sit between the running version and the update, then
-        # fetches only those per-version files.
-        import botocore
-        key = 'editor2/channels/%s/release-notes/manifest.json' % self.channel
-        obj = bucket.Object(key)
-        versions = []
-        try:
-            versions = json.loads(obj.get()['Body'].read())
-        except botocore.exceptions.ClientError as e:
-            # First release on this channel -> no manifest yet. Any other error
-            # (auth, throttling, network) must NOT be ignored, or we'd publish a
-            # manifest with only this version and lose the channel's history.
-            code = e.response.get('Error', {}).get('Code')
-            if code not in ('NoSuchKey', 'NoSuchBucket', '404'):
-                raise
-        if not isinstance(versions, list):
-            versions = []
-        versions = sorted(set(versions) | {self.version}, key=self._parse_semver, reverse=True)
-        self._log("Updating release notes manifest (%d versions) -> %s" % (len(versions), key))
-        obj.put(Body=json.dumps(versions), ContentType='application/json')
-
-    def _upload_editor_release_notes(self, bucket, required = False):
-        # Publishes the update dialog's release notes for the current channel:
-        #   - release-notes/<version>.json  per-version, accumulates across releases
-        #   - release-notes/manifest.json   ordered version list the editor walks
-        # Alpha/dev builds don't ship notes yet, but for beta/stable the release must
-        # fail before it starts offering the update if notes are missing.
-        json_content = self._build_editor_release_notes()
-        if json_content is None:
-            message = "No release notes for %s in releasenotes/" % self.version
-            if required:
-                self.fatal(message)
-            self._log("%s; skipping upload" % message)
-            return
-
-        version_obj = bucket.Object('editor2/channels/%s/release-notes/%s.json' % (self.channel, self.version))
-        self._log("Uploading per-version release notes for %s -> %s" % (self.version, version_obj.key))
-        version_obj.put(Body=json_content, ContentType='application/json')
-
-        self._update_release_notes_manifest(bucket)
-
-    def upload_editor_release_notes(self):
-        # Manual: upload the editor release notes for --version to S3 for --channel
+    def upload_release_notes(self):
+        # Manual: upload the release notes for --version to S3 for --channel
         # (per-version file + manifest).
-        #   ./scripts/build.py --channel beta --version 1.13.0 upload_editor_release_notes
+        #   ./scripts/build.py --channel beta --version 1.13.0 upload_release_notes
         if self.channel is None:
             self._log("No channel specified! Pass --channel")
             sys.exit(1)
         bucket = s3.get_bucket(urlparse(self.get_archive_path()).hostname)
-        self._upload_editor_release_notes(bucket, required = True)
+        releasenotes.upload(self, bucket, required = True)
 
     def _release_web_pages(self, releases):
         u = urlparse(self.get_archive_path())
@@ -3319,7 +3254,7 @@ class Configuration(object):
         # update-v4.json points users at the new sha1.
         # DEV-ONLY (issue-7186 validation): 'release-notes-view' requires notes so
         # the disposable channel exercises the full path. Remove before merge.
-        self._upload_editor_release_notes(bucket, required = self.channel in ('beta', 'stable', 'release-notes-view'))
+        releasenotes.upload(self, bucket, required = self.channel in ('beta', 'stable', 'release-notes-view'))
 
         # Editor update-v4.json
         v4_obj = bucket.Object('editor2/channels/%s/update-v4.json' % self.channel)
@@ -3934,7 +3869,7 @@ build_docs       - Build documentation
 build_builtins   - Build builtin content archive
 bump             - Bump version number
 release          - Release editor
-upload_editor_release_notes - Manual: upload editor release-notes.{md,json} for --version to S3 for --channel
+upload_release_notes - Manual: upload release-notes.{md,json} for --version to S3 for --channel
 shell            - Start development shell
 add_private_repo - Add a private repo to .defold-platforms
 smoke_test       - Test editor and engine in combination
@@ -4206,7 +4141,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
-    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo', 'upload_editor_release_notes']
+    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo', 'upload_release_notes']
     needs_dynamo_home = any(cmd not in commands_without_dynamo_home for cmd in args)
     if needs_dynamo_home:
         for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:

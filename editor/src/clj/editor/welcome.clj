@@ -587,7 +587,9 @@
                                (ui/visible! progress-bar (not (progress/done? progress)))
                                (ui/render-progress-bar! progress progress-bar))))
         install-and-restart! #(ui.updater/install-and-restart! stage updater localization)]
-    (ui.updater/init! stage update-link updater install-and-restart! render-progress! localization)))
+    ;; No project is open on the welcome screen; release-notes links are external
+    ;; (forum) urls that don't need one.
+    (ui.updater/init! stage update-link nil updater install-and-restart! render-progress! localization)))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog

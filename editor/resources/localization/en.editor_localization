@@ -125,6 +125,7 @@ updater.dialog.button.download = Download Update
 updater.dialog.button.install-and-restart = Install and Restart
 updater.dialog.button.download-newer-version = Download Newer Version
 updater.release-notes-dialog.title = Update Available
+updater.release-notes-dialog.header = What's New
 updater.release-notes-dialog.button.later = Maybe Later
 updater.release-notes-dialog.button.update-now = Update Now
 

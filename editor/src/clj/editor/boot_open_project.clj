@@ -129,7 +129,7 @@
                                      (ui.updater/install-and-restart! stage updater localization)
                                      (do (ui/enable-ui!)
                                          (changes-view/refresh! changes-view))))))]
-    (ui.updater/init! stage link updater install-and-restart! render-download-progress! localization)))
+    (ui.updater/init! stage link project updater install-and-restart! render-download-progress! localization)))
 
 (defn- show-tracked-internal-files-warning! [localization]
   (dialogs/make-info-dialog
