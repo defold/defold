@@ -339,6 +339,14 @@ public class ShaderCompilers {
         }
     }
 
+    public static IShaderCompiler GetCommonShaderCompiler(Platform platform) {
+        return new CommonShaderCompiler(platform);
+    }
+
+    public static IShaderCompiler GetCommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
+        return new CommonShaderCompiler(platform, baseOptions);
+    }
+
     public static ArrayList<ShaderDesc.Language> GetSupportedOpenGLVersionsForPlatform(Platform platform) {
         ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
         if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {

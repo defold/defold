@@ -854,7 +854,20 @@ namespace dmShaderc
         return true;
     }
 
-    static bool CompileShaderD3DCompiler(const void* source, uint32_t source_size, const char* entry_point, const char* profile, ID3DBlob** out_shader_blob, ID3DBlob** out_error_blob, const char* error_prefix)
+    static uint32_t GetD3DCompileFlags(const ShaderCompilerOptions* options)
+    {
+        uint32_t compile_flags = D3DCOMPILE_ENABLE_STRICTNESS;
+        // SPIRV-Cross can generate harmless flow-control warnings for shader model 5.x HLSL.
+        // Keep strict validation, but do not reject generated HLSL solely because D3DCompile
+        // decided to unroll a statically small loop.
+        if (!options || options->m_Version < 50)
+        {
+            compile_flags |= D3DCOMPILE_WARNINGS_ARE_ERRORS;
+        }
+        return compile_flags;
+    }
+
+    static bool CompileShaderD3DCompiler(const ShaderCompilerOptions* options, const void* source, uint32_t source_size, const char* entry_point, const char* profile, ID3DBlob** out_shader_blob, ID3DBlob** out_error_blob, const char* error_prefix)
     {
         HRESULT hr = D3DCompile(
             source,
@@ -864,7 +877,7 @@ namespace dmShaderc
             NULL,
             entry_point,
             profile,
-            D3DCOMPILE_ENABLE_STRICTNESS,
+            GetD3DCompileFlags(options),
             0,
             out_shader_blob,
             out_error_blob);
@@ -977,9 +990,9 @@ namespace dmShaderc
         return success;
     }
 
-    static bool CreateReflectionData(const ShaderCompileResult* raw_hlsl, const char* entry_point, const char* reflection_profile, ID3DBlob** out_shader_blob, ID3DBlob** out_error_blob, ID3D12ShaderReflection** out_reflection, D3D12_SHADER_DESC* out_shader_desc)
+    static bool CreateReflectionData(const ShaderCompilerOptions* options, const ShaderCompileResult* raw_hlsl, const char* entry_point, const char* reflection_profile, ID3DBlob** out_shader_blob, ID3DBlob** out_error_blob, ID3D12ShaderReflection** out_reflection, D3D12_SHADER_DESC* out_shader_desc)
     {
-        if (!CompileShaderD3DCompiler(raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size(), entry_point, reflection_profile, out_shader_blob, out_error_blob, "Shader compile error"))
+        if (!CompileShaderD3DCompiler(options, raw_hlsl->m_Data.Begin(), raw_hlsl->m_Data.Size(), entry_point, reflection_profile, out_shader_blob, out_error_blob, "Shader compile error"))
         {
             return false;
         }
@@ -1053,7 +1066,7 @@ namespace dmShaderc
         }
 
         // Root signature extraction stays in-process so Java/C++ can keep using the same merge path.
-        if (!CompileShaderD3DCompiler(injected_source.Begin(), injected_source.Size(), entry_point, reflection_profile, inout_shader_blob, inout_error_blob, "Failed to compile HLSL source with injected root signature"))
+        if (!CompileShaderD3DCompiler(options, injected_source.Begin(), injected_source.Size(), entry_point, reflection_profile, inout_shader_blob, inout_error_blob, "Failed to compile HLSL source with injected root signature"))
         {
             return false;
         }
@@ -1110,7 +1123,7 @@ namespace dmShaderc
 
         D3D12_SHADER_DESC shaderDesc;
         // Step 1: Reflection pass with D3DCompiler to build deterministic resource mappings.
-        if (!CreateReflectionData(raw_hlsl, entry_point, reflection_profile, &shader_blob, &error_blob, &reflection, &shaderDesc))
+        if (!CreateReflectionData(options, raw_hlsl, entry_point, reflection_profile, &shader_blob, &error_blob, &reflection, &shaderDesc))
         {
             goto cleanup;
         }

@@ -426,10 +426,12 @@ def test_bob(channel):
     call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
-def release(channel):
+def release(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
 
     token = get_github_token()
     if token:
@@ -438,10 +440,12 @@ def release(channel):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
-def build_sdk(channel):
+def build_sdk(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
@@ -505,6 +509,7 @@ def main(argv):
     parser.add_argument("--codesign", dest="codesign", action='store_true', help="Enable code signing")
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
@@ -548,6 +553,8 @@ def main(argv):
         return
 
     channel, make_release = release_settings_for_branch(branch)
+    if args.channel:
+        channel = args.channel
 
     print(f"Using branch={branch} channel={channel} engine_artifacts={args.engine_artifacts}")
 
@@ -572,7 +579,7 @@ def main(argv):
         elif command == "test-bob":
             test_bob(channel)
         elif command == "sdk":
-            build_sdk(channel)
+            build_sdk(channel, platform)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
@@ -583,7 +590,7 @@ def main(argv):
             distclean()
         elif command == "release":
             if make_release:
-                release(channel)
+                release(channel, platform)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         else:

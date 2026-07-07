@@ -273,6 +273,8 @@ public class ShaderCompilePipeline {
                 opts.targetPlatform = Shaderc.ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_IOS;
             } else if (this.options.targetPlatform.isMacOS()) {
                 opts.targetPlatform = Shaderc.ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_MACOS;
+            } else if (this.options.targetPlatform == Platform.X86_64XBone) {
+                opts.targetPlatform = Shaderc.ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_XBONE;
             }
         }
 

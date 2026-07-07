@@ -23,6 +23,11 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
 
+// Winuser.h defines MAX_TOUCH_COUNT to 256, which clashes with dmHID::MAX_TOUCH_COUNT.
+#ifdef MAX_TOUCH_COUNT
+#undef MAX_TOUCH_COUNT
+#endif
+
 /*# Game object functions
  *
  * API for manipulating game objects

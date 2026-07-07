@@ -300,7 +300,16 @@ if(GRAPHICS_BUILD_DX12)
   list(FILTER GRAPHICS_DX12_SOURCES EXCLUDE REGEX "/dx12/graphics_dx12_(vendor|win32|xbox)\\.cpp$")
   set(GRAPHICS_DX12_PLATFORM_DIR "${GRAPHICS_SRC_DIR}/dx12")
   if(TARGET_PLATFORM_OS STREQUAL "xbone")
-    list(APPEND GRAPHICS_DX12_SOURCES "${GRAPHICS_DX12_PLATFORM_DIR}/graphics_dx12_vendor.cpp")
+    set(_DEFOLD_XBONE_GRAPHICS_DX12_DIR "${DEFOLD_XBONE_PRIVATE_REPO_ROOT}/engine/graphics/src/dx12")
+    if(NOT EXISTS "${_DEFOLD_XBONE_GRAPHICS_DX12_DIR}/graphics_dx12_xbox.cpp")
+      message(FATAL_ERROR "Xbox DX12 source not found: ${_DEFOLD_XBONE_GRAPHICS_DX12_DIR}/graphics_dx12_xbox.cpp")
+    endif()
+    list(FILTER GRAPHICS_DX12_SOURCES EXCLUDE REGEX "/dx12/graphics_dx12(_private)?\\.cpp$")
+    set(GRAPHICS_DX12_PLATFORM_DIR "${_DEFOLD_XBONE_GRAPHICS_DX12_DIR}")
+    list(APPEND GRAPHICS_DX12_SOURCES
+      "${GRAPHICS_DX12_PLATFORM_DIR}/graphics_dx12.cpp"
+      "${GRAPHICS_DX12_PLATFORM_DIR}/graphics_dx12_private.cpp"
+      "${GRAPHICS_DX12_PLATFORM_DIR}/graphics_dx12_xbox.cpp")
   elseif(TARGET_PLATFORM MATCHES "win32$")
     list(APPEND GRAPHICS_DX12_SOURCES "${GRAPHICS_DX12_PLATFORM_DIR}/graphics_dx12_win32.cpp")
   endif()

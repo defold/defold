@@ -18,6 +18,11 @@
 #include <stdint.h>
 #include <dmsdk/hid/hid_defines.h>
 
+// Winuser.h defines MAX_TOUCH_COUNT to 256, which clashes with dmHID::MAX_TOUCH_COUNT.
+#ifdef MAX_TOUCH_COUNT
+#undef MAX_TOUCH_COUNT
+#endif
+
 /*# Hid API documentation
  * Used to add input to the engine
  *
