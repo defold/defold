@@ -3107,7 +3107,7 @@
     (let [resource-node (get-property view-node :resource-node evaluation-context)
           resource (g/node-value resource-node :resource evaluation-context)]
       (resource/file-resource? resource)))
-  (run [view-node user-data]
+  (run [view-node]
     (g/with-auto-evaluation-context evaluation-context
       (let [resource-node (get-property view-node :resource-node evaluation-context)
             lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)

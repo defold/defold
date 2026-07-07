@@ -52,9 +52,10 @@
            [java.nio.file Path Paths]
            [java.util Collection List]
            [javafx.application Platform]
+           [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener]
            [javafx.event Event]
-           [javafx.scene.control ListView TextField]
+           [javafx.scene.control FocusModel ListView TextField]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Screen Stage Window]
            [org.apache.commons.io FilenameUtils]))
@@ -592,8 +593,40 @@
                               ;; This keeps the anchor at the top so shift+click selects from the start instead of the end:
                               (.put properties "isDefaultAnchor" true)))))))
 
-(def ^:private ext-with-selection-preview-prop
-  (fx/make-ext-with-props {:selection-preview fxui/list-view-selection-preview-prop}))
+(def list-view-selection-preview-prop
+  "Prop for following along with whatever the list is showing, e.g. to keep
+  another view in sync.
+
+  Value is a function called with the item to preview and the source event:
+
+    :focused    the list gained focus, or you moved through it
+    :items      the list's contents changed"
+  (fx/make-binding-prop
+    (fn [^ListView view preview-fn]
+      (let [focus-model ^FocusModel (.getFocusModel view)
+            items (.getItems view)
+            preview! (fn [item source]
+                       (when item
+                         (preview-fn item source)))
+            focused-index-listener (reify ChangeListener
+                                     (changed [_ _ _ _]
+                                       (when (.isFocused view)
+                                         (preview! (.getFocusedItem focus-model) :focused))))
+            focused-listener (reify ChangeListener
+                               (changed [_ _ _ focused]
+                                 (when focused
+                                   (preview! (.getFocusedItem focus-model) :focused))))
+            items-listener (reify ListChangeListener
+                             (onChanged [_ _]
+                               (preview! (first items) :items)))]
+        (.addListener (.focusedIndexProperty focus-model) focused-index-listener)
+        (.addListener (.focusedProperty view) focused-listener)
+        (.addListener items items-listener)
+        #(do
+           (.removeListener (.focusedIndexProperty focus-model) focused-index-listener)
+           (.removeListener (.focusedProperty view) focused-listener)
+           (.removeListener items items-listener))))
+    fx.lifecycle/scalar))
 
 (defn- select-list-dialog
   [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn]
@@ -614,16 +647,14 @@
                      :on-selected-indices-changed {:event-type :set-selected-indices}}
              :desc {:fx/type fx/ext-on-instance-lifecycle
                     :on-created select-first-list-item-on-items-changed!
-                    :desc {:fx/type ext-with-selection-preview-prop
-                           :props (if (some? preview-item-fn)
-                                    {:selection-preview preview-item-fn}
-                                    {})
-                           :desc {:fx/type ext-with-identity-items-props
-                                  :props {:items filtered-items}
-                                  :desc {:fx/type fx.list-view/lifecycle
-                                         :fixed-cell-size 27
-                                         :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                                        :describe cell-fn}}}}}}
+                    :desc {:fx/type ext-with-identity-items-props
+                           :props {:items filtered-items}
+                           :desc (cond-> {:fx/type fx.list-view/lifecycle
+                                          :fixed-cell-size 27
+                                          :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                         :describe cell-fn}}
+                                   preview-item-fn
+                                   (assoc list-view-selection-preview-prop preview-item-fn))}}}
    :footer {:fx/type fx.h-box/lifecycle
             :alignment :center-left
             :children [{:fx/type fx.progress-indicator/lifecycle
