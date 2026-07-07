@@ -12,6 +12,11 @@ endif()
 
 get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
+if(TARGET_PLATFORM STREQUAL "x86_64-xbox")
+  message(STATUS "TARGET_PLATFORM=x86_64-xbox is an alias for x86_64-xbone")
+  set(TARGET_PLATFORM "x86_64-xbone" CACHE STRING "Defold platform tuple" FORCE)
+endif()
+
 # Ensure this directory (scripts/cmake) is on CMAKE_MODULE_PATH once
 list(FIND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}" _defold_cmake_idx)
 if(_defold_cmake_idx EQUAL -1)

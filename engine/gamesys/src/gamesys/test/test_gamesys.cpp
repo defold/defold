@@ -37,6 +37,7 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dlib/memory.h>
 #include <dlib/time.h>
 #include <dlib/path.h>
@@ -1569,6 +1570,16 @@ class GamesysErrorLogCapture;
 static void CaptureGamesysErrorLog(LogSeverity severity, const char* domain, const char* formatted_string);
 static GamesysErrorLogCapture* g_GamesysErrorLogCapture = 0;
 
+static bool WaitForGamesysErrorLogCapture()
+{
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 5000000;
+    while (dmLog::GetPendingLogCount() != 0 && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    return dmLog::GetPendingLogCount() == 0;
+}
+
 class GamesysErrorLogCapture
 {
 public:
@@ -1577,9 +1588,7 @@ public:
         assert(g_GamesysErrorLogCapture == 0);
         g_GamesysErrorLogCapture = this;
         dmLogRegisterListener(CaptureGamesysErrorLog);
-        // dmLog listener callbacks are delivered by the log thread. Discard
-        // expected errors that were queued by previous tests before capturing.
-        dmTime::Sleep(60 * 1000);
+        WaitForGamesysErrorLogCapture();
         m_Output.SetSize(0);
     }
 
@@ -1599,16 +1608,18 @@ public:
 
     bool Empty() const
     {
-        return m_Output.Size() == 0;
+        return WaitForGamesysErrorLogCapture() && m_Output.Size() == 0;
     }
 
     bool Contains(const char* needle)
     {
+        WaitForGamesysErrorLogCapture();
         return strstr(Output(), needle) != 0;
     }
 
     const char* Output()
     {
+        WaitForGamesysErrorLogCapture();
         if (m_Output.Size() == 0)
         {
             return "";

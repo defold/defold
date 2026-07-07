@@ -462,18 +462,6 @@ static void LogFrameBufferError(GLenum status)
         } \
     } \
 
-
-    #if defined(DM_PLATFORM_IOS)
-    struct ChooseEAGLView
-    {
-        ChooseEAGLView() {
-            // Let's us choose the CAEAGLLayer
-            // Note: We don't need a valid window here (and we don't have access to one)
-            dmPlatform::SetiOSViewTypeOpenGL((HWindow) 0);
-        }
-    } g_ChooseEAGLView;
-    #endif
-
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
     static HContext                     OpenGLGetContext();

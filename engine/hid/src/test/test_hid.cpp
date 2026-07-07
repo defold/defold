@@ -274,6 +274,23 @@ TEST_F(HIDTest, TouchDevice)
     ASSERT_EQ(0u, packet.m_TouchCount);
 }
 
+TEST_F(HIDTest, OnlyPrimaryTouchDeviceConnected)
+{
+    dmHID::Update(m_Context);
+
+    ASSERT_TRUE(dmHID::IsTouchDeviceConnected(dmHID::GetTouchDevice(m_Context, 0)));
+
+    for (uint32_t i = 1; i < dmHID::MAX_TOUCH_DEVICE_COUNT; ++i)
+    {
+        dmHID::HTouchDevice device = dmHID::GetTouchDevice(m_Context, i);
+        ASSERT_NE(dmHID::INVALID_TOUCH_DEVICE_HANDLE, device);
+        ASSERT_FALSE(dmHID::IsTouchDeviceConnected(device));
+
+        dmHID::TouchDevicePacket packet;
+        ASSERT_FALSE(dmHID::GetTouchDevicePacket(device, &packet));
+    }
+}
+
 TEST_F(HIDTest, IgnoredDevices)
 {
     dmHID::NewContextParams params;

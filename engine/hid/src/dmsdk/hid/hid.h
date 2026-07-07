@@ -16,7 +16,7 @@
 #define DMSDK_HID_H
 
 #include <stdint.h>
-#include <dmsdk/hid/hid_native_defines.h>
+#include <dmsdk/hid/hid_defines.h>
 
 /*# Hid API documentation
  * Used to add input to the engine

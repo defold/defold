@@ -21,26 +21,26 @@
 (defmacro protocol
   "Like core.defprotocol, but will never be redefined."
   [name & opts+sigs]
-  (if (not (some-> ^Var (resolve name) (.hasRoot)))
+  (when-not (some-> ^Var (resolve name) (.hasRoot))
     (list* 'defprotocol name opts+sigs)))
 
 (defmacro record
   "Like core.defrecord, but will never be redefined."
   {:arglists '([name [& fields] & opts+specs])}
   [name & args]
-  (if (not (class? (resolve name)))
+  (when-not (class? (resolve name))
     (list* 'defrecord name args)))
 
 (defmacro type
   "Like core.deftype, but will never be redefined."
   {:arglists '([name [& fields] & opts+specs])}
   [name & args]
-  (if (not (class? (resolve name)))
+  (when-not (class? (resolve name))
     (list* 'deftype name args)))
 
 (defmacro interface
   "Like core.definterface, but will never be redefined."
   {:arglists '([name [& fields] & opts+specs])}
   [name & args]
-  (if (not (class? (resolve name)))
+  (when-not (class? (resolve name))
     (list* 'definterface name args)))

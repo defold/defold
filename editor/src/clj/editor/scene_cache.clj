@@ -83,39 +83,23 @@
   (swap! object-caches-atom clear-object-caches)
   nil)
 
-(defn- consume-pending-deletions-in-caches-by-context [caches-by-context context]
-  (let [pending-deletions
-        (some-> caches-by-context
-                (get context)
-                (meta)
-                (:pending-deletions))
-
-        caches-by-context-without-pending-deletions
-        (cond-> caches-by-context
-                (coll/not-empty pending-deletions)
-                (update context vary-meta dissoc :pending-deletions))]
-
-    (pair caches-by-context-without-pending-deletions
-          pending-deletions)))
-
-(defn- consume-pending-deletions-in-cache-meta [cache-meta context]
-  (let [[caches-by-context-without-pending-deletions pending-deletions]
-        (consume-pending-deletions-in-caches-by-context (:caches cache-meta) context)
-
-        cache-meta-without-pending-deletions
-        (assoc cache-meta :caches caches-by-context-without-pending-deletions)]
-
-    (pair cache-meta-without-pending-deletions
-          pending-deletions)))
-
 (defn- consume-pending-deletions-in-object-caches [object-caches context]
   (reduce-kv
-    (fn [[object-caches pending-deletions] cache-id cache-meta]
-      (let [[cache-meta-without-pending-deletions pending-deletions-from-cache]
-            (consume-pending-deletions-in-cache-meta cache-meta context)]
-        (pair (assoc object-caches cache-id cache-meta-without-pending-deletions)
-              (into pending-deletions pending-deletions-from-cache))))
-    (pair (empty object-caches)
+    (fn [acc cache-id cache-meta]
+      (let [caches-by-context (:caches cache-meta)
+            cache-for-context (get caches-by-context context)
+            pending-deletions-from-cache (some-> cache-for-context meta :pending-deletions)]
+        (if (coll/empty? pending-deletions-from-cache)
+          acc
+          (pair (assoc (key acc)
+                  cache-id
+                  (assoc cache-meta
+                    :caches
+                    (assoc caches-by-context
+                      context
+                      (vary-meta cache-for-context dissoc :pending-deletions))))
+                (into (val acc) pending-deletions-from-cache)))))
+    (pair object-caches
           [])
     object-caches))
 
@@ -191,49 +175,29 @@
           (cache/lookup request-id) ; [cached-object request-data] pair.
           (first)))
 
-(defn- prune-context-in-caches-by-context [caches-by-context context destroy-batch-fn]
-  (let [cached-object+request-data-by-request-id
-        (get caches-by-context context)
-
-        pruned-cached-object+request-data-by-request-id
-        (some-> cached-object+request-data-by-request-id
-                (volatile-cache/prune))
-
-        deletions
-        (when (not= (count cached-object+request-data-by-request-id)
-                    (count pruned-cached-object+request-data-by-request-id))
-          (some-> (keep (fn [[request-id cached-object+request-data]]
-                          (when (not (cache/has? pruned-cached-object+request-data-by-request-id request-id))
-                            cached-object+request-data))
-                        cached-object+request-data-by-request-id)
-                  (coll/not-empty)
-                  (make-deletion destroy-batch-fn)
-                  (vector)))
-
-        pruned-caches-by-context
-        (assoc caches-by-context context pruned-cached-object+request-data-by-request-id)]
-
-    (pair pruned-caches-by-context
-          deletions)))
-
-(defn- prune-context-in-cache-meta [cache-meta context]
-  (let [[pruned-caches-by-context deletions]
-        (prune-context-in-caches-by-context (:caches cache-meta) context (:destroy-batch-fn cache-meta))
-
-        pruned-cache-meta
-        (assoc cache-meta :caches pruned-caches-by-context)]
-
-    (pair pruned-cache-meta
-          deletions)))
-
 (defn- prune-context-in-object-caches [object-caches context]
   (reduce-kv
-    (fn [[object-caches deletions] cache-id cache-meta]
-      (let [[pruned-cache-meta deletions-from-cache]
-            (prune-context-in-cache-meta cache-meta context)]
-        (pair (assoc object-caches cache-id pruned-cache-meta)
-              (into deletions deletions-from-cache))))
-    (pair (empty object-caches)
+    (fn [acc cache-id cache-meta]
+      (let [caches-by-context (:caches cache-meta)
+            cached-object+request-data-by-request-id (get caches-by-context context)]
+        (if (nil? cached-object+request-data-by-request-id)
+          acc
+          (let [destroy-batch-fn (:destroy-batch-fn cache-meta)
+                pruned-cached-object+request-data-by-request-id (volatile-cache/prune cached-object+request-data-by-request-id)
+                deletions-from-cache (when (not= (count cached-object+request-data-by-request-id)
+                                                 (count pruned-cached-object+request-data-by-request-id))
+                                       (some-> (keep (fn [[request-id cached-object+request-data]]
+                                                       (when (not (cache/has? pruned-cached-object+request-data-by-request-id request-id))
+                                                         cached-object+request-data))
+                                                     cached-object+request-data-by-request-id)
+                                               (coll/not-empty)
+                                               (make-deletion destroy-batch-fn)
+                                               (vector)))
+                pruned-caches-by-context (assoc caches-by-context context pruned-cached-object+request-data-by-request-id)
+                pruned-cache-meta (assoc cache-meta :caches pruned-caches-by-context)]
+            (pair (assoc (key acc) cache-id pruned-cache-meta)
+                  (into (val acc) deletions-from-cache))))))
+    (pair object-caches
           [])
     object-caches))
 

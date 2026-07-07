@@ -82,7 +82,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengl_compute':
         return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux', 'armv7-android', 'arm64-android']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-ios', 'arm64-ios']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     if feature == 'metal':
@@ -233,6 +233,9 @@ def platform_get_glfw_lib(platform):
     return 'dmglfw'
 
 def platform_get_platform_lib(platform):
+    if is_platform_private(platform):
+        return 'PLATFORM'
+
     if not (platform_supports_feature(platform, "opengl", None) or platform_supports_feature(platform, "vulkan", None)):
         return 'PLATFORM_NULL'
 
@@ -248,8 +251,12 @@ def platform_graphics_libs_and_symbols(platform):
     use_opengl = False
     use_opengles = False
     use_vulkan = False
+    use_metal = Options.options.with_metal and platform_supports_feature(platform, 'metal', {})
 
-    if platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
+    if platform in ('x86_64-ios', 'arm64-ios'):
+        use_opengles = True
+        use_vulkan = Options.options.with_vulkan
+    elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
         use_opengl = Options.options.with_opengl
         use_vulkan = True
     elif platform in ('arm64-linux'):
@@ -285,8 +292,11 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_libs += ['GRAPHICS_WEBGPU']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
 
-    if Options.options.with_metal and platform_supports_feature(platform, 'metal', {}):
-        graphics_libs += ['GRAPHICS_METAL', 'METAL']
+    if use_metal:
+        graphics_libs += ['GRAPHICS_METAL']
+        if platform in ('x86_64-ios', 'arm64-ios') and not use_opengl and not use_opengles and not use_vulkan:
+            graphics_libs += ['DMGLFW']
+        graphics_libs += ['METAL']
         graphics_lib_symbols.append('GraphicsAdapterMetal')
 
     if platform in ('arm64-nx64'):
@@ -2221,7 +2231,8 @@ def detect(conf):
 
     if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
-        conf.env.append_value('LINKFLAGS_DLIB', ['ole32.lib']) # CoTaskMemFree in sys_win32.cpp
+        conf.env['LINKFLAGS_DLIB']        = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp
+        conf.env['LINKFLAGS_DLIB_NOASAN'] = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp (mirrors LINKFLAGS_DLIB for noasan consumers like shaderc_shared/texc_shared/modelc_shared)
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
@@ -2270,6 +2281,11 @@ def detect(conf):
                 Logs.error("JAVA_HOME=%s" % os.environ['JAVA_HOME'])
                 Logs.error("Failed to find jni.h at %s" % jni_path)
                 sys.exit(1)
+
+    conf.load('waf_csharp')
+
+    if Options.options.generate_compile_commands:
+        conf.load('clang_compilation_database')
 
     conf.load('waf_csharp')
 

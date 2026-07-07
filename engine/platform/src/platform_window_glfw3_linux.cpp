@@ -80,4 +80,14 @@ namespace dmPlatform
     {
         return true;
     }
+
+    void InstallWindowCloseHandlerNative(HWindow)
+    {
+        // NOP
+    }
+
+    void UninstallWindowCloseHandlerNative(HWindow)
+    {
+        // NOP
+    }
 }
