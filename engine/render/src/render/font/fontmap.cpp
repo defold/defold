@@ -30,7 +30,6 @@
 namespace dmRender
 {
     static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
-    static const dmhash_t BAND_TEXTURE_HASH = dmHashString64("band_texture");
     static const uint32_t VECTOR_CURVE_TEXTURE_WIDTH = 512;
     static const uint32_t VECTOR_CURVE_TEXTURE_HEIGHT = 64;
     static const uint32_t VECTOR_BAND_TEXTURE_WIDTH = 2048;
@@ -252,6 +251,12 @@ namespace dmRender
         memset(font_map->m_VectorCurveData, 0, sizeof(float) * curve_float_count);
         memset(font_map->m_VectorBandData, 0, sizeof(float) * band_float_count);
 
+        if (font_map->m_BandTexture)
+        {
+            dmGraphics::DeleteTexture(font_map->m_GraphicsContext, font_map->m_BandTexture);
+            font_map->m_BandTexture = 0;
+        }
+
         RecreateTextureWithData(font_map->m_GraphicsContext,
                                 &font_map->m_Texture,
                                 VECTOR_CURVE_TEXTURE_WIDTH,
@@ -261,16 +266,6 @@ namespace dmRender
                                 dmGraphics::TEXTURE_FILTER_NEAREST,
                                 font_map->m_VectorCurveData,
                                 sizeof(float) * curve_float_count);
-
-        RecreateTextureWithData(font_map->m_GraphicsContext,
-                                &font_map->m_BandTexture,
-                                VECTOR_BAND_TEXTURE_WIDTH,
-                                VECTOR_BAND_TEXTURE_HEIGHT,
-                                dmGraphics::TEXTURE_FORMAT_RGBA32F,
-                                dmGraphics::TEXTURE_FILTER_NEAREST,
-                                dmGraphics::TEXTURE_FILTER_NEAREST,
-                                font_map->m_VectorBandData,
-                                sizeof(float) * band_float_count);
     }
 
     static void RestoreLegacyTexture(HFontMap font_map)
@@ -439,8 +434,7 @@ namespace dmRender
         bool is_vector_material = false;
         if (material)
         {
-            is_vector_material = GetMaterialSamplerUnit(material, CURVE_TEXTURE_HASH) != INVALID_SAMPLER_UNIT ||
-                                 GetMaterialSamplerUnit(material, BAND_TEXTURE_HASH) != INVALID_SAMPLER_UNIT;
+            is_vector_material = GetMaterialSamplerUnit(material, CURVE_TEXTURE_HASH) != INVALID_SAMPLER_UNIT;
         }
 
         if (is_vector_material)
@@ -904,7 +898,7 @@ namespace dmRender
 
     static void UploadVectorTextures(HFontMap font_map)
     {
-        if (!font_map->m_Texture || !font_map->m_BandTexture)
+        if (!font_map->m_Texture)
         {
             return;
         }
@@ -916,14 +910,6 @@ namespace dmRender
                             VECTOR_CURVE_TEXTURE_HEIGHT,
                             font_map->m_VectorCurveData,
                             sizeof(float) * font_map->m_VectorCurveCapacity * 4);
-
-        UpdateVectorTexture(font_map,
-                            font_map->m_BandTexture,
-                            dmGraphics::TEXTURE_FORMAT_RGBA32F,
-                            VECTOR_BAND_TEXTURE_WIDTH,
-                            VECTOR_BAND_TEXTURE_HEIGHT,
-                            font_map->m_VectorBandData,
-                            sizeof(float) * font_map->m_VectorBandCapacity * 4);
     }
 
     static void ResetVectorCache(HFontMap font_map)

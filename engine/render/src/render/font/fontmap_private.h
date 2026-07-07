@@ -66,7 +66,7 @@ namespace dmRender
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         HFontRenderBackend      m_FontRenderBackend;
         dmGraphics::HTexture    m_Texture;       // Legacy glyph cache texture, or Slug curve texture for vector fonts
-        dmGraphics::HTexture    m_BandTexture;   // Slug band texture for vector fonts
+        dmGraphics::HTexture    m_BandTexture;   // Legacy vector band texture handle
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
         float*                  m_VectorCurveData;

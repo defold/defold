@@ -1,5 +1,5 @@
-name: "font_vector"
-tags: "gui"
+name: "label_vector"
+tags: "tile"
 vertex_program: "/builtins/fonts/font-vector.vp"
 fragment_program: "/builtins/fonts/font-vector.fp"
 vertex_constants {

@@ -40,7 +40,6 @@ namespace dmGameSystem
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
     const static dmhash_t SAMPLER_HASH_CURVE_TEXTURE = dmHashString64("curve_texture");
-    const static dmhash_t SAMPLER_HASH_BAND_TEXTURE = dmHashString64("band_texture");
     const static char* FORCED_SDF_MATERIAL = "/builtins/fonts/font-df.materialc";
 
     struct FontResourceContext
@@ -332,8 +331,7 @@ namespace dmGameSystem
     {
         return material_resource &&
                material_resource->m_Material &&
-               (dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE) != dmRender::INVALID_SAMPLER_UNIT ||
-                dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_BAND_TEXTURE) != dmRender::INVALID_SAMPLER_UNIT);
+               dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE) != dmRender::INVALID_SAMPLER_UNIT;
     }
 
     static dmResource::Result AcquireResources(FontResourceContext* context, dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,

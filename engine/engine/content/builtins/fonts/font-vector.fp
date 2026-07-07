@@ -1,5 +1,12 @@
 #version 140
 
+// Based on Rook & Possum's Scanline Sweeper work:
+// "The Scanline Sweeper: A Glyph Rendering Algorithm"
+// https://rookandpossum.com/posts/scanline-sweeper
+//
+// Mozilla Public License 2.0:
+// https://www.mozilla.org/en-GB/MPL/2.0/
+
 precision highp float;
 precision highp int;
 
@@ -13,7 +20,6 @@ flat in highp vec4 var_params;
 out vec4 out_fragColor;
 
 uniform highp sampler2D curve_texture;
-uniform highp sampler2D band_texture;
 
 uniform fs_uniforms
 {
@@ -28,6 +34,9 @@ const int MAX_VECTOR_CURVES = 256;
 const float LAYER_MODE_FACE = 0.0;
 const float LAYER_MODE_OUTLINE = 1.0;
 const float LAYER_MODE_SHADOW = 2.0;
+#define SHADOW_USE_SEPARABLE_BOX_REFERENCE 0
+#define SHADOW_USE_LEGACY_SDF_REFERENCE 1
+#define SHADOW_LEGACY_SDF_BLUR_3X3 0
 
 vec4 SampleCurveTexel(float texel_index)
 {
@@ -676,6 +685,21 @@ float ComputeCurveDistanceSqPixels(vec2 p, float curve_start, float curve_count,
     return best_distance_sq;
 }
 
+float ComputeStableGlyphCoverage(vec2 p,
+                                 float curve_start,
+                                 float curve_count,
+                                 vec2 pixel_filter_width,
+                                 vec2 glyph_screen_scale)
+{
+    float coverage = ScanlineSweepRender(p, curve_start, curve_count, pixel_filter_width);
+    float edge_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_screen_scale));
+    if (edge_distance > 1.0)
+    {
+        coverage = IsInsideGlyph(p, curve_start, curve_count);
+    }
+    return coverage;
+}
+
 float EvaluateOutlineSilhouetteAlpha(float curve_distance, float outline_width)
 {
     if (outline_width <= 0.0)
@@ -696,23 +720,342 @@ float EvaluateShadowSilhouetteAlpha(float face_coverage, float curve_distance, f
     return max(face_alpha, outline_alpha);
 }
 
+float ShadowProfile(float shadow_blur)
+{
+    return smoothstep(1.0, 13.0, shadow_blur);
+}
+
+float ShadowLargeProfile(float shadow_blur)
+{
+    return smoothstep(7.0, 13.0, shadow_blur);
+}
+
+int ShadowSampleCount(float shadow_blur)
+{
+    if (shadow_blur <= 1.5)
+    {
+        return 2;
+    }
+    if (shadow_blur <= 3.5)
+    {
+        return 3;
+    }
+    if (shadow_blur <= 6.5)
+    {
+        return 5;
+    }
+    if (shadow_blur <= 10.5)
+    {
+        return 6;
+    }
+    return 8;
+}
+
+float ShadowFilterRadiusScale(float sample_t, float profile)
+{
+    float max_scale = mix(1.90, 3.05, profile);
+    float radius_curve = mix(1.34, 1.08, profile);
+    return max_scale * pow(sample_t, radius_curve);
+}
+
+float ShadowFilterWeight(float sample_t, float large_profile)
+{
+    float small_blur_weight = 1.25 - 0.45 * sample_t;
+    float large_blur_weight = 1.05 - 0.30 * sample_t;
+    return mix(small_blur_weight, large_blur_weight, large_profile * large_profile);
+}
+
+float ShadowCutoffAlpha(float alpha, float profile, float large_profile)
+{
+    float cutoff = mix(mix(0.018, 0.070, profile), 0.026, large_profile);
+    float shoulder = mix(mix(0.020, 0.052, profile), 0.090, large_profile);
+    float trimmed_alpha = clamp((alpha - cutoff) / max(1.0 - cutoff, 0.0001), 0.0, 1.0);
+    return trimmed_alpha * smoothstep(cutoff, cutoff + shoulder, alpha);
+}
+
+float ShadowResponseAlpha(float alpha, float profile, float large_profile)
+{
+    float density = mix(2.20, 5.80, profile);
+    float response_alpha = ShadowCutoffAlpha(alpha, profile, large_profile);
+    float boosted_alpha = clamp(response_alpha * (mix(1.02, 1.58, profile) + 0.24 * large_profile), 0.0, 1.0);
+    float shaped_alpha = 1.0 - pow(max(1.0 - boosted_alpha, 0.0), density);
+    float large_blur_gain = 1.0 + 0.35 * profile * profile + 0.35 * large_profile * large_profile;
+    return clamp(shaped_alpha * large_blur_gain, 0.0, 1.0);
+}
+
+float ShadowFeatherAlpha(float feather_distance, float shadow_blur, float profile)
+{
+    float feather_radius = max(shadow_blur * mix(1.38, 0.98, profile), 0.0001);
+    float feather_strength = mix(0.50, 0.58, profile) * (1.0 - exp(-0.65 * shadow_blur));
+    return (1.0 - smoothstep(0.0, feather_radius, feather_distance)) * feather_strength;
+}
+
+float ShadowShiftWeight(float axis_offset, float large_profile)
+{
+    float side_weight = mix(0.14, 0.22, large_profile);
+    return abs(axis_offset) < 0.5 ? 1.0 - 2.0 * side_weight : side_weight;
+}
+
+float ShadowShiftedCorrectionAlpha(vec2 p,
+                                   float curve_start,
+                                   float curve_count,
+                                   vec2 glyph_metric_scale,
+                                   vec2 pixel_filter_width,
+                                   float box_radius,
+                                   float profile,
+                                   float large_profile)
+{
+    vec2 box_radius_uv = vec2(box_radius) / glyph_metric_scale;
+    vec2 shift_radius_uv = box_radius_uv * mix(mix(0.30, 0.38, profile), 0.58, large_profile);
+    vec2 sample_filter = pixel_filter_width + 2.0 * box_radius_uv * mix(mix(0.30, 0.36, profile), 0.52, large_profile);
+
+    float shifted_alpha = 0.0;
+    float total_weight = 0.0;
+    for (int y = -1; y <= 1; ++y)
+    {
+        for (int x = -1; x <= 1; ++x)
+        {
+            float fx = float(x);
+            float fy = float(y);
+            float sample_weight = ShadowShiftWeight(fx, large_profile) * ShadowShiftWeight(fy, large_profile);
+            vec2 sample_offset = vec2(fx, fy) * shift_radius_uv;
+            shifted_alpha += ScanlineSweepRender(p + sample_offset, curve_start, curve_count, sample_filter) * sample_weight;
+            total_weight += sample_weight;
+        }
+    }
+
+    float response_alpha = ShadowResponseAlpha(shifted_alpha / max(total_weight, 0.0001), profile, large_profile);
+    float cutoff = mix(0.075, 0.025, large_profile);
+    float shoulder = mix(0.120, 0.090, large_profile);
+    return response_alpha * smoothstep(cutoff, cutoff + shoulder, response_alpha);
+}
+
+int ShadowSeparableBoxSampleCount(float shadow_blur)
+{
+    if (shadow_blur <= 1.5)
+    {
+        return 3;
+    }
+    if (shadow_blur <= 3.5)
+    {
+        return 7;
+    }
+    if (shadow_blur <= 6.5)
+    {
+        return 13;
+    }
+    if (shadow_blur <= 10.5)
+    {
+        return 21;
+    }
+    return 27;
+}
+
+float EvaluateSeparableBoxShadowAlpha(vec2 p,
+                                      float curve_start,
+                                      float curve_count,
+                                      vec2 glyph_metric_scale,
+                                      vec2 pixel_filter_width,
+                                      float outline_width,
+                                      float shadow_blur)
+{
+    float box_radius = shadow_blur + outline_width;
+    vec2 box_radius_uv = vec2(box_radius) / glyph_metric_scale;
+    vec2 horizontal_filter = vec2(pixel_filter_width.x + 2.0 * box_radius_uv.x,
+                                  pixel_filter_width.y);
+
+    float filtered_alpha = 0.0;
+    float total_weight = 0.0;
+    int sample_count = ShadowSeparableBoxSampleCount(shadow_blur);
+    for (int i = 0; i < 27; ++i)
+    {
+        if (i >= sample_count)
+        {
+            continue;
+        }
+
+        float sample_t = (float(i) + 0.5) / float(sample_count);
+        float y_offset = sample_t * 2.0 - 1.0;
+        filtered_alpha += ScanlineSweepRender(p + vec2(0.0, y_offset) * box_radius_uv,
+                                              curve_start,
+                                              curve_count,
+                                              horizontal_filter);
+        total_weight += 1.0;
+    }
+
+    return filtered_alpha / max(total_weight, 0.0001);
+}
+
+float LegacySdfShadowSpread(float shadow_blur)
+{
+    return max(1.4142 + shadow_blur, 0.0001);
+}
+
+float LegacySdfShadowEdge(float shadow_blur)
+{
+    const float sdf_edge = 0.75;
+    const float sdf_range = 1.0 - sdf_edge;
+    return sdf_edge - sdf_range * shadow_blur / LegacySdfShadowSpread(shadow_blur);
+}
+
+float LegacySdfShadowValue(vec2 p,
+                           float curve_start,
+                           float curve_count,
+                           vec2 glyph_metric_scale,
+                           float outline_width,
+                           float shadow_blur)
+{
+    const float sdf_edge = 0.75;
+    const float sdf_range = 1.0 - sdf_edge;
+    float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_metric_scale));
+    float inside = IsInsideGlyph(p, curve_start, curve_count);
+    float signed_distance = mix(-curve_distance, curve_distance, inside);
+    float distance_to_shadow_body = signed_distance + outline_width;
+
+    // Match Fontc.java's shadow-body fill: once the pixel belongs to the
+    // face/outline body, the stored shadow channel is kept near the SDF edge
+    // instead of growing with distance into the glyph.
+    if (distance_to_shadow_body > 0.0)
+    {
+        distance_to_shadow_body = sdf_edge;
+    }
+
+    return clamp(sdf_edge + sdf_range * distance_to_shadow_body / LegacySdfShadowSpread(shadow_blur), 0.0, 1.0);
+}
+
+float LegacySdfShadowValue3x3(vec2 p,
+                              float curve_start,
+                              float curve_count,
+                              vec2 glyph_metric_scale,
+                              float outline_width,
+                              float shadow_blur)
+{
+    vec2 texel_uv = 1.0 / glyph_metric_scale;
+    float total = 0.0;
+    for (int y = -1; y <= 1; ++y)
+    {
+        for (int x = -1; x <= 1; ++x)
+        {
+            float wx = x == 0 ? 2.0 : 1.0;
+            float wy = y == 0 ? 2.0 : 1.0;
+            float weight = wx * wy;
+            total += LegacySdfShadowValue(p + vec2(float(x), float(y)) * texel_uv,
+                                          curve_start,
+                                          curve_count,
+                                          glyph_metric_scale,
+                                          outline_width,
+                                          shadow_blur) * weight;
+        }
+    }
+    return total * (1.0 / 16.0);
+}
+
+float EvaluateLegacySdfShadowAlpha(vec2 p,
+                                   float curve_start,
+                                   float curve_count,
+                                   vec2 glyph_metric_scale,
+                                   float outline_width,
+                                   float shadow_blur)
+{
+    const float sdf_edge = 0.75;
+    const float sdf_range = 1.0 - sdf_edge;
+    float spread = LegacySdfShadowSpread(shadow_blur);
+    float sdf_smoothing = sdf_range / spread;
+#if SHADOW_LEGACY_SDF_BLUR_3X3
+    float shadow_value = LegacySdfShadowValue3x3(p,
+                                                curve_start,
+                                                curve_count,
+                                                glyph_metric_scale,
+                                                outline_width,
+                                                shadow_blur);
+#else
+    float shadow_value = LegacySdfShadowValue(p,
+                                              curve_start,
+                                              curve_count,
+                                              glyph_metric_scale,
+                                              outline_width,
+                                              shadow_blur);
+#endif
+    return smoothstep(LegacySdfShadowEdge(shadow_blur) - sdf_smoothing,
+                      sdf_edge + sdf_smoothing,
+                      shadow_value);
+}
+
 float EvaluateFilteredShadowAlpha(vec2 p,
                                   float curve_start,
                                   float curve_count,
-                                  vec2 glyph_scale,
+                                  vec2 glyph_metric_scale,
+                                  vec2 pixel_filter_width,
                                   float face_coverage,
                                   float outline_width,
                                   float shadow_blur)
 {
-    float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_scale));
-    float center_alpha = EvaluateShadowSilhouetteAlpha(face_coverage, curve_distance, outline_width);
     if (shadow_blur <= 0.0)
     {
+        float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_metric_scale));
+        float center_alpha = EvaluateShadowSilhouetteAlpha(face_coverage, curve_distance, outline_width);
         return center_alpha;
     }
 
-    float feather_alpha = 1.0 - smoothstep(outline_width, outline_width + shadow_blur, curve_distance);
-    return max(center_alpha, feather_alpha);
+#if SHADOW_USE_LEGACY_SDF_REFERENCE
+    return EvaluateLegacySdfShadowAlpha(p,
+                                        curve_start,
+                                        curve_count,
+                                        glyph_metric_scale,
+                                        outline_width,
+                                        shadow_blur);
+#elif SHADOW_USE_SEPARABLE_BOX_REFERENCE
+    return EvaluateSeparableBoxShadowAlpha(p,
+                                           curve_start,
+                                           curve_count,
+                                           glyph_metric_scale,
+                                           pixel_filter_width,
+                                           outline_width,
+                                           shadow_blur);
+#else
+    float box_radius = shadow_blur + outline_width;
+    vec2 box_radius_uv = vec2(box_radius) / glyph_metric_scale;
+
+    float profile = ShadowProfile(shadow_blur);
+    float large_profile = ShadowLargeProfile(shadow_blur);
+    float filtered_alpha = 0.0;
+    float total_weight = 0.0;
+    int sample_count = ShadowSampleCount(shadow_blur);
+    for (int i = 0; i < 8; ++i)
+    {
+        if (i >= sample_count)
+        {
+            continue;
+        }
+        float sample_t = (float(i) + 0.5) / float(sample_count);
+        float sample_weight = ShadowFilterWeight(sample_t, large_profile);
+        float sample_scale = ShadowFilterRadiusScale(sample_t, profile);
+        vec2 sample_filter = pixel_filter_width + 2.0 * box_radius_uv * sample_scale;
+        filtered_alpha += ScanlineSweepRender(p, curve_start, curve_count, sample_filter) * sample_weight;
+        total_weight += sample_weight;
+    }
+
+    float soft_alpha = ShadowResponseAlpha(filtered_alpha / max(total_weight, 0.0001), profile, large_profile);
+    float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_metric_scale));
+    float feather_distance = max(curve_distance - outline_width, 0.0);
+    float feather_alpha = ShadowFeatherAlpha(feather_distance, shadow_blur, profile);
+    soft_alpha = 1.0 - (1.0 - soft_alpha) * (1.0 - feather_alpha);
+
+    float correction_strength = mix(0.08, 0.34, large_profile) * smoothstep(2.0, 7.0, shadow_blur);
+    if (correction_strength > 0.02)
+    {
+        float correction_alpha = ShadowShiftedCorrectionAlpha(p,
+                                                              curve_start,
+                                                              curve_count,
+                                                              glyph_metric_scale,
+                                                              pixel_filter_width,
+                                                              box_radius,
+                                                              profile,
+                                                              large_profile);
+        soft_alpha = 1.0 - (1.0 - soft_alpha) * (1.0 - correction_alpha * correction_strength);
+    }
+    return clamp(soft_alpha, 0.0, 1.0);
+#endif
 }
 
 void main()
@@ -754,12 +1097,7 @@ void main()
         return;
     }
 
-    float coverage = ScanlineSweepRender(p, curve_start, curve_count, pixel_filter_width);
-    float edge_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_screen_scale));
-    if (edge_distance > 1.0)
-    {
-        coverage = IsInsideGlyph(p, curve_start, curve_count);
-    }
+    float coverage = ComputeStableGlyphCoverage(p, curve_start, curve_count, pixel_filter_width, glyph_screen_scale);
 
     if (abs(layer_mode - LAYER_MODE_FACE) < 0.5)
     {
@@ -778,6 +1116,7 @@ void main()
                                                          curve_start,
                                                          curve_count,
                                                          glyph_metric_scale,
+                                                         pixel_filter_width,
                                                          coverage,
                                                          outline_width,
                                                          shadow_blur);

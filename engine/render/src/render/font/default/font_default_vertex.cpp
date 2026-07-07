@@ -638,7 +638,11 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             float outline_width_u = font_map->m_OutlineWidth / dmMath::Max(0.0001f, glyph_width);
             float outline_width_v = font_map->m_OutlineWidth / glyph_height;
             float shadow_outline_width = emit_outline ? font_map->m_OutlineWidth : 0.0f;
-            float shadow_radius = shadow_outline_width + font_map->m_ShadowBlur;
+            // Keep the shadow quad large enough to cover the SDF-style shadow
+            // ramp. The shadow spread is shadow_blur + sqrt(2), with one extra
+            // pixel to avoid clipping from rasterization and interpolation.
+            const float shadow_padding = font_map->m_ShadowBlur + 2.4142f;
+            float shadow_radius = shadow_outline_width + shadow_padding;
             float shadow_width_u = shadow_radius / dmMath::Max(0.0001f, glyph_width);
             float shadow_width_v = shadow_radius / glyph_height;
             float shadow_texcoord_min_x = -shadow_width_u;
