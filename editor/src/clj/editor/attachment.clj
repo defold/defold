@@ -128,15 +128,16 @@
   The other node type must define a list with the same name"
   [workspace node-type list-kw alias-node-type]
   {:pre [(not= node-type alias-node-type)]}
-  (g/update-property
-    workspace
-    :node-attachments
-    (fn [s]
-      (let [definition (-> s (clojure.core/get alias-node-type) :lists list-kw)
-            _ (assert definition "Can't alias undefined list")]
-        (assert definition "Can't alias undefined list")
-        (assert (not (contains? definition :alias)) "Can't alias another alias")
-        (assoc-list-definition s alias-node-type list-kw (update definition :aliases coll/conj-set node-type))))))
+  (g/non-undoable
+    (g/update-property
+      workspace
+      :node-attachments
+      (fn [s]
+        (let [definition (-> s (clojure.core/get alias-node-type) :lists list-kw)
+              _ (assert definition "Can't alias undefined list")]
+          (assert definition "Can't alias undefined list")
+          (assert (not (contains? definition :alias)) "Can't alias another alias")
+          (assoc-list-definition s alias-node-type list-kw (update definition :aliases coll/conj-set node-type)))))))
 
 (defn define-alternative
   "Create transaction steps that define an alternative node to use for editing
@@ -153,7 +154,8 @@
                       evaluation-context, should return an alternative node-id
                       or nil"
   [workspace node-type alternative-fn]
-  (g/update-property workspace :node-attachments #(update % node-type assoc :alternative alternative-fn)))
+  (g/non-undoable
+    (g/update-property workspace :node-attachments #(update % node-type assoc :alternative alternative-fn))))
 
 (defn alternatives
   "Return reducible of a node id and all other node ids in its alternative chain

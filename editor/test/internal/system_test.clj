@@ -20,7 +20,8 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.system :as is]
-            [support.test-support :as ts]))
+            [support.test-support :as ts])
+  (:import [clojure.lang ExceptionInfo]))
 
 (g/defnode Root
   (property where g/Str)
@@ -74,7 +75,28 @@
             tx-report (g/transact (g/make-node gid Root))
             after     (is/graph-time @g/*the-system* gid)]
         (is (= :ok (:status tx-report)))
-        (is (< before after))))))
+        (is (< before after)))))
+
+  (testing "graph time only advances for modified graphs"
+    (ts/with-clean-system
+      (let [modified-graph-id (g/make-graph!)
+            unmodified-graph-id (g/make-graph!)
+            root (g/make-node! modified-graph-id Root :touched 0)
+            modified-before (g/graph-version modified-graph-id)
+            unmodified-before (g/graph-version unmodified-graph-id)
+            tx-report (g/transact
+                        (g/set-property root :touched 1))]
+        (is (= :ok (:status tx-report)))
+        (is (< modified-before (g/graph-version modified-graph-id)))
+        (is (= unmodified-before (g/graph-version unmodified-graph-id)))
+
+        (g/undo! :undo/global)
+        (is (= 0 (g/node-value root :touched)))
+        (is (= unmodified-before (g/graph-version unmodified-graph-id)))
+
+        (g/redo! :undo/global)
+        (is (= 1 (g/node-value root :touched)))
+        (is (= unmodified-before (g/graph-version unmodified-graph-id)))))))
 
 (deftest undo-capture
   (testing "undoable actions are stored"
@@ -135,6 +157,19 @@
         (g/undo! :undo/custom)
 
         (is (= 0 (g/node-value root :touched))))))
+
+  (testing "queries on missing undo keys behave as empty undo stacks"
+    (ts/with-clean-system
+      (is (not (g/has-undo? ::missing)))
+      (is (not (g/has-redo? ::missing)))
+      (is (= 0 (g/undo-stack-count ::missing)))))
+
+  (testing "actions on missing undo keys throw exceptions"
+    (ts/with-clean-system
+      (is (thrown-with-msg? ExceptionInfo #"Missing undo-key" (g/reset-undo! ::missing)))
+      (is (thrown-with-msg? ExceptionInfo #"Missing undo-key" (g/undo! ::missing)))
+      (is (thrown-with-msg? ExceptionInfo #"Missing undo-key" (g/redo! ::missing)))
+      (is (thrown-with-msg? ExceptionInfo #"Missing undo-key" (g/cancel! ::missing :sequence-id)))))
 
   (testing "has-undo? and has-redo?"
     (ts/with-clean-system
@@ -568,7 +603,7 @@
         (g/transact {:undoable false}
           (g/connect p-source :source-label v-sink :target-label))
 
-        (is (= 0 (count (ts/undo-stack project-graph))))
+        (is (= 0 (count (ts/undo-stack :undo/global))))
         (is (= "INITIAL VALUE" (g/node-value v-sink :loud)))
         (is (= #{(gt/endpoint p-source :_declared-properties)
                  (gt/endpoint p-source :source-label)
@@ -579,12 +614,12 @@
         (g/transact
           (g/set-property p-source :source-label "edited"))
 
-        (is (= 1 (count (ts/undo-stack project-graph))))
+        (is (= 1 (count (ts/undo-stack :undo/global))))
         (is (= "EDITED" (g/node-value v-sink :loud)))
 
         (g/undo! :undo/global)
 
-        (is (= 0 (count (ts/undo-stack project-graph))))
+        (is (= 0 (count (ts/undo-stack :undo/global))))
         (is (= "INITIAL VALUE" (g/node-value v-sink :loud)))
         (is (= [[p-source :source-label v-sink :target-label]]
                (g/arcs->tuples (sarcs p-source :source-label))))
@@ -662,13 +697,13 @@
                                           (g/make-node project-graph Source)
                                           (g/make-node view-graph Sink))]
 
-        (is (= 1 (count (ts/undo-stack project-graph))))
+        (is (= 1 (count (ts/undo-stack :undo/global))))
 
         ;; This creates a dummy undo step that only touches p-source2 after the setup transaction.
         (g/transact
           (g/set-property p-source2 :source-label "dummy"))
 
-        (is (= 2 (count (ts/undo-stack project-graph))))
+        (is (= 2 (count (ts/undo-stack :undo/global))))
 
         (is (= #{(gt/endpoint p-source :_declared-properties)
                  (gt/endpoint p-source :source-label)
@@ -681,7 +716,7 @@
           [(g/set-property p-source2 :source-label "whateverzzzzz") ; we include this action to ensure an undo entry is created
            (g/connect p-source :source-label v-sink :target-label)])
 
-        (is (= 3 (count (ts/undo-stack project-graph))))
+        (is (= 3 (count (ts/undo-stack :undo/global))))
 
         (is (= #{(gt/endpoint p-source :_declared-properties)
                  (gt/endpoint p-source :source-label)
@@ -695,7 +730,7 @@
 
         (g/undo! :undo/global)
 
-        (is (= 2 (count (ts/undo-stack project-graph))))
+        (is (= 2 (count (ts/undo-stack :undo/global))))
 
         (is (= #{(gt/endpoint p-source :_declared-properties)
                  (gt/endpoint p-source :source-label)

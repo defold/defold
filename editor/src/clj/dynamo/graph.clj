@@ -770,13 +770,6 @@
   [label]
   (it/sequence-label label))
 
-(defn prev-sequence-label [undo-key]
-  (let [sys @*the-system*]
-    (when-let [prev-step (some-> (is/undo sys undo-key)
-                                 (is/undo-stack)
-                                 (last))]
-      (:sequence-label prev-step))))
-
 (defn take-node-ids
   "Given a count, returns a realized sequence of claimed, unique node-ids in the
   specified graph."
@@ -2112,13 +2105,12 @@
 (defn has-undo?
   "Returns true/false if an undo is available"
   [undo-key]
-  (let [undo-stack (is/undo-stack (is/undo @*the-system* undo-key))]
-    (not (empty? undo-stack))))
+  (not (coll/empty? (is/undo-stack (is/maybe-undo @*the-system* undo-key)))))
 
 (defn undo-stack-count
   "Returns the number of entries in the undo stack"
   [undo-key]
-  (let [undo-stack (is/undo-stack (is/undo @*the-system* undo-key))]
+  (let [undo-stack (is/undo-stack (is/maybe-undo @*the-system* undo-key))]
     (count undo-stack)))
 
 (defn redo!
@@ -2133,8 +2125,7 @@
 (defn has-redo?
   "Returns true/false if a redo is available"
   [undo-key]
-  (let [redo-stack (is/redo-stack (is/undo @*the-system* undo-key))]
-    (not (empty? redo-stack))))
+  (not (coll/empty? (is/redo-stack (is/maybe-undo @*the-system* undo-key)))))
 
 (defn reset-undo!
   "Clears undo

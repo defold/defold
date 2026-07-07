@@ -60,6 +60,29 @@
 (defn- new-undo []
   (tape/paper-tape maximum-undo-steps))
 
+(defn maybe-undo [system undo-key]
+  (-> system :undo (get undo-key)))
+
+(defn undo [system undo-key]
+  (or (maybe-undo system undo-key)
+      (throw
+        (ex-info
+          "Missing undo-key."
+          {:undo-key undo-key
+           :candidates (into (sorted-set)
+                             (map key)
+                             (:undo system))}))))
+
+(defn undo-stack [undo]
+  (if-not undo
+    []
+    (-> undo tape/before vec)))
+
+(defn redo-stack [undo]
+  (if-not undo
+    []
+    (-> undo tape/after vec)))
+
 (defn merge-or-push-undo
   [paper-tape label sequence-label undoable-changes]
   (let [new-state (->UndoState label sequence-label undoable-changes)
@@ -68,15 +91,11 @@
                   conj)]
     (tape-op paper-tape new-state)))
 
-(defn undo-stack [undo]
-  (-> undo tape/before vec))
-
 (defn last-graph            [system]          (-> system :last-graph))
 (defn system-cache          [system]          (some-> system :cache))
 (defn graphs                [system]          (-> system :graphs))
 (defn graph                 [system graph-id] (some-> system :graphs (get graph-id)))
 (defn graph-time            [system graph-id] (some-> system :graphs (get graph-id) :tx-id))
-(defn undo                  [system undo-key] (-> system :undo (get undo-key)))
 (defn basis                 [system]          (ig/multigraph-basis (:graphs system)))
 (defn id-generators         [system]          (-> system :id-generators))
 (defn override-id-generator [system]          (-> system :override-id-generator))
@@ -165,11 +184,12 @@
                     transaction-changes)
         tx-result (it/finalize-applied-changes ctx)]
     (-> system
-        (commit-graph-states (get-in tx-result [:basis :graphs]))
+        (commit-graph-states (select-keys (get-in tx-result [:basis :graphs])
+                                          (:graphs-modified tx-result)))
         (commit-transaction-effects (:outputs-modified tx-result)
                                     (:nodes-deleted tx-result)))))
 
-(defn- update-undo
+(defn- set-undo
   [system undo-key undo]
   (assoc-in system [:undo undo-key] undo))
 
@@ -181,26 +201,22 @@
       system
       (-> system
           (replay-changes (rseq (:undoable-changes state)) it/revert-change)
-          (update-undo undo-key (tape/iprev undo))))))
+          (set-undo undo-key (tape/iprev undo))))))
 
 (defn redo-action
   [system undo-key]
   (let [undo (undo system undo-key)
-        state (clojure.core/peek (tape/after undo))]
+        state (peek (tape/after undo))]
     (if-not state
       system
       (-> system
           (replay-changes (:undoable-changes state) it/perform-change)
-          (update-undo undo-key (tape/inext undo))))))
-
-(defn redo-stack [undo]
-  (-> undo tape/after vec))
+          (set-undo undo-key (tape/inext undo))))))
 
 (defn clear-undo
   [system undo-key]
-  (if-let [undo (undo system undo-key)]
-    (update-undo system undo-key (empty undo))
-    system))
+  (let [undo (undo system undo-key)]
+    (set-undo system undo-key (empty undo))))
 
 (defn cancel-undo
   [system undo-key sequence-id]
@@ -209,7 +225,7 @@
     (if (=* sequence-id (:sequence-label state))
       (-> system
           (replay-changes (rseq (:undoable-changes state)) it/revert-change)
-          (update-undo undo-key (tape/drop-current undo)))
+          (set-undo undo-key (tape/drop-current undo)))
       system)))
 
 (defn- make-initial-graph
