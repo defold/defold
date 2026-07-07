@@ -63,22 +63,6 @@ def call(args, failonerror = True):
     return output
 
 
-def platform_from_host():
-    system = platform.system()
-    machine = platform.machine()
-    if system == "Linux":
-        if machine == 'aarch64':
-            return "arm64-linux"
-        else:
-            return "x86_64-linux"
-    elif system == "Darwin":
-        if machine in ['aarch64', 'arm64']:
-            return "arm64-macos"
-        else:
-            return "x86_64-macos"
-    else:
-        return "x86_64-win32"
-
 def aptget(package):
     call("sudo apt-get install -y --no-install-recommends " + package)
 
@@ -144,8 +128,6 @@ def get_github_token():
     return os.environ.get('SERVICES_GITHUB_TOKEN', None)
 
 def install_linux(args):
-    host_platform = platform_from_host()
-
     # # we use apt-fast to speed up apt-get downloads
     # # https://github.com/ilikenwf/apt-fast
     # call("sudo add-apt-repository ppa:apt-fast/stable")
@@ -160,13 +142,19 @@ def install_linux(args):
     call("update-alternatives --display clang")
     call("update-alternatives --display clang++")
 
-    # libtinfo needed when building wasm-web
-    if host_platform == "arm64-linux":
-        call("wget http://ports.ubuntu.com/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_arm64.deb")
-        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_arm64.deb")
+    # Legacy ncurses 5 libraries needed when building wasm-web.
+    # Ubuntu 24.04/Noble runners no longer provide these package names in apt.
+    if platform.machine() in ('aarch64', 'arm64'):
+        ncurses_url = "http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2_arm64.deb"
+        libncurses_deb = "libncurses5_6.3-2_arm64.deb"
     else:
-        call("wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb")
-        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+        ncurses_url = "http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2ubuntu0.2_amd64.deb"
+        libncurses_deb = "libncurses5_6.3-2ubuntu0.2_amd64.deb"
+
+    call(f"wget {ncurses_url}/{libtinfo_deb} {ncurses_url}/{libncurses_deb}")
+    call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
 
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
     clang_version = 17
@@ -438,10 +426,12 @@ def test_bob(channel):
     call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
-def release(channel):
+def release(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
 
     token = get_github_token()
     if token:
@@ -450,10 +440,12 @@ def release(channel):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
-def build_sdk(channel):
+def build_sdk(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
@@ -517,6 +509,7 @@ def main(argv):
     parser.add_argument("--codesign", dest="codesign", action='store_true', help="Enable code signing")
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
@@ -560,6 +553,8 @@ def main(argv):
         return
 
     channel, make_release = release_settings_for_branch(branch)
+    if args.channel:
+        channel = args.channel
 
     print(f"Using branch={branch} channel={channel} engine_artifacts={args.engine_artifacts}")
 
@@ -584,7 +579,7 @@ def main(argv):
         elif command == "test-bob":
             test_bob(channel)
         elif command == "sdk":
-            build_sdk(channel)
+            build_sdk(channel, platform)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
@@ -595,7 +590,7 @@ def main(argv):
             distclean()
         elif command == "release":
             if make_release:
-                release(channel)
+                release(channel, platform)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         else:

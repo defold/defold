@@ -1,4 +1,10 @@
 {:hooks {:analyze-call {clojure.core/bounded-count hooks.clojure-core/bounded-count
+                        clojure.core/defn hooks.clojure-core/defn-call
+                        clojure.core/defn- hooks.clojure-core/defn-call
+                        clojure.core/definterface hooks.clojure-core/definterface
+                        clojure.core/defprotocol hooks.clojure-core/defprotocol
+                        clojure.core/defrecord hooks.clojure-core/defrecord
+                        clojure.core/deftype hooks.clojure-core/deftype
                         clojure.core/empty? hooks.clojure-core/empty?
                         clojure.core/every? hooks.clojure-core/every?
                         clojure.core/fn hooks.clojure-core/fn-call
@@ -66,7 +72,9 @@
                         util.defonce/record hooks.util-defonce/record
                         util.defonce/type hooks.util-defonce/type
                         util.fn/defamong hooks.util-fn/defamong}}
- :linters {:defold/prefer-coll-join-to-string {:level :warning}
+ :linters {:defold/defn-return-type-hint-placement {:level :warning}
+           :defold/prefer-coll-join-to-string {:level :warning}
+           :defold/prefer-defonce {:level :warning}
            :defold/prefer-util-coll {:level :warning}
            :refer-all {:exclude [clojure.test]}}
  :config-in-ns {editor.gl.translate-test {:linters {:inline-def {:level :off}}}}}

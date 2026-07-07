@@ -33,6 +33,110 @@ if(TARGET build_tests AND TARGET bob_light)
   add_dependencies(build_tests bob_light)
 endif()
 
+set(DEFOLD_HOST_TOOLS_TARGET "")
+if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
+  set(DEFOLD_HOST_TOOLS_TARGET host_tools)
+  set(DEFOLD_HOST_TOOLS_BUILD_DIR "${CMAKE_BINARY_DIR}/host-tools")
+  set(_DEFOLD_HOST_TOOLS_CONFIGURE_ARGS
+    -S "${DEFOLD_HOME}"
+    -B "${DEFOLD_HOST_TOOLS_BUILD_DIR}"
+    -D "TARGET_PLATFORM=${HOST_PLATFORM}"
+    -D "BUILD_TESTS=OFF"
+    -D "DEFOLD_ENGINE_LIB_SET=host"
+    -D "DEFOLD_SKIP_BOB_LIGHT=ON"
+    -D "DEFOLD_BUILD_HOME:PATH=${DEFOLD_BUILD_HOME}"
+    -D "DEFOLD_SDK_ROOT:PATH=${DEFOLD_SDK_ROOT}"
+    -D "CMAKE_INSTALL_PREFIX:PATH=${DEFOLD_SDK_ROOT}"
+    -D "DEFOLD_SOLUTION_NAME:STRING=Defold-host-tools-${HOST_PLATFORM}")
+  if(CMAKE_GENERATOR)
+    list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -G "${CMAKE_GENERATOR}")
+  endif()
+  if(CMAKE_GENERATOR MATCHES "Visual Studio" AND CMAKE_HOST_WIN32)
+    if(HOST_PLATFORM STREQUAL "x86_64-win32")
+      list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -A x64)
+    elseif(HOST_PLATFORM STREQUAL "x86-win32")
+      list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -A Win32)
+    elseif(HOST_PLATFORM STREQUAL "arm64-win32")
+      list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -A ARM64)
+    endif()
+  elseif(CMAKE_GENERATOR MATCHES "Visual Studio" AND CMAKE_GENERATOR_PLATFORM)
+    list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -A "${CMAKE_GENERATOR_PLATFORM}")
+  endif()
+  if(CMAKE_GENERATOR_TOOLSET)
+    list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -T "${CMAKE_GENERATOR_TOOLSET}")
+  endif()
+  if(CMAKE_GENERATOR_INSTANCE)
+    list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -D "CMAKE_GENERATOR_INSTANCE:PATH=${CMAKE_GENERATOR_INSTANCE}")
+  endif()
+  if(DEFOLD_VISUAL_STUDIO_ROOT)
+    list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -D "DEFOLD_VISUAL_STUDIO_ROOT:PATH=${DEFOLD_VISUAL_STUDIO_ROOT}")
+  endif()
+  if(DEFOLD_WINDOWS_SDK_VERSION)
+    list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -D "DEFOLD_WINDOWS_SDK_VERSION=${DEFOLD_WINDOWS_SDK_VERSION}")
+  endif()
+  set(_DEFOLD_HOST_TOOLS_BUILD_ARGS)
+  if(CMAKE_GENERATOR MATCHES "Visual Studio")
+    list(APPEND _DEFOLD_HOST_TOOLS_BUILD_ARGS -- /nodeReuse:false /v:minimal)
+  endif()
+  set(_DEFOLD_HOST_TOOLS_PATH "$ENV{Path}")
+  if(NOT _DEFOLD_HOST_TOOLS_PATH)
+    set(_DEFOLD_HOST_TOOLS_PATH "$ENV{PATH}")
+  endif()
+
+  function(_defold_make_script_args out_var)
+    set(_script_args)
+    foreach(_script_arg IN LISTS ARGN)
+      string(REPLACE "\\" "\\\\" _script_arg "${_script_arg}")
+      string(REPLACE "\"" "\\\"" _script_arg "${_script_arg}")
+      list(APPEND _script_args "\"${_script_arg}\"")
+    endforeach()
+    string(JOIN " " _script_args ${_script_args})
+    set(${out_var} "${_script_args}" PARENT_SCOPE)
+  endfunction()
+  _defold_make_script_args(DEFOLD_HOST_TOOLS_CONFIGURE_SCRIPT_ARGS ${_DEFOLD_HOST_TOOLS_CONFIGURE_ARGS})
+  _defold_make_script_args(DEFOLD_HOST_TOOLS_BUILD_SCRIPT_ARGS ${_DEFOLD_HOST_TOOLS_BUILD_ARGS})
+  set(DEFOLD_HOST_TOOLS_ENV_PATH "${_DEFOLD_HOST_TOOLS_PATH}")
+  set(DEFOLD_HOST_TOOLS_NORMALIZE_WINDOWS_PATH OFF)
+  if(CMAKE_HOST_WIN32)
+    set(DEFOLD_HOST_TOOLS_NORMALIZE_WINDOWS_PATH ON)
+  endif()
+  set(_DEFOLD_HOST_TOOLS_SCRIPT "${CMAKE_BINARY_DIR}/run_host_tools.cmake")
+  configure_file("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/host_tools.cmake.in" "${_DEFOLD_HOST_TOOLS_SCRIPT}" @ONLY)
+  file(GLOB_RECURSE _DEFOLD_HOST_TOOLS_INPUTS CONFIGURE_DEPENDS
+    "${DEFOLD_HOME}/CMakeLists.txt"
+    "${DEFOLD_HOME}/scripts/cmake/*.cmake"
+    "${DEFOLD_HOME}/engine/dlib/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/dlib/src/*"
+    "${DEFOLD_HOME}/engine/jni/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/jni/src/*"
+    "${DEFOLD_HOME}/engine/texc/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/texc/src/*"
+    "${DEFOLD_HOME}/engine/modelc/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/modelc/src/*"
+    "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/shaderc/src/*")
+  set(_DEFOLD_HOST_TOOLS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/host_tools-$<CONFIG>.stamp")
+
+  add_custom_command(
+    OUTPUT "${_DEFOLD_HOST_TOOLS_STAMP}"
+    COMMAND "${CMAKE_COMMAND}" -D "DEFOLD_HOST_TOOLS_CONFIG=$<CONFIG>" -P "${_DEFOLD_HOST_TOOLS_SCRIPT}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${_DEFOLD_HOST_TOOLS_STAMP}"
+    DEPENDS "${_DEFOLD_HOST_TOOLS_SCRIPT}" ${_DEFOLD_HOST_TOOLS_INPUTS}
+    COMMENT "Building Defold host tools for ${HOST_PLATFORM}"
+    VERBATIM)
+  add_custom_target(host_tools DEPENDS "${_DEFOLD_HOST_TOOLS_STAMP}")
+  unset(_DEFOLD_HOST_TOOLS_CONFIGURE_ARGS)
+  unset(_DEFOLD_HOST_TOOLS_BUILD_ARGS)
+  unset(_DEFOLD_HOST_TOOLS_INPUTS)
+  unset(_DEFOLD_HOST_TOOLS_SCRIPT)
+  unset(_DEFOLD_HOST_TOOLS_STAMP)
+  unset(_DEFOLD_HOST_TOOLS_PATH)
+  unset(DEFOLD_HOST_TOOLS_CONFIGURE_SCRIPT_ARGS)
+  unset(DEFOLD_HOST_TOOLS_BUILD_SCRIPT_ARGS)
+  unset(DEFOLD_HOST_TOOLS_ENV_PATH)
+  unset(DEFOLD_HOST_TOOLS_NORMALIZE_WINDOWS_PATH)
+endif()
+
 # Engine libs.
 set(DEFOLD_ENGINE_LIBS
   testmain
@@ -160,6 +264,9 @@ if(TARGET shaderc_jar)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${DEFOLD_SHADERC_BINARY_DIR}/shaderc.jar"
       "${DEFOLD_SDK_ROOT}/share/java/shaderc.jar")
+endif()
+if(DEFOLD_HOST_TOOLS_TARGET)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOST_TOOLS_TARGET}")
 endif()
 
 if(NOT DEFOLD_SKIP_BOB_LIGHT)

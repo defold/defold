@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns hooks.clojure-core
-  (:refer-clojure :exclude [bounded-count empty? every? map not-any? not-empty not-every? some])
+  (:refer-clojure :exclude [bounded-count definterface defprotocol defrecord deftype empty? every? map not-any? not-empty not-every? some])
   (:require [clj-kondo.hooks-api :as api]))
 
 (defn- warn-prefer-util-coll! [node function-name]
@@ -101,9 +101,59 @@
                             replacement)
            :type :defold/prefer-util-coll)))
 
+(defn- warn-defn-return-type-hint-placement! [finding-meta]
+  (api/reg-finding!
+    (assoc finding-meta
+           :message "Put defn return type hint and argument vector on the next line."
+           :type :defold/defn-return-type-hint-placement)))
+
+(defn- single-arity-arg-vector-node [children]
+  (loop [previous-node nil
+         children children]
+    (when-some [child-node (first children)]
+      (if (= :vector (:tag child-node))
+        [previous-node child-node]
+        (recur child-node (next children))))))
+
 (defn bounded-count [{:keys [node]}]
   (warn-prefer-util-coll! node "bounded-count")
   {:node node})
+
+(defn- warn-prefer-defonce! [node defonce-form core-form]
+  (let [[form-node] (:children node)]
+    (when-not (:defold/defonce (meta form-node))
+      (api/reg-finding!
+        (assoc (meta form-node)
+               :message (format "Use util.defonce/%s instead of clojure.core/%s."
+                                defonce-form
+                                core-form)
+               :type :defold/prefer-defonce))))
+  {:node node})
+
+(defn defprotocol [{:keys [node]}]
+  (warn-prefer-defonce! node "protocol" "defprotocol"))
+
+(defn definterface [{:keys [node]}]
+  (warn-prefer-defonce! node "interface" "definterface"))
+
+(defn defrecord [{:keys [node]}]
+  (warn-prefer-defonce! node "record" "defrecord"))
+
+(defn deftype [{:keys [node]}]
+  (warn-prefer-defonce! node "type" "deftype"))
+
+(defn defn-call [{:keys [node]}]
+  (let [[_defn-node & tail-nodes] (:children node)
+        [previous-node arg-vector-node] (single-arity-arg-vector-node tail-nodes)]
+    (when (and previous-node
+               arg-vector-node
+               (= (:row (meta previous-node)) (:row (meta arg-vector-node)))
+               (< (inc (:end-col (meta previous-node)))
+                  (:col (meta arg-vector-node))))
+      (warn-defn-return-type-hint-placement!
+        (assoc (meta arg-vector-node)
+               :col (inc (:end-col (meta previous-node))))))
+    {:node node}))
 
 (defn fn-call [{:keys [node]}]
   (let [[fn-node] (:children node)

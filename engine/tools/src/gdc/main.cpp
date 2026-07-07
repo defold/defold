@@ -84,6 +84,8 @@ static const char* GetSDLPlatformName(const char* platform)
         return "iOS";
     if (strcmp(platform, DM_PLATFORM_NAME_WEB) == 0)
         return "Web";
+    if (strcmp(platform, DM_PLATFORM_NAME_XBOX) == 0)
+        return "Xbox";
     return platform;
 }
 
