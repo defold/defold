@@ -22,8 +22,10 @@
   (:import [clojure.lang Named]
            [com.defold.util IDigestable]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
+           [com.dynamo.bob.util Library$Archive Library$Result]
            [com.dynamo.graphics.proto Graphics$ShaderDesc]
            [java.io BufferedWriter OutputStreamWriter Writer]
+           [java.nio.file Files LinkOption]
            [java.util Arrays]))
 
 (set! *warn-on-reflection* true)
@@ -244,6 +246,27 @@
   java.util.List
   (digest! [value writer opts]
     (digest-sequence! "[" value "]" writer opts))
+
+  Library$Archive
+  (digest! [value writer opts]
+    (digest-tagged! 'LibraryArchive
+                    {:path (str (.path value))
+                     :size (Files/size (.path value))
+                     :modified-time (str (Files/getLastModifiedTime (.path value) (make-array LinkOption 0)))
+                     :base-dir (.baseDir value)
+                     :include-dirs (.includeDirs value)
+                     :zip-comment (.zipComment value)}
+                    writer
+                    opts))
+
+  Library$Result
+  (digest! [value writer opts]
+    (digest-tagged! 'LibraryResult
+                    {:uri (.uri value)
+                     :archive (.archive value)
+                     :problem (some-> (.problem value) str)}
+                    writer
+                    opts))
 
   TextureSetGenerator$LayoutResult
   (digest! [value writer opts]

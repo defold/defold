@@ -80,9 +80,10 @@
         user-data-content (settings-core/settings->str settings meta-settings :comma-separated-list)]
     {:resource resource :content (.getBytes user-data-content)}))
 
-(defn- build-dependency-metadata [resource _dep-resources dependency-metadata-json]
+(defn- build-dependency-metadata [resource _dep-resources dependencies]
   {:resource resource
-   :content dependency-metadata-json})
+   :content (.writeValueAsBytes dependency-metadata-object-mapper
+                                (DependencyMetadata/collect dependencies))})
 
 (defonce/record DependencyMetadataResource [workspace]
   resource/Resource
@@ -111,15 +112,6 @@
   (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (make-output-stream [_ opts] (io/make-output-stream (ByteArrayOutputStream.) opts))
   (make-writer [this opts] (io/make-writer (io/make-output-stream this opts) opts)))
-
-(defn- make-dependency-metadata-build-target [node-id workspace dependencies]
-  (let [dependency-metadata (DependencyMetadata/collect dependencies)]
-    (when (coll/not-empty dependency-metadata)
-      (bt/with-content-hash
-        {:node-id node-id
-         :resource (workspace/make-build-resource (->DependencyMetadataResource workspace))
-         :build-fn build-dependency-metadata
-         :user-data (.writeValueAsBytes dependency-metadata-object-mapper dependency-metadata)}))))
 
 (defonce/record CustomResource [resource]
   ;; Only purpose is to provide resource-type with :build-ext = :ext
@@ -208,12 +200,16 @@
                                        :user-data {:settings-map settings-map
                                                    :meta-settings (:settings meta-info)
                                                    :path->built-resource-settings path->built-resource-settings}
-                                       :deps dep-build-targets})
-          dependency-metadata-build-target (when (true? (get settings-map dependencies-metadata-setting-path))
-                                             (make-dependency-metadata-build-target _node-id (resource/workspace resource) dependencies))]
+                                       :deps dep-build-targets})]
       (cond-> [game-project-build-target]
-        dependency-metadata-build-target
-        (conj dependency-metadata-build-target)))))
+        (and (get settings-map dependencies-metadata-setting-path)
+             (coll/not-empty dependencies))
+        (conj (bt/with-content-hash
+                {:node-id _node-id
+                 :resource (workspace/make-build-resource
+                              (->DependencyMetadataResource (resource/workspace resource)))
+                 :build-fn build-dependency-metadata
+                 :user-data dependencies}))))))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)

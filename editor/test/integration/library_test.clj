@@ -152,16 +152,16 @@
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
         (fetch-libraries! workspace (project/project-dependencies project) identity)
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
-        (is (true? (.isFile dependency-metadata-file)))
-        (is (true? (.contains (slurp dependency-metadata-file) uri)))
+        (is (.isFile dependency-metadata-file))
+        (is (.contains (slurp dependency-metadata-file) uri))
         ;; disable dependency metadata, fetch libraries, we should still update the metadata file
         (game-project/set-setting! game-project ["project" "dependencies_metadata"] false)
         (fetch-libraries! workspace (project/project-dependencies project) identity)
-        (is (true? (.isFile dependency-metadata-file)))
+        (is (.isFile dependency-metadata-file))
         ;; remove dependency again, fetch libraries, we should no longer have the file
         (game-project/set-setting! game-project ["project" "dependencies"] nil)
         (fetch-libraries! workspace (project/project-dependencies project) identity)
-        (is (false? (.exists dependency-metadata-file)))
+        (is (not (.exists dependency-metadata-file)))
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-library-archive-with-nesting
