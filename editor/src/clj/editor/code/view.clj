@@ -3095,12 +3095,12 @@
 
 (defn- flatten-document-symbols [document-symbols]
   (coll/into-> document-symbols []
-    (comp (coll/tree-xf
-            (fn [{:keys [kind children]}]
-              (and (coll/not-empty children)
-                   (contains? #{:object :class :enum :struct :namespace} kind)))
-            :children)
-          (map #(dissoc % :children)))))
+    (coll/tree-xf
+      (fn [{:keys [kind children]}]
+        (and (coll/not-empty children)
+             (contains? #{:object :class :enum :struct :namespace} kind)))
+      :children)
+    (map #(dissoc % :children))))
 
 (handler/defhandler :code.jump-to-symbol :code-view
   (enabled? [view-node evaluation-context]
