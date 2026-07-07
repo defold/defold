@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns hooks.clojure-core
-  (:refer-clojure :exclude [bounded-count definterface defprotocol defrecord deftype empty? every? map not-any? not-empty not-every? some])
+  (:refer-clojure :exclude [boolean bounded-count definterface defprotocol defrecord deftype empty? every? map not-any? not-empty not-every? some])
   (:require [clj-kondo.hooks-api :as api]))
 
 (defn- warn-prefer-util-coll! [node function-name]
@@ -74,6 +74,19 @@
                             replacement)
            :type :defold/prefer-util-coll)))
 
+(defn- some-call-node? [node]
+  (when (= :list (:tag node))
+    (let [call-symbol (api/sexpr (first (:children node)))]
+      (and (symbol? call-symbol)
+           (= "some" (name call-symbol))
+           (contains? #{"clojure.core" "coll" "util.coll" nil} (namespace call-symbol))))))
+
+(defn- warn-prefer-coll-any! [node]
+  (api/reg-finding!
+    (assoc (meta node)
+           :message "Use util.coll/any? instead of boolean-wrapped some."
+           :type :defold/prefer-util-coll)))
+
 (defn- compare-function-replacement [function-sexpr]
   (when (and (seq? function-sexpr)
              (#{'fn 'fn*} (first function-sexpr)))
@@ -118,6 +131,12 @@
 (defn bounded-count [{:keys [node]}]
   (warn-prefer-util-coll! node "bounded-count")
   {:node node})
+
+(defn boolean [{:keys [node]}]
+  (let [[boolean-node expr-node] (:children node)]
+    (when (some-call-node? expr-node)
+      (warn-prefer-coll-any! boolean-node))
+    {:node node}))
 
 (defn- warn-prefer-defonce! [node defonce-form core-form]
   (let [[form-node] (:children node)]

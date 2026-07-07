@@ -141,6 +141,7 @@ namespace dmShaderc
         SHADER_COMPILER_PLATFORM_DEFAULT,
         SHADER_COMPILER_PLATFORM_MACOS,
         SHADER_COMPILER_PLATFORM_IOS,
+        SHADER_COMPILER_PLATFORM_XBONE,
     };
 
     struct ShaderCompilerOptions

@@ -427,10 +427,12 @@ def test_bob(channel):
     call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
-def release(channel):
+def release(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
 
     token = get_github_token()
     if token:
@@ -439,49 +441,12 @@ def release(channel):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
-# Channels that ship editor release notes.
-RELEASE_NOTES_CHANNELS = ("beta", "stable")
-
-# DEV-ONLY (issue-7186 validation): let the feature branch exercise the full
-# notes pipeline on a disposable channel. Delete this whole statement before
-# merging to dev.
-RELEASE_NOTES_CHANNELS = RELEASE_NOTES_CHANNELS + ("release-notes-view",)
-
-def gen_release_notes(channel):
-    if channel not in RELEASE_NOTES_CHANNELS:
-        print("Channel '%s' does not ship release notes - skipping" % channel)
-        return
-
-    version = open("VERSION").read().strip()
-    notes_md = os.path.join("releasenotes", "%s.md" % version)
-    notes_json = os.path.join("releasenotes", "%s.json" % version)
-
-    # Manually-authored notes win: if a file is already on disk, use it as-is and
-    # don't hit the API or overwrite it.
-    if os.path.exists(notes_md):
-        if not os.path.exists(notes_json):
-            raise Exception("%s already exists, but matching %s is missing" % (notes_md, notes_json))
-        print("%s already exists - using manually-authored notes as-is" % notes_md)
-        return
-
-    # The generator audits every issue's fix for presence on the branch(es) this
-    # channel ships from and exits non-zero - failing the job - if any are missing
-    # or generation itself errors. --use-github-compare does that check via the
-    # GitHub compare API since CI runs on a shallow clone with no branch history.
-    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s --use-github-compare generate' % (
-        sys.executable, version, channel, get_github_token()))
-
-    # beta/stable must ship notes: a missing file here means generation produced
-    # nothing (no board / empty) - a release defect, so fail.
-    if not os.path.exists(notes_md):
-        raise Exception("No release notes produced for %s on channel '%s'" % (version, channel))
-    if not os.path.exists(notes_json):
-        raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
-
-def build_sdk(channel):
+def build_sdk(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
@@ -555,6 +520,7 @@ def main(argv):
     parser.add_argument("--codesign", dest="codesign", action='store_true', help="Enable code signing")
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
@@ -602,6 +568,8 @@ def main(argv):
         return
 
     channel, make_release = release_settings_for_branch(branch)
+    if args.channel:
+        channel = args.channel
 
     print(f"Using branch={branch} channel={channel} engine_artifacts={args.engine_artifacts}")
 
@@ -628,7 +596,7 @@ def main(argv):
         elif command == "test-bob":
             test_bob(channel)
         elif command == "sdk":
-            build_sdk(channel)
+            build_sdk(channel, platform)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
@@ -639,7 +607,7 @@ def main(argv):
             distclean()
         elif command == "release":
             if make_release:
-                release(channel)
+                release(channel, platform)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         else:

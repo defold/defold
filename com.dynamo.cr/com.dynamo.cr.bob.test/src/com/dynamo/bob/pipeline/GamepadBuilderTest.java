@@ -43,6 +43,15 @@ public class GamepadBuilderTest {
         return false;
     }
 
+    private static boolean hasMappingGuid(GamepadMapsRuntime maps, String guid) {
+        for (GamepadMapRuntime mapping : maps.getMappingsList()) {
+            if (mapping.hasGuid() && bytesToHex(mapping.getGuid().toByteArray()).equals(guid)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static String firstMappingWithoutControls(GamepadMapsRuntime maps) {
         for (GamepadMapRuntime mapping : maps.getMappingsList()) {
             if (mapping.getMapCount() == 0) {
@@ -74,6 +83,34 @@ public class GamepadBuilderTest {
                     hasMapping(maps, "Wireless Controller", false));
             assertTrue("Expected a converted mapping from gamecontrollerdb.txt with a GUID.",
                     hasMapping(maps, "Nintendo Switch Pro Controller", true));
+        } finally {
+            output.delete();
+        }
+    }
+
+    @Test
+    public void testMainBuildsXboxDefaultGamepadsFromDatabase() throws Exception {
+        File defaultGamepads = repoFile("../../engine/engine/content/builtins/input/default.gamepads");
+        File gamecontrollerdb = repoFile("../../engine/engine/content/builtins/input/gamecontrollerdb.txt");
+        File output = File.createTempFile("default-gamepads-xbox", ".gamepadsc");
+        output.deleteOnExit();
+
+        try {
+            GamepadBuilder.main(new String[] {
+                    defaultGamepads.getAbsolutePath(),
+                    gamecontrollerdb.getAbsolutePath(),
+                    output.getAbsolutePath(),
+                    "x86_64-xbone"
+            });
+
+            GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(Files.readAllBytes(output.toPath()));
+            assertTrue("Expected Xbox mappings from gamecontrollerdb.txt in addition to default.gamepads.",
+                    maps.getMappingsCount() > 1);
+            assertNull(firstMappingWithoutControls(maps));
+            assertTrue("Expected the legacy default.gamepads Xbox mapping.",
+                    hasMapping(maps, "Xbox One Controller", false));
+            assertTrue("Expected the USB Xbox One Controller ea02 GUID from gamecontrollerdb.txt.",
+                    hasMappingGuid(maps, "030000005e040000ea02000000000000"));
         } finally {
             output.delete();
         }
@@ -132,5 +169,13 @@ public class GamepadBuilderTest {
             gamepads.delete();
             gamecontrollerdb.delete();
         }
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b & 0xff));
+        }
+        return sb.toString();
     }
 }

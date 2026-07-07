@@ -354,6 +354,9 @@ public final class GamepadConverter {
                 return "switch";
             case "playstation":
                 return "playstation";
+            case "xbox":
+            case "xbone":
+                return "xbox";
             default:
                 if (normalized.endsWith("-win32")) {
                     return "windows";
@@ -378,6 +381,9 @@ public final class GamepadConverter {
                 }
                 if (normalized.endsWith("-ps4") || normalized.endsWith("-ps5")) {
                     return "playstation";
+                }
+                if (normalized.endsWith("-xbone")) {
+                    return "xbox";
                 }
                 return normalized;
         }

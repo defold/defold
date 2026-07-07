@@ -13,8 +13,6 @@ When one branch of an `if` is trivial, prefer placing the trivial branch in the 
 
 ## Functions
 
-When a `defn` has a return type hint, put the type hint and argument vector on the next line.
-
 Avoid introducing multiple arities to functions. Prefer updating call sites with added arguments instead. For recursive functions, prefer a separate private `-impl`-suffixed helper over an internal-only arity.
 
 ## Grouping and spacing

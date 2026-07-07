@@ -25,8 +25,8 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#if defined(DM_PLATFORM_VENDOR) && __has_include("graphics_dx12_vendor.h")
-    #include "graphics_dx12_vendor.h"
+#if defined(DM_PLATFORM_XBOX)
+    #include "graphics_dx12_xbox.h"
 #else
     #include <d3d12.h>
     #include <d3dx12.h>
@@ -245,7 +245,7 @@ namespace dmGraphics
         GraphicsContext                    m_BaseContext;
         ID3D12Device*                      m_Device;
 
-#if defined(DM_PLATFORM_VENDOR)
+#if defined(DM_PLATFORM_XBOX)
         DX12VendorContext                  m_VendorContext;
 #else
         IDXGISwapChain3*                   m_SwapChain;

@@ -1,6 +1,7 @@
 defold_log("features.cmake:")
 
 option(BUILD_TESTS "Build unit tests" ON)
+option(DEFOLD_TEST_COLORS "Use colored unit test output" ON)
 set(DEFOLD_ENABLE_FEATURES "" CACHE STRING "Semicolon or comma separated list of enabled Defold features, e.g. mbedtls;wagyu")
 set(DEFOLD_DISABLE_FEATURES "" CACHE STRING "Semicolon or comma separated list of disabled Defold features")
 option(USE_VULKAN "Use Vulkan graphics adapter for app test" OFF)
@@ -74,6 +75,7 @@ function(defold_feature_disabled feature out_var)
 endfunction()
 
 defold_log("BUILD_TESTS: ${BUILD_TESTS}")
+defold_log("DEFOLD_TEST_COLORS: ${DEFOLD_TEST_COLORS}")
 defold_log("DEFOLD_ENABLE_FEATURES: ${DEFOLD_ENABLED_FEATURES}")
 defold_log("DEFOLD_DISABLE_FEATURES: ${DEFOLD_DISABLED_FEATURES}")
 defold_log("USE_VULKAN: ${USE_VULKAN}")
