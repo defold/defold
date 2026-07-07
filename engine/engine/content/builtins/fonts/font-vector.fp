@@ -12,7 +12,7 @@ precision highp int;
 
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;
-flat in highp vec4 var_jacobian;
+flat in highp vec4 var_effect_params;
 flat in highp vec4 var_glyph;
 flat in highp vec4 var_params;
 
@@ -33,6 +33,8 @@ const int MAX_VECTOR_CURVES = 256;
 const float LAYER_MODE_FACE = 0.0;
 const float LAYER_MODE_OUTLINE = 1.0;
 const float LAYER_MODE_SHADOW = 2.0;
+const float PACKED_CURVE_COORD_MIN = -1.0;
+const float PACKED_CURVE_COORD_SPAN = 3.0;
 #define SHADOW_USE_SEPARABLE_BOX_REFERENCE 0
 #define SHADOW_USE_LEGACY_SDF_REFERENCE 1
 #define SHADOW_LEGACY_SDF_BLUR_3X3 0
@@ -43,6 +45,43 @@ vec4 SampleCurveTexel(float texel_index)
     int texel_x = texel % CURVE_TEXTURE_WIDTH_TEXELS;
     int texel_y = texel / CURVE_TEXTURE_WIDTH_TEXELS;
     return texelFetch(curve_texture, ivec2(texel_x, texel_y), 0);
+}
+
+float CurveTexelStride()
+{
+    return max(var_params.z, 2.0);
+}
+
+float DecodePackedUint16(float low_byte, float high_byte)
+{
+    float low = floor(low_byte * 255.0 + 0.5);
+    float high = floor(high_byte * 255.0 + 0.5);
+    return (low + high * 256.0) / 65535.0;
+}
+
+vec2 DecodePackedCurvePoint(vec4 packed_point)
+{
+    vec2 normalized = vec2(DecodePackedUint16(packed_point.x, packed_point.y),
+                           DecodePackedUint16(packed_point.z, packed_point.w));
+    return normalized * PACKED_CURVE_COORD_SPAN + vec2(PACKED_CURVE_COORD_MIN);
+}
+
+void LoadCurve(float curve_texel, out vec2 p0, out vec2 p1, out vec2 p2)
+{
+    if (CurveTexelStride() > 2.5)
+    {
+        p0 = DecodePackedCurvePoint(SampleCurveTexel(curve_texel));
+        p1 = DecodePackedCurvePoint(SampleCurveTexel(curve_texel + 1.0));
+        p2 = DecodePackedCurvePoint(SampleCurveTexel(curve_texel + 2.0));
+    }
+    else
+    {
+        vec4 curve_a = SampleCurveTexel(curve_texel);
+        vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
+        p0 = curve_a.xy;
+        p1 = curve_a.zw;
+        p2 = curve_b.xy;
+    }
 }
 
 float QuadraticAxis(float t, float p0, float p1, float p2)
@@ -433,10 +472,12 @@ vec4 ScanlineSweepDebugPage(vec2 render_coord,
         return vec4(1.0, 0.0, 1.0, 1.0);
     }
 
-    float curve_texel = curve_start + float(curve_index * 2);
-    vec4 curve_a = SampleCurveTexel(curve_texel);
-    vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
-    return ScanlineSweepDebugPageForCurve(render_coord, filter_width, page, curve_a.xy, curve_a.zw, curve_b.xy);
+    float curve_texel = curve_start + float(curve_index) * CurveTexelStride();
+    vec2 p0;
+    vec2 p1;
+    vec2 p2;
+    LoadCurve(curve_texel, p0, p1, p2);
+    return ScanlineSweepDebugPageForCurve(render_coord, filter_width, page, p0, p1, p2);
 }
 
 float ScanlineSweepRender(vec2 render_coord, float curve_start, float curve_count, vec2 filter_width)
@@ -453,14 +494,16 @@ float ScanlineSweepRender(vec2 render_coord, float curve_start, float curve_coun
             break;
         }
 
-        float curve_texel = curve_start + float(i * 2);
-        vec4 curve_a = SampleCurveTexel(curve_texel);
-        vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
+        float curve_texel = curve_start + float(i) * CurveTexelStride();
+        vec2 p0;
+        vec2 p1;
+        vec2 p2;
+        LoadCurve(curve_texel, p0, p1, p2);
         signed_area += scanline_sweep(size,
                                       offset,
-                                      curve_a.xy * inv_filter_width,
-                                      curve_a.zw * inv_filter_width,
-                                      curve_b.xy * inv_filter_width);
+                                      p0 * inv_filter_width,
+                                      p1 * inv_filter_width,
+                                      p2 * inv_filter_width);
     }
 
     return clamp(abs(signed_area), 0.0, 1.0);
@@ -538,10 +581,12 @@ float ComputeGlyphWinding(vec2 p, float curve_start, float curve_count)
             break;
         }
 
-        float curve_texel = curve_start + float(i * 2);
-        vec4 curve_a = SampleCurveTexel(curve_texel);
-        vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
-        winding += ComputeQuadraticWinding(p, curve_a.xy, curve_a.zw, curve_b.xy);
+        float curve_texel = curve_start + float(i) * CurveTexelStride();
+        vec2 p0;
+        vec2 p1;
+        vec2 p2;
+        LoadCurve(curve_texel, p0, p1, p2);
+        winding += ComputeQuadraticWinding(p, p0, p1, p2);
     }
 
     return winding;
@@ -565,13 +610,15 @@ float CalculateHorizontalCoverage(vec2 pixel_pos, float curve_start, float curve
             break;
         }
 
-        float curve_texel = curve_start + float(i * 2);
-        vec4 curve_a = SampleCurveTexel(curve_texel);
-        vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
+        float curve_texel = curve_start + float(i) * CurveTexelStride();
+        vec2 p0;
+        vec2 p1;
+        vec2 p2;
+        LoadCurve(curve_texel, p0, p1, p2);
 
-        vec2 p0 = curve_a.xy - pixel_pos;
-        vec2 p1 = curve_a.zw - pixel_pos;
-        vec2 p2 = curve_b.xy - pixel_pos;
+        p0 -= pixel_pos;
+        p1 -= pixel_pos;
+        p2 -= pixel_pos;
 
         bool is_downward_curve = p0.y > 0.0 || p2.y < 0.0;
         if (is_downward_curve)
@@ -675,11 +722,13 @@ float ComputeCurveDistanceSqPixels(vec2 p, float curve_start, float curve_count,
             break;
         }
 
-        float curve_texel = curve_start + float(i * 2);
-        vec4 curve_a = SampleCurveTexel(curve_texel);
-        vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
+        float curve_texel = curve_start + float(i) * CurveTexelStride();
+        vec2 p0;
+        vec2 p1;
+        vec2 p2;
+        LoadCurve(curve_texel, p0, p1, p2);
         best_distance_sq = min(best_distance_sq,
-            QuadraticDistanceSqPixels(p, curve_a.xy, curve_a.zw, curve_b.xy, glyph_scale));
+            QuadraticDistanceSqPixels(p, p0, p1, p2, glyph_scale));
     }
     return best_distance_sq;
 }
@@ -1068,8 +1117,8 @@ void main()
     }
 
     highp vec2 p = var_texcoord;
-    float outline_width = max(var_jacobian.z, 0.0);
-    float shadow_blur = max(var_jacobian.w, 0.0);
+    float outline_width = max(var_effect_params.z, 0.0);
+    float shadow_blur = max(var_effect_params.w, 0.0);
     vec2 glyph_metric_scale = max(var_params.xy, vec2(0.0001));
     vec2 pixel_filter_width = max(fwidth(p), vec2(1.0 / 65536.0));
     vec2 glyph_screen_scale = 1.0 / pixel_filter_width;

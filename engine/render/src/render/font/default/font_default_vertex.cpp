@@ -45,7 +45,7 @@ struct DM_ALIGNED(16) GlyphVertex
     // The first streams carry the vector font path metadata.
     float m_Position[4];
     float m_VectorTexcoord[4];
-    float m_VectorJacobian[4];
+    float m_VectorEffectParams[4];
     uint8_t m_VectorColor[4];
     float m_UV[2];
     float m_FaceColor[4];
@@ -85,7 +85,7 @@ dmGraphics::HVertexDeclaration CreateVertexDeclaration(HFontRenderBackend backen
     dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(context);
     dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "texcoord", 4, dmGraphics::TYPE_FLOAT, false);
-    dmGraphics::AddVertexStream(stream_declaration, "jacobian", 4, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "effect_params", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_UNSIGNED_BYTE, true);
     dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "face_color", 4, dmGraphics::TYPE_FLOAT, true);
@@ -423,6 +423,7 @@ static void OutputGlyphVector(uint32_t vertexindex,
                               float descent,
                               float curve_start,
                               float curve_count,
+                              float curve_texel_stride,
                               float texcoord_min_x,
                               float texcoord_min_y,
                               float texcoord_max_x,
@@ -462,15 +463,15 @@ static void OutputGlyphVector(uint32_t vertexindex,
         v.m_VectorTexcoord[1] = vv; \
         v.m_VectorTexcoord[2] = curve_count; \
         v.m_VectorTexcoord[3] = 0.0f; \
-        v.m_VectorJacobian[0] = 0.0f; \
-        v.m_VectorJacobian[1] = 0.0f; \
-        v.m_VectorJacobian[2] = outline_width; \
-        v.m_VectorJacobian[3] = shadow_blur; \
+        v.m_VectorEffectParams[0] = 0.0f; \
+        v.m_VectorEffectParams[1] = 0.0f; \
+        v.m_VectorEffectParams[2] = outline_width; \
+        v.m_VectorEffectParams[3] = shadow_blur; \
         v.m_Position[2] = curve_start; \
         v.m_Position[3] = layer_mode; \
         v.m_SdfParams[0] = width; \
         v.m_SdfParams[1] = height; \
-        v.m_SdfParams[2] = 0.0f; \
+        v.m_SdfParams[2] = curve_texel_stride; \
         v.m_SdfParams[3] = 0.0f; \
         SetVectorColor(v, color);
 
@@ -650,6 +651,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   glyph->m_Descent,
                                   cache_glyph->m_VectorCurveTexel,
                                   cache_glyph->m_VectorCurveCount,
+                                  font_map->m_VectorCurveTexelsPerCurve,
                                   shadow_texcoord_min_x,
                                   shadow_texcoord_min_y,
                                   shadow_texcoord_max_x,
@@ -676,6 +678,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   glyph->m_Descent,
                                   cache_glyph->m_VectorCurveTexel,
                                   cache_glyph->m_VectorCurveCount,
+                                  font_map->m_VectorCurveTexelsPerCurve,
                                   -outline_width_u,
                                   -outline_width_v,
                                   1.0f + outline_width_u,
@@ -700,6 +703,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                               glyph->m_Descent,
                               cache_glyph->m_VectorCurveTexel,
                               cache_glyph->m_VectorCurveCount,
+                              font_map->m_VectorCurveTexelsPerCurve,
                               0.0f,
                               0.0f,
                               1.0f,

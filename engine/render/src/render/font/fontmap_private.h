@@ -113,6 +113,7 @@ namespace dmRender
         uint32_t                m_VectorCurveCapacity;  // Number of texels in the vector curve texture
         uint32_t                m_VectorCurveCursor;    // Next free texel in the vector curve texture
         uint8_t                 m_VectorCurveComponentSize;
+        uint8_t                 m_VectorCurveTexelsPerCurve;
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
         uint8_t                 m_Padding;              // The padding of the cell

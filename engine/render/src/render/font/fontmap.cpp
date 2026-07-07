@@ -33,6 +33,8 @@ namespace dmRender
     static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
     static const uint32_t VECTOR_CURVE_TEXTURE_WIDTH = 512;
     static const uint32_t VECTOR_CURVE_TEXTURE_HEIGHT = 64;
+    static const float VECTOR_PACKED_CURVE_COORD_MIN = -1.0f;
+    static const float VECTOR_PACKED_CURVE_COORD_MAX = 2.0f;
     static const uint32_t VECTOR_MAX_SHADER_CURVES = 256;
 
     static uint16_t FloatToHalf(float value)
@@ -84,6 +86,7 @@ namespace dmRender
         {
             font_map->m_VectorCurveFormat = dmGraphics::TEXTURE_FORMAT_RGBA16F;
             font_map->m_VectorCurveComponentSize = sizeof(uint16_t);
+            font_map->m_VectorCurveTexelsPerCurve = 2;
             return true;
         }
 
@@ -93,13 +96,25 @@ namespace dmRender
                          dmHashReverseSafe64(font_map->m_NameHash));
             font_map->m_VectorCurveFormat = dmGraphics::TEXTURE_FORMAT_RGBA32F;
             font_map->m_VectorCurveComponentSize = sizeof(float);
+            font_map->m_VectorCurveTexelsPerCurve = 2;
             return true;
         }
 
-        dmLogError("Vector font %s requires RGBA16F or RGBA32F texture support",
+        if (dmGraphics::IsTextureFormatSupported(font_map->m_GraphicsContext, dmGraphics::TEXTURE_FORMAT_RGBA))
+        {
+            dmLogWarning("RGBA16F and RGBA32F are not supported for vector font %s; falling back to packed RGBA8 curve texture",
+                         dmHashReverseSafe64(font_map->m_NameHash));
+            font_map->m_VectorCurveFormat = dmGraphics::TEXTURE_FORMAT_RGBA;
+            font_map->m_VectorCurveComponentSize = sizeof(uint8_t);
+            font_map->m_VectorCurveTexelsPerCurve = 3;
+            return true;
+        }
+
+        dmLogError("Vector font %s requires RGBA16F, RGBA32F, or RGBA texture support",
                    dmHashReverseSafe64(font_map->m_NameHash));
-        font_map->m_VectorCurveFormat = dmGraphics::TEXTURE_FORMAT_RGBA32F;
+        font_map->m_VectorCurveFormat = dmGraphics::TEXTURE_FORMAT_RGBA;
         font_map->m_VectorCurveComponentSize = 0;
+        font_map->m_VectorCurveTexelsPerCurve = 0;
         return false;
     }
 
@@ -311,6 +326,7 @@ namespace dmRender
             font_map->m_VectorCurveCapacity = 0;
             font_map->m_VectorCurveCursor = 0;
             font_map->m_VectorCurveComponentSize = 0;
+            font_map->m_VectorCurveTexelsPerCurve = 0;
             return;
         }
 
@@ -335,6 +351,7 @@ namespace dmRender
         font_map->m_VectorCurveCapacity = 0;
         font_map->m_VectorCurveCursor = 0;
         font_map->m_VectorCurveComponentSize = 0;
+        font_map->m_VectorCurveTexelsPerCurve = 0;
 
         RecreateTexture(font_map, font_map->m_GraphicsContext, font_map->m_CacheWidth, font_map->m_CacheHeight);
     }
@@ -1010,6 +1027,25 @@ namespace dmRender
         return out;
     }
 
+    static uint16_t PackVectorCurveCoord(float value)
+    {
+        const float coord_span = VECTOR_PACKED_CURVE_COORD_MAX - VECTOR_PACKED_CURVE_COORD_MIN;
+        float normalized = (value - VECTOR_PACKED_CURVE_COORD_MIN) / coord_span;
+        normalized = dmMath::Clamp(normalized, 0.0f, 1.0f);
+        return (uint16_t)(normalized * 65535.0f + 0.5f);
+    }
+
+    static void StorePackedVectorCurvePoint(uint8_t* curve_data, uint32_t curve_texel, const FontCurvePoint& point)
+    {
+        uint16_t x = PackVectorCurveCoord(point.m_X);
+        uint16_t y = PackVectorCurveCoord(point.m_Y);
+        uint32_t texel = curve_texel * 4;
+        curve_data[texel + 0] = (uint8_t)(x & 0xffu);
+        curve_data[texel + 1] = (uint8_t)(x >> 8);
+        curve_data[texel + 2] = (uint8_t)(y & 0xffu);
+        curve_data[texel + 3] = (uint8_t)(y >> 8);
+    }
+
     static void StoreEncodedQuadratic(HFontMap font_map,
                                       uint32_t curve_texel,
                                       const FontCurvePoint& p0,
@@ -1032,7 +1068,7 @@ namespace dmRender
             curve_data[texel1 + 2] = 0;
             curve_data[texel1 + 3] = 0;
         }
-        else
+        else if (font_map->m_VectorCurveFormat == dmGraphics::TEXTURE_FORMAT_RGBA32F)
         {
             float* curve_data = (float*) font_map->m_VectorCurveData;
             curve_data[texel0 + 0] = p0.m_X;
@@ -1044,6 +1080,13 @@ namespace dmRender
             curve_data[texel1 + 1] = p2.m_Y;
             curve_data[texel1 + 2] = 0.0f;
             curve_data[texel1 + 3] = 0.0f;
+        }
+        else
+        {
+            uint8_t* curve_data = (uint8_t*) font_map->m_VectorCurveData;
+            StorePackedVectorCurvePoint(curve_data, curve_texel, p0);
+            StorePackedVectorCurvePoint(curve_data, curve_texel + 1, p1);
+            StorePackedVectorCurvePoint(curve_data, curve_texel + 2, p2);
         }
     }
 
@@ -1375,7 +1418,7 @@ namespace dmRender
             return false;
         }
 
-        uint32_t required_curve_texels = curve_count * 2;
+        uint32_t required_curve_texels = curve_count * font_map->m_VectorCurveTexelsPerCurve;
         float min_x = encoded_curves[0].m_MinX;
         float min_y = encoded_curves[0].m_MinY;
         float max_x = encoded_curves[0].m_MaxX;
@@ -1420,7 +1463,7 @@ namespace dmRender
 
         for (uint32_t i = 0; i < encoded_curves.size(); ++i)
         {
-            encoded_curves[i].m_CurveTexel = curve_texel + i * 2;
+            encoded_curves[i].m_CurveTexel = curve_texel + i * font_map->m_VectorCurveTexelsPerCurve;
             StoreEncodedQuadratic(font_map,
                                   encoded_curves[i].m_CurveTexel,
                                   encoded_curves[i].m_P0,
