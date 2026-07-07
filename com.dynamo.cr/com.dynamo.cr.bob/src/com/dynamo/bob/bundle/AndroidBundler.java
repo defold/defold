@@ -624,9 +624,9 @@ public class AndroidBundler implements IBundler {
 
                     // Skip libdmengine.so, libdmengine_release.so etc
                     // In a build without native extensions we will download
-                    // dmengine if it doesn't exist in bob.jar, see the two
+                    // dmengine if it doesn't exist in bob.jar (see the two
                     // methods getDefaultDmengineFiles() and downloadExes() in
-                    // EngineArtifactsProvider.java
+                    // EngineArtifactsProvider.java)
                     if (filename.contains("dmengine")) {
                         return false;
                     }
