@@ -986,22 +986,20 @@
   (ctx-delete-nodes ctx nodes arc-pkid-entries overrides node->overrides))
 
 (defn- ctx-revert-delete-nodes [ctx nodes arc-pkid-entries overrides node->overrides]
-  (let [nodes-by-id (coll/pair-map-by gt/node-id nodes)
+  (let [node-ids (mapv gt/node-id nodes)
+        nodes-by-id (coll/pair-map-by gt/node-id nodes)
         arcs (e/map arc-pkid-entry-arc arc-pkid-entries)
         ctx (-> ctx
-                (ctx-add-nodes nodes)
-                (update
-                  :basis
-                  (fn [basis]
-                    (-> basis
-                        (coll/reduce-kv=> overrides gt/add-override)
-                        (coll/reduce=> arc-pkid-entries
-                          (fn [basis [^Arc arc source-arc-pkid target-arc-pkid]]
-                            (ig/connect-arc-at basis arc source-arc-pkid target-arc-pkid))))))
+                (update :basis ig/basis-revert-delete-nodes nodes arc-pkid-entries overrides node->overrides)
+                (update :nodes-added into node-ids)
+                (flag-nodes-successors-changed node-ids)
+                (mark-nodes-outputs-activated nodes)
                 (coll/reduce-kv=> node->overrides
                   (fn [ctx node-id override-node-ids]
-                    (let [existing-override-nodes-ids (e/filter nodes-by-id override-node-ids)]
-                      (ctx-update-override-node-ids ctx node-id coll/into-vector existing-override-nodes-ids))))
+                    (let [existing-override-node-ids (e/filter nodes-by-id override-node-ids)]
+                      (if (coll/empty? existing-override-node-ids)
+                        ctx
+                        (flag-override-originals-successors-changed ctx (:basis ctx) node-id)))))
                 (coll/reduce=> arcs
                   (fn [ctx ^Arc arc]
                     (mark-input-activated ctx (gt/target-id arc) (gt/target-label arc)))))]

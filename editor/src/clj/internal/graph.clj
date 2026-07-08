@@ -1275,3 +1275,24 @@
                 (-> graph
                     (update :nodes dissoc node-id)
                     (update :node->overrides dissoc node-id)))))))))
+
+(defn basis-revert-delete-nodes
+  [basis deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides]
+  (let [deleted-nodes-by-id (coll/pair-map-by gt/node-id deleted-nodes)]
+    (-> basis
+        (coll/reduce=> deleted-nodes gt/add-node)
+        (coll/reduce-kv=> removed-overrides-by-id gt/add-override)
+        (coll/reduce=> removed-arc-pkid-entries
+          (fn [basis [arc source-arc-pkid target-arc-pkid]]
+            (connect-arc-at basis arc source-arc-pkid target-arc-pkid)))
+        (coll/reduce-kv=> removed-node->overrides
+          (fn [basis node-id override-node-ids]
+            (let [existing-override-node-ids
+                  (coll/into-> override-node-ids []
+                    (filter deleted-nodes-by-id))]
+              (if (coll/empty? existing-override-node-ids)
+                basis
+                (let [graph-id (gt/node-id->graph-id node-id)]
+                  (update-in
+                    basis [:graphs graph-id :node->overrides node-id]
+                    coll/into-vector existing-override-node-ids)))))))))
