@@ -399,8 +399,8 @@
               (with-open [is (io/input-stream resource)]
                 (Image. is)))))))))
 
-(fxui/defc image-view-impl
-  {:compose [{:fx/type fxui/ext-memo
+(ui/defc image-view-impl
+  {:compose [{:fx/type ui/ext-memo
               :fn construct-image
               :args [(:src props) (:base-resource props)]
               :key :image}]}

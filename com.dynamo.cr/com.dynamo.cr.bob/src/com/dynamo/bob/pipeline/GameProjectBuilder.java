@@ -54,6 +54,7 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
@@ -267,17 +268,12 @@ public class GameProjectBuilder extends Builder {
 
     private Set<IResource> getCustomResources(Project project) {
         Set<IResource> resources = new HashSet<>();
-        String[] custom_resources = project.getProjectProperties().getStringValue("project", "custom_resources", "").split(",");
-        for (String s : custom_resources) {
-            s = s.trim();
-            if (!s.isEmpty()) {
-                ArrayList<String> paths = new ArrayList<String>();
-                project.findResourcePaths(s, paths);
-                for (String path : paths) {
-                    IResource r = project.getResource(path);
-                    resources.add(r.output());
-                }
-            }
+        for (String path : CopyCustomResourcesBuilder.getCustomResourcePaths(project)) {
+            IResource r = project.getResource(path);
+            resources.add(r.output());
+        }
+        if (CopyCustomResourcesBuilder.getDependencyMetadataInputResource(project) != null) {
+            resources.add(CopyCustomResourcesBuilder.getDependencyMetadataOutputResource(project));
         }
         return resources;
     }
@@ -290,6 +286,9 @@ public class GameProjectBuilder extends Builder {
                 IResource resource = project.getResource(path);
                 graph.add(resource);
             }
+        }
+        if (CopyCustomResourcesBuilder.getDependencyMetadataInputResource(project) != null) {
+            graph.add(project.getResource(DependencyMetadata.OUTPUT_PATH));
         }
         return graph;
     }

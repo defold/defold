@@ -47,7 +47,7 @@ elseif(DEFOLD_IS_PRIVATE_VENDOR)
     if(TARGET_PLATFORM_OS STREQUAL "xbone")
         set(_platform_glfw_sources
             "${PLAT_SRC_DIR}/window.cpp"
-            "${PLAT_SRC_DIR}/xbox/platform_window_xbox.cpp")
+            "${DEFOLD_PRIVATE_REPO_ROOT}/engine/platform/src/xbox/platform_window_xbox.cpp")
     else()
         # Private vendor (e.g., Switch): only include native window integration
         set(_platform_glfw_sources
@@ -127,6 +127,23 @@ endif()
 if(_DEFOLD_PLATFORM_HEADERS)
     install(FILES ${_DEFOLD_PLATFORM_HEADERS} DESTINATION include/platform)
 endif()
+
+defold_add_sdk_headers_target(platform_public_sdk_headers
+    DESTINATION include/platform
+    SOURCE_ROOT "${PLAT_SRC_DIR}"
+    FILES
+        ${_DEFOLD_PLATFORM_HEADERS}
+        "${PLAT_SRC_DIR}/window.h"
+        "${PLAT_SRC_DIR}/window.hpp"
+    DEPENDS platform)
+defold_add_sdk_headers_target(platform_dmsdk_sdk_headers
+    DESTINATION sdk/include/dmsdk
+    SOURCE_ROOT "${PLAT_SRC_DIR}/dmsdk"
+    FILES "${PLAT_SRC_DIR}/dmsdk/platform/window.h"
+    DEPENDS platform)
+add_custom_target(platform_sdk_headers
+    DEPENDS platform_public_sdk_headers platform_dmsdk_sdk_headers)
+set_target_properties(platform PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk_headers)
 
 install(FILES
     "${PLAT_SRC_DIR}/window.h"

@@ -14,14 +14,19 @@
 
 (ns editor.ui
   (:require [cljfx.api :as fx]
+            [cljfx.component :as fx.component]
             [cljfx.fx.button :as fx.button]
+            [cljfx.fx.choice-box :as fx.choice-box]
             [cljfx.fx.custom-menu-item :as fx.custom-menu-item]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.separator :as fx.separator]
+            [cljfx.fx.tooltip :as fx.tooltip]
+            [cljfx.fx.toggle-button :as fx.toggle-button]
             [cljfx.fx.v-box :as fx.v-box]
+            [cljfx.lifecycle :as fx.lifecycle]
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
@@ -63,9 +68,9 @@
            [javafx.css Styleable]
            [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
            [javafx.fxml FXMLLoader]
-           [javafx.geometry Orientation Point2D]
+           [javafx.geometry Point2D]
            [javafx.scene Cursor Group Node Parent Scene]
-           [javafx.scene.control Button ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control CustomMenuItem Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control CustomMenuItem Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane GridPane HBox Pane Priority]
@@ -75,8 +80,6 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(def ^:private ^:dynamic *programmatic-selection* nil)
 
 (defonce ^:dynamic *main-stage* (atom nil))
 
@@ -2132,140 +2135,243 @@
 
 (defn unregister-toolbar [^Scene scene ^Node context-node toolbar-id]
   (let [root (.getRoot scene)]
-    (if (some? (.lookup context-node toolbar-id))
-      (user-data! root ::toolbars (dissoc (user-data root ::toolbars) [context-node toolbar-id]))
+    (if-let [toolbar (.lookup context-node toolbar-id)]
+      (do
+        (when-let [component (user-data toolbar ::toolbar-component)]
+          (fx/delete-component component)
+          (user-data! toolbar ::toolbar-component nil))
+        (user-data! root ::toolbars (dissoc (user-data root ::toolbars) [context-node toolbar-id])))
       (log/warn :message (format "toolbar %s not found" toolbar-id)))))
 
 (declare refresh)
 
-(defn- toolbar-control
-  [scene menu-item handler-ctx localization evaluation-context]
-  (let [separator? (= :separator (:label menu-item))
-        opts (handler/options handler-ctx evaluation-context)]
+(def ^:private ext-with-h-box-props (fx/make-ext-with-props fx.h-box/props))
+
+(def ext-value
+  "Extension lifecycle that returns value on `:value` key"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ desc _]
+      (:value desc))
+    (advance [_ _ desc _]
+      (:value desc))
+    (delete [_ _ _])))
+
+(def child-instance-meta
+  {`fx.component/instance #(-> % :child fx.component/instance)})
+
+(def ext-memo
+  "Extension lifecycle similar to react's useMemo hook
+
+  The result of invoking :fn with :args will be memoized in the cljfx tree and
+  supplied as a value at :key to the child :desc
+
+  Expected props (all required):
+    :fn      function that will be invoked to produce a memoized value
+    :args    a vector of args to the function
+    :key     a key that will be used to assoc memoized value into a child desc
+    :desc    description of the underlying component"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [fn args key desc]} opts]
+      (let [value (apply fn args)]
+        (with-meta {:fn fn
+                    :args args
+                    :value value
+                    :child (fx.lifecycle/create fx.lifecycle/dynamic (assoc desc key value) opts)}
+                   child-instance-meta)))
+    (advance [_ component {:keys [fn args key desc]} opts]
+      (if (and (= (:fn component) fn)
+               (= (:args component) args))
+        (update component :child #(fx.lifecycle/advance
+                                    fx.lifecycle/dynamic
+                                    %
+                                    (assoc desc key (:value component))
+                                    opts))
+        (let [value (apply fn args)]
+          (-> component
+              (assoc :fn fn :args args :value value)
+              (update :child #(fx.lifecycle/advance fx.lifecycle/dynamic % (assoc desc key value) opts))))))
+    (delete [_ component opts]
+      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
+
+(defmacro defc
+  "Define a composed component
+
+  Requires attr-map with :compose vector that contains a flat list of extension
+  lifecycles that requires :desc, and passes extra props to the desc — but
+  without the :desc specified. The resulting component is a composition of such
+  lifecycles
+
+  Example:
+    (ui/defc stateful-text-field
+      {:compose [{:fx/type fx/ext-state
+                  :initial-state \"\"}]}
+      [{:keys [state swap-state]}]
+      {:fx/type fxui/text-field
+       :text state
+       :on-text-changed #(swap-state (constantly %)})"
+  [name attr-map & fn-tail]
+  (let [{:keys [compose]} attr-map]
+    (assert (vector? compose) "defc requires the attr-map to define a :compose key")
+    `(do
+       ~@(let [n (count compose)]
+           (loop [i (dec n)
+                  acc-name (if (zero? n) name (symbol (str name "$phase-" n)))
+                  acc [`(defn ~acc-name ~@fn-tail)]]
+             (if (neg? i)
+               acc
+               (let [def-name (if (zero? i) name (symbol (str name "$phase-" i)))]
+                 (recur
+                   (dec i)
+                   def-name
+                   (let [ext (compose i)]
+                     (conj acc
+                           `(defn ~def-name [~'props]
+                              ~(assoc ext :desc `(assoc ~'props :fx/type ~acc-name)))))))))))))
+
+(defn- advance-user-data-component! [target user-data user-data! key desc]
+  (let [component (user-data target key)]
     (cond
-      separator?
-      (doto (Separator. Orientation/VERTICAL)
-        (add-style! "separator"))
+      (and component desc)
+      (user-data! target key (fx/advance-component component desc))
 
-      opts
-      (let [hbox (doto (HBox.)
-                   (add-style! "cell"))
-            cb (doto (ChoiceBox.)
-                 (.setConverter (DefoldStringConverter. (comp localization :label))))]
-        (.setAll (.getItems cb) ^Collection opts)
-        (observe (.valueProperty cb) (fn [_this _old new]
-                                       (when (and new (not *programmatic-selection*))
-                                         (let [command-contexts (contexts scene true)]
-                                           (execute-command command-contexts (:command new) (:user-data new))))))
-        (.add (.getChildren hbox) (icons/get-image-view (:icon menu-item) 16))
-        (.add (.getChildren hbox) cb)
-        hbox)
+      component
+      (do
+        (fx/delete-component component)
+        (user-data! target key nil))
 
-      :else
-      (let [{:keys [graphic-fn label icon tooltip more]} menu-item
-            label (or (handler/label handler-ctx evaluation-context) label)
-            button (doto (ToggleButton.)
-                     (localization/localize! localization label)
-                     (tooltip! tooltip localization))]
-        (cond
-          graphic-fn
-          ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
-          ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
-          ;; disappears from the toolbars of subsequent tabs. For now, we generate
-          ;; instances for each tab.
-          (.setGraphic button (graphic-fn))
+      desc
+      (user-data! target key (fx/create-component desc)))))
 
-          icon
-          (.setGraphic button (icons/get-image-view icon 16)))
+(defn advance-graph-user-data-component! [view-node key desc]
+  (advance-user-data-component! view-node g/user-data g/user-data! key desc))
 
-        (when-let [command (:command menu-item)]
-          (on-action! button (fn [_event]
-                               (execute-command (contexts scene true) command (:user-data menu-item)))))
+(defn advance-ui-user-data-component! [javafx-node key desc]
+  (advance-user-data-component! javafx-node user-data user-data! key desc))
 
-        (if more
-          (let [{:keys [id command]} more
-                group (doto (HBox.)
-                        (add-style! "button-group"))
-                icon (icons/get-image-view "icons/32/Icons_S_05_arrowdown.png" 18)
-                more-button (doto (Button.)
-                              (.setGraphic icon)
-                              (add-style! "more-button")
-                              (on-action! (fn [_event]
-                                            (execute-command (contexts scene true) command (:user-data menu-item)))))]
-            (.add (.getChildren group) button)
-            (.add (.getChildren group) more-button)
-            (when id (.setId more-button (name id)))
-            (observe (.selectedProperty button)
-                     (fn [_observable _old-val new-val]
-                       (if new-val
-                         (add-style! group "active")
-                         (remove-style! group "active"))))
-            group)
-          button)))))
+(def ^:private prop-toolbar-choice-box-value-changed
+  (fx/make-binding-prop
+    (fn bind-toolbar-choice-box-value-changed [^ChoiceBox choice-box on-value-changed]
+      (let [^ChangeListener listener #(when %3 (on-value-changed choice-box %3))]
+        (.addListener (.valueProperty choice-box) listener)
+        #(.removeListener (.valueProperty choice-box) listener)))
+    fx.lifecycle/callback))
 
-(defn- refresh-toolbar [td command-contexts localization evaluation-context]
- (let [menu (handler/realize-menu (:menu-id td))
-       ^Pane control (:control td)
-       scene (.getScene control)]
-   (when (and (some? scene)
-              (or (not= menu (user-data control ::menu))
-                  (not= command-contexts (user-data control ::command-contexts))))
-     (.clear (.getChildren control))
-     (user-data! control ::menu menu)
-     (user-data! control ::command-contexts command-contexts)
-     (let [children (doall
-                      (for [menu-item menu
-                            :let [command (:command menu-item)
-                                  user-data (:user-data menu-item)
-                                  separator? (= :separator (:label menu-item))
-                                  handler-ctx (handler/active command command-contexts user-data evaluation-context)]
-                            :when (or separator? handler-ctx)]
-                        (let [^Control child (toolbar-control scene menu-item handler-ctx localization evaluation-context)]
-                          (when command
-                            (user-data! child ::command command))
-                          (user-data! child ::menu-user-data user-data)
-                          child)))
-           children (cond-> children
-                      (instance? Separator (last children)) butlast
-                      (instance? Separator (first children)) rest)]
-       (doseq [child children]
-         (.add (.getChildren control) child))))))
+(defn- execute-toolbar-command! [^Node node command user-data]
+  (execute-command (contexts (.getScene node) true) command user-data))
 
-(defn- refresh-toolbar-state [^Pane toolbar command-contexts evaluation-context]
-  (let [nodes (.getChildren toolbar)]
-    (doseq [^Node n nodes
-            :let [command (user-data n ::command)
-                  user-data (user-data n ::menu-user-data)
-                  handler-ctx (handler/active command command-contexts user-data evaluation-context)]]
-      (disable! n (not (handler/enabled? handler-ctx evaluation-context)))
-      (when (instance? ToggleButton n)
-        (if (handler/state handler-ctx evaluation-context)
-          (.setSelected ^Toggle n true)
-          (.setSelected ^Toggle n false)))
-      (when (instance? HBox n)
-        (let [^HBox box n
-              state (handler/state handler-ctx evaluation-context)
-              second-child (.get (.getChildren box) 1)]
-          (cond
-            (instance? ChoiceBox second-child)
-            (let [^ChoiceBox cb second-child]
-              (when (not (.isShowing cb))
-                (let [items (.getItems cb)
-                      opts (vec items)
-                      new-opts (vec (handler/options handler-ctx evaluation-context))]
-                  (when (not= opts new-opts)
-                    (.setAll items ^Collection new-opts)))
-                (let [selection-model (.getSelectionModel cb)
-                      item (.getSelectedItem selection-model)]
-                  (when (not= item state)
-                    (binding [*programmatic-selection* true]
-                      (.select selection-model state))))))
+(defn- toolbar-choice-box-converter [localization-state]
+  (DefoldStringConverter. (comp localization-state :label)))
 
-            :else
-            (let [toggle-button (.get (.getChildren box) 0)]
-              (if (handler/state handler-ctx evaluation-context)
-                (.setSelected ^Toggle toggle-button true)
-                (.setSelected ^Toggle toggle-button false)))))))))
+(defc toolbar-choice-box
+  {:compose [{:fx/type ext-memo :fn toolbar-choice-box-converter :args [(:localization-state props)] :key :converter}]}
+  [{:keys [converter options state]}]
+  {:fx/type fx.choice-box/lifecycle
+   :converter converter
+   :items options
+   :value state
+   prop-toolbar-choice-box-value-changed #(execute-toolbar-command! %1 (:command %2) (:user-data %2))})
+
+(defn- toolbar-button [{:keys [localization-state graphic-fn icon label tooltip command user-data state enabled]}]
+  (cond-> {:fx/type fx.toggle-button/lifecycle
+           :text (if (or graphic-fn icon) "" (localization-state label))
+           :selected (boolean state)}
+    tooltip (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text (localization-state tooltip)})
+    graphic-fn (assoc :graphic {:fx/type fx/ext-instance-factory :create graphic-fn})
+    (and (not graphic-fn) icon) (assoc :graphic {:fx/type image-icon :path icon :size 16.0})
+    (not enabled) (assoc :disable true)
+    command (assoc :on-action #(execute-toolbar-command! (Event/.getSource %) command user-data))))
+
+(defc toolbar-view
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [toolbar toolbar-visible items localization-state]}]
+  (let [children
+        (coll/into-> items []
+          (map (fn [{:keys [type options more icon state enabled] :as toolbar-item}]
+                 (cond
+                   (= :separator type)
+                   {:fx/type fx.separator/lifecycle
+                    :orientation :vertical
+                    :style-class ["separator"]}
+
+                   options
+                   {:fx/type fx.h-box/lifecycle
+                    :style-class ["cell"]
+                    :disable (not enabled)
+                    :children
+                    [{:fx/type image-icon
+                      :path icon
+                      :size 16.0}
+                     {:fx/type toolbar-choice-box
+                      :localization-state localization-state
+                      :options options
+                      :state state}]}
+
+                   more
+                   (let [{:keys [id command]} more]
+                     {:fx/type fx.h-box/lifecycle
+                      :style-class (cond-> ["button-group"] state (conj "active"))
+                      :disable (not enabled)
+                      :children [(assoc toolbar-item
+                                        :fx/type toolbar-button
+                                        :localization-state localization-state
+                                        :enabled true)
+                                 {:fx/type fx.button/lifecycle
+                                  :id (some-> id name)
+                                  :style-class ["button" "more-button"]
+                                  :graphic {:fx/type image-icon :path "icons/32/Icons_S_05_arrowdown.png" :size 18.0}
+                                  :on-action #(execute-toolbar-command! (Event/.getSource %) command (:user-data toolbar-item))}]})
+
+                   :else
+                   (assoc toolbar-item
+                          :fx/type toolbar-button
+                          :localization-state localization-state)))))
+
+        toolbar-visible (and toolbar-visible (pos? (count children)))]
+    {:fx/type ext-with-h-box-props
+     :desc {:fx/type ext-value :value toolbar}
+     :props {:children children
+             :managed toolbar-visible
+             :visible toolbar-visible}}))
+
+(defn- refresh-toolbar [td toolbar-visible command-contexts localization evaluation-context]
+  (let [^HBox control (:control td)]
+    (when (.getScene control)
+      (let [items
+            (transduce
+              (keep
+                (fn [{:keys [command user-data label] :as menu-item}]
+                  (if (= :separator label)
+                    {:type :separator}
+                    (when-let [handler-ctx (handler/active command command-contexts user-data evaluation-context)]
+                      (assoc menu-item
+                             :type :item
+                             :label (or (handler/label handler-ctx evaluation-context) label)
+                             :enabled (handler/enabled? handler-ctx evaluation-context)
+                             :options (handler/options handler-ctx evaluation-context)
+                             :state (handler/state handler-ctx evaluation-context))))))
+              (fn toolbar-items-reducer
+                ([]
+                 (transient []))
+                ([items]
+                 (persistent!
+                   (if (and (pos? (count items))
+                            (= :separator (:type (items (dec (count items))))))
+                     (pop! items)
+                     items)))
+                ([items item]
+                 (if (or (not= :separator (:type item))
+                         (and (pos? (count items))
+                              (not= :separator (:type (items (dec (count items)))))))
+                   (conj! items item)
+                   items)))
+              (handler/realize-menu (:menu-id td)))]
+        (advance-ui-user-data-component!
+          control ::toolbar-component
+          {:fx/type toolbar-view
+           :localization localization
+           :toolbar control
+           :toolbar-visible toolbar-visible
+           :items items})))))
 
 (defn- window-parents [^Window window]
   (when-let [parent (condp instance? window
@@ -2312,17 +2418,14 @@
 
 (defn- refresh-toolbars!
   [^Scene scene localization evaluation-context]
-  (let [visible-command-contexts (visible-command-contexts scene evaluation-context)
-        current-command-contexts (current-command-contexts scene evaluation-context)
+  (let [command-contexts (current-command-contexts scene evaluation-context)
         root (.getRoot scene)
-        app-view (-> current-command-contexts first :env :app-view)
-        active-tab (g/maybe-node-value app-view :active-tab evaluation-context)]
+        app-view (-> command-contexts first :env :app-view)
+        ^Tab active-tab (g/maybe-node-value app-view :active-tab evaluation-context)]
     (doseq [td (vals (user-data root ::toolbars))]
-      (let [control (:control td)]
-        (when active-tab
-          (visible! control (nodes-along-path? control (.getContent ^Tab active-tab) root)))
-        (refresh-toolbar td visible-command-contexts localization evaluation-context)
-        (refresh-toolbar-state (:control td) current-command-contexts evaluation-context)))))
+      (let [control (:control td)
+            visible (or (nil? active-tab) (nodes-along-path? control (.getContent active-tab) root))]
+        (refresh-toolbar td visible command-contexts localization evaluation-context)))))
 
 (defn- refresh-accelerators! [scene keymap]
   (when-not (identical? keymap (user-data scene ::accelerators))
@@ -2429,6 +2532,8 @@
     (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler values)]))
       (.play))))
 
+(def ^:private ^:const unfocused-timer-interval (long (* 1e9 (/ 1.0 15.0))))
+
 (defn ->timer
   ([name tick-fn]
    (->timer nil name tick-fn))
@@ -2437,13 +2542,15 @@
          last (atom start)
          interval (if fps
                     (long (* 1e9 (/ 1 (double fps))))
-                    0)]
+                    0)
+         unfocused-interval (max interval unfocused-timer-interval)]
      {:last last
       :timer (proxy [AnimationTimer] []
                (handle [^long now]
                  (profiler/profile "timer" name
                    (let [elapsed (- now start)
-                         delta (- now (long @last))]
+                         delta (- now (long @last))
+                         interval (if (:focused @focus-state) interval unfocused-interval)]
                      (when (or (zero? interval) (> delta interval))
                        (run-later
                          (try

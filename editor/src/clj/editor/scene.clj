@@ -24,6 +24,7 @@
             [editor.background :as background]
             [editor.camera :as c]
             [editor.colors :as colors]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.geom :as geom]
@@ -1052,7 +1053,7 @@
       {"command" (localization/message "command.scene.stop")
        "shortcut" (keymap/display-text keymap :scene.stop "none")})))
 
-(fxui/defc close-preview-button
+(ui/defc close-preview-button
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
               :key :localization-state}]}
@@ -1123,7 +1124,7 @@
             (:preview-anim-data updatable)))
         active-updatable-ids))
 
-(fxui/defc error-overlay
+(ui/defc error-overlay
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state error]}]
   {:fx/type fx.text-area/lifecycle
@@ -1332,6 +1333,8 @@
           (g/fnk [selected-node-properties preview-overrides]
             (displayed-node-properties selected-node-properties preview-overrides))))
 
+(node-types/register-node-type-name! SceneView "scene")
+
 (defn cursor
   "Maps inconsistent cursor types across platforms.
   See https://bugs.openjdk.org/browse/JDK-8101062"
@@ -1383,11 +1386,11 @@
             (ui/set-cursor image-view (cursor cursor-type)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
-          (fxui/advance-graph-user-data-component!
+          (ui/advance-graph-user-data-component!
             node-id :overlay-anchor-pane
             {:fx/type fxui/ext-with-anchor-pane-props
              :props overlay-anchor-pane-props
-             :desc {:fx/type fxui/ext-value
+             :desc {:fx/type ui/ext-value
                     :value overlay-anchor-pane}}))))))
 
 (defn- supports-camera-inset-drawable? [node-id]
@@ -1413,7 +1416,7 @@
           (scene-cache/drop-context! gl)
           (.glFinish gl))
         (.destroy camera-inset-drawable)))
-    (fxui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
+    (ui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
     (g/transact
       (concat
         (g/set-property node-id :drawable nil)

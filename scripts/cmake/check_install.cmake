@@ -6,9 +6,9 @@
 # Ensure this directory is on the module path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
 
+include("${CMAKE_CURRENT_LIST_DIR}/private_repos.cmake")
 # helper functions (e.g. defold_log)
 include(functions)
-include("${CMAKE_CURRENT_LIST_DIR}/private_repos.cmake")
 
 # Verbose logging is controlled by -DDEFOLD_VERBOSE=ON (if provided)
 

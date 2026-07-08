@@ -45,7 +45,6 @@
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
             [clojure.string :as string]
-            [dynamo.graph :as g]
             [editor.color-dropper :as color-dropper]
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
@@ -84,15 +83,6 @@
 (defn event->window
   ^Window [^Event event]
   (.getWindow (.getScene ^Node (.getSource event))))
-
-(def ext-value
-  "Extension lifecycle that returns value on `:value` key"
-  (reify fx.lifecycle/Lifecycle
-    (create [_ desc _]
-      (:value desc))
-    (advance [_ _ desc _]
-      (:value desc))
-    (delete [_ _ _])))
 
 (defn identity-aware-observable-list-mutator [get-list-fn]
   (let [set-all! #(.setAll ^ObservableList (get-list-fn %1) ^Collection %2)]
@@ -215,9 +205,6 @@
             {})
    :desc scroll-pane-desc})
 
-(def child-instance-meta
-  {`fx.component/instance #(-> % :child fx.component/instance)})
-
 (def ext-map-event-handler
   "Extension lifecycle that injects a map-event handler into wrapped desc
 
@@ -235,40 +222,6 @@
       (fx.lifecycle/advance fx.lifecycle/dynamic component (assoc desc key (:fx.opt/map-event-handler opts)) opts))
     (delete [_ component opts]
       (fx.lifecycle/delete fx.lifecycle/dynamic component opts))))
-
-(def ext-memo
-  "Extension lifecycle similar to react's useMemo hook
-
-  The result of invoking :fn with :args will be memoized in the cljfx tree and
-  supplied as a value at :key to the child :desc
-
-  Expected props (all required):
-    :fn      function that will be invoked to produce a memoized value
-    :args    a vector of args to the function
-    :key     a key that will be used to assoc memoized value into a child desc
-    :desc    description of the underlying component"
-  (reify fx.lifecycle/Lifecycle
-    (create [_ {:keys [fn args key desc]} opts]
-      (let [value (apply fn args)]
-        (with-meta {:fn fn
-                    :args args
-                    :value value
-                    :child (fx.lifecycle/create fx.lifecycle/dynamic (assoc desc key value) opts)}
-                   child-instance-meta)))
-    (advance [_ component {:keys [fn args key desc]} opts]
-      (if (and (= (:fn component) fn)
-               (= (:args component) args))
-        (update component :child #(fx.lifecycle/advance
-                                    fx.lifecycle/dynamic
-                                    %
-                                    (assoc desc key (:value component))
-                                    opts))
-        (let [value (apply fn args)]
-          (-> component
-              (assoc :fn fn :args args :value value)
-              (update :child #(fx.lifecycle/advance fx.lifecycle/dynamic % (assoc desc key value) opts))))))
-    (delete [_ component opts]
-      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
 
 (defn make-event-filter-prop
   "Creates a prop-config that will add event filter for specified `event-type`
@@ -337,7 +290,7 @@
       (with-meta
         {:desc desc
          :child (fx.lifecycle/create lifecycle desc opts)}
-        child-instance-meta))
+        ui/child-instance-meta))
     (advance [_ component desc opts]
       (if (= desc (:desc component))
         component
@@ -358,7 +311,7 @@
       (with-meta
         {:desc desc
          :child (fx.lifecycle/create fx.lifecycle/dynamic desc opts)}
-        child-instance-meta))
+        ui/child-instance-meta))
     (advance [_ component {:keys [desc]} opts]
       (if (identical? desc (:desc component))
         component
@@ -467,7 +420,7 @@
                         owner
 
                         :else
-                        {:fx/type ext-value
+                        {:fx/type ui/ext-value
                          :value owner}))
         (util/provide-defaults
           :resizable false
@@ -1392,7 +1345,7 @@
     (str (f v))))
 
 (defn- value-field-impl-stringify-step [props]
-  {:fx/type ext-memo
+  {:fx/type ui/ext-memo
    :fn stringify-value
    :args [(:to-string props str) (-> props :state :value)]
    :key :text
@@ -1592,41 +1545,6 @@
                     (prepend-style-classes "ext-scroll-pane")
                     (util/provide-defaults :fit-to-width true))}})
 
-(defmacro defc
-  "Define a composed component
-
-  Requires attr-map with :compose vector that contains a flat list of extension
-  lifecycles that requires :desc, and passes extra props to the desc — but
-  without the :desc specified. The resulting component is a composition of such
-  lifecycles
-
-  Example:
-    (fxui/defc stateful-text-field
-      {:compose [{:fx/type fx/ext-state
-                  :initial-state \"\"}]}
-      [{:keys [state swap-state]}]
-      {:fx/type fxui/text-field
-       :text state
-       :on-text-changed #(swap-state (constantly %)})"
-  [name attr-map & fn-tail]
-  (let [{:keys [compose]} attr-map]
-    (assert (vector? compose) "defc requires the attr-map to define a :compose key")
-    `(do
-       ~@(let [n (count compose)]
-           (loop [i (dec n)
-                  acc-name (if (zero? n) name (symbol (str name "$phase-" n)))
-                  acc [`(defn ~acc-name ~@fn-tail)]]
-             (if (neg? i)
-               acc
-               (let [def-name (if (zero? i) name (symbol (str name "$phase-" i)))]
-                 (recur
-                   (dec i)
-                   def-name
-                   (let [ext (compose i)]
-                     (conj acc
-                           `(defn ~def-name [~'props]
-                              ~(assoc ext :desc `(assoc ~'props :fx/type ~acc-name)))))))))))))
-
 (defn paragraph
   "Resizable label with word-wrapping
 
@@ -1667,7 +1585,7 @@
                     :message message
                     :child component
                     :object object}
-                   child-instance-meta)))
+                   ui/child-instance-meta)))
     (advance [_ component {:keys [localization message desc object-fn]} opts]
       (let [component (update component :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc opts))
             object (cond-> (fx.component/instance component) object-fn object-fn)
@@ -1686,19 +1604,6 @@
     (delete [_ component opts]
       (localization/unlocalize! (fx/instance component) (:localization component))
       (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
-
-(defn- advance-user-data-component! [target user-data user-data! key desc]
-  (let [component (user-data target key)]
-    (cond
-      (and component desc) (user-data! target key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (user-data! target key nil))
-      desc (user-data! target key (fx/create-component desc)))))
-
-(defn advance-graph-user-data-component! [view-node key desc]
-  (advance-user-data-component! view-node g/user-data g/user-data! key desc))
-
-(defn advance-ui-user-data-component! [javafx-node key desc]
-  (advance-user-data-component! javafx-node ui/user-data ui/user-data! key desc))
 
 (def ext-error-boundary
   "Extension lifecycle that captures all lifecycle errors
@@ -1720,7 +1625,7 @@
               {:child (fx.lifecycle/create fx.lifecycle/dynamic (assoc (:catch this-desc) :exception e :caught true) opts)
                :exception e
                :desc desc}))
-          child-instance-meta)))
+          ui/child-instance-meta)))
     (advance [this component this-desc opts]
       (let [desc (:desc this-desc)]
         (if-let [e (:exception component)]
@@ -1736,7 +1641,7 @@
                 {:child (fx.lifecycle/create fx.lifecycle/dynamic (assoc (:catch this-desc) :exception e :caught true) opts)
                  :exception e
                  :desc desc}
-                child-instance-meta))))))
+                ui/child-instance-meta))))))
     (delete [_ component opts]
       (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
 

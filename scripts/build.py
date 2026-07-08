@@ -27,7 +27,7 @@ import codesigning
 import run
 import s3
 import sdk
-from cross_build import DEFOLD_PLATFORMS_FILE, get_configured_platforms, get_platform_root, get_platforms_config_path, load_platforms_config, save_platforms_config
+from cross_build import DEFOLD_PLATFORMS_FILE, get_configured_platforms, get_platform_root, get_platforms_config_path, load_platforms_config, save_platforms_config, write_merged_platform_sdks
 from private_hooks import call_hook, has_hook_module
 import wasm_runner
 import release_to_github
@@ -37,6 +37,7 @@ import BuildUtility
 import http_cache
 import sdk_merge
 import solution_msvs
+import solution_msvs_xbox
 import solution_xcode
 from datetime import datetime
 from urllib.parse import urlparse
@@ -708,6 +709,11 @@ class Configuration(object):
         if not tp:
             raise RuntimeError('make_solution: target_platform must be specified')
 
+        private_root = get_platform_root(tp)
+        if tp == 'x86_64-xbone':
+            if not private_root:
+                raise RuntimeError('make_solution: x86_64-xbone requires a configured private Xbox repo. Run add_private_repo with --platform=x86_64-xbone first.')
+
         build_type = self._find_cmake_build_type(self.waf_options)
         build_tests = 'OFF' if '--skip-build-tests' in self.waf_options else 'ON'
         build_home = self._platform_build_home(tp)
@@ -738,16 +744,21 @@ class Configuration(object):
 
         if tp.endswith('-macos') or tp.endswith('-ios'):
             generator = 'Xcode'
-        elif solution_msvs.is_visual_studio_platform(tp):
+        elif tp == 'x86_64-xbone' or solution_msvs.is_visual_studio_platform(tp):
             msvs_selection = solution_msvs.latest_selection(self._log)
             generator = msvs_selection['generator']
             msvs_instance = msvs_selection.get('instance')
             windows_sdk_version = solution_msvs.latest_windows_sdk_version()
             arch_args = solution_msvs.arch_args(tp)
 
-        # Build directory per target platform inside solutions/<platform>
+        # Keep IDE solutions in the public checkout even when the target uses
+        # a private platform repo for source overlays and platform modules.
+        solution_output_dir = None
         if not build_dir:
-            build_dir = os.path.join(build_home, 'solutions', tp)
+            build_dir = os.path.join(self.defold_root, 'solutions', tp)
+        if tp == 'x86_64-xbone':
+            solution_output_dir = os.path.abspath(build_dir)
+            build_dir = os.path.join(solution_output_dir, 'cmake')
 
         target_name = f"Defold-{tp}"
         cmake_cmd = [
@@ -758,7 +769,8 @@ class Configuration(object):
             f'-DDEFOLD_SOLUTION_NAME:STRING={target_name}',
             f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
-            f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}'
+            f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
+            f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}'
         ]
         cmake_cmd += build_ios.ios_test_cmake_args(
             tp,
@@ -773,6 +785,8 @@ class Configuration(object):
         if solution_msvs.is_visual_studio_generator(generator):
             cmake_cmd += solution_msvs.cmake_args(generator, msvs_instance, windows_sdk_version)
             cmake_cmd += ['-DDEFOLD_MSVC_IDE_SOLUTION:BOOL=ON']
+            if tp == 'x86_64-xbone':
+                cmake_cmd += [f'-DDEFOLD_XBONE_PRIVATE_REPO_ROOT:PATH={private_root}']
 
         cmake_configure_state = self._cmake_configure_state(build_dir, cmake_cmd)
         cmake_configure_state_path = join(build_dir, '.defold_cmake_configure.json')
@@ -826,7 +840,22 @@ class Configuration(object):
             self._log(f"Warning: Expected solution file was not found: {final_path}")
 
         if solution_msvs.is_visual_studio_generator(generator):
-            solution_msvs.organize_solution(final_path, self.defold_root, self._log)
+            if tp == 'x86_64-xbone':
+                solution_msvs.organize_solution(final_path, self.defold_root, self._log)
+                xbone_solution_path = solution_msvs_xbox.generate_xbone_solution(
+                    solution_output_dir or solution_build_dir,
+                    build_dir,
+                    target_name,
+                    private_root,
+                    self.defold_root,
+                    self._log,
+                    final_path,
+                    generator,
+                    windows_sdk_version)
+                if xbone_solution_path:
+                    final_path = xbone_solution_path
+            else:
+                solution_msvs.organize_solution(final_path, self.defold_root, self._log)
 
         if generator == 'Xcode' and os.path.exists(final_path):
             solution_xcode.configure_project(
@@ -2095,7 +2124,7 @@ class Configuration(object):
         return platform
 
     def _platform_build_home(self, platform):
-        return get_platform_root(platform) or self.defold_root
+        return self.defold_root
 
     def _engine_artifact_platform(self, platform):
         # Waf still writes 32-bit Windows artifacts to win32; CMake uses the
@@ -2155,6 +2184,10 @@ class Configuration(object):
         build_home = defines.get('DEFOLD_BUILD_HOME')
         if build_home and normpath(build_home) != normpath(self.defold_root):
             configure_roots.append(build_home)
+        platform = defines.get('TARGET_PLATFORM')
+        private_root = get_platform_root(platform) if platform else ''
+        if private_root and normpath(private_root) != normpath(self.defold_root):
+            configure_roots.append(private_root)
 
         return {
             'args': cmake_configure_args,
@@ -2233,6 +2266,7 @@ class Configuration(object):
                     'DEFOLD_ENGINE_LIB_SET',
                     'DEFOLD_BUILD_HOME',
                     'DEFOLD_SDK_ROOT',
+                    'DEFOLD_TEST_COLORS',
                     'DEFOLD_VISUAL_STUDIO_ROOT',
                     'DEFOLD_WINDOWS_SDK_VERSION',
                     'DEFOLD_SKIP_BOB_LIGHT'):
@@ -2300,7 +2334,56 @@ class Configuration(object):
 
         return True
 
-    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False):
+    def _cmake_generated_outputs_match_configure_state(self, configure_state):
+        args = configure_state.get('args', [])
+        generator = ''
+        for i, arg in enumerate(args):
+            if arg == '-G' and i + 1 < len(args):
+                generator = args[i + 1]
+            elif arg.startswith('-G') and len(arg) > 2:
+                generator = arg[2:]
+
+        if generator != 'Ninja':
+            return True
+
+        defines = configure_state.get('defines', {})
+        build_home = defines.get('DEFOLD_BUILD_HOME')
+        platform = defines.get('TARGET_PLATFORM')
+        if not build_home or not platform:
+            return True
+
+        build_ninja = join(configure_state.get('builddir', ''), 'build.ninja')
+        if not os.path.exists(build_ninja):
+            return True
+
+        try:
+            with open(build_ninja, 'r') as f:
+                content = f.read().replace('\\', '/')
+        except OSError:
+            return True
+
+        expected_engine_root = normpath(join(build_home, 'engine')).replace('\\', '/').lower()
+        generated_build_dir_re = re.compile(r'[A-Za-z]\$?:/[^ \t\r\n"<>|]*/engine/[^/\s]+/build/%s' % re.escape(platform))
+        for match in generated_build_dir_re.finditer(content):
+            path = match.group(0).replace('$:', ':')
+            normalized_path = normpath(path).replace('\\', '/').lower()
+            if not normalized_path.startswith(expected_engine_root + '/'):
+                self._log('CMake generated output mismatch: stale generated build path found: %s' % path)
+                return False
+
+        return True
+
+    def _remove_cmake_build_dirs_for_platform(self, build_home, platform, top_builddir):
+        self._remove_tree(top_builddir)
+
+        engine_root = join(build_home, 'engine')
+        if os.path.isdir(engine_root):
+            for lib in os.listdir(engine_root):
+                self._remove_tree(join(engine_root, lib, 'build', platform))
+
+        self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
+
+    def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
         platform = self._cmake_target_platform(platform)
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
@@ -2341,7 +2424,8 @@ class Configuration(object):
             f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
             f'-DCMAKE_INSTALL_PREFIX:PATH={self.dynamo_home}',
-            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if self.skip_bob_light else "OFF"}',
+            f'-DDEFOLD_SKIP_BOB_LIGHT:BOOL={"ON" if (self.skip_bob_light or use_existing_bob_light) else "OFF"}',
+            f'-DDEFOLD_TEST_COLORS:BOOL={"OFF" if self.no_colors else "ON"}',
             f'-DDEFOLD_CODESIGN:BOOL={"ON" if self.codesign else "OFF"}',
             f'-DDEFOLD_CODESIGNING_IDENTITY:STRING={self.codesigning_identity or ""}',
             f'-DDEFOLD_GCLOUD_PROJECTID:STRING={self.gcloud_projectid or ""}',
@@ -2363,11 +2447,19 @@ class Configuration(object):
                 pass
 
         cmake_cache = join(builddir, 'CMakeCache.txt')
+        generated_outputs_match = self._cmake_generated_outputs_match_configure_state(cmake_configure_state)
+        if not generated_outputs_match:
+            self._log(f'Removing stale CMake build outputs for {platform}; generated files point outside {build_home}')
+            self._remove_cmake_build_dirs_for_platform(build_home, platform, builddir)
+            os.makedirs(builddir, exist_ok=True)
+            previous_cmake_configure_state = None
+
         skip_configure = (
             os.path.exists(cmake_cache)
             and self._cmake_configure_state_matches(cmake_configure_state, previous_cmake_configure_state, allow_compatible_configure)
             and self._cmake_cache_matches_configure_state(cmake_cache, cmake_configure_state)
-            and self._cmake_generated_install_matches_configure_state(cmake_configure_state))
+            and self._cmake_generated_install_matches_configure_state(cmake_configure_state)
+            and generated_outputs_match)
         if skip_configure:
             self._log(f'Skipping CMake configure {name}; configure state is unchanged')
         else:
@@ -2391,13 +2483,12 @@ class Configuration(object):
 
         self.build_tracker.end_command(log_cmd_build)
 
-        # Keep install as a separate phase. CMake's install target depends on
-        # 'all', but not on our custom 'build_tests' aggregate. Some installed
-        # test-side artifacts can otherwise race the install step.
+        # Keep install as a separate phase. Use cmake --install instead of the
+        # generated install target so the install phase does not re-enter 'all'.
         log_cmd_install = f'CMake install {name}'
         self.build_tracker.start_command(log_cmd_install)
 
-        cmake_install_args = ['cmake', '--build', builddir, '--target', 'install']
+        cmake_install_args = ['cmake', '--install', builddir, '--config', build_type]
         if is_verbose:
             cmake_install_args.append('--verbose')
         run.env_command(self._form_env(), cmake_install_args, cwd = self.defold_root)
@@ -2540,7 +2631,7 @@ class Configuration(object):
             reuse_builddir = host == target_platform
             target_lib_set = 'all' if reuse_builddir else 'target'
             self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir)
+            self._build_engine_libs_cmake('engine_libs', target_lib_set, target_platform, reuse_builddir = reuse_builddir, use_existing_bob_light = True)
             self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
         if with_waf:
@@ -2558,8 +2649,8 @@ class Configuration(object):
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
-        self._log("Copy platform.sdks.json")
-        shutil.copyfile(join(self.defold_root, "share", "platform.sdks.json"), join(self.dynamo_home, "platform.sdks.json"))
+        self._log("Write platform.sdks.json")
+        write_merged_platform_sdks(self.defold_root, self.target_platform, join(self.dynamo_home, "platform.sdks.json"))
 
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
             print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
@@ -2819,12 +2910,16 @@ class Configuration(object):
         root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        platforms = None
-        # when we build the sdk in a private repo we only include the private platforms
+        # When a public checkout has a private platform added, only merge the
+        # requested private platform SDK. Public releases still merge all SDKs.
+        private_platforms = build_private.get_target_platforms()
         if build_private.is_repo_private():
-            platforms = build_private.get_target_platforms()
+            platforms = private_platforms
+        elif self.target_platform in private_platforms:
+            platforms = [self.target_platform]
         else:
             platforms = get_target_platforms()
+        print("Building combined SDK from platform SDK archives:", platforms)
 
         zipmerge_path = shutil.which('zipmerge')
         if zipmerge_path:
@@ -2869,7 +2964,9 @@ class Configuration(object):
         self.upload_to_archive(join(dirname(sdkpath), sig_filename), '%s/defoldsdk.sha256' % sdkurl)
 
         print("Upload platform sdks mappings")
-        self.upload_to_archive(join(self.defold_root, "share", "platform.sdks.json"), '%s/platform.sdks.json' % sdkurl)
+        platform_sdks_path = join(tempdir, 'platform.sdks.json')
+        write_merged_platform_sdks(self.defold_root, self.target_platform, platform_sdks_path)
+        self.upload_to_archive(platform_sdks_path, '%s/platform.sdks.json' % sdkurl)
 
         self.wait_uploads()
         shutil.rmtree(tempdir)
@@ -3775,7 +3872,6 @@ class Configuration(object):
         env['DEFOLD_HOME'] = self.defold_home
         env['DYNAMO_HOME'] = self.dynamo_home
         env.setdefault('CMAKE_GENERATOR', 'Ninja')
-        env['DYNAMO_TARGET_PLATFORM'] = self.target_platform
 
         android_host = self.host
         if 'win32' in android_host:

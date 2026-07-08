@@ -132,6 +132,32 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testConvertXboxMappingToGameInputPacketLayout() throws Exception {
+        String sdl = "030000005e040000fd02000000000000,Xbox One Controller,a:b3,b:b4,x:b5,y:b6,back:b2,start:b1,leftstick:b13,rightstick:b14,leftshoulder:b11,rightshoulder:b12,dpup:b7,dpdown:b8,dpleft:b9,dpright:b10,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a4,righttrigger:a5,platform:Xbox,\n";
+
+        GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "x86_64-xbone"));
+        GamepadMapRuntime driver = maps.getMappings(0);
+
+        assertEquals("Xbox One Controller", driver.getDevice());
+        assertEquals("030000005e040000fd02000000000000", bytesToHex(driver.getGuid().toByteArray()));
+        assertEquals(3, find(driver, Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_RPAD_RIGHT).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_RPAD_LEFT).getIndex());
+        assertEquals(6, find(driver, Gamepad.GAMEPAD_RPAD_UP).getIndex());
+        assertEquals(1, find(driver, Gamepad.GAMEPAD_START).getIndex());
+        assertEquals(2, find(driver, Gamepad.GAMEPAD_BACK).getIndex());
+        assertEquals(13, find(driver, Gamepad.GAMEPAD_LSTICK_CLICK).getIndex());
+        assertEquals(14, find(driver, Gamepad.GAMEPAD_RSTICK_CLICK).getIndex());
+
+        GamepadMapEntry dpadUp = find(driver, Gamepad.GAMEPAD_LPAD_UP);
+        assertEquals(GamepadType.GAMEPAD_TYPE_BUTTON, dpadUp.getType());
+        assertEquals(7, dpadUp.getIndex());
+
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
+    }
+
+    @Test
     public void testConvertSignedAxisBindings() throws Exception {
         String sdl = "03000000000000000000000000000000,Axis Dpad,dpdown:+a1,dpleft:-a0,dpright:+a0,dpup:-a1,platform:Linux,\n";
 

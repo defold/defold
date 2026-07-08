@@ -1,7 +1,10 @@
 defold_log("functions_libs.cmake:")
 
 if(TARGET_PLATFORM STREQUAL "x86_64-xbone")
-  include("${CMAKE_CURRENT_LIST_DIR}/functions_libs_xbox.cmake")
+  include(functions_libs_xbox OPTIONAL RESULT_VARIABLE _DEFOLD_FUNCTIONS_LIBS_XBOX)
+  if(NOT _DEFOLD_FUNCTIONS_LIBS_XBOX)
+    message(FATAL_ERROR "x86_64-xbone requires functions_libs_xbox.cmake from a configured private Xbox repo. Run ./scripts/build.py add_private_repo --platform=x86_64-xbone --private-repo=<path> first.")
+  endif()
 endif()
 
 set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
@@ -193,7 +196,7 @@ function(defold_target_link_libraries target platform)
         get_target_property(_sdk_headers_target "${_lib}" DEFOLD_SDK_HEADERS_TARGET)
       endif()
 
-      if(_sdk_headers_target AND TARGET "${_sdk_headers_target}" AND NOT DEFOLD_MSVC_IDE_SOLUTION)
+      if(_sdk_headers_target AND TARGET "${_sdk_headers_target}")
         add_dependencies(${target} "${_sdk_headers_target}")
       endif()
     endif()
@@ -425,9 +428,17 @@ function(defold_resolve_private_source_paths out_var)
   set(_resolved)
   foreach(_arg IN LISTS ARGN)
     set(_resolved_arg "${_arg}")
+    set(_can_resolve_private_source_path TRUE)
+    if(IS_ABSOLUTE "${_arg}" AND TARGET_PLATFORM)
+      file(TO_CMAKE_PATH "${_arg}" _arg_cmake_path)
+      if(_arg_cmake_path MATCHES "/build/${TARGET_PLATFORM}(/|$)")
+        set(_can_resolve_private_source_path FALSE)
+      endif()
+    endif()
     if(DEFOLD_PRIVATE_REPO_ROOT
        AND IS_ABSOLUTE "${_arg}"
        AND NOT EXISTS "${_arg}"
+       AND _can_resolve_private_source_path
        AND NOT _arg MATCHES "^\\$<")
       file(RELATIVE_PATH _relative "${DEFOLD_HOME}" "${_arg}")
       if(NOT _relative MATCHES "^\\.\\."
@@ -452,6 +463,10 @@ function(defold_add_executable target)
 
   # Forward all remaining args directly to add_executable
   add_executable(${target} ${_sources})
+
+  if(TARGET defold_sdk)
+    target_link_libraries(${target} PRIVATE defold_sdk)
+  endif()
 
   # Attach local include dir (e.g., ./include) and headers if present
   if(COMMAND defold_attach_local_include)
@@ -537,6 +552,14 @@ function(defold_add_library target)
 
   # Forward all remaining args directly to add_library
   add_library(${target} ${_sources})
+
+  if(TARGET defold_sdk)
+    get_target_property(_defold_target_type ${target} TYPE)
+    if(NOT _defold_target_type STREQUAL "INTERFACE_LIBRARY")
+      target_link_libraries(${target} PRIVATE defold_sdk)
+    endif()
+    unset(_defold_target_type)
+  endif()
 
   if(target MATCHES "_noasan$" AND COMMAND defold_target_skip_sanitizer)
     defold_target_skip_sanitizer(${target})
