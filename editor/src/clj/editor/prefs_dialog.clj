@@ -42,6 +42,7 @@
             [editor.mouse-binding :as mouse-binding]
             [editor.prefs :as prefs]
             [editor.system :as system]
+            [editor.ui :as ui]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn]
@@ -365,7 +366,7 @@
 
     nil))
 
-(fxui/defc new-shortcut-view
+(ui/defc new-shortcut-view
   {:compose [{:fx/type fx/ext-state
               :initial-state nil
               :key :shortcut
@@ -406,7 +407,7 @@
                                          (e/map #(localization-state (localization/message "prefs.keymap.warning" {"warning" %})))
                                          (coll/join-to-string ""))}))}))}))
 
-(fxui/defc mouse-binding-view
+(ui/defc mouse-binding-view
   {:compose [{:fx/type fx/ext-state
               :initial-state (:binding props)
               :key :draft-binding
@@ -501,7 +502,7 @@
                                  #(mouse-binding/update-command-binding % context command binding-index draft-binding))
                                (swap-state dissoc :mouse-binding-popup))}]}))}))
 
-(fxui/defc mouse-modifier-view
+(ui/defc mouse-modifier-view
   {:compose [{:fx/type fx/ext-state
               :initial-state (:modifier (:row props))
               :key :draft-modifier
@@ -680,7 +681,7 @@
                    (update-mouse-bindings
                      #(mouse-binding/reset-command % context command)))}]))
 
-(fxui/defc keymap-view
+(ui/defc keymap-view
   {:compose [{:fx/type fx/ext-watcher
               :ref handler/state-atom
               :key :handler-state}
@@ -845,7 +846,7 @@
     (.consume e)
     (.hide (.getWindow ^Scene (.getSource e)))))
 
-(fxui/defc dialog-view
+(ui/defc dialog-view
   {:compose [{:fx/type fx/ext-watcher
               :ref prefs/global-state
               :key :prefs-state}
