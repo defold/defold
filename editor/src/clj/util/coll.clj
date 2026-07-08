@@ -394,6 +394,17 @@
      coll
      (transform-> coll (apply comp xform xforms)))))
 
+(defn transform-non-empty->
+  "Transform the collection supplied as the first argument into a new collection
+  of the same type, using a transducer composed of the remaining arguments.
+  Returns nil if the resulting collection is empty. Preserves metadata. Passes
+  the coll unaltered to not-empty if no transducers are supplied.
+
+  See also: transform->."
+  ([coll] (not-empty coll))
+  ([coll xform] (not-empty (transform-> coll xform)))
+  ([coll xform & xforms] (not-empty (apply transform-> coll xform xforms))))
+
 (defn update-vals
   "Like core.update-vals, but retains the type of the input map or record. Also
   accepts additional arguments to f. Preserves metadata. If coll is nil, returns

@@ -117,6 +117,7 @@
                  util.coll/reduce=kv-> [[:inner 0]]
                  util.coll/run!-> [[:inner 0]]
                  util.coll/transform-> [[:inner 0]]
+                 util.coll/transform-non-empty-> [[:inner 0]]
                  util.debug-util/log-time [[:inner 0]]
                  util.debug-util/log-time-and-memory [[:inner 0]]
                  util.debug-util/measuring [[:inner 0]]
