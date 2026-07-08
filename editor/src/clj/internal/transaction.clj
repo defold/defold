@@ -978,6 +978,8 @@
     [(->AddNodesTXS (vec nodes))]))
 
 (defn- ctx-perform-delete-nodes [ctx nodes arc-pkid-entries]
+  ;; TODO(decouple-undo-from-graph): This shouldn't call ctx-remove-nodes-from-graph.
+  ;;   The issue is that we're ultimately calling `basis-remove-node`, which does the traversal internally, and if we're doing things correctly we should already have collected all the information we need.
   (ctx-remove-nodes-from-graph
     ctx
     nodes
@@ -1022,18 +1024,19 @@
       (when (coll/not-empty deleted-nodes)
         (let [graphs (:graphs basis)
 
-              [deleted-node-ids deleted-nodes-by-id deleted-overrides-by-id]
+              [deleted-node-ids deleted-nodes-by-id removed-overrides-by-id]
               (util/into-multiple
                 [[] {} {}]
                 [(map gt/node-id)
                  (map (coll/pair-fn gt/node-id))
                  (keep (fn [deleted-node]
+                         ;; TODO(decouple-undo-from-graph): Should we only include this if the deleted-node-id matches the root-id of the override?
                          (when-let [override-id (gt/override-id deleted-node)]
                            (when-let [override (ig/override-by-id basis override-id)]
                              (pair override-id override)))))]
                 deleted-nodes)
 
-              deleted-arc-pkid-entries
+              removed-arc-pkid-entries
               (coll/into->
                 (pair (e/mapcat #(ig/explicit-arcs-by-source basis %) deleted-node-ids)
                       (e/mapcat #(ig/explicit-arcs-by-target basis %) deleted-node-ids))
@@ -1042,24 +1045,29 @@
                 (distinct)
                 (mapcat #(ig/find-source-and-target-arc-pkid-entries basis %)))
 
-              deleted-node->overrides-for-deleted-node-ids
+              removed-node->overrides-for-deleted-node-ids
               (coll/into-> deleted-node-ids {}
                 (keep (fn [deleted-node-id]
                         (let [graph-id (gt/node-id->graph-id deleted-node-id)]
                           (when-let [override-node-ids (get-in graphs [graph-id :node->overrides deleted-node-id])]
                             (pair deleted-node-id override-node-ids))))))
 
-              deleted-node->overrides-for-originals-of-deleted-node-ids
-              (coll/into-> deleted-nodes-by-id {}
-                (keep (fn [[deleted-node-id deleted-node]]
-                        (when-let [original-node-id (gt/original deleted-node)]
-                          (pair original-node-id [deleted-node-id])))))
+              removed-node->overrides-for-originals-of-deleted-node-ids
+              (coll/reduce-> deleted-nodes {}
+                (fn [removed-node->overrides deleted-node]
+                  (let [deleted-node-id (gt/node-id deleted-node)
+                        original-node-id (gt/original deleted-node)]
+                    (if (or (not original-node-id)
+                            (contains? deleted-nodes-by-id original-node-id)) ; Already covered by removed-node->overrides-for-deleted-node-ids.
+                      removed-node->overrides
+                      (update removed-node->overrides original-node-id coll/conj-vector deleted-node-id)))))
 
-              deleted-node->overrides
-              (coll/merge deleted-node->overrides-for-deleted-node-ids
-                          deleted-node->overrides-for-originals-of-deleted-node-ids)]
+              removed-node->overrides
+              (coll/merge-with coll/into-vector
+                               removed-node->overrides-for-deleted-node-ids
+                               removed-node->overrides-for-originals-of-deleted-node-ids)]
 
-          (->DeleteNodesTXC deleted-nodes deleted-arc-pkid-entries deleted-overrides-by-id deleted-node->overrides))))))
+          (->DeleteNodesTXC deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides))))))
 
 (defn- realize-delete-nodes [ctx undoable-changes deleted-node-ids]
   (if-let [change (make-delete-nodes-change ctx deleted-node-ids)]

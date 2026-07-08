@@ -632,3 +632,42 @@
           (is (= #{deleted-override-node-id later-override-node-id} (set (g/overrides basis original-node-id))))
           (is (= original-node-id (g/override-original basis deleted-override-node-id)))
           (is (= original-node-id (g/override-original basis later-override-node-id))))))))
+
+(deftest undo-delete-sibling-override-nodes-restores-original-overrides-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [original-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-node graph-id helpers/OverrideTestNode)))
+
+          [first-override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override original-node-id)))
+
+          [second-override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override original-node-id)))]
+
+      (is (= #{first-override-node-id second-override-node-id}
+             (set (g/overrides (g/now) original-node-id))))
+
+      (g/transact
+        {:undo-key ::delete-sibling-overrides}
+        (g/delete-nodes [first-override-node-id second-override-node-id]))
+
+      (let [basis (g/now)]
+        (is (= #{} (set (g/overrides basis original-node-id))))
+        (is (= nil (g/node-by-id basis first-override-node-id)))
+        (is (= nil (g/node-by-id basis second-override-node-id))))
+
+      (g/undo! ::delete-sibling-overrides)
+
+      (let [basis (g/now)]
+        (is (= #{first-override-node-id second-override-node-id}
+               (set (g/overrides basis original-node-id))))
+        (is (= original-node-id (g/override-original basis first-override-node-id)))
+        (is (= original-node-id (g/override-original basis second-override-node-id)))))))
