@@ -136,7 +136,6 @@
   (sources          [this node-id] [this node-id label])
   (targets          [this node-id] [this node-id label])
   (add-node         [this value])
-  (delete-node      [this node-id])
   (replace-node     [this node-id value])
   (override-node    [this original-id override-id])
   (override-node-clear [this original-id])

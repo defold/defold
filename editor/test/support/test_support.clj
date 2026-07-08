@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.fs :as fs]
             [editor.library :as library]
+            [internal.graph :as ig]
             [internal.system :as is]
             [util.coll :as coll])
   (:import [java.io File]
@@ -105,6 +106,20 @@
    (graph-dependencies (g/now) tgts))
   ([basis tgts]
    (g/dependencies basis tgts)))
+
+(defn graph-remove-node
+  [graph node-id]
+  (let [basis (ig/multigraph-basis [graph])
+
+        {:keys [deleted-nodes
+                removed-arc-pkid-entries
+                removed-node->overrides
+                removed-overrides-by-id]}
+        (ig/basis-delete-nodes-plan basis [node-id])
+
+        basis (ig/basis-perform-delete-nodes basis deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides)]
+
+    (first (:graphs basis))))
 
 (defmacro with-post-ec
   "Given a symbol that resolves to a function, returns a fn that executes that

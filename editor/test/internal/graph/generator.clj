@@ -20,6 +20,7 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
+            [support.test-support :as test-support]
             [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
@@ -93,7 +94,7 @@
 (defn remove-nodes
   [dead-nodes]
   (for [n dead-nodes]
-    `(ig/graph-remove-node ~n)))
+    `(test-support/graph-remove-node ~n)))
 
 (defn- populate-arcs
   [new-arcs]

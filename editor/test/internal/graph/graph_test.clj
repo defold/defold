@@ -22,7 +22,7 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
-            [support.test-support :refer [tx-nodes with-clean-system]]
+            [support.test-support :as test-support :refer [tx-nodes with-clean-system]]
             [util.macro :as macro]))
 
 (defn occurrences [coll]
@@ -37,13 +37,13 @@
     (is (= 1 (apply max (occurrences (ig/node-ids g)))))))
 
 (deftest removing-node
-  (let [v      "Any ig/node value"
-        g      (random-graph)
-        id     (inc (count (:nodes g)))
-        g      (ig/add-node g id v)
-        g      (ig/graph-remove-node g id nil)]
+  (let [g (random-graph)
+        id (inc (count (:nodes g)))
+        v (in/->NodeImpl id nil)
+        g (ig/add-node g id v)
+        g (test-support/graph-remove-node g id)]
     (is (nil? (ig/node-id->node g id)))
-    (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
+    (is (empty? (filter #(identical? v %) (ig/node-values g))))))
 
 (defn targets [g n l] (map gt/target (ig/arc-table-arcs (get-in g [:sarcs n l]))))
 (defn sources [g n l] (map gt/source (ig/arc-table-arcs (get-in g [:tarcs n l]))))

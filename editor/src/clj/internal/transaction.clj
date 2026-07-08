@@ -17,7 +17,6 @@
   (:require [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
             [util.defonce :as defonce]
@@ -86,9 +85,8 @@
            (conj-change ~undoable-changes transaction-change#))))
 
 (defn- not-empty-without-items [coll items]
-  (coll/not-empty
-    (coll/transform-> coll
-      (remove (set items)))))
+  (coll/transform-non-empty-> coll
+    (remove (set items))))
 
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
@@ -274,8 +272,9 @@
 (defn- ctx-revert-override-node [ctx original-node-id override-node-id]
   (let [basis (:basis ctx)]
     (-> ctx
-        (update-in [:basis :graphs (gt/node-id->graph-id original-node-id) :node->overrides original-node-id]
-                   not-empty-without-items #{override-node-id})
+        (coll/removing-update-in
+          [:basis :graphs (gt/node-id->graph-id original-node-id) :node->overrides original-node-id]
+          not-empty-without-items #{override-node-id})
         (flag-override-originals-successors-changed basis original-node-id))))
 
 (defn- remove-node-ids-from-nodes-added [nodes-added node-id-set]
@@ -340,7 +339,9 @@
     (fn [ctx original-id]
       (flag-override-originals-successors-changed ctx basis original-id))))
 
-(defn- ctx-add-nodes-to-graph [ctx nodes]
+(def ^:private arc-pkid-entry-arc first)
+
+(defn- ctx-add-nodes [ctx nodes]
   (let [node-ids (mapv gt/node-id nodes)]
     (assert (every? gt/node-id? node-ids))
     (-> ctx
@@ -349,17 +350,20 @@
         (flag-nodes-successors-changed node-ids)
         (mark-nodes-outputs-activated nodes))))
 
-(defn- ctx-remove-nodes-from-graph [ctx nodes]
+(defn- ctx-delete-nodes [ctx nodes arc-pkid-entries overrides node->overrides]
   (let [basis (:basis ctx)
-        nodes-by-id (coll/pair-map-by gt/node-id nodes)]
+        nodes-by-id (coll/pair-map-by gt/node-id nodes)
+        arcs (e/map arc-pkid-entry-arc arc-pkid-entries)
+        source-arcs (arcs-by-source-node-ids arcs nodes-by-id)
+        target-arcs (arcs-by-target-node-ids arcs nodes-by-id)]
     (-> ctx
         (mark-nodes-outputs-activated nodes)
-        (assoc :basis (coll/reduce-kv-> nodes-by-id basis
-                        (fn [basis node-id _node]
-                          (gt/delete-node basis node-id))))
+        (mark-arc-targets-activated source-arcs)
+        (flag-arc-source-successors-changed basis target-arcs)
+        (flag-deleted-override-originals-successors-changed basis nodes)
         (update :nodes-deleted into nodes-by-id)
         (update :nodes-added remove-node-ids-from-nodes-added nodes-by-id)
-        (flag-deleted-override-originals-successors-changed basis nodes))))
+        (update :basis ig/basis-perform-delete-nodes nodes arc-pkid-entries overrides node->overrides))))
 
 (defonce/type AddOverrideTXC [override-id root-id traverse-fn init-props-fn]
   TransactionChange
@@ -809,11 +813,11 @@
                 (realize-tx ctx undoable-changes setter-actions))
               (pair ctx undoable-changes))))))))
 
-(defn- ctx-perform-add-nodes [ctx nodes]
-  (ctx-add-nodes-to-graph ctx nodes))
+(defn- ctx-perform-add-nodes [ctx added-nodes]
+  (ctx-add-nodes ctx added-nodes))
 
-(defn- ctx-revert-add-nodes [ctx nodes]
-  (ctx-remove-nodes-from-graph ctx nodes))
+(defn- ctx-revert-add-nodes [ctx added-nodes added-node->overrides]
+  (ctx-delete-nodes ctx added-nodes [] {} added-node->overrides))
 
 (defn- ctx-callback
   [ctx fn args opts]
@@ -863,10 +867,6 @@
                     target-id (in/type-name input-nodetype) target-label
                     (in/type-name input-nodetype) target-label))
     (assert-schema-type-compatible source-id source-label output-nodetype output-valtype target-id target-label input-nodetype input-valtype)))
-
-(defn- arc-pkid-entry-arc
-  ^Arc [arc-pkid-entry]
-  (nth arc-pkid-entry 0))
 
 (defn- ctx-perform-connect-arcs
   [ctx arc-pkid-entries]
@@ -938,16 +938,25 @@
 ;; Transaction steps
 ;; ---------------------------------------------------------------------------
 
-(defonce/type AddNodesTXC [added-nodes]
+(defonce/type AddNodesTXC [added-nodes added-node->overrides]
   TransactionChange
   (perform [_this ctx]
     (ctx-perform-add-nodes ctx added-nodes))
 
   (revert [_this ctx]
-    (ctx-revert-add-nodes ctx added-nodes)))
+    (ctx-revert-add-nodes ctx added-nodes added-node->overrides)))
 
 (defn- realize-add-nodes [ctx undoable-changes added-nodes]
-  (let [[ctx undoable-changes] (perform-and-conj-change ctx undoable-changes (->AddNodesTXC added-nodes))]
+  (let [added-node->overrides
+        (coll/reduce-> added-nodes {}
+          (fn [node->overrides node]
+            (if-let [original-id (gt/original node)]
+              (update node->overrides original-id coll/conj-vector (gt/node-id node))
+              node->overrides)))
+
+        [ctx undoable-changes]
+        (perform-and-conj-change ctx undoable-changes (->AddNodesTXC added-nodes added-node->overrides))]
+
     (coll/reduce-> added-nodes (pair ctx undoable-changes)
       (fn [[ctx undoable-changes] added-node]
         (realize-defaults ctx undoable-changes added-node)))))
@@ -974,44 +983,13 @@
     [(->AddNodesTXS (vec nodes))]))
 
 (defn- ctx-perform-delete-nodes [ctx nodes arc-pkid-entries overrides node->overrides]
-  (let [basis (:basis ctx)
-        nodes-by-id (coll/pair-map-by gt/node-id nodes)
-        arcs (e/map arc-pkid-entry-arc arc-pkid-entries)
-        source-arcs (arcs-by-source-node-ids arcs nodes-by-id)
-        target-arcs (arcs-by-target-node-ids arcs nodes-by-id)]
-    (-> ctx
-        (mark-nodes-outputs-activated nodes)
-        (mark-arc-targets-activated source-arcs)
-        (flag-arc-source-successors-changed basis target-arcs)
-        (flag-deleted-override-originals-successors-changed basis nodes)
-        (update :nodes-deleted into nodes-by-id)
-        (update :nodes-added remove-node-ids-from-nodes-added nodes-by-id)
-        (assoc
-          :basis
-          (-> basis
-              (coll/reduce=> arc-pkid-entries
-                (fn [basis [^Arc arc source-arc-pkid target-arc-pkid]]
-                  (ig/disconnect-arc-at basis arc source-arc-pkid target-arc-pkid)))
-              (coll/reduce-kv=> overrides
-                (fn [basis override-id _override]
-                  (update-in basis [:graphs (gt/override-id->graph-id override-id) :overrides] dissoc override-id)))
-              (coll/reduce-kv=> node->overrides
-                (fn [basis node-id override-node-ids]
-                  (let [graph-id (gt/node-id->graph-id node-id)]
-                    (if (contains? nodes-by-id node-id)
-                      (update-in basis [:graphs graph-id :node->overrides] dissoc node-id)
-                      (coll/removing-update-in
-                        basis [:graphs graph-id :node->overrides node-id]
-                        not-empty-without-items override-node-ids)))))
-              (coll/reduce-kv=> nodes-by-id
-                (fn [basis node-id _node]
-                  (update-in basis [:graphs (gt/node-id->graph-id node-id) :nodes] dissoc node-id))))))))
+  (ctx-delete-nodes ctx nodes arc-pkid-entries overrides node->overrides))
 
 (defn- ctx-revert-delete-nodes [ctx nodes arc-pkid-entries overrides node->overrides]
   (let [nodes-by-id (coll/pair-map-by gt/node-id nodes)
         arcs (e/map arc-pkid-entry-arc arc-pkid-entries)
         ctx (-> ctx
-                (ctx-add-nodes-to-graph nodes)
+                (ctx-add-nodes nodes)
                 (update
                   :basis
                   (fn [basis]
@@ -1029,74 +1007,22 @@
                     (mark-input-activated ctx (gt/target-id arc) (gt/target-label arc)))))]
     (flag-arc-source-successors-changed ctx (:basis ctx) arcs)))
 
-(defonce/type DeleteNodesTXC [nodes arc-pkid-entries overrides node->overrides]
+(defonce/type DeleteNodesTXC [deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides]
   TransactionChange
   (perform [_this ctx]
-    (ctx-perform-delete-nodes ctx nodes arc-pkid-entries overrides node->overrides))
+    (ctx-perform-delete-nodes ctx deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides))
 
   (revert [_this ctx]
-    (ctx-revert-delete-nodes ctx nodes arc-pkid-entries overrides node->overrides)))
-
-(defn- make-delete-nodes-change [ctx node-ids]
-  (when (coll/not-empty node-ids)
-    (let [basis (:basis ctx)
-
-          deleted-nodes
-          (coll/into-> (ig/pre-traverse basis node-ids ig/cascade-delete-sources) []
-            (keep (fn [node-id]
-                    (gt/node-by-id-at basis node-id))))]
-
-      (when (coll/not-empty deleted-nodes)
-        (let [graphs (:graphs basis)
-
-              [deleted-node-ids deleted-nodes-by-id removed-overrides-by-id]
-              (util/into-multiple
-                [[] {} {}]
-                [(map gt/node-id)
-                 (map (coll/pair-fn gt/node-id))
-                 (keep (fn [deleted-node]
-                         (when-let [override-id (gt/override-id deleted-node)]
-                           (when-let [override (ig/override-by-id basis override-id)]
-                             (when (= (gt/original deleted-node) (:root-id override))
-                               (pair override-id override))))))]
-                deleted-nodes)
-
-              removed-arc-pkid-entries
-              (coll/into->
-                (pair (e/mapcat #(ig/explicit-arcs-by-source basis %) deleted-node-ids)
-                      (e/mapcat #(ig/explicit-arcs-by-target basis %) deleted-node-ids))
-                []
-                cat
-                (distinct)
-                (mapcat #(ig/find-source-and-target-arc-pkid-entries basis %)))
-
-              removed-node->overrides-for-deleted-node-ids
-              (coll/into-> deleted-node-ids {}
-                (keep (fn [deleted-node-id]
-                        (let [graph-id (gt/node-id->graph-id deleted-node-id)]
-                          (when-let [override-node-ids (get-in graphs [graph-id :node->overrides deleted-node-id])]
-                            (pair deleted-node-id override-node-ids))))))
-
-              removed-node->overrides-for-originals-of-deleted-node-ids
-              (coll/reduce-> deleted-nodes {}
-                (fn [removed-node->overrides deleted-node]
-                  (let [deleted-node-id (gt/node-id deleted-node)
-                        original-node-id (gt/original deleted-node)]
-                    (if (or (not original-node-id)
-                            (contains? deleted-nodes-by-id original-node-id)) ; Already covered by removed-node->overrides-for-deleted-node-ids.
-                      removed-node->overrides
-                      (update removed-node->overrides original-node-id coll/conj-vector deleted-node-id)))))
-
-              removed-node->overrides
-              (coll/merge-with coll/into-vector
-                               removed-node->overrides-for-deleted-node-ids
-                               removed-node->overrides-for-originals-of-deleted-node-ids)]
-
-          (->DeleteNodesTXC deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides))))))
+    (ctx-revert-delete-nodes ctx deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides)))
 
 (defn- realize-delete-nodes [ctx undoable-changes deleted-node-ids]
-  (if-let [change (make-delete-nodes-change ctx deleted-node-ids)]
-    (perform-and-conj-change ctx undoable-changes change)
+  (if-let [{:keys [deleted-nodes
+                   removed-arc-pkid-entries
+                   removed-node->overrides
+                   removed-overrides-by-id]}
+           (ig/basis-delete-nodes-plan (:basis ctx) deleted-node-ids)]
+    (let [change (->DeleteNodesTXC deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides)]
+      (perform-and-conj-change ctx undoable-changes change))
     (pair ctx undoable-changes)))
 
 (defonce/type DeleteNodesTXS [node-ids]

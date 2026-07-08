@@ -333,7 +333,7 @@
           removed-overrides-by-id
           (fn removed-overrides-by-id [delete-node-id]
             (let [[^DeleteNodesTXC change] (test-support/undoable-changes (g/delete-node delete-node-id))]
-              (.-overrides change)))]
+              (.-removed-overrides-by-id change)))]
 
       (is (= {} (removed-overrides-by-id first-order-override-owned-node-id)))
       (is (= {override-id override} (removed-overrides-by-id first-order-override-owner-node-id))))))
