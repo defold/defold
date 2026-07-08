@@ -54,6 +54,7 @@
    :on-close-request {:result false}
    :title (localization (localization/message "updater.release-notes-dialog.title"))
    :size :large
+   :width 800
    :header {:fx/type fxui/legacy-label
             :variant :header
             :text (localization (localization/message "updater.release-notes-dialog.header"))}

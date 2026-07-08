@@ -12,11 +12,6 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-# Publishing the release notes that the editor's update dialog reads from S3.
-# Each function takes the build.py Configuration object as `config` and reads
-# config.defold_root / config.version / config.channel and uses config._log /
-# config.fatal, matching the other build_tools modules.
-
 import json
 import os
 

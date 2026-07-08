@@ -441,6 +441,45 @@ def release(channel, platform=None):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
+# Channels that ship editor release notes.
+RELEASE_NOTES_CHANNELS = ("beta", "stable")
+
+# DEV-ONLY (issue-7186 validation): let the feature branch exercise the full
+# notes pipeline on a disposable channel. Delete this whole statement before
+# merging to dev.
+RELEASE_NOTES_CHANNELS = RELEASE_NOTES_CHANNELS + ("release-notes-view",)
+
+def gen_release_notes(channel):
+    if channel not in RELEASE_NOTES_CHANNELS:
+        print("Channel '%s' does not ship release notes - skipping" % channel)
+        return
+
+    version = open("VERSION").read().strip()
+    notes_md = os.path.join("releasenotes", "%s.md" % version)
+    notes_json = os.path.join("releasenotes", "%s.json" % version)
+
+    # Manually-authored notes win: if a file is already on disk, use it as-is and
+    # don't hit the API or overwrite it.
+    if os.path.exists(notes_md):
+        if not os.path.exists(notes_json):
+            raise Exception("%s already exists, but matching %s is missing" % (notes_md, notes_json))
+        print("%s already exists - using manually-authored notes as-is" % notes_md)
+        return
+
+    # The generator audits every issue's fix for presence on the branch(es) this
+    # channel ships from and exits non-zero - failing the job - if any are missing
+    # or generation itself errors. --use-github-compare does that check via the
+    # GitHub compare API since CI runs on a shallow clone with no branch history.
+    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s --use-github-compare generate' % (
+        sys.executable, version, channel, get_github_token()))
+
+    # beta/stable must ship notes: a missing file here means generation produced
+    # nothing (no board / empty) - a release defect, so fail.
+    if not os.path.exists(notes_md):
+        raise Exception("No release notes produced for %s on channel '%s'" % (version, channel))
+    if not os.path.exists(notes_json):
+        raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
+
 def build_sdk(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []

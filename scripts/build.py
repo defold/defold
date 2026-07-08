@@ -3310,16 +3310,6 @@ class Configuration(object):
         cmd = 'git push -f origin %s' % tag
         run.shell_command(cmd)
 
-    def upload_release_notes(self):
-        # Manual: upload the release notes for --version to S3 for --channel
-        # (per-version file + manifest).
-        #   ./scripts/build.py --channel beta --version 1.13.0 upload_release_notes
-        if self.channel is None:
-            self._log("No channel specified! Pass --channel")
-            sys.exit(1)
-        bucket = s3.get_bucket(urlparse(self.get_archive_path()).hostname)
-        releasenotes.upload(self, bucket, required = True)
-
     def _release_web_pages(self, releases):
         u = urlparse(self.get_archive_path())
         hostname = u.hostname
@@ -3965,7 +3955,6 @@ build_docs       - Build documentation
 build_builtins   - Build builtin content archive
 bump             - Bump version number
 release          - Release editor
-upload_release_notes - Manual: upload release-notes.{md,json} for --version to S3 for --channel
 shell            - Start development shell
 add_private_repo - Add a private repo to .defold-platforms
 smoke_test       - Test editor and engine in combination
@@ -4237,7 +4226,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
-    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo', 'upload_release_notes']
+    commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo']
     needs_dynamo_home = any(cmd not in commands_without_dynamo_home for cmd in args)
     if needs_dynamo_home:
         for env_var in ['DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
