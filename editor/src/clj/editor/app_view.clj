@@ -60,6 +60,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -2584,15 +2585,50 @@
          (make-open-resource-plan app-view prefs project resource opts evaluation-context))
        (perform-open-resource-plan! localization))))
 
-(defn- release-notes-resource [project]
-  (when project
-    (workspace/find-resource (project/workspace project)
-                             (str "/_defold/releasenotes/" (system/defold-version) ".md"))))
+(defn- release-notes-resource
+  "Classpath URL of the running version's bundled release notes, staged into
+  resources/release-notes/ at build time (nil for dev builds, which ship none)."
+  []
+  (io/resource (str "release-notes/" (system/defold-version) ".md")))
+
+(defn- release-notes-dialog [{:keys [content project localization] :as props}]
+  {:fx/type dialogs/dialog-stage
+   :showing (fxui/dialog-showing? props)
+   :on-close-request {:result nil}
+   :title (localization (localization/message "release-notes-dialog.title"))
+   :size :large
+   :width 800
+   :header {:fx/type fxui/legacy-label
+            :variant :header
+            :text (localization (localization/message "release-notes-dialog.header"))}
+   :content {:fx/type markdown/view
+             :content content
+             :project project
+             :stylesheets [(str (io/resource "editor.css"))]
+             :root-props {:style-class "md-page-root"}}
+   :footer {:fx/type dialogs/dialog-buttons
+            :children [{:fx/type fxui/legacy-button
+                        :text (localization (localization/message "release-notes-dialog.button.close"))
+                        :cancel-button true
+                        :on-action {:result nil}}]}})
+
+(defn show-release-notes-dialog!
+  "Shows the running version's bundled release notes in a dialog. No-op when no
+  notes shipped. Must be called on the JavaFX application thread."
+  [localization project]
+  (when-let [url (release-notes-resource)]
+    (fxui/show-dialog-and-await-result!
+      :event-handler (fn [state event]
+                       (assoc state ::fxui/result (:result event)))
+      :description {:fx/type release-notes-dialog
+                    :content (slurp url)
+                    :project project
+                    :localization localization})))
 
 (handler/defhandler :help.open-release-notes :global
-  (enabled? [project] (some? (release-notes-resource project)))
-  (run [app-view prefs localization project]
-    (open-resource! app-view prefs localization project (release-notes-resource project))))
+  (enabled? [] (release-notes-resource))
+  (run [localization project]
+    (show-release-notes-dialog! localization project)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

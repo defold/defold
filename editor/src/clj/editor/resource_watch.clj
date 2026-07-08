@@ -193,22 +193,6 @@
                              (map file-resource-status-map-entry))
                        resources)}))
 
-(defn- make-releasenotes-snapshot [workspace]
-  (let [base-path (if (system/defold-dev?)
-                    (.getAbsolutePath (io/file "bundle-resources"))
-                    (system/defold-unpack-path))
-        root (io/file base-path "_defold/releasenotes")
-        mount-root (io/file base-path)]
-    ;; Almost the same as make-debugger-snapshot, but the releasenotes might not exist
-    (if-not (.exists root)
-      empty-snapshot
-      (let [resources (resource/children (make-file-tree workspace mount-root root fn/constantly-false fn/constantly-false))]
-        {:resources resources
-         :status-map (into {}
-                           (comp resource/xform-recursive-resources
-                                 (map file-resource-status-map-entry))
-                           resources)}))))
-
 (defn update-snapshot-status [snapshot file-resource-status-map-entries]
   (assert (every? file-resource-status-map-entry? file-resource-status-map-entries))
   (update snapshot :status-map into file-resource-status-map-entries))
@@ -220,7 +204,6 @@
       {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
                                            (make-directory-snapshot workspace project-directory)
                                            (make-debugger-snapshot workspace)
-                                           (make-releasenotes-snapshot workspace)
                                            (make-library-snapshots new-library-snapshot-cache lib-results)))
        :snapshot-cache new-library-snapshot-cache})))
 

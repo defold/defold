@@ -129,6 +129,11 @@ updater.release-notes-dialog.header = What's New
 updater.release-notes-dialog.button.later = Maybe Later
 updater.release-notes-dialog.button.update-now = Update Now
 
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+release-notes-dialog.title = Release Notes
+release-notes-dialog.header = What's New
+release-notes-dialog.button.close = Close
+
 # Time
 time.vague.unknown = Unknown
 time.vague.just-now = Just now

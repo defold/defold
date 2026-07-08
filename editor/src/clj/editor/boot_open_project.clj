@@ -418,8 +418,8 @@
           (let [version (system/defold-version)
                 opened (prefs/get prefs [:opened-versions])]
             (when (and version (not (contains? opened version)))
-              (when-some [notes (workspace/find-resource (g/now) workspace (str "/_defold/releasenotes/" version ".md"))]
-                (open-resource notes))
+              (ui/run-later
+                (app-view/show-release-notes-dialog! localization project))
               (prefs/set! prefs [:opened-versions] (conj opened version))))
 
           (breakpoints-view/restore-breakpoints! project prefs)

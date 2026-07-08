@@ -711,10 +711,9 @@ def notarize_dmg(app, options):
                 log("Retrying notarization...")
 
 def place_release_notes(options):
-    # Must run before init/pack: pack copies bundle-resources/_defold into the
-    # editor package, where make-releasenotes-snapshot mounts it as a tab.
-    # Best-effort, cleared each build so only this version ships.
-    dest_dir = os.path.join('bundle-resources', '_defold', 'releasenotes')
+    # Must run before prerelease: stages the notes onto the classpath (resources/,
+    # like editor.css). Best-effort, cleared each build so only this version ships.
+    dest_dir = os.path.join('resources', 'release-notes')
     rmtree(dest_dir)
     notes_src = os.path.join('..', 'releasenotes', '%s.md' % options.version)
     if os.path.exists(notes_src):
