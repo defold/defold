@@ -16,10 +16,12 @@
   (:require [clojure.set :as set]
             [clojure.test :refer [deftest is testing]]
             [dynamo.graph :as g]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support]
-            [util.coll :as coll]))
+            [util.coll :as coll])
+  (:import [internal.transaction DeleteNodesTXC]))
 
 (set! *warn-on-reflection* true)
 
@@ -305,6 +307,36 @@
       (testing "Evicted by redo."
         (g/redo! :undo/global)
         (ensure-evicted!)))))
+
+(deftest delete-override-node-captures-overrides-only-for-root-override-node-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [_owned-node-id
+           owner-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id
+                [_owned-node-id helpers/OverrideTestNode
+                 owner-node-id helpers/OverrideTestNode]
+                (g/connect _owned-node-id :property-output owner-node-id :regular-cascade-delete-input))))
+
+          [first-order-override-owner-node-id
+           first-order-override-owned-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/override owner-node-id)))
+
+          override-id (g/override-id first-order-override-owner-node-id)
+          override (ig/override-by-id (g/now) override-id)
+
+          removed-overrides-by-id
+          (fn removed-overrides-by-id [delete-node-id]
+            (let [[^DeleteNodesTXC change] (test-support/undoable-changes (g/delete-node delete-node-id))]
+              (.-overrides change)))]
+
+      (is (= {} (removed-overrides-by-id first-order-override-owned-node-id)))
+      (is (= {override-id override} (removed-overrides-by-id first-order-override-owner-node-id))))))
 
 (deftest undo-redo-node-deletion-test
   (test-support/with-clean-system

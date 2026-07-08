@@ -1030,10 +1030,10 @@
                 [(map gt/node-id)
                  (map (coll/pair-fn gt/node-id))
                  (keep (fn [deleted-node]
-                         ;; TODO(decouple-undo-from-graph): Should we only include this if the deleted-node-id matches the root-id of the override?
                          (when-let [override-id (gt/override-id deleted-node)]
                            (when-let [override (ig/override-by-id basis override-id)]
-                             (pair override-id override)))))]
+                             (when (= (gt/original deleted-node) (:root-id override))
+                               (pair override-id override))))))]
                 deleted-nodes)
 
               removed-arc-pkid-entries

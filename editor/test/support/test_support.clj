@@ -62,6 +62,10 @@
   [undo-key]
   (is/redo-stack (is/undo @g/*the-system* undo-key)))
 
+(defn undoable-changes
+  [& tx-steps]
+  (:undoable-changes (g/transact {:dry-run true} tx-steps)))
+
 ;; These *-until-new-mtime fns are hacks to support the resource-watch sync, which checks mtime
 
 (defn do-until-new-mtime [write-fn f & args]
