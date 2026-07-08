@@ -461,7 +461,7 @@
 
 ;; region choicebox input
 
-(fxui/defc form-choicebox-combo-box-view
+(ui/defc form-choicebox-combo-box-view
   {:compose [{:fx/type fxui/ext-map-event-handler}]}
   [{:keys [value on-value-changed options to-string show-on-focus map-event-handler]
     :or {to-string str}}]
@@ -1649,7 +1649,7 @@
         annotated-sections (mapv #(annotate-section % values filter-term localization-state) sections)
         navigation (:navigation form-data true)]
     {:fx/type fxui/ext-with-anchor-pane-props
-     :desc {:fx/type fxui/ext-value
+     :desc {:fx/type ui/ext-value
             :value parent}
      :props {:children [(if navigation
                           (let [visible-sections (filterv :visible annotated-sections)

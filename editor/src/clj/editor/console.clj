@@ -245,7 +245,7 @@
                                   4.0))]
     {:fx/type fxui/with-popup-window
      :desc {:fx/type ext-with-button-props
-            :desc {:fx/type fxui/ext-value
+            :desc {:fx/type ui/ext-value
                    :value filter-console-button}
             :props {:on-action {:event-type :show-or-hide}
                     :graphic {:fx/type fx.h-box/lifecycle

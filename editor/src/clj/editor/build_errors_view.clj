@@ -19,7 +19,6 @@
             [cljfx.fx.tree-view :as fx.tree-view]
             [dynamo.graph :as g]
             [editor.code.data :refer [CursorRange->line-number]]
-            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.outline :as outline]
@@ -287,13 +286,13 @@
    :expanded true
    :children (mapv make-tree-item (:children tree))})
 
-(fxui/defc build-errors-view
+(ui/defc build-errors-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (-> props :tree-view TreeView/.getProperties (.get ::localization))
               :key :localization-state}]}
   [{:keys [tree-view localization-state tree]}]
   {:fx/type ext-with-tree-view-props
-   :desc {:fx/type fxui/ext-value :value tree-view}
+   :desc {:fx/type ui/ext-value :value tree-view}
    :props (cond-> {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
                                   :describe (fn/partial #'make-tree-cell localization-state)}}
                   tree (assoc :root (make-tree-item tree)))})
@@ -303,7 +302,7 @@
     (ui/customize-tree-view! {:double-click-expand false})
     (.setShowRoot false)
     (-> .getProperties (.put ::localization localization))
-    (fxui/advance-ui-user-data-component! ::view {:fx/type build-errors-view :tree-view errors-tree})
+    (ui/advance-ui-user-data-component! ::view {:fx/type build-errors-view :tree-view errors-tree})
     (ui/on-double! (fn [_]
                      (when-let [{:keys [type] :as open-info} (some-> errors-tree ui/selection first error-item-open-info)]
                        (case type
@@ -316,9 +315,9 @@
                  (ui/->selection-provider errors-tree))))
 
 (defn update-build-errors [^TreeView errors-tree error-value]
-  (fxui/advance-ui-user-data-component! errors-tree ::view {:fx/type build-errors-view :tree-view errors-tree :tree (build-resource-tree error-value)})
+  (ui/advance-ui-user-data-component! errors-tree ::view {:fx/type build-errors-view :tree-view errors-tree :tree (build-resource-tree error-value)})
   (when-let [first-error (coll/first-where TreeItem/.isLeaf (ui/tree-item-seq (.getRoot errors-tree)))]
     (.select (.getSelectionModel errors-tree) first-error)))
 
 (defn clear-build-errors [^TreeView errors-tree]
-  (fxui/advance-ui-user-data-component! errors-tree ::view {:fx/type build-errors-view :tree-view errors-tree}))
+  (ui/advance-ui-user-data-component! errors-tree ::view {:fx/type build-errors-view :tree-view errors-tree}))
