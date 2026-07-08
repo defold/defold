@@ -1251,48 +1251,52 @@
 
 (defn basis-perform-delete-nodes
   [basis deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides]
-  (let [deleted-nodes-by-id (coll/pair-map-by gt/node-id deleted-nodes)]
-    (-> basis
-        (coll/reduce=> removed-arc-pkid-entries
-          (fn [basis [arc source-arc-pkid target-arc-pkid]]
-            (basis-disconnect-arc-at basis arc source-arc-pkid target-arc-pkid)))
-        (coll/reduce-kv=> removed-overrides-by-id
-          (fn [basis override-id _override]
-            (update-in basis [:graphs (gt/override-id->graph-id override-id) :overrides] dissoc override-id)))
-        (coll/reduce-kv=> removed-node->overrides
-          (fn [basis node-id override-node-ids]
-            (let [graph-id (gt/node-id->graph-id node-id)]
-              (if (contains? deleted-nodes-by-id node-id)
-                (update-in basis [:graphs graph-id :node->overrides] dissoc node-id)
-                (coll/removing-update-in
-                  basis [:graphs graph-id :node->overrides node-id]
-                  coll/transform-non-empty-> (remove (set override-node-ids)))))))
-        (coll/reduce-kv=> deleted-nodes-by-id
-          (fn [basis node-id _node]
-            (update-in
-              basis [:graphs (gt/node-id->graph-id node-id)]
-              (fn [graph]
-                (-> graph
-                    (update :nodes dissoc node-id)
-                    (update :node->overrides dissoc node-id)))))))))
+  (-> basis
+      (coll/reduce=> removed-arc-pkid-entries
+        (fn [basis [arc source-arc-pkid target-arc-pkid]]
+          (basis-disconnect-arc-at basis arc source-arc-pkid target-arc-pkid)))
+      (update
+        :graphs
+        (fn [graphs]
+          (-> graphs
+              (coll/reduce=> deleted-nodes
+                (map gt/node-id)
+                (fn [graphs node-id]
+                  (let [graph-id (gt/node-id->graph-id node-id)]
+                    (update-in graphs [graph-id :nodes] dissoc node-id))))
+              (coll/reduce-kv=> removed-overrides-by-id
+                (fn [graphs override-id _override]
+                  (let [graph-id (gt/override-id->graph-id override-id)]
+                    (update-in graphs [graph-id :overrides] dissoc override-id))))
+              (coll/reduce-kv=> removed-node->overrides
+                (fn [graphs node-id override-node-ids]
+                  (let [graph-id (gt/node-id->graph-id node-id)]
+                    (coll/removing-update-in
+                      graphs [graph-id :node->overrides node-id]
+                      coll/transform-non-empty-> (remove (set override-node-ids)))))))))))
 
 (defn basis-revert-delete-nodes
   [basis deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides]
-  (let [deleted-nodes-by-id (coll/pair-map-by gt/node-id deleted-nodes)]
-    (-> basis
-        (coll/reduce=> deleted-nodes gt/add-node)
-        (coll/reduce-kv=> removed-overrides-by-id gt/add-override)
-        (coll/reduce=> removed-arc-pkid-entries
-          (fn [basis [arc source-arc-pkid target-arc-pkid]]
-            (basis-connect-arc-at basis arc source-arc-pkid target-arc-pkid)))
-        (coll/reduce-kv=> removed-node->overrides
-          (fn [basis node-id override-node-ids]
-            (let [existing-override-node-ids
-                  (coll/into-> override-node-ids []
-                    (filter deleted-nodes-by-id))]
-              (if (coll/empty? existing-override-node-ids)
-                basis
-                (let [graph-id (gt/node-id->graph-id node-id)]
-                  (update-in
-                    basis [:graphs graph-id :node->overrides node-id]
-                    coll/into-vector existing-override-node-ids)))))))))
+  (-> basis
+      (update
+        :graphs
+        (fn [graphs]
+          (-> graphs
+              (coll/reduce=> deleted-nodes
+                (fn [graphs node]
+                  (let [node-id (gt/node-id node)
+                        graph-id (gt/node-id->graph-id node-id)]
+                    (assoc-in graphs [graph-id :nodes node-id] node))))
+              (coll/reduce-kv=> removed-overrides-by-id
+                (fn [graphs override-id override]
+                  (let [graph-id (gt/override-id->graph-id override-id)]
+                    (update-in graphs [graph-id :overrides] assoc override-id override))))
+              (coll/reduce-kv=> removed-node->overrides
+                (fn [graphs node-id override-node-ids]
+                  (let [graph-id (gt/node-id->graph-id node-id)]
+                    (update-in
+                      graphs [graph-id :node->overrides node-id]
+                      coll/into-vector override-node-ids)))))))
+      (coll/reduce=> removed-arc-pkid-entries
+        (fn [basis [arc source-arc-pkid target-arc-pkid]]
+          (basis-connect-arc-at basis arc source-arc-pkid target-arc-pkid)))))
