@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.util;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -63,6 +64,7 @@ public class PropertiesUtil {
                 break;
             case PROPERTY_TYPE_TEXT:
                 entryBuilder.setIndex(builder.getStringValuesCount());
+                entryBuilder.setValueLength(desc.getValue().getBytes(StandardCharsets.UTF_8).length);
                 builder.addStringValues(desc.getValue());
                 builder.addTextEntries(entryBuilder);
                 break;

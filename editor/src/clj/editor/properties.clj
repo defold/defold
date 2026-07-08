@@ -345,6 +345,9 @@
                    :id (murmur/hash64 id)
                    :index (count (get decl values-key))}
             entry (cond
+                    (= type :property-type-text)
+                    (assoc entry :value-length (alength (.getBytes ^String value java.nio.charset.StandardCharsets/UTF_8)))
+
                     (not include-element-ids?)
                     entry
 

@@ -50,6 +50,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -616,8 +617,10 @@ public abstract class LuaBuilder extends Builder {
                         builder.addUrlEntries(entryBuilder);
                         break;
                     case PROPERTY_TYPE_TEXT:
+                        String text = (String)property.value();
                         entryBuilder.setIndex(builder.getStringValuesCount());
-                        builder.addStringValues((String)property.value());
+                        entryBuilder.setValueLength(text.getBytes(StandardCharsets.UTF_8).length);
+                        builder.addStringValues(text);
                         builder.addTextEntries(entryBuilder);
                         break;
                     case PROPERTY_TYPE_VECTOR3:

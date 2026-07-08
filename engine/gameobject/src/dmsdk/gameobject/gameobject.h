@@ -348,7 +348,7 @@ namespace dmGameObject
      * @member m_Url [type:const uin8_t*] An URL value (union)
      * @member m_V4 [type:float] A vector4 value (union)
      * @member m_Bool [type:bool] A boolean value (union)
-     * @member m_Text [type:const char*] A text value (union)
+     * @member m_Text [type:const char*] A borrowed text value (union). The caller owns the pointed-to memory.
      */
     struct PropertyVar
     {

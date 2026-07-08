@@ -54,6 +54,11 @@ def transform_properties(properties, out_properties):
             entry = out_properties.url_entries.add()
             entry.index = len(out_properties.string_values)
             out_properties.string_values.append(property.value)
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_TEXT:
+            entry = out_properties.text_entries.add()
+            entry.index = len(out_properties.string_values)
+            entry.value_length = len(property.value.encode('utf-8'))
+            out_properties.string_values.append(property.value)
         elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_VECTOR3:
             entry = out_properties.vector3_entries.add()
             entry.index = len(out_properties.float_values)
@@ -320,6 +325,7 @@ def parse_properties(props):
                 entry = declarations.text_entries.add()
                 entry.index = len(declarations.string_values)
                 text = m_text.group(2) if m_text.group(2) is not None else m_text.group(3)
+                entry.value_length = len(text.encode('utf-8'))
                 declarations.string_values.append(text)
             elif m_resource:
                 entry = declarations.hash_entries.add()

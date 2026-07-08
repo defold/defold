@@ -779,7 +779,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     dmGameObject::PropertyContainerPushHash(builder, dmHashString64("HashFirst"), hashFirst);
     dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringFirst"), urlStringFirst);
     dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringSecond"), urlStringSecond);
-    dmGameObject::PropertyContainerPushText(builder, dmHashString64("TextFirst"), textFirst);
+    dmGameObject::PropertyContainerPushText(builder, dmHashString64("TextFirst"), textFirst, (uint32_t) strlen(textFirst));
     dmGameObject::PropertyContainerPushURL(builder, dmHashString64("URLFirst"), urlFirst);
     dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3First"), vector3First);
     dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3Second"), vector3Second);

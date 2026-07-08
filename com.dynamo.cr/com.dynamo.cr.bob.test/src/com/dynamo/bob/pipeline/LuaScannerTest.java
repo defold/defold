@@ -149,7 +149,7 @@ public class LuaScannerTest {
     public void testProps() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props.lua");
 
-        assertEquals(8, properties.size());
+        assertEquals(12, properties.size());
         assertProperty(properties, "prop1", Double.valueOf(0), 10);
         assertProperty(properties, "prop2", Double.valueOf(0), 13);
         assertProperty(properties, "prop3", Double.valueOf(0), 14);
@@ -158,6 +158,10 @@ public class LuaScannerTest {
         assertEquals(Status.INVALID_ARGS, properties.get(5).status());
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
         assertProperty(properties, "text_type", PropertyType.PROPERTY_TYPE_TEXT, "hello", 20);
+        assertProperty(properties, "text_utf8", PropertyType.PROPERTY_TYPE_TEXT, "Spelare åäö", 21);
+        assertProperty(properties, "text_lua", PropertyType.PROPERTY_TYPE_TEXT, "function init(self)\n\tprint('hello')\nend", 22);
+        assertProperty(properties, "text_xml", PropertyType.PROPERTY_TYPE_TEXT, "<root attr=\"value\">å</root>", 23);
+        assertProperty(properties, "text_json", PropertyType.PROPERTY_TYPE_TEXT, "{\"key\":\"value\",\"enabled\":true}", 24);
     }
 
     @Test
@@ -166,7 +170,7 @@ public class LuaScannerTest {
         var result = LuaScanner.parse(source);
         source = result.code();
         List<Property> properties = result.properties();
-        assertEquals(8, properties.size());
+        assertEquals(12, properties.size());
         assertProperty(properties, "prop1", Double.valueOf(0), 10);
         assertProperty(properties, "prop2", Double.valueOf(0), 13);
         assertProperty(properties, "prop3", Double.valueOf(0), 14);
@@ -175,6 +179,10 @@ public class LuaScannerTest {
         assertEquals(Status.INVALID_ARGS, properties.get(5).status());
         assertPropertyStatus(properties, "three_args", Status.INVALID_VALUE, 19);
         assertProperty(properties, "text_type", PropertyType.PROPERTY_TYPE_TEXT, "hello", 20);
+        assertProperty(properties, "text_utf8", PropertyType.PROPERTY_TYPE_TEXT, "Spelare åäö", 21);
+        assertProperty(properties, "text_lua", PropertyType.PROPERTY_TYPE_TEXT, "function init(self)\n\tprint('hello')\nend", 22);
+        assertProperty(properties, "text_xml", PropertyType.PROPERTY_TYPE_TEXT, "<root attr=\"value\">å</root>", 23);
+        assertProperty(properties, "text_json", PropertyType.PROPERTY_TYPE_TEXT, "{\"key\":\"value\",\"enabled\":true}", 24);
 
         int linesInSource = source.split("\r\n|\r|\n").length;
         int linesAfterScanner = result.code().split("\r\n|\r|\n").length;

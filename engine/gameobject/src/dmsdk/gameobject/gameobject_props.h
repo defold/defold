@@ -159,9 +159,10 @@ namespace dmGameObject
      * @name PropertyContainerPushText
      * @param builder [type: HPropertyContainerBuilder] The container builder
      * @param id [type: dmhash_t] The id of the property
-     * @param value [type: const char*] The value of the property
+     * @param value [type: const char*] The zero-terminated value of the property
+     * @param value_len [type: uint32_t] The length of the property value in bytes, excluding the null terminator
      */
-    void PropertyContainerPushText(HPropertyContainerBuilder builder, dmhash_t id, const char* value);
+    void PropertyContainerPushText(HPropertyContainerBuilder builder, dmhash_t id, const char* value, uint32_t value_len);
 
     /*#
      * Add a property of type dmMessage::URL to the container

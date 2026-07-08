@@ -10,6 +10,7 @@ message PropertyDeclarationEntry
     required uint64 id      = 2;
     required uint32 index   = 3;
     repeated uint64 element_ids = 4;
+    optional uint32 value_length = 5; // String value byte length, excluding the null terminator.
 }
 
 message PropertyDeclarations

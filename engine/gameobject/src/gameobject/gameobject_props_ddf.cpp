@@ -15,7 +15,6 @@
 #include "gameobject_props_ddf.h"
 #include <dmsdk/gameobject/gameobject_props.h>
 
-#include <stdlib.h>
 #include <string.h>
 
 namespace dmGameObject
@@ -41,7 +40,7 @@ namespace dmGameObject
         }
         for (uint32_t i = 0; i < prop_descs->m_TextEntries.m_Count; ++i)
         {
-            params.m_TextSize += strlen(prop_descs->m_StringValues.m_Data[prop_descs->m_TextEntries[i].m_Index]) + 1;
+            params.m_TextSize += prop_descs->m_TextEntries.m_Data[i].m_ValueLength + 1;
         }
 
         HPropertyContainerBuilder builder = PropertyContainerCreateBuilder(params);
@@ -83,7 +82,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < prop_descs->m_TextEntries.m_Count; ++i)
         {
             const dmPropertiesDDF::PropertyDeclarationEntry& entry = prop_descs->m_TextEntries.m_Data[i];
-            PropertyContainerPushText(builder, entry.m_Id, prop_descs->m_StringValues[entry.m_Index]);
+            PropertyContainerPushText(builder, entry.m_Id, prop_descs->m_StringValues[entry.m_Index], entry.m_ValueLength);
         }
         return PropertyContainerCreate(builder);
     }
