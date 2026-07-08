@@ -105,7 +105,7 @@
 (defn connect-arc
   [graph arc]
   (-> (ig/multigraph-basis [graph])
-      (ig/connect-arc-at arc nil nil)
+      (ig/basis-connect-arc-at arc nil nil)
       :graphs
       (nth 0)))
 
@@ -120,7 +120,7 @@
   (let [basis (ig/multigraph-basis [graph])
         basis (coll/reduce-> (ig/find-source-and-target-arc-pkid-entries basis arc) basis
                 (fn [basis [arc source-arc-pkid target-arc-pkid]]
-                  (ig/disconnect-arc-at basis arc source-arc-pkid target-arc-pkid)))]
+                  (ig/basis-disconnect-arc-at basis arc source-arc-pkid target-arc-pkid)))]
     (nth (:graphs basis) 0)))
 
 (defn subselect

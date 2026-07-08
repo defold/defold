@@ -872,7 +872,7 @@
   [ctx arc-pkid-entries]
   (let [[ctx changed-arcs]
         (coll/reduce-> arc-pkid-entries (pair ctx [])
-          (fn [[{:keys [basis] :as ctx} changed-arcs :as result] [^Arc arc source-arc-pkid target-arc-pkid]]
+          (fn [[{:keys [basis] :as ctx} changed-arcs :as result] [arc source-arc-pkid target-arc-pkid]]
             (let [source-id (gt/source-id arc)
                   target-id (gt/target-id arc)
                   source (gt/node-by-id-at basis source-id) ; nil if source node was deleted in this transaction
@@ -887,7 +887,7 @@
                   (pair
                     (-> ctx
                         (mark-input-activated target-id target-label)
-                        (update :basis ig/connect-arc-at arc source-arc-pkid target-arc-pkid)
+                        (update :basis ig/basis-connect-arc-at arc source-arc-pkid target-arc-pkid)
                         (cond->
                           (contains? target-cascade-deletes target-label)
                           ;; If we're connecting to a :cascade-delete input, we will need to
@@ -906,7 +906,7 @@
   [ctx arc-pkid-entries]
   (let [[ctx changed-arcs]
         (coll/reduce-> arc-pkid-entries (pair ctx [])
-          (fn [[{:keys [basis] :as ctx} changed-arcs :as result] [^Arc arc source-arc-pkid target-arc-pkid]]
+          (fn [[{:keys [basis] :as ctx} changed-arcs :as result] [arc source-arc-pkid target-arc-pkid]]
             (let [source-id (gt/source-id arc)
                   target-id (gt/target-id arc)]
               (if-not (and (gt/node-by-id-at basis source-id)
@@ -915,7 +915,7 @@
                 (pair
                   (-> ctx
                       (mark-input-activated target-id (gt/target-label arc))
-                      (update :basis ig/disconnect-arc-at arc source-arc-pkid target-arc-pkid))
+                      (update :basis ig/basis-disconnect-arc-at arc source-arc-pkid target-arc-pkid))
                   (conj changed-arcs arc))))))]
     (cond-> ctx
       (and (not (:full-invalidation ctx))
@@ -1001,7 +1001,7 @@
                         ctx
                         (flag-override-originals-successors-changed ctx (:basis ctx) node-id)))))
                 (coll/reduce=> arcs
-                  (fn [ctx ^Arc arc]
+                  (fn [ctx arc]
                     (mark-input-activated ctx (gt/target-id arc) (gt/target-label arc)))))]
     (flag-arc-source-successors-changed ctx (:basis ctx) arcs)))
 
@@ -1211,7 +1211,7 @@
   (revert [_this ctx]
     (ctx-perform-connect-arcs ctx arc-pkid-entries)))
 
-(defn- override-node-ids-removed-by-disconnect [ctx ^Arc arc]
+(defn- override-node-ids-removed-by-disconnect [ctx arc]
   (let [basis (:basis ctx)
         node-id->node #(gt/node-by-id-at basis %)
         source-id (gt/source-id arc)
