@@ -349,15 +349,11 @@
         (flag-nodes-successors-changed node-ids)
         (mark-nodes-outputs-activated nodes))))
 
-(defn- ctx-remove-nodes-from-graph [ctx nodes arcs]
+(defn- ctx-remove-nodes-from-graph [ctx nodes]
   (let [basis (:basis ctx)
-        nodes-by-id (coll/pair-map-by gt/node-id nodes)
-        source-arcs (arcs-by-source-node-ids arcs nodes-by-id)
-        target-arcs (arcs-by-target-node-ids arcs nodes-by-id)]
+        nodes-by-id (coll/pair-map-by gt/node-id nodes)]
     (-> ctx
-        (mark-arc-targets-activated source-arcs)
         (mark-nodes-outputs-activated nodes)
-        (flag-arc-source-successors-changed basis target-arcs)
         (assoc :basis (coll/reduce-kv-> nodes-by-id basis
                         (fn [basis node-id _node]
                           (gt/delete-node basis node-id))))
@@ -816,8 +812,8 @@
 (defn- ctx-perform-add-nodes [ctx nodes]
   (ctx-add-nodes-to-graph ctx nodes))
 
-(defn- ctx-revert-add-nodes [ctx added-nodes]
-  (ctx-remove-nodes-from-graph ctx added-nodes []))
+(defn- ctx-revert-add-nodes [ctx nodes]
+  (ctx-remove-nodes-from-graph ctx nodes))
 
 (defn- ctx-callback
   [ctx fn args opts]
@@ -977,37 +973,66 @@
     []
     [(->AddNodesTXS (vec nodes))]))
 
-(defn- ctx-perform-delete-nodes [ctx nodes arc-pkid-entries]
-  ;; TODO(decouple-undo-from-graph): This shouldn't call ctx-remove-nodes-from-graph.
-  ;;   The issue is that we're ultimately calling `basis-remove-node`, which does the traversal internally, and if we're doing things correctly we should already have collected all the information we need.
-  (ctx-remove-nodes-from-graph
-    ctx
-    nodes
-    (e/map arc-pkid-entry-arc arc-pkid-entries)))
+(defn- ctx-perform-delete-nodes [ctx nodes arc-pkid-entries overrides node->overrides]
+  (let [basis (:basis ctx)
+        nodes-by-id (coll/pair-map-by gt/node-id nodes)
+        arcs (e/map arc-pkid-entry-arc arc-pkid-entries)
+        source-arcs (arcs-by-source-node-ids arcs nodes-by-id)
+        target-arcs (arcs-by-target-node-ids arcs nodes-by-id)]
+    (-> ctx
+        (mark-nodes-outputs-activated nodes)
+        (mark-arc-targets-activated source-arcs)
+        (flag-arc-source-successors-changed basis target-arcs)
+        (flag-deleted-override-originals-successors-changed basis nodes)
+        (update :nodes-deleted into nodes-by-id)
+        (update :nodes-added remove-node-ids-from-nodes-added nodes-by-id)
+        (assoc
+          :basis
+          (-> basis
+              (coll/reduce=> arc-pkid-entries
+                (fn [basis [^Arc arc source-arc-pkid target-arc-pkid]]
+                  (ig/disconnect-arc-at basis arc source-arc-pkid target-arc-pkid)))
+              (coll/reduce-kv=> overrides
+                (fn [basis override-id _override]
+                  (update-in basis [:graphs (gt/override-id->graph-id override-id) :overrides] dissoc override-id)))
+              (coll/reduce-kv=> node->overrides
+                (fn [basis node-id override-node-ids]
+                  (let [graph-id (gt/node-id->graph-id node-id)]
+                    (if (contains? nodes-by-id node-id)
+                      (update-in basis [:graphs graph-id :node->overrides] dissoc node-id)
+                      (coll/removing-update-in
+                        basis [:graphs graph-id :node->overrides node-id]
+                        not-empty-without-items override-node-ids)))))
+              (coll/reduce-kv=> nodes-by-id
+                (fn [basis node-id _node]
+                  (update-in basis [:graphs (gt/node-id->graph-id node-id) :nodes] dissoc node-id))))))))
 
 (defn- ctx-revert-delete-nodes [ctx nodes arc-pkid-entries overrides node->overrides]
   (let [nodes-by-id (coll/pair-map-by gt/node-id nodes)
         arcs (e/map arc-pkid-entry-arc arc-pkid-entries)
-        ctx (ctx-add-nodes-to-graph ctx nodes)
-        ctx (update
-              ctx :basis
-              (fn [basis]
-                (coll/reduce-> arc-pkid-entries (reduce-kv gt/add-override basis overrides)
-                  (fn [basis [^Arc arc source-arc-pkid target-arc-pkid]]
-                    (ig/connect-arc-at basis arc source-arc-pkid target-arc-pkid)))))
-        ctx (coll/reduce-kv-> node->overrides ctx
-              (fn [ctx node-id override-node-ids]
-                (let [existing-override-nodes-ids (e/filter nodes-by-id override-node-ids)]
-                  (ctx-update-override-node-ids ctx node-id coll/into-vector existing-override-nodes-ids))))
-        ctx (coll/reduce-> arcs ctx
-              (fn [ctx ^Arc arc]
-                (mark-input-activated ctx (gt/target-id arc) (gt/target-label arc))))]
+        ctx (-> ctx
+                (ctx-add-nodes-to-graph nodes)
+                (update
+                  :basis
+                  (fn [basis]
+                    (-> basis
+                        (coll/reduce-kv=> overrides gt/add-override)
+                        (coll/reduce=> arc-pkid-entries
+                          (fn [basis [^Arc arc source-arc-pkid target-arc-pkid]]
+                            (ig/connect-arc-at basis arc source-arc-pkid target-arc-pkid))))))
+                (coll/reduce-kv=> node->overrides
+                  (fn [ctx node-id override-node-ids]
+                    (let [existing-override-nodes-ids (e/filter nodes-by-id override-node-ids)]
+                      (ctx-update-override-node-ids ctx node-id coll/into-vector existing-override-nodes-ids))))
+                (coll/reduce=> arcs
+                  (fn [ctx ^Arc arc]
+                    (mark-input-activated ctx (gt/target-id arc) (gt/target-label arc)))))]
     (flag-arc-source-successors-changed ctx (:basis ctx) arcs)))
 
 (defonce/type DeleteNodesTXC [nodes arc-pkid-entries overrides node->overrides]
   TransactionChange
   (perform [_this ctx]
-    (ctx-perform-delete-nodes ctx nodes arc-pkid-entries))
+    (ctx-perform-delete-nodes ctx nodes arc-pkid-entries overrides node->overrides))
 
   (revert [_this ctx]
     (ctx-revert-delete-nodes ctx nodes arc-pkid-entries overrides node->overrides)))
