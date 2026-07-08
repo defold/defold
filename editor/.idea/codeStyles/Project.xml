@@ -108,6 +108,8 @@
           <entry key="util.coll/into-&gt;" value="-1" />
           <entry key="util.coll/reduce-&gt;" value="-1" />
           <entry key="util.coll/reduce-kv-&gt;" value="-1" />
+          <entry key="util.coll/reduce-kv=&gt;" value="-1" />
+          <entry key="util.coll/reduce=&gt;" value="-1" />
           <entry key="util.coll/run!-&gt;" value="-1" />
           <entry key="util.coll/transform-&gt;" value="-1" />
           <entry key="util.debug-util/log-time" value="-1" />

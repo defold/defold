@@ -113,6 +113,8 @@
                  util.coll/into-> [[:inner 0]]
                  util.coll/reduce-> [[:inner 0]]
                  util.coll/reduce-kv-> [[:inner 0]]
+                 util.coll/reduce=> [[:inner 0]]
+                 util.coll/reduce=kv-> [[:inner 0]]
                  util.coll/run!-> [[:inner 0]]
                  util.coll/transform-> [[:inner 0]]
                  util.debug-util/log-time [[:inner 0]]
