@@ -1305,14 +1305,14 @@
       (basis-set-override-node-original override-node-id old-original-node-id)))
 
 (defn- basis-set-raw-property-state
-  [basis node property-label value assigned]
+  [basis node property-label value]
   (let [node-id (gt/node-id node)
         graph-id (gt/node-id->graph-id node-id)
-        new-node (if assigned
-                   (gt/set-property node basis property-label value)
-                   (if (gt/original node)
-                     (gt/clear-property node basis property-label)
-                     (dissoc node property-label)))]
+        new-node (case value
+                   ::unassigned (if (gt/original node)
+                                  (gt/clear-property node basis property-label)
+                                  (dissoc node property-label))
+                   (gt/set-property node basis property-label value))]
     (assoc-in basis [:graphs graph-id :nodes node-id] new-node)))
 
 (defn basis-plan-set-raw-property
@@ -1323,8 +1323,7 @@
       (in/validate-property-value node-type node-id property-label new-value)
       {:node-id node-id
        :property-label property-label
-       :old-value (get assigned-properties property-label)
-       :old-value-assigned (contains? assigned-properties property-label)
+       :old-value (get assigned-properties property-label ::unassigned)
        :new-value new-value
        :override-node (some? (gt/original node))
        :dynamic (not (contains? (in/all-properties node-type) property-label))
@@ -1334,53 +1333,50 @@
 (defn basis-perform-set-raw-property
   [basis node-id property-label new-value]
   (if-let [node (gt/node-by-id-at basis node-id)]
-    (basis-set-raw-property-state basis node property-label new-value true)
+    (basis-set-raw-property-state basis node property-label new-value)
     basis))
 
 (defn basis-revert-set-raw-property
-  [basis node-id property-label old-value old-value-assigned]
+  [basis node-id property-label old-value]
   (if-let [node (gt/node-by-id-at basis node-id)]
-    (basis-set-raw-property-state basis node property-label old-value old-value-assigned)
+    (basis-set-raw-property-state basis node property-label old-value)
     basis))
 
 (defn basis-plan-clear-raw-property
   [basis node-id property-label]
   (when-let [node (gt/node-by-id-at basis node-id)]
-    (let [node-type (gt/node-type node)
-          dynamic (not (contains? (in/all-properties node-type) property-label))]
+    (let [node-type (gt/node-type node)]
       {:node-id node-id
        :property-label property-label
-       :old-value (gt/get-property node basis property-label)
-       :old-value-assigned (contains? (gt/assigned-properties node) property-label)
+       :old-value (get (gt/assigned-properties node) property-label ::unassigned)
        :override-node (some? (gt/original node))
-       :dynamic dynamic
+       :dynamic (not (contains? (in/all-properties node-type) property-label))
        :property-overridden (gt/property-overridden? node property-label)})))
 
 (defn basis-perform-clear-raw-property
   [basis node-id property-label]
   (if-let [node (gt/node-by-id-at basis node-id)]
     (if (gt/original node)
-      (basis-set-raw-property-state basis node property-label nil false)
+      (basis-set-raw-property-state basis node property-label ::unassigned)
       (in/throw-clear-property-disallowed-exception! (gt/node-type node) property-label))
     basis))
 
 (defn basis-revert-clear-raw-property
-  [basis node-id property-label old-value old-value-assigned]
+  [basis node-id property-label old-value]
   (if-let [node (gt/node-by-id-at basis node-id)]
-    (basis-set-raw-property-state basis node property-label old-value old-value-assigned)
+    (basis-set-raw-property-state basis node property-label old-value)
     basis))
 
 (defn basis-plan-update-graph-value
   [basis graph-id graph-value-key update-fn args]
   (let [graph-values (get-in basis [:graphs graph-id :graph-values])
-        value-for-key (get graph-values graph-value-key ::not-found)
-        old-value (case value-for-key ::not-found nil value-for-key)
-        old-value-assigned (case value-for-key ::not-found false true)
-        new-value (apply update-fn old-value args)]
+        old-value (get graph-values graph-value-key ::unassigned)
+        new-value (apply update-fn
+                         (case old-value ::unassigned nil old-value)
+                         args)]
     {:graph-id graph-id
      :graph-value-key graph-value-key
      :old-value old-value
-     :old-value-assigned old-value-assigned
      :new-value new-value}))
 
 (defn basis-perform-update-graph-value
@@ -1388,10 +1384,10 @@
   (assoc-in basis [:graphs graph-id :graph-values graph-value-key] new-value))
 
 (defn basis-revert-update-graph-value
-  [basis graph-id graph-value-key old-value old-value-assigned]
-  (if old-value-assigned
-    (assoc-in basis [:graphs graph-id :graph-values graph-value-key] old-value)
-    (update-in basis [:graphs graph-id :graph-values] dissoc graph-value-key)))
+  [basis graph-id graph-value-key old-value]
+  (case old-value
+    ::unassigned (update-in basis [:graphs graph-id :graph-values] dissoc graph-value-key)
+    (assoc-in basis [:graphs graph-id :graph-values graph-value-key] old-value)))
 
 (defn basis-plan-connect-arc
   [basis arc]

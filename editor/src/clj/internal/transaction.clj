@@ -618,9 +618,9 @@
     ctx))
 
 (defn- ctx-revert-set-raw-property
-  [ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden value-changed]
+  [ctx node-id property-label old-value override-node dynamic property-overridden value-changed]
   (if (gt/node-by-id-at (:basis ctx) node-id)
-    (cond-> (update ctx :basis ig/basis-revert-set-raw-property node-id property-label old-value old-value-assigned)
+    (cond-> (update ctx :basis ig/basis-revert-set-raw-property node-id property-label old-value)
       value-changed
       (mark-property-activated node-id property-label override-node dynamic property-overridden))
     ctx))
@@ -634,10 +634,10 @@
     ctx))
 
 (defn- ctx-revert-clear-raw-property
-  [ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden]
+  [ctx node-id property-label old-value override-node dynamic property-overridden]
   (if (gt/node-by-id-at (:basis ctx) node-id)
     (-> ctx
-        (update :basis ig/basis-revert-clear-raw-property node-id property-label old-value old-value-assigned)
+        (update :basis ig/basis-revert-clear-raw-property node-id property-label old-value)
         (mark-property-activated node-id property-label override-node dynamic property-overridden))
     ctx))
 
@@ -656,28 +656,27 @@
       (let [node-type (:name @(:node-type (gt/node-by-id-at basis node-id)))]
         (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
 
-(defonce/type SetRawPropertyTXC [node-id property-label old-value old-value-assigned new-value override-node dynamic property-overridden value-changed]
+(defonce/type SetRawPropertyTXC [node-id property-label old-value new-value override-node dynamic property-overridden value-changed]
   TransactionChange
   (perform [_this ctx]
     (ctx-perform-set-raw-property ctx node-id property-label new-value override-node dynamic property-overridden value-changed))
 
   (revert [_this ctx]
-    (ctx-revert-set-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden value-changed)))
+    (ctx-revert-set-raw-property ctx node-id property-label old-value override-node dynamic property-overridden value-changed)))
 
-(defonce/type ClearRawPropertyTXC [node-id property-label old-value old-value-assigned override-node dynamic property-overridden]
+(defonce/type ClearRawPropertyTXC [node-id property-label old-value override-node dynamic property-overridden]
   TransactionChange
   (perform [_this ctx]
     (ctx-perform-clear-raw-property ctx node-id property-label override-node dynamic property-overridden))
 
   (revert [_this ctx]
-    (ctx-revert-clear-raw-property ctx node-id property-label old-value old-value-assigned override-node dynamic property-overridden)))
+    (ctx-revert-clear-raw-property ctx node-id property-label old-value override-node dynamic property-overridden)))
 
 (defn- make-set-raw-property-change
   [basis node-id property-label new-value value-changed]
   (when-let [{:keys [node-id
                      property-label
                      old-value
-                     old-value-assigned
                      new-value
                      override-node
                      dynamic
@@ -687,7 +686,6 @@
     (->SetRawPropertyTXC node-id
                          property-label
                          old-value
-                         old-value-assigned
                          new-value
                          override-node
                          dynamic
@@ -699,7 +697,6 @@
   (when-let [{:keys [node-id
                      property-label
                      old-value
-                     old-value-assigned
                      override-node
                      dynamic
                      property-overridden]}
@@ -707,7 +704,6 @@
     (->ClearRawPropertyTXC node-id
                            property-label
                            old-value
-                           old-value-assigned
                            override-node
                            dynamic
                            property-overridden)))
@@ -752,12 +748,13 @@
   (if-let [change (make-clear-raw-property-change ctx node-id property-label)]
     (let [basis (:basis ctx)
           node (gt/node-by-id-at basis node-id)
-          old-value (.-old-value ^ClearRawPropertyTXC change)
-          ctx (perform-change ctx change)
-          undoable-changes (conj-change undoable-changes change)]
-      (if-let [_setter-fn (in/property-setter (gt/node-type node) property-label)]
-        (realize-setter-actions ctx undoable-changes node-id node property-label old-value nil)
-        (pair ctx undoable-changes)))
+          node-type (gt/node-type node)]
+      (if-not (in/property-setter node-type property-label)
+        (perform-and-conj-change ctx undoable-changes change)
+        (let [evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
+              old-value (in/node-property-value node property-label evaluation-context)
+              [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
+          (realize-setter-actions ctx undoable-changes node-id node property-label old-value nil))))
     (pair ctx undoable-changes)))
 
 (defn- realize-defaults
@@ -1115,13 +1112,13 @@
   [node-id property-label]
   [(->ClearPropertyTXS node-id property-label)])
 
-(defonce/type UpdateGraphValueTXC [graph-id graph-value-key old-value old-value-assigned new-value]
+(defonce/type UpdateGraphValueTXC [graph-id graph-value-key old-value new-value]
   TransactionChange
   (perform [_this ctx]
     (update ctx :basis ig/basis-perform-update-graph-value graph-id graph-value-key new-value))
 
   (revert [_this ctx]
-    (update ctx :basis ig/basis-revert-update-graph-value graph-id graph-value-key old-value old-value-assigned)))
+    (update ctx :basis ig/basis-revert-update-graph-value graph-id graph-value-key old-value)))
 
 (defonce/type UpdateGraphValueTXS [graph-id graph-value-key update-fn args]
   TransactionStep
@@ -1132,9 +1129,9 @@
     graph-id)
 
   (realize [_this ctx undoable-changes]
-    (let [{:keys [graph-id graph-value-key old-value old-value-assigned new-value]}
+    (let [{:keys [graph-id graph-value-key old-value new-value]}
           (ig/basis-plan-update-graph-value (:basis ctx) graph-id graph-value-key update-fn args)]
-      (perform-and-conj-change ctx undoable-changes (->UpdateGraphValueTXC graph-id graph-value-key old-value old-value-assigned new-value)))))
+      (perform-and-conj-change ctx undoable-changes (->UpdateGraphValueTXC graph-id graph-value-key old-value new-value)))))
 
 (defn update-graph-value
   "*transaction step* - Update a graph value."
