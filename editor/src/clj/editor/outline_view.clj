@@ -220,8 +220,8 @@
                           active-node-id->node-id-path->expanded))))]
     ret))
 
-(fxui/defc outline-tree-view
-  {:compose [{:fx/type fxui/ext-memo
+(ui/defc outline-tree-view
+  {:compose [{:fx/type ui/ext-memo
               :fn decorate-outline
               :args [(:active-outline props)
                      (:hidden-node-outline-key-paths props)
@@ -261,11 +261,11 @@
                                         ;; sync
                                         root)}
       :desc
-      {:fx/type fxui/ext-value :value tree-view}}}))
+      {:fx/type ui/ext-value :value tree-view}}}))
 
 (def ^:private outline-message (localization/message "pane.outline"))
 
-(fxui/defc outline-pane-view
+(ui/defc outline-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state] :as props}]
   {:fx/type fxui/titled-pane

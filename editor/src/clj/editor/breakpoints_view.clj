@@ -406,7 +406,7 @@
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
                      :describe (fn/partial column-remove-btn-cell-factory swap-state project breakpoints)}}]}})
 
-(fxui/defc breakpoints-view
+(ui/defc breakpoints-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization (:context props))
               :key :localization-state}
@@ -417,7 +417,7 @@
         project (:project context)
         open-resource-fn (:open-resource-fn context)]
     {:fx/type fxui/ext-with-anchor-pane-props
-     :desc {:fx/type fxui/ext-value :value parent}
+     :desc {:fx/type ui/ext-value :value parent}
      :props {:children [(breakpoints-toolbar-view project localization-state breakpoints)
                         (breakpoints-table-view project open-resource-fn localization-state breakpoints state swap-state)]}}))
 
@@ -429,7 +429,7 @@
                  :breakpoints breakpoints
                  :open-resource-fn open-resource-fn
                  :localization localization}]
-    (fxui/advance-ui-user-data-component!
+    (ui/advance-ui-user-data-component!
       parent-view ::breakpoints
       {:fx/type breakpoints-view
        :context context

@@ -1238,7 +1238,7 @@
                           resource->ascending-cursor-ranges-and-replacements))))
               g/transact)))))))
 
-(fxui/defc rename-popup-view
+(ui/defc rename-popup-view
   {:compose [{:fx/type fx/ext-state
               :initial-state {:text (data/cursor-range-text
                                       (:lines (:canvas-repaint-info props))
@@ -1260,7 +1260,7 @@
                   ;; border width
                   1.0)]
     {:fx/type fxui/with-popup-window
-     :desc {:fx/type fxui/ext-value :value canvas}
+     :desc {:fx/type ui/ext-value :value canvas}
      :popup {:fx/type fx.popup/lifecycle
              :on-hidden (fn [_] (set-properties! _node-id nil {:rename-cursor-range nil}))
              :showing true
@@ -1421,7 +1421,7 @@
 
 (def ^:private structure-pane-message (localization/message "pane.structure"))
 
-(fxui/defc structure-pane
+(ui/defc structure-pane
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [document-symbols localization-state view-node]}]
   {:fx/type fxui/titled-pane
@@ -2190,7 +2190,7 @@
            completions-shortcut-text view-node]}]
   (let [item-count (count completions-combined)]
     (if (or (not completions-showing) (zero? item-count))
-      {:fx/type fxui/ext-value :value nil}
+      {:fx/type ui/ext-value :value nil}
       (let [{:keys [^Canvas canvas ^LayoutInfo layout lines]} canvas-repaint-info
             ^Point2D cursor-bottom (or (and (pos? (count visible-completion-ranges))
                                             (cursor-bottom layout lines (data/cursor-range-start (first visible-completion-ranges))))
@@ -2305,7 +2305,7 @@
           :desc
           (cond->
             [{:fx/type fxui/with-popup-window
-              :desc {:fx/type fxui/ext-value :value canvas}
+              :desc {:fx/type ui/ext-value :value canvas}
               :popup
               {:fx/type fx.popup/lifecycle
                :anchor-x (- (.getX anchor) 12.0)
@@ -3718,7 +3718,7 @@
                                             screen-bounds)
         max-popup-height (- (.getY anchor) (.getMinY screen-rect))]
     {:fx/type fxui/with-popup-window
-     :desc {:fx/type fxui/ext-value :value canvas}
+     :desc {:fx/type ui/ext-value :value canvas}
      :popup
      {:fx/type fx.popup/lifecycle
       :showing true
@@ -3791,13 +3791,13 @@
 
     (when editable
       ;; Show rename popup if appropriate
-      (fxui/advance-graph-user-data-component!
+      (ui/advance-graph-user-data-component!
         view-node :rename-popup
         (when rename-cursor-range
           (g/with-auto-evaluation-context evaluation-context
             (g/node-value view-node :rename-view evaluation-context))))
       ;; Show completion suggestions if appropriate.
-      (fxui/advance-graph-user-data-component!
+      (ui/advance-graph-user-data-component!
         view-node :completion-popup
         (when completions-showing
           (g/with-auto-evaluation-context evaluation-context
@@ -3821,7 +3821,7 @@
                :screen-bounds (mapv #(.getVisualBounds ^Screen %) (Screen/getScreens))})))))
 
     ;; Repaint hovered regions
-    (fxui/advance-graph-user-data-component!
+    (ui/advance-graph-user-data-component!
       view-node :hover-popup
       (when hover-showing-regions
         (g/with-auto-evaluation-context evaluation-context
@@ -4096,7 +4096,7 @@
                                (+ (* ^double (data/line-height (:glyph layout)) 0.5)
                                   (data/row->y layout (data/breakpoint-row edited-breakpoint))))]
     {:fx/type fxui/with-popup-window
-     :desc {:fx/type fxui/ext-value :value (.getWindow (.getScene canvas))}
+     :desc {:fx/type ui/ext-value :value (.getWindow (.getScene canvas))}
      :popup
      {:fx/type fx.popup/lifecycle
       :showing true

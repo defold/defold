@@ -666,7 +666,7 @@
 
 (defn- override-inspector-view [state parent localization]
   {:fx/type fxui/ext-with-anchor-pane-props
-   :desc {:fx/type fxui/ext-value
+   :desc {:fx/type ui/ext-value
           :value parent}
    :props
    {:children

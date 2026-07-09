@@ -500,7 +500,7 @@
 
 (defmethod make-control-view :choicebox [property _context localization-state]
   (let [options (:options (:edit-type property))]
-    {:fx/type fxui/ext-memo
+    {:fx/type ui/ext-memo
      :fn make-choicebox-to-string
      :args [options]
      :key :to-string
@@ -762,7 +762,7 @@
 
 (def ^:private properties-message (localization/message "pane.properties"))
 
-(fxui/defc properties-pane-view
+(ui/defc properties-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state context displayed-node-properties]}]
   {:fx/type fxui/titled-pane
