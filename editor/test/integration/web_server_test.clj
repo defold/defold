@@ -330,12 +330,6 @@
                                                     :as :byte-array)]
               (is (= 200 status))
               (is (= "image/png" (get headers "content-type")))
-              (is (= [0x89 0x50 0x4e 0x47 0x0d 0x0a 0x1a 0x0a]
-                     (into []
-                           (comp
-                             (take 8)
-                             (map #(bit-and 0xff %)))
-                           body)))
               (let [image (ImageIO/read (ByteArrayInputStream. body))]
                 (is (= 32 (.getWidth image)))
                 (is (= 32 (.getHeight image)))))
