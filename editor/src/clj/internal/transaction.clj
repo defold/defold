@@ -202,12 +202,14 @@
 
 (defn- ctx-perform-add-override
   [ctx override-id root-id traverse-fn init-props-fn]
-  (let [override (ig/make-override root-id traverse-fn init-props-fn)]
-    (update ctx :basis gt/add-override override-id override)))
+  (let [override (ig/make-override root-id traverse-fn init-props-fn)
+        graph-id (gt/override-id->graph-id override-id)]
+    (assoc-in ctx [:basis :graphs graph-id :overrides override-id] override)))
 
 (defn- ctx-revert-add-override
   [ctx override-id]
-  (update ctx :basis gt/delete-override override-id))
+  (let [graph-id (gt/override-id->graph-id override-id)]
+    (update-in ctx [:basis :graphs graph-id :overrides] dissoc override-id)))
 
 (defn- flag-all-successors-changed [ctx node-ids]
   (let [successors-changed (:successors-changed ctx)
@@ -266,7 +268,10 @@
   (assert (= (gt/node-id->graph-id original-node-id) (gt/node-id->graph-id override-node-id))
           "Override nodes must belong to the same graph as the original")
   (let [basis (:basis ctx)
-        ctx (assoc ctx :basis (gt/override-node basis original-node-id override-node-id))]
+        graph-id (gt/node-id->graph-id override-node-id)
+        ctx (update-in
+              ctx [:basis :graphs graph-id :node->overrides original-node-id]
+              coll/conj-vector override-node-id)]
     (flag-override-originals-successors-changed ctx basis original-node-id)))
 
 (defn- ctx-revert-override-node [ctx original-node-id override-node-id]
@@ -276,10 +281,6 @@
           [:basis :graphs (gt/node-id->graph-id original-node-id) :node->overrides original-node-id]
           not-empty-without-items #{override-node-id})
         (flag-override-originals-successors-changed basis original-node-id))))
-
-(defn- remove-node-ids-from-nodes-added [nodes-added node-id-set]
-  (coll/into-> nodes-added []
-    (remove node-id-set)))
 
 (defn- mark-nodes-outputs-activated
   [ctx nodes]
@@ -343,9 +344,16 @@
 
 (defn- ctx-add-nodes [ctx nodes]
   (let [node-ids (mapv gt/node-id nodes)]
-    (assert (every? gt/node-id? node-ids))
+    (assert (coll/every? gt/node-id? node-ids))
     (-> ctx
-        (assoc :basis (reduce gt/add-node (:basis ctx) nodes))
+        (update
+          :basis
+          (fn [basis]
+            (coll/reduce=> basis nodes
+              (fn [basis node]
+                (let [node-id (gt/node-id node)
+                      graph-id (gt/node-id->graph-id node-id)]
+                  (assoc-in basis [:graphs graph-id :nodes node-id] node))))))
         (update :nodes-added into node-ids)
         (flag-nodes-successors-changed node-ids)
         (mark-nodes-outputs-activated nodes))))
@@ -362,7 +370,7 @@
         (flag-arc-source-successors-changed basis target-arcs)
         (flag-deleted-override-originals-successors-changed basis nodes)
         (update :nodes-deleted into nodes-by-id)
-        (update :nodes-added remove-node-ids-from-nodes-added nodes-by-id)
+        (update :nodes-added coll/transform-> (remove nodes-by-id))
         (update :basis ig/basis-perform-delete-nodes nodes arc-pkid-entries overrides node->overrides))))
 
 (defonce/type AddOverrideTXC [override-id root-id traverse-fn init-props-fn]
@@ -542,17 +550,23 @@
 (defonce/type ReplaceOverrideRootTXC [override-id old-override new-override]
   TransactionChange
   (perform [_this ctx]
-    (update ctx :basis gt/replace-override override-id new-override))
+    (let [graph-id (gt/override-id->graph-id override-id)]
+      (assoc-in ctx [:basis :graphs graph-id :overrides override-id] new-override)))
 
   (revert [_this ctx]
-    (update ctx :basis gt/replace-override override-id old-override)))
+    (let [graph-id (gt/override-id->graph-id override-id)]
+      (assoc-in ctx [:basis :graphs graph-id :overrides override-id] old-override))))
 
 (defn- ctx-set-override-node-original
   [ctx override-node-id original-id]
   (let [basis (:basis ctx)
-        override-node (gt/node-by-id-at basis override-node-id)]
+        override-node (gt/node-by-id-at basis override-node-id)
+        graph-id (gt/node-id->graph-id override-node-id)]
     (-> ctx
-        (assoc :basis (gt/replace-node basis override-node-id (gt/set-original override-node original-id)))
+        (assoc-in [:basis :graphs graph-id :nodes override-node-id]
+                  (-> override-node
+                      (gt/set-original original-id)
+                      (assoc :_node-id override-node-id)))
         (mark-all-outputs-activated override-node-id))))
 
 (defonce/type RepointOverrideNodeTXC [override-node-id old-original-id new-original-id]
@@ -654,14 +668,13 @@
 
 (defn- set-raw-property-state
   [basis node-id node property value assigned]
-  (gt/replace-node
-    basis
-    node-id
-    (if assigned
-      (gt/set-property node basis property value)
-      (if (gt/original node)
-        (gt/clear-property node basis property)
-        (dissoc node property)))))
+  (let [graph-id (gt/node-id->graph-id node-id)
+        new-node (if assigned
+                   (gt/set-property node basis property value)
+                   (if (gt/original node)
+                     (gt/clear-property node basis property)
+                     (dissoc node property)))]
+    (assoc-in basis [:graphs graph-id :nodes node-id] (assoc new-node :_node-id node-id))))
 
 (defn- mark-property-activated
   [ctx node-id property override-node dynamic property-overridden]

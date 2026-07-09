@@ -1110,44 +1110,6 @@
   (targets [this node-id] (mapv gt/target (outputs this node-id)))
   (targets [this node-id label] (mapv gt/target (outputs this node-id label)))
 
-  (add-node
-    [this node]
-    (let [node-id (gt/node-id node)
-          graph-id (gt/node-id->graph-id node-id)
-          graph (add-node (get graphs graph-id) node-id node)]
-      (update this :graphs assoc graph-id graph)))
-
-  (replace-node
-    [this node-id new-node]
-    (let [graph-id (gt/node-id->graph-id node-id)
-          new-node (assoc new-node :_node-id node-id)
-          graph (assoc-in (get graphs graph-id) [:nodes node-id] new-node)]
-      (update this :graphs assoc graph-id graph)))
-
-  (replace-override
-    [this override-id new-override]
-    (let [graph-id (gt/override-id->graph-id override-id)]
-      (update-in this [:graphs graph-id :overrides] assoc override-id new-override)))
-
-  (override-node
-    [this original-node-id override-node-id]
-    (let [graph-id (gt/node-id->graph-id override-node-id)]
-      (update-in this [:graphs graph-id :node->overrides original-node-id] util/conjv override-node-id)))
-
-  (override-node-clear [this original-id]
-    (let [graph-id (gt/node-id->graph-id original-id)]
-      (update-in this [:graphs graph-id :node->overrides] dissoc original-id)))
-
-  (add-override
-    [this override-id override]
-    (let [graph-id (gt/override-id->graph-id override-id)]
-      (update-in this [:graphs graph-id :overrides] assoc override-id override)))
-
-  (delete-override
-    [this override-id]
-    (let [graph-id (gt/override-id->graph-id override-id)]
-      (update-in this [:graphs graph-id :overrides] dissoc override-id)))
-
   (connected?
     [this source-id source-label target-id target-label]
     (let [targets (gt/targets this source-id source-label)]
@@ -1196,7 +1158,8 @@
 ;; Basis manipulation
 ;; ---------------------------------------------------------------------------
 
-(defn basis-delete-nodes-plan [basis deleted-node-ids]
+(defn basis-delete-nodes-plan
+  [basis deleted-node-ids]
   (when (coll/not-empty deleted-node-ids)
     (let [deleted-nodes
           (coll/into-> (pre-traverse basis deleted-node-ids cascade-delete-sources) []

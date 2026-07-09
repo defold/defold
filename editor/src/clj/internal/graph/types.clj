@@ -135,13 +135,6 @@
   (arcs-by-target   [this node-id] [this node-id label])
   (sources          [this node-id] [this node-id label])
   (targets          [this node-id] [this node-id label])
-  (add-node         [this value])
-  (replace-node     [this node-id value])
-  (override-node    [this original-id override-id])
-  (override-node-clear [this original-id])
-  (add-override     [this override-id override])
-  (delete-override  [this override-id])
-  (replace-override [this override-id value])
   (connected?       [this source-id source-label target-id target-label])
   (dependencies     [this endpoints]
     "Follow arcs through the graphs, from outputs to the inputs
