@@ -427,11 +427,6 @@
     (distinct)
     (mapcat #(find-source-and-target-arc-pkid-entries basis %))))
 
-(defn next-source-and-target-arc-pkids [basis arc]
-  (let [graphs (:graphs basis)]
-    (pair (arc-table-next-pkid (graphs-source-arc-table graphs arc))
-          (arc-table-next-pkid (graphs-target-arc-table graphs arc)))))
-
 (defn- update-existing-arc-table [node-id->label->arc-table node-id+label arc-table-fn & args]
   (if-let [arc-table (get-in node-id->label->arc-table node-id+label)]
     (assoc-in node-id->label->arc-table node-id+label (apply arc-table-fn arc-table args))
@@ -1157,6 +1152,275 @@
 ;; ---------------------------------------------------------------------------
 ;; Basis manipulation
 ;; ---------------------------------------------------------------------------
+
+(defn basis-plan-add-override
+  [_basis override-id root-id traverse-fn init-props-fn]
+  {:override-id override-id
+   :override (make-override root-id traverse-fn init-props-fn)})
+
+(defn basis-perform-add-override
+  [basis override-id override]
+  (let [graph-id (gt/override-id->graph-id override-id)]
+    (assoc-in basis [:graphs graph-id :overrides override-id] override)))
+
+(defn basis-revert-add-override
+  [basis override-id]
+  (let [graph-id (gt/override-id->graph-id override-id)]
+    (update-in basis [:graphs graph-id :overrides] dissoc override-id)))
+
+(defn basis-plan-override-node
+  [_basis original-node-id override-node-id]
+  (assert (= (gt/node-id->graph-id original-node-id)
+             (gt/node-id->graph-id override-node-id))
+          "Override nodes must belong to the same graph as the original.")
+  {:original-node-id original-node-id
+   :override-node-id override-node-id})
+
+(defn basis-perform-override-node
+  [basis original-node-id override-node-id]
+  (let [graph-id (gt/node-id->graph-id override-node-id)]
+    (update-in
+      basis [:graphs graph-id :node->overrides original-node-id]
+      coll/conj-vector override-node-id)))
+
+(defn basis-revert-override-node
+  [basis original-node-id override-node-id]
+  (let [graph-id (gt/node-id->graph-id original-node-id)]
+    (coll/removing-update-in
+      basis [:graphs graph-id :node->overrides original-node-id]
+      coll/transform-non-empty-> (remove #{override-node-id}))))
+
+(defn basis-plan-add-nodes
+  [_basis added-nodes]
+  (when (coll/not-empty added-nodes)
+    (let [node-ids (mapv gt/node-id added-nodes)]
+      (assert (coll/every? gt/node-id? node-ids))
+      {:added-nodes added-nodes
+       :introduced-node->overrides
+       (coll/reduce-> added-nodes {}
+         (fn [introduced-node->overrides node]
+           (if-let [original-id (gt/original node)]
+             (update introduced-node->overrides original-id coll/conj-vector (gt/node-id node))
+             introduced-node->overrides)))})))
+
+(defn basis-perform-add-nodes
+  [basis added-nodes]
+  ;; TODO(decouple-undo-from-graph): We should be adding the introduced-node->overrides here!
+  (coll/reduce=> basis added-nodes
+    (fn [basis node]
+      (let [node-id (gt/node-id node)
+            graph-id (gt/node-id->graph-id node-id)]
+        (assoc-in basis [:graphs graph-id :nodes node-id] node)))))
+
+(defn basis-revert-add-nodes
+  [basis added-nodes introduced-node->overrides]
+  (update
+    basis :graphs
+    (fn [graphs]
+      (-> graphs
+          (coll/reduce=> added-nodes
+            (map gt/node-id)
+            (fn [graphs node-id]
+              (let [graph-id (gt/node-id->graph-id node-id)]
+                (update-in graphs [graph-id :nodes] dissoc node-id))))
+          (coll/reduce-kv=> introduced-node->overrides
+            (fn [graphs node-id override-node-ids]
+              (let [graph-id (gt/node-id->graph-id node-id)]
+                (coll/removing-update-in
+                  graphs [graph-id :node->overrides node-id]
+                  coll/transform-non-empty-> (remove (set override-node-ids))))))))))
+
+(defn basis-plan-clear-override-nodes
+  [_basis original-node-id override-node-ids]
+  (when-not (coll/empty? override-node-ids)
+    {:original-node-id original-node-id
+     :override-node-ids override-node-ids}))
+
+(defn basis-perform-clear-override-nodes
+  [basis original-node-id override-node-ids]
+  (let [graph-id (gt/node-id->graph-id original-node-id)]
+    (coll/removing-update-in
+      basis [:graphs graph-id :node->overrides original-node-id]
+      coll/transform-non-empty-> (remove (set override-node-ids)))))
+
+(defn basis-revert-clear-override-nodes
+  [basis original-node-id override-node-ids]
+  (let [graph-id (gt/node-id->graph-id original-node-id)]
+    (update-in
+      basis [:graphs graph-id :node->overrides original-node-id]
+      coll/into-vector override-node-ids)))
+
+(defn basis-plan-replace-override
+  [basis override-id new-override]
+  (when-let [old-override (override-by-id basis override-id)]
+    {:override-id override-id
+     :old-override old-override
+     :new-override new-override}))
+
+(defn basis-perform-replace-override
+  [basis override-id new-override]
+  (let [graph-id (gt/override-id->graph-id override-id)]
+    (assoc-in basis [:graphs graph-id :overrides override-id] new-override)))
+
+(defn basis-revert-replace-override
+  [basis override-id old-override]
+  (let [graph-id (gt/override-id->graph-id override-id)]
+    (assoc-in basis [:graphs graph-id :overrides override-id] old-override)))
+
+(defn- basis-set-override-node-original
+  [basis override-node-id original-node-id]
+  (let [override-node (gt/node-by-id-at basis override-node-id)
+        graph-id (gt/node-id->graph-id override-node-id)]
+    (assoc-in
+      basis [:graphs graph-id :nodes override-node-id]
+      (-> override-node
+          (gt/set-original original-node-id)
+          (assoc :_node-id override-node-id))))) ; TODO(decouple-undo-from-graph): Shouldn't it already have this node-id?
+
+(defn basis-plan-repoint-override-node
+  [basis override-node-id new-original-node-id]
+  (when-let [override-node (gt/node-by-id-at basis override-node-id)]
+    {:override-node-id override-node-id
+     :old-original-node-id (gt/original override-node)
+     :new-original-node-id new-original-node-id}))
+
+(defn basis-perform-repoint-override-node
+  [basis override-node-id new-original-node-id]
+  (-> basis
+      (basis-set-override-node-original override-node-id new-original-node-id)
+      (basis-perform-override-node new-original-node-id override-node-id)))
+
+(defn basis-revert-repoint-override-node
+  [basis override-node-id old-original-node-id new-original-node-id]
+  (-> basis
+      (basis-revert-override-node new-original-node-id override-node-id)
+      (basis-set-override-node-original override-node-id old-original-node-id)))
+
+(defn- basis-set-raw-property-state
+  [basis node property-label value assigned]
+  ;; TODO(decouple-undo-from-graph): We're assuming the node-id is correct now. We shouldn't need to update it at the end!
+  (let [node-id (gt/node-id node)
+        graph-id (gt/node-id->graph-id node-id)
+        new-node (if assigned
+                   (gt/set-property node basis property-label value)
+                   (if (gt/original node)
+                     (gt/clear-property node basis property-label)
+                     (dissoc node property-label)))]
+    (assoc-in basis [:graphs graph-id :nodes node-id] (assoc new-node :_node-id node-id))))
+
+(defn basis-plan-set-raw-property
+  [basis node-id property-label new-value value-changed]
+  (when-let [node (gt/node-by-id-at basis node-id)]
+    (let [node-type (gt/node-type node)
+          assigned-properties (gt/assigned-properties node)]
+      (in/validate-property-value node-type node-id property-label new-value)
+      {:node-id node-id
+       :property-label property-label
+       :old-value (get assigned-properties property-label)
+       :old-value-assigned (contains? assigned-properties property-label)
+       :new-value new-value
+       :override-node (some? (gt/original node))
+       :dynamic (not (contains? (in/all-properties node-type) property-label))
+       :property-overridden (gt/property-overridden? node property-label)
+       :value-changed value-changed})))
+
+(defn basis-perform-set-raw-property
+  [basis node-id property-label new-value]
+  (if-let [node (gt/node-by-id-at basis node-id)]
+    (basis-set-raw-property-state basis node property-label new-value true)
+    basis))
+
+(defn basis-revert-set-raw-property
+  [basis node-id property-label old-value old-value-assigned]
+  (if-let [node (gt/node-by-id-at basis node-id)]
+    (basis-set-raw-property-state basis node property-label old-value old-value-assigned)
+    basis))
+
+(defn basis-plan-clear-raw-property
+  [basis node-id property-label]
+  (when-let [node (gt/node-by-id-at basis node-id)]
+    (let [node-type (gt/node-type node)
+          dynamic (not (contains? (in/all-properties node-type) property-label))]
+      ;; TODO(decouple-undo-from-graph): What's this? It will surely not do anything?
+      (when-not (gt/original node)
+        (gt/clear-property node basis property-label))
+      {:node-id node-id
+       :property-label property-label
+       :old-value (gt/get-property node basis property-label)
+       :old-value-assigned (contains? (gt/assigned-properties node) property-label)
+       :override-node (some? (gt/original node))
+       :dynamic dynamic
+       :property-overridden (gt/property-overridden? node property-label)})))
+
+(defn basis-perform-clear-raw-property
+  [basis node-id property-label]
+  (if-let [node (gt/node-by-id-at basis node-id)]
+    (basis-set-raw-property-state basis node property-label nil false)
+    basis))
+
+(defn basis-revert-clear-raw-property
+  [basis node-id property-label old-value old-value-assigned]
+  (if-let [node (gt/node-by-id-at basis node-id)]
+    (basis-set-raw-property-state basis node property-label old-value old-value-assigned)
+    basis))
+
+(defn basis-plan-update-graph-value
+  [basis graph-id graph-value-key update-fn args]
+  (let [graph-values (get-in basis [:graphs graph-id :graph-values])
+        value-for-key (get graph-values graph-value-key ::not-found)
+        old-value (case value-for-key ::not-found nil value-for-key)
+        old-value-assigned (case value-for-key ::not-found false true)
+        new-value (apply update-fn old-value args)]
+    {:graph-id graph-id
+     :graph-value-key graph-value-key
+     :old-value old-value
+     :old-value-assigned old-value-assigned
+     :new-value new-value}))
+
+(defn basis-perform-update-graph-value
+  [basis graph-id graph-value-key new-value]
+  (assoc-in basis [:graphs graph-id :graph-values graph-value-key] new-value))
+
+(defn basis-revert-update-graph-value
+  [basis graph-id graph-value-key old-value old-value-assigned]
+  (if old-value-assigned
+    (assoc-in basis [:graphs graph-id :graph-values graph-value-key] old-value)
+    (update-in basis [:graphs graph-id :graph-values] dissoc graph-value-key)))
+
+(defn basis-plan-connect-arc
+  [basis arc]
+  (when (and (gt/node-by-id-at basis (gt/source-id arc))
+             (gt/node-by-id-at basis (gt/target-id arc)))
+    (let [graphs (:graphs basis)
+          source-arc-pkid (arc-table-next-pkid (graphs-source-arc-table graphs arc))
+          target-arc-pkid (arc-table-next-pkid (graphs-target-arc-table graphs arc))
+          arc-pkid-entries [[arc source-arc-pkid target-arc-pkid]]]
+      {:arc-pkid-entries arc-pkid-entries})))
+
+(defn basis-perform-connect-arcs
+  [basis arc-pkid-entries]
+  (coll/reduce=> basis arc-pkid-entries
+    (fn [basis [arc source-arc-pkid target-arc-pkid]]
+      (basis-connect-arc-at basis arc source-arc-pkid target-arc-pkid))))
+
+(defn basis-revert-connect-arcs
+  [basis arc-pkid-entries]
+  (coll/reduce=> basis arc-pkid-entries
+    (fn [basis [arc source-arc-pkid target-arc-pkid]]
+      (basis-disconnect-arc-at basis arc source-arc-pkid target-arc-pkid))))
+
+(defn basis-plan-disconnect-arc
+  [basis arc]
+  (when-let [arc-pkid-entries (coll/not-empty (find-source-and-target-arc-pkid-entries basis arc))]
+    {:arc-pkid-entries arc-pkid-entries}))
+
+(defn basis-perform-disconnect-arcs
+  [basis arc-pkid-entries]
+  (basis-revert-connect-arcs basis arc-pkid-entries))
+
+(defn basis-revert-disconnect-arcs
+  [basis arc-pkid-entries]
+  (basis-perform-connect-arcs basis arc-pkid-entries))
 
 (defn basis-plan-delete-nodes
   [basis deleted-node-ids]
