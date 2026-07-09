@@ -31,6 +31,7 @@
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.scene :as scene]
             [editor.ui :as ui]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
@@ -44,7 +45,8 @@
            [java.nio.charset StandardCharsets]
            [javafx.scene Scene]
            [javafx.scene.layout Region]
-           [javafx.stage Stage]))
+           [javafx.stage Stage]
+           [javax.imageio ImageIO]))
 
 (set! *warn-on-reflection* true)
 
@@ -296,6 +298,7 @@
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
+                                             (scene/routes project app-view)
                                              (command-requests/router root test-util/localization progress/null-render-progress!)
                                              (doc/routes)])))]
           (let [url (http-server/local-url server)]
@@ -313,6 +316,7 @@
                        (get-in json-body ["components" "securitySchemes" "token" "description"])))
                 (is (contains? (get json-body "paths") "/console"))
                 (is (contains? (get json-body "paths") "/console/stream"))
+                (is (contains? (get json-body "paths") "/preview/{path}"))
                 (let [get-ref (get-in json-body ["paths" "/ref" "get"])
                       param-names (into #{} (map #(get % "name")) (get get-ref "parameters"))]
                   (is get-ref)
@@ -321,6 +325,20 @@
                   (is (= "Execute an editor command" (get post-command "summary")))
                   (is (string/includes? (get post-command "description") "`build-html5`"))
                   (is (some #{"build-html5"} (get-in post-command ["parameters" 0 "schema" "enum"]))))))
+            (let [{:keys [status headers body]} @(http/request
+                                                    (str url "/preview/collection/components/test.gui?width=32&height=32")
+                                                    :as :byte-array)]
+              (is (= 200 status))
+              (is (= "image/png" (get headers "content-type")))
+              (is (= [0x89 0x50 0x4e 0x47 0x0d 0x0a 0x1a 0x0a]
+                     (into []
+                           (comp
+                             (take 8)
+                             (map #(bit-and 0xff %)))
+                           body)))
+              (let [image (ImageIO/read (ByteArrayInputStream. body))]
+                (is (= 32 (.getWidth image)))
+                (is (= 32 (.getHeight image)))))
             (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=runtime&language=Lua&q=go.property") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
               (is (= 200 status))
