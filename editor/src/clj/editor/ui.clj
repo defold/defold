@@ -57,7 +57,7 @@
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
            [java.net URI]
-           [java.util Collection]
+           [java.util ArrayDeque Collection]
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
            [javafx.application Platform]
            [javafx.beans InvalidationListener Observable]
@@ -286,8 +286,27 @@
            (.initOwner stage owner)))
      stage)))
 
+(defn lookup-by-id
+  "Find node by id, significantly faster than Node/.lookup"
+  [^Node root ^String id]
+  (let [nodes (ArrayDeque.)]
+    (loop [node root]
+      (if (= id (.getId node))
+        node
+        (do
+          (when (instance? Parent node)
+            ;; Push children in reverse order so LIFO deque traversal visits
+            ;; siblings in normal child order.
+            (let [children (.getChildrenUnmodifiable ^Parent node)]
+              (loop [i (dec (.size children))]
+                (when-not (neg? i)
+                  (.push nodes (.get children i))
+                  (recur (dec i))))))
+          (when-not (.isEmpty nodes)
+            (recur (.pop nodes))))))))
+
 (defn collect-controls [^Parent root keys]
-  (let [controls (zipmap (map keyword keys) (map #(.lookup root (str "#" %)) keys))
+  (let [controls (zipmap (map keyword keys) (map #(lookup-by-id root %) keys))
         missing (->> controls
                   (filter (fn [[k v]] (when (nil? v) k)))
                   (map first))]
