@@ -622,7 +622,12 @@ public class AndroidBundler implements IBundler {
                     String filename = path.getFileName().toString();
                     String pathStr = path.toString();
 
-                    if (filename.equals("libdmengine.so")) {
+                    // Skip libdmengine.so, libdmengine_release.so etc
+                    // In a build without native extensions we will download
+                    // dmengine if it doesn't exist in bob.jar (see the two
+                    // methods getDefaultDmengineFiles() and downloadExes() in
+                    // EngineArtifactsProvider.java)
+                    if (filename.contains("dmengine")) {
                         return false;
                     }
 
@@ -631,6 +636,7 @@ public class AndroidBundler implements IBundler {
                         return false;
                     }
 
+                    logger.info("Copying shared library " + filename);
                     return true;
                 });
                 BundleHelper.throwIfCanceled(canceled);
