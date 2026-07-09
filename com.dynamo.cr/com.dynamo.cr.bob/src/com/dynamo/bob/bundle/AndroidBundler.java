@@ -736,6 +736,7 @@ public class AndroidBundler implements IBundler {
         }
         File symbolsDir = new File(outDir, getBinaryNameFromProject(project) + ".apk.symbols");
         symbolsDir.mkdirs();
+        File symbolsLibDir = new File(symbolsDir, "lib");
         final String exeName = getBinaryNameFromProject(project);
         final String extenderExeDir = project.getBinaryOutputDirectory();
         final List<Platform> architectures = getArchitectures(project);
@@ -746,10 +747,16 @@ public class AndroidBundler implements IBundler {
                 bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
             }
             File exe = bundleExe.get(0);
-            File symbolExe = new File(symbolsDir, FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so"));
+            File symbolExe = new File(symbolsLibDir, FilenameUtils.concat(platformToLibMap.get(architecture), "lib" + exeName + ".so"));
             logger.info("Copy debug symbols " + symbolExe);
             BundleHelper.throwIfCanceled(canceled);
             FileUtils.copyFile(exe, symbolExe);
+
+            boolean vkQualityEnabled = usesVkQuality(project);
+            if (vkQualityEnabled)
+            {
+                copyVkQualityLibrary(project, architecture, symbolsLibDir, canceled);
+            }
         }
 
         BundleHelper.throwIfCanceled(canceled);
