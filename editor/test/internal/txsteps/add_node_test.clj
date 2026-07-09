@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [internal.graph.types :as gt]
+            [internal.node :as in]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support]))
 
@@ -67,6 +68,24 @@
       (g/redo! :undo/global)
       (doseq [node-id added-node-ids]
         (is (g/node-instance*? ReturnsTxResultWithNodesAddedTestNode (g/node-by-id node-id)))))))
+
+(deftest registers-override-node-relationships-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+          override-id (gt/make-override-id graph-id 1000)
+          [original-node-id override-node-id] (vec (g/take-node-ids graph-id 2))
+          original-node (g/construct helpers/OverrideTestNode :_node-id original-node-id)
+          override-node (in/make-override-node override-id override-node-id helpers/OverrideTestNode original-node-id {})]
+      (g/transact
+        (g/add-nodes [original-node override-node]))
+      (is (= [override-node-id] (g/overrides original-node-id)))
+
+      (g/undo! :undo/global)
+      (is (nil? (g/node-by-id original-node-id)))
+      (is (nil? (g/overrides original-node-id)))
+
+      (g/redo! :undo/global)
+      (is (= [override-node-id] (g/overrides original-node-id))))))
 
 (g/defnode PropertyHasDefaultValueTestNode
   (property property-with-default g/Any (default :default-property-value)))

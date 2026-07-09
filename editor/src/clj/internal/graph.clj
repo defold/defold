@@ -1204,13 +1204,22 @@
              introduced-node->overrides)))})))
 
 (defn basis-perform-add-nodes
-  [basis added-nodes]
-  ;; TODO(decouple-undo-from-graph): We should be adding the introduced-node->overrides here!
-  (coll/reduce=> basis added-nodes
-    (fn [basis node]
-      (let [node-id (gt/node-id node)
-            graph-id (gt/node-id->graph-id node-id)]
-        (assoc-in basis [:graphs graph-id :nodes node-id] node)))))
+  [basis added-nodes introduced-node->overrides]
+  (update
+    basis :graphs
+    (fn [graphs]
+      (-> graphs
+          (coll/reduce=> added-nodes
+            (fn [graphs node]
+              (let [node-id (gt/node-id node)
+                    graph-id (gt/node-id->graph-id node-id)]
+                (assoc-in graphs [graph-id :nodes node-id] node))))
+          (coll/reduce-kv=> introduced-node->overrides
+            (fn [graphs node-id override-node-ids]
+              (let [graph-id (gt/node-id->graph-id node-id)]
+                (update-in
+                  graphs [graph-id :node->overrides node-id]
+                  coll/into-vector override-node-ids))))))))
 
 (defn basis-revert-add-nodes
   [basis added-nodes introduced-node->overrides]
@@ -1269,13 +1278,12 @@
 
 (defn- basis-set-override-node-original
   [basis override-node-id original-node-id]
-  (let [override-node (gt/node-by-id-at basis override-node-id)
-        graph-id (gt/node-id->graph-id override-node-id)]
-    (assoc-in
-      basis [:graphs graph-id :nodes override-node-id]
-      (-> override-node
-          (gt/set-original original-node-id)
-          (assoc :_node-id override-node-id))))) ; TODO(decouple-undo-from-graph): Shouldn't it already have this node-id?
+  (if-let [override-node (gt/node-by-id-at basis override-node-id)]
+    (let [graph-id (gt/node-id->graph-id override-node-id)]
+      (assoc-in
+        basis [:graphs graph-id :nodes override-node-id]
+        (gt/set-original override-node original-node-id)))
+    basis))
 
 (defn basis-plan-repoint-override-node
   [basis override-node-id new-original-node-id]
@@ -1298,7 +1306,6 @@
 
 (defn- basis-set-raw-property-state
   [basis node property-label value assigned]
-  ;; TODO(decouple-undo-from-graph): We're assuming the node-id is correct now. We shouldn't need to update it at the end!
   (let [node-id (gt/node-id node)
         graph-id (gt/node-id->graph-id node-id)
         new-node (if assigned
@@ -1306,7 +1313,7 @@
                    (if (gt/original node)
                      (gt/clear-property node basis property-label)
                      (dissoc node property-label)))]
-    (assoc-in basis [:graphs graph-id :nodes node-id] (assoc new-node :_node-id node-id))))
+    (assoc-in basis [:graphs graph-id :nodes node-id] new-node)))
 
 (defn basis-plan-set-raw-property
   [basis node-id property-label new-value value-changed]
@@ -1341,9 +1348,6 @@
   (when-let [node (gt/node-by-id-at basis node-id)]
     (let [node-type (gt/node-type node)
           dynamic (not (contains? (in/all-properties node-type) property-label))]
-      ;; TODO(decouple-undo-from-graph): What's this? It will surely not do anything?
-      (when-not (gt/original node)
-        (gt/clear-property node basis property-label))
       {:node-id node-id
        :property-label property-label
        :old-value (gt/get-property node basis property-label)
@@ -1355,7 +1359,9 @@
 (defn basis-perform-clear-raw-property
   [basis node-id property-label]
   (if-let [node (gt/node-by-id-at basis node-id)]
-    (basis-set-raw-property-state basis node property-label nil false)
+    (if (gt/original node)
+      (basis-set-raw-property-state basis node property-label nil false)
+      (in/throw-clear-property-disallowed-exception! (gt/node-type node) property-label))
     basis))
 
 (defn basis-revert-clear-raw-property

@@ -353,6 +353,15 @@
 ;;; ----------------------------------------
 ;;; Construction support
 
+(defn throw-clear-property-disallowed-exception! [node-type property-label]
+  (throw
+    (ex-info
+      (format "Not possible to clear property %s of node-type %s since the node is not an override."
+              property-label
+              (:k node-type))
+      {:label property-label
+       :node-type node-type})))
+
 (defonce/record NodeImpl [_node-id node-type]
   gt/Node
   (node-id [_] _node-id)
@@ -387,10 +396,7 @@
 
   gt/OverrideNode
   (clear-property [this basis property]
-    (throw (ex-info (str "Not possible to clear property " property
-                         " of node type " (:name @node-type)
-                         " since the node is not an override")
-                    {:label property :node-type node-type})))
+    (throw-clear-property-disallowed-exception! node-type property))
 
   (original [this]
     nil)
