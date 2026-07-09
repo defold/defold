@@ -115,7 +115,7 @@
                 removed-arc-pkid-entries
                 removed-node->overrides
                 removed-overrides-by-id]}
-        (ig/basis-delete-nodes-plan basis [node-id])
+        (ig/basis-plan-delete-nodes basis [node-id])
 
         basis (ig/basis-perform-delete-nodes basis deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides)]
 

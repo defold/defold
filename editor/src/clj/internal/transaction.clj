@@ -1031,7 +1031,7 @@
                    removed-arc-pkid-entries
                    removed-node->overrides
                    removed-overrides-by-id]}
-           (ig/basis-delete-nodes-plan (:basis ctx) deleted-node-ids)]
+           (ig/basis-plan-delete-nodes (:basis ctx) deleted-node-ids)]
     (let [change (->DeleteNodesTXC deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides)]
       (perform-and-conj-change ctx undoable-changes change))
     (pair ctx undoable-changes)))

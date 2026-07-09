@@ -1158,7 +1158,7 @@
 ;; Basis manipulation
 ;; ---------------------------------------------------------------------------
 
-(defn basis-delete-nodes-plan
+(defn basis-plan-delete-nodes
   [basis deleted-node-ids]
   (when (coll/not-empty deleted-node-ids)
     (let [deleted-nodes
