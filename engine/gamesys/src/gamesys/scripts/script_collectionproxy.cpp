@@ -223,7 +223,7 @@ namespace dmGameSystem
      *
      * @name collectionproxy.load
      * @param url [type:string|hash|url] the collection proxy component
-     * @param [options] [type:table|nil] optional table, currently unused
+     * @param options [type:table|nil] options table, currently unused
      * @param callback [type:function(self, message_id, message, sender)] callback
      * @examples
      *
