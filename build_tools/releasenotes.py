@@ -68,8 +68,6 @@ def upload(config, bucket, required=False):
     # Publishes the update dialog's release notes for the current channel:
     #   - release-notes/<version>.json  per-version, accumulates across releases
     #   - release-notes/manifest.json   ordered version list the editor walks
-    # Alpha/dev builds don't ship notes yet, but for beta/stable the release must
-    # fail before it starts offering the update if notes are missing.
     json_content = build_json(config)
     if json_content is None:
         message = "No release notes for %s in releasenotes/" % config.version

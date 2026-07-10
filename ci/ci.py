@@ -441,13 +441,17 @@ def release(channel, platform=None):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
-# Channels that ship editor release notes.
-RELEASE_NOTES_CHANNELS = ("beta", "stable")
+# Channels that generate and ship editor release notes.
+RELEASE_NOTES_CHANNELS = ("alpha", "beta", "stable")
 
 # DEV-ONLY (issue-7186 validation): let the feature branch exercise the full
 # notes pipeline on a disposable channel. Delete this whole statement before
 # merging to dev.
 RELEASE_NOTES_CHANNELS = RELEASE_NOTES_CHANNELS + ("release-notes-view",)
+
+# Channels where missing notes fail the release. Alpha builds continuously off an
+# in-progress board, so it ships notes best-effort rather than blocking a build.
+MANDATORY_RELEASE_NOTES_CHANNELS = ("beta", "stable")
 
 def gen_release_notes(channel):
     if channel not in RELEASE_NOTES_CHANNELS:
@@ -473,12 +477,11 @@ def gen_release_notes(channel):
     call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s --use-github-compare generate' % (
         sys.executable, version, channel, get_github_token()))
 
-    # beta/stable must ship notes: a missing file here means generation produced
-    # nothing (no board / empty) - a release defect, so fail.
-    if not os.path.exists(notes_md):
-        raise Exception("No release notes produced for %s on channel '%s'" % (version, channel))
-    if not os.path.exists(notes_json):
-        raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
+    if channel in MANDATORY_RELEASE_NOTES_CHANNELS:
+        if not os.path.exists(notes_md):
+            raise Exception("No release notes produced for %s on channel '%s'" % (version, channel))
+        if not os.path.exists(notes_json):
+            raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
 
 def build_sdk(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
