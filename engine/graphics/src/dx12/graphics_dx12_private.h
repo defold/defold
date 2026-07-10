@@ -25,7 +25,7 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#if __has_include("graphics_dx12_xbox.h")
+#if defined(DM_PLATFORM_XBOX)
     #include "graphics_dx12_xbox.h"
 #else
     #include <d3d12.h>
@@ -83,6 +83,8 @@ namespace dmGraphics
         Buffer          m_Base;
         ID3D12Resource* m_Resource;
         uint8_t*        m_MappedDataPtr;
+        uint32_t        m_DataSize;  // Valid/uploaded bytes
+        uint32_t        m_Capacity;  // Allocated resource size in bytes
         uint32_t        m_Destroyed : 1;
     };
 
@@ -133,6 +135,7 @@ namespace dmGraphics
     {
         Program                      m_BaseProgram;
         dmArray<DX12ResourceBinding> m_RootSignatureResources;
+        dmArray<uint8_t>             m_RootSignatureParamIsSampler;
         uint8_t*                     m_UniformData;
         ID3D12RootSignature*         m_RootSignature;
         DX12ShaderModule*            m_VertexModule;
@@ -155,6 +158,7 @@ namespace dmGraphics
         ID3D12DescriptorHeap* m_ColorAttachmentDescriptorHeap;
         ID3D12DescriptorHeap* m_DepthStencilDescriptorHeap;
         DXGI_FORMAT           m_Format;
+        DXGI_FORMAT           m_DsvFormat; // DXGI_FORMAT_UNKNOWN if no depth/stencil attachment
         DXGI_SAMPLE_DESC      m_SampleDesc;
     };
 
@@ -196,6 +200,24 @@ namespace dmGraphics
         void  Bind(DX12Context* context);
     };
 
+    // Per-frame persistently-mapped upload ring. Used to stage CPU->GPU buffer/texture copies
+    // without hitting CreateCommittedResource on every update. Safe to reset at frame start
+    // because we already wait on the previous use of this frame slot (SyncronizeFrame).
+    struct DX12UploadRing
+    {
+        ID3D12Resource* m_Resource;
+        uint8_t*        m_MappedDataPtr;
+        uint32_t        m_Capacity;
+        uint32_t        m_Cursor;
+
+        void Initialize(DX12Context* context, uint32_t initial_size);
+        void Destroy();
+        void Reset();
+        // Returns true and fills out the pointers on success. Returns false if the request
+        // doesn't fit in the ring (caller should fall back to a one-shot upload heap).
+        bool Allocate(uint32_t size, uint32_t alignment, uint8_t** out_cpu, D3D12_GPU_VIRTUAL_ADDRESS* out_gpu, uint32_t* out_offset, ID3D12Resource** out_resource);
+    };
+
     struct DX12FrameResource
     {
         HTexture                m_TextureColor;
@@ -205,6 +227,7 @@ namespace dmGraphics
         ID3D12CommandAllocator* m_CommandAllocator;
         ID3D12Fence*            m_Fence;
         DX12ScratchBuffer       m_ScratchBuffer;
+        DX12UploadRing          m_UploadRing;
         uint64_t                m_FenceValue;
 
         dmArray<ID3D12Resource*> m_ResourcesToDestroy;
@@ -222,7 +245,7 @@ namespace dmGraphics
         GraphicsContext                    m_BaseContext;
         ID3D12Device*                      m_Device;
 
-#if defined(DM_PLATFORM_VENDOR)
+#if defined(DM_PLATFORM_XBOX)
         DX12VendorContext                  m_VendorContext;
 #else
         IDXGISwapChain3*                   m_SwapChain;
@@ -252,6 +275,7 @@ namespace dmGraphics
         DX12Pipeline*                      m_CurrentPipeline;
         DX12VertexBuffer*                  m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         HTexture                           m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
         DX12UniformBuffer*                 m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         DX12Viewport                       m_CurrentViewport;

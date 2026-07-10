@@ -345,7 +345,7 @@
                   {:outline-pane outline-pane-desc}
                   {})
           :desc {:fx/type ext-with-split-pane-props
-                 :desc {:fx/type fxui/ext-value :value right-split}
+                 :desc {:fx/type ui/ext-value :value right-split}
                  :props {:items (or (coll/not-empty
                                       (coll/into-> active-sidebar []
                                         (remove g/error-value?)
@@ -386,6 +386,7 @@
   (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
+  (output scene-view-ids g/Any :cached (gu/passthrough scene-view-ids))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
   (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
   (output active-tab-pane TabPane (g/fnk [^Tab active-tab ^SplitPane editor-tabs-split]
@@ -2238,7 +2239,7 @@
 (defn- refresh-right-split! [app-view]
   (g/let-ec [right-split (g/node-value app-view :right-split evaluation-context)
              right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
-    (fxui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
+    (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
@@ -3300,7 +3301,10 @@
     (future/io
       (try
         (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
-          (let [lib-results (library/fetch! (workspace/project-directory workspace) library-uris render-fetch-progress!)
+          (let [lib-results (library/fetch!
+                              (workspace/project-directory workspace)
+                              library-uris
+                              render-fetch-progress!)
                 render-install-progress! (make-render-task-progress :resource-sync)]
             (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
             (ui/run-now (workspace/set-project-dependencies! workspace lib-results))

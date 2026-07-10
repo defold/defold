@@ -12,37 +12,28 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_SPINLOCKTYPES_PTHREAD_H
-#define DM_SPINLOCKTYPES_PTHREAD_H
+#include "spinlock.h"
 
-#include <assert.h>
-#include <pthread.h>
 namespace dmSpinlock
 {
-    typedef pthread_spinlock_t Spinlock;
-
-    static inline void Create(Spinlock* lock)
+    void Create(Spinlock* lock)
     {
-        int ret = pthread_spin_init(lock, 0);
-        assert(ret == 0);
+        dmAtomicStore32(&lock->m_Lock, 0);
     }
 
-    static inline void Destroy(Spinlock* lock)
+    void Destroy(Spinlock* lock)
     {
-        pthread_spin_destroy(lock);
+        (void) lock;
     }
 
-    static inline void Lock(Spinlock* lock)
+    void Lock(Spinlock* lock)
     {
-        int ret = pthread_spin_lock(lock);
-        assert(ret == 0);
+        while (dmAtomicCompareStore32(&lock->m_Lock, 1, 0) != 0) {
+        }
     }
 
-    static inline void Unlock(Spinlock* lock)
+    void Unlock(Spinlock* lock)
     {
-        int ret = pthread_spin_unlock(lock);
-        assert(ret == 0);
+        dmAtomicStore32(&lock->m_Lock, 0);
     }
 }
-
-#endif

@@ -18,6 +18,7 @@
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
+#include <dlib/configfile.h>
 #include <dlib/context_registry.h>
 #include <dlib/testutil.h>
 #include <hid/hid.h>
@@ -893,7 +894,7 @@ void GamesysTest<T>::WaitForTestsDone(int update_count, bool render, bool* resul
         tests_done = lua_toboolean(L, -1);
         lua_pop(L, 1);
     }
-    if (count >= 0)
+    if (count <= 0)
     {
         dmLogError("Waited %d frames for test to finish. Aborting.", update_count);
     }

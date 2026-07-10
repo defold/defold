@@ -52,6 +52,9 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(no420PackExtension, "B");
         GET_FLD_TYPESTR(glslEmitUboAsPlainUniforms, "B");
         GET_FLD_TYPESTR(glslEs, "B");
+        GET_FLD_TYPESTR(externalCompilerPath, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(externalCompilerArgs, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(rootSignatureOverride, "Ljava/lang/String;");
     }
     {
         SETUP_CLASS(ResourceTypeJNI, "ResourceType");
@@ -170,6 +173,9 @@ jobject C2J_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, const Sha
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension, src->m_No420PackExtension);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms, src->m_GlslEmitUboAsPlainUniforms);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEs, src->m_GlslEs);
+    dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerPath, src->m_ExternalCompilerPath);
+    dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerArgs, src->m_ExternalCompilerArgs);
+    dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.rootSignatureOverride, src->m_RootSignatureOverride);
     return obj;
 }
 
@@ -497,6 +503,9 @@ bool J2C_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, jobject obj,
     out->m_No420PackExtension = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension);
     out->m_GlslEmitUboAsPlainUniforms = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms);
     out->m_GlslEs = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEs);
+    out->m_ExternalCompilerPath = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerPath);
+    out->m_ExternalCompilerArgs = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerArgs);
+    out->m_RootSignatureOverride = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.rootSignatureOverride);
     return true;
 }
 

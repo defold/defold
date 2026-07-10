@@ -1253,7 +1253,12 @@ def generate(header_path, namespace, package_name, includes, java_outdir, jni_ou
     reset_globals()
     ir = gen_ir.gen(source_path, includes, module_name, namespace, [])
 
-    os.unlink(source_path)
+    try:
+        os.unlink(source_path)
+    except PermissionError:
+        # Some Windows environments keep temporary compile units locked briefly.
+        # This file is disposable, so continue if cleanup fails.
+        print(f"Warning: failed to delete temporary file: {source_path}")
 
     output_java_path = f"{package_dir}/{ir['module']}.java"
     output_jni_cpp_path = f"{jni_outdir}/{ir['module']}_jni.cpp"

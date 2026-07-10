@@ -12,6 +12,11 @@ endif()
 
 get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
+if(TARGET_PLATFORM STREQUAL "x86_64-xbox")
+  message(STATUS "TARGET_PLATFORM=x86_64-xbox is an alias for x86_64-xbone")
+  set(TARGET_PLATFORM "x86_64-xbone" CACHE STRING "Defold platform tuple" FORCE)
+endif()
+
 # Ensure this directory (scripts/cmake) is on CMAKE_MODULE_PATH once
 list(FIND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}" _defold_cmake_idx)
 if(_defold_cmake_idx EQUAL -1)
@@ -201,11 +206,7 @@ include(features)
 include(platform)
 
 defold_get_private_repo_root(DEFOLD_PRIVATE_REPO_ROOT "${TARGET_PLATFORM}")
-if(DEFOLD_PRIVATE_REPO_ROOT)
-  set(DEFOLD_BUILD_HOME "${DEFOLD_PRIVATE_REPO_ROOT}" CACHE PATH "Root for generated build directories for ${TARGET_PLATFORM}" FORCE)
-else()
-  set(DEFOLD_BUILD_HOME "${DEFOLD_HOME}" CACHE PATH "Root for generated build directories" FORCE)
-endif()
+set(DEFOLD_BUILD_HOME "${DEFOLD_HOME}" CACHE PATH "Root for generated build directories")
 
 if(CMAKE_CONFIGURATION_TYPES)
   set(_DEFOLD_BUILD_TYPE_DISPLAY "multi-config")
@@ -246,10 +247,6 @@ endforeach()
 list(REMOVE_DUPLICATES DEFOLD_ENGINE_SOURCE_INCLUDE_DIRS)
 
 file(GLOB _DEFOLD_DMSDK_DIRS CONFIGURE_DEPENDS "${DEFOLD_HOME}/engine/*/src/dmsdk")
-if(DEFOLD_PRIVATE_REPO_ROOT)
-  file(GLOB _DEFOLD_PRIVATE_DMSDK_DIRS CONFIGURE_DEPENDS "${DEFOLD_PRIVATE_REPO_ROOT}/engine/*/src/dmsdk")
-  list(PREPEND _DEFOLD_DMSDK_DIRS ${_DEFOLD_PRIVATE_DMSDK_DIRS})
-endif()
 
 file(GLOB _DEFOLD_PROTO_SOURCE_ROOTS CONFIGURE_DEPENDS
   "${DEFOLD_HOME}/engine/*/src"

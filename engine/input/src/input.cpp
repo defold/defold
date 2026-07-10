@@ -32,7 +32,7 @@ namespace dmInput
     static const uint32_t GAMEPAD_GUID_SIZE = sizeof(dmHID::GamepadGuid);
 
     DM_STATIC_ASSERT(sizeof(dmHID::GamepadGuid) == 16, Invalid_Struct_Size);
-    DM_STATIC_ASSERT(sizeof(Action) == 464, Invalid_Struct_Size); // Make sure we don't accidentally grow the struct
+    DM_STATIC_ASSERT(sizeof(Action) == 584, Invalid_Struct_Size); // Make sure we don't accidentally grow the struct
 
     dmHID::Key KEY_MAP[dmInputDDF::MAX_KEY_COUNT];
     dmHID::MouseButton MOUSE_BUTTON_MAP[dmInputDDF::MAX_KEY_COUNT];
@@ -62,6 +62,10 @@ namespace dmInput
 
     void DeleteContext(HContext context)
     {
+        if (!context)
+        {
+            return;
+        }
         if (context->m_HidContext)
         {
             dmHID::SetGamepadConnectivityCallback(context->m_HidContext, 0, 0);

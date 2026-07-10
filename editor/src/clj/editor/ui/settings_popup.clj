@@ -277,7 +277,7 @@
                   :children [{:fx/type fx.separator/lifecycle :h-box/hgrow :always :max-width Double/MAX_VALUE}]}
       nil)))
 
-(fxui/defc cljfx-popup-view
+(ui/defc cljfx-popup-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
               :key :localization-state}
@@ -402,10 +402,10 @@
                                                 (.show popup cur screen-x screen-y)
                                                 (.requestFocus content))))}
            advance! (fn [state]
-                      (fxui/advance-ui-user-data-component!
+                      (ui/advance-ui-user-data-component!
                         content ::popup
                         {:fx/type fxui/ext-with-stack-pane-props
-                         :desc {:fx/type fxui/ext-value :value content}
+                         :desc {:fx/type ui/ext-value :value content}
                          :props {:children [{:fx/type fx.region/lifecycle
                                              :style-class "popup-shadow"}
                                             {:fx/type cljfx-popup-view
@@ -422,7 +422,7 @@
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
          (ui/on-closed! (fn [e]
                           (when-not @pick-in-flight
-                            (fxui/advance-ui-user-data-component! content ::popup nil)
+                            (ui/advance-ui-user-data-component! content ::popup nil)
                             (when on-closed (on-closed))
                             (ui/user-data! (current-owner) ::popup nil))))
          (.show owner screen-x screen-y))

@@ -137,7 +137,7 @@ sourceSets {
 def bobLightDependencyJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
 def bobGitRevision = "git -C ${project.bobDir} log --pretty=%H -n1".execute().text.trim()
 def privateBobPluginModules = []
-def targetPlatform = (project.findProperty('target-platform') ?: System.getenv('DYNAMO_TARGET_PLATFORM') ?: '').toString()
+def targetPlatform = (project.findProperty('target-platform') ?: '').toString()
 def platformsConfigFile = file("${project.bobDir}/../../.defold-platforms")
 if (targetPlatform && platformsConfigFile.exists()) {
     def platformsConfig = new JsonSlurper().parse(platformsConfigFile)
@@ -213,6 +213,8 @@ task compileSrc(type: JavaCompile, dependsOn: [compileGenerated, copyDependencie
     source = sourceSets.main.java
     destinationDirectory = project.classesDir
     include '**'
+    exclude '**/XBoxBundler.java'
+    exclude '**/XBoxShaderCompiler.java'
     classpath = sourceSets.main.compileClasspath
     options.encoding = 'UTF-8'
     options.compilerArgs << '-g'

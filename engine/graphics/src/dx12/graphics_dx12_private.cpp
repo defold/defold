@@ -14,7 +14,7 @@
 
 #include "graphics_dx12_private.h"
 
-#if __has_include("graphics_dx12_xbox.h")
+#if defined(DM_PLATFORM_XBOX)
     #include "graphics_dx12_xbox.h"
 #else
     #include <d3d12.h>

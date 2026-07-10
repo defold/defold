@@ -1,4 +1,4 @@
-// Copyright 2020-2026 The Defold Foundation
+// Copyright 2020-2023 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,15 +12,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_THREAD_NATIVE_WIN32_H
-#define DMSDK_THREAD_NATIVE_WIN32_H
+#import "BaseView.h"
+#import <UIKit/UIKit.h>
+#import <QuartzCore/QuartzCore.h>
 
-#include <dmsdk/dlib/safe_windows.h>
-
-namespace dmThread
-{
-    typedef HANDLE Thread;
-    typedef DWORD TlsKey;
+@interface MetalView : BaseView {
+@private
 }
 
-#endif
++ (BaseView*)createView:(CGRect)bounds recreate:(BOOL)recreate;
+- (void)swapBuffers;
+- (void)setupView;
+
+@end
+
+@interface MetalView ()
+
+@end

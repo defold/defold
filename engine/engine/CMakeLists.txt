@@ -132,7 +132,9 @@ if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output glsl)
 endif()
-if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+# App manifests can also relink Apple engines to Vulkan/MoltenVK.
+if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output spirv)
 endif()
 if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
@@ -557,7 +559,7 @@ defold_install_targets(TARGETS dmengine dmengine_release dmengine_headless
   LIBRARY DESTINATION bin/${TARGET_PLATFORM}
   RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
-if(TARGET_PLATFORM MATCHES "win32")
+if(TARGET_PLATFORM MATCHES "win32|x86_64-xbone")
   foreach(_engine_pdb_target IN ITEMS dmengine dmengine_release dmengine_headless)
     install(FILES "$<TARGET_PDB_FILE:${_engine_pdb_target}>"
       DESTINATION bin/${TARGET_PLATFORM}
