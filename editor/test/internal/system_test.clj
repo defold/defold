@@ -437,6 +437,27 @@
 
           (is (= (undo-redo-states) [[nil] [3 1]]))))))
 
+  (testing "Canceling the current sequence discards redo based on it"
+    (ts/with-clean-system
+      (let [pgraph-id (g/make-graph!)
+            [root] (ts/tx-nodes (g/make-node pgraph-id Root :touched 0))]
+        (g/reset-undo! :undo/global)
+
+        (touch root 1 :a)
+        (touch root 2 :b)
+        (g/undo! :undo/global)
+
+        (is (= (undo-redo-states) [[1] [2]]))
+
+        (g/cancel! :undo/global :a)
+
+        (is (= 0 (g/node-value root :touched)))
+        (is (= (undo-redo-states) [[] []]))
+
+        (g/redo! :undo/global)
+
+        (is (= 0 (g/node-value root :touched))))))
+
   (testing "Canceling a sequence that is not the current sequence does nothing"
     (ts/with-clean-system
       (let [pgraph-id (g/make-graph!)]

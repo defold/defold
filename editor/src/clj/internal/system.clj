@@ -251,7 +251,9 @@
     (if (=* sequence-id (:sequence-label state))
       (-> system
           (replay-changes (rseq (:undoable-changes state)) it/revert-change)
-          (set-undo undo-key (tape/drop-current undo)))
+          (set-undo undo-key (-> undo
+                                 tape/drop-current
+                                 tape/truncate)))
       system)))
 
 (defn- make-initial-graph
