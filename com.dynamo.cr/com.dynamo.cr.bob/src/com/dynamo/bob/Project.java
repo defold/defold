@@ -54,6 +54,7 @@ import com.dynamo.bob.plugin.PluginScanner;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.bob.util.Library;
 import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.ReportGenerator;
@@ -860,20 +861,17 @@ public class Project implements AutoCloseable {
             }
         }
 
-        if (!libUrls.isEmpty() && !Files.isDirectory(Paths.get(getLibPath()))) {
+        Path libPath = Paths.get(getLibPath());
+        if (!libUrls.isEmpty() && !Files.isDirectory(libPath)) {
             throw new CompileExceptionError("Missing libraries folder. You need to run the 'resolve' command first!");
         }
-        Map<String, File> libFiles = new HashMap<>();
-
         for (var dependency : dependencies) {
             var archive = dependency.archive();
             var file = archive == null ? null : archive.path().toFile();
-            libFiles.put(dependency.uri().toString(), file);
             if (file != null && file.exists()) {
                 this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, archive));
             }
         }
-        BuildInputDataCollector.setDependencies(libFiles);
 
         var problematicResults = dependencies.stream().filter(x -> x.problem() != null).toList();
         if (!problematicResults.isEmpty()) {
@@ -989,7 +987,7 @@ public class Project implements AutoCloseable {
             bundleDir.mkdirs();
             bundler.bundleApplication(this, platform, bundleDir, progress);
             String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
-            BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk);
+            BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk, new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME));
             if (ResourceUtil.isMinificationEnabled()) {
                 MinifyPathCollector.saveAsJson(bundleDir);
             }
@@ -1873,6 +1871,7 @@ public class Project implements AutoCloseable {
                 TimeProfiler.stop();
                 TimeProfiler.start("Create tasks");
                 BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
+                syncDependencyMetadataToBuildDirectory();
                 createTasks();
                 validateBuildResourceMapping();
                 TimeProfiler.addData("TasksCount", tasks.size());
@@ -1942,6 +1941,25 @@ public class Project implements AutoCloseable {
             BundleHelper.throwIfCanceled(progress);
             FileUtils.deleteDirectory(new File(FilenameUtils.concat(rootDirectory, buildDirectory)));
         }
+    }
+
+    private void syncDependencyMetadataToBuildDirectory() throws IOException {
+        File buildMetadataFile = new File(FilenameUtils.concat(
+                FilenameUtils.concat(rootDirectory, buildDirectory),
+                DependencyMetadata.OUTPUT_PATH));
+
+        boolean includeDependenciesMetadata = projectProperties.getBooleanValue("project", "dependencies_metadata", false);
+        File sourceMetadataFile = new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        if (!includeDependenciesMetadata || !sourceMetadataFile.exists()) {
+            Files.deleteIfExists(buildMetadataFile.toPath());
+            return;
+        }
+
+        File buildMetadataParent = buildMetadataFile.getParentFile();
+        if (buildMetadataParent != null) {
+            Files.createDirectories(buildMetadataParent.toPath());
+        }
+        DependencyMetadata.minifyJson(sourceMetadataFile.toPath(), buildMetadataFile.toPath());
     }
 
     private List<TaskResult> doBuild(IProgress progress, String... commands) throws Throwable {

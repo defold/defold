@@ -346,7 +346,7 @@
                   {:outline-pane outline-pane-desc}
                   {})
           :desc {:fx/type ext-with-split-pane-props
-                 :desc {:fx/type fxui/ext-value :value right-split}
+                 :desc {:fx/type ui/ext-value :value right-split}
                  :props {:items (or (coll/not-empty
                                       (coll/into-> active-sidebar []
                                         (remove g/error-value?)
@@ -2242,7 +2242,7 @@
 (defn- refresh-right-split! [app-view]
   (g/let-ec [right-split (g/node-value app-view :right-split evaluation-context)
              right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
-    (fxui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
+    (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
@@ -3349,7 +3349,10 @@
     (future/io
       (try
         (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
-          (let [lib-results (library/fetch! (workspace/project-directory workspace) library-uris render-fetch-progress!)
+          (let [lib-results (library/fetch!
+                              (workspace/project-directory workspace)
+                              library-uris
+                              render-fetch-progress!)
                 render-install-progress! (make-render-task-progress :resource-sync)]
             (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
             (ui/run-now (workspace/set-project-dependencies! workspace lib-results))
