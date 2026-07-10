@@ -1620,7 +1620,9 @@
       (some-> content
               (.lookup ".grid-menu-item-enabled")
               (.requestFocus)))))
-
+;; NOTE: make-grid-menu sets :hide-on-click to false because a CustomMenuItem can have headers and
+;; empty space that we don't want dismissing the context menu when clicked on. So manually walk up
+;; the PopupWindow and hide them
 (defn- hide-popup-window-chain! [^Event event]
   (let [node ^Node (.getSource event)]
     (loop [window (some-> node .getScene .getWindow)]
