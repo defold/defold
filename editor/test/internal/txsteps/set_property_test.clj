@@ -22,6 +22,31 @@
 
 (set! *warn-on-reflection* true)
 
+(deftest replay-recomputes-value-change-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+          [original-node-id]
+          (test-support/tx-nodes
+            (g/make-node graph-id helpers/PropertyTestNode
+                         :basic-property :initial-property-value))
+          [override-node-id] (test-support/tx-nodes (g/override original-node-id))]
+
+      (g/reset-undo! :undo/global)
+
+      (g/transact
+        (g/set-property override-node-id :basic-property :initial-property-value))
+      (g/transact
+        {:undoable false}
+        (g/set-property original-node-id :basic-property :later-property-value))
+
+      (is (= :initial-property-value (g/node-value override-node-id :basic-output)))
+
+      (g/undo! :undo/global)
+      (is (= :later-property-value (g/node-value override-node-id :basic-output)))
+
+      (g/redo! :undo/global)
+      (is (= :initial-property-value (g/node-value override-node-id :basic-output))))))
+
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
