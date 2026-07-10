@@ -1485,9 +1485,7 @@
 (defn basis-perform-delete-nodes
   [basis deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides]
   (-> basis
-      (coll/reduce=> removed-arc-pkid-entries
-        (fn [basis [arc source-arc-pkid target-arc-pkid]]
-          (basis-disconnect-arc-at basis arc source-arc-pkid target-arc-pkid)))
+      (basis-perform-disconnect-arcs removed-arc-pkid-entries)
       (update
         :graphs
         (fn [graphs]
@@ -1530,6 +1528,4 @@
                     (update-in
                       graphs [graph-id :node->overrides node-id]
                       coll/into-vector override-node-ids)))))))
-      (coll/reduce=> removed-arc-pkid-entries
-        (fn [basis [arc source-arc-pkid target-arc-pkid]]
-          (basis-connect-arc-at basis arc source-arc-pkid target-arc-pkid)))))
+      (basis-revert-disconnect-arcs removed-arc-pkid-entries)))
