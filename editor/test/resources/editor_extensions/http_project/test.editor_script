@@ -16,6 +16,12 @@ local function test(url, opts)
     end
 end
 
+local function download(url, path, label)
+    local result = http.request(url, {path = path})
+    print(("download %s => %s"):format(label, result.status))
+    return result
+end
+
 function M.get_commands()
     return {{
         label = "Test",
@@ -29,6 +35,16 @@ function M.get_commands()
             test("http://localhost:23456/json", {as = "json"})
             test("http://localhost:23456/echo", {as = "json", method = "POST", body = json.encode({x = 4, y = "foo"})})
             test("http://localhost:23456/echo", {as = "string", method = "POST", body = "hello world!"})
+            test("http://localhost:23456/download", {as = "string", path = "downloaded.txt"})
+            local resource_path = "/downloaded.txt"
+            local existed_before = editor.resource_attributes(resource_path).exists
+            download("http://localhost:23456/download", "downloaded.txt", "into project")
+            local exists_after = editor.resource_attributes(resource_path).exists
+            print(("resource exists before/after: %s/%s"):format(tostring(existed_before), tostring(exists_after)))
+            print(("%q"):format(editor.get(resource_path, "text")))
+            local outside_path = http.request("http://localhost:23456/outside-path", {as = "string"}).body
+            local outside_result = download("http://localhost:23456/download", outside_path, "outside project")
+            print(("path matches: %s"):format(tostring(outside_result.path == outside_path)))
         end
     }}
 end
