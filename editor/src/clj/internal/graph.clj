@@ -1398,9 +1398,13 @@
   (when (and (gt/node-by-id-at basis (gt/source-id arc))
              (gt/node-by-id-at basis (gt/target-id arc)))
     (let [graphs (:graphs basis)
+          source-graph (graphs (gt/node-id->graph-id (gt/source-id arc)))
+          target-graph (graphs (gt/node-id->graph-id (gt/target-id arc)))
           source-arc-pkid (arc-table-next-pkid (graphs-source-arc-table graphs arc))
           target-arc-pkid (arc-table-next-pkid (graphs-target-arc-table graphs arc))
           arc-pkid-entries [[arc source-arc-pkid target-arc-pkid]]]
+      (assert (<= (:_volatility source-graph 0)
+                  (:_volatility target-graph 0)))
       {:arc-pkid-entries arc-pkid-entries})))
 
 (defn basis-perform-connect-arcs

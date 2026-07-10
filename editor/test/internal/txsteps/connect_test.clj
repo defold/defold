@@ -30,6 +30,21 @@
 (g/defnode NonOutputInvalidatingTargetNode
   (input input g/Keyword))
 
+(deftest connection-to-less-volatile-graph-is-rejected-test
+  (test-support/with-clean-system
+    (let [source-graph-id (g/make-graph! :volatility 1)
+          target-graph-id (g/make-graph!)
+          [source-node-id target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (concat
+                (g/make-node source-graph-id helpers/ConnectionSourceNode :property :source-value)
+                (g/make-node target-graph-id helpers/ConnectionTargetNode))))]
+      (is (thrown? AssertionError
+                   (g/transact
+                     (g/connect source-node-id :property-output target-node-id :regular-input)))))))
+
 (deftest non-output-invalidating-connection-is-undoable-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
