@@ -40,6 +40,19 @@
                (g/undo! :undo/global)
                (is (not (g/has-undo? :undo/global)))))))
 
+(deftest register-view-type-is-non-undoable-test
+  (test-util/with-loaded-project
+    (let [view-type-id ::registered-view-type]
+      (is (not (g/has-undo? :undo/global)))
+
+      (g/transact
+        (workspace/register-view-type workspace
+                                      :id view-type-id
+                                      :label "Registered View Type"))
+
+      (is (= view-type-id (:id (workspace/get-view-type workspace view-type-id))))
+      (is (not (g/has-undo? :undo/global))))))
+
 (deftest select-test
   (testing "asserts that all node-ids are non-nil"
     (test-util/with-loaded-project

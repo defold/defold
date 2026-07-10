@@ -1182,4 +1182,5 @@ ordinary paths."
                            {:focus-fn focus-fn})
                          (when text-selection-fn
                            {:text-selection-fn text-selection-fn}))]
-     (g/update-property workspace :view-types assoc (:id view-type) view-type)))
+    (g/non-undoable
+      (g/update-property workspace :view-types assoc (:id view-type) view-type))))
