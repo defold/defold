@@ -218,6 +218,7 @@
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
+                                  (scene/routes project app-view)
                                   (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
                                   (doc/routes)
                                   (http-server.prefs/routes prefs)]))
