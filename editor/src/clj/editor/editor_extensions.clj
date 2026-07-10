@@ -66,10 +66,11 @@
            [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [com.dynamo.bob.util Library$Result]
-           [java.io PrintStream PushbackReader]
+           [java.io InputStream PrintStream PushbackReader]
            [java.net URI]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
            [java.util HashSet]
+           [java.util.concurrent ExecutionException]
            [org.apache.commons.io FilenameUtils]
            [org.luaj.vm2 LuaError LuaFunction LuaString LuaTable LuaValue Prototype]))
 
@@ -627,35 +628,60 @@
 
 (def http-request-options-coercer
   (coerce/one-of
-    (coerce/hash-map
-      :opt {:method coerce/string
-            :headers (coerce/map-of coerce/string coerce/string)
-            :body coerce/string
-            :as (coerce/enum :string :json)}
-      :extra-keys false)
+    (coerce/wrap-with-pred
+      (coerce/hash-map
+        :opt {:method coerce/string
+              :headers (coerce/map-of coerce/string coerce/string)
+              :body coerce/string
+              :as (coerce/enum :string :json)
+              :path coerce/string}
+        :extra-keys false)
+      #(not (and (contains? % :as) (contains? % :path)))
+      "specifies mutually exclusive 'as' and 'path' options")
     coerce/null))
 
-(def ext-http-request
+(defn- make-ext-http-request-fn [^Path project-path reload-resources!]
   (rt/suspendable-lua-fn ext-http-request
     ([ctx lua-url]
      (ext-http-request ctx lua-url nil))
     ([{:keys [rt]} lua-url maybe-lua-options]
      (let [options (some->> maybe-lua-options (rt/->clj rt http-request-options-coercer))
-           json (= :json (:as options))]
-       (try
-         (-> (http/request
-               (rt/->clj rt coerce/string lua-url)
-               (cond-> options json (assoc :as :input-stream)))
-             (future/then
-               (fn http-request-then [response]
-                 (cond-> response json (assoc :body (with-open [reader (io/reader (:body response))]
-                                                      (json/read reader))))))
-             (future/catch
-               (fn http-request-catch [e]
-                 (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e)))))))))
-         ;; we might get an exception when parsing the URI before we start the async request execution
-         (catch Throwable e
-           (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e))))))))))))
+           json (= :json (:as options))
+           path (:path options)]
+       (future/io
+         (try
+           (let [response @(http/request
+                             (rt/->clj rt coerce/string lua-url)
+                             (-> options (dissoc :path) (cond-> (or json path) (assoc :as :input-stream))))]
+             (cond
+               json
+               (assoc response :body (with-open [reader (io/reader (:body response))]
+                                       (json/read reader)))
+     
+               path
+               (with-open [^InputStream body (:body response)]
+                 (if-not (<= 200 (:status response) 299)
+                   (dissoc response :body)
+                   (let [destination (path/resolve-normalized project-path path)
+                         stored-path (path/atomic-replace!
+                                       destination
+                                       (fn write-response-body [temp-path]
+                                         (with-open [output (io/output-stream temp-path)]
+                                           (io/copy body output))))
+                         response (-> response
+                                      (dissoc :body)
+                                      (assoc :path (str stored-path)))]
+                     (if (path/starts-with? destination project-path)
+                       (do
+                         @(reload-resources!)
+                         (rt/and-refresh-context response))
+                       response))))
+     
+               :else
+               response))
+           (catch Throwable e
+             (let [e (if (instance? ExecutionException e) (ex-cause e) e)]
+               (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e))))))))))))))
 
 ;; endregion
 
@@ -1040,7 +1066,7 @@
                                   "version" (system/defold-version)
                                   "engine_sha1" (system/defold-engine-sha1)
                                   "editor_sha1" (system/defold-editor-sha1)}
-                        "http" {"request" ext-http-request
+                        "http" {"request" (make-ext-http-request-fn project-path reload-resources!)
                                 "server" (ext.http-server/env workspace project-path web-server)}
                         "image" (ext.image/env project-path)
                         "json" {"decode" ext-json-decode

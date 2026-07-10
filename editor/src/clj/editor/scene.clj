@@ -20,10 +20,12 @@
             [cljfx.fx.text-area :as fx.text-area]
             [clojure.set :as set]
             [clojure.spec.alpha :as s]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
             [editor.colors :as colors]
+            [editor.defold-project :as project]
             [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
@@ -65,6 +67,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
+            [util.http-server :as http-server]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
@@ -72,6 +75,7 @@
            [editor.pose Pose]
            [editor.types AABB Camera Rect Region]
            [java.awt.image BufferedImage]
+           [java.io ByteArrayOutputStream]
            [java.lang Math Runnable]
            [java.nio IntBuffer]
            [javafx.beans.value ChangeListener]
@@ -83,6 +87,7 @@
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage Window]
+           [javax.imageio ImageIO]
            [javax.vecmath Matrix4d Point3d Quat4d Tuple3d Vector3d]
            [sun.awt.image IntegerComponentRaster]))
 
@@ -1520,6 +1525,23 @@
                        (selection-framing-info view-node-id evaluation-context))]
     (apply-framing-info! framing-info animate?)))
 
+(defn- frame-preview! [view-node-id]
+  (g/let-ec [framing-info (selection-framing-info view-node-id evaluation-context)
+             viewport (g/node-value view-node-id :viewport evaluation-context)
+             [viewport-width viewport-height] (vp-dims viewport)]
+    (apply-framing-info!
+      (update framing-info :end-camera
+              (fn [camera]
+                (if-not (= :orthographic (:type camera))
+                  camera
+                  (let [fov-x (/ (:fov-x camera) c/orthographic-framing-margin)
+                        fov-y (/ (:fov-y camera) c/orthographic-framing-margin)]
+                    (assoc camera
+                      ;; Add a one-pixel margin on each side to avoid edge clipping.
+                      :fov-x (+ fov-x (* 2.0 (/ fov-x viewport-width)))
+                      :fov-y (+ fov-y (* 2.0 (/ fov-y viewport-height))))))))
+      false)))
+
 (handler/defhandler :scene.frame-selection :global
   (active? [app-view evaluation-context]
     (active-scene-view app-view evaluation-context))
@@ -2056,6 +2078,13 @@
         (scene-cache/prune-context! gl)
         buf-image))))
 
+(g/defnk produce-preview-renderables [aux-render-data scene-render-data]
+  (:renderables
+    (merge-render-datas
+      {:renderables (select-keys (:renderables aux-render-data) [pass/background])}
+      {}
+      scene-render-data)))
+
 (g/defnode PreviewView
   (inherits view/WorkbenchView)
   (inherits SceneRenderer)
@@ -2093,7 +2122,7 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
   (output frame BufferedImage produce-frame)
-  (output all-renderables pass/RenderData :cached (g/fnk [scene-render-data] (:renderables (merge-render-datas {} {} scene-render-data))))
+  (output all-renderables pass/RenderData :cached produce-preview-renderables)
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output displayed-node-properties g/Any :cached
           (g/fnk [selected-node-properties preview-overrides]
@@ -2166,7 +2195,8 @@
                   (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
                   (g/connect view-id         :viewport                      camera          :viewport)
 
-                  (g/connect app-view-id     :selected-node-ids             view-id         :selection)
+                  (when (:inherit-selection opts true)
+                    (g/connect app-view-id   :selected-node-ids             view-id         :selection))
                   (g/connect app-view-id     :active-view                   view-id         :active-view)
                   (g/connect app-view-id     :active-tool                   view-id         :active-tool)
                   (g/connect app-view-id     :manip-space                   view-id         :manip-space)
@@ -2223,17 +2253,28 @@
     (g/transact
       {:undoable false}
       (setup-view view-id resource-node opts))
-    (frame-selection! view-id false)
+    (frame-preview! view-id)
     view-id))
 
-(defn dispose-preview [node-id]
-  (when-some [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
-    (gl/with-drawable-as-current drawable
-      (scene-cache/drop-context! gl))
-    (.destroy drawable)
-    (g/transact
-      {:undoable false}
-      (g/set-property node-id :drawable nil))))
+(defn dispose-preview
+  ([node-id]
+   (g/with-auto-evaluation-context evaluation-context
+     (dispose-preview node-id evaluation-context)))
+  ([node-id evaluation-context]
+   (when-some [^GLAutoDrawable drawable (g/node-value node-id :drawable evaluation-context)]
+     (gl/with-drawable-as-current drawable
+       (scene-cache/drop-context! gl))
+     (.destroy drawable)
+     (g/transact
+       {:undoable false}
+       (g/set-property node-id :drawable nil)))
+   (when-some [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable evaluation-context)]
+     (gl/with-drawable-as-current picking-drawable
+       (scene-cache/drop-context! gl))
+     (.destroy picking-drawable)
+     (g/transact
+       {:undoable false}
+       (g/set-property node-id :picking-drawable nil)))))
 
 (defn- focus-view! [view-id _opts done-fn]
   (if-some [^ImageView image-view (g/node-value view-id :image-view)]
@@ -2368,3 +2409,72 @@
 
 (defmethod scene-tools/manip-scale ::SceneNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
   (manip-scale-scene-node node-id delta manip-phase initial-evaluation-context))
+
+(defn- render-preview-response [project app-view request]
+  (g/let-ec [params (coll/into-> (string/split (:query request "") #"&") {}
+                      (map
+                        (fn [s]
+                          (let [[k v] (string/split s #"=" 2)]
+                            [(keyword k) (or v "")]))))
+             width (or (some-> (:width params) parse-long)
+                       (g/node-value project :display-width evaluation-context))
+             height (or (some-> (:height params) parse-long)
+                        (g/node-value project :display-height evaluation-context))
+             _ (when-not (and (<= 1 width 4096) (<= 1 height 4096))
+                 (throw (http-server/error (http-server/response 400 "Invalid dimensions\n"))))
+             workspace (project/workspace project evaluation-context)
+             resource (or (workspace/find-resource (:basis evaluation-context) workspace (str "/" (:path (:path-params request))))
+                          (throw (http-server/error http-server/not-found)))
+             resource-type (resource/lookup-resource-type (:basis evaluation-context) workspace resource)
+             resource-node (or (project/get-resource-node project resource evaluation-context)
+                               (throw (http-server/error (http-server/response 422 "Resource is not loaded\n"))))
+             view-type (or (coll/first-where #(= :scene (:id %)) (:view-types resource-type))
+                           (throw (http-server/error (http-server/response 422 "Resource does not support previews\n"))))
+             make-preview-fn (:make-preview-fn view-type)]
+    (let [view-graph (g/make-graph! :history false :volatility 2)]
+      (try
+        (let [opts (assoc (:scene (:view-opts resource-type))
+                     :app-view app-view
+                     :camera (c/make-camera :orthographic identity {:fov-x width :fov-y height})
+                     :select-fn (fn [_selection _op-seq])
+                     :inherit-selection false
+                     :project project
+                     :workspace workspace)
+              preview (make-preview-fn view-graph resource-node opts width height)]
+          (g/with-auto-evaluation-context evaluation-context
+            (try
+              (let [out (ByteArrayOutputStream.)
+                    ^BufferedImage frame (g/node-value preview :frame evaluation-context)
+                    flipped-frame (BufferedImage. (.getWidth frame) (.getHeight frame) (.getType frame))
+                    graphics (.createGraphics flipped-frame)]
+                (try
+                  (.drawImage graphics frame 0 (.getHeight frame) (.getWidth frame) (- (.getHeight frame)) nil)
+                  (finally
+                    (.dispose graphics)))
+                (ImageIO/write flipped-frame "png" out)
+                (http-server/response 200 {"content-type" "image/png"} (.toByteArray out)))
+              (finally
+                (dispose-preview preview evaluation-context)))))
+        (finally
+          (g/delete-graph! view-graph))))))
+
+(defn routes [project app-view]
+  {"/preview/{*path}"
+   {"GET" (with-meta
+            (bound-fn [request]
+              @(fx/on-fx-thread
+                 (render-preview-response project app-view request)))
+            {:openapi
+             {:summary "Render scene resource as PNG"
+              :parameters [{:name "path"
+                            :in "path"
+                            :required true
+                            :description "Project path"
+                            :schema {:type "string"}}
+                           {:name "width"
+                            :in "query"
+                            :schema {:type "integer"}}
+                           {:name "height"
+                            :in "query"
+                            :schema {:type "integer"}}]
+              :responses {"200" {:content {"image/png" {}}}}}})}})

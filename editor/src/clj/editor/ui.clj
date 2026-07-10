@@ -57,7 +57,7 @@
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
            [java.net URI]
-           [java.util Collection]
+           [java.util ArrayDeque Collection]
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
            [javafx.application Platform]
            [javafx.beans InvalidationListener Observable]
@@ -286,8 +286,27 @@
            (.initOwner stage owner)))
      stage)))
 
+(defn lookup-by-id
+  "Find node by id, significantly faster than Node/.lookup"
+  [^Node root ^String id]
+  (let [nodes (ArrayDeque.)]
+    (loop [node root]
+      (if (= id (.getId node))
+        node
+        (do
+          (when (instance? Parent node)
+            ;; Push children in reverse order so LIFO deque traversal visits
+            ;; siblings in normal child order.
+            (let [children (.getChildrenUnmodifiable ^Parent node)]
+              (loop [i (dec (.size children))]
+                (when-not (neg? i)
+                  (.push nodes (.get children i))
+                  (recur (dec i))))))
+          (when-not (.isEmpty nodes)
+            (recur (.pop nodes))))))))
+
 (defn collect-controls [^Parent root keys]
-  (let [controls (zipmap (map keyword keys) (map #(.lookup root (str "#" %)) keys))
+  (let [controls (zipmap (map keyword keys) (map #(lookup-by-id root %) keys))
         missing (->> controls
                   (filter (fn [[k v]] (when (nil? v) k)))
                   (map first))]
@@ -1620,6 +1639,15 @@
       (some-> content
               (.lookup ".grid-menu-item-enabled")
               (.requestFocus)))))
+;; NOTE: make-grid-menu sets :hide-on-click to false because a CustomMenuItem can have headers and
+;; empty space that we don't want dismissing the context menu when clicked on. So manually walk up
+;; the PopupWindow and hide them
+(defn- hide-popup-window-chain! [^Event event]
+  (let [node ^Node (.getSource event)]
+    (loop [window (some-> node .getScene .getWindow)]
+      (when (instance? PopupWindow window)
+        (.hide ^PopupWindow window)
+        (recur (.getOwnerWindow ^PopupWindow window))))))
 
 (defn- make-grid-menu
   "Create a grid-based menu component with categorized items arranged in columns
@@ -1691,10 +1719,13 @@
                                     {:fx/type fx.button/lifecycle
                                      :text (localization label)
                                      :disable (not enabled?)
-                                     :on-action (fn [_] (invoke-handler (contexts scene false) command user-data))
+                                     :on-action (fn [e]
+                                                  (hide-popup-window-chain! e)
+                                                  (invoke-handler (contexts scene false) command user-data))
                                      :on-key-pressed (fn [^KeyEvent e]
                                                        (when (= KeyCode/ENTER (.getCode e))
                                                          (.consume e)
+                                                         (hide-popup-window-chain! e)
                                                          (invoke-handler (contexts scene false) command user-data)))
                                      :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
                                      :style-class (into ["grid-menu-item-base"]
