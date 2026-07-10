@@ -686,13 +686,6 @@
   (revert [_this ctx]
     (ctx-revert-clear-raw-property ctx node-id property-label old-raw-value override-node dynamic property-overridden)))
 
-(defn- realize-setter-actions
-  [ctx undoable-changes node-id node property-label old-value new-value]
-  (if-let [setter-fn (in/property-setter (gt/node-type node) property-label)]
-    (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value new-value)]
-      (realize-tx ctx undoable-changes setter-actions))
-    (pair ctx undoable-changes)))
-
 (defn- realize-set-property
   [ctx undoable-changes node-id property-label new-value]
   (let [basis (:basis ctx)
@@ -713,9 +706,12 @@
                  (ig/basis-plan-set-raw-property basis node-id property-label new-value value-changed)]
           (let [change (->SetRawPropertyTXC node-id property-label old-raw-value new-raw-value override-node dynamic property-overridden value-changed)
                 [ctx undoable-changes :as ctx+undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
-            (if value-changed
-              (realize-setter-actions ctx undoable-changes node-id node property-label old-value new-value)
-              ctx+undoable-changes))
+            (if-not value-changed
+              ctx+undoable-changes
+              (if-let [setter-fn (in/property-setter (gt/node-type node) property-label)]
+                (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value new-value)]
+                  (realize-tx ctx undoable-changes setter-actions))
+                ctx+undoable-changes)))
           (pair ctx undoable-changes))))))
 
 (defn- realize-update-property
@@ -745,13 +741,17 @@
                        property-overridden]}
                (ig/basis-plan-clear-raw-property basis node-id property-label)]
         (let [change (->ClearRawPropertyTXC node-id property-label old-raw-value override-node dynamic property-overridden)
-              node-type (gt/node-type node)]
-          (if-not (in/property-setter node-type property-label)
+              node-type (gt/node-type node)
+              setter-fn (in/property-setter node-type property-label)]
+          (if-not setter-fn
             (perform-and-conj-change ctx undoable-changes change)
             (let [evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
                   old-value (in/node-property-value node property-label evaluation-context)
-                  [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
-              (realize-setter-actions ctx undoable-changes node-id node property-label old-value nil))))
+                  [ctx undoable-changes :as ctx+undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
+              (if (nil? old-value)
+                ctx+undoable-changes
+                (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value nil)]
+                  (realize-tx ctx undoable-changes setter-actions))))))
         (pair ctx undoable-changes)))))
 
 (defn- realize-defaults
