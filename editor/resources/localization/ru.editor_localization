@@ -147,6 +147,7 @@ dialog.button.report = Сообщить об ошибке
 dialog.button.disable-scene-editor = Отключить редактор сцен
 dialog.button.cancel = Отмена
 dialog.button.delete = Удалить
+dialog.button.apply = Применить
 
 # Error Dialog
 
@@ -498,6 +499,9 @@ dialog.select-gui-component.title = Выбрать компонент ({componen
 dialog.select-resource.title = Выбрать ресурс
 dialog.recent-files.title = Недавние файлы
 dialog.recent-files.button.ok = Открыть
+dialog.jump-to-symbol.title = Перейти к символу
+dialog.jump-to-symbol.prompt = Поиск символа…
+dialog.jump-to-symbol.button.ok = ОК
 
 # Open resource dialogs
 
@@ -706,6 +710,8 @@ prefs.label.dev.custom-engine = Свой движок
 prefs.keymap.filter.prompt = Фильтр комбинаций клавиш…
 prefs.keymap.command = Команда
 prefs.keymap.shortcuts = Комбинации клавиш
+prefs.keymap.badge.mouse-binding = Привязка мыши
+prefs.keymap.badge.mouse-modifier = Модификатор мыши
 prefs.keymap.context-menu.new-shortcut = Новая комбинация клавиш…
 prefs.keymap.context-menu.reset-to-default = Восстановить по умолчанию
 prefs.keymap.context-menu.remove = Удалить {shortcut}
@@ -718,6 +724,16 @@ prefs.keymap.warnings = Предупреждения\:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Символы вводимы (может мешать текстовым полям)
 prefs.keymap.warning.conflicts = Конфликтует с комбинациями\: {shortcuts}
+prefs.keymap.warning.duplicate = Привязка уже существует, будет игнорироваться
+prefs.keymap.mouse-binding.button.left = Левая
+prefs.keymap.mouse-binding.button.middle = Средняя
+prefs.keymap.mouse-binding.button.right = Правая
+prefs.keymap.mouse-binding.section.button = Кнопка мыши
+prefs.keymap.mouse-binding.section.modifiers = Модификаторы
+prefs.keymap.context-menu.add-mouse-binding = Добавить привязку мыши
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = Восстановить по умолчанию
+prefs.keymap.context-menu.edit-modifier = Редактировать модификатор
+prefs.keymap.inherited-from = Унаследовано от\: {context}
 
 # Progress
 
@@ -951,6 +967,7 @@ command.code.duplicate-selection = Дублировать выделение
 command.code.split-selection-into-lines = Разделить выделение на строки
 command.code.goto-definition = Перейти к определению
 command.code.goto-line = Перейти к строке…
+command.code.jump-to-symbol = Перейти к символу…
 command.code.show-references = Найти ссылки
 command.code.toggle-minimap = Мини-карта
 command.code.toggle-indentation-guides = Линии отступов
@@ -1155,6 +1172,7 @@ property.appmanifest.graphics = Графика
 property.appmanifest.graphics.tooltip = Vulkan поддерживается только на настольных и мобильных платформах
 property.appmanifest.graphics-osx = Графика (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan является рендерером по умолчанию для macOS
+property.appmanifest.graphics-ios = Графика (iOS)
 property.appmanifest.graphics-android = Графика (Android)
 property.appmanifest.graphics-android.tooltip = OpenGL+Vulkan используется по умолчанию на Android
 property.appmanifest.graphics-web = Графика (HTML5)
@@ -1609,6 +1627,8 @@ form.label.project.project.compress_archive = Сжимать архив
 form.help.project.project.compress_archive = Сжимать архив (не для Android)
 form.label.project.project.dependencies = Зависимости
 form.help.project.project.dependencies = Список URL проектов, необходимых для этого проекта
+form.label.project.project.dependencies_metadata = Метаданные зависимостей
+form.help.project.project.dependencies_metadata = Включить метаданные о зависимостях в сборку
 form.label.project.project.custom_resources = Дополнительные ресурсы
 form.help.project.project.custom_resources = Список ресурсов через запятую, которые будут включены в проект. Если указаны папки, все файлы и вложенные папки будут добавлены
 form.label.project.project.bundle_resources = Ресурсы сборки
