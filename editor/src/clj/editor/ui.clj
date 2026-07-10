@@ -2287,7 +2287,7 @@
           ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
           ;; disappears from the toolbars of subsequent tabs. For now, we generate
           ;; instances for each tab.
-          (.setGraphic button (graphic-fn)))))
+          (.setGraphic button (graphic-fn)))))))
 
 (defn advance-graph-user-data-component! [view-node key desc]
   (advance-user-data-component! view-node g/user-data g/user-data! key desc))
