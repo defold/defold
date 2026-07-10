@@ -161,8 +161,8 @@
 
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
-                      "-Ddefold.library.connectTimeoutMillis=2000"
-                      "-Ddefold.library.hostProbeTimeoutMillis=5000"
+                      "-Ddefold.library.connectTimeoutMillis=10000"
+                      "-Ddefold.library.hostProbeTimeoutMillis=10000"
                       "-Dfile.encoding=UTF-8"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
