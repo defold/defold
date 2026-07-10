@@ -205,7 +205,8 @@
   [ctx override-id]
   (update ctx :basis ig/basis-revert-add-override override-id))
 
-(defn- flag-all-successors-changed [ctx node-ids]
+(defn- flag-all-successors-changed
+  [ctx node-ids]
   (let [successors-changed (:successors-changed ctx)
         affected-node-ids (filterv #(get successors-changed % ::not-found) node-ids)]
     (if (coll/empty? affected-node-ids)
@@ -219,7 +220,8 @@
             (transient successors-changed)
             affected-node-ids))))))
 
-(defn- flag-successors-changed [ctx changes]
+(defn- flag-successors-changed
+  [ctx changes]
   (let [successors-changed (:successors-changed ctx)
 
         affected-node-id+label-pairs
@@ -245,7 +247,8 @@
             (transient successors-changed)
             affected-node-id+label-pairs))))))
 
-(defn- flag-override-originals-successors-changed [ctx basis node-id]
+(defn- flag-override-originals-successors-changed
+  [ctx basis node-id]
   (if (:full-invalidation ctx)
     ctx
     (let [all-originals (ig/override-originals basis node-id)]
@@ -257,6 +260,42 @@
           ;; Similarly, so must the source outputs of any arcs that target any
           ;; of the original nodes.
           (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals))))))
+
+(defn- flag-nodes-successors-changed
+  [ctx node-ids]
+  (assoc ctx
+    :successors-changed
+    (reduce
+      (fn [successors-changed node-id]
+        (assoc successors-changed node-id nil))
+      (:successors-changed ctx)
+      node-ids)))
+
+(defn- flag-arc-source-successors-changed
+  [ctx basis arcs]
+  (if (:full-invalidation ctx)
+    ctx
+    (flag-successors-changed
+      ctx
+      (coll/into-> arcs :eduction
+        (map #(pair (gt/source-id %) (gt/source-label %)))
+        (distinct)
+        (mapcat (fn [[source-id source-label :as source]]
+                  (e/cons
+                    source
+                    (e/map #(pair % source-label)
+                           (ig/get-overrides basis source-id)))))))))
+
+(defn- flag-deleted-override-originals-successors-changed
+  [ctx basis nodes]
+  (coll/reduce-> nodes ctx
+    (keep (fn [node]
+            (let [original-id (gt/original node)]
+              (when (and original-id (gt/node-by-id-at basis original-id))
+                original-id))))
+    (distinct)
+    (fn [ctx original-id]
+      (flag-override-originals-successors-changed ctx basis original-id))))
 
 (defn- mark-nodes-outputs-activated
   [ctx nodes]
@@ -274,30 +313,6 @@
         (:nodes-affected ctx)
         nodes))))
 
-(defn- flag-nodes-successors-changed [ctx node-ids]
-  (assoc ctx
-    :successors-changed
-    (reduce
-      (fn [successors-changed node-id]
-        (assoc successors-changed node-id nil))
-      (:successors-changed ctx)
-      node-ids)))
-
-(defn- source-successor-changes [basis arcs]
-  (coll/into-> arcs :eduction
-    (map #(pair (gt/source-id %) (gt/source-label %)))
-    (distinct)
-    (mapcat (fn [[source-id source-label :as source]]
-              (e/cons
-                source
-                (e/map #(pair % source-label)
-                       (ig/get-overrides basis source-id)))))))
-
-(defn- flag-arc-source-successors-changed [ctx basis arcs]
-  (if (:full-invalidation ctx)
-    ctx
-    (flag-successors-changed ctx (source-successor-changes basis arcs))))
-
 (defn- arcs-by-source-node-ids [arcs node-id-set]
   (coll/into-> arcs []
     (filter #(contains? node-id-set (gt/source-id %)))))
@@ -305,16 +320,6 @@
 (defn- arcs-by-target-node-ids [arcs node-id-set]
   (coll/into-> arcs []
     (filter #(contains? node-id-set (gt/target-id %)))))
-
-(defn- flag-deleted-override-originals-successors-changed [ctx basis nodes]
-  (coll/reduce-> nodes ctx
-    (keep (fn [node]
-            (let [original-id (gt/original node)]
-              (when (and original-id (gt/node-by-id-at basis original-id))
-                original-id))))
-    (distinct)
-    (fn [ctx original-id]
-      (flag-override-originals-successors-changed ctx basis original-id))))
 
 (def ^:private arc-pkid-entry-arc first)
 
@@ -798,7 +803,7 @@
     (apply fn args))
   ctx)
 
-(defn- flag-override-nodes-affected [ctx target-id]
+(defn- mark-override-nodes-affected [ctx target-id]
   (let [override-nodes-affected-seen (:override-nodes-affected-seen ctx)]
     (if (contains? override-nodes-affected-seen target-id)
       ctx
@@ -863,7 +868,7 @@
                           ;; re-traverse the :cascade-delete inputs of the connected sub-graph
                           ;; and create override nodes for each node. This happens in the
                           ;; realize-update-overrides function once the transaction concludes.
-                          (flag-override-nodes-affected target-id)))
+                          (mark-override-nodes-affected target-id)))
                     (conj changed-arcs arc)))))))]
     (flag-arc-source-successors-changed ctx (:basis ctx) changed-arcs)))
 
