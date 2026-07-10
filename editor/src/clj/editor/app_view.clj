@@ -2597,7 +2597,7 @@
    :on-close-request {:result nil}
    :title (localization (localization/message "release-notes-dialog.title"))
    :size :large
-   :width 800
+   :width 1000
    :header {:fx/type fxui/legacy-label
             :variant :header
             :text (localization (localization/message "release-notes-dialog.header"))}

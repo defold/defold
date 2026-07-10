@@ -221,9 +221,17 @@ QUERY_PROJECT_NUMBER = r"""
 def pprint(d):
     print(json.dumps(d, indent=4, sort_keys=True))
 
-def red(s, **kwargs): print("\033[31m{}\033[00m" .format(s), **kwargs)
-def green(s, **kwargs): print("\033[32m{}\033[00m" .format(s), **kwargs)
-def yellow(s, **kwargs): print("\033[33m{}\033[00m" .format(s), **kwargs)
+# Don't write colors if we are outputting to a file instead of a TTY or GitHub Actions
+# NO_COLOR and FORCE_COLOR are standard overrides (https://no-color.org).
+_use_color = os.environ.get("NO_COLOR") is None and (
+    os.environ.get("FORCE_COLOR") is not None
+    or os.environ.get("GITHUB_ACTIONS") == "true"
+    or sys.stdout.isatty()
+)
+def _color(code, s): return "\033[%sm%s\033[00m" % (code, s) if _use_color else str(s)
+def red(s, **kwargs): print(_color("31", s), **kwargs)
+def green(s, **kwargs): print(_color("32", s), **kwargs)
+def yellow(s, **kwargs): print(_color("33", s), **kwargs)
 
 def _print_errors(response):
     for error in response['errors']:
@@ -374,9 +382,12 @@ def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
 def git_branch_contains(commit):
     # Local branches that contain the commit. Only sees what's in the checkout,
     # so it needs a full clone with dev/beta fetched (not a shallow CI clone).
-    result = subprocess.run(["git", "branch", "--contains", commit], capture_output = True)
+    # --format gives bare branch names; without it `git branch` prefixes the
+    # current branch with "* " and one checked out in another worktree with "+ ",
+    # and that marker stays in the string so "+ dev" would never match "dev".
+    result = subprocess.run(["git", "branch", "--contains", commit, "--format=%(refname:short)"], capture_output = True)
     if result.returncode == 0:
-        return [line.replace("*", "").strip() for line in result.stdout.decode('utf-8').splitlines()]
+        return [line.strip() for line in result.stdout.decode('utf-8').splitlines() if line.strip()]
     red(result.stderr.decode('utf-8'))
     sys.exit(result.returncode)
 
@@ -575,7 +586,8 @@ def check_issue_commits(issues, required_branches = ("dev", "beta")):
     missing_dev_count = 0
     missing_beta_count = 0
     missing_dev_beta_count = 0
-    required_missing_count = 0
+    kept = []
+    skipped = []
     for issue in issues:
         dev_ok = False
         beta_ok = False
@@ -583,6 +595,7 @@ def check_issue_commits(issues, required_branches = ("dev", "beta")):
         if issue.get("repository") != "defold":
             yellow("    Ignored since issue is not from the defold repository")
             ignored_count = ignored_count + 1
+            kept.append(issue)
             continue
 
         if issue.get("mergecommit") != None:
@@ -623,11 +636,16 @@ def check_issue_commits(issues, required_branches = ("dev", "beta")):
                 red("    Missing from beta")
                 missing_beta_count = missing_beta_count + 1
 
-        # Only the branches THIS channel ships from gate the release; the dev/beta
-        # tallies above stay for diagnostics.
+        # A fix must be present on every branch this channel ships from to be
+        # listed, otherwise the notes would advertise a change that isn't in the
+        # release. The dev/beta tallies above are diagnostics only.
         branch_ok = {"dev": dev_ok, "beta": beta_ok}
-        if any(not branch_ok.get(b, False) for b in required_branches):
-            required_missing_count = required_missing_count + 1
+        if all(branch_ok.get(b, False) for b in required_branches):
+            kept.append(issue)
+        else:
+            missing = [b for b in required_branches if not branch_ok.get(b, False)]
+            yellow("    Left out of the notes (not on required branch(es): %s)" % ", ".join(missing))
+            skipped.append(issue)
 
     print("\nSummary (%d issues)" % len(issues))
     print("  %d issue(s) from external repositories not checked" % ignored_count)
@@ -641,10 +659,13 @@ def check_issue_commits(issues, required_branches = ("dev", "beta")):
     red("  %d issue(s) not present on beta" % missing_beta_count)
     red("  %d issue(s) not present on dev+beta" % missing_dev_beta_count)
 
-    if required_missing_count > 0:
-        red("\nRelease notes audit FAILED: %d issue(s) missing from required branch(es): %s" % (required_missing_count, ", ".join(required_branches)))
-        sys.exit(1)
-    green("\nRelease notes audit passed: all issues present on required branch(es): %s" % ", ".join(required_branches))
+    if skipped:
+        yellow("\n%d issue(s) left out of the release notes - not present on required branch(es) %s:" % (len(skipped), ", ".join(required_branches)))
+        for issue in skipped:
+            yellow("  - #%s '%s' (%s)" % (issue["issue_number"], issue["title"], issue["url"]))
+    else:
+        green("\nRelease notes audit passed: all issues present on required branch(es): %s" % ", ".join(required_branches))
+    return kept
 
 
 
@@ -727,11 +748,10 @@ def generate(version, hide_details = False, channel = None):
         print("No release notes found for %s - skipping" % version)
         return
 
-    # The commit audit verifies every issue's fix is present on the branch(es)
-    # this channel ships from (via the GitHub compare API, no local history
-    # needed) and fails the run if any are missing, before we publish notes for
-    # an unreleased fix.
-    check_issue_commits(issues, audit_branches_for_channel(channel))
+    # Notes are generated only from fixes confirmed present on the branch(es)
+    # this channel ships from, so they never list a change that isn't in the
+    # release; check_issue_commits drops the rest.
+    issues = check_issue_commits(issues, audit_branches_for_channel(channel))
     generate_markdown(version, issues, hide_details)
     generate_json(version, issues, channel)
 
