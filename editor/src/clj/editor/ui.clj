@@ -1639,6 +1639,15 @@
       (some-> content
               (.lookup ".grid-menu-item-enabled")
               (.requestFocus)))))
+;; NOTE: make-grid-menu sets :hide-on-click to false because a CustomMenuItem can have headers and
+;; empty space that we don't want dismissing the context menu when clicked on. So manually walk up
+;; the PopupWindow and hide them
+(defn- hide-popup-window-chain! [^Event event]
+  (let [node ^Node (.getSource event)]
+    (loop [window (some-> node .getScene .getWindow)]
+      (when (instance? PopupWindow window)
+        (.hide ^PopupWindow window)
+        (recur (.getOwnerWindow ^PopupWindow window))))))
 
 (defn- make-grid-menu
   "Create a grid-based menu component with categorized items arranged in columns
@@ -1710,10 +1719,13 @@
                                     {:fx/type fx.button/lifecycle
                                      :text (localization label)
                                      :disable (not enabled?)
-                                     :on-action (fn [_] (invoke-handler (contexts scene false) command user-data))
+                                     :on-action (fn [e]
+                                                  (hide-popup-window-chain! e)
+                                                  (invoke-handler (contexts scene false) command user-data))
                                      :on-key-pressed (fn [^KeyEvent e]
                                                        (when (= KeyCode/ENTER (.getCode e))
                                                          (.consume e)
+                                                         (hide-popup-window-chain! e)
                                                          (invoke-handler (contexts scene false) command user-data)))
                                      :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
                                      :style-class (into ["grid-menu-item-base"]
