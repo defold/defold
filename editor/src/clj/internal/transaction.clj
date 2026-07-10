@@ -622,46 +622,56 @@
                                           overridden-properties-changed (conj :_overridden-properties)))
     (mark-output-activated ctx node-id property)))
 
-(defn- ctx-raw-property-value
+(defn- ctx-property-state
   [{:keys [basis]} node-id property-label]
-  (gt/get-property (gt/node-by-id-at basis node-id) basis property-label))
+  (let [node (gt/node-by-id-at basis node-id)]
+    [(gt/get-property node basis property-label)
+     (gt/property-overridden? node property-label)]))
+
+(defn- mark-property-state-changes
+  [old-ctx new-ctx node-id property-label override-node dynamic]
+  (let [[old-value old-property-overridden] (ctx-property-state old-ctx node-id property-label)
+        [new-value new-property-overridden] (ctx-property-state new-ctx node-id property-label)
+        value-changed (not= old-value new-value)
+        overridden-properties-changed (not= old-property-overridden new-property-overridden)]
+    (cond-> new-ctx
+      (or value-changed overridden-properties-changed)
+      (mark-property-activated node-id property-label override-node dynamic overridden-properties-changed))))
 
 (defn- ctx-perform-set-raw-property
-  [ctx node-id property-label new-raw-value override-node dynamic property-overridden _value-changed]
+  [ctx node-id property-label new-raw-value override-node dynamic _property-overridden _value-changed]
   (if (gt/node-by-id-at (:basis ctx) node-id)
-    (let [old-value (ctx-raw-property-value ctx node-id property-label)
-          ctx (update ctx :basis ig/basis-perform-set-raw-property node-id property-label new-raw-value)
-          new-value (ctx-raw-property-value ctx node-id property-label)]
-      (cond-> ctx
-        (not= old-value new-value)
-        (mark-property-activated node-id property-label override-node dynamic (not property-overridden))))
+    (mark-property-state-changes
+      ctx
+      (update ctx :basis ig/basis-perform-set-raw-property node-id property-label new-raw-value)
+      node-id property-label override-node dynamic)
     ctx))
 
 (defn- ctx-revert-set-raw-property
-  [ctx node-id property-label old-raw-value override-node dynamic property-overridden _value-changed]
+  [ctx node-id property-label old-raw-value override-node dynamic _property-overridden _value-changed]
   (if (gt/node-by-id-at (:basis ctx) node-id)
-    (let [old-value (ctx-raw-property-value ctx node-id property-label)
-          ctx (update ctx :basis ig/basis-revert-set-raw-property node-id property-label old-raw-value)
-          new-value (ctx-raw-property-value ctx node-id property-label)]
-      (cond-> ctx
-        (not= old-value new-value)
-        (mark-property-activated node-id property-label override-node dynamic (not property-overridden))))
+    (mark-property-state-changes
+      ctx
+      (update ctx :basis ig/basis-revert-set-raw-property node-id property-label old-raw-value)
+      node-id property-label override-node dynamic)
     ctx))
 
 (defn- ctx-perform-clear-raw-property
-  [ctx node-id property-label override-node dynamic property-overridden]
+  [ctx node-id property-label override-node dynamic _property-overridden]
   (if (gt/node-by-id-at (:basis ctx) node-id)
-    (-> ctx
-        (update :basis ig/basis-perform-clear-raw-property node-id property-label)
-        (mark-property-activated node-id property-label override-node dynamic property-overridden))
+    (mark-property-state-changes
+      ctx
+      (update ctx :basis ig/basis-perform-clear-raw-property node-id property-label)
+      node-id property-label override-node dynamic)
     ctx))
 
 (defn- ctx-revert-clear-raw-property
-  [ctx node-id property-label old-raw-value override-node dynamic property-overridden]
+  [ctx node-id property-label old-raw-value override-node dynamic _property-overridden]
   (if (gt/node-by-id-at (:basis ctx) node-id)
-    (-> ctx
-        (update :basis ig/basis-revert-clear-raw-property node-id property-label old-raw-value)
-        (mark-property-activated node-id property-label override-node dynamic property-overridden))
+    (mark-property-state-changes
+      ctx
+      (update ctx :basis ig/basis-revert-clear-raw-property node-id property-label old-raw-value)
+      node-id property-label override-node dynamic)
     ctx))
 
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
