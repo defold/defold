@@ -1309,41 +1309,41 @@
           coll/transform-non-empty-> (remove #{override-node-id})))))
 
 (defn- basis-set-raw-property-state
-  [basis node property-label value]
+  [basis node property-label raw-value]
   (let [node-id (gt/node-id node)
         graph-id (gt/node-id->graph-id node-id)
-        new-node (case value
+        new-node (case raw-value
                    ::unassigned (if (gt/original node)
                                   (gt/clear-property node basis property-label)
                                   (dissoc node property-label))
-                   (gt/set-property node basis property-label value))]
+                   (gt/set-property node basis property-label raw-value))]
     (assoc-in basis [:graphs graph-id :nodes node-id] new-node)))
 
 (defn basis-plan-set-raw-property
-  [basis node-id property-label new-value value-changed]
+  [basis node-id property-label new-raw-value value-changed]
   (when-let [node (gt/node-by-id-at basis node-id)]
     (let [node-type (gt/node-type node)
           assigned-properties (gt/assigned-properties node)]
-      (in/validate-property-value node-type node-id property-label new-value)
+      (in/validate-property-value node-type node-id property-label new-raw-value)
       {:node-id node-id
        :property-label property-label
-       :old-value (get assigned-properties property-label ::unassigned)
-       :new-value new-value
+       :old-raw-value (get assigned-properties property-label ::unassigned)
+       :new-raw-value new-raw-value
        :override-node (some? (gt/original node))
        :dynamic (not (contains? (in/all-properties node-type) property-label))
        :property-overridden (gt/property-overridden? node property-label)
        :value-changed value-changed})))
 
 (defn basis-perform-set-raw-property
-  [basis node-id property-label new-value]
+  [basis node-id property-label new-raw-value]
   (if-let [node (gt/node-by-id-at basis node-id)]
-    (basis-set-raw-property-state basis node property-label new-value)
+    (basis-set-raw-property-state basis node property-label new-raw-value)
     basis))
 
 (defn basis-revert-set-raw-property
-  [basis node-id property-label old-value]
+  [basis node-id property-label old-raw-value]
   (if-let [node (gt/node-by-id-at basis node-id)]
-    (basis-set-raw-property-state basis node property-label old-value)
+    (basis-set-raw-property-state basis node property-label old-raw-value)
     basis))
 
 (defn basis-plan-clear-raw-property
@@ -1352,7 +1352,7 @@
     (let [node-type (gt/node-type node)]
       {:node-id node-id
        :property-label property-label
-       :old-value (get (gt/assigned-properties node) property-label ::unassigned)
+       :old-raw-value (get (gt/assigned-properties node) property-label ::unassigned)
        :override-node (some? (gt/original node))
        :dynamic (not (contains? (in/all-properties node-type) property-label))
        :property-overridden (gt/property-overridden? node property-label)})))
@@ -1366,9 +1366,9 @@
     basis))
 
 (defn basis-revert-clear-raw-property
-  [basis node-id property-label old-value]
+  [basis node-id property-label old-raw-value]
   (if-let [node (gt/node-by-id-at basis node-id)]
-    (basis-set-raw-property-state basis node property-label old-value)
+    (basis-set-raw-property-state basis node property-label old-raw-value)
     basis))
 
 (defn basis-plan-update-graph-value
