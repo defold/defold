@@ -46,9 +46,10 @@
       (is (not (g/has-undo? :undo/global)))
 
       (g/transact
-        (workspace/register-view-type workspace
-                                      :id view-type-id
-                                      :label "Registered View Type"))
+        (workspace/register-view-type
+          workspace
+          :id view-type-id
+          :label "Registered View Type"))
 
       (is (= view-type-id (:id (workspace/get-view-type workspace view-type-id))))
       (is (not (g/has-undo? :undo/global))))))

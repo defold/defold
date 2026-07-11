@@ -22,65 +22,6 @@
 
 (set! *warn-on-reflection* true)
 
-(g/defnode OverriddenPropertiesConsumer
-  (input overridden-properties g/Any)
-  (output overridden-property-count g/Any :cached
-          (g/fnk [overridden-properties]
-            (count overridden-properties))))
-
-(deftest replay-recomputes-overridden-properties-change-test
-  (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          [original-node-id consumer-node-id]
-          (test-support/tx-nodes
-            (g/make-node graph-id helpers/PropertyTestNode
-                         :basic-property :initial-property-value)
-            (g/make-node graph-id OverriddenPropertiesConsumer))
-          [override-node-id] (test-support/tx-nodes (g/override original-node-id))]
-
-      (g/transact
-        (g/connect override-node-id :_overridden-properties consumer-node-id :overridden-properties))
-      (g/reset-undo! :undo/global)
-
-      (g/transact
-        (g/set-property override-node-id :basic-property :override-property-value))
-      (g/transact
-        {:undoable false}
-        (g/set-property original-node-id :basic-property :override-property-value))
-
-      (is (= 1 (g/node-value consumer-node-id :overridden-property-count)))
-
-      (g/undo! :undo/global)
-      (is (zero? (g/node-value consumer-node-id :overridden-property-count)))
-
-      (g/redo! :undo/global)
-      (is (= 1 (g/node-value consumer-node-id :overridden-property-count))))))
-
-(deftest replay-recomputes-value-change-test
-  (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          [original-node-id]
-          (test-support/tx-nodes
-            (g/make-node graph-id helpers/PropertyTestNode
-                         :basic-property :initial-property-value))
-          [override-node-id] (test-support/tx-nodes (g/override original-node-id))]
-
-      (g/reset-undo! :undo/global)
-
-      (g/transact
-        (g/set-property override-node-id :basic-property :initial-property-value))
-      (g/transact
-        {:undoable false}
-        (g/set-property original-node-id :basic-property :later-property-value))
-
-      (is (= :initial-property-value (g/node-value override-node-id :basic-output)))
-
-      (g/undo! :undo/global)
-      (is (= :later-property-value (g/node-value override-node-id :basic-output)))
-
-      (g/redo! :undo/global)
-      (is (= :initial-property-value (g/node-value override-node-id :basic-output))))))
-
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
@@ -338,3 +279,103 @@
         (is (= nil
                (g/node-value node-id :basic-property)
                (g/node-value node-id :basic-output)))))))
+
+(deftest override-invalidation-identical-value-undo-initial-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [consumer-node-id
+           original-node-id
+           override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id
+                [consumer-node-id helpers/OverriddenPropertiesConsumer
+                 original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
+                (g/override original-node-id {}
+                  (fn [_evaluation-context id-lookup]
+                    (let [override-node-id (id-lookup original-node-id)]
+                      (g/connect override-node-id :_overridden-properties consumer-node-id :overridden-properties)))))))]
+
+      (testing "Before transact."
+        (is (= :initial-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :initial-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 0 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Set property to :initial-property-value on override node."
+        (g/transact
+          {:undo-key ::set-initial-property-value-on-override-node}
+          (g/set-property override-node-id :basic-property :initial-property-value))
+        (is (= :initial-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :initial-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 1 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Set property to :later-property-value on original node."
+        (g/transact
+          {:undo-key ::set-later-property-value-on-original-node}
+          (g/set-property original-node-id :basic-property :later-property-value))
+        (is (= :later-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :initial-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 1 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Undo set property to :initial-property-value on override node."
+        (g/undo! ::set-initial-property-value-on-override-node)
+        (is (= :later-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :later-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 0 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Redo set property to :initial-property-value on override node."
+        (g/redo! ::set-initial-property-value-on-override-node)
+        (is (= :later-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :initial-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 1 (g/node-value consumer-node-id :overridden-property-count)))))))
+
+(deftest override-invalidation-identical-value-undo-later-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [consumer-node-id
+           original-node-id
+           override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id
+                [consumer-node-id helpers/OverriddenPropertiesConsumer
+                 original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
+                (g/override original-node-id {}
+                  (fn [_evaluation-context id-lookup]
+                    (let [override-node-id (id-lookup original-node-id)]
+                      (g/connect override-node-id :_overridden-properties consumer-node-id :overridden-properties)))))))]
+
+      (testing "Before transact."
+        (is (= :initial-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :initial-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 0 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Set property to :later-property-value on override node."
+        (g/transact
+          {:undo-key ::set-later-property-value-on-override-node}
+          (g/set-property override-node-id :basic-property :later-property-value))
+        (is (= :initial-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :later-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 1 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Set property to :later-property-value on original node."
+        (g/transact
+          {:undo-key ::set-later-property-value-on-original-node}
+          (g/set-property original-node-id :basic-property :later-property-value))
+        (is (= :later-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :later-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 1 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Undo set property to :later-property-value on override node."
+        (g/undo! ::set-later-property-value-on-override-node)
+        (is (= :later-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :later-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 0 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Redo set property to :later-property-value on override node."
+        (g/redo! ::set-later-property-value-on-override-node)
+        (is (= :later-property-value (g/node-value original-node-id :basic-output)))
+        (is (= :later-property-value (g/node-value override-node-id :basic-output)))
+        (is (= 1 (g/node-value consumer-node-id :overridden-property-count)))))))

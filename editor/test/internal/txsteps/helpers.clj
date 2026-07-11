@@ -120,3 +120,9 @@
   (input array-cascade-delete-input g/Any :array :cascade-delete)
   (output array-cascade-delete-output g/Any :cached
           (g/fnk [array-cascade-delete-input] array-cascade-delete-input)))
+
+(g/defnode OverriddenPropertiesConsumer
+  (input overridden-properties g/Any)
+  (output overridden-property-count g/Any :cached
+          (g/fnk [overridden-properties]
+            (count overridden-properties))))

@@ -1396,6 +1396,11 @@
           source-arc-pkid (arc-table-next-pkid (graphs-source-arc-table graphs arc))
           target-arc-pkid (arc-table-next-pkid (graphs-target-arc-table graphs arc))
           arc-pkid-entries [[arc source-arc-pkid target-arc-pkid]]]
+      ;; There is no technical reason to respect volatility. Everything would
+      ;; work just fine if we removed this assert. It is merely there to
+      ;; safeguard against situations where the output of nodes in the project
+      ;; graph depend on view graph state. For example, it would be unfortunate
+      ;; if view graph state affected the save-data output of resource nodes.
       (assert (<= (:_volatility source-graph 0)
                   (:_volatility target-graph 0)))
       {:arc-pkid-entries arc-pkid-entries})))
