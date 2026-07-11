@@ -21,38 +21,6 @@
 
 (set! *warn-on-reflection* true)
 
-(g/defnode OverriddenPropertiesConsumer
-  (input overridden-properties g/Any)
-  (output overridden-property-count g/Any :cached
-          (g/fnk [overridden-properties]
-            (count overridden-properties))))
-
-(deftest invalidates-overridden-properties-test
-  (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          [original-node-id consumer-node-id]
-          (test-support/tx-nodes
-            (g/make-node graph-id helpers/PropertyTestNode
-                         :basic-property :original-property-value)
-            (g/make-node graph-id OverriddenPropertiesConsumer))
-          [override-node-id] (test-support/tx-nodes (g/override original-node-id))]
-
-      (g/transact
-        [(g/connect override-node-id :_overridden-properties consumer-node-id :overridden-properties)
-         (g/set-property override-node-id :basic-property :override-property-value)])
-
-      (is (= 1 (g/node-value consumer-node-id :overridden-property-count)))
-
-      (g/transact
-        (g/clear-property override-node-id :basic-property))
-      (is (zero? (g/node-value consumer-node-id :overridden-property-count)))
-
-      (g/undo! :undo/global)
-      (is (= 1 (g/node-value consumer-node-id :overridden-property-count)))
-
-      (g/redo! :undo/global)
-      (is (zero? (g/node-value consumer-node-id :overridden-property-count))))))
-
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
@@ -236,3 +204,47 @@
       (testing "Redo."
         (g/redo! :undo/global)
         (ensure-after!)))))
+
+(g/defnode OverriddenPropertiesConsumer
+  (input overridden-properties g/Any)
+  (output overridden-property-count g/Any :cached
+          (g/fnk [overridden-properties]
+            (count overridden-properties))))
+
+(deftest invalidates-overridden-properties-output-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [original-node-id
+           consumer-node-id
+           override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id
+                [original-node-id [helpers/PropertyTestNode :basic-property :original-property-value]
+                 consumer-node-id OverriddenPropertiesConsumer]
+                (g/override original-node-id {}
+                  (fn [_evaluation-context id-lookup]
+                    (let [override-node-id (id-lookup original-node-id)]
+                      (concat
+                        (g/set-property override-node-id :basic-property :override-property-value)
+                        (g/connect override-node-id :_overridden-properties consumer-node-id :overridden-properties))))))))]
+
+      (testing "Setup successful."
+        (is (= original-node-id (g/override-original override-node-id))))
+
+      (testing "Before transact."
+        (is (= 1 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Transact."
+        (g/transact
+          (g/clear-property override-node-id :basic-property))
+        (is (zero? (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Undo."
+        (g/undo! :undo/global)
+        (is (= 1 (g/node-value consumer-node-id :overridden-property-count))))
+
+      (testing "Redo."
+        (g/redo! :undo/global)
+        (is (zero? (g/node-value consumer-node-id :overridden-property-count)))))))

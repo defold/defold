@@ -1320,7 +1320,7 @@
     (assoc-in basis [:graphs graph-id :nodes node-id] new-node)))
 
 (defn basis-plan-set-raw-property
-  [basis node-id property-label new-raw-value value-changed]
+  [basis node-id property-label new-raw-value]
   (when-let [node (gt/node-by-id-at basis node-id)]
     (let [node-type (gt/node-type node)
           assigned-properties (gt/assigned-properties node)]
@@ -1329,10 +1329,8 @@
        :property-label property-label
        :old-raw-value (get assigned-properties property-label ::unassigned)
        :new-raw-value new-raw-value
-       :override-node (some? (gt/original node))
-       :dynamic (not (contains? (in/all-properties node-type) property-label))
-       :property-overridden (gt/property-overridden? node property-label)
-       :value-changed value-changed})))
+       :is-override-node (some? (gt/original node))
+       :is-dynamic (not (contains? (in/all-properties node-type) property-label))})))
 
 (defn basis-perform-set-raw-property
   [basis node-id property-label new-raw-value]
@@ -1353,9 +1351,8 @@
       {:node-id node-id
        :property-label property-label
        :old-raw-value (get (gt/assigned-properties node) property-label ::unassigned)
-       :override-node (some? (gt/original node))
-       :dynamic (not (contains? (in/all-properties node-type) property-label))
-       :property-overridden (gt/property-overridden? node property-label)})))
+       :is-override-node (some? (gt/original node))
+       :is-dynamic (not (contains? (in/all-properties node-type) property-label))})))
 
 (defn basis-perform-clear-raw-property
   [basis node-id property-label]

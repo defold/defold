@@ -260,9 +260,9 @@
 
 (defn- node-successor-changes
   "Returns a deferred stream of successor changes caused by the specified
-  nodes differing between the before and after bases."
-  [basis-before basis-after node-ids]
-  (coll/into-> (pair basis-before basis-after) :eduction
+  nodes differing between the old-basis and the new-basis."
+  [old-basis new-basis node-ids]
+  (coll/into-> (pair old-basis new-basis) :eduction
     (mapcat
       (fn [basis]
         (e/mapcat
@@ -282,9 +282,9 @@
 
 (defn- arc-successor-changes
   "Returns a deferred stream of successor changes caused by the specified
-  arcs differing between the before and after bases."
-  [basis-before basis-after arcs]
-  (coll/into-> (pair basis-before basis-after) :eduction
+  arcs differing between the old-basis and the new-basis."
+  [old-basis new-basis arcs]
+  (coll/into-> (pair old-basis new-basis) :eduction
     (mapcat
       (fn [basis]
         (e/mapcat
@@ -308,19 +308,19 @@
 (def ^:private arc-pkid-entry-arc first)
 
 (defn- ctx-add-nodes [ctx nodes introduced-node->overrides]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
         node-ids (mapv gt/node-id nodes)
         changed-node-ids (e/concat node-ids (e/map key introduced-node->overrides))
         ctx (-> ctx
                 (update :basis ig/basis-perform-add-nodes nodes introduced-node->overrides)
                 (update :nodes-added into node-ids))
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (-> ctx
         (mark-nodes-outputs-activated nodes)
-        (flag-successors-changed (node-successor-changes basis-before basis-after changed-node-ids)))))
+        (flag-successors-changed (node-successor-changes old-basis new-basis changed-node-ids)))))
 
 (defn- ctx-delete-nodes [ctx nodes arc-pkid-entries overrides node->overrides]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
         node-ids (mapv gt/node-id nodes)
         nodes-by-id (coll/pair-map-by gt/node-id nodes)
         arcs (mapv arc-pkid-entry-arc arc-pkid-entries)
@@ -332,12 +332,12 @@
                 (update :nodes-deleted into nodes-by-id)
                 (update :nodes-added coll/transform-> (remove nodes-by-id))
                 (update :basis ig/basis-perform-delete-nodes nodes arc-pkid-entries overrides node->overrides))
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (flag-successors-changed
       ctx
       (e/concat
-        (node-successor-changes basis-before basis-after changed-node-ids)
-        (arc-successor-changes basis-before basis-after arcs)))))
+        (node-successor-changes old-basis new-basis changed-node-ids)
+        (arc-successor-changes old-basis new-basis arcs)))))
 
 (defonce/type AddOverrideTXC
   [override-id override]
@@ -463,20 +463,20 @@
         (realize-populate-overrides ctx undoable-changes node-id)))))
 
 (defn- ctx-perform-clear-override-nodes [ctx original-node-id override-node-ids]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
         ctx (update ctx :basis ig/basis-perform-clear-override-nodes original-node-id override-node-ids)
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (flag-successors-changed
       ctx
-      (node-successor-changes basis-before basis-after [original-node-id]))))
+      (node-successor-changes old-basis new-basis [original-node-id]))))
 
 (defn- ctx-revert-clear-override-nodes [ctx original-node-id override-node-ids]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
         ctx (update ctx :basis ig/basis-revert-clear-override-nodes original-node-id override-node-ids)
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (flag-successors-changed
       ctx
-      (node-successor-changes basis-before basis-after [original-node-id]))))
+      (node-successor-changes old-basis new-basis [original-node-id]))))
 
 (defonce/type ClearOverrideNodesTXC
   [original-node-id override-node-ids]
@@ -500,23 +500,23 @@
 
 (defn- ctx-perform-repoint-override-node
   [ctx override-node-id new-original-node-id]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
         ctx (update ctx :basis ig/basis-perform-repoint-override-node override-node-id new-original-node-id)
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (-> ctx
         (mark-all-outputs-activated override-node-id)
         (flag-successors-changed
-          (node-successor-changes basis-before basis-after [override-node-id new-original-node-id])))))
+          (node-successor-changes old-basis new-basis [override-node-id new-original-node-id])))))
 
 (defn- ctx-revert-repoint-override-node
   [ctx override-node-id old-original-node-id new-original-node-id]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
         ctx (update ctx :basis ig/basis-revert-repoint-override-node override-node-id old-original-node-id new-original-node-id)
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (-> ctx
         (mark-all-outputs-activated override-node-id)
         (flag-successors-changed
-          (node-successor-changes basis-before basis-after [override-node-id new-original-node-id])))))
+          (node-successor-changes old-basis new-basis [override-node-id new-original-node-id])))))
 
 (defonce/type RepointOverrideNodeTXC
   [override-node-id old-original-node-id new-original-node-id]
@@ -616,9 +616,9 @@
         (realize-populate-overrides ctx undoable-changes to-id)))))
 
 (defn- mark-property-activated
-  [ctx node-id property override-node dynamic overridden-properties-changed]
-  (if override-node
-    (mark-outputs-activated ctx node-id (cond-> (if dynamic [property :_properties] [property])
+  [ctx node-id property is-override-node is-dynamic overridden-properties-changed]
+  (if is-override-node
+    (mark-outputs-activated ctx node-id (cond-> (if is-dynamic [property :_properties] [property])
                                           overridden-properties-changed (conj :_overridden-properties)))
     (mark-output-activated ctx node-id property)))
 
@@ -629,49 +629,49 @@
      (gt/property-overridden? node property-label)]))
 
 (defn- mark-property-state-changes
-  [old-ctx new-ctx node-id property-label override-node dynamic]
+  [old-ctx new-ctx node-id property-label is-override-node is-dynamic]
   (let [[old-value old-property-overridden] (ctx-property-state old-ctx node-id property-label)
         [new-value new-property-overridden] (ctx-property-state new-ctx node-id property-label)
         value-changed (not= old-value new-value)
         overridden-properties-changed (not= old-property-overridden new-property-overridden)]
     (cond-> new-ctx
       (or value-changed overridden-properties-changed)
-      (mark-property-activated node-id property-label override-node dynamic overridden-properties-changed))))
+      (mark-property-activated node-id property-label is-override-node is-dynamic overridden-properties-changed))))
 
 (defn- ctx-perform-set-raw-property
-  [ctx node-id property-label new-raw-value override-node dynamic _property-overridden _value-changed]
+  [ctx node-id property-label new-raw-value is-override-node is-dynamic]
   (if (gt/node-by-id-at (:basis ctx) node-id)
     (mark-property-state-changes
       ctx
       (update ctx :basis ig/basis-perform-set-raw-property node-id property-label new-raw-value)
-      node-id property-label override-node dynamic)
+      node-id property-label is-override-node is-dynamic)
     ctx))
 
 (defn- ctx-revert-set-raw-property
-  [ctx node-id property-label old-raw-value override-node dynamic _property-overridden _value-changed]
+  [ctx node-id property-label old-raw-value is-override-node is-dynamic]
   (if (gt/node-by-id-at (:basis ctx) node-id)
     (mark-property-state-changes
       ctx
       (update ctx :basis ig/basis-revert-set-raw-property node-id property-label old-raw-value)
-      node-id property-label override-node dynamic)
+      node-id property-label is-override-node is-dynamic)
     ctx))
 
 (defn- ctx-perform-clear-raw-property
-  [ctx node-id property-label override-node dynamic _property-overridden]
+  [ctx node-id property-label is-override-node is-dynamic]
   (if (gt/node-by-id-at (:basis ctx) node-id)
     (mark-property-state-changes
       ctx
       (update ctx :basis ig/basis-perform-clear-raw-property node-id property-label)
-      node-id property-label override-node dynamic)
+      node-id property-label is-override-node is-dynamic)
     ctx))
 
 (defn- ctx-revert-clear-raw-property
-  [ctx node-id property-label old-raw-value override-node dynamic _property-overridden]
+  [ctx node-id property-label old-raw-value is-override-node is-dynamic]
   (if (gt/node-by-id-at (:basis ctx) node-id)
     (mark-property-state-changes
       ctx
       (update ctx :basis ig/basis-revert-clear-raw-property node-id property-label old-raw-value)
-      node-id property-label override-node dynamic)
+      node-id property-label is-override-node is-dynamic)
     ctx))
 
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
@@ -690,24 +690,24 @@
         (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
 
 (defonce/type SetRawPropertyTXC
-  [node-id property-label old-raw-value new-raw-value override-node dynamic property-overridden value-changed]
+  [node-id property-label old-raw-value new-raw-value is-override-node is-dynamic]
 
   TransactionChange
   (perform [_this ctx]
-    (ctx-perform-set-raw-property ctx node-id property-label new-raw-value override-node dynamic property-overridden value-changed))
+    (ctx-perform-set-raw-property ctx node-id property-label new-raw-value is-override-node is-dynamic))
 
   (revert [_this ctx]
-    (ctx-revert-set-raw-property ctx node-id property-label old-raw-value override-node dynamic property-overridden value-changed)))
+    (ctx-revert-set-raw-property ctx node-id property-label old-raw-value is-override-node is-dynamic)))
 
 (defonce/type ClearRawPropertyTXC
-  [node-id property-label old-raw-value override-node dynamic property-overridden]
+  [node-id property-label old-raw-value is-override-node is-dynamic]
 
   TransactionChange
   (perform [_this ctx]
-    (ctx-perform-clear-raw-property ctx node-id property-label override-node dynamic property-overridden))
+    (ctx-perform-clear-raw-property ctx node-id property-label is-override-node is-dynamic))
 
   (revert [_this ctx]
-    (ctx-revert-clear-raw-property ctx node-id property-label old-raw-value override-node dynamic property-overridden)))
+    (ctx-revert-clear-raw-property ctx node-id property-label old-raw-value is-override-node is-dynamic)))
 
 (defn- realize-set-property
   [ctx undoable-changes node-id property-label new-value]
@@ -716,20 +716,17 @@
     (if-not node
       (pair ctx undoable-changes)
       (let [evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
-            old-value (in/node-property-value node property-label evaluation-context)
-            value-changed (not= old-value new-value)]
+            old-value (in/node-property-value node property-label evaluation-context)]
         (if-let [{:keys [node-id
                          property-label
                          old-raw-value
                          new-raw-value
-                         override-node
-                         dynamic
-                         property-overridden
-                         value-changed]}
-                 (ig/basis-plan-set-raw-property basis node-id property-label new-value value-changed)]
-          (let [change (->SetRawPropertyTXC node-id property-label old-raw-value new-raw-value override-node dynamic property-overridden value-changed)
+                         is-override-node
+                         is-dynamic]}
+                 (ig/basis-plan-set-raw-property basis node-id property-label new-value)]
+          (let [change (->SetRawPropertyTXC node-id property-label old-raw-value new-raw-value is-override-node is-dynamic)
                 [ctx undoable-changes :as ctx+undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
-            (if-not value-changed
+            (if (= old-value new-value)
               ctx+undoable-changes
               (if-let [setter-fn (in/property-setter (gt/node-type node) property-label)]
                 (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value new-value)]
@@ -759,11 +756,10 @@
       (if-let [{:keys [node-id
                        property-label
                        old-raw-value
-                       override-node
-                       dynamic
-                       property-overridden]}
+                       is-override-node
+                       is-dynamic]}
                (ig/basis-plan-clear-raw-property basis node-id property-label)]
-        (let [change (->ClearRawPropertyTXC node-id property-label old-raw-value override-node dynamic property-overridden)
+        (let [change (->ClearRawPropertyTXC node-id property-label old-raw-value is-override-node is-dynamic)
               node-type (gt/node-type node)
               setter-fn (in/property-setter node-type property-label)]
           (if-not setter-fn
@@ -802,7 +798,7 @@
   (ctx-add-nodes ctx added-nodes introduced-node->overrides))
 
 (defn- ctx-revert-add-nodes [ctx added-nodes introduced-node->overrides]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
         node-ids (mapv gt/node-id added-nodes)
         nodes-by-id (coll/pair-map-by gt/node-id added-nodes)
         changed-node-ids (e/concat node-ids (e/map key introduced-node->overrides))
@@ -811,10 +807,10 @@
                 (update :nodes-deleted into nodes-by-id)
                 (update :nodes-added coll/transform-> (remove nodes-by-id))
                 (update :basis ig/basis-revert-add-nodes added-nodes introduced-node->overrides))
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (flag-successors-changed
       ctx
-      (node-successor-changes basis-before basis-after changed-node-ids))))
+      (node-successor-changes old-basis new-basis changed-node-ids))))
 
 (defn- ctx-callback
   [ctx fn args opts]
@@ -867,24 +863,24 @@
 
 (defn- ctx-connect-arcs
   [ctx arc-pkid-entries]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
 
         [ctx changed-arcs]
         (coll/reduce-> arc-pkid-entries (pair ctx [])
           (fn [[ctx changed-arcs :as result] arc-pkid-entry]
             (let [[arc] arc-pkid-entry
-                  basis-before (:basis ctx)
-                  basis-after (ig/basis-perform-connect-arcs basis-before [arc-pkid-entry])]
-              (if (identical? basis-before basis-after)
+                  old-basis (:basis ctx)
+                  new-basis (ig/basis-perform-connect-arcs old-basis [arc-pkid-entry])]
+              (if (identical? old-basis new-basis)
                 result
                 (let [target-id (gt/target-id arc)
                       target-label (gt/target-label arc)
-                      target-node (gt/node-by-id-at basis-after target-id)
+                      target-node (gt/node-by-id-at new-basis target-id)
                       target-node-type (gt/node-type target-node)
                       target-cascade-deletes (in/cascade-deletes target-node-type)
                       changed-arcs (conj changed-arcs arc)
                       ctx (-> ctx
-                              (assoc :basis basis-after)
+                              (assoc :basis new-basis)
                               (mark-input-activated target-id target-label)
                               (cond->
                                 (contains? target-cascade-deletes target-label)
@@ -897,34 +893,34 @@
                                 (mark-override-nodes-affected target-id)))]
                   (pair ctx changed-arcs))))))
 
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (flag-successors-changed
       ctx
-      (arc-successor-changes basis-before basis-after changed-arcs))))
+      (arc-successor-changes old-basis new-basis changed-arcs))))
 
 (defn- ctx-disconnect-arcs
   [ctx arc-pkid-entries]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
 
         [ctx changed-arcs]
         (coll/reduce-> arc-pkid-entries (pair ctx [])
           (fn [[ctx changed-arcs :as result] arc-pkid-entry]
             (let [[arc] arc-pkid-entry
-                  basis-before (:basis ctx)
-                  basis-after (ig/basis-perform-disconnect-arcs basis-before [arc-pkid-entry])]
-              (if (identical? basis-before basis-after)
+                  old-basis (:basis ctx)
+                  new-basis (ig/basis-perform-disconnect-arcs old-basis [arc-pkid-entry])]
+              (if (identical? old-basis new-basis)
                 result
                 (pair
                   (-> ctx
-                      (assoc :basis basis-after)
+                      (assoc :basis new-basis)
                       (mark-input-activated (gt/target-id arc) (gt/target-label arc)))
                   (conj changed-arcs arc))))))
 
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (cond-> ctx
       (coll/not-empty changed-arcs)
       (flag-successors-changed
-        (arc-successor-changes basis-before basis-after changed-arcs)))))
+        (arc-successor-changes old-basis new-basis changed-arcs)))))
 
 (defn- ctx-perform-connect-arcs
   [ctx arc-pkid-entries]
@@ -998,7 +994,7 @@
   (ctx-delete-nodes ctx nodes arc-pkid-entries overrides node->overrides))
 
 (defn- ctx-revert-delete-nodes [ctx nodes arc-pkid-entries overrides node->overrides]
-  (let [basis-before (:basis ctx)
+  (let [old-basis (:basis ctx)
         node-ids (mapv gt/node-id nodes)
         arcs (mapv arc-pkid-entry-arc arc-pkid-entries)
         changed-node-ids (e/concat node-ids (e/map key node->overrides))
@@ -1009,12 +1005,12 @@
                 (coll/reduce=> arcs
                   (fn [ctx arc]
                     (mark-input-activated ctx (gt/target-id arc) (gt/target-label arc)))))
-        basis-after (:basis ctx)]
+        new-basis (:basis ctx)]
     (flag-successors-changed
       ctx
       (e/concat
-        (node-successor-changes basis-before basis-after changed-node-ids)
-        (arc-successor-changes basis-before basis-after arcs)))))
+        (node-successor-changes old-basis new-basis changed-node-ids)
+        (arc-successor-changes old-basis new-basis arcs)))))
 
 (defonce/type DeleteNodesTXC
   [deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides]
