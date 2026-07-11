@@ -2271,23 +2271,7 @@
         (user-data! target key nil))
 
       desc
-      (user-data! target key (fx/create-component desc))
-
-      :else
-      (let [{:keys [graphic-fn label icon tooltip more id]} menu-item
-            label (or (handler/label handler-ctx evaluation-context) label)
-            button (doto (ToggleButton.)
-                     (localization/localize! localization label)
-                     (tooltip! tooltip localization))]
-        (when id
-          (.setId button (name id)))
-        (cond
-          graphic-fn
-          ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
-          ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
-          ;; disappears from the toolbars of subsequent tabs. For now, we generate
-          ;; instances for each tab.
-          (.setGraphic button (graphic-fn)))))))
+      (user-data! target key (fx/create-component desc)))))
 
 (defn advance-graph-user-data-component! [view-node key desc]
   (advance-user-data-component! view-node g/user-data g/user-data! key desc))
