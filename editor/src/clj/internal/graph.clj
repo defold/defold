@@ -1328,9 +1328,7 @@
       {:node-id node-id
        :property-label property-label
        :old-raw-value (get assigned-properties property-label ::unassigned)
-       :new-raw-value new-raw-value
-       :is-override-node (some? (gt/original node))
-       :is-dynamic (not (contains? (in/all-properties node-type) property-label))})))
+       :new-raw-value new-raw-value})))
 
 (defn basis-perform-set-raw-property
   [basis node-id property-label new-raw-value]
@@ -1347,12 +1345,10 @@
 (defn basis-plan-clear-raw-property
   [basis node-id property-label]
   (when-let [node (gt/node-by-id-at basis node-id)]
-    (let [node-type (gt/node-type node)]
+    (let [assigned-properties (gt/assigned-properties node)]
       {:node-id node-id
        :property-label property-label
-       :old-raw-value (get (gt/assigned-properties node) property-label ::unassigned)
-       :is-override-node (some? (gt/original node))
-       :is-dynamic (not (contains? (in/all-properties node-type) property-label))})))
+       :old-raw-value (get assigned-properties property-label ::unassigned)})))
 
 (defn basis-perform-clear-raw-property
   [basis node-id property-label]

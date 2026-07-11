@@ -615,64 +615,62 @@
       (fn [[ctx undoable-changes] to-id]
         (realize-populate-overrides ctx undoable-changes to-id)))))
 
-(defn- mark-property-activated
-  [ctx node-id property is-override-node is-dynamic overridden-properties-changed]
-  (if is-override-node
-    (mark-outputs-activated ctx node-id (cond-> (if is-dynamic [property :_properties] [property])
-                                          overridden-properties-changed (conj :_overridden-properties)))
-    (mark-output-activated ctx node-id property)))
-
-(defn- ctx-property-state
-  [{:keys [basis]} node-id property-label]
-  (let [node (gt/node-by-id-at basis node-id)]
-    [(gt/get-property node basis property-label)
-     (gt/property-overridden? node property-label)]))
-
 (defn- mark-property-state-changes
-  [old-ctx new-ctx node-id property-label is-override-node is-dynamic]
-  (let [[old-value old-property-overridden] (ctx-property-state old-ctx node-id property-label)
-        [new-value new-property-overridden] (ctx-property-state new-ctx node-id property-label)
-        value-changed (not= old-value new-value)
-        overridden-properties-changed (not= old-property-overridden new-property-overridden)]
-    (cond-> new-ctx
-      (or value-changed overridden-properties-changed)
-      (mark-property-activated node-id property-label is-override-node is-dynamic overridden-properties-changed))))
+  [new-ctx old-ctx node-id property-label]
+  (let [old-basis (:basis old-ctx)
+        new-basis (:basis new-ctx)
+        old-node (gt/node-by-id-at old-basis node-id)
+        new-node (gt/node-by-id-at new-basis node-id)]
+    (if-not new-node
+      new-ctx
+      (let [old-value (gt/get-property old-node old-basis property-label)
+            new-value (gt/get-property new-node new-basis property-label)
+            node-type (gt/node-type new-node)
+            is-declared-property (contains? (in/all-properties node-type) property-label)
+
+            invalidated-output-labels
+            (cond-> (cond
+                      (= old-value new-value)
+                      []
+
+                      (not is-declared-property)
+                      [property-label :_properties] ; :_properties is not automatically invalidated for us, so we must do it ourselves.
+
+                      :else
+                      [property-label])
+
+              (not= (gt/property-overridden? old-node property-label)
+                    (gt/property-overridden? new-node property-label))
+              (conj :_overridden-properties))]
+
+        (case (count invalidated-output-labels)
+          0 new-ctx
+          1 (mark-output-activated new-ctx node-id (invalidated-output-labels 0))
+          (mark-outputs-activated new-ctx node-id invalidated-output-labels))))))
 
 (defn- ctx-perform-set-raw-property
-  [ctx node-id property-label new-raw-value is-override-node is-dynamic]
-  (if (gt/node-by-id-at (:basis ctx) node-id)
-    (mark-property-state-changes
-      ctx
-      (update ctx :basis ig/basis-perform-set-raw-property node-id property-label new-raw-value)
-      node-id property-label is-override-node is-dynamic)
-    ctx))
+  [ctx node-id property-label new-raw-value]
+  (-> ctx
+      (update :basis ig/basis-perform-set-raw-property node-id property-label new-raw-value)
+      (mark-property-state-changes ctx node-id property-label)))
 
 (defn- ctx-revert-set-raw-property
-  [ctx node-id property-label old-raw-value is-override-node is-dynamic]
-  (if (gt/node-by-id-at (:basis ctx) node-id)
-    (mark-property-state-changes
-      ctx
-      (update ctx :basis ig/basis-revert-set-raw-property node-id property-label old-raw-value)
-      node-id property-label is-override-node is-dynamic)
-    ctx))
+  [ctx node-id property-label old-raw-value]
+  (-> ctx
+      (update :basis ig/basis-revert-set-raw-property node-id property-label old-raw-value)
+      (mark-property-state-changes ctx node-id property-label)))
 
 (defn- ctx-perform-clear-raw-property
-  [ctx node-id property-label is-override-node is-dynamic]
-  (if (gt/node-by-id-at (:basis ctx) node-id)
-    (mark-property-state-changes
-      ctx
-      (update ctx :basis ig/basis-perform-clear-raw-property node-id property-label)
-      node-id property-label is-override-node is-dynamic)
-    ctx))
+  [ctx node-id property-label]
+  (-> ctx
+      (update :basis ig/basis-perform-clear-raw-property node-id property-label)
+      (mark-property-state-changes ctx node-id property-label)))
 
 (defn- ctx-revert-clear-raw-property
-  [ctx node-id property-label old-raw-value is-override-node is-dynamic]
-  (if (gt/node-by-id-at (:basis ctx) node-id)
-    (mark-property-state-changes
-      ctx
-      (update ctx :basis ig/basis-revert-clear-raw-property node-id property-label old-raw-value)
-      node-id property-label is-override-node is-dynamic)
-    ctx))
+  [ctx node-id property-label old-raw-value]
+  (-> ctx
+      (update :basis ig/basis-revert-clear-raw-property node-id property-label old-raw-value)
+      (mark-property-state-changes ctx node-id property-label)))
 
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
   (try
@@ -690,24 +688,24 @@
         (throw (Exception. (format "Setter of node %s (%s) %s could not be called" node-id node-type property) e))))))
 
 (defonce/type SetRawPropertyTXC
-  [node-id property-label old-raw-value new-raw-value is-override-node is-dynamic]
+  [node-id property-label old-raw-value new-raw-value]
 
   TransactionChange
   (perform [_this ctx]
-    (ctx-perform-set-raw-property ctx node-id property-label new-raw-value is-override-node is-dynamic))
+    (ctx-perform-set-raw-property ctx node-id property-label new-raw-value))
 
   (revert [_this ctx]
-    (ctx-revert-set-raw-property ctx node-id property-label old-raw-value is-override-node is-dynamic)))
+    (ctx-revert-set-raw-property ctx node-id property-label old-raw-value)))
 
 (defonce/type ClearRawPropertyTXC
-  [node-id property-label old-raw-value is-override-node is-dynamic]
+  [node-id property-label old-raw-value]
 
   TransactionChange
   (perform [_this ctx]
-    (ctx-perform-clear-raw-property ctx node-id property-label is-override-node is-dynamic))
+    (ctx-perform-clear-raw-property ctx node-id property-label))
 
   (revert [_this ctx]
-    (ctx-revert-clear-raw-property ctx node-id property-label old-raw-value is-override-node is-dynamic)))
+    (ctx-revert-clear-raw-property ctx node-id property-label old-raw-value)))
 
 (defn- realize-set-property
   [ctx undoable-changes node-id property-label new-value]
@@ -720,11 +718,9 @@
         (if-let [{:keys [node-id
                          property-label
                          old-raw-value
-                         new-raw-value
-                         is-override-node
-                         is-dynamic]}
+                         new-raw-value]}
                  (ig/basis-plan-set-raw-property basis node-id property-label new-value)]
-          (let [change (->SetRawPropertyTXC node-id property-label old-raw-value new-raw-value is-override-node is-dynamic)
+          (let [change (->SetRawPropertyTXC node-id property-label old-raw-value new-raw-value)
                 [ctx undoable-changes :as ctx+undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
             (if (= old-value new-value)
               ctx+undoable-changes
@@ -755,11 +751,9 @@
       (pair ctx undoable-changes)
       (if-let [{:keys [node-id
                        property-label
-                       old-raw-value
-                       is-override-node
-                       is-dynamic]}
+                       old-raw-value]}
                (ig/basis-plan-clear-raw-property basis node-id property-label)]
-        (let [change (->ClearRawPropertyTXC node-id property-label old-raw-value is-override-node is-dynamic)
+        (let [change (->ClearRawPropertyTXC node-id property-label old-raw-value)
               node-type (gt/node-type node)
               setter-fn (in/property-setter node-type property-label)]
           (if-not setter-fn
