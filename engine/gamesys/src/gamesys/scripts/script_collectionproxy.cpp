@@ -243,6 +243,8 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0)
 
+        (void)CheckGoInstance(L);
+
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
