@@ -1175,6 +1175,13 @@
   (revert [_this ctx]
     (update ctx :basis ig/basis-revert-update-graph-value graph-id graph-value-key old-value)))
 
+(defn- realize-update-graph-value
+  [ctx undoable-changes graph-id graph-value-key update-fn args]
+  (if-let [{:keys [graph-id graph-value-key old-value new-value]}
+           (ig/basis-plan-update-graph-value (:basis ctx) graph-id graph-value-key update-fn args)]
+    (perform-and-conj-change ctx undoable-changes (->UpdateGraphValueTXC graph-id graph-value-key old-value new-value))
+    (pair ctx undoable-changes)))
+
 (defonce/type UpdateGraphValueTXS [graph-id graph-value-key update-fn args]
   TransactionStep
   (step-type [_this]
@@ -1184,10 +1191,7 @@
     graph-id)
 
   (realize [_this ctx undoable-changes]
-    (if-let [{:keys [graph-id graph-value-key old-value new-value]}
-             (ig/basis-plan-update-graph-value (:basis ctx) graph-id graph-value-key update-fn args)]
-      (perform-and-conj-change ctx undoable-changes (->UpdateGraphValueTXC graph-id graph-value-key old-value new-value))
-      (pair ctx undoable-changes))))
+    (realize-update-graph-value ctx undoable-changes graph-id graph-value-key update-fn args)))
 
 (defn update-graph-value
   "*transaction step* - Update a graph value."
@@ -1206,7 +1210,8 @@
     nil)
 
   (realize [_this ctx undoable-changes]
-    (pair (ctx-callback ctx callback-fn args opts) undoable-changes)))
+    (pair (ctx-callback ctx callback-fn args opts)
+          undoable-changes)))
 
 (defn callback
   "*transaction step* - Call a function from within the transaction."
@@ -1321,6 +1326,17 @@
   [source-id source-label target-id target-label]
   [(->ConnectTXS (gt/->Arc source-id source-label target-id target-label))])
 
+(defn- realize-expand
+  [ctx undoable-changes tx-steps-fn args opts]
+  (realize-tx
+    ctx undoable-changes
+    (if-not (:inject-evaluation-context opts)
+      (apply tx-steps-fn args)
+      (let [basis (:basis ctx)
+            tx-data-context (:tx-data-context ctx)
+            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
+        (apply tx-steps-fn evaluation-context args)))))
+
 (defonce/type ExpandTXS [tx-steps-fn args opts]
   TransactionStep
   (step-type [_this]
@@ -1330,14 +1346,7 @@
     nil)
 
   (realize [_this ctx undoable-changes]
-    (realize-tx
-      ctx undoable-changes
-      (if-not (:inject-evaluation-context opts)
-        (apply tx-steps-fn args)
-        (let [basis (:basis ctx)
-              tx-data-context (:tx-data-context ctx)
-              evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
-          (apply tx-steps-fn evaluation-context args))))))
+    (realize-expand ctx undoable-changes tx-steps-fn args opts)))
 
 (defn expand
   "*transaction step* - Call a function and execute the returned transaction
@@ -1402,6 +1411,18 @@
   [sequence-label]
   [(->SequenceLabelTXS sequence-label)])
 
+(defonce/type InvalidateTXC [node-id]
+  TransactionChange
+  (perform [_this ctx]
+    (ctx-invalidate ctx node-id))
+
+  (revert [_this ctx]
+    (ctx-invalidate ctx node-id)))
+
+(defn- realize-invalidate
+  [ctx undoable-changes node-id]
+  (perform-and-conj-change ctx undoable-changes (->InvalidateTXC node-id)))
+
 (defonce/type InvalidateTXS [node-id]
   TransactionStep
   (step-type [_this]
@@ -1411,12 +1432,23 @@
     node-id)
 
   (realize [_this ctx undoable-changes]
-    (pair (ctx-invalidate ctx node-id)
-          undoable-changes)))
+    (realize-invalidate ctx undoable-changes node-id)))
 
 (defn invalidate
   [node-id]
   [(->InvalidateTXS node-id)])
+
+(defonce/type InvalidateOutputTXC [node-id output-label]
+  TransactionChange
+  (perform [_this ctx]
+    (ctx-invalidate-output ctx node-id output-label))
+
+  (revert [_this ctx]
+    (ctx-invalidate-output ctx node-id output-label)))
+
+(defn- realize-invalidate-output
+  [ctx undoable-changes node-id output-label]
+  (perform-and-conj-change ctx undoable-changes (->InvalidateOutputTXC node-id output-label)))
 
 (defonce/type InvalidateOutputTXS [node-id output-label]
   TransactionStep
@@ -1427,8 +1459,7 @@
     (pair node-id output-label))
 
   (realize [_this ctx undoable-changes]
-    (pair (ctx-invalidate-output ctx node-id output-label)
-          undoable-changes)))
+    (realize-invalidate-output ctx undoable-changes node-id output-label)))
 
 (defn invalidate-output
   [node-id output-label]

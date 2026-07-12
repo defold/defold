@@ -131,15 +131,16 @@
           (is (= #{}
                  (set/intersection output-endpoints (test-support/cached-endpoints)))))))))
 
-(deftest non-undoable-test
+(deftest invalidates-output-on-undo-and-redo-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
           node-id (g/make-node! graph-id helpers/PropertyTestNode
                     :basic-property :basic-property-value
                     :effecting-property :effecting-property-value)
           invalidated-output-endpoint (g/endpoint node-id :basic-output)
-          output-endpoints #{invalidated-output-endpoint}
-          undo-stack-count-before (g/undo-stack-count :undo/global)]
+          unaffected-output-endpoint (g/endpoint node-id :effecting-output)
+          output-endpoints #{invalidated-output-endpoint
+                             unaffected-output-endpoint}]
 
       (testing "Cached before transact."
         (helpers/encache-endpoints! output-endpoints)
@@ -147,6 +148,24 @@
                (set/intersection output-endpoints (test-support/cached-endpoints)))))
 
       (testing "Transact."
-        (g/transact
-          (g/invalidate-output node-id :basic-output))
-        (is (= undo-stack-count-before (g/undo-stack-count :undo/global)))))))
+        (let [tx-result (g/transact
+                          (g/invalidate-output node-id :basic-output))]
+          (is (= 1 (count (:undoable-changes tx-result))))
+          (is (= #{unaffected-output-endpoint}
+                 (set/intersection output-endpoints (test-support/cached-endpoints))))))
+
+      (testing "Undo."
+        (helpers/encache-endpoints! output-endpoints)
+        (is (= output-endpoints
+               (set/intersection output-endpoints (test-support/cached-endpoints))))
+        (g/undo! :undo/global)
+        (is (= #{unaffected-output-endpoint}
+               (set/intersection output-endpoints (test-support/cached-endpoints)))))
+
+      (testing "Redo."
+        (helpers/encache-endpoints! output-endpoints)
+        (is (= output-endpoints
+               (set/intersection output-endpoints (test-support/cached-endpoints))))
+        (g/redo! :undo/global)
+        (is (= #{unaffected-output-endpoint}
+               (set/intersection output-endpoints (test-support/cached-endpoints))))))))
