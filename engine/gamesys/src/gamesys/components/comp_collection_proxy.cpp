@@ -139,6 +139,15 @@ namespace dmGameSystem
         }
     }
 
+    void CancelAsyncLoadAndInitCallback(CollectionProxyComponent* proxy)
+    {
+        if (proxy->m_AsyncLoadAndInitCallbackRef)
+        {
+            dmGameObject::PostScriptUnrefMessage(&proxy->m_LoadReceiver, &proxy->m_LoadSender, proxy->m_AsyncLoadAndInitCallbackRef);
+            proxy->m_AsyncLoadAndInitCallbackRef = 0;
+        }
+    }
+
     void LoadComplete(CollectionProxyComponent* proxy, dmGameObject::Result result)
     {
         proxy->m_Loading = 0;
@@ -338,6 +347,7 @@ namespace dmGameSystem
         {
             dmResource::DeletePreloader(proxy->m_Preloader);
         }
+        CancelAsyncLoadAndInitCallback(proxy);
         if (proxy->m_Collection != 0)
         {
             dmResource::Release(context->m_Factory, proxy->m_Collection);
@@ -585,6 +595,7 @@ namespace dmGameSystem
         {
             dmResource::DeletePreloader(proxy->m_Preloader);
             proxy->m_Preloader = 0;
+            CancelAsyncLoadAndInitCallback(proxy);
         }
         if (proxy->m_Collection == 0)
         {

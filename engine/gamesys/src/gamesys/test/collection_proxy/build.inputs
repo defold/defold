@@ -2,6 +2,8 @@
 /collection_proxy/input_consume_yes.go
 /collection_proxy/script_load_api.go
 /collection_proxy/script_load_callback.collection
+/collection_proxy/script_load_cancel_proxy.go
+/collection_proxy/script_load_cancel_requester.go
 /collection_proxy/set_collection_chain_level1.collection
 /collection_proxy/set_collection_chain_level2.collection
 /collection_proxy/set_collection_chain_root.go

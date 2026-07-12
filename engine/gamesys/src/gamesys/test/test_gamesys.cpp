@@ -1457,6 +1457,69 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
     dmGameObject::PostUpdate(m_Register);
 }
 
+// Uses script_load_cancel_requester.script
+TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadDeleteProxyWhileLoading)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameObject::HInstance proxy_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_proxy.goc", dmHashString64("/proxy"));
+    ASSERT_NE((void*)0, proxy_go);
+
+    dmGameObject::HInstance requester_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_requester.goc", dmHashString64("/requester"));
+    ASSERT_NE((void*)0, requester_go);
+
+    // Let the requester script start collectionproxy.load() against the proxy object.
+    // The requester must stay alive after the proxy is deleted, otherwise script instance
+    // cleanup would hide a leaked callback reference owned by the requester.
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    // assert that the init function of script_load_cancel_requester.script
+    // has run successfully
+    lua_getglobal(L, "cp_script_load_cancel_started");
+    ASSERT_TRUE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    // assert that the proxy started loading
+    lua_getglobal(L, "cp_script_load_cancel_loading");
+    ASSERT_TRUE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, proxy_go, true);
+    // Flush the delete before another update can complete the preloader normally.
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+    }
+
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
+    // The script stores a weak reference to the callback. If the engine still
+    // holds m_AsyncLoadAndInitCallbackRef, the callback value remain reachable
+    // after GC.
+    lua_getglobal(L, "cp_script_load_cancel_refs");
+    ASSERT_TRUE(lua_istable(L, -1));
+    lua_getfield(L, -1, "callback");
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+
+    // assert that the proxy did not finish loading
+    lua_getglobal(L, "cp_script_load_cancel_ready");
+    ASSERT_FALSE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    // assert that no error occurred
+    lua_getglobal(L, "cp_script_load_cancel_error");
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, requester_go, true);
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+}
+
 TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadInitialize)
 {
     const char* go_path = "/collection_proxy/set_collection_cpp_cycle_proxy.goc";
