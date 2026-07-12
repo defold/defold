@@ -139,7 +139,7 @@ namespace dmGameSystem
         }
     }
 
-    void CancelAsyncLoadAndInitCallback(CollectionProxyComponent* proxy)
+    void UnrefAsyncLoadAndInitCallback(CollectionProxyComponent* proxy)
     {
         if (proxy->m_AsyncLoadAndInitCallbackRef)
         {
@@ -347,7 +347,7 @@ namespace dmGameSystem
         {
             dmResource::DeletePreloader(proxy->m_Preloader);
         }
-        CancelAsyncLoadAndInitCallback(proxy);
+        UnrefAsyncLoadAndInitCallback(proxy);
         if (proxy->m_Collection != 0)
         {
             dmResource::Release(context->m_Factory, proxy->m_Collection);
@@ -595,7 +595,7 @@ namespace dmGameSystem
         {
             dmResource::DeletePreloader(proxy->m_Preloader);
             proxy->m_Preloader = 0;
-            CancelAsyncLoadAndInitCallback(proxy);
+            UnrefAsyncLoadAndInitCallback(proxy);
         }
         if (proxy->m_Collection == 0)
         {
