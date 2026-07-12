@@ -757,6 +757,14 @@ namespace dmGameSystem
 
         if (params.m_Message->m_Id == COLLECTION_PROXY_LOAD_HASH || params.m_Message->m_Id == COLLECTION_PROXY_ASYNC_LOAD_HASH)
         {
+            // already async loading the collection, send error and exit early
+            if (proxy->m_AsyncLoadAndInitCallbackRef)
+            {
+                PostProxyErrorMessage(dmGameObject::RESULT_UNKNOWN_ERROR, &params.m_Message->m_Receiver, &params.m_Message->m_Sender, params.m_Message->m_UserData1);
+                dmGameObject::PostScriptUnrefMessage(&params.m_Message->m_Receiver, &params.m_Message->m_Sender, params.m_Message->m_UserData1);
+                return dmGameObject::UPDATE_RESULT_OK;
+            }
+
             bool load_async = COLLECTION_PROXY_ASYNC_LOAD_HASH == params.m_Message->m_Id;
             dmGameObject::Result r = CompCollectionProxyLoadInternal(context, proxy, 0, 0,
                                             &params.m_Message->m_Sender, &params.m_Message->m_Receiver, params.m_Message, load_async);
