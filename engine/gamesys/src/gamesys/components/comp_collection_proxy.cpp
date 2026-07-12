@@ -134,6 +134,12 @@ namespace dmGameSystem
         UnrefAsyncLoadAndInitCallback(proxy);
     }
 
+    void PostProxyErrorMessageAndUnrefCallback(int32_t code, dmMessage::URL* sender, dmMessage::URL* receiver, uintptr_t callback_ref)
+    {
+        PostProxyErrorMessage(code, sender, receiver, callback_ref);
+        dmGameObject::PostScriptUnrefMessage(sender, receiver, callback_ref);
+    }
+
     void PostProxyLoadingMessage(CollectionProxyComponent* proxy, float progress)
     {
         dmCollectionProxyDDF::ProxyLoading message;
@@ -494,7 +500,7 @@ namespace dmGameSystem
                                                             ProxyLoadCallback cbk, void* cbk_ctx,
                                                             dmMessage::URL* sender, dmMessage::URL* receiver,
                                                             dmMessage::Message* message,
-                                                            bool load_async)
+                                                            uintptr_t async_load_and_init_callback_ref, bool load_async)
     {
         assert(context != 0);
         assert(proxy != 0);
@@ -504,9 +510,9 @@ namespace dmGameSystem
         if (proxy->m_Collection != 0)
         {
             LogMessageError(message, "Collection proxy %s: '%s'", "already loaded", path);
-            if (proxy->m_AsyncLoadAndInitCallbackRef)
+            if (async_load_and_init_callback_ref)
             {
-                PostProxyErrorMessageAndUnrefCallback(proxy, dmGameObject::RESULT_UNKNOWN_ERROR);
+                PostProxyErrorMessageAndUnrefCallback(dmGameObject::RESULT_UNKNOWN_ERROR, receiver, sender, async_load_and_init_callback_ref);
             }
             if (message)
                 return dmGameObject::RESULT_OK;
@@ -516,9 +522,9 @@ namespace dmGameSystem
         if (proxy->m_Preloader != 0)
         {
             LogMessageError(message, "Collection proxy %s: '%s'", "already being loaded", path);
-            if (proxy->m_AsyncLoadAndInitCallbackRef)
+            if (async_load_and_init_callback_ref)
             {
-                PostProxyErrorMessageAndUnrefCallback(proxy, dmGameObject::RESULT_UNKNOWN_ERROR);
+                PostProxyErrorMessageAndUnrefCallback(dmGameObject::RESULT_UNKNOWN_ERROR, receiver, sender, async_load_and_init_callback_ref);
             }
             if (message)
                 return dmGameObject::RESULT_OK;
@@ -532,9 +538,9 @@ namespace dmGameSystem
         if (dmResource::FindByHash(context->m_Factory, canonical_path_hash) != 0)
         {
             LogMessageError(message, "Collection proxy %s: '%s'", "already loaded", path);
-            if (proxy->m_AsyncLoadAndInitCallbackRef)
+            if (async_load_and_init_callback_ref)
             {
-                PostProxyErrorMessageAndUnrefCallback(proxy, dmGameObject::RESULT_ALREADY_REGISTERED);
+                PostProxyErrorMessageAndUnrefCallback(dmGameObject::RESULT_ALREADY_REGISTERED, receiver, sender, async_load_and_init_callback_ref);
             }
             return dmGameObject::RESULT_ALREADY_REGISTERED;
         }
@@ -552,6 +558,7 @@ namespace dmGameSystem
 
         proxy->m_Callback = cbk;
         proxy->m_CallbackCtx = cbk_ctx;
+        proxy->m_AsyncLoadAndInitCallbackRef = async_load_and_init_callback_ref;
         proxy->m_Loading = 1;
 
         if (load_async)
@@ -574,12 +581,12 @@ namespace dmGameSystem
 
     dmGameObject::Result CompCollectionProxyLoadAsync(HCollectionProxyWorld world, HCollectionProxyComponent proxy, ProxyLoadCallback cbk, void* cbk_ctx)
     {
-        return CompCollectionProxyLoadInternal(world->m_Context, proxy, cbk, cbk_ctx, 0, 0, 0, true);
+        return CompCollectionProxyLoadInternal(world->m_Context, proxy, cbk, cbk_ctx, 0, 0, 0, 0, true);
     }
 
     dmGameObject::Result CompCollectionProxyLoad(HCollectionProxyWorld world, HCollectionProxyComponent proxy, ProxyLoadCallback cbk, void* cbk_ctx)
     {
-        return CompCollectionProxyLoadInternal(world->m_Context, proxy, cbk, cbk_ctx, 0, 0, 0, false);
+        return CompCollectionProxyLoadInternal(world->m_Context, proxy, cbk, cbk_ctx, 0, 0, 0, 0, false);
     }
 
     static dmGameObject::Result CompCollectionProxyUnloadInternal(CollectionProxyContext* context, HCollectionProxyComponent proxy,
@@ -767,7 +774,7 @@ namespace dmGameSystem
 
             bool load_async = COLLECTION_PROXY_ASYNC_LOAD_HASH == params.m_Message->m_Id;
             dmGameObject::Result r = CompCollectionProxyLoadInternal(context, proxy, 0, 0,
-                                            &params.m_Message->m_Sender, &params.m_Message->m_Receiver, params.m_Message, load_async);
+                                            &params.m_Message->m_Sender, &params.m_Message->m_Receiver, params.m_Message, 0, load_async);
 
             return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
@@ -782,9 +789,8 @@ namespace dmGameSystem
             }
 
             bool load_async = true;
-            proxy->m_AsyncLoadAndInitCallbackRef = params.m_Message->m_UserData1;
             dmGameObject::Result r = CompCollectionProxyLoadInternal(context, proxy, 0, 0,
-                                            &params.m_Message->m_Sender, &params.m_Message->m_Receiver, params.m_Message, load_async);
+                                            &params.m_Message->m_Sender, &params.m_Message->m_Receiver, params.m_Message, params.m_Message->m_UserData1, load_async);
 
             return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
