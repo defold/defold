@@ -501,16 +501,6 @@ namespace dmGameSystem
 
         const char* path = GetCollectionResorcePath(proxy);
 
-        if (sender)
-            proxy->m_LoadSender = *sender;
-        else
-            dmMessage::ResetURL(&proxy->m_LoadSender);
-
-        if (receiver)
-            proxy->m_LoadReceiver = *receiver;
-        else
-            dmMessage::ResetURL(&proxy->m_LoadReceiver);
-
         if (proxy->m_Collection != 0)
         {
             LogMessageError(message, "Collection proxy %s: '%s'", "already loaded", path);
@@ -550,6 +540,16 @@ namespace dmGameSystem
         }
 
         proxy->m_Unloaded = 0;
+        if (sender)
+            proxy->m_LoadSender = *sender;
+        else
+            dmMessage::ResetURL(&proxy->m_LoadSender);
+
+        if (receiver)
+            proxy->m_LoadReceiver = *receiver;
+        else
+            dmMessage::ResetURL(&proxy->m_LoadReceiver);
+
         proxy->m_Callback = cbk;
         proxy->m_CallbackCtx = cbk_ctx;
         proxy->m_Loading = 1;
