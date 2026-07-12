@@ -616,61 +616,56 @@
         (realize-populate-overrides ctx undoable-changes to-id)))))
 
 (defn- mark-property-state-changes
-  [new-ctx old-ctx node-id property-label]
-  (let [old-basis (:basis old-ctx)
-        new-basis (:basis new-ctx)
-        old-node (gt/node-by-id-at old-basis node-id)
-        new-node (gt/node-by-id-at new-basis node-id)]
-    (if-not new-node
-      new-ctx
-      (let [old-value (gt/get-property old-node old-basis property-label)
-            new-value (gt/get-property new-node new-basis property-label)
-            node-type (gt/node-type new-node)
+  [ctx node-id property-label]
+  ;; This is called after making changes to properties from TransactionChanges.
+  ;; We don't bother to check if the property value changed or if its overridden
+  ;; state changed, because evaluating the value-fns can potentially be
+  ;; expensive. Besides, we're already skipping creating TransactionChanges for
+  ;; unchanged properties when we realize the TransactionSteps.
+  (let [basis (:basis ctx)
+        node (gt/node-by-id-at basis node-id)]
+    (if-not node
+      ctx
+      (let [node-type (gt/node-type node)
+            is-override-node (gt/original node)
             is-declared-property (contains? (in/all-properties node-type) property-label)
 
             invalidated-output-labels
-            (cond-> (cond
-                      (= old-value new-value)
-                      []
+            (cond-> (if is-declared-property
+                      [property-label]
+                      [property-label :_properties]) ; :_properties is not automatically invalidated for us, so we must do it ourselves.
 
-                      (not is-declared-property)
-                      [property-label :_properties] ; :_properties is not automatically invalidated for us, so we must do it ourselves.
-
-                      :else
-                      [property-label])
-
-              (not= (gt/property-overridden? old-node property-label)
-                    (gt/property-overridden? new-node property-label))
-              (conj :_overridden-properties))]
+              is-override-node
+              (conj :_overridden-properties))] ; This is a map of property-label->value.
 
         (case (count invalidated-output-labels)
-          0 new-ctx
-          1 (mark-output-activated new-ctx node-id (invalidated-output-labels 0))
-          (mark-outputs-activated new-ctx node-id invalidated-output-labels))))))
+          0 ctx
+          1 (mark-output-activated ctx node-id (invalidated-output-labels 0))
+          (mark-outputs-activated ctx node-id invalidated-output-labels))))))
 
 (defn- ctx-perform-set-raw-property
   [ctx node-id property-label new-raw-value]
   (-> ctx
       (update :basis ig/basis-perform-set-raw-property node-id property-label new-raw-value)
-      (mark-property-state-changes ctx node-id property-label)))
+      (mark-property-state-changes node-id property-label)))
 
 (defn- ctx-revert-set-raw-property
   [ctx node-id property-label old-raw-value]
   (-> ctx
       (update :basis ig/basis-revert-set-raw-property node-id property-label old-raw-value)
-      (mark-property-state-changes ctx node-id property-label)))
+      (mark-property-state-changes node-id property-label)))
 
 (defn- ctx-perform-clear-raw-property
   [ctx node-id property-label]
   (-> ctx
       (update :basis ig/basis-perform-clear-raw-property node-id property-label)
-      (mark-property-state-changes ctx node-id property-label)))
+      (mark-property-state-changes node-id property-label)))
 
 (defn- ctx-revert-clear-raw-property
   [ctx node-id property-label old-raw-value]
   (-> ctx
       (update :basis ig/basis-revert-clear-raw-property node-id property-label old-raw-value)
-      (mark-property-state-changes ctx node-id property-label)))
+      (mark-property-state-changes node-id property-label)))
 
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
   (try
@@ -707,6 +702,44 @@
   (revert [_this ctx]
     (ctx-revert-clear-raw-property ctx node-id property-label old-raw-value)))
 
+(defn- realize-set-property-impl
+  [ctx undoable-changes node property-label old-value new-value]
+  (let [node-id (gt/node-id node)
+        node-type (gt/node-type node)
+        is-override-node (gt/original node)
+
+        ctx+undoable-changes
+        (if-let [{:keys [node-id
+                         property-label
+                         old-raw-value
+                         new-raw-value]}
+                 (ig/basis-plan-set-raw-property (:basis ctx) node-id property-label new-value)]
+          (perform-and-conj-change ctx undoable-changes (->SetRawPropertyTXC node-id property-label old-raw-value new-raw-value))
+          (pair ctx undoable-changes))
+
+        realize-setter-actions
+        (if is-override-node
+          ;; We could be introducing an override that is equal to the inherited
+          ;; value. In this case, we still want to perform the setter actions so
+          ;; that any connections made to the override node by the setter will
+          ;; shadow the inherited connections. If we do not, a later change to
+          ;; the originals property value will leak onto the override node.
+          ;; Since we're setting the new override value to be the new value, we
+          ;; can compare it against the old override value to figure out if we
+          ;; should be performing the setter actions.
+          (let [overridden-properties (gt/overridden-properties node)
+                old-override-value (get overridden-properties property-label ::not-overridden)]
+            (not= old-override-value new-value))
+          (not= old-value new-value))]
+
+    (if realize-setter-actions
+      (if-let [setter-fn (in/property-setter node-type property-label)]
+        (let [[ctx undoable-changes] ctx+undoable-changes
+              setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value new-value)]
+          (realize-tx ctx undoable-changes setter-actions))
+        ctx+undoable-changes)
+      ctx+undoable-changes)))
+
 (defn- realize-set-property
   [ctx undoable-changes node-id property-label new-value]
   (let [basis (:basis ctx)
@@ -715,20 +748,7 @@
       (pair ctx undoable-changes)
       (let [evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
             old-value (in/node-property-value node property-label evaluation-context)]
-        (if-let [{:keys [node-id
-                         property-label
-                         old-raw-value
-                         new-raw-value]}
-                 (ig/basis-plan-set-raw-property basis node-id property-label new-value)]
-          (let [change (->SetRawPropertyTXC node-id property-label old-raw-value new-raw-value)
-                [ctx undoable-changes :as ctx+undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
-            (if (= old-value new-value)
-              ctx+undoable-changes
-              (if-let [setter-fn (in/property-setter (gt/node-type node) property-label)]
-                (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value new-value)]
-                  (realize-tx ctx undoable-changes setter-actions))
-                ctx+undoable-changes)))
-          (pair ctx undoable-changes))))))
+        (realize-set-property-impl ctx undoable-changes node property-label old-value new-value)))))
 
 (defn- realize-update-property
   [ctx undoable-changes node-id property-label update-fn args opts]
@@ -741,7 +761,7 @@
             new-value (if (:inject-evaluation-context opts)
                         (apply update-fn evaluation-context old-value args)
                         (apply update-fn old-value args))]
-        (realize-set-property ctx undoable-changes node-id property-label new-value)))))
+        (realize-set-property-impl ctx undoable-changes node property-label old-value new-value)))))
 
 (defn- realize-clear-property
   [ctx undoable-changes node-id property-label]

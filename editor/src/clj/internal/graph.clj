@@ -1323,12 +1323,14 @@
   [basis node-id property-label new-raw-value]
   (when-let [node (gt/node-by-id-at basis node-id)]
     (let [node-type (gt/node-type node)
-          assigned-properties (gt/assigned-properties node)]
-      (in/validate-property-value node-type node-id property-label new-raw-value)
-      {:node-id node-id
-       :property-label property-label
-       :old-raw-value (get assigned-properties property-label ::unassigned)
-       :new-raw-value new-raw-value})))
+          assigned-properties (gt/assigned-properties node)
+          old-raw-value (get assigned-properties property-label ::unassigned)]
+      (when (not= old-raw-value new-raw-value)
+        (in/validate-property-value node-type node-id property-label new-raw-value)
+        {:node-id node-id
+         :property-label property-label
+         :old-raw-value old-raw-value
+         :new-raw-value new-raw-value}))))
 
 (defn basis-perform-set-raw-property
   [basis node-id property-label new-raw-value]
