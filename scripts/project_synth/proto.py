@@ -66,7 +66,7 @@ PROTO_BY_EXTENSION = {
     ".camera": camera_ddf_pb2.CameraDesc,
     ".collection": gameobject_ddf_pb2.CollectionDesc,
     ".collectionfactory": gamesys_ddf_pb2.CollectionFactoryDesc,
-    ".collectionproxy": gamesys_ddf_pb2.CollectionProxyDesc,
+    ".collectionproxy": collectionproxy_ddf_pb2.CollectionProxyDesc,
     ".factory": gamesys_ddf_pb2.FactoryDesc,
     ".go": gameobject_ddf_pb2.PrototypeDesc,
     ".gui": gui_ddf_pb2.SceneDesc,
