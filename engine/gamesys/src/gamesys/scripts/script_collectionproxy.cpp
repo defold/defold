@@ -258,7 +258,6 @@ namespace dmGameSystem
         int functionref = dmScript::RefInInstance(L) - LUA_NOREF;
 
         dmhash_t message_id = dmHashString64("async_load_and_init");
-        const dmDDF::Descriptor* descriptor = dmDDF::GetDescriptorFromHash(message_id);
         dmMessage::Result r = dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)functionref, 0, 0, 0, 0);
         if (r != dmMessage::RESULT_OK)
         {
