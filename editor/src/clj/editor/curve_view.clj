@@ -307,7 +307,8 @@
                                                 :curve-view.delete-control-point
                                                 (let [[nid property id] data]
                                                   [(g/update-property nid property types/geom-delete [id])
-                                                   (g/set-property self :handle :curve-click)])
+                                                   (g/non-undoable
+                                                     (g/set-property self :handle :curve-click))])
 
                                                 :curve-view.add-control-point
                                                 (let [[nid property ^Point3d p] data
@@ -318,7 +319,8 @@
                                                       select-fn (g/node-value self :select-fn)]
                                                   (select-fn [[nid property id]] op-seq)
                                                   [(g/set-property nid property new-curve)
-                                                   (g/set-property self :handle :curve-click)]))))
+                                                   (g/non-undoable
+                                                     (g/set-property self :handle :curve-click))]))))
                                           true)
                                         (when (or (= handle :control-point) (= handle :tangent))
                                           (let [op-seq (gensym)

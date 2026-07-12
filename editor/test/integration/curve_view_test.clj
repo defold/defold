@@ -156,6 +156,7 @@
     (let [curve-view (make-curve-view! app-view 800 400)
           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))
+          controller (curve-controller curve-view)
           context (handler/->context :curve-view {} (SubSelectionProvider. app-view))
           original-curve (g/node-value emitter :particle-key-alpha)]
       (app-view/select! app-view [emitter])
@@ -170,6 +171,14 @@
       (mouse-dbl-click! curve-view 0.05 0.62)
       (is (nil? (cp emitter :particle-key-alpha 9)))
       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      ; Emitter changes are undoable, but controller changes are not
+      (g/undo! :undo/global)
+      (is (cp? [0.05 0.62] (cp emitter :particle-key-alpha 9)))
+      (is (nil? (g/node-value controller :handle)))
+      (mouse-move! curve-view 0.05 0.62)
+      (g/redo! :undo/global)
+      (is (nil? (cp emitter :particle-key-alpha 9)))
+      (is (nil? (g/node-value controller :handle)))
       ; Delete through handler
       (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
       (test-util/handler-run :edit.delete [context] {})

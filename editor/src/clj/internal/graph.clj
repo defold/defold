@@ -361,6 +361,8 @@
 
 (set! *warn-on-reflection* true)
 
+(defonce ^:private unassigned-sentinel (Object.))
+
 (defn- arc-table-next-pkid
   ^long [arc-table]
   (long (get (meta arc-table) :next-pkid 0)))
@@ -1312,10 +1314,10 @@
   [basis node property-label raw-value]
   (let [node-id (gt/node-id node)
         graph-id (gt/node-id->graph-id node-id)
-        new-node (case raw-value
-                   ::unassigned (if (gt/original node)
-                                  (gt/clear-property node basis property-label)
-                                  (dissoc node property-label))
+        new-node (if (identical? unassigned-sentinel raw-value)
+                   (if (gt/original node)
+                     (gt/clear-property node basis property-label)
+                     (dissoc node property-label))
                    (gt/set-property node basis property-label raw-value))]
     (assoc-in basis [:graphs graph-id :nodes node-id] new-node)))
 
@@ -1324,7 +1326,7 @@
   (when-let [node (gt/node-by-id-at basis node-id)]
     (let [node-type (gt/node-type node)
           assigned-properties (gt/assigned-properties node)
-          old-raw-value (get assigned-properties property-label ::unassigned)]
+          old-raw-value (get assigned-properties property-label unassigned-sentinel)]
       (when (not= old-raw-value new-raw-value)
         (in/validate-property-value node-type node-id property-label new-raw-value)
         {:node-id node-id
@@ -1350,13 +1352,13 @@
     (let [assigned-properties (gt/assigned-properties node)]
       {:node-id node-id
        :property-label property-label
-       :old-raw-value (get assigned-properties property-label ::unassigned)})))
+       :old-raw-value (get assigned-properties property-label unassigned-sentinel)})))
 
 (defn basis-perform-clear-raw-property
   [basis node-id property-label]
   (if-let [node (gt/node-by-id-at basis node-id)]
     (if (gt/original node)
-      (basis-set-raw-property-state basis node property-label ::unassigned)
+      (basis-set-raw-property-state basis node property-label unassigned-sentinel)
       (in/throw-clear-property-disallowed-exception! (gt/node-type node) property-label))
     basis))
 
@@ -1369,9 +1371,11 @@
 (defn basis-plan-update-graph-value
   [basis graph-id graph-value-key update-fn args]
   (let [graph-values (get-in basis [:graphs graph-id :graph-values])
-        old-value (get graph-values graph-value-key ::unassigned)
+        old-value (get graph-values graph-value-key unassigned-sentinel)
         new-value (apply update-fn
-                         (case old-value ::unassigned nil old-value)
+                         (if (identical? unassigned-sentinel old-value)
+                           nil
+                           old-value)
                          args)]
     {:graph-id graph-id
      :graph-value-key graph-value-key
@@ -1384,8 +1388,8 @@
 
 (defn basis-revert-update-graph-value
   [basis graph-id graph-value-key old-value]
-  (case old-value
-    ::unassigned (update-in basis [:graphs graph-id :graph-values] dissoc graph-value-key)
+  (if (identical? unassigned-sentinel old-value)
+    (update-in basis [:graphs graph-id :graph-values] dissoc graph-value-key)
     (assoc-in basis [:graphs graph-id :graph-values graph-value-key] old-value)))
 
 (defn basis-plan-connect-arc

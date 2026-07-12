@@ -114,7 +114,7 @@
                  util.coll/reduce-> [[:inner 0]]
                  util.coll/reduce-kv-> [[:inner 0]]
                  util.coll/reduce=> [[:inner 0]]
-                 util.coll/reduce=kv-> [[:inner 0]]
+                 util.coll/reduce-kv=> [[:inner 0]]
                  util.coll/run!-> [[:inner 0]]
                  util.coll/transform-> [[:inner 0]]
                  util.coll/transform-non-empty-> [[:inner 0]]

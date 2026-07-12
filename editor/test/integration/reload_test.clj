@@ -223,7 +223,7 @@
             (g/transact
               (atlas/add-images atlas-node-id [(workspace/resolve-resource (g/node-value atlas-node-id :resource) img-path)]))
             (is (g/has-undo? :undo/global))
-            (let [undo-count (count (undo-stack (g/node-id->graph-id project)))
+            (let [undo-count (count (undo-stack :undo/global))
                   anim-data (g/node-value atlas-node-id :anim-data)
                   anim (get anim-data anim-id)]
               (is (and (= 64.0 (:width anim)) (= 64.0 (:height anim))))
@@ -231,7 +231,7 @@
                 (add-img workspace img-path 128 128)
                 ;; undo count should be unchanged as this is a modification of an external (non-loadable) resource
                 ;; which should only invalidate the outputs of the resource node
-                (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+                (is (= undo-count (count (undo-stack :undo/global))))
                 (let [changed-node (project/get-resource-node project img-path)
                       anim-data (g/node-value atlas-node-id :anim-data)
                       anim (get anim-data anim-id)]

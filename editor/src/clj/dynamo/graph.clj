@@ -333,12 +333,11 @@
   undoable, actions that establish connections to the created nodes should go on
   the same undo stack. Otherwise, the connections could linger after undoing the
   creation of the nodes. The connections are owned by the target node, so making
-  connections *from* a node can safely be made non-undoable or put on a
-  different undo stack from the node creation. Touching a property from a
-  different undo stack than the node creation should also be safe as long as
-  the property is fully managed by that undo stack. For the purposes of this
-  discussion, there is no difference between an action being non-undoable or
-  being on a different undo stack.
+  connections *from* a node can be non-undoable or use a different undo stack
+  from the node creation. However, the source node must exist whenever the
+  connection stack is replayed. Property changes must share the stack used for
+  node creation if the creation can be undone, since redoing the creation
+  restores the property state captured when the node was created.
 
   Args:
     opts    optional map with transaction settings:

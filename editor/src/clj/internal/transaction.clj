@@ -46,6 +46,8 @@
 ;; Internal state
 ;; ---------------------------------------------------------------------------
 
+(defonce ^:private not-overridden-sentinel (Object.))
+
 (def ^:dynamic *tx-debug* nil)
 
 (def ^:private ^AtomicInteger next-txid (AtomicInteger. 1))
@@ -739,7 +741,7 @@
           ;; can compare it against the old override value to figure out if we
           ;; should be performing the setter actions.
           (let [overridden-properties (gt/overridden-properties node)
-                old-override-value (get overridden-properties property-label ::not-overridden)]
+                old-override-value (get overridden-properties property-label not-overridden-sentinel)]
             (not= old-override-value new-value))
           (not= old-value new-value))]
 
