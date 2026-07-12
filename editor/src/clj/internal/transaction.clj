@@ -1514,12 +1514,10 @@
    :metrics metrics-collector
    :full-invalidation full-invalidation})
 
-(def graph-identity System/identityHashCode)
-
-(defn ctx-graph-identities
+(defn ctx-graphs
   [{:keys [basis] :as _ctx}]
   {:pre [(gt/basis? basis)]}
-  (coll/map-vals graph-identity (:graphs basis)))
+  (:graphs basis))
 
 (defn update-successors
   [{:keys [^long completed-action-count successors-changed] :as ctx}]

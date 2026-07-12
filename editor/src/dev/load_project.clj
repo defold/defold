@@ -223,7 +223,7 @@
               coll/flatten-xf)))
 
         transaction-context (g/make-transaction-context transact-opts)
-        original-graph-identities (it/ctx-graph-identities transaction-context)
+        pre-tx-graphs (it/ctx-graphs transaction-context)
 
         tx-result
         (as-> transaction-context transaction-context
@@ -247,7 +247,7 @@
                 (it/finalize-update transaction-context)))
 
         _ (when tx-result
-            (g/commit-tx-result! tx-result transact-opts original-graph-identities))
+            (g/commit-tx-result! tx-result transact-opts pre-tx-graphs))
 
         migrated-resource-node-ids
         (let [basis (:basis tx-result)]

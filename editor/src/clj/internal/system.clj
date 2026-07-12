@@ -161,11 +161,11 @@
       (update :invalidate-counters bump-invalidate-counters outputs-modified)))
 
 (defn modified-graph-states
-  [post-tx-graphs original-graph-identities]
+  [pre-tx-graphs post-tx-graphs]
   (coll/transform-> post-tx-graphs
     (filter (fn [[graph-id graph]]
-              (not= (original-graph-identities graph-id)
-                    (it/graph-identity graph))))))
+              (not (identical? (pre-tx-graphs graph-id)
+                               graph))))))
 
 (defn- ensure-no-concurrent-modifications!
   [system modified-post-tx-graphs]
@@ -200,7 +200,7 @@
               {}
               nil
               false)
-        original-graph-identities (it/ctx-graph-identities ctx)
+        pre-tx-graphs (it/ctx-graphs ctx)
         ctx (reduce (fn [ctx transaction-change]
                       (-> ctx
                           (change-fn transaction-change)
@@ -209,7 +209,7 @@
                     transaction-changes)
         {:keys [nodes-deleted outputs-modified] :as tx-result} (it/finalize-applied-changes ctx)
         post-tx-graphs (get-in tx-result [:basis :graphs])
-        modified-post-tx-graphs (modified-graph-states post-tx-graphs original-graph-identities)]
+        modified-post-tx-graphs (modified-graph-states pre-tx-graphs post-tx-graphs)]
     (ensure-no-concurrent-modifications! system modified-post-tx-graphs)
     (-> system
         (commit-graph-states modified-post-tx-graphs)

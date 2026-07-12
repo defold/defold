@@ -312,11 +312,11 @@
     (it/new-transaction-context basis id-generators override-id-generator tx-data-context-map metrics-collector full-invalidation)))
 
 (defn commit-tx-result!
-  [tx-result transact-opts original-graph-identities]
+  [tx-result transact-opts pre-tx-graphs]
   (when (and (not (:dry-run transact-opts))
              (= :ok (:status tx-result)))
     (let [post-tx-graphs (get-in tx-result [:basis :graphs])
-          modified-post-tx-graphs (is/modified-graph-states post-tx-graphs original-graph-identities)
+          modified-post-tx-graphs (is/modified-graph-states pre-tx-graphs post-tx-graphs)
           undo-key (or (:undo-key transact-opts) :undo/global)
           {:keys [label nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result]
       (swap! *the-system* is/merge-graphs modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes))
@@ -405,12 +405,12 @@
    ;; when strict evaluation-context scope checks are enabled.
    (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
          transaction-context (make-transaction-context opts)
-         original-graph-identities (it/ctx-graph-identities transaction-context)
+         pre-tx-graphs (it/ctx-graphs transaction-context)
          undoable-changes (when (:undoable opts true)
                             (transient []))
          tx-result (do-strict-evaluation-context-scope-body
                      (it/transact* transaction-context undoable-changes txs))]
-     (commit-tx-result! tx-result opts original-graph-identities)
+     (commit-tx-result! tx-result opts pre-tx-graphs)
      tx-result)))
 
 ;; ---------------------------------------------------------------------------
