@@ -109,7 +109,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    void PostProxyErrorMessage(uint32_t code, dmMessage::URL* sender, dmMessage::URL* receiver, uintptr_t callback_ref)
+    void PostProxyErrorMessage(int32_t code, dmMessage::URL* sender, dmMessage::URL* receiver, uintptr_t callback_ref)
     {
         dmCollectionProxyDDF::ProxyError message;
         message.m_Code = code;
@@ -120,7 +120,7 @@ namespace dmGameSystem
             dmGameObject::PostScriptUnrefMessage(sender, receiver, callback_ref);
         }
     }
-    void PostProxyErrorMessage(CollectionProxyComponent* proxy, uint32_t code)
+    void PostProxyErrorMessage(CollectionProxyComponent* proxy, int32_t code)
     {
         assert(proxy->m_AsyncLoadAndInitCallbackRef != 0);
         PostProxyErrorMessage(code, &proxy->m_LoadReceiver, &proxy->m_LoadSender, proxy->m_AsyncLoadAndInitCallbackRef);

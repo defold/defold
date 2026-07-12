@@ -88,5 +88,5 @@ message ProxyReady
  */
 message ProxyError
 {
-    required uint32 code = 1;
+    required int32 code = 1;
 }
