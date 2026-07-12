@@ -32,8 +32,9 @@
                               ^StackPane dropper-area
                               ^ChangeListener size-listener
                               ^WritableImage image
-                              on-deactivated
-                              prev-focus-owner])
+                              prev-focus-owner
+                              ;; 0-arg callback run when the pick ends, or nil. See `activate!`.
+                              on-deactivated])
 
 (defn- paint-pixel!
   [^GraphicsContext graphics-context x y size color]
@@ -103,13 +104,10 @@
                :dropper-area nil
                :size-listener nil
                :image nil
-               :on-deactivated nil
-               :prev-focus-owner nil)
+               :prev-focus-owner nil
+               :on-deactivated nil)
         (-> (.getChildren main-view)
             (.remove dropper-area))
-        ;; Give keyboard focus back to whatever had it before the dropper took over. Defold rebuilds
-        ;; the scene-view toolbar based on what's focused, so this is what brings the toolbar back.
-        ;; Must happen before the popup is shown again.
         (when prev-focus-owner (.requestFocus prev-focus-owner))
         (when on-deactivated (on-deactivated)))))
   nil)
@@ -144,13 +142,23 @@
                          (ui/add-child! canvas)
                          (.setStyle "-fx-background-color: transparent;"))]
       (ui/add-child! main-view dropper-area)
+      ;; NOTE: Here we check if we are within the :workbench context, if we are,
+      ;; grab the whole context and pretend the color dropper overlay is under
+      ;; it. If we don't, when the overlay grabs focus, the scene-view toolbar
+      ;; will disappear and if the color dropper was started from somewhere with
+      ;; the toolbar (like the grid popup), the owner of the popup gets rebuilt
+      ;; and calling on-deactivated ends up throwing an exception
+      (when-let [ctx-node (ui/closest-node-where
+                            (fn [^Node n] (= :workbench (:name (ui/user-data n ::ui/context))))
+                            prev-focus-owner)]
+        (ui/user-data! dropper-area ::ui/context (ui/user-data ctx-node ::ui/context)))
       (swap! color-dropper assoc
              :color nil
              :image nil
              :dropper-area dropper-area
              :size-listener size-listener
-             :on-deactivated on-deactivated
-             :prev-focus-owner prev-focus-owner)
+             :prev-focus-owner prev-focus-owner
+             :on-deactivated on-deactivated)
 
       (.bind (.widthProperty canvas) (.widthProperty dropper-area))
       (.bind (.heightProperty canvas) (.heightProperty dropper-area))
