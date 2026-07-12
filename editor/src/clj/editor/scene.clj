@@ -2256,7 +2256,7 @@
     (frame-preview! view-id)
     view-id))
 
-(defn dispose-preview
+(defn- dispose-preview
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (dispose-preview node-id evaluation-context)))
@@ -2431,7 +2431,7 @@
              view-type (or (coll/first-where #(= :scene (:id %)) (:view-types resource-type))
                            (throw (http-server/error (http-server/response 422 "Resource does not support previews\n"))))
              make-preview-fn (:make-preview-fn view-type)]
-    (let [view-graph (g/make-graph! :history false :volatility 2)]
+    (let [view-graph (g/make-graph! :volatility 2)]
       (try
         (let [opts (assoc (:scene (:view-opts resource-type))
                      :app-view app-view
@@ -2440,7 +2440,12 @@
                      :inherit-selection false
                      :project project
                      :workspace workspace)
+              undo-stack-count-before (g/undo-stack-count :undo/global)
               preview (make-preview-fn view-graph resource-node opts width height)]
+          (assert (= undo-stack-count-before (g/undo-stack-count :undo/global))
+                  (format "The %s view-type :make-preview-fn created undo steps for '%s'."
+                          (:id view-type)
+                          (resource/proj-path resource)))
           (g/with-auto-evaluation-context evaluation-context
             (try
               (let [out (ByteArrayOutputStream.)
@@ -2454,7 +2459,11 @@
                 (ImageIO/write flipped-frame "png" out)
                 (http-server/response 200 {"content-type" "image/png"} (.toByteArray out)))
               (finally
-                (dispose-preview preview evaluation-context)))))
+                (dispose-preview preview evaluation-context)
+                (assert (= undo-stack-count-before (g/undo-stack-count :undo/global))
+                        (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
+                                (:id view-type)
+                                (resource/proj-path resource)))))))
         (finally
           (g/delete-graph! view-graph))))))
 
