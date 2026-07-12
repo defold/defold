@@ -603,14 +603,14 @@ ordinary paths."
   (when-not (Boolean/getBoolean "defold.tests")
     (log/info :message (str "Loading plugin: " (resource/path resource))))
   (try
-    (let [plugin-fn (load-string (slurp resource))
-          undo-stack-count-before (g/undo-stack-count :undo/global)]
+    (let [undo-stack-revision-before (g/undo-stack-revision :undo/global)
+          plugin-fn (load-string (slurp resource))]
       (when-not (ifn? plugin-fn)
         (throw
           (ex-info "Plugin must return a function."
                    {:return-value plugin-fn})))
       (plugin-fn workspace)
-      (when (not= undo-stack-count-before (g/undo-stack-count :undo/global))
+      (when (not= undo-stack-revision-before (g/undo-stack-revision :undo/global))
         (throw
           (ex-info "Plugin must not create undo steps during load." {})))
       (when-not (Boolean/getBoolean "defold.tests")

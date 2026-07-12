@@ -63,6 +63,11 @@
 (defn maybe-undo [system undo-key]
   (-> system :undo (get undo-key)))
 
+(defn undo-stack-revision [system undo-key]
+  (if-let [undo (maybe-undo system undo-key)]
+    (tape/revision undo)
+    0))
+
 (defn undo [system undo-key]
   (or (maybe-undo system undo-key)
       (throw
@@ -82,6 +87,10 @@
   (if-not undo
     []
     (-> undo tape/after vec)))
+
+(defn- set-undo
+  [system undo-key undo]
+  (assoc-in system [:undo undo-key] undo))
 
 (defn merge-or-push-undo
   [paper-tape label sequence-label undoable-changes]
@@ -215,10 +224,6 @@
         (commit-graph-states modified-post-tx-graphs)
         (commit-transaction-effects outputs-modified nodes-deleted))))
 
-(defn- set-undo
-  [system undo-key undo]
-  (assoc-in system [:undo undo-key] undo))
-
 (defn undo-action
   [system undo-key]
   (let [undo (undo system undo-key)
@@ -320,10 +325,11 @@
 
 (defn- register-undoable-changes
   [system undo-key label sequence-label undoable-changes]
-  (cond-> system
-          (coll/not-empty undoable-changes)
-          (update-in [:undo undo-key]
-                     #(merge-or-push-undo (or % (new-undo)) label sequence-label undoable-changes))))
+  (if (coll/empty? undoable-changes)
+    system
+    (let [undo (or (maybe-undo system undo-key) (new-undo))
+          undo (merge-or-push-undo undo label sequence-label undoable-changes)]
+      (set-undo system undo-key undo))))
 
 (defn merge-graphs
   [system modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes]

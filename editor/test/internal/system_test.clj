@@ -162,7 +162,8 @@
     (ts/with-clean-system
       (is (not (g/has-undo? ::missing)))
       (is (not (g/has-redo? ::missing)))
-      (is (= 0 (g/undo-stack-count ::missing)))))
+      (is (= 0 (g/undo-stack-count ::missing)))
+      (is (= 0 (g/undo-stack-revision ::missing)))))
 
   (testing "actions on missing undo keys throw exceptions"
     (ts/with-clean-system
@@ -324,6 +325,51 @@
                       (when seq-id
                         (g/operation-sequence seq-id))
                       (g/set-property node :touched label)])))
+
+(deftest undo-stack-revision-test
+  (testing "Non-undoable transactions do not change the revision"
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+            [root] (ts/tx-nodes (g/make-node graph-id Root :touched 0))]
+        (g/reset-undo! :undo/global)
+
+        (let [revision-before (g/undo-stack-revision :undo/global)]
+          (g/transact {:undoable false}
+            (g/set-property root :touched 1))
+
+          (is (= revision-before (g/undo-stack-revision :undo/global)))))))
+
+  (testing "Coalesced transactions change the revision without changing the stack count"
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+            [root] (ts/tx-nodes (g/make-node graph-id Root :touched 0))]
+        (g/reset-undo! :undo/global)
+        (touch root 1 ::sequence)
+
+        (let [stack-count-before (g/undo-stack-count :undo/global)
+              revision-before (g/undo-stack-revision :undo/global)]
+          (touch root 2 ::sequence)
+
+          (is (= stack-count-before (g/undo-stack-count :undo/global)))
+          (is (< revision-before (g/undo-stack-revision :undo/global)))))))
+
+  (testing "Transactions change the revision when the stack is at capacity"
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+            [root] (ts/tx-nodes (g/make-node graph-id Root :touched -1))]
+        (g/reset-undo! :undo/global)
+
+        (dotimes [value 60]
+          (touch root value))
+
+        (is (= 60 (g/undo-stack-count :undo/global)))
+
+        (let [stack-count-before (g/undo-stack-count :undo/global)
+              revision-before (g/undo-stack-revision :undo/global)]
+          (touch root 60)
+
+          (is (= stack-count-before (g/undo-stack-count :undo/global)))
+          (is (= (inc revision-before) (g/undo-stack-revision :undo/global))))))))
 
 (deftest undo-coalescing
   (testing "Transactions with no sequence-id each make an undo point"

@@ -2360,9 +2360,9 @@
                      :localization localization
                      :tab tab})
         make-view-fn (:make-view-fn view-type)
-        undo-stack-count-before (g/undo-stack-count :undo/global)
+        undo-stack-revision-before (g/undo-stack-revision :undo/global)
         view (make-view-fn view-graph parent resource-node opts)]
-    (assert (= undo-stack-count-before (g/undo-stack-count :undo/global))
+    (assert (= undo-stack-revision-before (g/undo-stack-revision :undo/global))
             (format "The %s view-type :make-view-fn created undo steps for '%s'."
                     (:id view-type)
                     (resource/proj-path resource)))
@@ -3143,16 +3143,16 @@
                                         :select-fn select-fn
                                         :project project
                                         :workspace workspace)
-                                 undo-stack-count-before (g/undo-stack-count :undo/global)
+                                 undo-stack-revision-before (g/undo-stack-revision :undo/global)
                                  preview (make-preview-fn view-graph resource-node opts 256 256)]
-                             (assert (= undo-stack-count-before (g/undo-stack-count :undo/global))
+                             (assert (= undo-stack-revision-before (g/undo-stack-revision :undo/global))
                                      (format "The %s view-type :make-preview-fn created undo steps for '%s'."
                                              (:id view-type)
                                              (resource/proj-path resource)))
                              (.setImage image-view ^Image (g/node-value preview :image))
                              (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
                                (dispose-preview-fn preview))
-                             (assert (= undo-stack-count-before (g/undo-stack-count :undo/global))
+                             (assert (= undo-stack-revision-before (g/undo-stack-revision :undo/global))
                                      (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
                                              (:id view-type)
                                              (resource/proj-path resource)))

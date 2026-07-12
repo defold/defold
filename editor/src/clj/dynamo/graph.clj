@@ -2120,6 +2120,12 @@
   (let [undo-stack (is/undo-stack (is/maybe-undo @*the-system* undo-key))]
     (count undo-stack)))
 
+(defn undo-stack-revision
+  "Returns a monotonically increasing revision that changes whenever the undo
+  or redo state for the undo-key changes."
+  [undo-key]
+  (is/undo-stack-revision @*the-system* undo-key))
+
 (defn redo!
   "Reapplies the changes from the top redo step and moves it to the undo stack.
 
