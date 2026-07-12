@@ -7,6 +7,7 @@ cp_script_load1_ready = false
 cp_script_load2_loading = nil
 cp_script_load2_error = nil
 cp_script_load2_ready = false
+cp_script_load_legacy_posted = false
 
 
 -- this second load should fail because it will be started while the
@@ -31,6 +32,8 @@ function init(self)
             cp_script_load1_last_progress = message.progress
             if message.progress == 0 then
                 load_second()
+                msg.post("#callbackproxy", "async_load")
+                cp_script_load_legacy_posted = true
             end
         elseif message_id == hash("proxy_ready") then
             cp_script_load1_ready = true

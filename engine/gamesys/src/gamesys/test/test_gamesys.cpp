@@ -1439,6 +1439,10 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
     ASSERT_TRUE(callback1_ready);
     ASSERT_TRUE(callback2_error);
 
+    lua_getglobal(L, "cp_script_load_legacy_posted");
+    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
+    lua_pop(L, 1);
+
     lua_getglobal(L, "cp_script_load1_error");
     ASSERT_TRUE(lua_isnil(L, -1));
     lua_pop(L, 1);
