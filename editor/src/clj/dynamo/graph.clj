@@ -327,6 +327,19 @@
 (defn transact
   "Runs a transaction against the graph system.
 
+  Regarding undo:
+  It is the users responsibility to ensure undoable changes that touch the same
+  subjects are put on the same undo stack. For example, if node creation is
+  undoable, actions that establish connections to the created nodes should go on
+  the same undo stack. Otherwise, the connections could linger after undoing the
+  creation of the nodes. The connections are owned by the target node, so making
+  connections *from* a node can safely be made non-undoable or put on a
+  different undo stack from the node creation. Touching a property from a
+  different undo stack than the node creation should also be safe as long as
+  the property is fully managed by that undo stack. For the purposes of this
+  discussion, there is no difference between an action being non-undoable or
+  being on a different undo stack.
+
   Args:
     opts    optional map with transaction settings:
               :dry-run
@@ -2074,7 +2087,9 @@
   (is/graph-time @*the-system* graph-id))
 
 (defn delete-graph!
-  "Given a `graph-id`, deletes it from the system
+  "Given a `graph-id`, deletes it from the system. It is assumed that there are
+  no changes on the undo stack that operate on the deleted graph. Otherwise,
+  calling g/undo! after g/delete-graph! will likely cause runtime errors.
 
   Example:
 
