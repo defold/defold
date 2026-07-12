@@ -350,7 +350,8 @@
     (ctx-revert-add-override ctx override-id)))
 
 (defn- realize-add-override [ctx undoable-changes override-id root-node-id traverse-fn init-props-fn]
-  (if-let [{:keys [override-id override]}
+  (if-let [{:keys [override-id
+                   override]}
            (ig/basis-plan-add-override (:basis ctx) override-id root-node-id traverse-fn init-props-fn)]
     (perform-and-conj-change ctx undoable-changes (->AddOverrideTXC override-id override))
     (pair ctx undoable-changes)))
@@ -456,11 +457,16 @@
                  node-ids))))))
 
 (defn realize-update-overrides
-  [{:keys [override-nodes-affected-ordered] :as ctx} undoable-changes]
+  [{:keys [override-nodes-affected-ordered override-nodes-affected-undoability] :as ctx} undoable-changes]
   (du/measuring (:metrics ctx) :update-overrides
     (coll/reduce-> override-nodes-affected-ordered (pair ctx undoable-changes)
       (fn [[ctx undoable-changes] node-id]
-        (realize-populate-overrides ctx undoable-changes node-id)))))
+        (let [undoable (override-nodes-affected-undoability node-id ::not-found)]
+          (assert (not= ::not-found undoable))
+          (if undoable
+            (realize-populate-overrides ctx undoable-changes node-id)
+            (let [[ctx] (realize-populate-overrides ctx nil node-id)]
+              (pair ctx undoable-changes))))))))
 
 (defn- ctx-perform-clear-override-nodes [ctx original-node-id override-node-ids]
   (let [old-basis (:basis ctx)
@@ -578,7 +584,8 @@
         (coll/reduce-> (keys from-id->to-id) (pair ctx undoable-changes)
           (fn [[ctx undoable-changes :as ctx+undoable-changes] from-id]
             (let [override-node-ids (ig/get-overrides basis from-id)]
-              (if-let [{:keys [original-node-id override-node-ids]}
+              (if-let [{:keys [original-node-id
+                               override-node-ids]}
                        (ig/basis-plan-clear-override-nodes (:basis ctx) from-id override-node-ids)]
                 (perform-and-conj-change ctx undoable-changes (->ClearOverrideNodesTXC original-node-id override-node-ids))
                 ctx+undoable-changes))))
@@ -588,7 +595,9 @@
         (coll/reduce-> overrides-to-fix (pair ctx undoable-changes)
           (fn [[ctx undoable-changes :as ctx+undoable-changes] [override-id override]]
             (let [new-override (update override :root-id from-id->to-id)]
-              (if-let [{:keys [override-id old-override new-override]}
+              (if-let [{:keys [override-id
+                               old-override
+                               new-override]}
                        (ig/basis-plan-replace-override (:basis ctx) override-id new-override)]
                 (perform-and-conj-change ctx undoable-changes (->ReplaceOverrideRootTXC override-id old-override new-override))
                 ctx+undoable-changes))))
@@ -605,7 +614,9 @@
                   override-node (gt/node-by-id-at basis override-node-id)
                   current-original-id (gt/original override-node)
                   new-original-id (from-id->to-id current-original-id)]
-              (if-let [{:keys [override-node-id old-original-node-id new-original-node-id]}
+              (if-let [{:keys [override-node-id
+                               old-original-node-id
+                               new-original-node-id]}
                        (ig/basis-plan-repoint-override-node basis override-node-id new-original-id)]
                 (perform-and-conj-change ctx undoable-changes (->RepointOverrideNodeTXC override-node-id old-original-node-id new-original-node-id))
                 ctx+undoable-changes))))]
@@ -836,14 +847,18 @@
     (apply fn args))
   ctx)
 
-(defn- mark-override-nodes-affected [ctx target-id]
-  (let [override-nodes-affected-seen (:override-nodes-affected-seen ctx)]
-    (if (contains? override-nodes-affected-seen target-id)
-      ctx
+(defn- mark-override-nodes-affected [ctx target-id undoable]
+  (let [override-nodes-affected-undoability (:override-nodes-affected-undoability ctx)
+        previous-mark-undoability (get override-nodes-affected-undoability target-id ::not-found)]
+    (if (= ::not-found previous-mark-undoability)
       (let [override-nodes-affected-ordered (:override-nodes-affected-ordered ctx)]
         (assoc ctx
-          :override-nodes-affected-seen (conj override-nodes-affected-seen target-id)
-          :override-nodes-affected-ordered (conj override-nodes-affected-ordered target-id))))))
+          :override-nodes-affected-undoability (assoc override-nodes-affected-undoability target-id undoable)
+          :override-nodes-affected-ordered (conj override-nodes-affected-ordered target-id)))
+      (do
+        (assert (= previous-mark-undoability undoable)
+                "Cannot mix undoable and non-undoable changes to an override node in the same transaction.")
+        ctx))))
 
 (defmacro ^:private assert-schema-type-compatible
   [source-id source-label output-nodetype output-valtype target-id target-label input-nodetype input-valtype]
@@ -876,7 +891,7 @@
     (assert-schema-type-compatible source-id source-label output-nodetype output-valtype target-id target-label input-nodetype input-valtype)))
 
 (defn- ctx-connect-arcs
-  [ctx arc-pkid-entries]
+  [ctx arc-pkid-entries undoable]
   (let [old-basis (:basis ctx)
 
         [ctx changed-arcs]
@@ -904,7 +919,7 @@
                                 ;; sub-graph and create override nodes for each
                                 ;; node. This happens once the transaction
                                 ;; concludes in realize-update-overrides.
-                                (mark-override-nodes-affected target-id)))]
+                                (mark-override-nodes-affected target-id undoable)))]
                   (pair ctx changed-arcs))))))
 
         new-basis (:basis ctx)]
@@ -937,8 +952,8 @@
         (arc-successor-changes old-basis new-basis changed-arcs)))))
 
 (defn- ctx-perform-connect-arcs
-  [ctx arc-pkid-entries]
-  (ctx-connect-arcs ctx arc-pkid-entries))
+  [ctx arc-pkid-entries undoable]
+  (ctx-connect-arcs ctx arc-pkid-entries undoable))
 
 (defn- ctx-revert-connect-arcs
   [ctx arc-pkid-entries]
@@ -949,8 +964,8 @@
   (ctx-disconnect-arcs ctx arc-pkid-entries))
 
 (defn- ctx-revert-disconnect-arcs
-  [ctx arc-pkid-entries]
-  (ctx-connect-arcs ctx arc-pkid-entries))
+  [ctx arc-pkid-entries undoable]
+  (ctx-connect-arcs ctx arc-pkid-entries undoable))
 
 (defn- ctx-invalidate [ctx node-id]
   (if (gt/node-by-id-at (:basis ctx) node-id)
@@ -975,7 +990,8 @@
     (ctx-revert-add-nodes ctx added-nodes introduced-node->overrides)))
 
 (defn- realize-add-nodes [ctx undoable-changes added-nodes]
-  (if-let [{:keys [added-nodes introduced-node->overrides]}
+  (if-let [{:keys [added-nodes
+                   introduced-node->overrides]}
            (ig/basis-plan-add-nodes (:basis ctx) added-nodes)]
     (-> (perform-and-conj-change ctx undoable-changes (->AddNodesTXC added-nodes introduced-node->overrides))
         (coll/reduce=> added-nodes
@@ -1177,7 +1193,10 @@
 
 (defn- realize-update-graph-value
   [ctx undoable-changes graph-id graph-value-key update-fn args]
-  (if-let [{:keys [graph-id graph-value-key old-value new-value]}
+  (if-let [{:keys [graph-id
+                   graph-value-key
+                   old-value
+                   new-value]}
            (ig/basis-plan-update-graph-value (:basis ctx) graph-id graph-value-key update-fn args)]
     (perform-and-conj-change ctx undoable-changes (->UpdateGraphValueTXC graph-id graph-value-key old-value new-value))
     (pair ctx undoable-changes)))
@@ -1222,24 +1241,24 @@
   [(->CallbackTXS callback-fn args opts)])
 
 (defonce/type ConnectArcsTXC
-  [arc-pkid-entries]
+  [arc-pkid-entries undoable]
 
   TransactionChange
   (perform [_this ctx]
-    (ctx-perform-connect-arcs ctx arc-pkid-entries))
+    (ctx-perform-connect-arcs ctx arc-pkid-entries undoable))
 
   (revert [_this ctx]
     (ctx-revert-connect-arcs ctx arc-pkid-entries)))
 
 (defonce/type DisconnectArcsTXC
-  [arc-pkid-entries]
+  [arc-pkid-entries undoable]
 
   TransactionChange
   (perform [_this ctx]
     (ctx-perform-disconnect-arcs ctx arc-pkid-entries))
 
   (revert [_this ctx]
-    (ctx-revert-disconnect-arcs ctx arc-pkid-entries)))
+    (ctx-revert-disconnect-arcs ctx arc-pkid-entries undoable)))
 
 (defn- override-node-ids-removed-by-disconnect [ctx arc]
   (let [basis (:basis ctx)
@@ -1272,7 +1291,9 @@
   [ctx undoable-changes arc]
   (if-let [{:keys [arc-pkid-entries]}
            (ig/basis-plan-disconnect-arc (:basis ctx) arc)]
-    (let [[ctx undoable-changes] (perform-and-conj-change ctx undoable-changes (->DisconnectArcsTXC arc-pkid-entries))
+    (let [undoable (some? undoable-changes)
+          change (->DisconnectArcsTXC arc-pkid-entries undoable)
+          [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)
 
           deleted-override-node-ids
           (coll/into-> arc-pkid-entries []
@@ -1304,7 +1325,9 @@
           (assert-type-compatible source-id source source-label target-id target target-label)
           (if-let [{:keys [arc-pkid-entries]}
                    (ig/basis-plan-connect-arc (:basis ctx) arc)]
-            (perform-and-conj-change ctx undoable-changes (->ConnectArcsTXC arc-pkid-entries))
+            (let [undoable (some? undoable-changes)
+                  change (->ConnectArcsTXC arc-pkid-entries undoable)]
+              (perform-and-conj-change ctx undoable-changes change))
             ctx+undoable-changes))
         (pair ctx undoable-changes))
       (pair ctx undoable-changes))))
@@ -1503,7 +1526,7 @@
    :nodes-added []
    :nodes-deleted {}
    :outputs-modified #{}
-   :override-nodes-affected-seen #{}
+   :override-nodes-affected-undoability {}
    :override-nodes-affected-ordered []
    :successors-changed {}
    :node-id-generators node-id-generators

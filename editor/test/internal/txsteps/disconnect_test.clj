@@ -736,6 +736,64 @@
         (g/redo! :undo/global)
         (ensure-after!)))))
 
+(deftest override-node-deletion-from-non-undoable-disconnect-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [target-node-id
+           source-node-id
+           override-target-node-id
+           override-source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [target-node-id helpers/ConnectionTargetNode
+                 source-node-id [helpers/ConnectionSourceNode :property :before]]
+                (g/connect source-node-id :property-output target-node-id :regular-cascade-delete-input)
+                (g/override target-node-id))))
+
+          ensure-connected!
+          (fn ensure-connected! []
+            (is (= [override-target-node-id] (g/overrides target-node-id)))
+            (is (= [override-source-node-id] (g/overrides source-node-id)))
+            (is (= target-node-id (g/override-original override-target-node-id)))
+            (is (= source-node-id (g/override-original override-source-node-id)))
+            (is (= [[source-node-id :property-output]] (g/sources-of target-node-id :regular-cascade-delete-input)))
+            (is (= [[override-source-node-id :property-output]] (g/sources-of override-target-node-id :regular-cascade-delete-input))))
+
+          ensure-disconnected!
+          (fn ensure-disconnected! []
+            (is (= [override-target-node-id] (g/overrides target-node-id)))
+            (is (empty? (g/overrides source-node-id)))
+            (is (= target-node-id (g/override-original override-target-node-id)))
+            (is (= nil (g/node-by-id override-source-node-id)))
+            (is (= [] (g/sources-of target-node-id :regular-cascade-delete-input)))
+            (is (= [] (g/sources-of override-target-node-id :regular-cascade-delete-input))))]
+
+      (testing "Before transact."
+        (is (= :before (g/node-value source-node-id :property-output)))
+        (ensure-connected!))
+
+      (testing "Transact."
+        (g/transact
+          (concat
+            (g/set-property source-node-id :property :after)
+            (g/non-undoable
+              (g/disconnect source-node-id :property-output target-node-id :regular-cascade-delete-input))))
+        (is (= :after (g/node-value source-node-id :property-output)))
+        (ensure-disconnected!))
+
+      (testing "Undo."
+        (g/undo! :undo/global)
+        (is (= :before (g/node-value source-node-id :property-output)))
+        (ensure-disconnected!))
+
+      (testing "Redo."
+        (g/redo! :undo/global)
+        (is (= :after (g/node-value source-node-id :property-output)))
+        (ensure-disconnected!)))))
+
 (deftest undo-is-granular-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
