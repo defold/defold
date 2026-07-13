@@ -1,0 +1,1163 @@
+{
+    "issues": [
+        {
+            "author": "britzl",
+            "body": "This change makes sure that `texc_shared`, `shaderc_shared` and `modelc_shared` in the editor package are signed on Windows and macOS. The Windows and macOS versions of `dmengine`, `dmengine_release` and `dmengine_headless` are also signed.",
+            "closed_issues": [
+                12166
+            ],
+            "duplicate": false,
+            "issue_number": 12166,
+            "labels": [
+                "more info",
+                "editor",
+                "bob",
+                "windows"
+            ],
+            "mergecommit": "20e92f8305ee6dde99b493435e5c56e29f161ed9",
+            "pr_number": 12305,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Sign executables and shared libraries",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12305"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We added a `modal` option to `editor.ui.dialog` in editor scripts. Set `modal = false` to keep the dialog open while users continue working in the editor behind it.\r\n\r\nThis is useful for editor-script tools, tutorials, and assistants that need to stay visible while the user selects files, edits scenes, or changes properties in the main editor.",
+            "closed_issues": [
+                11439
+            ],
+            "duplicate": false,
+            "issue_number": 11439,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts",
+                "quick win?",
+                "onboarding"
+            ],
+            "mergecommit": "203319272372cc809750040f08844016517cf111",
+            "pr_number": 12470,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add non-modal option to dialogs created by editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12470"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Nested editor script dialogs are now blocking, unless exlicitly non-modal.",
+            "closed_issues": [
+                10219
+            ],
+            "duplicate": false,
+            "issue_number": 10219,
+            "labels": [
+                "bug",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "4021f30f4c3cd6d7b0af7e7714b0385f6e9db0bb",
+            "pr_number": 12475,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Make nested editor script dialogs blocking (unless explicitly non-modal)",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12475"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now it's possible to create resizable dialogs with predefined width and/or height using editor scripts!\r\n\r\n```lua\r\neditor.ui.dialog({title = \"Dialog\", width = 720, height = 600})\r\neditor.ui.dialog({title = \"Width-only dialog\", width = 720})\r\neditor.ui.dialog({title = \"Height-only dialog\", height = 600})\r\n```",
+            "closed_issues": [
+                11967
+            ],
+            "duplicate": false,
+            "issue_number": 11967,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts",
+                "quick win?",
+                "ux"
+            ],
+            "mergecommit": "2978a4f0c63496272770b0de36b98b94994e473f",
+            "pr_number": 12474,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Allow setting width, height, and resizable properties on dialogs",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12474"
+        },
+        {
+            "author": "JCash",
+            "body": "To access the engine HTTP service from an extension, fetch HTTP_SERVICE_CONTEXT_NAME from the extension context registry during your extension `Initialize` function:\r\n\r\n```c\r\n#include <dmsdk/dlib/http.h>\r\n#include <dmsdk/extension/extension.h>\r\n\r\nstatic HttpService* g_HttpService = 0;\r\n\r\nstatic dmExtension::Result ExtensionInitialize(dmExtension::Params* params)\r\n{\r\n    HContextRegistry context_registry = ExtensionParamsGetContextRegistry((ExtensionParams*)params);\r\n    g_HttpService = (HttpService*) ContextRegistryGet(context_registry, HTTP_SERVICE_CONTEXT_NAME);\r\n\r\n    if (!g_HttpService)\r\n    {\r\n        return dmExtension::RESULT_INIT_ERROR;\r\n    }\r\n\r\n    return dmExtension::RESULT_OK;\r\n}\r\n```\r\n\r\nA basic GET request through http.h looks like this:\r\n\r\n```c\r\n#include <dmsdk/dlib/http.h>\r\n\r\nstatic HttpCallbackResult HttpResponse(HttpRequest* request, void* user_data, const HttpResponseInfo* response)\r\n{\r\n    switch (response->m_Event)\r\n    {\r\n        case HTTP_RESPONSE_EVENT_HEADER:\r\n            // response->m_Header / response->m_HeaderSize\r\n            break;\r\n\r\n        case HTTP_RESPONSE_EVENT_DATA:\r\n            // response->m_Data / response->m_DataSize\r\n            break;\r\n\r\n        case HTTP_RESPONSE_EVENT_COMPLETE:\r\n            // response->m_Result and response->m_StatusCode\r\n            break;\r\n\r\n        default:\r\n            break;\r\n    }\r\n\r\n    return HTTP_CALLBACK_RESULT_CONTINUE;\r\n}\r\n\r\nstatic HttpResult PushGetRequest(HttpService* http_service, const char* url)\r\n{\r\n    HttpRequest* request = 0;\r\n    HttpRequestHandle handle = HTTP_REQUEST_HANDLE_INVALID;\r\n\r\n    HttpResult result = HttpNewRequest(&request);\r\n    if (result == HTTP_RESULT_OK)\r\n        result = HttpSetMethod(request, \"GET\");\r\n    if (result == HTTP_RESULT_OK)\r\n        result = HttpSetURL(request, url);\r\n    if (result == HTTP_RESULT_OK)\r\n        result = HttpSetResponseCallback(request, HttpResponse, 0);\r\n    if (result == HTTP_RESULT_OK)\r\n        result = HttpPushRequest(http_service, request, &handle);\r\n\r\n    if (result != HTTP_RESULT_OK)\r\n    {\r\n        HttpDeleteRequest(request);\r\n    }\r\n\r\n    return result;\r\n}\r\n```",
+            "closed_issues": [
+                12428
+            ],
+            "duplicate": false,
+            "issue_number": 12428,
+            "labels": [
+                "feature request",
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "d97519d50fed47fab5f34ce677b8eced5096ad53",
+            "pr_number": 12515,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "dmSDK: Added support for C api to do http requests",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12515"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We now show a notification popup that suggests reloading the editor scripts and fetching libraries when the dependencies list has changed.",
+            "closed_issues": [
+                6557
+            ],
+            "duplicate": false,
+            "issue_number": 6557,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts",
+                "quick win?"
+            ],
+            "mergecommit": "2c363de1dac8910bda2fd69ea2abc2105f2d2cf1",
+            "pr_number": 12483,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Show a notification when editor scripts should be reloaded",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12483"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now commands that target `Code` location will show up in the Code editor context menu.",
+            "closed_issues": [
+                11529
+            ],
+            "duplicate": false,
+            "issue_number": 11529,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "0596ed0d986985cd77e547bec17fa31d1b196130",
+            "pr_number": 12487,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add Code location for editor script commands",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12487"
+        },
+        {
+            "author": "vlaaad",
+            "body": "The editor now provides visible feedback in the status bar whenever editor scripts are reloaded.",
+            "closed_issues": [
+                11182
+            ],
+            "duplicate": false,
+            "issue_number": 11182,
+            "labels": [
+                "feature request",
+                "editor",
+                "good first issue",
+                "editor scripts"
+            ],
+            "mergecommit": "dd36423b87300af6de07490981d79fac82032716",
+            "pr_number": 12489,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Show status bar message on editor script reload",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12489"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Use `editor.fetch_libraries()` in editor scripts to fetch libraries programmatically.",
+            "closed_issues": [
+                6233
+            ],
+            "duplicate": false,
+            "issue_number": 6233,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts",
+                "quick win?"
+            ],
+            "mergecommit": "d90325d7b1c703f5d96b7fa81699d967039c866f",
+            "pr_number": 12506,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `editor.fetch_libraries()` command to editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12506"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now we emit a clear marker when clearing the console stream.\r\n\r\nThe marker is a leading newline followed by the same xterm-style escape sequence emitted by `clear`:\r\n\r\n- `\\n` preserves the previous behavior for simple line-oriented clients, which still observe an empty line on clear.\r\n- `ESC [ 3 J` clears scrollback.\r\n- `ESC [ H` moves the cursor to the home position.\r\n- `ESC [ 2 J` clears the screen.\r\n\r\nThis allows `/console/stream` users to get a proper clear notification instead of just a newline. For example, this automatically works in shell console streaming:\r\n```sh\r\ncurl -N http://localhost:$(cat .internal/editor.port)/console/stream\r\n```",
+            "closed_issues": [
+                12431
+            ],
+            "duplicate": false,
+            "issue_number": 12431,
+            "labels": [
+                "feature request",
+                "editor",
+                "quick win?",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "40d6c6e94ff3172d62894f373ddb7b36da707d6c",
+            "pr_number": 12514,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add clear console escape sequences",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12514"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now it's possible to create tab panes using editor scripts, e.g.:\r\n\r\n<img width=\"872\" height=\"632\" alt=\"Screenshot 2026-06-03 at 08 39 25\" src=\"https://github.com/user-attachments/assets/1777f3ee-f579-4cb1-a981-ffffdf47dd60\" />",
+            "closed_issues": [
+                11670
+            ],
+            "duplicate": false,
+            "issue_number": 11670,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "7386df3906bb4828c98d6567df10a0ea92a858e1",
+            "pr_number": 12513,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `editor.ui.tabs()` and `editor.ui.tab()` to editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12513"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Models using morph targets can now be instanced by using the new `SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS` vertex attribute semantic type. Similar to `mtx_world`, `mtx_normal`, specifying a vertex attribute in the shader with the name `morph_targets_weights` will signal the engine that the morph target weights will be produced in a per-instance buffer:\r\n\r\n```glsl\r\n#version 140\r\n// Per-vertex attributes\r\nin highp vec4 position;\r\nin mediump vec2 texcoord0;\r\nin mediump vec3 normal;\r\n// Per-instance\r\nin mediump mat4 mtx_world;\r\nin mediump mat4 mtx_normal;\r\nin mediump mat4 morph_targets_weights;\r\n// Morph target delta values\r\nuniform sampler2DArray morph_targets;\r\n```",
+            "closed_issues": [
+                12219
+            ],
+            "duplicate": false,
+            "issue_number": 12219,
+            "labels": [
+                "feature request",
+                "engine",
+                "model",
+                "pipeline",
+                "3d"
+            ],
+            "mergecommit": "143b1edb2a7338306efe821fe425260ae331efb9",
+            "pr_number": 12477,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add instancing support for morph targets",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12477"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Editor scripts can now inspect image files. The new `image` module can load image files, read their size, and iterate over all pixels.\r\n\r\nExample:\r\n\r\n```lua\r\nlocal img = image.load_file(\"assets/source.png\")\r\nlocal w, h = image.size(img)\r\nlocal r, g, b, a = image.pixel(img, 1, 1)\r\n\r\nfor x, y, r, g, b, a in image.pixels(img) do\r\n    print(x, y, r, g, b, a)\r\nend\r\n```",
+            "closed_issues": [
+                10994
+            ],
+            "duplicate": false,
+            "issue_number": 10994,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "d7ff14dc0f14ad43ca0f6a8dd1432bed719cf2b8",
+            "pr_number": 12530,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `image` module to editor extensions",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12530"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The editor will now disable the `Group` property of a collision object component when the `Collision Shape` property is set to a tilemap resource. The collision object groups are instead controlled by the groups defined within the tile source used by the assigned tilemap.",
+            "closed_issues": [
+                12371
+            ],
+            "duplicate": false,
+            "issue_number": 12371,
+            "labels": [
+                "feature request",
+                "editor",
+                "physics",
+                "tilemap",
+                "ux"
+            ],
+            "mergecommit": "1137e607261a2a1fb14f387d8ccf1debf823c5f5",
+            "pr_number": 12523,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Disable Collision Object \"Group\" property when it's a tilemap or tilegrid",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12523"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We added an API reference endpoint so coding agents or third-party tools can query docs from the running editor:\r\n```sh\r\ncurl -s \"http://localhost:$(cat .internal/editor.port)/ref?q=go.animate\" \\\r\n  | jq '.[0] | {name, type, brief}'\r\n{\r\n  \"name\": \"go.animate\",\r\n  \"type\": \"function\",\r\n  \"brief\": \"animates a named property of the specified game object or component\"\r\n}\r\n```",
+            "closed_issues": [
+                11994
+            ],
+            "duplicate": false,
+            "issue_number": 11994,
+            "labels": [
+                "task",
+                "editor",
+                "editor scripts",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "c233052b9a3eda01635952e5439a9b0f90a28705",
+            "pr_number": 12537,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `/ref` API endpoint to editor's HTTP server",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12537"
+        },
+        {
+            "author": "JCash",
+            "body": "The rewrite not only speeds up our builds, but also allows us to use a more broadly used build system for all our platforms.",
+            "closed_issues": [
+                12400
+            ],
+            "duplicate": false,
+            "issue_number": 12400,
+            "labels": [
+                "engine"
+            ],
+            "mergecommit": "fb34c8feaea2308e03cc4cea958a0a5566d96d22",
+            "pr_number": 12400,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Ported engine build system to CMake",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12400"
+        },
+        {
+            "author": "JCash",
+            "body": "You can now create a Visual Studio solution for the engine by calling:\r\n```bash\r\n./scripts/build.py make_solution\r\n```\r\n\r\nYou can add more features/flags:\r\n```bash\r\n./scripts/build.py make_solution -- --opt-level=0 --enable-feature=box2dv3\r\n```\r\n\r\nOnce the project is built. Open it with Visual Studio (tested with 2026), and press <kbd>F5</kbd> to debug.",
+            "closed_issues": [
+                12542
+            ],
+            "duplicate": false,
+            "issue_number": 12542,
+            "labels": [
+                "engine",
+                "windows"
+            ],
+            "mergecommit": "c2aa78cf2f3fb4c960812f84837764fe00d76fd9",
+            "pr_number": 12542,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added support for creating a Visual Studio solution",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12542"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Fixed a regression where `go.world_to_local_position()` and `go.world_to_local_transform()` no longer returned the correct values.",
+            "closed_issues": [
+                12549
+            ],
+            "duplicate": false,
+            "issue_number": 12549,
+            "labels": [
+                "bug",
+                "engine",
+                "triage"
+            ],
+            "mergecommit": "099f4b28ac5906558da5b832437e80242c783244",
+            "pr_number": 12558,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix `go.world_to_local_position` and `go.world_to_local_transform`",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12558"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "When enabling the `display->fullscreen` setting in the game.project, we now create a borderless fullscreen window instead of the old \"explicit\" fullscreen mode.",
+            "closed_issues": [
+                4752
+            ],
+            "duplicate": false,
+            "issue_number": 4752,
+            "labels": [
+                "feature request",
+                "engine",
+                "glfw"
+            ],
+            "mergecommit": "7dca2bc8b1e8b458fd4d60e9d5c08fc606981dc3",
+            "pr_number": 12551,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Use borderless windowed fullscreen mode by default for desktop platforms",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12551"
+        },
+        {
+            "author": "vlaaad",
+            "body": "On a large project the measured warm build time (when there is a build cache on disc) improved from 3m16s to 2m37s.",
+            "closed_issues": [
+                11988
+            ],
+            "duplicate": false,
+            "issue_number": 11988,
+            "labels": [
+                "task",
+                "editor",
+                "performance",
+                "investigation"
+            ],
+            "mergecommit": "1ad260490e82ca8dbc4709af4928eddf18b88076",
+            "pr_number": 12564,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve warm build performance of large projects by 19%",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12564"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "A Metal adapter has been added to the engine that can be used for both OSX and iOS devices. At the moment, this is only available when building the engine locally by passing the `--with-metal` build system switch:\r\n\r\n./script/build.py make_solution --platform=arm64-ios -- --with-metal\r\n./script/build.py build_engine --platform=arm64-macos -- --with-metal",
+            "closed_issues": [
+                12271
+            ],
+            "duplicate": false,
+            "issue_number": 12271,
+            "labels": [
+                "feature request",
+                "engine",
+                "ios",
+                "macos"
+            ],
+            "mergecommit": "2acdfd938006249fae8d9679d37bf3769bf88fe5",
+            "pr_number": 12272,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Metal graphics backend support",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12272"
+        },
+        {
+            "author": "AGulev",
+            "body": "Bob now removes temporary files created during builds, archiving, bundling, and shader compilation when the build finishes. This prevents stale temporary files from accumulating across repeated Bob runs while still allowing temporary files to be kept explicitly for debugging.",
+            "closed_issues": [
+                12591
+            ],
+            "duplicate": false,
+            "issue_number": 12591,
+            "labels": [
+                "bug",
+                "editor",
+                "investigation"
+            ],
+            "mergecommit": "744084b203c3ebc8e3d7dae1f9e5b93f563f7816",
+            "pr_number": 12595,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Clean up Bob temporary files",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12595"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "The light component has now been fully refactored to use the new `data resource format`, and the editor can now create, manipulate and preview light components. Currently, four light component types are supported:\r\n\r\n<img width=\"415\" height=\"480\" alt=\"image\" src=\"https://github.com/user-attachments/assets/7d8edbb8-1017-40fb-a21a-bb4c8b913dfa\" />\r\n\r\nIf a `LightBuffer` struct is present (and has the correct layout) in any of the shaders, the engine will automatically bind it with the populated light data from the light components. \r\n\r\n<img width=\"640\" height=\"480\" alt=\"Screen Recording 2026-05-04 at 15 27 56\" src=\"https://github.com/user-attachments/assets/8b0f7f15-f7cd-4d01-84a1-e725c28d00f0\" />\r\n\r\nTo use the `LightBuffer` in custom shaders, please refer to `builtins/materials/lighting.glsl` for the backing layout and `builtins/materials/model_lit.fp` for how to use it. The layout of the `LightBuffer` _must_ have the exact same layout as specified in the lighting.glsl include, otherwise the engine will not be able to bind the internal uniform buffer to this resource. Also note that the `MAX_LIGHT_COUNT` must be equal or less than the `Light->Max Count` setting in the game.project.\r\n\r\nNOTE a: There are four separate light resource types instead of a single .light resource type. This is an intentional design from our side which will eventually enable users to write custom light components that can hook into the light buffer and light systems automatically!\r\n\r\nNOTE b: The editor can only support at most 8 lights right now. Since we are not using uniform buffers and there is no render script support (i.e no other light representation than using standard forward lighting), we need some conservative default value. \r\n\r\nNOTE c: The light component will not work on WebGL1 / ES2 OpenGL contexts.",
+            "closed_issues": [
+                11724
+            ],
+            "duplicate": false,
+            "issue_number": 11724,
+            "labels": [
+                "task",
+                "feature request",
+                "engine",
+                "render"
+            ],
+            "mergecommit": "0b10b9a085e3fe0c1d3b4b27e54306cc63da4c1f",
+            "pr_number": 12176,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Light component support in editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12176"
+        },
+        {
+            "author": "AGulev",
+            "body": "Windows bundles with large game resource archives can now load resources at startup when archive data crosses the 2 GiB boundary, instead of failing with resource `FORMAT_ERROR` messages. The archive format also gains room for offsets beyond 4 GiB.",
+            "closed_issues": [
+                12592
+            ],
+            "duplicate": false,
+            "issue_number": 12592,
+            "labels": [
+                "bug",
+                "engine",
+                "windows"
+            ],
+            "mergecommit": "2154a10fa4dfca31497aa5b0f916980d26c61f2a",
+            "pr_number": 12600,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Support `arcd` archives over 4 GiB",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12600"
+        },
+        {
+            "author": "AGulev",
+            "body": "Lua timers can now safely cancel or restart themselves from inside their own callbacks without freeing callback state while it is still running. This prevents crashes in timer-heavy callback flows and keeps cancelled timers immediately invisible to `timer.get_info()`, `timer.trigger()`, and repeated cancellation attempts.",
+            "closed_issues": [
+                12436
+            ],
+            "duplicate": false,
+            "issue_number": 12436,
+            "labels": [
+                "bug",
+                "triage"
+            ],
+            "mergecommit": "5e9340d72b9bf28e77b606a1490fcc774de1f7b4",
+            "pr_number": 12633,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix Lua timer self-cancel crashes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12633"
+        },
+        {
+            "author": "JCash",
+            "body": "We've added support for the [SDL gamecontrollerbd.txt](https://github.com/mdqinc/SDL_GameControllerDB/blob/master/gamecontrollerdb.txt), which is a commonly used gamepad mapping file for many gamepads and platforms.\r\n\r\n* It is enabled by default, and no action is needed to migrate to this. (project setting `input.gamepad_database`\r\n* Matches runtime gamepad layouts by GUID first, then fall back to legacy device-name matching.\r\n* We've updated the `gdc` tool to output the new SDL mapping.\r\n* We've introduced the project setting `input.gamepad_deadzone` for use with the SDL mappings\r\n\r\nWe're still supporting our old `.gamepads` file for a while longer. However, we'd like to phase it out with the help of the community, by adding missing entries to the new SDL gamecontrollerdb.txt file instead. The plan is to merge changes upstream to the SDL database.\r\n\r\nUse the [GamepadTester example](https://github.com/defold/example-gamepad) to test this out.\r\n![](https://github.com/defold/example-gamepad/raw/master/example.png)",
+            "closed_issues": [
+                12066,
+                10485
+            ],
+            "duplicate": false,
+            "issue_number": 12066,
+            "labels": [
+                "feature request",
+                "engine",
+                "input",
+                "glfw"
+            ],
+            "mergecommit": "1017276fe34fcd982eace6270ebb54be090030bc",
+            "pr_number": 12539,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add SDL gamepad database support",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12539"
+        },
+        {
+            "author": "JCash",
+            "body": "We've added support for the [SDL gamecontrollerbd.txt](https://github.com/mdqinc/SDL_GameControllerDB/blob/master/gamecontrollerdb.txt), which is a commonly used gamepad mapping file for many gamepads and platforms.\r\n\r\n* It is enabled by default, and no action is needed to migrate to this. (project setting `input.gamepad_database`\r\n* Matches runtime gamepad layouts by GUID first, then fall back to legacy device-name matching.\r\n* We've updated the `gdc` tool to output the new SDL mapping.\r\n* We've introduced the project setting `input.gamepad_deadzone` for use with the SDL mappings\r\n\r\nWe're still supporting our old `.gamepads` file for a while longer. However, we'd like to phase it out with the help of the community, by adding missing entries to the new SDL gamecontrollerdb.txt file instead. The plan is to merge changes upstream to the SDL database.\r\n\r\nUse the [GamepadTester example](https://github.com/defold/example-gamepad) to test this out.\r\n![](https://github.com/defold/example-gamepad/raw/master/example.png)",
+            "closed_issues": [
+                10485
+            ],
+            "duplicate": true,
+            "issue_number": 10485,
+            "labels": [
+                "feature request",
+                "engine",
+                "input"
+            ],
+            "mergecommit": "1017276fe34fcd982eace6270ebb54be090030bc",
+            "pr_number": 12539,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add SDL gamepad database support",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12539"
+        },
+        {
+            "author": "AGulev",
+            "body": "GUI scripts can now remove a named runtime texture mapping by calling `gui.set(msg.url(), \"textures\", nil, {key = ...})`. This lets projects release runtime-created atlas resources after they are no longer used by a GUI scene.",
+            "closed_issues": [
+                12049
+            ],
+            "duplicate": false,
+            "issue_number": 12049,
+            "labels": [
+                "feature request",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "e364bd33735850d641c60cb22f0ba74120d4e078",
+            "pr_number": 12607,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Allow removing GUI runtime texture mappings",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12607"
+        },
+        {
+            "author": "JCash",
+            "body": "This fix allows you to run the tests on your connected iOS device or Simulator.\r\n\r\niOS: \r\n```bash\r\n./scripts/build.py build_engine --platform=arm64-ios --skip-docs --ios-mobileprovision /path/to/my.mobileprovision\r\n```\r\n\r\niOS Simulator: \r\n```bash\r\n./scripts/build.py build_engine --platform=x86_64-ios --skip-docs\r\n```\r\n\r\nYou can read more in `README_IOS.md` for more detailed notes.\r\n\r\nIt also allows you to create an XCode solution for the engine:\r\n```bash\r\n./scripts/build.py make_solution --platform=arm64-ios --ios-mobileprovision /path/to/my.mobileprovision\r\n```",
+            "closed_issues": [
+                12616
+            ],
+            "duplicate": false,
+            "issue_number": 12616,
+            "labels": [],
+            "mergecommit": "291e0de48fe0f6b3c4c3738bd78c4f8e57f27422",
+            "pr_number": 12616,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added iOS unit test and XCode support",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12616"
+        },
+        {
+            "author": "AGulev",
+            "body": "HTML5 builds no longer query a non-portable WebGL graphics limit during startup. Browsers that reject this parameter keep using the existing vertex-attribute based fallback, avoiding the `getParameter` `INVALID_ENUM` warning while preserving native OpenGL behavior.",
+            "closed_issues": [
+                12628
+            ],
+            "duplicate": false,
+            "issue_number": 12628,
+            "labels": [
+                "bug",
+                "html5"
+            ],
+            "mergecommit": "bb0af43ffd45681038b17b609b5fc4b6be6dda1f",
+            "pr_number": 12628,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Avoid WebGL getParameter INVALID_ENUM on startup",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12628"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The Recent Projects list on the editor welcome screen used to have a 30 day expiration date. This has been changed and projects remain in the Recent Projects list until explicitly removed by the user.",
+            "closed_issues": [
+                12605
+            ],
+            "duplicate": false,
+            "issue_number": 12605,
+            "labels": [
+                "feature request",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "1191483fb4d835536b77cb023ae8c13c0073000a",
+            "pr_number": 12637,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Welcome screen: Persist projects until user removes them (remove 30 day expiration date)",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12637"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "\u26a0\ufe0f \u26a0\ufe0f \u26a0\ufe0f If you are using custom `Info.plist` for ios/osx - please, update their content from builtins.\r\nUpdated SDKs:\r\n* iPhoneOS - 26.5\r\n* iPhoneSimulator - 26.5\r\n* MacOS - 26.5\r\n* Xcode toolchain - 26.5",
+            "closed_issues": [
+                12618
+            ],
+            "duplicate": false,
+            "issue_number": 12618,
+            "labels": [
+                "task",
+                "extender",
+                "macos"
+            ],
+            "mergecommit": "9c3475b0d4ced4030efd01445c7c119176ab436e",
+            "pr_number": 12630,
+            "referencecommits": [
+                "0013f6cf6464aa980cb80ee54bd2d0e0653719ec"
+            ],
+            "repository": "defold",
+            "title": "Update Xcode to 26.5",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12630"
+        },
+        {
+            "author": "AGulev",
+            "body": "HTML5 builds now keep browser audio playback buffered enough to avoid glitchy music and sound effects on Samsung Internet. The sound queue adapts to browser-reported latency and detected underruns instead of relying on a fixed buffer count, so affected playback has more room to stay continuous.",
+            "closed_issues": [
+                9445,
+                10973,
+                10041,
+                10889
+            ],
+            "duplicate": false,
+            "issue_number": 9445,
+            "labels": [
+                "bug",
+                "engine",
+                "sound",
+                "html5"
+            ],
+            "mergecommit": "78dabc7459c5b8c59e7aa87b01f73362c1d432a2",
+            "pr_number": 12641,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": " Fix glitchy HTML5 sound on Samsung Internet Browser and some other cases",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12641"
+        },
+        {
+            "author": "AGulev",
+            "body": "HTML5 builds now keep browser audio playback buffered enough to avoid glitchy music and sound effects on Samsung Internet. The sound queue adapts to browser-reported latency and detected underruns instead of relying on a fixed buffer count, so affected playback has more room to stay continuous.",
+            "closed_issues": [
+                10973
+            ],
+            "duplicate": true,
+            "issue_number": 10973,
+            "labels": [
+                "bug",
+                "engine",
+                "sound",
+                "html5"
+            ],
+            "mergecommit": "78dabc7459c5b8c59e7aa87b01f73362c1d432a2",
+            "pr_number": 12641,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": " Fix glitchy HTML5 sound on Samsung Internet Browser and some other cases",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12641"
+        },
+        {
+            "author": "AGulev",
+            "body": "HTML5 builds now keep browser audio playback buffered enough to avoid glitchy music and sound effects on Samsung Internet. The sound queue adapts to browser-reported latency and detected underruns instead of relying on a fixed buffer count, so affected playback has more room to stay continuous.",
+            "closed_issues": [
+                10041
+            ],
+            "duplicate": true,
+            "issue_number": 10041,
+            "labels": [
+                "bug",
+                "engine",
+                "sound",
+                "html5"
+            ],
+            "mergecommit": "78dabc7459c5b8c59e7aa87b01f73362c1d432a2",
+            "pr_number": 12641,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": " Fix glitchy HTML5 sound on Samsung Internet Browser and some other cases",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12641"
+        },
+        {
+            "author": "AGulev",
+            "body": "HTML5 builds now keep browser audio playback buffered enough to avoid glitchy music and sound effects on Samsung Internet. The sound queue adapts to browser-reported latency and detected underruns instead of relying on a fixed buffer count, so affected playback has more room to stay continuous.",
+            "closed_issues": [
+                10889
+            ],
+            "duplicate": true,
+            "issue_number": 10889,
+            "labels": [
+                "bug",
+                "engine",
+                "sound",
+                "html5"
+            ],
+            "mergecommit": "78dabc7459c5b8c59e7aa87b01f73362c1d432a2",
+            "pr_number": 12641,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": " Fix glitchy HTML5 sound on Samsung Internet Browser and some other cases",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12641"
+        },
+        {
+            "author": "AGulev",
+            "body": "Ogg/Vorbis assets with large metadata comments can now be opened and decoded when their startup headers exceed the initial decoder input block. This prevents valid files with large embedded metadata from failing during stream initialization.",
+            "closed_issues": [
+                11044
+            ],
+            "duplicate": false,
+            "issue_number": 11044,
+            "labels": [
+                "bug",
+                "engine",
+                "sound",
+                "html5"
+            ],
+            "mergecommit": "5cb40959b213fe49036c207bf9c885d744411172",
+            "pr_number": 12642,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": " Decode Ogg/Vorbis files with large headers",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12642"
+        },
+        {
+            "author": "JCash",
+            "body": "We have added support for project dependency info in a crash dump. The information has been added in order to help when debugging issues, and replicating a debuggable build from the dependencies.\r\n\r\nThe information is not included by default, but can be included by setting the game.project setting `project.dependencies_metadata = 1`.\r\n\r\nThe information contains:\r\n* \"url\" - anonymized url (e.g \"https://github.com/defold/extension-spine/archive/refs/tags/4.6.0.zip\")\r\n* \"commit-sha1 - the commit sha1 of the .zip (e.g. \"da782a14b149238d7d30527c6816254cac1b829a\") _if available!_\r\n* \"payload-sha1\" - the sha1 checksum of the .zip itself (e.g. \"921C7AE8158669E4E6DE37CD0597529A\")\r\n\r\n_Note_: The commit sha1 is read from the metadata of the .zip file, as GitHub adds the sha1 there. This is not necessarily true for all dependencies, e.g if they are served from other hosts.\r\n\r\nYou can also use `sys.load_resource(\"/.internal/dependencies.json\")` at runtime in case you need to store your own bread crumbs.",
+            "closed_issues": [
+                11405
+            ],
+            "duplicate": false,
+            "issue_number": 11405,
+            "labels": [
+                "task",
+                "engine",
+                "editor",
+                "bob"
+            ],
+            "mergecommit": "0957fbb186239df952587a5f5a3be921fe4fced4",
+            "pr_number": 12645,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added dependency meta data to the bundle",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12645"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "A regression was fixed that would not allow certain images to be rotated, requiring extra space. Also improved the packing algorithm with extra attempts which helped reduce atlas sizes under certain cases with extrusion settings.",
+            "closed_issues": [
+                12593
+            ],
+            "duplicate": false,
+            "issue_number": 12593,
+            "labels": [
+                "bug",
+                "more info",
+                "editor",
+                "bob",
+                "atlas"
+            ],
+            "mergecommit": "a3ee26d9828c92223313f0dc455ebf56372a2180",
+            "pr_number": 12640,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix atlas packing regression",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12640"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Reduce idle editor CPU usage when the editor does not have focus. This drops CPU from around 8-12% to 3-6% on macOS.",
+            "closed_issues": [
+                12548
+            ],
+            "duplicate": false,
+            "issue_number": 12548,
+            "labels": [
+                "bug",
+                "editor",
+                "macos",
+                "performance",
+                "investigation"
+            ],
+            "mergecommit": "54a2ef119589a53eaa9819036a020521860039fe",
+            "pr_number": 12679,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve idle CPU usage",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12679"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, it's possible to query active view node in editor script commands. Views can be queried by their type: `\"code\"`, `\"scene\"`, `\"html\"`, or `\"form\"`.\r\n\r\nThe active view exposes the following properties:\r\n- `\"type\"`: the active view type\r\n- `\"resource\"`: the resource shown in the view\r\n- `\"dirty\"`: whether the view has unsaved changes\r\n\r\n```lua\r\neditor.command({\r\n    label = \"Print Active View\",\r\n    locations = {\"View\"},\r\n    query = {active_view = {type = \"code\"}},\r\n    run = function(opts)\r\n        local view = opts.active_view\r\n        local resource = editor.get(view, \"resource\")\r\n        print(editor.get(view, \"type\"))\r\n        print(editor.get(resource, \"path\"))\r\n        print(editor.get(view, \"dirty\"))\r\n    end\r\n})\r\n```",
+            "closed_issues": [
+                12658
+            ],
+            "duplicate": false,
+            "issue_number": 12658,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "613435ebfc4e565b499e4b3b93c057db2b353b29",
+            "pr_number": 12682,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `active_view` query to editor script commands",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12682"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue where calling the `dmSys::GetIfAddresses()` on Windows platforms could potentially stall for a very long time if it was called multiple times per frame.\r\n\r\nFrom scripting side, this corresponds to the `sys.get_ifaddrs()`function.",
+            "closed_issues": [
+                12694
+            ],
+            "duplicate": false,
+            "issue_number": 12694,
+            "labels": [
+                "windows",
+                "network"
+            ],
+            "mergecommit": "de28da853f34bc989739eb3716f0a8e497848d5b",
+            "pr_number": 12694,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix for calling GetIfAddresses() multiple times per frame",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12694"
+        },
+        {
+            "author": "vlaaad",
+            "body": "This should make it easier for third-party IDE integrations to discover where the Defold editor is located.\r\n\r\nOn startup, the editor writes its launcher and installation paths to:\r\n| OS      | Location |\r\n|---------|----------|\r\n| macOS   | `~/Library/Application Support/Defold/installations.json` |\r\n| Linux   | `${XDG_STATE_HOME:-~/.local/state}/Defold/installations.json` |\r\n| Windows | `%LOCALAPPDATA%\\Defold\\installations.json` |\r\n\r\nThe file is a JSON array of objects, e.g.:\r\n```json\r\n[\r\n  {\r\n    \"launcherPath\": \"/Applications/Defold.app/Contents/MacOS/Defold\",\r\n    \"installPath\": \"/Applications/Defold.app\",\r\n    \"lastLaunchedAt\": \"2026-07-06T12:34:56.789Z\"\r\n  }\r\n]\r\n```",
+            "closed_issues": [
+                12062
+            ],
+            "duplicate": false,
+            "issue_number": 12062,
+            "labels": [
+                "task",
+                "editor"
+            ],
+            "mergecommit": "448657a3e50fb1dc69acdc16fb6443e1096bdba6",
+            "pr_number": 12699,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Write Defold installation location to a well-known place",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12699"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Custom resolution settings are now stored per project.",
+            "closed_issues": [
+                12676
+            ],
+            "duplicate": false,
+            "issue_number": 12676,
+            "labels": [
+                "bug",
+                "editor",
+                "quick win?"
+            ],
+            "mergecommit": "6fc640926c86df8e641f3dd98673d4257d3cdc08",
+            "pr_number": 12702,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Make `Debug -> Set Resolution -> Custom Resolution` pref project-scoped",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12702"
+        },
+        {
+            "author": "britzl",
+            "body": "Make sure to strip libvkquality.so from debug symbols.",
+            "closed_issues": [
+                12695
+            ],
+            "duplicate": false,
+            "issue_number": 12695,
+            "labels": [
+                "bug",
+                "android",
+                "triage"
+            ],
+            "mergecommit": "ad20dd33e9aa571dd92c991e90bec166cf42a900",
+            "pr_number": 12711,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Strip debug symbols from libvkquality.so",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12711"
+        },
+        {
+            "author": "vlaaad",
+            "body": "In projects with many dependencies it is sometimes observed that fetching dependencies timeout for no reason, even when the internet connection is both stable and fast. This change increases the connection timeout to avoid timeouts.",
+            "closed_issues": [
+                12603
+            ],
+            "duplicate": false,
+            "issue_number": 12603,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "d59e190d9fbe2fb6229c4ffca0d7db4f07d48d16",
+            "pr_number": 12718,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix dependency fetch timeout issue",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12718"
+        },
+        {
+            "author": "vlaaad",
+            "body": "This fixes an issue where the Add Component context menu remained open after selecting a component in the scene view.",
+            "closed_issues": [
+                12638
+            ],
+            "duplicate": false,
+            "issue_number": 12638,
+            "labels": [
+                "bug",
+                "editor",
+                "ux"
+            ],
+            "mergecommit": "5cae3fdfe0f272329e1f2cdd6577d18955c1b1c1",
+            "pr_number": 12716,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Close Add Component context menu on selecting a component",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12716"
+        },
+        {
+            "author": "vlaaad",
+            "body": "This fixes an issue where the scene view toolbar disappeared when focus changed from Outline to a dropdown in a toolbar.",
+            "closed_issues": [
+                12674
+            ],
+            "duplicate": false,
+            "issue_number": 12674,
+            "labels": [
+                "bug",
+                "editor",
+                "scene editor",
+                "ux"
+            ],
+            "mergecommit": "1e0ed775ba12caaefe2033bd8d17d9daa306e905",
+            "pr_number": 12706,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Keep toolbar when moving focus from Outline to Toolbar dropdown",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12706"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now it's possible to create check-boxes with indeterminate state. An indeterminate state is a third visual indicator  used for a checkbox when a subset of its child items are partially selected.\r\n\r\n```lua\r\neditor.ui.check_box({\r\n    text = \"Mixed selection\",\r\n    value = true,\r\n    indeterminate = true\r\n})\r\n```",
+            "closed_issues": [
+                12547
+            ],
+            "duplicate": false,
+            "issue_number": 12547,
+            "labels": [
+                "task",
+                "editor",
+                "editor scripts"
+            ],
+            "mergecommit": "bb19a601edce1c421ba3806154828aff5887217f",
+            "pr_number": 12681,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `indeterminate` checkbox state to editor scripts UI.",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12681"
+        },
+        {
+            "author": "vlaaad",
+            "body": "The editor will now show a notification suggesting to restart the editor if a dll failed to unpack from an extension (due to a file lock or similar).",
+            "closed_issues": [
+                12329
+            ],
+            "duplicate": false,
+            "issue_number": 12329,
+            "labels": [
+                "bug",
+                "editor",
+                "extension"
+            ],
+            "mergecommit": "673e2d150f5f4113b5500867eb27c4ef8eb960e0",
+            "pr_number": 12555,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Show notification with a Restart suggestion on dll unpack failure",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12555"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, you can download files using the `path` option of the `http.request` fn:\r\n\r\n```lua\r\nlocal response = http.request(url, {\r\n    path = \"downloads/archive.zip\"\r\n})\r\n```",
+            "closed_issues": [
+                12720
+            ],
+            "duplicate": false,
+            "issue_number": 12720,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "d2edbbd6291c08464a24e77f9f0229599d9b3e90",
+            "pr_number": 12720,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Implement HTTP file download in editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12720"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, the editor's HTTP server can return PNGs of scenes in the project. This is useful for agentic workflows that need to see what the scene looks like when an agent edits it. As usual, the endpoint is documented in the OpenAPI spec, so the only thing your agent needs to use it is still the URL `http://localhost:$(cat .internal/editor.port)/openapi.json`.",
+            "closed_issues": [
+                12690
+            ],
+            "duplicate": false,
+            "issue_number": 12690,
+            "labels": [
+                "feature request",
+                "editor",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "fa6b00d17df631e48523b657ea4eeca56c0efd92",
+            "pr_number": 12715,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `/preview` endpoint that returns scenes as PNGs",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12715"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Editor scripts now report invalid resources created with `editor.create_resources()` instead of silently accepting them. For example:\r\n```lua\r\neditor.create_resources({{\"/test/invalid.go\", \"\\\"name\\\":\\\"invalid\\\"\"}})\r\n--> Created resources are invalid: /test/invalid.go\r\n```\r\n\r\nTrying to edit a broken resource also fails:\r\n```lua\r\neditor.tx.add(\"/test/invalid.go\", \"components\", { type = \"label\" })\r\n--> Cannot edit defective resource: /test/invalid.go\r\n```",
+            "closed_issues": [
+                11183
+            ],
+            "duplicate": false,
+            "issue_number": 11183,
+            "labels": [
+                "bug",
+                "editor",
+                "editor scripts",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "dbfec0cce4077aae149ab67905cdcd4386766d49",
+            "pr_number": 12499,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Improve error handling around using broken resources in editor scripts",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12499"
+        },
+        {
+            "author": "britzl",
+            "body": "Added `collectionproxy.load(url, options, callback)` to asynchronously load and initialize a collection using a collection proxy component.\r\n\r\n```lua\r\ncollectionproxy.load(\"#proxy\", nil, function(self, message_id, message, sender)\r\n\tif message_id == hash(\"proxy_ready\") then\r\n\t\tprint(\"proxy is ready\")\r\n\telseif message_id == hash(\"proxy_loading\") then\r\n\t\tprint(\"progress\", message.progress)\r\n\telseif message_id == hash(\"proxy_error\") then\r\n\t\tprint(\"error\", message.code)\r\n\tend\r\nend)\r\n```",
+            "closed_issues": [
+                3639
+            ],
+            "duplicate": false,
+            "issue_number": 3639,
+            "labels": [
+                "feature request",
+                "engine"
+            ],
+            "mergecommit": "e6486c38f6a9341ae6b4719dfcbad6b9d92995da",
+            "pr_number": 12697,
+            "referencecommits": [
+                "cd73666a465b1f05a660ccbfba406044be7f84f8"
+            ],
+            "repository": "defold",
+            "title": "Added collectionproxy.load()",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12697"
+        }
+    ],
+    "timestamp": 1783977537.463754,
+    "version": "1.13.1"
+}
