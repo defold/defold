@@ -770,6 +770,7 @@ jobs:
       {
         name: 'Download release notes',
         if: steps.release.outputs.should_release == 'true' && steps.release.outputs.requires_release_notes == 'true',
+        continue-on-error: true,
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
         with: {
           name: 'release-notes',
