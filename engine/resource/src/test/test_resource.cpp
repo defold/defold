@@ -77,6 +77,8 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
 #undef EXT_CONSTANTS
 
+static const uint32_t MANY_VALID_REFS_COUNT = 1025;
+
 class ResourceTest : public jc_test_base_class
 {
 protected:
@@ -243,7 +245,7 @@ protected:
         m_FooResourceDestroyCallCount = 0;
 
         dmResource::NewFactoryParams params;
-        params.m_MaxResources = 16;
+        params.m_MaxResources = 2048;
 
         const char* original_mount_path = GetParam();
 #if defined(DM_TEST_HTTP_SUPPORTED)
@@ -909,6 +911,25 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
     }
 
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, r);
+    dmResource::DeletePreloader(pr);
+}
+
+TEST_P(GetResourceTest, PreloadGetManyValidRefs)
+{
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/many_valid_refs.cont");
+
+    uint32_t timeout = 100*1000;
+    dmResource::Result r;
+    for (uint32_t i=0;i<1000;i++)
+    {
+        r = dmResource::UpdatePreloader(pr, 0, 0, timeout);
+        if (r == dmResource::RESULT_PENDING)
+            dmTime::Sleep(timeout);
+        else
+            break;
+    }
+
+    ASSERT_EQ(dmResource::RESULT_OK, r);
     dmResource::DeletePreloader(pr);
 }
 

@@ -9,7 +9,13 @@ set(RESOURCE_SRC_DIR "${RESOURCE_ROOT}/src")
 set(RESOURCE_TEST_RUN_DIR "${DEFOLD_RESOURCE_BINARY_DIR}/resource-test-runtime")
 set(RESOURCE_TEST_BUILD_DIR "${RESOURCE_TEST_RUN_DIR}/build/src/test")
 set(RESOURCE_TEST_DATA_SCRIPT "${RESOURCE_TEST_ROOT}/build_cmake_test_data.py")
+set(RESOURCE_MANY_VALID_REFS_COUNT 1025)
 file(MAKE_DIRECTORY "${RESOURCE_TEST_RUN_DIR}")
+
+set(RESOURCE_TEST_PROTO "${RESOURCE_TEST_ROOT}/test_resource_ddf.proto")
+set(RESOURCE_TEST_PROTO_CC "${CMAKE_CURRENT_BINARY_DIR}/test/test_resource_ddf.cpp")
+defold_protoc_gen_cpp("${RESOURCE_TEST_PROTO_CC}" "${RESOURCE_TEST_PROTO}"
+  INCLUDES "${RESOURCE_TEST_ROOT}")
 
 find_program(RESOURCE_PYTHON NAMES python3 python)
 if(NOT RESOURCE_PYTHON)
@@ -131,6 +137,25 @@ foreach(_resource_proto_message IN LISTS RESOURCE_PROTO_MESSAGE_SOURCES)
     INCLUDES "${RESOURCE_TEST_ROOT}")
   list(APPEND RESOURCE_PROTO_MESSAGE_OUTPUTS "${_resource_proto_out}")
 endforeach()
+
+set(RESOURCE_MANY_VALID_OUTPUTS "${RESOURCE_TEST_BUILD_DIR}/many_valid_refs.cont")
+math(EXPR RESOURCE_MANY_VALID_REFS_LAST "${RESOURCE_MANY_VALID_REFS_COUNT} - 1")
+foreach(_resource_index RANGE 0 ${RESOURCE_MANY_VALID_REFS_LAST})
+  set(_resource_index_padded "000${_resource_index}")
+  string(LENGTH "${_resource_index_padded}" _resource_index_length)
+  math(EXPR _resource_index_start "${_resource_index_length} - 4")
+  string(SUBSTRING "${_resource_index_padded}" ${_resource_index_start} 4 _resource_index_padded)
+  list(APPEND RESOURCE_MANY_VALID_OUTPUTS "${RESOURCE_TEST_BUILD_DIR}/many_valid_ref_${_resource_index_padded}.foo")
+endforeach()
+add_custom_command(
+  OUTPUT ${RESOURCE_MANY_VALID_OUTPUTS}
+  COMMAND "${RESOURCE_PYTHON}" "${RESOURCE_TEST_DATA_SCRIPT}" generate-many-valid-resources
+          --output-dir "${RESOURCE_TEST_BUILD_DIR}"
+          --count "${RESOURCE_MANY_VALID_REFS_COUNT}"
+  DEPENDS "${RESOURCE_TEST_DATA_SCRIPT}"
+  VERBATIM
+  COMMENT "Generating ${RESOURCE_MANY_VALID_REFS_COUNT} valid resource references")
+list(APPEND RESOURCE_PROTO_MESSAGE_OUTPUTS ${RESOURCE_MANY_VALID_OUTPUTS})
 
 set(RESOURCE_ZIP_INPUTS)
 file(GLOB_RECURSE RESOURCE_ZIP_SOURCE_INPUTS CONFIGURE_DEPENDS "${RESOURCE_TEST_ROOT}/zipfiles/*")
@@ -288,6 +313,7 @@ add_custom_target(resource_test_data DEPENDS
   ${RESOURCE_LU_OUTPUTS}
   ${RESOURCE_LU_COMPRESSED_OUTPUTS}
   ${RESOURCE_PB_OUTPUTS}
+  ${RESOURCE_MANY_VALID_OUTPUTS}
   ${RESOURCE_OVERRIDE_OUTPUTS}
   "${RESOURCE_EMPTY_SCRIPT_OUTPUT}"
   "${RESOURCE_TEST_BUILD_DIR}/somedata"
@@ -304,6 +330,7 @@ function(resource_configure_test target run_test)
     "${RESOURCE_TEST_ROOT}"
     "${RESOURCE_SRC_DIR}"
     "${RESOURCE_ROOT}/proto"
+    "${CMAKE_CURRENT_BINARY_DIR}"
     "${CMAKE_CURRENT_BINARY_DIR}/../..")
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
     testmain
@@ -349,3 +376,10 @@ defold_add_executable(test_resource_archive
   ${RESOURCE_ARCHIVE_EMBED_SOURCES})
 resource_configure_test(test_resource_archive ON)
 defold_target_link_app(test_resource_archive "${TARGET_PLATFORM}" SCOPE PRIVATE)
+
+defold_add_executable(test_resource
+  "${RESOURCE_TEST_ROOT}/test_resource.cpp"
+  "${RESOURCE_TEST_PROTO_CC}"
+  ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+resource_configure_test(test_resource ON ResourceProviderArchive ResourceProviderZip ResourceProviderFile)
+defold_target_link_app(test_resource "${TARGET_PLATFORM}" SCOPE PRIVATE)

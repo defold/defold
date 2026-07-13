@@ -7,6 +7,41 @@ import sys
 import zipfile
 
 
+def encode_varint(value):
+    encoded = bytearray()
+    while value > 0x7f:
+        encoded.append((value & 0x7f) | 0x80)
+        value >>= 7
+    encoded.append(value)
+    return encoded
+
+
+def append_length_delimited_field(message, field_number, value):
+    value = value.encode("utf-8")
+    message.extend(encode_varint((field_number << 3) | 2))
+    message.extend(encode_varint(len(value)))
+    message.extend(value)
+
+
+def generate_many_valid_resources(args):
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    container = bytearray()
+    append_length_delimited_field(container, 1, "Many Valid References")
+    for i in range(args.count):
+        resource_path = "/many_valid_ref_%04d.foo" % i
+        append_length_delimited_field(container, 2, resource_path)
+
+    with open(os.path.join(args.output_dir, "many_valid_refs.cont"), "wb") as out_file:
+        out_file.write(container)
+
+    # TestResource.ResourceFoo { x: 123 }
+    resource_foo = bytes([0x08, 0x7b])
+    for i in range(args.count):
+        with open(os.path.join(args.output_dir, "many_valid_ref_%04d.foo" % i), "wb") as out_file:
+            out_file.write(resource_foo)
+
+
 def add_to_zip_file(args):
     extra_entries = {}
     cwd = os.path.abspath(args.cwd)
@@ -45,6 +80,11 @@ def main():
     add_zip.add_argument("--cwd", required=True)
     add_zip.add_argument("inputs", nargs="*")
     add_zip.set_defaults(func=add_to_zip_file)
+
+    generate_many_valid = subparsers.add_parser("generate-many-valid-resources")
+    generate_many_valid.add_argument("--output-dir", required=True)
+    generate_many_valid.add_argument("--count", required=True, type=int)
+    generate_many_valid.set_defaults(func=generate_many_valid_resources)
 
     args = parser.parse_args()
     try:
