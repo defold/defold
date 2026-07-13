@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -32,8 +33,9 @@
 #include "resource_util.h"
 #include "async/load_queue.h"
 
-// The preloader works as follow; a tree is constructed with each resource to be loaded as a node in the tree.
-// The tree is stored in m_Requests and indices are used to point around in the tree.
+// The preloader maintains a bounded tree of active resource requests. The tree is stored in m_Request and
+// indices are used for parent and sibling links. Resource hints that do not currently fit in the tree are
+// stored in m_PendingHints until a request slot becomes available.
 //
 // 0) /rootcollection
 //    1) /go1
@@ -44,43 +46,36 @@
 //        6) /textureset
 //        7) /material
 //
-// Nodes store the LoadResult as RESULT_PENDING, which is invalid as any actual result.
-// These are the 'real' states a node can be in.
+// RESULT_PENDING is used as the state for a request that has not produced a final resource result. Together
+// with the other fields, a request can be in one of these states:
 //
-// => New (RESULT_PENDING, m_LoadRequest=0, m_Buffer)
+// => New (RESULT_PENDING, m_LoadRequest=0, m_Buffer=0)
 // => Waiting for load through load queue, (RESULT_PENDING, m_LoadRequest=<handle>)
-//    (Once the load completes, the resource preload will have run and populated the node with children)
-// => Preloaded, waiting on children (RESULT_PENDING, m_Buffer=<data>, m_PreloadData=<data>, m_FirstChild != -1)
+//    (Once the load completes, its preload function may add child hints)
+// => Preloaded, waiting on children (RESULT_PENDING, m_Buffer=<data>, with admitted or queued children)
 // => Created successfully, (RESULT_OK, m_Resource=<resource>, m_FirstChild == -1)
 // => Created with error, (neither RESULT_PENDING nor RESULT_OK)
 //
-// Nodes are scheduled for load in depth first order. Once they are loaded they might add new child items to the
-// tree. Child items to a node will then be loaded and created before the parent node is created.
+// Pending hints are consumed in LIFO order, so hints discovered by the current request are admitted before
+// older sibling hints. This preserves depth-first loading: children are loaded and created before their parent.
 //
-// Once a node with children finds none of them are in PENDING state any longer, resource create will happen,
-// child nodes (which are done) are then erased and the tree is traversed upwards to see if the parent can be
-// completed in the same manner. (PreloaderTryPruneParent)
+// A parent is created only after both its admitted children and its queued child hints have been resolved.
+// Completed leaves are retained in m_PersistedResources and removed early so their request slots can be reused.
+// After creating a parent, PreloaderTryPruneParent continues upward and recycles completed intermediate nodes.
 //
-// New items added in PreloadHint are added to a guarded dmArray and the preloader pops this array after it
-// has detected a completion of an item in the preloader queue. This keeps the syncronized state small and
-// reduces the contention on the syncronized lock.
+// PreloadHint adds new items to a guarded dmArray. UpdatePreloader moves them to m_PendingHints after load
+// completion and during normal updates. This keeps the synchronized state small and reduces lock contention.
 //
 // A path cache is also used to allow the path strings to be internalized without adding the full path length
-// to each request item. The path cache is also syncronized with the same spinlock as the new preloader hints array.
-// The path cache is not touched by the UpdatePreloader code, we keep the internalized pointers in the item.
-
-// If max number of preload items is reached or the path cache is full new items added to the preloader will
-// be thrown away and can potentially cause synced loading of those resources.
+// to each request item. It is synchronized by the hint-array spinlock, and its strings use stable allocations
+// so PathDescriptor pointers remain valid when the cache grows.
 
 
 
 typedef int16_t TRequestIndex;
 
-// The preloader will function even down to a value of 1 here (the root object)
-// and sets the limit of how large a dependencies tree can be stored. Since nodes
-// are always present with all their children inserted (unless there was not room)
-// the required size is something the sum of all children on each level down along
-// the largest branch.
+// This bounds the number of request nodes resident in the active tree, not the total number of dependencies.
+// Completed nodes are recycled, but a dependency chain must still fit because its ancestors remain resident.
 
 typedef dmHashTable<dmhash_t, uint32_t> TPathHashTable;
 typedef dmHashTable<dmhash_t, bool> TPathInProgressTable;
@@ -90,11 +85,7 @@ static const uint32_t MAX_PRELOADER_REQUESTS         = 1024;
 static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE    = MAX_PRELOADER_REQUESTS / 3;
 static const uint32_t PATH_IN_PROGRESS_CAPACITY      = MAX_PRELOADER_REQUESTS;
 static const uint32_t PATH_IN_PROGRESS_HASHDATA_SIZE = (PATH_IN_PROGRESS_TABLE_SIZE * sizeof(uint32_t)) + (PATH_IN_PROGRESS_CAPACITY * sizeof(TPathInProgressTable::Entry));
-static const uint32_t PATH_AVERAGE_LENGTH            = 40;
-static const uint32_t MAX_PRELOADER_PATHS            = 1536;
-static const uint32_t PATH_BUFFER_TABLE_SIZE         = 509;
-static const uint32_t PATH_BUFFER_TABLE_CAPACITY     = MAX_PRELOADER_PATHS;
-static const uint32_t PATH_BUFFER_HASHDATA_SIZE      = (PATH_BUFFER_TABLE_SIZE * sizeof(uint32_t)) + (PATH_BUFFER_TABLE_CAPACITY * sizeof(TPathHashTable::Entry));
+static const uint32_t INITIAL_PATH_CAPACITY           = 1536;
 
 struct PathDescriptor
 {
@@ -128,6 +119,9 @@ struct PreloadRequest
     TRequestIndex m_NextSibling;
     uint16_t m_PendingChildCount;
 
+    // Hints waiting outside m_Request. A request cannot be created while it still has queued children.
+    uint32_t m_QueuedChildCount;
+
     // Set once resources have started loading, they have a load request
     dmLoadQueue::HRequest m_LoadRequest;
 
@@ -153,15 +147,15 @@ struct ResourcePreloader
     struct SyncedData
     {
         SyncedData()
-            : m_PathLookup(m_LookupData, PATH_BUFFER_TABLE_SIZE, PATH_BUFFER_TABLE_CAPACITY)
-            , m_PathDataUsed(0)
         {
+            m_PathLookup.SetCapacity(INITIAL_PATH_CAPACITY / 3, INITIAL_PATH_CAPACITY);
+            m_Paths.SetCapacity(INITIAL_PATH_CAPACITY);
         }
         dmArray<PendingHint> m_NewHints;
         TPathHashTable m_PathLookup;
-        uint8_t m_LookupData[PATH_BUFFER_HASHDATA_SIZE];
-        char m_PathData[MAX_PRELOADER_PATHS * PATH_AVERAGE_LENGTH];
-        uint32_t m_PathDataUsed;
+
+        // Individually allocated strings keep PathDescriptor pointers stable when this array grows.
+        dmArray<char*> m_Paths;
     } m_SyncedData;
 
     dmSpinlock::Spinlock m_SyncedDataSpinlock;
@@ -189,6 +183,9 @@ struct ResourcePreloader
     TRequestIndex m_PersistResourceCount;
 
     dmArray<void*> m_PersistedResources;
+
+    // Overflow hints live here until a completed leaf returns a slot to m_Freelist.
+    dmArray<PendingHint> m_PendingHints;
 };
 
 namespace dmResource
@@ -198,20 +195,23 @@ namespace dmResource
         uint32_t* path_lookup = preloader_synced_data->m_PathLookup.Get(path_hash);
         if (path_lookup != 0x0)
         {
-            return &preloader_synced_data->m_PathData[*path_lookup];
+            return preloader_synced_data->m_Paths[*path_lookup];
         }
         if (preloader_synced_data->m_PathLookup.Full())
         {
-            return 0x0;
+            uint32_t capacity = preloader_synced_data->m_PathLookup.Capacity() * 2;
+            preloader_synced_data->m_PathLookup.SetCapacity(capacity / 3, capacity);
+            preloader_synced_data->m_Paths.SetCapacity(capacity);
         }
-        if (preloader_synced_data->m_PathDataUsed + path_len + 1 > sizeof(preloader_synced_data->m_PathData))
+        char* result = (char*) malloc(path_len + 1);
+        if (!result)
         {
             return 0x0;
         }
-        char* result = &preloader_synced_data->m_PathData[preloader_synced_data->m_PathDataUsed];
         dmStrlCpy(result, path, path_len + 1);
-        preloader_synced_data->m_PathLookup.Put(path_hash, preloader_synced_data->m_PathDataUsed);
-        preloader_synced_data->m_PathDataUsed += path_len + 1;
+        uint32_t path_index = preloader_synced_data->m_Paths.Size();
+        preloader_synced_data->m_Paths.Push(result);
+        preloader_synced_data->m_PathLookup.Put(path_hash, path_index);
         return result;
     }
 
@@ -336,8 +336,7 @@ namespace dmResource
 
         if (!preloader->m_FreelistSize)
         {
-            // Preload queue is exhausted; this is not fatal, it just means the resource will be loaded
-            // inside the main thread which may cause stuttering
+            // Admission normally prevents this; keep the guard for direct callers.
             return RESULT_OUT_OF_MEMORY;
         }
 
@@ -369,6 +368,38 @@ namespace dmResource
         return RESULT_OK;
     }
 
+    static bool IsPendingHintDuplicate(HPreloader preloader, const PendingHint& hint)
+    {
+        for (uint32_t i = 0; i < preloader->m_PendingHints.Size(); ++i)
+        {
+            const PendingHint& pending = preloader->m_PendingHints[i];
+            if (pending.m_Parent == hint.m_Parent && pending.m_PathDescriptor.m_NameHash == hint.m_PathDescriptor.m_NameHash)
+                return true;
+        }
+        return false;
+    }
+
+    static void PushPendingHint(HPreloader preloader, const PendingHint& hint)
+    {
+        if (preloader->m_PendingHints.Full())
+            preloader->m_PendingHints.OffsetCapacity(128);
+        preloader->m_PendingHints.Push(hint);
+    }
+
+    static bool AdmitPendingHint(HPreloader preloader)
+    {
+        if (!preloader->m_FreelistSize || preloader->m_PendingHints.Empty())
+            return false;
+
+        // LIFO makes hints discovered by the current request run before its remaining siblings.
+        // This preserves depth-first loading and avoids filling every slot with a wide tree level.
+        PendingHint hint = preloader->m_PendingHints.Back();
+        preloader->m_PendingHints.Pop();
+        assert(preloader->m_Request[hint.m_Parent].m_QueuedChildCount > 0);
+        preloader->m_Request[hint.m_Parent].m_QueuedChildCount--;
+        return PreloadPathDescriptor(preloader, hint.m_Parent, hint.m_PathDescriptor) == RESULT_OK;
+    }
+
     static bool PopHints(HPreloader preloader)
     {
         dmArray<PendingHint> new_hints;
@@ -377,19 +408,17 @@ namespace dmResource
             new_hints.Swap(preloader->m_SyncedData.m_NewHints);
         }
 
-        uint32_t new_hint_count = 0;
-
         const uint32_t hint_count = new_hints.Size();
         const PendingHint* hints = new_hints.Begin();
         for (uint32_t i = 0; i < hint_count; ++i)
         {
-            const PendingHint* hint = &hints[i];
-            if (PreloadPathDescriptor(preloader, hint->m_Parent, hint->m_PathDescriptor) == RESULT_OK)
-            {
-                ++new_hint_count;
-            }
+            const PendingHint& hint = hints[i];
+            if (IsPendingHintDuplicate(preloader, hint))
+                continue;
+            PushPendingHint(preloader, hint);
+            preloader->m_Request[hint.m_Parent].m_QueuedChildCount++;
         }
-        return new_hint_count != 0;
+        return AdmitPendingHint(preloader);
     }
 
     static Result PreloadHintInternal(HPreloader preloader, TRequestIndex parent, const char* name)
@@ -400,11 +429,15 @@ namespace dmResource
         {
             return res;
         }
-        res = PreloadPathDescriptor(preloader, parent, path_descriptor);
-        return res;
+        PendingHint hint = { path_descriptor, parent };
+        if (IsPendingHintDuplicate(preloader, hint))
+            return RESULT_ALREADY_REGISTERED;
+        PushPendingHint(preloader, hint);
+        preloader->m_Request[parent].m_QueuedChildCount++;
+        return RESULT_OK;
     }
 
-    // Only supports removing the first child, which is all the preloader uses anyway.
+    // Unlink a completed leaf from its parent's child list and return its slot to the freelist.
     static void PreloaderRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
     {
         assert(preloader->m_FreelistSize < MAX_PRELOADER_REQUESTS);
@@ -413,12 +446,20 @@ namespace dmResource
         assert(me->m_FirstChild == -1);
         assert(me->m_PendingChildCount == 0);
         PreloadRequest* parent = &preloader->m_Request[me->m_Parent];
-        assert(parent->m_FirstChild == index);
+
+        TRequestIndex* child_link = &parent->m_FirstChild;
+        while (*child_link != -1 && *child_link != index)
+        {
+            child_link = &preloader->m_Request[*child_link].m_NextSibling;
+        }
+        assert(*child_link == index);
 
         if (me->m_Resource)
         {
             if (index < preloader->m_PersistResourceCount)
             {
+                if (preloader->m_PersistedResources.Full())
+                    preloader->m_PersistedResources.OffsetCapacity(128);
                 preloader->m_PersistedResources.Push(me->m_Resource);
             }
             else
@@ -427,7 +468,7 @@ namespace dmResource
             }
         }
 
-        parent->m_FirstChild = me->m_NextSibling;
+        *child_link = me->m_NextSibling;
 
         if (me->m_LoadResult == RESULT_PENDING)
         {
@@ -435,6 +476,21 @@ namespace dmResource
         }
 
         preloader->m_Freelist[preloader->m_FreelistSize++] = index;
+    }
+
+    static void RetainAndRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
+    {
+        PreloadRequest* req = &preloader->m_Request[index];
+        if (req->m_Resource)
+        {
+            // Keep the factory reference alive until the parent acquires the resource during Create.
+            // The request node can then be recycled without causing a later synchronous reload.
+            if (preloader->m_PersistedResources.Full())
+                preloader->m_PersistedResources.OffsetCapacity(128);
+            preloader->m_PersistedResources.Push(req->m_Resource);
+            req->m_Resource = 0;
+        }
+        PreloaderRemoveLeaf(preloader, index);
     }
 
     static void RemoveChildren(ResourcePreloader* preloader, PreloadRequest* req)
@@ -498,6 +554,7 @@ namespace dmResource
                 preloader->m_PersistResourceCount++;
             }
         }
+        AdmitPendingHint(preloader);
 
         return preloader;
     }
@@ -691,9 +748,21 @@ namespace dmResource
         {
             return false;
         }
+        if (parent_req->m_QueuedChildCount > 0)
+        {
+            // Some dependencies have not entered the bounded request tree yet.
+            return false;
+        }
         CreateResource(preloader, parent_req, 0, 0, 0);
         UnmarkPathInProgress(preloader, &parent_req->m_PathDescriptor);
-        PreloaderTryPruneParent(preloader, parent_req);
+
+        // The newly created parent can itself be a leaf whose parent still has queued or active
+        // children. Retain and recycle it as well, otherwise wide trees fill m_Request with
+        // completed intermediate nodes and pending hints can never acquire a slot.
+        if (!PreloaderTryPruneParent(preloader, parent_req) && parent != 0)
+        {
+            RetainAndRemoveLeaf(preloader, parent);
+        }
         return true;
     }
 
@@ -702,7 +771,7 @@ namespace dmResource
     // copy the loaded buffer for later use when all the children has been created.
     //
     // Returns true if the resource was created
-    static bool FinishLoad(HPreloader preloader, PreloadRequest* req, dmLoadQueue::LoadResult& load_result, void* buffer, uint32_t buffer_size, uint32_t resource_size)
+    static bool FinishLoad(HPreloader preloader, TRequestIndex index, PreloadRequest* req, dmLoadQueue::LoadResult& load_result, void* buffer, uint32_t buffer_size, uint32_t resource_size)
     {
         // Pop any hints the load/preload of the item that may have been generated
         PopHints(preloader);
@@ -728,8 +797,8 @@ namespace dmResource
 
         bool created_resource = false;
 
-        // If no children, do the create step immediately with the buffer in place
-        if (req->m_FirstChild == -1)
+        // Create only after both admitted and overflow children have been resolved.
+        if (req->m_FirstChild == -1 && req->m_QueuedChildCount == 0)
         {
             if (req->m_LoadResult == RESULT_PENDING)
             {
@@ -741,7 +810,10 @@ namespace dmResource
             dmLoadQueue::FreeLoad(preloader->m_LoadQueue, req->m_LoadRequest);
             req->m_LoadRequest = 0;
 
-            PreloaderTryPruneParent(preloader, req);
+            if (!PreloaderTryPruneParent(preloader, req) && index != 0)
+            {
+                RetainAndRemoveLeaf(preloader, index);
+            }
         }
         else
         {
@@ -803,6 +875,10 @@ namespace dmResource
             {
                 return true;
             }
+            if (index != 0)
+            {
+                RetainAndRemoveLeaf(preloader, index);
+            }
             return false;
         }
 
@@ -822,7 +898,7 @@ namespace dmResource
             }
             preloader->m_LoadQueueFull = false;
 
-            if (FinishLoad(preloader, req, res, buffer, buffer_size, resource_size))
+            if (FinishLoad(preloader, index, req, res, buffer, buffer_size, resource_size))
             {
                 return true;
             }
@@ -852,6 +928,10 @@ namespace dmResource
             if (PreloaderTryPruneParent(preloader, req))
             {
                 return true;
+            }
+            if (index != 0)
+            {
+                RetainAndRemoveLeaf(preloader, index);
             }
             return false;
         }
@@ -1045,6 +1125,8 @@ namespace dmResource
         }
 
         // Release root and persisted resources
+        if (preloader->m_PersistedResources.Full())
+            preloader->m_PersistedResources.OffsetCapacity(1);
         preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
         for (uint32_t i = 0; i < preloader->m_PersistedResources.Size(); ++i)
         {
@@ -1058,6 +1140,11 @@ namespace dmResource
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
 
         dmBlockAllocator::DeleteContext(preloader->m_BlockAllocator);
+
+        for (uint32_t i = 0; i < preloader->m_SyncedData.m_Paths.Size(); ++i)
+        {
+            free(preloader->m_SyncedData.m_Paths[i]);
+        }
 
         dmSpinlock::Destroy(&preloader->m_SyncedDataSpinlock);
         delete preloader;
