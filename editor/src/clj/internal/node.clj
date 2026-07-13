@@ -327,9 +327,19 @@
 
 (defn- node-type-deref-ordered-property-setter-infos-raw [node-type-deref]
   {:pre [(node-type-deref? node-type-deref)]}
-  (let [prop-kws-in-declaration-order (:property-order-decl node-type-deref)
+  ;; :property-order-decl is not merged by the merge-supertypes function, so we
+  ;; compile a declaration-order that includes inherited properties ourselves.
+  (let [prop-kws-in-declaration-order
+        (reduce (fn [prop-kws supertype]
+                  (into prop-kws
+                        (remove (set prop-kws))
+                        (:property-order-decl @supertype)))
+                (:property-order-decl node-type-deref)
+                (:supertypes node-type-deref))
+
         prop-kw->prop-info (:property node-type-deref)
         prop-kw->default-value (node-type-deref-defaults node-type-deref)]
+
     (coll/into-> prop-kws-in-declaration-order []
       (keep (fn [prop-kw]
               (when-some [prop-info (prop-kw->prop-info prop-kw)]

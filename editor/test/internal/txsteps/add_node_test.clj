@@ -97,8 +97,26 @@
         (g/add-node (g/construct PropertyHasDefaultValueTestNode :_node-id node-id)))
       (is (= :default-property-value (g/node-value node-id :property-with-default))))))
 
-(g/defnode InvokesPropertySettersTestNode
+(g/defnode InvokesPropertySettersTestBaseNode
   (inherits helpers/EffectLogNode)
+  (property inherited-effecting-property-1 g/Any
+            (default :inherited-effecting-property-1-default)
+            (set (helpers/effect-log-setter :inherited-effecting-property-1)))
+  (property inherited-effecting-property-2 g/Any
+            (default :inherited-effecting-property-2-default)
+            (set (helpers/effect-log-setter :inherited-effecting-property-2)))
+  (property inherited-effecting-property-3 g/Any
+            (default :inherited-effecting-property-3-default)
+            (set (helpers/effect-log-setter :inherited-effecting-property-3)))
+  (property inherited-effecting-property-4 g/Any
+            (default :inherited-effecting-property-4-default)
+            (set (helpers/effect-log-setter :inherited-effecting-property-4)))
+  (property inherited-effecting-property-5 g/Any
+            (default :inherited-effecting-property-5-default)
+            (set (helpers/effect-log-setter :inherited-effecting-property-5))))
+
+(g/defnode InvokesPropertySettersTestNode
+  (inherits InvokesPropertySettersTestBaseNode)
   (property effecting-property-1 g/Any
             (default :effecting-property-1-default)
             (set (helpers/effect-log-setter :effecting-property-1)))
@@ -114,18 +132,10 @@
   (property effecting-property-5 g/Any
             (default :effecting-property-5-default)
             (set (helpers/effect-log-setter :effecting-property-5)))
-  (property effecting-property-6 g/Any
-            (default :effecting-property-6-default)
-            (set (helpers/effect-log-setter :effecting-property-6)))
-  (property effecting-property-7 g/Any
-            (default :effecting-property-7-default)
-            (set (helpers/effect-log-setter :effecting-property-7)))
-  (property effecting-property-8 g/Any
-            (default :effecting-property-8-default)
-            (set (helpers/effect-log-setter :effecting-property-8)))
-  (property effecting-property-9 g/Any
-            (default :effecting-property-9-default)
-            (set (helpers/effect-log-setter :effecting-property-9))))
+  (property inherited-effecting-property-1 g/Any
+            (default :inherited-effecting-property-1-overridden-default))
+  (property inherited-effecting-property-2 g/Any
+            (default :inherited-effecting-property-2-overridden-default)))
 
 (deftest invokes-property-setters-with-default-values-test
   (test-support/with-clean-system
@@ -148,20 +158,23 @@
               {:prop-kw :effecting-property-5
                :old-value nil
                :new-value :effecting-property-5-default}
-              {:prop-kw :effecting-property-6
+              {:prop-kw :inherited-effecting-property-1
                :old-value nil
-               :new-value :effecting-property-6-default}
-              {:prop-kw :effecting-property-7
+               :new-value :inherited-effecting-property-1-overridden-default}
+              {:prop-kw :inherited-effecting-property-2
                :old-value nil
-               :new-value :effecting-property-7-default}
-              {:prop-kw :effecting-property-8
+               :new-value :inherited-effecting-property-2-overridden-default}
+              {:prop-kw :inherited-effecting-property-3
                :old-value nil
-               :new-value :effecting-property-8-default}
-              {:prop-kw :effecting-property-9
+               :new-value :inherited-effecting-property-3-default}
+              {:prop-kw :inherited-effecting-property-4
                :old-value nil
-               :new-value :effecting-property-9-default}]
+               :new-value :inherited-effecting-property-4-default}
+              {:prop-kw :inherited-effecting-property-5
+               :old-value nil
+               :new-value :inherited-effecting-property-5-default}]
              (helpers/effect-log node-id))
-          "Property setters run in declaration order."))))
+          "Property setters run in declaration order across inherited node types."))))
 
 (deftest invokes-property-setters-with-specified-values-test
   (test-support/with-clean-system
@@ -169,15 +182,16 @@
       (g/transact
         (g/add-node (g/construct InvokesPropertySettersTestNode
                       :_node-id node-id
-                      :effecting-property-9 :effecting-property-9-value
-                      :effecting-property-8 :effecting-property-8-value
-                      :effecting-property-7 :effecting-property-7-value
-                      :effecting-property-6 :effecting-property-6-value
                       :effecting-property-5 :effecting-property-5-value
                       :effecting-property-4 :effecting-property-4-value
                       :effecting-property-3 :effecting-property-3-value
                       :effecting-property-2 :effecting-property-2-value
-                      :effecting-property-1 :effecting-property-1-value)))
+                      :effecting-property-1 :effecting-property-1-value
+                      :inherited-effecting-property-5 :inherited-effecting-property-5-value
+                      :inherited-effecting-property-4 :inherited-effecting-property-4-value
+                      :inherited-effecting-property-3 :inherited-effecting-property-3-value
+                      :inherited-effecting-property-2 :inherited-effecting-property-2-value
+                      :inherited-effecting-property-1 :inherited-effecting-property-1-value)))
       (is (= [{:prop-kw :effecting-property-1
                :old-value nil
                :new-value :effecting-property-1-value}
@@ -193,20 +207,23 @@
               {:prop-kw :effecting-property-5
                :old-value nil
                :new-value :effecting-property-5-value}
-              {:prop-kw :effecting-property-6
+              {:prop-kw :inherited-effecting-property-1
                :old-value nil
-               :new-value :effecting-property-6-value}
-              {:prop-kw :effecting-property-7
+               :new-value :inherited-effecting-property-1-value}
+              {:prop-kw :inherited-effecting-property-2
                :old-value nil
-               :new-value :effecting-property-7-value}
-              {:prop-kw :effecting-property-8
+               :new-value :inherited-effecting-property-2-value}
+              {:prop-kw :inherited-effecting-property-3
                :old-value nil
-               :new-value :effecting-property-8-value}
-              {:prop-kw :effecting-property-9
+               :new-value :inherited-effecting-property-3-value}
+              {:prop-kw :inherited-effecting-property-4
                :old-value nil
-               :new-value :effecting-property-9-value}]
+               :new-value :inherited-effecting-property-4-value}
+              {:prop-kw :inherited-effecting-property-5
+               :old-value nil
+               :new-value :inherited-effecting-property-5-value}]
              (helpers/effect-log node-id))
-          "Property setters run in declaration order."))))
+          "Property setters run in declaration order across inherited node types."))))
 
 (g/defnode UndoRedoTestNode
   (inherits helpers/EffectLogNode)

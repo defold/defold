@@ -2340,8 +2340,9 @@
             (dynamic edit-type (g/constantly {:type types/Vec3 :precision 0.1}))
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
-                   (when (some? new-value)
-                     (g/set-property self :scale (non-zeroify-scale new-value))))))
+                   (when-let [non-zero-scale (some-> new-value non-zeroify-scale)]
+                     (when (not= new-value non-zero-scale)
+                       (g/set-property self :scale non-zero-scale))))))
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
