@@ -703,3 +703,142 @@
                (set (g/overrides basis original-node-id))))
         (is (= original-node-id (g/override-original basis first-override-node-id)))
         (is (= original-node-id (g/override-original basis second-override-node-id)))))))
+
+(deftest undo-delete-node-with-vanished-arc-target-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [source-node-id target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                 target-node-id helpers/ConnectionTargetNode]
+                (g/connect source-node-id :property-output target-node-id :regular-input))))
+
+          ensure-connected!
+          (fn ensure-connected! []
+            (let [basis (g/now)]
+              (is (g/node-by-id basis source-node-id))
+              (is (g/node-by-id basis target-node-id))
+              (is (= [[target-node-id :regular-input]]
+                     (g/targets basis source-node-id :property-output)))))
+
+          ensure-only-target-node-exists!
+          (fn ensure-only-target-node-exists! []
+            (let [basis (g/now)]
+              (is (= nil (g/node-by-id basis source-node-id)))
+              (is (g/node-by-id basis target-node-id))
+              (is (= []
+                     (g/sources basis target-node-id :regular-input)))))
+
+          ensure-no-nodes-exist!
+          (fn ensure-no-nodes-exist! []
+            (let [basis (g/now)]
+              (is (= nil (g/node-by-id basis source-node-id)))
+              (is (= nil (g/node-by-id basis target-node-id)))))
+
+          ensure-only-source-node-exists!
+          (fn ensure-only-source-node-exists! []
+            (let [basis (g/now)]
+              (is (g/node-by-id basis source-node-id))
+              (is (= nil (g/node-by-id basis target-node-id)))
+              (is (= []
+                     (g/targets basis source-node-id :property-output)))))]
+
+      (testing "Before deleting source node."
+        (ensure-connected!))
+
+      (testing "Delete source node."
+        (g/transact
+          {:undo-key ::delete-source}
+          (g/delete-node source-node-id))
+        (ensure-only-target-node-exists!))
+
+      (testing "Delete target node."
+        (g/transact
+          {:undo-key ::delete-target}
+          (g/delete-node target-node-id))
+        (ensure-no-nodes-exist!))
+
+      (testing "Undo source node deletion."
+        (g/undo! ::delete-source)
+        (ensure-only-source-node-exists!))
+
+      (testing "Redo source node deletion."
+        (g/redo! ::delete-source)
+        (ensure-no-nodes-exist!)))))
+
+(deftest redo-delete-node-with-vanished-arc-target-graph-test
+  (test-support/with-clean-system
+    (let [source-graph-id (g/make-graph!)
+          target-graph-id (g/make-graph! :volatility 10)
+
+          [target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes target-graph-id
+                [_target-node-id helpers/ConnectionTargetNode])))
+
+          [source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes source-graph-id
+                [source-node-id [helpers/ConnectionSourceNode :property :source-value]]
+                (g/connect source-node-id :property-output target-node-id :regular-input))))
+
+          ensure-connected!
+          (fn ensure-connected! []
+            (let [basis (g/now)]
+              (is (g/node-by-id basis source-node-id))
+              (is (g/node-by-id basis target-node-id))
+              (is (= [[target-node-id :regular-input]]
+                     (g/targets basis source-node-id :property-output)))))
+
+          ensure-only-target-node-exists!
+          (fn ensure-only-target-node-exists! []
+            (let [basis (g/now)]
+              (is (= nil (g/node-by-id basis source-node-id)))
+              (is (g/node-by-id basis target-node-id))
+              (is (= []
+                     (g/sources basis target-node-id :regular-input)))))
+
+          ensure-source-node-and-target-graph-deleted!
+          (fn ensure-source-node-and-target-graph-deleted! []
+            (let [basis (g/now)]
+              (is (= nil (g/node-by-id basis source-node-id)))
+              (is (= nil (g/node-by-id basis target-node-id)))
+              (is (= nil (g/graph target-graph-id)))))
+
+          ensure-source-node-restored!
+          (fn ensure-source-node-restored! []
+            (let [basis (g/now)]
+              (is (g/node-by-id basis source-node-id))
+              (is (= nil (g/node-by-id basis target-node-id)))
+              (is (= nil (g/graph target-graph-id)))
+              (is (= []
+                     (g/targets basis source-node-id :property-output)))))]
+
+      (testing "Before deleting source node."
+        (ensure-connected!))
+
+      (testing "Delete source node."
+        (g/transact
+          {:undo-key ::delete-source}
+          (g/delete-node source-node-id))
+        (ensure-only-target-node-exists!))
+
+      (testing "Delete target graph."
+        (g/delete-graph! target-graph-id)
+        (ensure-source-node-and-target-graph-deleted!))
+
+      (testing "Undo source node deletion."
+        (g/undo! ::delete-source)
+        (ensure-source-node-restored!))
+
+      (testing "Redo source node deletion."
+        (g/redo! ::delete-source)
+        (ensure-source-node-and-target-graph-deleted!)))))

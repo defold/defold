@@ -256,3 +256,67 @@
           (is (= owner-node-id (g/override-original basis later-owner-override-node-id)))
           (is (= owner-node-id (g/override-original basis transferred-override-node-id)))
           (is (= replacement-owner-node-id (g/override-original basis later-replacement-owner-override-node-id))))))))
+
+(deftest undo-redo-transfer-overrides-skips-deleted-override-node-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [owner-node-id
+           replacement-owner-node-id
+           transferred-override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [owner-node-id helpers/OverrideTestNode
+                 _replacement-owner-node-id helpers/OverrideTestNode]
+                (g/override owner-node-id))))
+
+          override-id (g/override-id transferred-override-node-id)
+
+          ensure-before!
+          (fn ensure-before! []
+            (let [basis (g/now)]
+              (is (= [transferred-override-node-id] (g/overrides basis owner-node-id)))
+              (is (coll/empty? (g/overrides basis replacement-owner-node-id)))
+              (is (= owner-node-id (g/override-original basis transferred-override-node-id)))
+              (is (= owner-node-id (:root-id (ig/override-by-id basis override-id))))))
+
+          ensure-after-transfer!
+          (fn ensure-after-transfer! []
+            (let [basis (g/now)]
+              (is (coll/empty? (g/overrides basis owner-node-id)))
+              (is (= [transferred-override-node-id] (g/overrides basis replacement-owner-node-id)))
+              (is (= replacement-owner-node-id (g/override-original basis transferred-override-node-id)))
+              (is (= replacement-owner-node-id (:root-id (ig/override-by-id basis override-id))))))
+
+          ensure-override-deleted!
+          (fn ensure-override-deleted! []
+            (let [basis (g/now)]
+              (is (coll/empty? (g/overrides basis owner-node-id)))
+              (is (coll/empty? (g/overrides basis replacement-owner-node-id)))
+              (is (= nil (g/node-by-id basis transferred-override-node-id)))
+              (is (= nil (ig/override-by-id basis override-id)))))]
+
+      (testing "Before transferring override."
+        (ensure-before!))
+
+      (testing "Transfer override."
+        (g/transact
+          {:undo-key ::transfer}
+          (g/transfer-overrides {owner-node-id replacement-owner-node-id}))
+        (ensure-after-transfer!))
+
+      (testing "Delete transferred override node."
+        (g/transact
+          {:undo-key ::delete-transferred-override}
+          (g/delete-node transferred-override-node-id))
+        (ensure-override-deleted!))
+
+      (testing "Undo transfer."
+        (g/undo! ::transfer)
+        (ensure-override-deleted!))
+
+      (testing "Redo transfer."
+        (g/redo! ::transfer)
+        (ensure-override-deleted!)))))

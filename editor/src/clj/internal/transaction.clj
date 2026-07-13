@@ -170,11 +170,15 @@
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
   (if (:full-invalidation ctx)
     ctx
-    (let [nodes-affected (:nodes-affected ctx)]
+    (let [basis (:basis ctx)
+          nodes-affected (:nodes-affected ctx)]
       (assoc ctx
         :nodes-affected
         (into nodes-affected
-              (map gt/target-endpoint)
+              (keep
+                (fn [arc]
+                  (when (gt/node-by-id-at basis (gt/target-id arc))
+                    (gt/target-endpoint arc))))
               arcs)))))
 
 (defn- mark-all-outputs-activated
@@ -511,20 +515,24 @@
   (let [old-basis (:basis ctx)
         ctx (update ctx :basis ig/basis-perform-repoint-override-node override-node-id new-original-node-id)
         new-basis (:basis ctx)]
-    (-> ctx
-        (mark-all-outputs-activated override-node-id)
-        (flag-successors-changed
-          (node-successor-changes old-basis new-basis [override-node-id new-original-node-id])))))
+    (if (identical? old-basis new-basis)
+      ctx
+      (-> ctx
+          (mark-all-outputs-activated override-node-id)
+          (flag-successors-changed
+            (node-successor-changes old-basis new-basis [override-node-id new-original-node-id]))))))
 
 (defn- ctx-revert-repoint-override-node
   [ctx override-node-id old-original-node-id new-original-node-id]
   (let [old-basis (:basis ctx)
         ctx (update ctx :basis ig/basis-revert-repoint-override-node override-node-id old-original-node-id new-original-node-id)
         new-basis (:basis ctx)]
-    (-> ctx
-        (mark-all-outputs-activated override-node-id)
-        (flag-successors-changed
-          (node-successor-changes old-basis new-basis [override-node-id new-original-node-id])))))
+    (if (identical? old-basis new-basis)
+      ctx
+      (-> ctx
+          (mark-all-outputs-activated override-node-id)
+          (flag-successors-changed
+            (node-successor-changes old-basis new-basis [override-node-id new-original-node-id]))))))
 
 (defonce/type RepointOverrideNodeTXC
   [override-node-id old-original-node-id new-original-node-id]
@@ -1036,7 +1044,10 @@
                 (mark-nodes-outputs-activated nodes)
                 (coll/reduce=> arcs
                   (fn [ctx arc]
-                    (mark-input-activated ctx (gt/target-id arc) (gt/target-label arc)))))
+                    (let [target-id (gt/target-id arc)]
+                      (cond-> ctx
+                        (gt/node-by-id-at (:basis ctx) target-id)
+                        (mark-input-activated target-id (gt/target-label arc)))))))
         new-basis (:basis ctx)]
     (flag-successors-changed
       ctx

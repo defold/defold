@@ -1253,10 +1253,19 @@
 
 (defn basis-revert-clear-override-nodes
   [basis original-node-id override-node-ids]
-  (let [graph-id (gt/node-id->graph-id original-node-id)]
-    (update-in
-      basis [:graphs graph-id :node->overrides original-node-id]
-      coll/into-vector override-node-ids)))
+  (let [override-node-ids
+        (coll/into-> override-node-ids []
+          (filter
+            (fn [override-node-id]
+              (= original-node-id
+                 (some-> (gt/node-by-id-at basis override-node-id)
+                         gt/original)))))]
+    (if (coll/empty? override-node-ids)
+      basis
+      (let [graph-id (gt/node-id->graph-id original-node-id)]
+        (update-in
+          basis [:graphs graph-id :node->overrides original-node-id]
+          coll/into-vector override-node-ids)))))
 
 (defn basis-plan-replace-override
   [basis override-id new-override]
@@ -1267,13 +1276,17 @@
 
 (defn basis-perform-replace-override
   [basis override-id new-override]
-  (let [graph-id (gt/override-id->graph-id override-id)]
-    (assoc-in basis [:graphs graph-id :overrides override-id] new-override)))
+  (if-not (override-by-id basis override-id)
+    basis
+    (let [graph-id (gt/override-id->graph-id override-id)]
+      (assoc-in basis [:graphs graph-id :overrides override-id] new-override))))
 
 (defn basis-revert-replace-override
   [basis override-id old-override]
-  (let [graph-id (gt/override-id->graph-id override-id)]
-    (assoc-in basis [:graphs graph-id :overrides override-id] old-override)))
+  (if-not (override-by-id basis override-id)
+    basis
+    (let [graph-id (gt/override-id->graph-id override-id)]
+      (assoc-in basis [:graphs graph-id :overrides override-id] old-override))))
 
 (defn- basis-set-override-node-original
   [basis override-node-id original-node-id]
@@ -1294,21 +1307,25 @@
 
 (defn basis-perform-repoint-override-node
   [basis override-node-id new-original-node-id]
-  (let [graph-id (gt/node-id->graph-id override-node-id)]
-    (-> basis
-        (basis-set-override-node-original override-node-id new-original-node-id)
-        (update-in
-          [:graphs graph-id :node->overrides new-original-node-id]
-          coll/conj-vector override-node-id))))
+  (if-not (gt/node-by-id-at basis override-node-id)
+    basis
+    (let [graph-id (gt/node-id->graph-id override-node-id)]
+      (-> basis
+          (basis-set-override-node-original override-node-id new-original-node-id)
+          (update-in
+            [:graphs graph-id :node->overrides new-original-node-id]
+            coll/conj-vector override-node-id)))))
 
 (defn basis-revert-repoint-override-node
   [basis override-node-id old-original-node-id new-original-node-id]
-  (let [graph-id (gt/node-id->graph-id new-original-node-id)]
-    (-> basis
-        (basis-set-override-node-original override-node-id old-original-node-id)
-        (coll/removing-update-in
-          [:graphs graph-id :node->overrides new-original-node-id]
-          coll/transform-non-empty-> (remove #{override-node-id})))))
+  (if-not (gt/node-by-id-at basis override-node-id)
+    basis
+    (let [graph-id (gt/node-id->graph-id new-original-node-id)]
+      (-> basis
+          (basis-set-override-node-original override-node-id old-original-node-id)
+          (coll/removing-update-in
+            [:graphs graph-id :node->overrides new-original-node-id]
+            coll/transform-non-empty-> (remove #{override-node-id}))))))
 
 (defn- basis-set-raw-property-state
   [basis node property-label raw-value]
