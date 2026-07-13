@@ -96,6 +96,7 @@ file(MAKE_DIRECTORY "${GS_PROTO_PY_DIR}")
 set(GS_PROTO_PY)
 defold_protoc_gen_py("${GS_PROTO_PY_DIR}/physics_ddf_pb2.py" "${GS_PROTO_DIR}/physics_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 defold_protoc_gen_py("${GS_PROTO_PY_DIR}/gamesys_ddf_pb2.py" "${GS_PROTO_DIR}/gamesys_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
+defold_protoc_gen_py("${GS_PROTO_PY_DIR}/collectionproxy_ddf_pb2.py" "${GS_PROTO_DIR}/collectionproxy_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 defold_protoc_gen_py("${GS_PROTO_PY_DIR}/gui_ddf_pb2.py" "${GS_PROTO_DIR}/gui_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 defold_protoc_gen_py("${GS_PROTO_PY_DIR}/tile_ddf_pb2.py" "${GS_PROTO_DIR}/tile_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
 defold_protoc_gen_py("${GS_PROTO_PY_DIR}/label_ddf_pb2.py" "${GS_PROTO_DIR}/label_ddf.proto" INCLUDES "${GS_ROOT}/proto" "${DEFOLD_SDK_ROOT}/share/proto")
@@ -111,6 +112,7 @@ defold_protoc_gen_py("${GS_PROTO_PY_DIR}/model_ddf_pb2.py" "${GS_PROTO_DIR}/mode
 list(APPEND GS_PROTO_PY
   "${GS_PROTO_PY_DIR}/physics_ddf_pb2.py"
   "${GS_PROTO_PY_DIR}/gamesys_ddf_pb2.py"
+  "${GS_PROTO_PY_DIR}/collectionproxy_ddf_pb2.py"
   "${GS_PROTO_PY_DIR}/gui_ddf_pb2.py"
   "${GS_PROTO_PY_DIR}/tile_ddf_pb2.py"
   "${GS_PROTO_PY_DIR}/label_ddf_pb2.py"
