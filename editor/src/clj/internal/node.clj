@@ -619,28 +619,34 @@
   `(when-check-schemas
      (validate-property-value-impl ~node-type-ref ~node-id ~property-label ~property-value)))
 
+(defn- validate-property-values-impl
+  [node-type-ref node-id property-values]
+  (let [unknown-property-labels
+        (set/difference
+          (util/key-set property-values)
+          (util/key-set (:property (deref node-type-ref))))]
+    (assert (coll/empty? unknown-property-labels)
+            (str "You have given values for properties "
+                 unknown-property-labels
+                 ", but those don't exist on nodes of type "
+                 (:k node-type-ref))))
+
+  (coll/reduce-kv-> property-values nil
+    (fn [_ property-label property-value]
+      (validate-property-value-impl node-type-ref node-id property-label property-value))))
+
+(defmacro validate-property-values [node-type-ref node-id property-values]
+  `(when-check-schemas
+     (validate-property-values-impl ~node-type-ref ~node-id ~property-values)))
+
 ;;; ----------------------------------------
 ;;; Construction
-
-(defn- args-without-properties [node-type-ref args]
-  (set/difference
-    (util/key-set args)
-    (util/key-set (:property (deref node-type-ref)))))
 
 (defn construct
   [node-type-ref args]
   (assert (and node-type-ref (deref node-type-ref)))
   (assert (or (nil? args) (map? args)))
-  (when-check-schemas
-    (assert (empty? (args-without-properties node-type-ref args))
-            (str "You have given values for properties "
-                 (args-without-properties node-type-ref args)
-                 ", but those don't exist on nodes of type "
-                 (:k node-type-ref)))
-    (let [node-id (:_node-id args)]
-      (coll/reduce-kv-> args nil
-        (fn [_ property-label property-value]
-          (validate-property-value node-type-ref node-id property-label property-value)))))
+  (validate-property-values node-type-ref (:_node-id args) args)
   (coll/merge
     (->NodeImpl nil node-type-ref)
     args))
@@ -1883,4 +1889,5 @@
   (set-original [this original-id] (assoc this :original-id original-id)))
 
 (defn make-override-node [override-id node-id node-type original-id properties]
+  (validate-property-values node-type node-id properties)
   (->OverrideNode override-id node-id node-type original-id properties))

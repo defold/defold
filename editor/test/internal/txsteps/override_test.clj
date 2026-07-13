@@ -17,9 +17,11 @@
             [dynamo.graph :as g]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
+            [internal.node :as in]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support]
-            [util.coll :as coll]))
+            [util.coll :as coll])
+  (:import [clojure.lang ExceptionInfo]))
 
 (set! *warn-on-reflection* true)
 
@@ -548,6 +550,113 @@
       (testing "Redo."
         (g/redo! :undo/global)
         (ensure-after!)))))
+
+(deftest override-node-creation-with-invalid-init-props-fn-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [original-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id
+                [_original-node-id [helpers/OverrideTestNode :property :original-property-value]])))
+
+          ensure-unmodified!
+          (fn ensure-unmodified! []
+            (let [basis (g/now)]
+              (is (= :original-property-value
+                     (g/raw-property-value basis original-node-id :property)
+                     (g/node-value original-node-id :property-output)))
+              (is (coll/empty? (g/overrides basis original-node-id)))))]
+
+      (testing "Before transaction attempt."
+        (ensure-unmodified!))
+
+      (testing "Transaction attempt fails schema validation."
+        (is (thrown-with-msg?
+              ExceptionInfo
+              #"SCHEMA-VALIDATION"
+              (binding [in/*suppress-schema-warnings* true]
+                (g/transact
+                  (g/override
+                    original-node-id
+                    {:init-props-fn (constantly {:property "invalid-non-keyword-value"})}))))))
+
+      (testing "After transaction attempt."
+        (ensure-unmodified!)))))
+
+(deftest override-node-creation-with-invalid-properties-by-node-id-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [original-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id
+                [_original-node-id [helpers/OverrideTestNode :property :original-property-value]])))
+
+          ensure-unmodified!
+          (fn ensure-unmodified! []
+            (let [basis (g/now)]
+              (is (= :original-property-value
+                     (g/raw-property-value basis original-node-id :property)
+                     (g/node-value original-node-id :property-output)))
+              (is (coll/empty? (g/overrides basis original-node-id)))))]
+
+      (testing "Before transaction attempt."
+        (ensure-unmodified!))
+
+      (testing "Transaction attempt fails schema validation."
+        (is (thrown-with-msg?
+              ExceptionInfo
+              #"SCHEMA-VALIDATION"
+              (binding [in/*suppress-schema-warnings* true]
+                (g/transact
+                  (g/override
+                    original-node-id
+                    {:properties-by-node-id (constantly {:property "invalid-non-keyword-value"})}))))))
+
+      (testing "After transaction attempt."
+        (ensure-unmodified!)))))
+
+(deftest override-node-creation-with-invalid-init-fn-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [original-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id
+                [_original-node-id [helpers/OverrideTestNode :property :original-property-value]])))
+
+          init-fn
+          (fn init-fn [_evaluation-context original-node-id->override-node-id]
+            (g/set-property
+              (original-node-id->override-node-id original-node-id)
+              :property
+              "invalid-non-keyword-value"))
+
+          ensure-unmodified!
+          (fn ensure-unmodified! []
+            (let [basis (g/now)]
+              (is (= :original-property-value
+                     (g/raw-property-value basis original-node-id :property)
+                     (g/node-value original-node-id :property-output)))
+              (is (coll/empty? (g/overrides basis original-node-id)))))]
+
+      (testing "Before transaction attempt."
+        (ensure-unmodified!))
+
+      (testing "Transaction attempt fails schema validation."
+        (is (thrown-with-msg?
+              ExceptionInfo
+              #"SCHEMA-VALIDATION"
+              (binding [in/*suppress-schema-warnings* true]
+                (g/transact
+                  (g/override original-node-id {} init-fn))))))
+
+      (testing "After transaction attempt."
+        (ensure-unmodified!)))))
 
 (deftest undo-override-node-creation-invalidates-original-successors-test
   (test-support/with-clean-system
