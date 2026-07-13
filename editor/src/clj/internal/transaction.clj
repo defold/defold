@@ -836,9 +836,12 @@
   (let [old-basis (:basis ctx)
         node-ids (mapv gt/node-id added-nodes)
         nodes-by-id (coll/pair-map-by gt/node-id added-nodes)
+        source-arcs (coll/into-> node-ids []
+                      (mapcat #(ig/explicit-arcs-by-source old-basis %)))
         changed-node-ids (e/concat node-ids (e/map key introduced-node->overrides))
         ctx (-> ctx
                 (mark-nodes-outputs-activated added-nodes)
+                (mark-arc-targets-activated source-arcs)
                 (update :nodes-deleted into nodes-by-id)
                 (update :nodes-added coll/transform-> (remove nodes-by-id))
                 (update :basis ig/basis-revert-add-nodes added-nodes introduced-node->overrides))

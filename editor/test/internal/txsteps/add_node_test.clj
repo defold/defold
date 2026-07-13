@@ -298,3 +298,47 @@
       (testing "Node present after redo."
         (g/redo! :undo/global)
         (ensure-node-present-in-graph!)))))
+
+(deftest undo-add-node-with-non-undoable-outgoing-connection-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undo-key ::add-source}
+              (g/make-nodes graph-id
+                [_source-node-id [helpers/ConnectionSourceNode :property :source-value]])))
+
+          [target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [target-node-id helpers/ConnectionTargetNode]
+                (g/connect source-node-id :property-output target-node-id :regular-input))))
+
+          ensure-source-exists!
+          (fn ensure-source-exists! []
+            (let [basis (g/now)]
+              (is (g/node-by-id basis source-node-id))
+              (is (g/node-by-id basis target-node-id))
+              (is (= :source-value (g/node-value target-node-id :regular-output)))))
+
+          ensure-source-does-not-exist!
+          (fn ensure-source-does-not-exist! []
+            (let [basis (g/now)]
+              (is (nil? (g/node-by-id basis source-node-id)))
+              (is (g/node-by-id basis target-node-id))
+              (is (= nil (g/node-value target-node-id :regular-output)))))]
+
+      (testing "Before undo."
+        (ensure-source-exists!))
+
+      (testing "Undo."
+        (g/undo! ::add-source)
+        (ensure-source-does-not-exist!))
+
+      (testing "Redo."
+        (g/redo! ::add-source)
+        (ensure-source-exists!)))))
