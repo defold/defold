@@ -32,6 +32,7 @@
             [cljfx.fx.password-field :as fx.password-field]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
+            [cljfx.fx.slider :as fx.slider]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.svg-path :as fx.svg-path]
@@ -69,7 +70,7 @@
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
            [javafx.scene Node Parent]
-           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextInputControl Tooltip]
+           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane Slider TextInputControl Tooltip]
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region StackPane]
@@ -139,6 +140,49 @@
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created focus-when-on-scene!
    :desc desc})
+
+(def ^{:arglists '([props])} slider
+  "Slider component with a guard for JavaFX SliderSkin drag events that did not start on the thumb."
+  (let [drag-start-guard-prop
+        (fx/make-binding-prop
+          (fn bind-drag-start-guard [^Slider slider _]
+            ;; The event handlers need the ^EventHandler hints: without them, every
+            ;; interop call site coerces the fn into a fresh adapter, and the filters
+            ;; can no longer be removed.
+            (let [thumb-pressed (volatile! false)
+                  current-thumb (volatile! nil)
+                  ^EventHandler on-thumb-pressed (fn on-thumb-pressed [_] (vreset! thumb-pressed true))
+                  ^EventHandler on-thumb-released (fn on-thumb-released [_] (vreset! thumb-pressed false))
+                  ^EventHandler on-thumb-dragged (fn on-thumb-dragged [^Event event] (when-not @thumb-pressed (.consume event)))
+                  bind-thumb!
+                  (fn bind-thumb! []
+                    (vreset! thumb-pressed false)
+                    (when-let [^Node thumb (.lookup slider ".thumb")]
+                      (vreset! current-thumb thumb)
+                      (.addEventFilter thumb MouseEvent/MOUSE_PRESSED on-thumb-pressed)
+                      (.addEventFilter thumb MouseEvent/MOUSE_RELEASED on-thumb-released)
+                      (.addEventFilter thumb MouseEvent/MOUSE_DRAGGED on-thumb-dragged)))
+                  skin-listener
+                  (reify ChangeListener
+                    (changed [_ _ _ _]
+                      (bind-thumb!)))]
+              ;; The thumb only exists once the skin has been created, and it is
+              ;; replaced along with the skin, so rebind whenever the skin changes.
+              ;; Filters on a replaced thumb go away with the thumb itself.
+              (bind-thumb!)
+              (.addListener (.skinProperty slider) skin-listener)
+              #(do
+                 (.removeListener (.skinProperty slider) skin-listener)
+                 (when-let [^Node thumb @current-thumb]
+                   (.removeEventFilter thumb MouseEvent/MOUSE_PRESSED on-thumb-pressed)
+                   (.removeEventFilter thumb MouseEvent/MOUSE_RELEASED on-thumb-released)
+                   (.removeEventFilter thumb MouseEvent/MOUSE_DRAGGED on-thumb-dragged)
+                   (vreset! current-thumb nil)))))
+          fx.lifecycle/scalar)]
+    (fn slider [props]
+      (assoc props
+        :fx/type fx.slider/lifecycle
+        drag-start-guard-prop true))))
 
 (def ext-with-advance-events
   "Extension lifecycle that notifies all listeners even during advancing
