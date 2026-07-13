@@ -402,12 +402,11 @@
        ;; persists and only gets reset to DEFAULT when you leave the popup and reenter. The scene apparently still thinks it's
        ;; the DEFAULT cursor, so if you set it to DEFAULT, it's a NOOP, so we set it to NONE first, then DEFAULT, and it works.
        ;; Note that this might just be linux specific, but wouldn't hurt to just do it for everyone.
-       ;; We read the scene from main-scene rather than owner, because using the color dropper can rebuild the toolbar and leave owner out of the window.
        (.addEventHandler content MouseEvent/MOUSE_ENTERED
                          (ui/event-handler e
-                                           (let [scene ^Scene (ui/main-scene)]
-                                             (.setCursor scene Cursor/NONE)
-                                             (.setCursor scene Cursor/DEFAULT))))
+                           (let [scene (.getScene owner)]
+                             (.setCursor scene Cursor/NONE)
+                             (.setCursor scene Cursor/DEFAULT))))
        ;; Request focus so the first UI element loses focus
        (.requestFocus content)
        advance!))))

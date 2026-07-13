@@ -175,9 +175,5 @@
         (.requestFocus))
 
       (capture! color-dropper canvas)
-      ;; The click that starts the dropper can come from inside a popup window, so its x/y are
-      ;; measured against that popup, not against the editor image we snapshotted. Convert through
-      ;; screen coordinates so this first magnifier reading samples the right pixel even if the user
-      ;; picks without moving the mouse.
       (let [point ^Point2D (.screenToLocal main-view (.getScreenX event) (.getScreenY event))]
         (paint-magnifier! color-dropper canvas (.getX point) (.getY point))))))
