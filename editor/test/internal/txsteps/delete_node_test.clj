@@ -348,7 +348,7 @@
           ensure-nodes-present-in-graph!
           (fn ensure-nodes-present-in-graph! []
             (testing "Nodes are present in the graph."
-              (every? some? (map g/node-by-id node-ids))))
+              (is (coll/every? (comp some? g/node-by-id) node-ids))))
 
           ensure-nodes-absent-from-graph!
           (fn ensure-nodes-absent-from-graph! []
