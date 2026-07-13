@@ -87,6 +87,7 @@ static const uint32_t PATH_IN_PROGRESS_CAPACITY      = MAX_PRELOADER_REQUESTS;
 static const uint32_t PATH_IN_PROGRESS_HASHDATA_SIZE = (PATH_IN_PROGRESS_TABLE_SIZE * sizeof(uint32_t)) + (PATH_IN_PROGRESS_CAPACITY * sizeof(TPathInProgressTable::Entry));
 static const uint32_t INITIAL_PATH_CAPACITY           = 1536;
 
+// Identifies a resource path and type using preloader-owned strings that remain valid for the whole preload.
 struct PathDescriptor
 {
     const char* m_InternalizedName;
@@ -96,7 +97,7 @@ struct PathDescriptor
     dmhash_t m_CanonicalPathHash;
 };
 
-// Internal data structure for passing parameters to postcreate function callbacks
+// Owns the descriptor and lifecycle state needed to run or unwind a deferred post-create callback.
 struct ResourcePostCreateParamsInternal
 {
     ResourcePostCreateParams m_Params;
@@ -104,12 +105,14 @@ struct ResourcePostCreateParamsInternal
     bool m_Destroy;
 };
 
+// Describes a discovered dependency waiting to be linked beneath its active parent request.
 struct PendingHint
 {
     PathDescriptor m_PathDescriptor;
     TRequestIndex m_Parent;
 };
 
+// Represents one resident node in the bounded dependency tree and tracks its load/create state.
 struct PreloadRequest
 {
     PathDescriptor m_PathDescriptor;
@@ -138,12 +141,14 @@ struct PreloadRequest
     void* m_Resource;
 };
 
+// Owns the complete state of one asynchronous preload operation, including active requests and overflow hints.
 struct ResourcePreloader
 {
     ResourcePreloader()
         : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
     {
     }
+    // Holds data written by preload callbacks and protected by m_SyncedDataSpinlock.
     struct SyncedData
     {
         SyncedData()
@@ -190,6 +195,7 @@ struct ResourcePreloader
 
 namespace dmResource
 {
+    // Return a stable, preloader-owned path string. Called while building descriptors for roots and hints.
     const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, dmhash_t path_hash, const char* path, uint32_t path_len)
     {
         uint32_t* path_lookup = preloader_synced_data->m_PathLookup.Get(path_hash);
@@ -321,6 +327,7 @@ namespace dmResource
         }
     }
 
+    // Allocate and link an active request after the scheduler has made a request slot available.
     static Result PreloadPathDescriptor(HPreloader preloader, TRequestIndex parent, const PathDescriptor& path_descriptor)
     {
         // Quick deduplication, check if the child is already listed under the current parent
@@ -368,6 +375,7 @@ namespace dmResource
         return RESULT_OK;
     }
 
+    // Check the overflow stack before queueing a hint that has not yet entered the active request tree.
     static bool IsPendingHintDuplicate(HPreloader preloader, const PendingHint& hint)
     {
         for (uint32_t i = 0; i < preloader->m_PendingHints.Size(); ++i)
@@ -381,6 +389,7 @@ namespace dmResource
         return false;
     }
 
+    // Add a discovered hint to the growable stack where it waits for request-slot admission.
     static void PushPendingHint(HPreloader preloader, const PendingHint& hint)
     {
         if (preloader->m_PendingHints.Full())
@@ -390,6 +399,7 @@ namespace dmResource
         preloader->m_PendingHints.Push(hint);
     }
 
+    // Move the newest overflow hint into a free request slot during preloader updates.
     static bool AdmitPendingHint(HPreloader preloader)
     {
         if (!preloader->m_FreelistSize || preloader->m_PendingHints.Empty())
@@ -406,6 +416,7 @@ namespace dmResource
         return PreloadPathDescriptor(preloader, hint.m_Parent, hint.m_PathDescriptor) == RESULT_OK;
     }
 
+    // Transfer hints produced by preload callbacks into the update-thread stack, then admit one if possible.
     static bool PopHints(HPreloader preloader)
     {
         dmArray<PendingHint> new_hints;
@@ -429,6 +440,7 @@ namespace dmResource
         return AdmitPendingHint(preloader);
     }
 
+    // Queue an additional initial resource supplied to NewPreloader as a child of its first request.
     static Result PreloadHintInternal(HPreloader preloader, TRequestIndex parent, const char* name)
     {
         PathDescriptor path_descriptor;
@@ -490,6 +502,7 @@ namespace dmResource
         preloader->m_Freelist[preloader->m_FreelistSize++] = index;
     }
 
+    // Retain a completed resource and recycle its leaf slot while its parent is still waiting on other hints.
     static void RetainAndRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
     {
         PreloadRequest* req = &preloader->m_Request[index];
