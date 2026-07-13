@@ -35,7 +35,7 @@
            [javafx.css Styleable]
            [javafx.event ActionEvent Event]
            [javafx.geometry HPos Point2D VPos]
-           [javafx.scene Cursor Node Parent Scene]
+           [javafx.scene Cursor Node Parent]
            [javafx.scene.control ColorPicker PopupControl Skin Slider ToggleButton]
            [javafx.scene.input MouseEvent ScrollEvent]
            [javafx.scene.layout StackPane]

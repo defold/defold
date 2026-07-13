@@ -142,12 +142,16 @@
                          (ui/add-child! canvas)
                          (.setStyle "-fx-background-color: transparent;"))]
       (ui/add-child! main-view dropper-area)
-      ;; NOTE: Here we check if we are within the :workbench context, if we are,
-      ;; grab the whole context and pretend the color dropper overlay is under
-      ;; it. If we don't, when the overlay grabs focus, the scene-view toolbar
-      ;; will disappear and if the color dropper was started from somewhere with
-      ;; the toolbar (like the grid popup), the owner of the popup gets rebuilt
+      ;; NOTE: Here we check if we are within the :workbench context, if we are, grab the whole
+      ;; context and pretend the color dropper overlay is under it. If we don't, when the overlay
+      ;; grabs focus, the scene-view toolbar will disappear and if the color dropper was started
+      ;; from somewhere with the toolbar (like the grid popup), the owner of the popup gets rebuilt
       ;; and calling on-deactivated ends up throwing an exception
+      ;;
+      ;; TODO: Remove this. This is a result of the :global/:workbench split between the scene view
+      ;; and the rest of the editor. We intend to eventually make the editor layout freely
+      ;; configurable which would then remove the different contexts, in which case all this code
+      ;; can likely be deleted.
       (when-let [ctx-node (ui/closest-node-where
                             (fn [^Node n] (= :workbench (:name (ui/user-data n ::ui/context))))
                             prev-focus-owner)]
