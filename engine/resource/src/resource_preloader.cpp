@@ -374,7 +374,9 @@ namespace dmResource
         {
             const PendingHint& pending = preloader->m_PendingHints[i];
             if (pending.m_Parent == hint.m_Parent && pending.m_PathDescriptor.m_NameHash == hint.m_PathDescriptor.m_NameHash)
+            {
                 return true;
+            }
         }
         return false;
     }
@@ -382,14 +384,18 @@ namespace dmResource
     static void PushPendingHint(HPreloader preloader, const PendingHint& hint)
     {
         if (preloader->m_PendingHints.Full())
+        {
             preloader->m_PendingHints.OffsetCapacity(128);
+        }
         preloader->m_PendingHints.Push(hint);
     }
 
     static bool AdmitPendingHint(HPreloader preloader)
     {
         if (!preloader->m_FreelistSize || preloader->m_PendingHints.Empty())
+        {
             return false;
+        }
 
         // LIFO makes hints discovered by the current request run before its remaining siblings.
         // This preserves depth-first loading and avoids filling every slot with a wide tree level.
@@ -414,7 +420,9 @@ namespace dmResource
         {
             const PendingHint& hint = hints[i];
             if (IsPendingHintDuplicate(preloader, hint))
+            {
                 continue;
+            }
             PushPendingHint(preloader, hint);
             preloader->m_Request[hint.m_Parent].m_QueuedChildCount++;
         }
@@ -431,7 +439,9 @@ namespace dmResource
         }
         PendingHint hint = { path_descriptor, parent };
         if (IsPendingHintDuplicate(preloader, hint))
+        {
             return RESULT_ALREADY_REGISTERED;
+        }
         PushPendingHint(preloader, hint);
         preloader->m_Request[parent].m_QueuedChildCount++;
         return RESULT_OK;
@@ -459,7 +469,9 @@ namespace dmResource
             if (index < preloader->m_PersistResourceCount)
             {
                 if (preloader->m_PersistedResources.Full())
+                {
                     preloader->m_PersistedResources.OffsetCapacity(128);
+                }
                 preloader->m_PersistedResources.Push(me->m_Resource);
             }
             else
@@ -486,7 +498,9 @@ namespace dmResource
             // Keep the factory reference alive until the parent acquires the resource during Create.
             // The request node can then be recycled without causing a later synchronous reload.
             if (preloader->m_PersistedResources.Full())
+            {
                 preloader->m_PersistedResources.OffsetCapacity(128);
+            }
             preloader->m_PersistedResources.Push(req->m_Resource);
             req->m_Resource = 0;
         }
@@ -999,7 +1013,9 @@ namespace dmResource
             if (rd)
             {
                 if (params.m_Resource->m_ResourceSize != 0)
+                {
                     rd->m_ResourceSize = params.m_Resource->m_ResourceSize;
+                }
             }
         }
 
@@ -1126,13 +1142,17 @@ namespace dmResource
 
         // Release root and persisted resources
         if (preloader->m_PersistedResources.Full())
+        {
             preloader->m_PersistedResources.OffsetCapacity(1);
+        }
         preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
         for (uint32_t i = 0; i < preloader->m_PersistedResources.Size(); ++i)
         {
             void* resource = preloader->m_PersistedResources[i];
             if (!resource)
+            {
                 continue;
+            }
             Release(preloader->m_Factory, resource);
         }
 
@@ -1153,7 +1173,9 @@ namespace dmResource
     bool PreloadHint(HResourcePreloadHintInfo info, const char* name)
     {
         if (!info || !name)
+        {
             return false;
+        }
 
         HPreloader preloader = info->m_Preloader;
 
