@@ -266,6 +266,9 @@ dialog.quit-defold.header = 存在未保存的更改，您确定要退出吗？
 dialog.quit-defold.button.cancel = 取消并继续工作
 dialog.quit-defold.button.quit = 不保存退出
 
+# Restart Defold dialog
+
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = 无法安全升级文件格式
@@ -336,7 +339,17 @@ dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}
 
 # Fetch libraries notification
 
+notification.fetch-libraries.changed = 项目依赖项已更改。您想现在获取库吗？
+notification.fetch-libraries.action.fetch = 获取库
+notification.fetch-libraries.action.open-game-project = 打开 game.project
+notification.fetch-libraries.problem.failed-http-request = 获取 (HTTP\:{status}) 失败
 notification.fetch-libraries.problem.http-connect-timeout = 获取失败(连接超时)
+
+# Editor scripts notification
+
+
+# Reload plugins notification
+
 
 # Open custom editor notifications
 
@@ -1250,6 +1263,9 @@ property.label.size = 大小
 property.label.text = 文本
 property.label.tracking = 字距
 
+# Properties: light
+
+
 # Properties: mesh
 
 property.mesh.normal-stream = 法线流
@@ -1832,7 +1848,6 @@ form.help.project.display.high_dpi = 在支持时启用高 DPI 后备缓冲区
 form.label.project.display.samples = 采样
 form.help.project.display.samples = 超采样抗锯齿使用的采样数，默认为 0 ，即关闭
 form.label.project.display.fullscreen = 全屏
-form.help.project.display.fullscreen = 以全屏模式启动应用程序而非窗口模式
 form.label.project.display.display_profiles = 显示配置文件
 form.help.project.display.display_profiles = 应用程序使用的显示配置文件的文件引用
 form.label.project.display.dynamic_orientation = 动态方向
@@ -2112,6 +2127,7 @@ form.label.sound.group = 分组
 form.label.sound.gain = 增益
 form.label.sound.pan = 声道平衡
 form.label.sound.speed = 速度
+
 
 form.label.liveupdate.liveupdate = 实时更新
 form.label.liveupdate.liveupdate.mode = 模式

@@ -33,6 +33,7 @@
             [editor.image :as image]
             [editor.image-util :as image-util]
             [editor.localization :as localization]
+            [editor.mouse-binding :as mouse-binding]
             [editor.outline :as outline]
             [editor.pipeline.tex-gen :as tex-gen]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
@@ -65,6 +66,17 @@
 (def tile-source-icon "icons/32/Icons_47-Tilesource.png")
 (def animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def collision-icon "icons/32/Icons_43-Tilesource-Collgroup.png")
+
+(mouse-binding/register!
+  ::tile-source-tool
+  "Tile Source Editor"
+  [{:command :scene.camera.orbit
+    :action ["Orbit"]}
+   {:command :scene.camera.pan
+    :action ["Pan"]}
+   {:command :scene.camera.zoom
+    :action ["Zoom"]}]
+  {:inherited-context :editor.camera/scene-camera-orthographic})
 
 (def texture-params
   {:min-filter gl/nearest
@@ -971,6 +983,7 @@
   (output selected-collision-group-node g/Any produce-selected-collision-group-node)
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output mouse-binding-context g/Keyword (g/constantly ::tile-source-tool))
   (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/fnk [active-tile-idx]
                             (when (some? active-tile-idx)

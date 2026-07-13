@@ -179,6 +179,7 @@ namespace dmGraphics
         m_BaseContext.m_Height                  = params.m_Height;
         m_SwapInterval            = params.m_SwapInterval;
         m_JobContext              = params.m_JobContext;
+        SetAllContextFeaturesSupported(&m_BaseContext);
 
         // We need to have some sort of valid default filtering
         if (m_BaseContext.m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -1161,6 +1162,7 @@ namespace dmGraphics
         {
             context->m_ASTCSupport = 1;
             context->m_ASTCArrayTextureSupport = 1;
+            SetContextASTCTextureFormatsSupported(&context->m_BaseContext);
         }
 
         TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
@@ -1189,6 +1191,8 @@ namespace dmGraphics
         // RGB isn't supported in Vulkan as a texture format, but we still need to supply it to the engine
         // Later in the vulkan pipeline when the texture is created, we will convert it internally to RGBA
         context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_DEPTH;
+        context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_STENCIL;
 
         // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(texture_formats); ++i)
@@ -1730,13 +1734,6 @@ bail:
         NativeExit();
     }
 
-    static void VulkanGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
-    }
-
     static void VulkanBeginFrame(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -2241,7 +2238,7 @@ bail:
             // Coherent memory writes does not seem to be properly synced on MoltenVK,
             // so for now we always mark the old buffer for destruction when updating the data.
         #ifndef __MACH__
-            if (size != buffer->m_MemorySize)
+            if (size != buffer->m_Base.m_Size)
         #endif
             {
                 DestroyResourceDeferred(context, buffer);
@@ -2251,17 +2248,18 @@ bail:
         DeviceBufferUploadHelper(context, data, size, offset, buffer);
     }
 
-    static HUniformBuffer VulkanNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer VulkanNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         VulkanContext* context      = (VulkanContext*) _context;
         VulkanUniformBuffer* ubo    = new VulkanUniformBuffer();
         ubo->m_DeviceBuffer.m_Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
 
         VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-            layout.m_Size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
+            size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &ubo->m_DeviceBuffer);
         CHECK_VK_ERROR(res);
 
         return (HUniformBuffer) ubo;
@@ -2271,7 +2269,7 @@ bail:
     {
         VulkanContext* context   = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
         DeviceBufferUploadHelper(context, data, size, offset, &ubo->m_DeviceBuffer);
     }
 
@@ -2280,14 +2278,15 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VulkanUniformBuffer* ubo = (VulkanUniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         {
-            return;
-        }
-
-        if (context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
-        {
-            context->m_CurrentUniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentUniformBuffers[set][binding] == ubo)
+                {
+                    context->m_CurrentUniformBuffers[set][binding] = 0;
+                }
+            }
         }
 
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -2301,11 +2300,6 @@ bail:
 
         ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
         ubo->m_BaseUniformBuffer.m_BoundSet     = set;
-
-        if (context->m_CurrentUniformBuffers[set][binding])
-        {
-            VulkanDisableUniformBuffer(_context, (HUniformBuffer) context->m_CurrentUniformBuffers[set][binding]);
-        }
 
         context->m_CurrentUniformBuffers[set][binding] = ubo;
     }
@@ -2369,18 +2363,8 @@ bail:
         DM_PROFILE(__FUNCTION__);
         assert(size > 0);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        assert(offset + size <= buffer_ptr->m_MemorySize);
+        assert(offset + size <= buffer_ptr->m_Base.m_Size);
         DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
-    }
-
-    static uint32_t VulkanGetVertexBufferSize(HVertexBuffer buffer)
-    {
-        if (!buffer)
-        {
-            return 0;
-        }
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        return buffer_ptr->m_MemorySize;
     }
 
     static uint32_t VulkanGetMaxElementsVertices(HContext context)
@@ -2437,18 +2421,8 @@ bail:
         DM_PROFILE(__FUNCTION__);
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        assert(offset + size < buffer_ptr->m_MemorySize);
+        assert(offset + size < buffer_ptr->m_Base.m_Size);
         DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
-    }
-
-    static uint32_t VulkanGetIndexBufferSize(HIndexBuffer buffer)
-    {
-        if (!buffer)
-        {
-            return 0;
-        }
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        return buffer_ptr->m_MemorySize;
     }
 
     static bool VulkanIsIndexBufferFormatSupported(HContext _context, IndexBufferFormat format)
@@ -2832,14 +2806,15 @@ bail:
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, res->m_BindingInfo.m_BlockSize))
                         {
                             dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                                bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                                bound_ubo->m_BaseUniformBuffer.m_Layout,
                                 res->m_Name,
-                                pgm_layout->m_Hash);
+                                *pgm_layout);
 
                             // Fallback to the scratch buffer uniform setup
+                            VulkanDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                             bound_ubo = 0;
                         }
                     }
@@ -2856,7 +2831,7 @@ bail:
                             vk_write_buffer_descriptors[buffer_to_write_index++],
                             vk_write_desc_info,
                             0,
-                            bound_ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+                            bound_ubo->m_BaseUniformBuffer.m_Size);
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
 
                         dynamic_offsets[dynamic_offset_index] = 0;
@@ -2961,13 +2936,14 @@ bail:
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash == pgm_layout->m_Hash)
+                        if (IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, block_size))
                         {
                             vk_buffer = bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer;
                         }
                         else
                         {
                             // Fallback to scratch buffer representation
+                            VulkanDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                             bound_ubo = 0;
                         }
                     }
@@ -3081,14 +3057,14 @@ bail:
     static void PrepareScatchBuffer(VulkanContext* context, ScratchBuffer* scratchBuffer, VulkanProgram* program_ptr)
     {
         const uint32_t num_uniform_buffers = program_ptr->m_UniformBufferCount;
-        const bool resize_scratch_buffer   = program_ptr->m_UniformDataSizeAligned > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
+        const bool resize_scratch_buffer   = program_ptr->m_UniformDataSizeAligned > (scratchBuffer->m_DeviceBuffer.m_Base.m_Size - scratchBuffer->m_MappedDataCursor);
 
         if (resize_scratch_buffer)
         {
             // Double the buffer size, or grow to fit the current program's needs,
             // whichever is larger. This avoids repeated small resizes when many
             // materials with large uniform blocks are drawn in the same frame.
-            const uint32_t current_size = scratchBuffer->m_DeviceBuffer.m_MemorySize;
+            const uint32_t current_size = scratchBuffer->m_DeviceBuffer.m_Base.m_Size;
             const uint32_t needed_size  = scratchBuffer->m_MappedDataCursor + program_ptr->m_UniformDataSizeAligned;
             const uint32_t new_size     = dmMath::Max(current_size * 2, needed_size);
             VkResult res = ResizeScratchBuffer(context, new_size, scratchBuffer);
@@ -4554,12 +4530,6 @@ bail:
         CHECK_VK_ERROR(res);
     }
 
-    static bool VulkanIsTextureFormatSupported(HContext _context, TextureFormat format)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        return (context->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
-    }
-
     static VulkanTexture* VulkanNewTextureInternal(const TextureCreationParams& params)
     {
         VulkanTexture* tex = new VulkanTexture;
@@ -4585,7 +4555,7 @@ bail:
         tex->m_Base.m_NumTextureIds  = 1;
         dmAtomicStore32(&tex->m_Base.m_DataState, 0);
         tex->m_PendingUpload  = INVALID_OPAQUE_HANDLE;
-        tex->m_DataSize       = 0;
+        tex->m_Base.m_ResourceSize = 0;
 
         for (int i = 0; i < DM_ARRAY_SIZE(tex->m_ImageLayout); ++i)
         {
@@ -4870,6 +4840,11 @@ bail:
             }
         }
 
+        if (!params.m_SubUpdate)
+        {
+            SetTextureResourceSize(&texture->m_Base, sizeof(VulkanTexture));
+        }
+
         bool use_stage_buffer = true;
         bool memoryless = IsTextureMemoryless(texture);
 
@@ -4942,7 +4917,7 @@ bail:
             CopyToTexture(context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
 
             // update the resource size
-            texture->m_DataSize = tex_data_size;
+            SetTextureResourceSizeExact(&texture->m_Base, sizeof(VulkanTexture), tex_data_size);
         }
 
         delete[] temp_data;
@@ -5130,7 +5105,7 @@ bail:
                 CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
 
                 // update the resource size
-                tex->m_DataSize = tex_data_size;
+                SetTextureResourceSizeExact(&tex->m_Base, sizeof(VulkanTexture), tex_data_size);
             }
 
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
@@ -5327,41 +5302,6 @@ bail:
         VulkanSetTextureParamsInternal(context, tex, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
     }
 
-    // NOTE: Currently over estimates the resource usage for compressed formats!
-    static uint32_t VulkanGetTextureResourceSize(HContext _context, HTexture texture)
-    {
-        VulkanContext* context = (VulkanContext*)_context;
-        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
-        if (!tex)
-        {
-            return 0;
-        }
-
-        if (tex->m_DataSize)
-            return tex->m_DataSize + sizeof(VulkanTexture);
-
-        uint32_t size_total = 0;
-        uint32_t size = tex->m_Base.m_Width * tex->m_Base.m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_Base.m_Format)/8);
-        for(uint32_t i = 0; i < tex->m_Base.m_MipMapCount; ++i)
-        {
-            size_total += size;
-            size >>= 2;
-        }
-        if (tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            size_total *= 6;
-        }
-        return size_total + sizeof(VulkanTexture);
-    }
-
-    static uint8_t VulkanGetTexturePageCount(HTexture texture)
-    {
-        DM_MUTEX_SCOPED_LOCK(g_VulkanContext->m_BaseContext.m_AssetHandleContainerMutex);
-        VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(g_VulkanContext->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_Base.m_PageCount : 0;
-    }
-
     static HandleResult VulkanGetTextureHandle(HTexture texture, void** out_handle)
     {
         assert(0 && "GetTextureHandle is not implemented on Vulkan.");
@@ -5465,7 +5405,7 @@ bail:
         res = stage_buffer.MapMemory(context->m_LogicalDevice.m_Device);
         CHECK_VK_ERROR(res);
 
-        memcpy(buffer, stage_buffer.m_MappedDataPtr, stage_buffer.m_MemorySize);
+        memcpy(buffer, stage_buffer.m_MappedDataPtr, stage_buffer.m_Base.m_Size);
 
         stage_buffer.UnmapMemory(context->m_LogicalDevice.m_Device);
 
@@ -5480,16 +5420,6 @@ bail:
     static HWindow VulkanGetWindow(HContext context)
     {
         return ((VulkanContext*) context)->m_BaseContext.m_Window;
-    }
-
-    static uint32_t VulkanGetWidth(HContext context)
-    {
-        return ((VulkanContext*) context)->m_BaseContext.m_Width;
-    }
-
-    static uint32_t VulkanGetHeight(HContext context)
-    {
-        return ((VulkanContext*) context)->m_BaseContext.m_Height;
     }
 
     static uint32_t VulkanGetDisplayDpi(HContext context)
@@ -5508,33 +5438,6 @@ bail:
     void DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value)
     {
         DestroyPipeline(context->m_LogicalDevice.m_Device, value);
-    }
-
-    static bool VulkanIsContextFeatureSupported(HContext _context, ContextFeature feature)
-    {
-        return true;
-    }
-
-    static bool VulkanIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-    {
-        if (asset_handle == 0)
-        {
-            return false;
-        }
-
-        VulkanContext* context = (VulkanContext*) _context;
-        AssetType type         = GetAssetType(asset_handle);
-
-        DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
-        if (type == ASSET_TYPE_TEXTURE)
-        {
-            return GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        return false;
     }
 
     static void VulkanInvalidateGraphicsHandles(HContext context)

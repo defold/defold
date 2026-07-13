@@ -24,7 +24,6 @@
             [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
-            [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.localization :as localization]
@@ -591,7 +590,7 @@
             (mapv #(mapv localization/message %)
                   [["resource.category.objects" "resource.category.scripts" "resource.category.shaders"]
                    ["resource.category.components"]
-                   ["resource.category.resources"]
+                   ["resource.category.resources" "resource.category.lights"]
                    ["resource.category.editor" "resource.category.project_settings" "resource.category.other"]])
 
             predefined-categories (into #{} cat base-columns)
@@ -910,11 +909,11 @@
 (def ^:private ext-with-tree-view-props
   (fx/make-ext-with-props fx.tree-view/props))
 
-(fxui/defc asset-tree-view
+(ui/defc asset-tree-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [tree-view localization-state on-drag-dropped]}]
   {:fx/type ext-with-tree-view-props
-   :desc {:fx/type fxui/ext-value :value tree-view}
+   :desc {:fx/type ui/ext-value :value tree-view}
    :props {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
                           :describe (fn/partial #'describe-tree-cell localization-state on-drag-dropped)}}})
 

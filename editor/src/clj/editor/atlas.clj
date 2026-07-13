@@ -32,6 +32,7 @@
             [editor.image-util :as image-util]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.mouse-binding :as mouse-binding]
             [editor.outline :as outline]
             [editor.pipeline :as pipeline]
             [editor.pipeline.tex-gen :as tex-gen]
@@ -74,6 +75,17 @@
 (def ^:const atlas-icon "icons/32/Icons_13-Atlas.png")
 (def ^:const animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def ^:const image-icon "icons/32/Icons_25-AT-Image.png")
+
+(mouse-binding/register!
+  ::atlas-tool
+  "Atlas Editor"
+  [{:command :scene.camera.orbit
+    :action ["Orbit"]}
+   {:command :scene.camera.pan
+    :action ["Pan"]}
+   {:command :scene.camera.zoom
+    :action ["Zoom"]}]
+  {:inherited-context :editor.camera/scene-camera-orthographic})
 
 (g/deftype ^:private NameCounts {s/Str s/Int})
 
@@ -1220,10 +1232,11 @@
 
   (output scale g/Any :cached produce-scale)
   (output snap-threshold g/Any :cached (g/fnk [scale] (cond-> 0.1 scale (* ^double scale))))
-  (output snap-enabled g/Bool :cached (g/fnk [start-action action] (and start-action (:shift action))))
+  (output snap-enabled g/Bool :cached (g/fnk [start-action action] (and start-action (contains? (:modifiers action) :shift))))
   (output manip-delta g/Any :cached produce-manip-delta)
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output mouse-binding-context g/Keyword (g/constantly ::atlas-tool))
   (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/constantly nil)))
 

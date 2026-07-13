@@ -37,8 +37,6 @@ public class ShaderCompilers {
     public static final String SHADER_ADAPTER_WEBGPU = "webgpu";
     public static final String SHADER_ADAPTER_DX12 = "dx12";
 
-    // Console platforms use registered/plugin shader compilers instead of the common shader compiler,
-    // so console-specific adapters do not need to be represented here.
     private enum GraphicsAdapter {
         OPENGL(SHADER_ADAPTER_OPENGL),
         OPENGLES(SHADER_ADAPTER_OPENGLES),
@@ -111,9 +109,15 @@ public class ShaderCompilers {
 
     public static class CommonShaderCompiler implements IShaderCompiler {
         private final Platform platform;
+        private final ShaderCompilePipeline.Options baseOptions;
 
         public CommonShaderCompiler(Platform platform) {
+            this(platform, null);
+        }
+
+        public CommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
             this.platform = platform;
+            this.baseOptions = baseOptions;
         }
 
         private void addGlslLanguages(Set<ShaderDesc.Language> shaderLanguages, boolean isComputeType) {
@@ -204,20 +208,36 @@ public class ShaderCompilers {
             // Used for tests, merge in potentially unsupported languages here.
             shaderLanguages.addAll(compileOptions.forceIncludeShaderLanguages);
 
+            boolean hasHlslTarget = shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_50) ||
+                                    shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_51);
+            boolean hasWgslTarget = shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_WGSL);
+
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
-            opts.splitTextureSamplers = compileOptions.forceSplitSamplers;
+            if (this.baseOptions != null) {
+                opts.externalToolPath = this.baseOptions.externalToolPath;
+                opts.externalToolArgs = this.baseOptions.externalToolArgs;
+            }
+            // Keep combined samplers for HLSL by default. SPIRV-Cross can emit valid HLSL from combined samplers,
+            // while pre-splitting GLSL uniforms can break shaders that pass sampler2D into helper functions.
+            opts.splitTextureSamplers = compileOptions.forceSplitSamplers || hasWgslTarget;
+            opts.remapVertexFragmentIOForHLSL = hasHlslTarget;
+            opts.targetPlatform = this.platform;
             opts.glslEsDefaultFloatPrecision = compileOptions.glslEsDefaultFloatPrecision;
             opts.glslEsDefaultIntPrecision = compileOptions.glslEsDefaultIntPrecision;
 
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-                opts.splitTextureSamplers |= shaderLanguageRequiresSplitTextureSamplers(shaderLanguage);
+                opts.splitTextureSamplers |= shaderLanguageRequiresSplitTextureSamplers(shaderLanguage) &&
+                                             shaderLanguage != ShaderDesc.Language.LANGUAGE_HLSL_51 &&
+                                             shaderLanguage != ShaderDesc.Language.LANGUAGE_HLSL_50;
             }
 
-            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
-            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
+            ShaderCompilePipeline pipeline = null;
+            try {
+                pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
+                ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
 
-            HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
-            Shaderc.HLSLRootSignature hlslRootSignature = null;
+                HashMap<ShaderDesc.ShaderType, Boolean> shaderTypeKeys = new HashMap<>();
+                Shaderc.HLSLRootSignature hlslRootSignature = null;
 
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
 
@@ -225,6 +245,8 @@ public class ShaderCompilers {
 
                 boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
                 List<Shaderc.ShaderCompileResult> compiled_shaders = new ArrayList<>();
+                List<ShaderDesc.ShaderType> compiled_shader_types = new ArrayList<>();
+                List<Boolean> compiled_shader_variant_flags = new ArrayList<>();
 
                 for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
 
@@ -243,18 +265,59 @@ public class ShaderCompilers {
                         }
                     }
 
-                    ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(crossCompileResult, shaderLanguage, shaderModule.type);
+                    compiled_shaders.add(crossCompileResult);
+                    compiled_shader_types.add(shaderModule.type);
+                    compiled_shader_variant_flags.add(variantTextureArray);
+                }
+
+                if (create_hlsl_root_signature) {
+                    hlslRootSignature = pipeline.createRootSignature(shaderLanguage, compiled_shaders);
+                    if (hlslRootSignature == null) {
+                        throw new CompileExceptionError("Failed to create HLSL root signature: native merge returned null");
+                    }
+                    if (hlslRootSignature.lastError != null && !hlslRootSignature.lastError.isEmpty()) {
+                        throw new CompileExceptionError("Failed to create HLSL root signature: " + hlslRootSignature.lastError);
+                    }
+
+                    // Xbox precompiled validation compares runtime root signature against each emplaced shader signature.
+                    // Recompile all stages with the merged signature so both blobs carry the same emplaced signature.
+                    if (compiled_shaders.size() > 1 && hlslRootSignature.hLSLRootSignature != null && hlslRootSignature.hLSLRootSignature.length > 0) {
+                        String mergedRootSignatureText = ShadercJni.HLSLRootSignatureToString(hlslRootSignature.hLSLRootSignature);
+                        if (mergedRootSignatureText == null || mergedRootSignatureText.isEmpty()) {
+                            throw new CompileExceptionError("Failed to convert merged HLSL root signature to text for shared-root-signature recompile");
+                        }
+                        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+                            mergedRootSignatureText = Win32ShaderCompiler.ensureInputAssemblerRootFlag(mergedRootSignatureText);
+                        }
+
+                        for (int i = 0; i < shaderModules.size(); ++i) {
+                            ShaderCompilePipeline.ShaderModuleDesc shaderModule = shaderModules.get(i);
+                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompileWithRootSignature(shaderModule.type, shaderLanguage, mergedRootSignatureText);
+                            compiled_shaders.set(i, recompiledShader);
+                        }
+
+                        hlslRootSignature = pipeline.createRootSignature(shaderLanguage, compiled_shaders);
+                        if (hlslRootSignature == null) {
+                            throw new CompileExceptionError("Failed to create HLSL root signature after shared-root-signature recompile");
+                        }
+                        if (hlslRootSignature.lastError != null && !hlslRootSignature.lastError.isEmpty()) {
+                            throw new CompileExceptionError("Failed to create HLSL root signature after shared-root-signature recompile: " + hlslRootSignature.lastError);
+                        }
+                    }
+                }
+
+                // Build shader descs after root signature merge so any patched HLSL blobs are preserved.
+                for (int i = 0; i < compiled_shaders.size(); ++i) {
+                    Shaderc.ShaderCompileResult compiledShader = compiled_shaders.get(i);
+                    ShaderDesc.ShaderType compiledShaderType = compiled_shader_types.get(i);
+                    boolean variantTextureArray = compiled_shader_variant_flags.get(i);
+
+                    ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(compiledShader, shaderLanguage, compiledShaderType);
                     shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
 
                     if (variantTextureArray) {
                         builder.setVariantTextureArray(true);
                     }
-
-                    compiled_shaders.add(crossCompileResult);
-                }
-
-                if (create_hlsl_root_signature) {
-                    hlslRootSignature = pipeline.createRootSignature(shaderLanguage, compiled_shaders);
                 }
             }
 
@@ -267,19 +330,21 @@ public class ShaderCompilers {
 
             compileResult.hlslRootSignature = hlslRootSignature != null ? hlslRootSignature.hLSLRootSignature : null;
 
-            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
-
-            return compileResult;
+                return compileResult;
+            } finally {
+                if (pipeline != null) {
+                    ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+                }
+            }
         }
     }
 
     public static IShaderCompiler GetCommonShaderCompiler(Platform platform) {
-        if (platform == Platform.X86_64PS4 ||
-            platform == Platform.X86_64PS5 ||
-            platform == Platform.X86_64XBone) {
-            return null;
-        }
         return new CommonShaderCompiler(platform);
+    }
+
+    public static IShaderCompiler GetCommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
+        return new CommonShaderCompiler(platform, baseOptions);
     }
 
     public static ArrayList<ShaderDesc.Language> GetSupportedOpenGLVersionsForPlatform(Platform platform) {

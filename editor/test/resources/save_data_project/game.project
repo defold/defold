@@ -65,6 +65,7 @@ write_log = 1
 write_log_file = 1
 minimum_log_level = 2
 compress_archive = 1
+dependencies_metadata = 1
 custom_resources = /referenced/custom
 bundle_resources = /referenced/bundle
 bundle_exclude_resources = /referenced/bundle/log.txt
@@ -78,6 +79,8 @@ game_binding = /checked.input_bindingc
 repeat_delay = 0.4
 repeat_interval = 0.1
 gamepads = /checked.gamepadsc
+gamepad_database = /referenced/gamecontrollerdb.txt
+gamepad_deadzone = 0.35
 use_accelerometer = 0
 
 [html5]

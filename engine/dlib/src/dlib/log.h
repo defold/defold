@@ -73,6 +73,12 @@ uint16_t GetPort();
 bool SetLogFile(const char* path);
 
 /**
+ * Get the number of queued log messages that have not yet been dispatched by
+ * the log thread.
+ */
+uint32_t GetPendingLogCount();
+
+/**
  * iOS specific print function that wraps NSLog to be able to
  * output logging to the device/XCode log.
  *
@@ -83,6 +89,9 @@ bool SetLogFile(const char* path);
  * @param str_buf String buffer to print
  */
 void __ios_log_print(LogSeverity severity, const char* str_buf);
+
+void DoLogPlatform(LogSeverity severity, const char* output, int output_len);
+void CloseConsoleWindow();
 
 #if defined(_WIN32)
 bool HResultToString(HRESULT hr, char* buffer, size_t buffer_size);

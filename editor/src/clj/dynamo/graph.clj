@@ -41,7 +41,7 @@
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error-value? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order])
+(namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics])
 
 (namespaces/import-vars [internal.graph arc explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse successors])
 
@@ -574,6 +574,9 @@
 
     (dynamic _label_ _evaluator_)
     Define a dynamic attribute of the property. The label is a symbol. The evaluator is an fnk like the getter.
+
+    (static _label_ _value_)
+    Define a static attribute of the property. The label is a symbol. Static attributes are stored in the node type definition and are available without constructing a node.
 
     (set (fn [evaluation-context self old-value new-value]))
     Define a custom setter. This is _not_ an fnk, but a strict function of 4 arguments.

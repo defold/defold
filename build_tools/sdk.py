@@ -50,11 +50,11 @@ VERSION_EDITOR_JDK="25+36"
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="26.2" # we also use this to match version on Github Actions
-VERSION_XCODE_CLANG="17.0.0"
-VERSION_MACOSX="26.2"
-VERSION_IPHONEOS="26.2"
-VERSION_IPHONESIMULATOR="26.2"
+VERSION_XCODE="26.5" # we also use this to match version on Github Actions
+VERSION_XCODE_CLANG="21.0.0"
+VERSION_MACOSX="26.5"
+VERSION_IPHONEOS="26.5"
+VERSION_IPHONESIMULATOR="26.5"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
@@ -850,6 +850,8 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
 def _setup_info_from_windowsinfo(windowsinfo, platform):
 
     info = {}
+    info['sdk_root'] = windowsinfo['sdk_root']
+    info['sdk_version'] = windowsinfo['sdk_version']
     info[platform] = {}
     info[platform]['version'] = windowsinfo['sdk_version']
     info[platform]['path'] = windowsinfo['sdk_root']
@@ -1093,30 +1095,36 @@ def _get_local_sdk_info(platform, verbose=False):
 
     return info
 
-# ********************************************************************
-# vendor
+class sdk_vendor(object):
+    @classmethod
+    def _module_for_platform(cls, platform):
+        from private_hooks import load_hook_module
+        module = load_hook_module('sdk', platform)
+        if module:
+            module.SDKException = SDKException
+        return module
 
-def dummy_check_vendor_sdk(sdkfolder, platform, verbose):
-    pass
+    @classmethod
+    def _call(cls, platform, name, default, *args):
+        module = cls._module_for_platform(platform)
+        func = getattr(module, name, None) if module else None
+        return func(*args) if func else default
 
-check_vendor_sdk = dummy_check_vendor_sdk
+    @classmethod
+    def supports_platform(cls, platform):
+        return cls._call(platform, 'supports_platform', False, platform)
 
-try:
-    import sdk_vendor
-    sdk_vendor.SDKException = SDKException # give access to the esception
-    check_vendor_sdk = sdk_vendor.check_vendor_sdk
-except ModuleNotFoundError as e:
-    # Currently, the output is parsed by other scripts
-    if "No module named 'sdk_vendor'" in str(e):
-        pass
-    else:
-        raise e
-except Exception as e:
-    print("Failed to import sdk_vendor.py:")
-    raise e
+    @classmethod
+    def get_defold_sdk_folders(cls, platform):
+        return cls._call(platform, 'get_defold_sdk_folders', [], platform)
 
-if 'sdk_vendor' not in sys.modules:
-    sdk_vendor = None
+    @classmethod
+    def get_sdk_info(cls, platform):
+        return cls._call(platform, 'get_sdk_info', None, platform)
+
+
+def check_vendor_sdk(sdkfolder, platform, verbose):
+    return sdk_vendor._call(platform, 'check_vendor_sdk', None, sdkfolder, platform, verbose)
 
 # ********************************************************************
 
@@ -1212,15 +1220,14 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
             raise TestSdkException("Path not found for clang!")
 
     clang = 'clang++'
-    sysroot = ''
-    arch = ''
+    cmd = [clang]
 
     if platform in ['arm64-android', 'armv7-android']:
         clang = os.path.join(info['bintools'], info['clangname'])
+        cmd = [clang]
 
     elif platform in ['arm64-ios', 'x86_64-ios']:
-        sysroot = '-isysroot' + info[platform]['path']
-        arch = '-arch ' + platform.split('-')[0]
+        cmd.extend(['-isysroot', info[platform]['path'], '-arch', platform.split('-')[0]])
 
     if not use_local_path:
         if not os.path.exists(clang):
@@ -1228,12 +1235,10 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
 
     target = _get_clang_arch_from_platform(platform)
     if target is not None:
-        target = f'--target={target}'
-    else:
-        target = ''
+        cmd.append(f'--target={target}')
 
-    cmd = f'{clang} {sysroot} {target} {arch} {srcfile} -o {exefile}'
-    return run.shell_command(cmd)
+    cmd.extend([srcfile, '-o', exefile])
+    return run.command(cmd)
 
 def _test_compiler_clang(platform, info, can_run, verbose):
     testdir = os.path.join(os.environ['DYNAMO_HOME'], 'sdktest')
@@ -1243,11 +1248,11 @@ def _test_compiler_clang(platform, info, can_run, verbose):
     output = _compile_file_clang(platform, info, testfile, exefile, verbose)
 
     if verbose:
-        output = run.shell_command(f'file {exefile}')
+        output = run.command(['file', exefile])
         log.log(output)
 
     if can_run:
-        output = run.shell_command(f'{exefile}')
+        output = run.command([exefile])
         if verbose:
             log.log(output)
 

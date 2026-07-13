@@ -95,8 +95,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         }
         else
         {
-            int buildDirLen        = this.project.getBuildDirectory().length();
-            String glyphBankPath   = task.input(3).getPath().substring(buildDirLen);
+            String glyphBankPath   = BuilderUtil.getRelativePath(this.project, task.input(3));
             fontMapBuilder.setGlyphBank(glyphBankPath);
         }
 

@@ -467,7 +467,7 @@
             (resolve-scrubber property :left #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
 
 (defn- vec->color [[r g b a]]
-  (Color. (float r) (float g) (float b) (float a)))
+  (Color. (float r) (float g) (float b) (float (or a 1.0))))
 
 (defmethod make-control-view types/Color [property {:keys [color-dropper-view prefs]} localization-state]
   (let [values (properties/values property)
@@ -500,7 +500,7 @@
 
 (defmethod make-control-view :choicebox [property _context localization-state]
   (let [options (:options (:edit-type property))]
-    {:fx/type fxui/ext-memo
+    {:fx/type ui/ext-memo
      :fn make-choicebox-to-string
      :args [options]
      :key :to-string
@@ -762,7 +762,7 @@
 
 (def ^:private properties-message (localization/message "pane.properties"))
 
-(fxui/defc properties-pane-view
+(ui/defc properties-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state context displayed-node-properties]}]
   {:fx/type fxui/titled-pane

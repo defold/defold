@@ -22,6 +22,7 @@
             [editor.code.view :as view]
             [editor.command-requests :as command-requests]
             [editor.console :as console]
+            [editor.doc :as doc]
             [editor.engine-profiler :as engine-profiler]
             [editor.fs :as fs]
             [editor.handler :as handler]
@@ -30,6 +31,7 @@
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.scene :as scene]
             [editor.ui :as ui]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
@@ -43,7 +45,8 @@
            [java.nio.charset StandardCharsets]
            [javafx.scene Scene]
            [javafx.scene.layout Region]
-           [javafx.stage Stage]))
+           [javafx.stage Stage]
+           [javax.imageio ImageIO]))
 
 (set! *warn-on-reflection* true)
 
@@ -295,7 +298,9 @@
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
-                                             (command-requests/router root test-util/localization progress/null-render-progress!)])))]
+                                             (scene/routes project app-view)
+                                             (command-requests/router root test-util/localization progress/null-render-progress!)
+                                             (doc/routes)])))]
           (let [url (http-server/local-url server)]
             (let [{:keys [status headers body]} @(http/request (str url "/") :as :string)]
               (is (= 200 status))
@@ -311,10 +316,57 @@
                        (get-in json-body ["components" "securitySchemes" "token" "description"])))
                 (is (contains? (get json-body "paths") "/console"))
                 (is (contains? (get json-body "paths") "/console/stream"))
+                (is (contains? (get json-body "paths") "/preview/{path}"))
+                (let [get-ref (get-in json-body ["paths" "/ref" "get"])
+                      param-names (into #{} (map #(get % "name")) (get get-ref "parameters"))]
+                  (is get-ref)
+                  (is (every? param-names ["environment" "language" "q"])))
                 (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]
                   (is (= "Execute an editor command" (get post-command "summary")))
                   (is (string/includes? (get post-command "description") "`build-html5`"))
                   (is (some #{"build-html5"} (get-in post-command ["parameters" 0 "schema" "enum"]))))))
+            (let [{:keys [status headers body]} @(http/request
+                                                    (str url "/preview/collection/components/test.gui?width=32&height=32")
+                                                    :as :byte-array)]
+              (is (= 200 status))
+              (is (= "image/png" (get headers "content-type")))
+              (let [image (ImageIO/read (ByteArrayInputStream. body))]
+                (is (= 32 (.getWidth image)))
+                (is (= 32 (.getHeight image)))))
+            (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=runtime&language=Lua&q=go.property") :as :string)
+                  json-body (json/read-str body :key-fn keyword)]
+              (is (= 200 status))
+              (is (= "application/json" (get headers "content-type")))
+              (is (not (coll/empty? json-body)))
+              (is (every? #(= "runtime" (:environment %)) json-body))
+              (is (every? #(= "Lua" (:language %)) json-body))
+              (is (coll/any? #(= "go.property" (:name %)) json-body)))
+            (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=editor&q=editor.prefs.get") :as :string)
+                  json-body (json/read-str body :key-fn keyword)]
+              (is (= 200 status))
+              (is (= "application/json" (get headers "content-type")))
+              (is (not (coll/empty? json-body)))
+              (is (every? #(= "editor" (:environment %)) json-body))
+              (is (coll/any? #(= "editor.prefs.get" (:name %)) json-body)))
+            (let [{:keys [status body]} @(http/request (str url "/ref?q=game%20object") :as :string)
+                  json-body (json/read-str body :key-fn keyword)]
+              (is (= 200 status))
+              (is (not (coll/empty? json-body))))
+            (let [{:keys [status body]} @(http/request (str url "/ref?q=go.property%7Ceditor.prefs.get") :as :string)
+                  json-body (json/read-str body :key-fn keyword)]
+              (is (= 200 status))
+              (is (coll/any? #(= "go.property" (:name %)) json-body))
+              (is (coll/any? #(= "editor.prefs.get" (:name %)) json-body)))
+            (let [{:keys [status body]} @(http/request (str url "/ref?environment=editor,runtime&language=Lua,C%2B%2B&q=property") :as :string)
+                  json-body (json/read-str body :key-fn keyword)]
+              (is (= 200 status))
+              (is (coll/any? #(= "editor" (:environment %)) json-body))
+              (is (coll/any? #(= "runtime" (:environment %)) json-body))
+              (is (coll/any? #(= "Lua" (:language %)) json-body))
+              (is (coll/any? #(= "C++" (:language %)) json-body))
+              (is (every? (fn [element]
+                            (#{"Lua" "C++"} (:language element)))
+                          json-body)))
             (let [{:keys [status headers body]} @(http/request (str url "/engine-profiler/") :as :string)]
               (is (= 200 status))
               (is (= "text/html" (get headers "content-type")))
@@ -339,7 +391,11 @@
                   (console/append-console-line! "after")
                   (is (= "after" (deref (future (.readLine reader)) 2000 ::timeout)))
                   (console/clear-console!)
-                  (is (= "" (deref (future (.readLine reader)) 2000 ::timeout))))))
+                  (is (= "" (deref (future (.readLine reader)) 2000 ::timeout)))
+                  (let [buffer (char-array 11)
+                        read-count (deref (future (.read reader buffer 0 (alength buffer))) 2000 ::timeout)]
+                    (is (= (alength buffer) read-count))
+                    (is (= "\u001b[3J\u001b[H\u001b[2J" (String. buffer)))))))
             (let [{:keys [status]} @(http/request (str url "/command/") :as :string)]
               (is (= 404 status)))
             (let [{:keys [status headers body]} @(http/request (str url "/command/build-html5") :as :string)]

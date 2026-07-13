@@ -219,6 +219,13 @@
                     :doc "content component")]
         read-only-common-props))
 
+(def ^:private tabs-props
+  (into [(make-prop :tabs
+                    :coerce children-coercer
+                    :types ["component[]"]
+                    :doc "array of <code>editor.ui.tab(...)</code> components")]
+        read-only-common-props))
+
 (def ^:private label-without-color-specific-props
   [(make-prop :text :types ["string" "message"] :coerce string-or-message-pattern-coercer :doc "the text, either a string or a localization message")
    (enum-prop :text_alignment :enum :text-alignment :doc "text alignment within paragraph bounds")])
@@ -256,13 +263,13 @@
 (def ^:private icon-props
   (into icon-specific-props common-props))
 
-(def image-size-coercer
+(def positive-number-coercer
   (coerce/wrap-with-pred coerce/number pos? "is not positive"))
 
 (def ^:private image-props
   (into [(make-prop :image :coerce coerce/string :required true :doc "either a resource path (starts with <code>/</code>), or an URL")
-         (make-prop :width :coerce image-size-coercer :doc "width of the image view, the image will be fit inside it while preserving its aspect ratio")
-         (make-prop :height :coerce image-size-coercer :doc "height of the image view, the image will be fit inside it while preserving its aspect ratio")]
+         (make-prop :width :coerce positive-number-coercer :doc "width of the image view, the image will be fit inside it while preserving its aspect ratio")
+         (make-prop :height :coerce positive-number-coercer :doc "height of the image view, the image will be fit inside it while preserving its aspect ratio")]
         common-props))
 
 (def ^:private common-input-props
@@ -302,7 +309,8 @@
 
 (def ^:private check-box-specific-props
   [(make-prop :value :coerce coerce/boolean :doc "determines if the checkbox should appear checked")
-   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")])
+   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")
+   (make-prop :indeterminate :coerce coerce/boolean :doc "determines if the checkbox should appear in the mixed state")])
 
 (def ^:private check-box-props
   (into [] cat [check-box-specific-props label-without-color-specific-props input-with-issue-props]))
@@ -359,6 +367,24 @@
               :coerce coerce/boolean
               :doc "determines if the button can be interacted with")])
 
+(def ^:private tab-props
+  [(make-prop :text
+              :coerce string-or-message-pattern-coercer
+              :required true
+              :types ["string" "message"]
+              :doc "tab header text, either a string or a localization message")
+   (make-prop :content
+              :coerce child-coercer
+              :types ["component"]
+              :doc "tab content component")
+   (make-prop :icon
+              :coerce child-coercer
+              :types ["component"]
+              :doc "tab header icon component")
+   (make-prop :enabled
+              :coerce coerce/boolean
+              :doc "determines if the tab can be selected")])
+
 (def ^:private dialog-props
   [(make-prop :title
               :coerce string-or-message-pattern-coercer
@@ -373,10 +399,22 @@
               :coerce child-coercer
               :types ["component"]
               :doc "content of the dialog")
+   (make-prop :width
+              :coerce positive-number-coercer
+              :doc "initial width of the dialog window in pixels")
+   (make-prop :height
+              :coerce positive-number-coercer
+              :doc "initial height of the dialog window in pixels")
+   (make-prop :resizable
+              :coerce coerce/boolean
+              :doc "determines if the dialog window can be resized by the user")
    (make-prop :buttons
               :coerce children-coercer
               :types ["component[]"]
-              :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")])
+              :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")
+   (make-prop :modal
+              :coerce coerce/boolean
+              :doc "if set to <code>false</code>, the dialog window stays on top but does not block interaction with the editor")])
 
 (def ^:private external-file-dialog-title-doc
   "OS window title, either a string or a localization message")
@@ -466,6 +504,12 @@
     :description "Layout container that optionally shows scroll bars if child contents overflow the assigned bounds"
     :props scroll-props))
 
+(def tabs-component
+  (component
+    "tabs"
+    :description "Layout container that shows one selected tab content at a time"
+    :props tabs-props))
+
 (def label-component
   (component
     "label"
@@ -550,6 +594,12 @@
     :props dialog-button-props
     :description "Dialog button shown in the footer of a dialog"))
 
+(def tab-component
+  (component
+    "tab"
+    :props tab-props
+    :description "Tab used in the <code>tabs</code> prop of <code>editor.ui.tabs(...)</code>"))
+
 (def dialog-component
   (component
     "dialog"
@@ -580,7 +630,7 @@
 (def show-dialog-doc
   {:name "show_dialog"
    :type :function
-   :description "Show a modal dialog and await a result"
+   :description "Show a dialog and await a result"
    :parameters [{:name "dialog"
                  :types ["component"]
                  :doc "a component that resolves to <code>editor.ui.dialog(...)</code>"}]
@@ -757,6 +807,7 @@ end)</code></pre>"})
               grid-component
               separator-component
               scroll-component
+              tabs-component
               label-component
               paragraph-component
               heading-component
@@ -773,6 +824,7 @@ end)</code></pre>"})
               integer-field-component
               number-field-component
               dialog-button-component
+              tab-component
               dialog-component])
            [show-dialog-doc
             function-component-doc

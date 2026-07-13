@@ -17,7 +17,7 @@
             [clojure.test :refer :all]
             [editor.protobuf :as protobuf])
   (:import [com.defold.editor.test TestDdf$BooleanMsg TestDdf$BytesMsg TestDdf$DefaultValue TestDdf$EmptyMsg TestDdf$JavaCasingMsg TestDdf$JsonArray TestDdf$JsonNull TestDdf$JsonObject TestDdf$JsonValue TestDdf$MappedPrimitive TestDdf$MappedMessage TestDdf$Msg TestDdf$NestedDefaults TestDdf$NestedDefaultsSubMsg TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$NestedRequireds TestDdf$NestedRequiredsSubMsg TestDdf$OptionalNoDefaultValue TestDdf$RepeatedUints TestDdf$ResourceDefaulted TestDdf$ResourceDefaultedMapNested TestDdf$ResourceDefaultedNested TestDdf$ResourceDefaultedRepeatedlyNested TestDdf$ResourceFields TestDdf$ResourceOneofDefaulted TestDdf$ResourceOneofDefaultedNested TestDdf$ResourceOneofRepeatedNested TestDdf$ResourceOneofSimple TestDdf$ResourceOneofSimpleNested TestDdf$ResourceRepeated TestDdf$ResourceRepeatedMapNested TestDdf$ResourceRepeatedNested TestDdf$ResourceRepeatedRepeatedlyNested TestDdf$ResourceSelfReferencingDefaulted TestDdf$ResourceSelfReferencingRepeated TestDdf$ResourceSelfReferencingSimple TestDdf$ResourceSimple TestDdf$ResourceSimpleMapNested TestDdf$ResourceSimpleNested TestDdf$ResourceSimpleRepeatedlyNested TestDdf$SubMsg TestDdf$Transform TestDdf$Uint64Msg]
-           [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne]
+           [com.dynamo.proto DdfMath$Matrix4 DdfMath$Point3 DdfMath$Quat DdfMath$Vector3 DdfMath$Vector3One DdfMath$Vector4 DdfMath$Vector4One DdfMath$Vector4WOne DdfStruct$Value]
            [com.google.protobuf ByteString]
            [java.io StringReader]))
 
@@ -2137,6 +2137,7 @@ members {
   }
 }
 ")]
+
     (testing "Protobuf text format to Clojure map conversion."
       (is (= expected-map
              (protobuf/str->map-without-defaults TestDdf$JsonObject expected-str))))
@@ -2144,3 +2145,254 @@ members {
     (testing "Clojure map to Protobuf text format conversion."
       (is (= expected-str
              (protobuf/map->str TestDdf$JsonObject expected-map))))))
+
+;; -----------------------------------------------------------------------------
+;; DdfStruct conversions
+;; -----------------------------------------------------------------------------
+
+(defn- ddf-struct-str->clj-value
+  [ddf-struct-str]
+  (->> ddf-struct-str
+       (protobuf/str->map-without-defaults DdfStruct$Value)
+       (protobuf/ddf-struct-value->clj-value)))
+
+(defn- clj-value->ddf-struct-str
+  ^String [clj-value]
+  (->> clj-value
+       (protobuf/clj-value->ddf-struct-value)
+       (protobuf/map->str DdfStruct$Value)
+       (string/trimr)))
+
+(comment
+  (let [key-a (str "field_key_" (rand-int Integer/MAX_VALUE))
+        key-b (str "field_key_" (rand-int Integer/MAX_VALUE))]
+    (string/triml (format "
+struct {
+  fields {
+    key: \"%s\"
+    value {
+      number: 0.0
+    }
+  }
+  fields {
+    key: \"%s\"
+    value {
+      string: \"\"
+    }
+  }
+}" key-a key-b)))
+
+  (-> (protobuf/map->str DdfStruct$Value nil)
+      (protobuf/clj-value->ddf-struct-value)))
+
+(deftest ddf-struct-null-value-test
+  (testing "Protobuf text format to Clojure value conversion."
+    (is (nil? (ddf-struct-str->clj-value "null: NULL_VALUE"))))
+
+  (testing "Clojure value to Protobuf text format conversion."
+    (is (= "null: NULL_VALUE" (clj-value->ddf-struct-str nil)))))
+
+(deftest ddf-struct-bool-value-test
+  (testing "Protobuf text format to Clojure value conversion."
+    (is (true? (ddf-struct-str->clj-value "bool: true")))
+    (is (false? (ddf-struct-str->clj-value "bool: false"))))
+
+  (testing "Clojure value to Protobuf text format conversion."
+    (is (= "bool: true" (clj-value->ddf-struct-str true)))
+    (is (= "bool: false" (clj-value->ddf-struct-str false)))))
+
+(deftest ddf-struct-number-value-test
+  (doseq [[expected-clj expected-str]
+          [[-1.0 "number: -1.0"]
+           [-0.0 "number: -0.0"]
+           [0.0 "number: 0.0"]
+           [1.0 "number: 1.0"]
+           [1.5 "number: 1.5"]]]
+
+    (testing "Protobuf text format to Clojure value conversion."
+      (is (= expected-clj (ddf-struct-str->clj-value expected-str))))
+
+    (testing "Clojure value to Protobuf text format conversion."
+      (is (= expected-str (clj-value->ddf-struct-str expected-clj))))))
+
+(deftest ddf-struct-string-value-test
+  (doseq [[expected-clj expected-str]
+          [["" "string: \"\""]
+           ["abc" "string: \"abc\""]
+           ["123" "string: \"123\""]]]
+
+    (testing "Protobuf text format to Clojure value conversion."
+      (is (= expected-clj (ddf-struct-str->clj-value expected-str))))
+
+    (testing "Clojure value to Protobuf text format conversion."
+      (is (= expected-str (clj-value->ddf-struct-str expected-clj))))))
+
+(deftest ddf-struct-list-value-test
+  (let [expected-clj [0.0 ""]
+
+        expected-str
+        (string/triml "
+list {
+  values {
+    number: 0.0
+  }
+  values {
+    string: \"\"
+  }
+}")]
+
+    (testing "Protobuf text format to Clojure value conversion."
+      (is (= expected-clj (ddf-struct-str->clj-value expected-str))))
+
+    (testing "Clojure value to Protobuf text format conversion."
+      (is (= expected-str (clj-value->ddf-struct-str expected-clj))))))
+
+(deftest ddf-struct-struct-value-test
+  (let [[^String key-a ^String key-b]
+        (sort [(str "field_key_" (rand-int Integer/MAX_VALUE))
+               (str "field_key_" (rand-int Integer/MAX_VALUE))])
+
+        expected-clj {key-a 0.0
+                      key-b ""}
+
+        expected-str
+        (string/triml (format "
+struct {
+  fields {
+    key: \"%s\"
+    value {
+      number: 0.0
+    }
+  }
+  fields {
+    key: \"%s\"
+    value {
+      string: \"\"
+    }
+  }
+}" key-a key-b))]
+
+    (testing "Protobuf text format to Clojure value conversion."
+      (is (= expected-clj (ddf-struct-str->clj-value expected-str))))
+
+    (testing "Clojure value to Protobuf text format conversion."
+      (is (= expected-str (clj-value->ddf-struct-str expected-clj))))
+
+    (testing "Struct keys are interned."
+      (let [struct (ddf-struct-str->clj-value expected-str)]
+        (is (identical? (.intern key-a) (key (find struct key-a))))
+        (is (identical? (.intern key-b) (key (find struct key-b))))))))
+
+(deftest ddf-struct-nesting-test
+  (let [expected-map
+        {"list" [[0.0 ""]
+                 {"number" 0.0
+                  "string" ""}]
+         "struct" {"list" [[0.0 ""]
+                           {"number" 0.0
+                            "string" ""}]
+                   "struct" {"number" 0.0
+                             "string" ""}}}
+
+        expected-str
+        (string/triml "
+struct {
+  fields {
+    key: \"list\"
+    value {
+      list {
+        values {
+          list {
+            values {
+              number: 0.0
+            }
+            values {
+              string: \"\"
+            }
+          }
+        }
+        values {
+          struct {
+            fields {
+              key: \"number\"
+              value {
+                number: 0.0
+              }
+            }
+            fields {
+              key: \"string\"
+              value {
+                string: \"\"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  fields {
+    key: \"struct\"
+    value {
+      struct {
+        fields {
+          key: \"list\"
+          value {
+            list {
+              values {
+                list {
+                  values {
+                    number: 0.0
+                  }
+                  values {
+                    string: \"\"
+                  }
+                }
+              }
+              values {
+                struct {
+                  fields {
+                    key: \"number\"
+                    value {
+                      number: 0.0
+                    }
+                  }
+                  fields {
+                    key: \"string\"
+                    value {
+                      string: \"\"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        fields {
+          key: \"struct\"
+          value {
+            struct {
+              fields {
+                key: \"number\"
+                value {
+                  number: 0.0
+                }
+              }
+              fields {
+                key: \"string\"
+                value {
+                  string: \"\"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}")]
+
+    (testing "Protobuf text format to Clojure map conversion."
+      (is (= expected-map (ddf-struct-str->clj-value expected-str))))
+
+    (testing "Clojure map to Protobuf text format conversion."
+      (is (= expected-str (clj-value->ddf-struct-str expected-map))))))

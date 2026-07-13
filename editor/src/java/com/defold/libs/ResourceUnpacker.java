@@ -45,7 +45,6 @@ import java.util.stream.Stream;
 
 import com.defold.editor.Editor;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.util.FileUtil;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -460,7 +459,7 @@ public class ResourceUnpacker {
             return ensureDirectory(Editor.getSupportPath().resolve(Paths.get("unpack", sha1 + "-" + arch)));
         } else {
             Path tmpDir = Files.createTempDirectory("defold-unpack");
-            FileUtil.deleteOnExit(tmpDir);
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> FileUtils.deleteQuietly(tmpDir.toFile())));
             return tmpDir;
         }
     }

@@ -74,3 +74,75 @@
     (is (retained? key))
     (drop-context!)
     (is (not (retained? key)))))
+
+(deftest process-pending-deletions []
+  (let [objects (atom {})
+        destroy-calls (atom [])]
+    (scene-cache/register-object-cache!
+      ::process-pending-deletions
+      (fn [context data]
+        (swap! objects assoc [context ::object] data)
+        ::object)
+      (fn [_ _ _])
+      (fn [context keys request-datas]
+        (swap! destroy-calls conj [context keys request-datas])
+        (doseq [key keys]
+          (swap! objects dissoc [context key]))))
+
+    (let [key (scene-cache/request-object! ::process-pending-deletions ::request ::context 1)]
+      (is (contains? @objects [::context key]))
+
+      ;; No deletion is pending before the cache is re-registered.
+      (scene-cache/process-pending-deletions! ::context)
+      (is (= [] @destroy-calls))
+      (is (contains? @objects [::context key]))
+
+      (scene-cache/register-object-cache! ::process-pending-deletions (fn [_ _]) (fn [_ _ _]) (fn [_ _ _]))
+
+      ;; Pending deletions are scoped to their originating context.
+      (scene-cache/process-pending-deletions! ::other-context)
+      (is (= [] @destroy-calls))
+      (is (contains? @objects [::context key]))
+
+      ;; The matching context consumes the queued deletion exactly once.
+      (scene-cache/process-pending-deletions! ::context)
+      (is (= [[::context [key] [1]]] @destroy-calls))
+      (is (not (contains? @objects [::context key])))
+
+      (scene-cache/process-pending-deletions! ::context)
+      (is (= [[::context [key] [1]]] @destroy-calls)))))
+
+(deftest prune-context []
+  (let [objects (atom {})
+        destroy-calls (atom [])]
+    (scene-cache/register-object-cache!
+      ::prune-context
+      (fn [context data]
+        (swap! objects assoc [context ::object] data)
+        ::object)
+      (fn [_ _ _])
+      (fn [context keys request-datas]
+        (swap! destroy-calls conj [context keys request-datas])
+        (doseq [key keys]
+          (swap! objects dissoc [context key]))))
+
+    (let [key (scene-cache/request-object! ::prune-context ::request ::context 1)]
+      (is (contains? @objects [::context key]))
+
+      ;; Other contexts do not prune this context's objects.
+      (scene-cache/prune-context! ::other-context)
+      (is (= [] @destroy-calls))
+      (is (contains? @objects [::context key]))
+
+      ;; The first matching prune clears usage tracking but retains the object.
+      (scene-cache/prune-context! ::context)
+      (is (= [] @destroy-calls))
+      (is (contains? @objects [::context key]))
+
+      ;; The next matching prune destroys the unused object exactly once.
+      (scene-cache/prune-context! ::context)
+      (is (= [[::context [key] [1]]] @destroy-calls))
+      (is (not (contains? @objects [::context key])))
+
+      (scene-cache/prune-context! ::context)
+      (is (= [[::context [key] [1]]] @destroy-calls)))))

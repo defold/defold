@@ -31,8 +31,9 @@
             [editor.workspace :as workspace]
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll]
             [util.murmur :as murmur])
-  (:import [com.dynamo.bob.util TextureUtil]
+  (:import [com.dynamo.bob.util DependencyMetadata Library$Problem$Missing Library$Result TextureUtil]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto DataProto$Data GameSystem$CollectionProxyDesc Gui$SceneDesc Label$LabelDesc ModelProto$Model Physics$CollisionObjectDesc Sound$SoundDesc TextureSetProto$TextureSet]
            [com.dynamo.lua.proto Lua$LuaModule]
@@ -40,6 +41,7 @@
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.rig.proto Rig$AnimationSet Rig$MeshSet Rig$RigScene Rig$Skeleton]
            [java.io ByteArrayOutputStream File]
+           [java.net URI]
            [org.apache.commons.io IOUtils]))
 
 (def project-path "test/resources/build_project/SideScroller")
@@ -69,8 +71,8 @@
     (protobuf/bytes->map-with-defaults pb-class (get targets path))))
 
 (defn- approx? [as bs]
-  (every? #(< % 0.00001)
-          (map #(Math/abs (- %1 %2))
+  (every? true?
+          (map #(math/near? %1 %2)
                as bs)))
 
 (def pb-cases {"/game.project"
@@ -506,8 +508,8 @@
                                "test_empty_list" {:list {}}
                                "test_empty_struct" {:struct {}}
                                "test_mixed_list" {:list {:values [{:number 1.0}
-                                                                   {:string "a"}
-                                                                   {:bool true}]}}}}}}]
+                                                                  {:string "a"}
+                                                                  {:bool true}]}}}}}}]
         (is (= expected desc))))))
 
 (deftest build-atlas
@@ -683,6 +685,59 @@
         (is (= "/builtins/fonts/default.fontc" (get fonts "default_font")))
         (is (= "/fonts/big_score.fontc" (get fonts "sub_font")))))))
 
+(deftest build-light-resource-types
+  (let [light-resource-type-cases
+        [{:ext "ambient_light"
+          :label "Ambient Light"
+          :data {"color" [0.1 0.2 0.3]
+                 "intensity" 2.0}}
+         {:ext "point_light"
+          :label "Point Light"
+          :data {"color" [1.0 1.0 1.0]
+                 "intensity" 1.0
+                 "range" 10.0}}
+         {:ext "directional_light"
+          :label "Directional Light"
+          :data {"color" [0.25 0.5 0.75]
+                 "intensity" 2.0}}
+         (let [spot-light-data
+               {"color" [1.0 0.75 0.5]
+                "intensity" 3.0
+                "range" 20.0
+                "inner_cone_angle" 15.0
+                "outer_cone_angle" 30.0}]
+           {:ext "spot_light"
+            :label "Spot Light"
+            :data spot-light-data
+            :rt-data (-> spot-light-data
+                         (update "inner_cone_angle" Math/toRadians)
+                         (update "outer_cone_angle" Math/toRadians))})]]
+    (test-util/with-scratch-project "test/resources/empty_project"
+      (doseq [{:keys [ext data]} light-resource-type-cases]
+        (let [proj-path (str "/checked." ext)
+              save-value {:data data}]
+          (test-util/write-file-resource! workspace proj-path save-value)))
+      (workspace/resource-sync! workspace)
+      (doseq [{:keys [ext label data rt-data]} light-resource-type-cases]
+        (testing ext
+          (let [proj-path (str "/checked." ext)
+                build-ext (str ext ".lightc")
+                build-output-path (str "/checked." build-ext)
+                rt-tags ["light" ext]
+                rt-data (protobuf/clj-value->ddf-struct-value (or rt-data data))
+                resource-type (workspace/get-resource-type workspace ext)
+                resource-node (test-util/resource-node project proj-path)]
+            (is (= build-ext (:build-ext resource-type)))
+            (is (= label (test-util/localization (:label resource-type))))
+            (with-open [_ (test-util/build! resource-node)]
+              (is (= {build-output-path
+                      {:dep-paths #{}
+                       :pb-class DataProto$Data
+                       :pb-map {:tags rt-tags
+                                :data rt-data}}}
+                     (-> (test-util/make-build-output-infos-by-path workspace build-output-path)
+                         (coll/update-vals select-keys [:pb-class :pb-map :dep-paths])))))))))))
+
 (deftest build-game-project
   (with-build-results "/game.project"
     (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-artifacts))
@@ -779,6 +834,31 @@
                                ;; Check so empty custom properties are included as empty strings
                                (check-project-setting built-properties ["custom" "should_be_empty"] "")))))))
 
+(deftest build-game-project-preserves-explicit-empty-resource-settings
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/game_project_properties")]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (spit (io/file project-path "game.project")
+            (str "[project]\n"
+                 "title = Explicit Empty Resource Settings\n\n"
+                 "[bootstrap]\n"
+                 "main_collection = main.collectionc\n"
+                 "render = \n\n"
+                 "[display]\n"
+                 "display_profiles = \n\n"
+                 "[input]\n"
+                 "game_binding = game.input_bindingc\n"))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! world project-path)
+              project (test-util/setup-project! workspace)
+              game-project (test-util/resource-node project "/game.project")]
+          (is (nil? (game-project/get-setting game-project ["bootstrap" "render"])))
+          (is (nil? (game-project/get-setting game-project ["display" "display_profiles"])))
+          (with-open [_ (test-util/build! game-project)]
+            (with-open [r (io/reader (build-path workspace "game.projectc"))]
+              (let [built-properties (settings-core/parse-settings r)]
+                (check-project-setting built-properties ["bootstrap" "render"] "")
+                (check-project-setting built-properties ["display" "display_profiles"] "")))))))))
+
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
   (let [path-list (string/split path #"/")]
@@ -839,6 +919,26 @@
               error-message (some :message (tree-seq :causes :causes build-error))]
           (is (g/error? build-error))
           (is (= "Custom resources directory not found: '/nonexistent_path'" error-message)))))))))
+
+(deftest build-with-dependencies-metadata
+  (with-loaded-project "test/resources/custom_resources_project"
+    (let [game-project (test-util/resource-node project "/game.project")
+          dependency-url "https://user:secret@example.com/library.zip?token=abc"
+          anonymized-dependency-url "https://example.com/library.zip"
+          expected-metadata-json (str "[{\"url\":\"" anonymized-dependency-url "\",\"commit-sha1\":\"\",\"problem\":\"missing\"}]")
+          build-metadata-file (build-path workspace DependencyMetadata/OUTPUT_PATH)]
+      (workspace/set-project-dependencies!
+        workspace
+        [(Library$Result.
+           (URI/create dependency-url)
+           nil
+           (Library$Problem$Missing.))])
+      (with-setting "project/dependencies_metadata" true
+        (is (nil? (:error (project-build! project game-project))))
+        (is (= expected-metadata-json (slurp build-metadata-file))))
+      (with-setting "project/dependencies_metadata" false
+        (is (nil? (:error (project-build! project game-project))))
+        (is (false? (.exists build-metadata-file)))))))
 
 (deftest build-with-ssl-certificates
   (with-loaded-project "test/resources/custom_resources_project"

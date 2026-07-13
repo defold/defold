@@ -16,7 +16,7 @@
 #include "../../../include/GL/glfw.h"
 #include "internal.h"
 
-#import "VulkanView.h"
+#import "MetalView.h"
 #import "EAGLView.h"
 
 extern int g_IsReboot;
@@ -37,18 +37,27 @@ static int g_view_type = GLFW_NO_API;
     CGRect bounds = self.view.bounds;
     cachedViewSize = bounds.size;
 
+    BaseView* oldBaseView = baseView;
+    BaseView* newBaseView = 0;
     if (g_view_type == GLFW_NO_API)
     {
-        baseView = [VulkanView createView: bounds recreate:recreate];
+        newBaseView = [MetalView createView: bounds recreate:recreate];
     }
     else
     {
-        baseView = [EAGLView createView: bounds recreate:recreate];
+        newBaseView = [EAGLView createView: bounds recreate:recreate];
     }
 
-    [[self view] removeFromSuperview];
+    if (!newBaseView)
+    {
+        return;
+    }
+
+    [oldBaseView removeFromSuperview];
+    self.baseView = newBaseView;
 
     [[self view] insertSubview:baseView atIndex:0];
+    [baseView setCurrentContext];
 }
 
 - (void)viewDidLoad
@@ -167,24 +176,40 @@ static int g_view_type = GLFW_NO_API;
     [super viewDidUnload];
 }
 
-#pragma mark UIContentContainer
-
-- (void)accelerometer:(UIAccelerometer *)accelerometer didAccelerate:(UIAcceleration *)acceleration
-{
-    _glfwInput.AccX = acceleration.x;
-    _glfwInput.AccY = acceleration.y;
-    _glfwInput.AccZ = acceleration.z;
-}
-
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
     return UIRectEdgeAll;
 }
 
 @end
 
+static BOOL ViewTypeMatchesBaseView(int view_type, BaseView* view)
+{
+    if (!view)
+    {
+        return NO;
+    }
+    if (view_type == GLFW_NO_API)
+    {
+        return [view isKindOfClass:[MetalView class]];
+    }
+    return [view isKindOfClass:[EAGLView class]];
+}
+
 void _glfwPlatformSetViewType(int view_type)
 {
+    ViewController* viewController = (ViewController*) _glfwWin.viewController;
+    if (g_view_type == view_type &&
+        (!viewController || ![viewController isViewLoaded] || ViewTypeMatchesBaseView(view_type, viewController.baseView)))
+    {
+        return;
+    }
+
     g_view_type = view_type;
+
+    if (viewController && [viewController isViewLoaded])
+    {
+        [viewController createView:FALSE];
+    }
 }
 
 void _glfwPlatformSetWindowBackgroundColor(unsigned int color)
@@ -243,6 +268,8 @@ int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
+    _glfwPlatformSetViewType(wndconfig->clientAPI);
+
     if (wndconfig->clientAPI == GLFW_NO_API)
     {
         return _glfwPlatformOpenWindowVulkan(width, height, wndconfig, fbconfig);

@@ -51,7 +51,6 @@ import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
 
@@ -217,10 +216,24 @@ public class AndroidBundler implements IBundler {
         return getArchitectures(project).get(0);
     }
 
+    private void stripBinary(Project project, Platform architecture, File binary, ICanceled canceled) throws IOException, CompileExceptionError
+    {
+        final boolean strip_executable = project.hasOption("strip-executable");
+        if (strip_executable) {
+            String stripToolExe = platformToStripToolMap.get(architecture);
+            if (Platform.getHostPlatform() == Platform.X86_64MacOS || Platform.getHostPlatform() == Platform.Arm64MacOS) {
+                stripToolExe = stripToolName;
+            }
+            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolExe);
+            AndroidTools.exec(stripTool, binary.getAbsolutePath());
+            BundleHelper.throwIfCanceled(canceled);
+        }
+    }
+
     /**
-    * Copy an engine binary to a destination file and optionally strip it of debug symbols
+    * Copy an engine binary to a destination file
     */
-    private void copyEngineBinary(Project project, Platform architecture, File dest) throws IOException {
+    private void copyEngineBinary(Project project, Platform architecture, File dest, ICanceled canceled) throws IOException, CompileExceptionError {
         // vanilla or extender exe?
         List<File> bundleExe = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
         if (bundleExe == null) {
@@ -231,17 +244,7 @@ public class AndroidBundler implements IBundler {
         // copy the exe
         File exe = bundleExe.get(0);
         FileUtils.copyFile(exe, dest);
-
-        // possibly also strip it
-        final boolean strip_executable = project.hasOption("strip-executable");
-        if (strip_executable) {
-            String stripToolExe = platformToStripToolMap.get(architecture);
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS || Platform.getHostPlatform() == Platform.Arm64MacOS) {
-                stripToolExe = stripToolName;
-            }
-            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolExe);
-            AndroidTools.exec(stripTool, dest.getAbsolutePath());
-        }
+        BundleHelper.throwIfCanceled(canceled);
     }
 
     /**
@@ -365,7 +368,7 @@ public class AndroidBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
     }
 
-    private void copyVkQualityLibrary(Platform architecture, File libDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    private File copyVkQualityLibrary(Project project, Platform architecture, File libDir, ICanceled canceled) throws IOException, CompileExceptionError {
         String architectureLibName = platformToLibMap.get(architecture);
         File library = getRequiredBobFile(FilenameUtils.concat("libexec/" + architecture.getExtenderPair(), "libvkquality.so"));
         File architectureDir = createDir(libDir, architectureLibName);
@@ -373,6 +376,7 @@ public class AndroidBundler implements IBundler {
         logger.info("Copying VkQuality library " + library + " to " + dest);
         FileUtils.copyFile(library, dest);
         BundleHelper.throwIfCanceled(canceled);
+        return dest;
     }
 
     /**
@@ -380,7 +384,6 @@ public class AndroidBundler implements IBundler {
     */
     private File copyLocalResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         File androidResDir = createDir(outDir, "res");
-        FileUtil.deleteOnExit(androidResDir);
 
         File resDir = new File(androidResDir, "com.defold.android");
         resDir.mkdirs();
@@ -403,8 +406,7 @@ public class AndroidBundler implements IBundler {
         logger.info("Compiling resources from " + androidResDir.getAbsolutePath());
         try {
             // compile the resources using aapt2 to flat format files
-            File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
-            FileUtil.deleteOnExit(compiledResourcesDir);
+            File compiledResourcesDir = project.createTempDirectory("compiled_resources");
 
             // compile the resources for each package
             for (File packageDir : androidResDir.listFiles(File::isDirectory)) {
@@ -581,11 +583,16 @@ public class AndroidBundler implements IBundler {
                 File architectureDir = createDir(libDir, platformToLibMap.get(architecture));
                 File dest = new File(architectureDir, "lib" + exeName + ".so");
                 logger.info("Copying engine to " + dest);
-                copyEngineBinary(project, architecture, dest);
-                BundleHelper.throwIfCanceled(canceled);
-                if (vkQualityEnabled) {
-                    copyVkQualityLibrary(architecture, libDir, canceled);
-                } else {
+                copyEngineBinary(project, architecture, dest, canceled);
+                stripBinary(project, architecture, dest, canceled);
+                
+                if (vkQualityEnabled)
+                {
+                    File libdest = copyVkQualityLibrary(project, architecture, libDir, canceled);
+                    stripBinary(project, architecture, libdest, canceled);
+                }
+                else
+                {
                     logger.info("Skipping VkQuality library for " + architecture + " because Vulkan does not need runtime backend selection");
                 }
             }
@@ -625,7 +632,12 @@ public class AndroidBundler implements IBundler {
                     String filename = path.getFileName().toString();
                     String pathStr = path.toString();
 
-                    if (filename.equals("libdmengine.so")) {
+                    // Skip libdmengine.so, libdmengine_release.so etc
+                    // In a build without native extensions we will download
+                    // dmengine if it doesn't exist in bob.jar (see the two
+                    // methods getDefaultDmengineFiles() and downloadExes() in
+                    // EngineArtifactsProvider.java)
+                    if (filename.contains("dmengine")) {
                         return false;
                     }
 
@@ -634,6 +646,7 @@ public class AndroidBundler implements IBundler {
                         return false;
                     }
 
+                    logger.info("Copying shared library " + filename);
                     return true;
                 });
                 BundleHelper.throwIfCanceled(canceled);
@@ -728,23 +741,22 @@ public class AndroidBundler implements IBundler {
         }
         File symbolsDir = new File(outDir, getBinaryNameFromProject(project) + ".apk.symbols");
         symbolsDir.mkdirs();
+        File symbolsLibDir = new File(symbolsDir, "lib");
         final String exeName = getBinaryNameFromProject(project);
         final String extenderExeDir = project.getBinaryOutputDirectory();
         final List<Platform> architectures = getArchitectures(project);
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         for (Platform architecture : architectures) {
-            List<File> bundleExe = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
-            if (bundleExe == null) {
-                bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
-            }
-            File exe = bundleExe.get(0);
-            File symbolExe = new File(symbolsDir, FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so"));
+            File symbolExe = new File(symbolsLibDir, FilenameUtils.concat(platformToLibMap.get(architecture), "lib" + exeName + ".so"));
             logger.info("Copy debug symbols " + symbolExe);
-            BundleHelper.throwIfCanceled(canceled);
-            FileUtils.copyFile(exe, symbolExe);
-        }
+            copyEngineBinary(project, architecture, symbolExe, canceled);
 
-        BundleHelper.throwIfCanceled(canceled);
+            boolean vkQualityEnabled = usesVkQuality(project);
+            if (vkQualityEnabled)
+            {
+                copyVkQualityLibrary(project, architecture, symbolsLibDir, canceled);
+            }
+        }
 
         File proguardMapping = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architectures.get(0).getExtenderPair(), "mapping.txt")));
         if (proguardMapping.exists()) {

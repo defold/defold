@@ -198,12 +198,12 @@ namespace dmGraphics
         context->m_PipelineState                        = GetDefaultPipelineState();
         context->m_AsyncProcessingSupport               = context->m_JobContext && dmThread::PlatformHasThreadSupport();
 
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_MULTI_TARGET_RENDERING;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_INSTANCING;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_3D_TEXTURES;
-        context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX;
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
 
         if (context->m_AsyncProcessingSupport)
         {
@@ -259,18 +259,6 @@ namespace dmGraphics
         return 0;
     }
 
-    static uint32_t NullGetWidth(HContext _context)
-    {
-        NullContext* context = (NullContext*) _context;
-        return context->m_BaseContext.m_Width;
-    }
-
-    static uint32_t NullGetHeight(HContext _context)
-    {
-        NullContext* context = (NullContext*) _context;
-        return context->m_BaseContext.m_Height;
-    }
-
     static void NullSetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
@@ -303,13 +291,6 @@ namespace dmGraphics
         {
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
         }
-    }
-
-    static void NullGetDefaultTextureFilters(HContext _context, TextureFilter& out_min_filter, TextureFilter& out_mag_filter)
-    {
-        NullContext* context = (NullContext*) _context;
-        out_min_filter = context->m_BaseContext.m_DefaultTextureMinFilter;
-        out_mag_filter = context->m_BaseContext.m_DefaultTextureMagFilter;
     }
 
     static void NullClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -416,21 +397,22 @@ namespace dmGraphics
 
     #undef NATIVE_HANDLE_IMPL
 
-    static HUniformBuffer NullNewUniformBuffer(HContext _context, const UniformBufferLayout& layout)
+    static HUniformBuffer NullNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)
     {
         NullUniformBuffer* ubo                  = new NullUniformBuffer();
         ubo->m_BaseUniformBuffer.m_Layout       = layout;
+        ubo->m_BaseUniformBuffer.m_Size         = size;
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
         ubo->m_BaseUniformBuffer.m_BoundBinding = UNUSED_BINDING_OR_SET;
-        ubo->m_Buffer                           = new uint8_t[layout.m_Size];
-        ubo->m_BufferSize                       = layout.m_Size;
+        ubo->m_Buffer                           = new uint8_t[size];
+        ubo->m_BufferSize                       = size;
         return (HUniformBuffer) ubo;
     }
 
     static void NullSetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data)
     {
         NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
-        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Layout.m_Size);
+        assert(offset + size <= ubo->m_BaseUniformBuffer.m_Size);
         memcpy(ubo->m_Buffer + offset, data, size);
     }
 
@@ -439,14 +421,15 @@ namespace dmGraphics
         NullContext* context = (NullContext*)_context;
         NullUniformBuffer* ubo = (NullUniformBuffer*) uniform_buffer;
 
-        if (ubo->m_BaseUniformBuffer.m_BoundSet == UNUSED_BINDING_OR_SET || ubo->m_BaseUniformBuffer.m_BoundBinding == UNUSED_BINDING_OR_SET)
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         {
-            return;
-        }
-
-        if (context->m_UniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] == ubo)
-        {
-            context->m_UniformBuffers[ubo->m_BaseUniformBuffer.m_BoundSet][ubo->m_BaseUniformBuffer.m_BoundBinding] = 0;
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_UniformBuffers[set][binding] == ubo)
+                {
+                    context->m_UniformBuffers[set][binding] = 0;
+                }
+            }
         }
 
         ubo->m_BaseUniformBuffer.m_BoundSet     = UNUSED_BINDING_OR_SET;
@@ -460,11 +443,6 @@ namespace dmGraphics
 
         ubo->m_BaseUniformBuffer.m_BoundBinding = binding;
         ubo->m_BaseUniformBuffer.m_BoundSet     = set;
-
-        if (context->m_UniformBuffers[set][binding])
-        {
-            NullDisableUniformBuffer(_context, (HUniformBuffer) context->m_UniformBuffers[set][binding]);
-        }
 
         context->m_UniformBuffers[set][binding] = ubo;
     }
@@ -483,7 +461,7 @@ namespace dmGraphics
         VertexBuffer* vb = new VertexBuffer();
         vb->m_Buffer = new char[size];
         vb->m_Copy = 0x0;
-        vb->m_Size = size;
+        vb->m_Base.m_Size = size;
         if (size > 0 && data != 0x0)
             memcpy(vb->m_Buffer, data, size);
         return (uintptr_t)vb;
@@ -505,7 +483,7 @@ namespace dmGraphics
         assert(vb->m_Copy == 0x0);
         delete [] vb->m_Buffer;
         vb->m_Buffer = new char[size];
-        vb->m_Size = size;
+        vb->m_Base.m_Size = size;
         if (data != 0x0)
             memcpy(vb->m_Buffer, data, size);
     }
@@ -513,18 +491,8 @@ namespace dmGraphics
     static void NullSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
-        if (offset + size <= vb->m_Size && data != 0x0)
+        if (offset + size <= vb->m_Base.m_Size && data != 0x0)
             memcpy(&(vb->m_Buffer)[offset], data, size);
-    }
-
-    static uint32_t NullGetVertexBufferSize(HVertexBuffer buffer)
-    {
-        if (!buffer)
-        {
-            return 0;
-        }
-        VertexBuffer* buffer_ptr = (VertexBuffer*) buffer;
-        return buffer_ptr->m_Size;
     }
 
     static uint32_t NullGetMaxElementsVertices(HContext context)
@@ -537,8 +505,9 @@ namespace dmGraphics
         IndexBuffer* ib = new IndexBuffer();
         ib->m_Buffer = new char[size];
         ib->m_Copy = 0x0;
-        ib->m_Size = size;
-        memcpy(ib->m_Buffer, data, size);
+        ib->m_Base.m_Size = size;
+        if (size > 0 && data != 0x0)
+            memcpy(ib->m_Buffer, data, size);
         return (uintptr_t)ib;
     }
 
@@ -554,11 +523,13 @@ namespace dmGraphics
 
     static void NullSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
+        if (!buffer)
+            return;
         IndexBuffer* ib = (IndexBuffer*)buffer;
         assert(ib->m_Copy == 0x0);
         delete [] ib->m_Buffer;
         ib->m_Buffer = new char[size];
-        ib->m_Size = size;
+        ib->m_Base.m_Size = size;
         if (data != 0x0)
             memcpy(ib->m_Buffer, data, size);
     }
@@ -566,18 +537,8 @@ namespace dmGraphics
     static void NullSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
-        if (offset + size <= ib->m_Size && data != 0x0)
+        if (offset + size <= ib->m_Base.m_Size && data != 0x0)
             memcpy(&(ib->m_Buffer)[offset], data, size);
-    }
-
-    static uint32_t NullGetIndexBufferSize(HIndexBuffer buffer)
-    {
-        if (!buffer)
-        {
-            return 0;
-        }
-        IndexBuffer* buffer_ptr = (IndexBuffer*) buffer;
-        return buffer_ptr->m_Size;
     }
 
     static bool NullIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -810,14 +771,15 @@ namespace dmGraphics
             if (bound_ubo)
             {
                 UniformBufferLayout* pgm_layout = (UniformBufferLayout*) pgm_res.m_BindingUserData;
-                if (bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash != pgm_layout->m_Hash)
+                if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, pgm_res.m_Res->m_BindingInfo.m_BlockSize))
                 {
                     dmLogWarning("Uniform buffer with hash %d has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%d)",
-                        bound_ubo->m_BaseUniformBuffer.m_Layout.m_Hash,
+                        bound_ubo->m_BaseUniformBuffer.m_Layout,
                         pgm_res.m_Res->m_Name,
-                        pgm_layout->m_Hash);
+                        *pgm_layout);
 
                     // Fallback to the scratch buffer uniform setup
+                    NullDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
                     bound_ubo = 0;
                 }
             }
@@ -1449,11 +1411,6 @@ namespace dmGraphics
         }
     }
 
-    static bool NullIsTextureFormatSupported(HContext context, TextureFormat format)
-    {
-        return (((NullContext*) context)->m_BaseContext.m_TextureFormatSupport & (1ULL << format)) != 0;
-    }
-
     static uint32_t NullGetMaxTextureSize(HContext context)
     {
         return 1024;
@@ -1491,6 +1448,8 @@ namespace dmGraphics
         b.m_NumTextureIds  = num_texture_ids;
         b.m_UsageHintFlags = params.m_UsageHintBits;
         b.m_PageCount      = params.m_LayerCount;
+        b.m_ResourceSize   = 0;
+        b.m_Mip0ResourceSize = 0;
         dmAtomicStore32(&b.m_DataState, 0);
 
         for (int i = 0; i < num_texture_ids; ++i)
@@ -1665,29 +1624,7 @@ namespace dmGraphics
         tex->m_Sampler.m_MagFilter = params.m_MagFilter;
         tex->m_Sampler.m_UWrap     = params.m_UWrap;
         tex->m_Sampler.m_VWrap     = params.m_VWrap;
-    }
-
-    static uint32_t NullGetTextureResourceSize(HContext context, HTexture texture)
-    {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-        NullTexture* tex = GetAssetFromContainer<NullTexture>(g_NullContext->m_BaseContext.m_AssetHandleContainer, texture);
-        if (!tex)
-        {
-            return 0;
-        }
-
-        uint32_t size_total = 0;
-        uint32_t size = tex->m_Base.m_Width * tex->m_Base.m_Height * dmMath::Max(1U, GetTextureFormatBitsPerPixel(tex->m_Base.m_Format)/8);
-        for(uint32_t i = 0; i < tex->m_Base.m_MipMapCount; ++i)
-        {
-            size_total += size;
-            size >>= 2;
-        }
-        if (tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP)
-        {
-            size_total *= 6;
-        }
-        return size_total + sizeof(NullTexture);
+        SetTextureResourceSize(&tex->m_Base, sizeof(NullTexture));
     }
 
     static void NullEnableTexture(HContext _context, uint32_t unit, uint8_t id_index, HTexture texture)
@@ -1968,41 +1905,6 @@ namespace dmGraphics
         return "";
     }
 
-    static uint8_t NullGetTexturePageCount(HTexture texture)
-    {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-        NullTexture* tex = GetAssetFromContainer<NullTexture>(g_NullContext->m_BaseContext.m_AssetHandleContainer, texture);
-        return tex ? tex->m_Base.m_PageCount : 0;
-    }
-
-    static bool NullIsContextFeatureSupported(HContext _context, ContextFeature feature)
-    {
-        NullContext* context = (NullContext*) _context;
-        return (context->m_ContextFeatures & (1 << feature)) != 0;
-    }
-
-    static bool NullIsAssetHandleValid(HContext _context, HAssetHandle asset_handle)
-    {
-        assert(_context);
-        if (asset_handle == 0)
-        {
-            return false;
-        }
-        NullContext* context = (NullContext*) _context;
-        AssetType type       = GetAssetType(asset_handle);
-        if (type == ASSET_TYPE_TEXTURE)
-        {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-            return GetAssetFromContainer<NullTexture>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        else if (type == ASSET_TYPE_RENDER_TARGET)
-        {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_NullContext->m_BaseContext.m_AssetHandleContainerMutex);
-            return GetAssetFromContainer<RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, asset_handle) != 0;
-        }
-        return false;
-    }
-
     static void NullInvalidateGraphicsHandles(HContext context) { }
 
     static void NullGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
@@ -2014,7 +1916,7 @@ namespace dmGraphics
     bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
-        memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Size);
+        memcpy(ib->m_Buffer, ib->m_Copy, ib->m_Base.m_Size);
         delete [] ib->m_Copy;
         ib->m_Copy = 0x0;
         return true;
@@ -2023,15 +1925,15 @@ namespace dmGraphics
     void* MapVertexBuffer(HContext context, HVertexBuffer buffer, BufferAccess access)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
-        vb->m_Copy = new char[vb->m_Size];
-        memcpy(vb->m_Copy, vb->m_Buffer, vb->m_Size);
+        vb->m_Copy = new char[vb->m_Base.m_Size];
+        memcpy(vb->m_Copy, vb->m_Buffer, vb->m_Base.m_Size);
         return vb->m_Copy;
     }
 
     bool UnmapVertexBuffer(HContext context, HVertexBuffer buffer)
     {
         VertexBuffer* vb = (VertexBuffer*)buffer;
-        memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Size);
+        memcpy(vb->m_Buffer, vb->m_Copy, vb->m_Base.m_Size);
         delete [] vb->m_Copy;
         vb->m_Copy = 0x0;
         return true;
@@ -2040,8 +1942,8 @@ namespace dmGraphics
     void* MapIndexBuffer(HContext context, HIndexBuffer buffer, BufferAccess access)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
-        ib->m_Copy = new char[ib->m_Size];
-        memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Size);
+        ib->m_Copy = new char[ib->m_Base.m_Size];
+        memcpy(ib->m_Copy, ib->m_Buffer, ib->m_Base.m_Size);
         return ib->m_Copy;
     }
 

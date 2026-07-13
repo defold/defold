@@ -30,6 +30,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
+            [editor.doc :as doc]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.server :as ext.server]
             [editor.engine-profiler :as engine-profiler]
@@ -39,6 +40,7 @@
             [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
             [editor.localization :as localization]
+            [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
             [editor.notifications-view :as notifications-view]
             [editor.os :as os]
@@ -77,6 +79,7 @@
 (def the-root (atom nil))
 
 (defn initialize-systems! [prefs]
+  (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
   (code-view/initialize! prefs))
 
 (defn initialize-project! [system-config]
@@ -107,12 +110,6 @@
   (ui/user-data! app-scene ::ui/refresh-requested? true)
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
-
-(defn- persist-window-state!
-  [^Stage stage ^Scene scene prefs]
-  (app-view/store-window-dimensions stage prefs)
-  (app-view/store-split-positions! scene prefs)
-  (app-view/store-hidden-panes! scene prefs))
 
 (defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
@@ -221,7 +218,9 @@
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
+                                  (scene/routes project app-view)
                                   (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
+                                  (doc/routes)
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
@@ -316,7 +315,7 @@
                                         (fn [successful?]
                                           (if successful?
                                             (do
-                                              (persist-window-state! stage scene prefs)
+                                              (app-view/store-window-state! stage prefs)
                                               (ui/close! stage))
                                             (ui/enable-ui!)))))
                                     false)
@@ -335,7 +334,7 @@
                                                                  :variant :danger
                                                                  :result true}]}))]
                                     (when result
-                                      (persist-window-state! stage scene prefs))
+                                      (app-view/store-window-state! stage prefs))
                                     result)))))
 
       (ui/on-closed! stage (fn [_]

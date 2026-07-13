@@ -147,6 +147,7 @@ dialog.button.report = Report
 dialog.button.disable-scene-editor = Disable Scene Editor
 dialog.button.cancel = Cancel
 dialog.button.delete = Delete
+dialog.button.apply = Apply
 
 # Error Dialog
 
@@ -269,6 +270,13 @@ dialog.quit-defold.header = Unsaved changes exist, are you sure you want to quit
 dialog.quit-defold.button.cancel = Cancel and Keep Working
 dialog.quit-defold.button.quit = Quit Without Saving
 
+# Restart Defold dialog
+
+dialog.restart-defold.title = Restart Defold?
+dialog.restart-defold.header = Unsaved changes exist. Save changes before restarting Defold?
+dialog.restart-defold.button.cancel = Cancel
+dialog.restart-defold.button.save-and-restart = Save and Restart
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = Not Safe to Upgrade File Formats
@@ -352,6 +360,16 @@ notification.fetch-libraries.problem.defold-min-version = requires Defold {requi
 notification.fetch-libraries.problem.install-failed = failed to install
 notification.fetch-libraries.problem.unknown = unknown problem — {problem}
 notification.fetch-libraries.dependency-problem = {uri}: {problem}
+
+# Editor scripts notification
+
+notification.reload-editor-scripts = Editor scripts have changed. Do you want to reload them now?
+notification.reload-editor-scripts.action.reload = Reload Editor Scripts
+
+# Reload plugins notification
+
+notification.reload-plugins-failed = Native extension plugins could not be reloaded. Restart Defold to reload them.\n\nFile: {file}\n\nUnderlying error from the OS:\n{error}
+notification.reload-plugins-failed.action.restart = Restart Defold
 
 # Open custom editor notifications
 
@@ -481,6 +499,9 @@ dialog.select-gui-component.title = Select {component}
 dialog.select-resource.title = Select Resource
 dialog.recent-files.title = Recent Files
 dialog.recent-files.button.ok = Open
+dialog.jump-to-symbol.title = Jump to Symbol
+dialog.jump-to-symbol.prompt = Search for symbol…
+dialog.jump-to-symbol.button.ok = OK
 
 # Open resource dialogs
 
@@ -689,6 +710,8 @@ prefs.label.dev.custom-engine = Custom Engine
 prefs.keymap.filter.prompt = Filter keymap…
 prefs.keymap.command = Command
 prefs.keymap.shortcuts = Shortcuts
+prefs.keymap.badge.mouse-binding = Mouse Binding
+prefs.keymap.badge.mouse-modifier = Mouse Modifier
 prefs.keymap.context-menu.new-shortcut = New Shortcut…
 prefs.keymap.context-menu.reset-to-default = Reset to Default
 prefs.keymap.context-menu.remove = Remove {shortcut}
@@ -701,6 +724,16 @@ prefs.keymap.warnings = Warnings:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Typable (may interfere with text inputs)
 prefs.keymap.warning.conflicts = Conflicts with {shortcuts}
+prefs.keymap.warning.duplicate = Binding already exists, will be ignored
+prefs.keymap.mouse-binding.button.left = Left
+prefs.keymap.mouse-binding.button.middle = Middle
+prefs.keymap.mouse-binding.button.right = Right
+prefs.keymap.mouse-binding.section.button = Mouse Button
+prefs.keymap.mouse-binding.section.modifiers = Modifiers
+prefs.keymap.context-menu.add-mouse-binding = Add Mouse Binding
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = Reset to Defaults
+prefs.keymap.context-menu.edit-modifier = Edit Modifier
+prefs.keymap.inherited-from = Inherited from {context}
 
 # Progress
 
@@ -728,6 +761,7 @@ progress.updating-dependencies = Updating dependencies…
 progress.syncing-resources = Syncing resources…
 progress.loading-project = Loading project…
 progress.loading-external-changes = Loading external changes…
+progress.editor-scripts-reloaded = Reloaded editor scripts at {time}
 progress.writing-files = Writing files…
 progress.caching-save-results = Caching save results…
 progress.reading-timestamps = Reading timestamps…
@@ -933,6 +967,7 @@ command.code.duplicate-selection = Duplicate Selection
 command.code.split-selection-into-lines = Split Selection Into Lines
 command.code.goto-definition = Go to Definition
 command.code.goto-line = Go to Line…
+command.code.jump-to-symbol = Jump to Symbol…
 command.code.show-references = Find References
 command.code.toggle-minimap = Minimap
 command.code.toggle-indentation-guides = Indentation Guides
@@ -1137,6 +1172,7 @@ property.appmanifest.graphics = Graphics
 property.appmanifest.graphics.tooltip = Vulkan supports desktop and mobile platforms only
 property.appmanifest.graphics-osx = Graphics (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan is the default renderer for macOS
+property.appmanifest.graphics-ios = Graphics (iOS)
 property.appmanifest.graphics-android = Graphics (Android)
 property.appmanifest.graphics-android.tooltip = OpenGL+Vulkan is the default for Android
 property.appmanifest.graphics-web = Graphics (HTML5)
@@ -1207,6 +1243,7 @@ property.collision-object.event-contact.tooltip = If disabled, filters out any c
 property.collision-object.event-trigger = Generate Trigger Events
 property.collision-object.event-trigger.tooltip = If disabled, filters out any trigger events involving this collision object
 property.collision-object.group = Group
+property.collision-object.group.tilemap.tooltip = This property is not used when Collision Shape is a tilemap. Collision groups are defined in the tilemap's tile source.
 property.collision-object.mask = Mask
 property.collision-object.shape.diameter = Diameter
 property.collision-object.shape.dimensions = Dimensions
@@ -1301,6 +1338,14 @@ property.label.shadow = Shadow
 property.label.size = Size
 property.label.text = Text
 property.label.tracking = Tracking
+
+# Properties: light
+
+property.light.color = Color
+property.light.intensity = Intensity
+property.light.range = Range
+property.light.inner-cone-angle = Inner Cone Angle
+property.light.outer-cone-angle = Outer Cone Angle
 
 # Properties: mesh
 
@@ -1490,6 +1535,10 @@ resource.type.json = JSON
 resource.type.label = Label
 resource.type.lib = Library
 resource.type.light = Light
+resource.type.point-light = Point Light
+resource.type.directional-light = Directional Light
+resource.type.spot-light = Spot Light
+resource.type.ambient-light = Ambient Light
 resource.type.lua = Lua Module
 resource.type.manifest = Manifest
 resource.type.markdown = Markdown
@@ -1528,6 +1577,7 @@ resource.category.objects = Objects
 resource.category.scripts = Scripts
 resource.category.shaders = Shaders
 resource.category.components = Components
+resource.category.lights = Lights
 resource.category.resources = Resources
 resource.category.editor = Editor
 resource.category.render = Render
@@ -1577,6 +1627,8 @@ form.label.project.project.compress_archive = Compress Archive
 form.help.project.project.compress_archive = Compress archive (not for Android)
 form.label.project.project.dependencies = Dependencies
 form.help.project.project.dependencies = A list of URLs to projects required by this project
+form.label.project.project.dependencies_metadata = Dependencies Metadata
+form.help.project.project.dependencies_metadata = Include dependency metadata in the runtime bundle
 form.label.project.project.custom_resources = Custom Resources
 form.help.project.project.custom_resources = A comma separated list of resources that will be included in the project. If directories are specified, all files and directories in that directory are recursively included
 form.label.project.project.bundle_resources = Bundle Resources
@@ -1894,7 +1946,7 @@ form.help.project.display.high_dpi = Enable high DPI backbuffer where available
 form.label.project.display.samples = Samples
 form.help.project.display.samples = How many samples to use for super sampling anti-aliasing, 0 by default, which means it is turned off
 form.label.project.display.fullscreen = Fullscreen
-form.help.project.display.fullscreen = Start the application full screen instead of windowed
+form.help.project.display.fullscreen = Start the application in borderless fullscreen on desktop platforms instead of windowed
 form.label.project.display.display_profiles = Display Profiles
 form.help.project.display.display_profiles = File reference of the display profiles to use for the application
 form.label.project.display.dynamic_orientation = Dynamic Orientation
@@ -1961,6 +2013,10 @@ form.label.project.input.repeat_interval = Repeat Interval
 form.help.project.input.repeat_interval = Seconds between repeats while holding a keyboard key
 form.label.project.input.gamepads = Gamepads
 form.help.project.input.gamepads = File reference of the gamepads config file, which maps gamepad signals to the OS, /builtins/input/default.gamepadsc by default
+form.label.project.input.gamepad_database = Gamepad Database
+form.help.project.input.gamepad_database = File reference of the SDL gamepad database file, which maps gamepad signals to the OS, /builtins/input/gamecontrollerdb.txt by default
+form.label.project.input.gamepad_deadzone = Gamepad Dead Zone
+form.help.project.input.gamepad_deadzone = Runtime dead zone applied to SDL gamepad database mappings
 form.label.project.input.game_binding = Game Binding
 form.help.project.input.game_binding = File reference of the input config file, which maps hardware inputs to actions, /input/game.input_bindingc by default
 form.label.project.input.use_accelerometer = Use Accelerometer
@@ -2187,6 +2243,14 @@ form.label.sound.gain = Gain
 form.label.sound.pan = Pan
 form.label.sound.speed = Speed
 
+form.label.light = Light
+form.label.light.type = Type
+form.label.light.color = Color
+form.label.light.intensity = Intensity
+form.label.light.range = Range
+form.label.light.inner-cone-angle = Inner Cone Angle
+form.label.light.outer-cone-angle = Outer Cone Angle
+
 form.label.liveupdate.liveupdate = Live Update
 form.label.liveupdate.liveupdate.mode = Mode
 form.help.liveupdate.liveupdate.mode = Target
@@ -2281,10 +2345,12 @@ quick-help.start-or-attach-debugger = Start or Attach Debugger
 # Error Messages
 error.assigned-image-has-internal-errors = The assigned image has internal errors.
 error.sampler-not-defined-in-material = "{sampler}" is not defined in the Material. Use the "Clear Override" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the Material.
+error.light.invalid-source = The light file could not be parsed. Fix the text format or revert your changes.
 error.sound.invalid-ogg-file = Invalid Ogg file.
 error.sound.invalid-ogg-file-details = Invalid Ogg file (oggz-validate):\n{output}
 error.sound.could-not-read-audio-file = Couldn't read audio file {resource}.
 error.unknown-source = Unknown source
+error.game-project.gamepad-database-must-be-txt = input.gamepad_database must reference a .txt file.
 error.unspecified-property = "{property}" must be specified.
 error.mesh.stream-must-be-specified-for-world-vertex-space = "{property}" must be specified when using a Material with a world-space "Vertex Space" setting.
 error.mesh.stream-not-found-in-buffer = Stream "{stream}" could not be found in the specified buffer.

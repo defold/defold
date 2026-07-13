@@ -27,10 +27,8 @@ defold_log("TARGET_PLATFORM_OS: ${TARGET_PLATFORM_OS}")
 # Include the sdk
 include(sdk)
 
-# Global empty target to aggregate test build dependencies across subprojects
-if(NOT TARGET build_tests)
-  add_custom_target(build_tests)
-endif()
+# Global target aggregating test build dependencies across subprojects.
+add_custom_target(build_tests)
 
 
 #**************************************************************************
@@ -38,8 +36,8 @@ endif()
 # Provide the C++ standard via target-level usage requirements
 target_compile_features(defold_sdk INTERFACE cxx_std_11)
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
 if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
@@ -54,10 +52,35 @@ elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
         include(platform_linux)
 elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
         include(platform_windows)
+elseif (TARGET_PLATFORM MATCHES "x86_64-xbone")
+        defold_get_private_repo_root(_DEFOLD_XBOX_PRIVATE_REPO_ROOT "${TARGET_PLATFORM}")
+        if(NOT _DEFOLD_XBOX_PRIVATE_REPO_ROOT)
+            message(FATAL_ERROR "Private Xbox platform requires a private repo root for ${TARGET_PLATFORM}")
+        endif()
+
+        set(_DEFOLD_XBOX_PLATFORM_MODULE "")
+        foreach(_DEFOLD_XBOX_PLATFORM_MODULE_NAME IN ITEMS platform_xbox platform_xbone)
+            include("${_DEFOLD_XBOX_PRIVATE_REPO_ROOT}/scripts/cmake/${_DEFOLD_XBOX_PLATFORM_MODULE_NAME}.cmake" OPTIONAL RESULT_VARIABLE _DEFOLD_XBOX_PLATFORM_MODULE)
+            if(_DEFOLD_XBOX_PLATFORM_MODULE)
+                break()
+            endif()
+        endforeach()
+        if(NOT _DEFOLD_XBOX_PLATFORM_MODULE)
+            message(FATAL_ERROR "Private Xbox platform module not found in ${_DEFOLD_XBOX_PRIVATE_REPO_ROOT}/scripts/cmake")
+        endif()
+        unset(_DEFOLD_XBOX_PLATFORM_MODULE)
+        unset(_DEFOLD_XBOX_PLATFORM_MODULE_NAME)
+        unset(_DEFOLD_XBOX_PRIVATE_REPO_ROOT)
 elseif (TARGET_PLATFORM MATCHES "arm64-nx64")
         # Mark this configuration as using a private vendor platform (e.g., Switch)
         set(DEFOLD_IS_PRIVATE_VENDOR ON CACHE BOOL "Building with private vendor platform configuration" FORCE)
         include(platform_vendor_switch)
+else()
+        set(DEFOLD_IS_PRIVATE_VENDOR ON CACHE BOOL "Building with private vendor platform configuration" FORCE)
+        include("platform_${TARGET_PLATFORM_OS}" OPTIONAL RESULT_VARIABLE _DEFOLD_PRIVATE_PLATFORM_MODULE)
+        if(NOT _DEFOLD_PRIVATE_PLATFORM_MODULE)
+            message(FATAL_ERROR "Unsupported platform: ${TARGET_PLATFORM}")
+        endif()
 endif()
 
 #**************************************************************************
@@ -69,6 +92,19 @@ target_compile_definitions(defold_sdk INTERFACE
     DDF_EXPOSE_DESCRIPTORS
     GOOGLE_PROTOBUF_NO_RTTI
     DM_USE_CMAKE)
+
+if(DEFOLD_MSVC_IDE_SOLUTION)
+    target_compile_definitions(defold_sdk INTERFACE
+        DM_LOG_TO_DEBUGGER)
+    if(NOT DEFOLD_TEST_COLORS)
+        target_compile_definitions(defold_sdk INTERFACE JC_TEST_USE_COLORS=0)
+    endif()
+elseif(DEFINED ENV{GITHUB_WORKFLOW})
+    target_compile_definitions(defold_sdk INTERFACE GITHUB_CI)
+    if(DEFOLD_TEST_COLORS)
+        target_compile_definitions(defold_sdk INTERFACE JC_TEST_USE_COLORS=1)
+    endif()
+endif()
 
 set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE ON)
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|x86_64-ios)$")
@@ -89,19 +125,38 @@ endif()
 # Common flags
 
 if(MSVC_CL)
-    # Disable RTTI; don't force /EH to avoid changing exception model globally
-    target_compile_options(defold_sdk INTERFACE /GR- /W3)
+    target_compile_definitions(defold_sdk INTERFACE _HAS_EXCEPTIONS=0)
+
+    # Match Waf: disable RTTI and C++ exception handling for engine code.
+    # CMake's MSVC defaults add /EHsc, which conflicts with SEH __try blocks
+    # that contain C++ objects requiring unwinding.
+    target_compile_options(defold_sdk INTERFACE
+        /GR-
+        /W3
+        $<$<COMPILE_LANGUAGE:CXX>:/EHs->
+        $<$<COMPILE_LANGUAGE:CXX>:/EHa->)
 else()
     # Apply per-language flags via target options
-    target_compile_options(defold_sdk INTERFACE
+    set(_DEFOLD_NON_MSVC_OPTIONS
         -Wall
         -Werror=format
         -Werror=return-type
-        -fPIC
         -fvisibility=hidden
         -fno-exceptions
-        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
-        -g)
+        $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>)
+    if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+        list(APPEND _DEFOLD_NON_MSVC_OPTIONS -g)
+    endif()
+    if(NOT DEFINED DEFOLD_PLATFORM_SUPPORTS_FPIC)
+        set(DEFOLD_PLATFORM_SUPPORTS_FPIC ON)
+        if(TARGET_PLATFORM_OS STREQUAL "win32")
+            set(DEFOLD_PLATFORM_SUPPORTS_FPIC OFF)
+        endif()
+    endif()
+    if(DEFOLD_PLATFORM_SUPPORTS_FPIC)
+        list(APPEND _DEFOLD_NON_MSVC_OPTIONS -fPIC)
+    endif()
+    target_compile_options(defold_sdk INTERFACE ${_DEFOLD_NON_MSVC_OPTIONS})
 endif()
 
 
@@ -124,8 +179,10 @@ else()
         "$<$<CONFIG:Release>:-O2>"
         "$<$<CONFIG:RelWithDebInfo>:${_DEFOLD_RELWITHDEBINFO_OPT}>"
         "$<$<NOT:${_DEFOLD_OPT_CONFIG_EXPR}>:-O0>")
-    target_compile_options(defold_sdk INTERFACE -g)
-    target_link_options(defold_sdk INTERFACE -g)
+    if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+        target_compile_options(defold_sdk INTERFACE -g)
+        target_link_options(defold_sdk INTERFACE -g)
+    endif()
     if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
         target_link_options(defold_sdk INTERFACE "$<$<CONFIG:RelWithDebInfo>:-O3>")
     endif()

@@ -16,21 +16,28 @@
 #include <dlib/testutil.h>
 
 #include <dlib/array.h>
-#include <dlib/http_client.h>
+#include <dlib/http/http_client.h>
 #include <dlib/thread.h>
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dlib/profile.h>
 #include "test_engine.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../engine.h"
 #include "../engine_private.h"
 
+#if defined(DM_PLATFORM_IOS)
+#include <stdlib.h>
+#endif
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 extern "C" void dmExportedSymbols();
 
+#ifndef CONTENT_ROOT
 #define CONTENT_ROOT "src/test/build/default"
+#endif
 #define MAKE_PATH(_VAR, _NAME)  dmTestUtil::MakeHostPathf(_VAR, sizeof(_VAR), "%s%s", CONTENT_ROOT, _NAME)
 
 typedef void (*PreRun)(dmEngine::HEngine engine, void* context);
@@ -91,6 +98,74 @@ static void TestEngineGetResult(dmEngine::HEngine engine, int* run_action, int* 
     g_ExitCode = *exit_code;
 }
 
+#if defined(DM_PLATFORM_IOS)
+static int RunTestEngineLoop(const dmEngine::RunLoopParams* params)
+{
+    if (params->m_AppCreate)
+        params->m_AppCreate(params->m_AppCtx);
+
+    int argc = params->m_Argc;
+    char** argv = params->m_Argv;
+    int allocated_argc = 0;
+    char** allocated_argv = 0;
+    int exit_code = 0;
+    dmEngine::HEngine engine = 0;
+    dmEngine::UpdateResult result = dmEngine::RESULT_OK;
+    while (dmEngine::RESULT_OK == result)
+    {
+        if (engine == 0)
+        {
+            engine = params->m_EngineCreate(argc, argv);
+            if (!engine)
+            {
+                exit_code = 1;
+                break;
+            }
+        }
+
+        result = params->m_EngineUpdate(engine);
+
+        if (dmEngine::RESULT_OK != result)
+        {
+            int run_action = 0;
+            for (int i = 0; i < allocated_argc; ++i)
+            {
+                free(allocated_argv[i]);
+            }
+            free(allocated_argv);
+            allocated_argv = 0;
+            allocated_argc = 0;
+
+            params->m_EngineGetResult(engine, &run_action, &exit_code, &argc, &argv);
+            if (argv != params->m_Argv)
+            {
+                allocated_argv = argv;
+                allocated_argc = argc;
+            }
+
+            params->m_EngineDestroy(engine);
+            engine = 0;
+
+            if (dmEngine::RESULT_REBOOT == result)
+            {
+                result = dmEngine::RESULT_OK;
+            }
+        }
+    }
+
+    if (params->m_AppDestroy)
+        params->m_AppDestroy(params->m_AppCtx);
+
+    for (int i = 0; i < allocated_argc; ++i)
+    {
+        free(allocated_argv[i]);
+    }
+    free(allocated_argv);
+
+    return exit_code;
+}
+#endif
+
 static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
 {
     g_PreRun = pre_run;
@@ -107,7 +182,11 @@ static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void
     params.m_EngineDestroy = (dmEngine::EngineDestroy)TestEngineDestroy;
     params.m_EngineUpdate = (dmEngine::EngineUpdate)TestEngineUpdate;
     params.m_EngineGetResult = (dmEngine::EngineGetResult)TestEngineGetResult;
+#if defined(DM_PLATFORM_IOS)
+    return RunTestEngineLoop(&params);
+#else
     return dmEngine::RunLoop(&params);
+#endif
 }
 
 static void PreRunTextInput(dmEngine::HEngine engine, void* context)
@@ -311,6 +390,7 @@ static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
 // VENDOR: Until we can reboot properly within the unit test
 // ANDROID: Until we can the http tests are fixed
 #if !(defined(DM_PLATFORM_VENDOR) || \
+      defined(DM_NO_SYSTEM_FUNCTION) || \
       defined(ANDROID))
 TEST_F(EngineTest, HttpPost)
 {
@@ -327,7 +407,10 @@ TEST_F(EngineTest, HttpPost)
 TEST_F(EngineTest, Reboot)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    char project_config[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    dmSnPrintf(project_config, sizeof(project_config), "--config=test.project=%s", project_path);
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", "--config=dmengine.unload_builtins=0", project_config, project_path};
     ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
@@ -446,6 +529,7 @@ TEST_F(EngineTest, RunScript)
 // VENDOR: Until we support connections
 // ANDROID: Until we can the http tests are fixed
 #if !(defined(DM_PLATFORM_VENDOR) || \
+      defined(DM_NO_SYSTEM_FUNCTION) || \
       defined(ANDROID))
 TEST_F(EngineTest, ConnectionRunScript)
 {
@@ -596,6 +680,9 @@ TEST_F(EngineTest, FixedUpdateFrequency3D)
 
 int main(int argc, char **argv)
 {
+#if defined(_WIN32)
+    dmLog::CloseConsoleWindow();
+#endif
     dmExportedSymbols();
     TestMainPlatformInit();
 

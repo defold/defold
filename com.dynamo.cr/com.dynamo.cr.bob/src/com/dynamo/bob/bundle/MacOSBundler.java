@@ -29,7 +29,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import org.apache.commons.io.FilenameUtils;
@@ -131,8 +130,9 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy bundle resources into .app folder
-        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+        // Copy bundle resources into the app's Resources folder. Files directly
+        // in the .app root are reported as unsealed contents by codesign.
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, resourcesDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -153,8 +153,7 @@ public class MacOSBundler implements IBundler {
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);
 
         // Create fat/universal binary
-        File exe = File.createTempFile("dmengine", "");
-        FileUtil.deleteOnExit(exe);
+        File exe = project.createTempFile("dmengine", "");
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -174,10 +173,11 @@ public class MacOSBundler implements IBundler {
         logger.info("Bundle binary: " + BundleHelper.getFileDescription(destExecutable));
 
         if (architectures.size() == 1) {
-            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
-            BundleHelper.copySharedLibraries(platform, binaryDir, macosDir);
+            Platform architecture = architectures.get(0);
+            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), architecture.getExtenderPair()));
+            BundleHelper.copySharedLibraries(architecture, binaryDir, macosDir);
         } else {
-            BundleHelper.createFatLibrary(architectures, project.getBinaryOutputDirectory(), macosDir, canceled);
+            BundleHelper.createFatLibrary(project, architectures, project.getBinaryOutputDirectory(), macosDir, canceled);
         }
 
         // Copy debug symbols
@@ -199,11 +199,17 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (variant.equals(Bob.VARIANT_DEBUG))
-        {
-            logger.info("Adding debug entitlements");
-            File entitlementsFile = BundleHelper.copyResourceToTempFile("resources/macos/entitlements-debug.plist");
-            Result r = Exec.execResult("codesign", "-f", "-s", "-", "--entitlements", entitlementsFile.getAbsolutePath(), appDir.getAbsolutePath());
+        if (BundleHelper.isMacOS(Platform.getHostPlatform())) {
+            logger.info("Adding entitlements");
+            File entitlementsFile = BundleHelper.copyResourceToTempFile(project, variant.equals(Bob.VARIANT_DEBUG) ? "resources/macos/entitlements-debug.plist" : "resources/macos/entitlements-release.plist");
+            Result r = Exec.execResult(
+                "codesign",
+                "--deep",
+                "--force",
+                "--options", "runtime",
+                "--entitlements", entitlementsFile.getAbsolutePath(),
+                "--sign", "-",
+                appDir.getAbsolutePath());
             if (r.ret != 0) {
                 throw new IOException(new String(r.stdOutErr));
             }

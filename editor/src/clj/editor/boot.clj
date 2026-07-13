@@ -13,16 +13,18 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.boot
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.stacktrace :as stack]
             [clojure.tools.cli :as cli]
             [editor.analytics :as analytics]
             [editor.connection-properties :refer [connection-properties]]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
+            [editor.fs :as fs]
             [editor.gl :as gl]
-            [editor.keymap :as keymap]
             [editor.localization :as localization]
+            [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -30,9 +32,12 @@
             [editor.updater :as updater]
             [editor.welcome :as welcome]
             [service.log :as log]
+            [util.coll :as coll]
+            [util.path :as path]
             [util.repo :as repo])
   (:import [com.defold.editor Shutdown]
            [com.dynamo.bob.archive EngineVersion]
+           [java.time Instant]
            [java.util Arrays]
            [javax.imageio ImageIO]))
 
@@ -66,7 +71,7 @@
             render-project-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 1) 4)
             project-file (io/file project)
             project-dir (.getParentFile project-file)
-            project-prefs (doto (prefs/project project-dir user-prefs) prefs/migrate-project-prefs!)]
+            project-prefs (prefs/project project-dir user-prefs)]
         (welcome/add-recent-project! project-prefs project-file)
         (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
 
@@ -100,12 +105,12 @@
 
 (defn- set-sha1-revisions-from-repo! []
   ;; Use the sha1 of the HEAD commit as the editor revision.
-  (when (empty? (system/defold-editor-sha1))
+  (when (coll/empty? (system/defold-editor-sha1))
     (when-some [editor-sha1 (repo/detect-editor-sha1)]
       (system/set-defold-editor-sha1! editor-sha1)))
 
   ;; If we don't have an engine sha1 specified, use the sha1 from Bob.
-  (when (empty? (system/defold-engine-sha1))
+  (when (coll/empty? (system/defold-engine-sha1))
     (system/set-defold-engine-sha1! EngineVersion/sha1)))
 
 (defn disable-imageio-cache!
@@ -118,6 +123,39 @@
   [["-prefs" "--preferences PATH" "Path to preferences file"]
    ["-p" "--port PORT" "Editor server port" :default 0 :parse-fn ^[String] Long/valueOf]])
 
+(defn write-installations-json! [launcher-path resources-path]
+  (try
+    (let [os (os/os)
+          launcher-path (str (path/real launcher-path))
+          registry-path (path/of
+                          (case os
+                            :macos (fs/evaluate-path "~/Library/Application Support")
+                            :linux (or (fs/evaluate-path "$XDG_STATE_HOME")
+                                       (fs/evaluate-path "~/.local/state"))
+                            :win32 (or (fs/evaluate-path "$LOCALAPPDATA")
+                                       (fs/evaluate-path "~/AppData/Local")))
+                          "Defold"
+                          "installations.json")]
+      (path/atomic-replace!
+        registry-path
+        (fn write-installations-json-temp-file [temp-path]
+          (with-open [writer (io/writer temp-path :encoding "UTF-8")]
+            (-> (when (path/exists? registry-path)
+                  (try
+                    (with-open [reader (io/reader registry-path :encoding "UTF-8")]
+                      (json/read reader :key-fn keyword))
+                    (catch Exception _)))
+                (coll/into->
+                  [{:launcherPath launcher-path
+                    :installPath (str (case os
+                                        :macos (path/real resources-path "../..")
+                                        (:linux :win32) (path/real resources-path)))
+                    :lastLaunchedAt (str (Instant/now))}]
+                  (remove #(= launcher-path (:launcherPath %))))
+                (json/write writer))))))
+    (catch Exception e
+      (log/warn :message "Failed to write installations.json." :exception e))))
+
 ;; Entry point from java EditorApplication is in editor.bootloader/main, which calls this function.
 (defn main [args namespace-loader]
   (when (system/defold-dev?)
@@ -125,15 +163,17 @@
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         cli-options (:options opts)
-        prefs (doto
-                (if-let [prefs-path (:preferences cli-options)]
-                  (prefs/global prefs-path)
-                  (doto (prefs/global) prefs/migrate-global-prefs!))
-                keymap/migrate-from-file!)
+        prefs (if-let [prefs-path (:preferences cli-options)]
+                (prefs/global prefs-path)
+                (prefs/global))
         localization (localization/make-editor prefs error-reporting/report-exception!)
         analytics-url (:analytics-url connection-properties)
         analytics-send-interval 300
         cid (analytics/start! analytics-url localization analytics-send-interval)]
+    (when-not (system/defold-dev?)
+      (when-let [launcher-path (system/defold-launcherpath)]
+        (when-let [resources-path (system/defold-resourcespath)]
+          (write-installations-json! launcher-path resources-path))))
     (Shutdown/addShutdownAction analytics/shutdown!)
     (error-reporting/setup-error-reporting! {:notifier {:notify-fn (partial notify-user localization)}
                                              :sentry (-> connection-properties

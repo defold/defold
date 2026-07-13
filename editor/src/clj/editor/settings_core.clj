@@ -356,6 +356,17 @@
 (defn sanitize-settings [meta-settings settings]
   (mapv (partial sanitize-setting (make-meta-settings-map meta-settings)) settings))
 
+(defn resolve-resource-settings [settings value-field resolve-resource-fn]
+  (mapv (fn [setting]
+          (cond-> setting
+                  ;; Resolve string resource values so the form gets typed values.
+                  ;; This covers raw settings without ResourceSettingNodes, and
+                  ;; defaults from metadata merged after load.
+                  (and (= :resource (:type setting))
+                       (string? (get setting value-field)))
+                  (update value-field resolve-resource-fn)))
+        settings))
+
 (defn make-default-settings [meta-settings]
   (mapv (fn [meta-setting]
           {:path (:path meta-setting)
@@ -467,8 +478,9 @@
     (:default (nth meta-settings index))))
 
 (defn get-setting-or-default [meta-settings settings path]
-  (or (get-setting settings path)
-      (get-default-setting meta-settings path)))
+  (if-let [index (setting-index settings path)]
+    (:value (nth settings index))
+    (get-default-setting meta-settings path)))
 
 (defn get-meta-setting
   [meta-settings path]

@@ -293,8 +293,8 @@ public abstract class LuaBuilder extends Builder {
 
     /* We currently prefer source code over plain lua byte code due to the smaller size
     public byte[] constructLuaBytecode(Task task, String luacExe, String source) throws IOException, CompileExceptionError {
-        File outputFile = File.createTempFile("script", ".raw");
-        File inputFile = File.createTempFile("script", ".lua");
+        File outputFile = project.createTempFile("script", ".raw");
+        File inputFile = project.createTempFile("script", ".lua");
 
         List<String> options = new ArrayList<String>();
         options.add(Bob.getExe(Platform.getHostPlatform(), luacExe));
@@ -349,8 +349,8 @@ public abstract class LuaBuilder extends Builder {
 
     public byte[] constructLuaJITBytecode(Task task, String source, boolean gen32bit) throws IOException, CompileExceptionError {
 
-        File outputFile = File.createTempFile("script", ".raw");
-        File inputFile = File.createTempFile("script", ".lua");
+        File outputFile = project.createTempFile("script", ".raw");
+        File inputFile = project.createTempFile("script", ".lua");
 
         // -b = generate bytecode
         // 

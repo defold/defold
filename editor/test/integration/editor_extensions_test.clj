@@ -17,6 +17,8 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.cljfx-form-view :as cljfx-form-view]
+            [editor.code.view :as code-view]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
@@ -28,17 +30,23 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.html-view :as html-view]
+            [editor.library :as library]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.process :as process]
+            [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.scene :as scene]
             [editor.ui :as ui]
+            [editor.view :as view]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.diff :as diff]
@@ -319,6 +327,9 @@
 (defn- open-resource-noop! [_]
   (future/completed nil))
 
+(defn- fetch-libraries-noop! []
+  (future/completed [[] true]))
+
 (defn- make-invoke-bob-fn [project]
   (fn invoke-bob! [options commands _]
     (future/io
@@ -329,19 +340,40 @@
 (def ^:private stopped-server
   (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs web-server]
+(defn- reload-editor-scripts! [project & {:keys [display-output! fetch-libraries! kind open-resource! prefs web-server]
                                           :or {display-output! println
+                                               fetch-libraries! fetch-libraries-noop!
+                                               kind :all
                                                open-resource! open-resource-noop!
                                                web-server stopped-server}}]
-  (extensions/reload! project :all
+  (extensions/reload! project kind
                       :prefs (or prefs (test-util/make-test-prefs))
                       :localization test-util/localization
                       :reload-resources! (make-reload-resources-fn (project/workspace project))
                       :display-output! display-output!
                       :save! (make-save-fn project)
                       :open-resource! open-resource!
+                      :fetch-libraries! fetch-libraries!
                       :invoke-bob! (make-invoke-bob-fn project)
                       :web-server web-server))
+
+(deftest project-editor-script-change-stays-reload-needed-after-library-reload-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
+    (let [script-node (test-util/resource-node project "/test.editor_script")
+          reload-needed? (fn []
+                            (g/with-auto-evaluation-context evaluation-context
+                              (extensions/reload-needed? project evaluation-context)))]
+      (reload-editor-scripts! project)
+      (is (not (reload-needed?)))
+
+      (test-util/update-code-editor-lines! script-node conj "-- changed")
+      (is (reload-needed?))
+
+      (reload-editor-scripts! project :kind :library)
+      (is (reload-needed?))
+
+      (reload-editor-scripts! project)
+      (is (not (reload-needed?))))))
 
 (defn- eval-handler-contexts [context-name selection]
   (let [selection-provider (->StaticSelection selection)
@@ -404,7 +436,7 @@
       ;; Run the separate scene command from the Scene context menu.
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
-                              (eval-handler-contexts :global [sprite-node-id])
+                              (eval-handler-contexts :workbench [sprite-node-id])
                               {})]
         (is (= [1.0 1.0 1.0] (test-util/prop sprite-node-id :scale)))
         (is (some? handler+context))
@@ -415,6 +447,29 @@
                 nil
                 (catch Throwable e e))))
         (is (= [2 2 2] (test-util/prop sprite-node-id :scale)))))))
+
+(deftest editor-script-commands-preserve-declaration-order-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/command_order_project"
+    (reload-editor-scripts! project)
+    (let [command-labels (into []
+                               (comp
+                                 (filter (fn [{:keys [command]}]
+                                           (and command
+                                                (handler/synthetic-command? command))))
+                                 (map (fn [{:keys [command]}]
+                                        (some-> (handler/active command (eval-handler-contexts :global []) {})
+                                                handler/label))))
+                               (handler/realize-menu :editor.app-view/edit-end))]
+      (is (= ["Command 7"
+              "Command 2"
+              "Command 9"
+              "Command 1"
+              "Command 5"
+              "Command 3"
+              "Command 8"
+              "Command 4"
+              "Command 6"]
+             command-labels)))))
 
 (deftest refresh-context-after-write-test
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
@@ -735,9 +790,36 @@
             ((vswap! hash->stable-id #(assoc % s (str "0x" (count %)))) s))))))
 
 (defn- expect-script-output [expected actual]
-  (let [actual (normalize-pprint-output (str actual))]
-    (let [output-matches-expectation (= expected actual)]
-      (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3)))))))
+  (let [actual (normalize-pprint-output (str actual))
+        output-matches-expectation (= expected actual)]
+    (is output-matches-expectation (when-not output-matches-expectation (string/join "\n" (diff/make-diff-output-lines expected actual 3))))))
+
+(def ^:private expected-fetch-libraries-test-output
+  "fetch libraries: ok
+resource exists after fetch: true
+fetch missing libraries: error
+resource exists after failed fetch: false
+")
+
+(deftest fetch-libraries-test
+  (test-util/with-scratch-project "test/resources/editor_extensions/fetch_libraries_test"
+    (with-open [_server (http-server/start! test-util/lib-server-handler :port 58091)]
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts!
+          project
+          :display-output! #(doto out (.append %2) (.append \newline))
+          :fetch-libraries! (fn fetch-libraries! []
+                              (future/io
+                                (let [lib-results (library/fetch!
+                                                    (workspace/project-directory workspace)
+                                                    (project/project-dependencies project)
+                                                    progress/null-render-progress!)]
+                                  (ui/run-now
+                                    (workspace/set-project-dependencies! workspace lib-results)
+                                    (workspace/resource-sync! workspace [] progress/null-render-progress!))
+                                  [lib-results true]))))
+        (run-edit-menu-test-command!)
+        (expect-script-output expected-fetch-libraries-test-output out)))))
 
 (def ^:private expected-outline-selection-parent-chain-test-output
   "outline.child.can_get_parent=true
@@ -774,7 +856,7 @@ scene.node.get_parent_succeeds=false
                            (is (handler/enabled? handler+context))
                            @(handler/run handler+context)))]
       (run-command! :editor.outline-view/context-menu-end :outline [sprite-outline] "Outline Parent Chain Test")
-      (run-command! :editor.scene-selection/context-menu-end :global [sprite-node-id] "Scene Parent Chain Test")
+      (run-command! :editor.scene-selection/context-menu-end :workbench [sprite-node-id] "Scene Parent Chain Test")
       (expect-script-output expected-outline-selection-parent-chain-test-output out))))
 
 (deftest external-file-attributes-test
@@ -794,6 +876,11 @@ scene.node.get_parent_succeeds=false
 editor.ui.image({image = false}) => false is not a string
 editor.ui.image({image = 'foo', width = false}) => false is not a number
 editor.ui.image({image = 'foo', width = -1}) => -1 is not positive
+editor.ui.dialog({title = 'Dialog title', width = false}) => false is not a number
+editor.ui.dialog({title = 'Dialog title', height = -1}) => -1 is not positive
+editor.ui.dialog({title = 'Dialog title', resizable = 1}) => 1 is not a boolean
+editor.ui.check_box({indeterminate = 1}) => 1 is not a boolean
+editor.ui.tab({}) => {} must have the \"text\" key
 ")
 
 (deftest ui-test
@@ -1033,26 +1120,38 @@ POST http://localhost:23456/echo {\"y\":\"foo\",\"x\":4} as json => 200
 }
 POST http://localhost:23456/echo hello world! as string => 200
 \"hello world!\"
+GET http://localhost:23456/download as string => error ({as = \"string\", path = \"downloaded.txt\"} does not satisfy any of its requirements:
+- {as = \"string\", path = \"downloaded.txt\"} specifies mutually exclusive 'as' and 'path' options
+- {as = \"string\", path = \"downloaded.txt\"} is not nil)
+download into project => 200
+resource exists before/after: false/true
+\"downloaded content\"
+download outside project => 200
+path matches: true
 ")
 
 (deftest http-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/http_project"
-    (let [server (http-server/start!
-                   (http-server/router-handler
-                     {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
-                      "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
-                      "/" {"GET" (constantly (http-server/response 200 ""))}
-                      "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
-                      "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}})
-                   :port 23456)
-          out (StringBuilder.)]
-      (try
-        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
-        ;; See test.editor_script: the test invokes http.request with various options and prints results
-        (run-edit-menu-test-command!)
-        (expect-script-output expected-http-test-output out)
-        (finally
-          (http-server/stop! server 0))))))
+  (test-util/with-temp-dir! outside-directory
+    (test-util/with-scratch-project "test/resources/editor_extensions/http_project"
+      (let [outside-path (path/of outside-directory "downloaded.txt")
+            server (http-server/start!
+                     (http-server/router-handler
+                       {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
+                        "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
+                        "/" {"GET" (constantly (http-server/response 200 ""))}
+                        "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
+                        "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}
+                        "/download" {"GET" (constantly (http-server/response 200 "downloaded content"))}
+                        "/outside-path" {"GET" (constantly (http-server/response 200 (str outside-path)))}})
+                     :port 23456)
+            out (StringBuilder.)]
+        (try
+          (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+          ;; See test.editor_script: the test invokes http.request with various options and prints results
+          (run-edit-menu-test-command!)
+          (expect-script-output expected-http-test-output out)
+          (finally
+            (http-server/stop! server 0)))))))
 
 (def ^:private resource-io-test-output
   "editor.create_resources({{\"/test/config.json\", \"{\\\"test\\\": true}\"}}) => ok!
@@ -1103,14 +1202,28 @@ editor.create_resources({\"/test/repeated.go\", \"/test/repeated.go\"}) => Resou
   /npc.collection
   /npc.go
   /UPPER.COLLECTION
+editor.create_resources({{\"/test/invalid.go\", \"\\\"name\\\":\\\"invalid\\\"\"}}) => Created resources are invalid: /test/invalid.go
+/test
+  /config.json
+  /invalid.go
+  /npc.collection
+  /npc.go
+  /UPPER.COLLECTION
+editor.tx.set(\"/test/invalid.go\", \"text\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.add(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.clear(\"/test/invalid.go\", \"components\") => Cannot edit defective resource: /test/invalid.go
+editor.tx.remove(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.reorder(\"/test/invalid.go\", \"components\", ...) => Cannot edit defective resource: /test/invalid.go
+editor.tx.reset(\"/test/invalid.go\", \"text\") => Cannot edit defective resource: /test/invalid.go
 ")
 
 (deftest resources-io-test
-  (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
-    (let [out (StringBuilder.)]
-      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
-      (run-edit-menu-test-command!)
-      (expect-script-output resource-io-test-output out))))
+  (log/without-logging
+    (test-util/with-scratch-project "test/resources/editor_extensions/resources_io_project"
+      (let [out (StringBuilder.)]
+        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+        (run-edit-menu-test-command!)
+        (expect-script-output resource-io-test-output out)))))
 
 (defn- expected-zip-test-output [root]
   (str "Testing zip.pack...
@@ -1361,6 +1474,28 @@ openapi route has 200 => true
                                 :web-server server)
         (run-edit-menu-test-command!)
         (expect-script-output expected-http-server-test-output out)))))
+
+(def ^:private expected-image-test-output
+  "size image: 32,32
+top-left: 255,0,0,255
+top-right: 0,255,0,255
+bottom-left: 0,0,255,255
+bottom-right: 255,255,255,128
+pixels: count=1024 checksum=620288
+load_file missing: Image file does not exist: assets/missing.png
+load_file unsupported: Unsupported image file: assets/not_image.txt
+pixel x low: Pixel coordinate out of bounds: 0, 1
+pixel x high: Pixel coordinate out of bounds: 33, 1
+pixel y low: Pixel coordinate out of bounds: 1, 0
+pixel y high: Pixel coordinate out of bounds: 1, 33
+")
+
+(deftest image-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/image_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run-edit-menu-test-command!)
+      (expect-script-output expected-image-test-output out))))
 
 (deftest eval-route-test
   (test-util/with-loaded-project
@@ -1740,6 +1875,7 @@ After transaction (edit):
   - type: gui-node-type-text
     id: text1
     nodes: 0
+Preconfigured spine node: spine_scene idle
 Transaction: set Landscape position
   position = {10, 10, 10}, can reset = false
   Landscape:position = {20, 20, 20}, can reset = true
@@ -2465,3 +2601,42 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       (expect-script-output expected-localization-output out))))
+
+(deftest editor-script-active-view-commands-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/active_view_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run!
+        (fn [[proj-path view-node-type view-node-args label]]
+          (let [resource-node (test-util/resource-node project proj-path)
+                view-graph (test-util/make-view-graph!)
+                view-node (first (g/take-node-ids view-graph 1))]
+            (g/transact
+              (concat
+                (g/add-node (apply g/construct view-node-type :_node-id view-node view-node-args))
+                (view/connect-resource-node view-node resource-node)
+                (g/set-property app-view :active-view view-node)))
+            (let [command-contexts (g/with-auto-evaluation-context evaluation-context
+                                     (handler/eval-contexts
+                                       [(handler/->context :global {:app-view app-view})]
+                                       false
+                                       evaluation-context))
+                  handler+context (->> (handler/realize-menu :editor.app-view/view-end)
+                                       (e/keep :command)
+                                       (e/filter handler/synthetic-command?)
+                                       (e/keep #(handler/active % command-contexts {}))
+                                       (coll/first-where #(= label (handler/label %))))]
+              (assert handler+context "Test bug: undefined test command")
+              (is (handler/enabled? handler+context))
+              @(handler/run handler+context))))
+        [["/main/main.script" code-view/CodeEditorView [:gutter-view (code-view/->CodeEditorGutterView)] "Inspect Active Code View"]
+         ["/main/main.collection" scene/SceneView [] "Inspect Active Scene View"]
+         ["/README.md" html-view/HtmlViewNode [] "Inspect Active HTML View"]
+         ["/game.project" cljfx-form-view/CljfxFormView [] "Inspect Active Form View"]])
+      (expect-script-output
+        "type=code resource=/main/main.script dirty=false
+type=scene resource=/main/main.collection dirty=false
+type=html resource=/README.md dirty=false
+type=form resource=/game.project dirty=false
+"
+        out))))

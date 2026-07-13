@@ -18,11 +18,12 @@
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.localization :as localization]
+            [editor.scene-selection :as scene-selection]
             [editor.ui :as ui]
             [integration.test-util :as test-util]
             [support.test-support :as test-support])
   (:import [javafx.scene Scene]
-           [javafx.scene.control ComboBox ListView Menu MenuBar MenuItem SelectionMode Tab TabPane TreeItem TreeView]
+           [javafx.scene.control ComboBox ContextMenu ListView Menu MenuBar MenuItem SelectionMode Tab TabPane TreeItem TreeView]
            [javafx.scene.control.skin TabPaneSkin]
            [javafx.scene.layout Pane VBox]))
 
@@ -215,6 +216,15 @@
         (doto (.getSelectionModel list)
           (.selectRange 1 3))))
     (is (= [:b :c] @selected-items))))
+
+(deftest init-scene-context-menu-allows-anchor-click-through-test
+  (ui/run-now
+    (let [context-menu (ContextMenu.)
+          anchor-node (Pane.)]
+      (with-redefs [ui/init-context-menu! (fn [_ _]
+                                            context-menu)]
+        (is (identical? context-menu (#'scene-selection/init-scene-context-menu! nil anchor-node)))
+        (is (= false (.getConsumeAutoHidingEvents context-menu)))))))
 
 (deftest observe-selection-test
   (testing "TreeView"

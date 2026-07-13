@@ -215,11 +215,12 @@
           (shader-gen/combined-shader-info augmented-shader-infos)))))
 
 (g/defnk produce-shader-request-data [combined-shader-info]
-  (shader/make-shader-request-data
-    (:shader-type+source-pairs combined-shader-info)
-    (:location+attribute-name-pairs combined-shader-info)
-    (:array-sampler-name->slice-sampler-names combined-shader-info)
-    (:strip-resource-binding-namespace-regex-str combined-shader-info)))
+  (-> (shader/make-shader-request-data
+        (:shader-type+source-pairs combined-shader-info)
+        (:location+attribute-name-pairs combined-shader-info)
+        (:array-sampler-name->slice-sampler-names combined-shader-info)
+        (:strip-resource-binding-namespace-regex-str combined-shader-info))
+      (shader/with-preview-light-capacity (:preview-light-capacity combined-shader-info))))
 
 (g/defnk produce-shader [_node-id combined-shader-info shader-request-data vertex-constants fragment-constants samplers]
   (let [{:keys [array-sampler-name->slice-sampler-names attribute-reflection-infos]} combined-shader-info
