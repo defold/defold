@@ -40,7 +40,7 @@ import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
