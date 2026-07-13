@@ -68,7 +68,7 @@
         },
         {
             "author": "vlaaad",
-            "body": "Now it's possible to create resizable dialogs with predefined width and/or height using editor scripts!\r\n\r\n```lua\r\neditor.ui.dialog({title = \"Dialog\", width = 720, height = 600})\r\neditor.ui.dialog({title = \"Width-only dialog\", width = 720})\r\neditor.ui.dialog({title = \"Height-only dialog\", width = 600})\r\n```",
+            "body": "Now it's possible to create resizable dialogs with predefined width and/or height using editor scripts!\r\n\r\n```lua\r\neditor.ui.dialog({title = \"Dialog\", width = 720, height = 600})\r\neditor.ui.dialog({title = \"Width-only dialog\", width = 720})\r\neditor.ui.dialog({title = \"Height-only dialog\", height = 600})\r\n```",
             "closed_issues": [
                 11967
             ],
@@ -112,7 +112,7 @@
         },
         {
             "author": "vlaaad",
-            "body": "Show a notification popup that suggests reloading the editor scripts and fetching libraries when the dependencies list has changed.",
+            "body": "We now show a notification popup that suggests reloading the editor scripts and fetching libraries when the dependencies list has changed.",
             "closed_issues": [
                 6557
             ],
@@ -155,7 +155,7 @@
         },
         {
             "author": "vlaaad",
-            "body": "",
+            "body": "The editor now provides visible feedback in the status bar whenever editor scripts are reloaded.",
             "closed_issues": [
                 11182
             ],
@@ -1011,7 +1011,7 @@
         },
         {
             "author": "vlaaad",
-            "body": "This fixes an issue where the scene view toolbar disappeared when focus changed.",
+            "body": "This fixes an issue where the scene view toolbar disappeared when focus changed from Outline to a dropdown in a toolbar.",
             "closed_issues": [
                 12674
             ],
@@ -1094,7 +1094,7 @@
         },
         {
             "author": "vlaaad",
-            "body": "Now, the editor's HTTP server can return PNGs of scenes in the project. This is useful for agentic workflows that need to see what the scene looks like with their changes. As usual, the endpoint is documented in the OpenAPI spec, so the only thing your agent needs to use it is still the URL `http://localhost:$(cat .internal/editor.port)/openapi.json`.",
+            "body": "Now, the editor's HTTP server can return PNGs of scenes in the project. This is useful for agentic workflows that need to see what the scene looks like when an agent edits it. As usual, the endpoint is documented in the OpenAPI spec, so the only thing your agent needs to use it is still the URL `http://localhost:$(cat .internal/editor.port)/openapi.json`.",
             "closed_issues": [
                 12690
             ],
@@ -1136,6 +1136,6 @@
             "url": "https://github.com/defold/defold/pull/12499"
         }
     ],
-    "timestamp": 1783944689.4129028,
+    "timestamp": 1783946058.4178638,
     "version": "1.13.1"
 }
