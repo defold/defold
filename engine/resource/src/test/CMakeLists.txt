@@ -10,6 +10,7 @@ set(RESOURCE_TEST_RUN_DIR "${DEFOLD_RESOURCE_BINARY_DIR}/resource-test-runtime")
 set(RESOURCE_TEST_BUILD_DIR "${RESOURCE_TEST_RUN_DIR}/build/src/test")
 set(RESOURCE_TEST_DATA_SCRIPT "${RESOURCE_TEST_ROOT}/build_cmake_test_data.py")
 set(RESOURCE_MANY_VALID_REFS_COUNT 1025)
+set(RESOURCE_DEEP_CHAIN_LENGTH 1025)
 file(MAKE_DIRECTORY "${RESOURCE_TEST_RUN_DIR}")
 
 set(RESOURCE_TEST_PROTO "${RESOURCE_TEST_ROOT}/test_resource_ddf.proto")
@@ -156,6 +157,25 @@ add_custom_command(
   VERBATIM
   COMMENT "Generating ${RESOURCE_MANY_VALID_REFS_COUNT} valid resource references")
 list(APPEND RESOURCE_PROTO_MESSAGE_OUTPUTS ${RESOURCE_MANY_VALID_OUTPUTS})
+
+set(RESOURCE_DEEP_CHAIN_OUTPUTS "${RESOURCE_TEST_BUILD_DIR}/deep_chain_leaf.foo")
+math(EXPR RESOURCE_DEEP_CHAIN_LAST_CONTAINER "${RESOURCE_DEEP_CHAIN_LENGTH} - 2")
+foreach(_resource_index RANGE 0 ${RESOURCE_DEEP_CHAIN_LAST_CONTAINER})
+  set(_resource_index_padded "000${_resource_index}")
+  string(LENGTH "${_resource_index_padded}" _resource_index_length)
+  math(EXPR _resource_index_start "${_resource_index_length} - 4")
+  string(SUBSTRING "${_resource_index_padded}" ${_resource_index_start} 4 _resource_index_padded)
+  list(APPEND RESOURCE_DEEP_CHAIN_OUTPUTS "${RESOURCE_TEST_BUILD_DIR}/deep_chain_${_resource_index_padded}.cont")
+endforeach()
+add_custom_command(
+  OUTPUT ${RESOURCE_DEEP_CHAIN_OUTPUTS}
+  COMMAND "${RESOURCE_PYTHON}" "${RESOURCE_TEST_DATA_SCRIPT}" generate-deep-resource-chain
+          --output-dir "${RESOURCE_TEST_BUILD_DIR}"
+          --count "${RESOURCE_DEEP_CHAIN_LENGTH}"
+  DEPENDS "${RESOURCE_TEST_DATA_SCRIPT}"
+  VERBATIM
+  COMMENT "Generating a resource dependency chain with ${RESOURCE_DEEP_CHAIN_LENGTH} nodes")
+list(APPEND RESOURCE_PROTO_MESSAGE_OUTPUTS ${RESOURCE_DEEP_CHAIN_OUTPUTS})
 
 set(RESOURCE_ZIP_INPUTS)
 file(GLOB_RECURSE RESOURCE_ZIP_SOURCE_INPUTS CONFIGURE_DEPENDS "${RESOURCE_TEST_ROOT}/zipfiles/*")
@@ -314,6 +334,7 @@ add_custom_target(resource_test_data DEPENDS
   ${RESOURCE_LU_COMPRESSED_OUTPUTS}
   ${RESOURCE_PB_OUTPUTS}
   ${RESOURCE_MANY_VALID_OUTPUTS}
+  ${RESOURCE_DEEP_CHAIN_OUTPUTS}
   ${RESOURCE_OVERRIDE_OUTPUTS}
   "${RESOURCE_EMPTY_SCRIPT_OUTPUT}"
   "${RESOURCE_TEST_BUILD_DIR}/somedata"

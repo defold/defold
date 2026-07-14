@@ -78,6 +78,7 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
 #undef EXT_CONSTANTS
 
 static const uint32_t MANY_VALID_REFS_COUNT = 1025;
+static const uint32_t DEEP_RESOURCE_CHAIN_LENGTH = 1025;
 
 class ResourceTest : public jc_test_base_class
 {
@@ -930,6 +931,28 @@ TEST_P(GetResourceTest, PreloadGetManyValidRefs)
     }
 
     ASSERT_EQ(dmResource::RESULT_OK, r);
+    ASSERT_EQ(MANY_VALID_REFS_COUNT, m_FooResourceCreateCallCount);
+    dmResource::DeletePreloader(pr);
+}
+
+TEST_P(GetResourceTest, PreloadGetDeepResourceChain)
+{
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/deep_chain_0000.cont");
+
+    uint32_t timeout = 100*1000;
+    dmResource::Result r;
+    for (uint32_t i=0;i<1000;i++)
+    {
+        r = dmResource::UpdatePreloader(pr, 0, 0, timeout);
+        if (r == dmResource::RESULT_PENDING)
+            dmTime::Sleep(timeout);
+        else
+            break;
+    }
+
+    ASSERT_EQ(dmResource::RESULT_OK, r);
+    ASSERT_EQ(DEEP_RESOURCE_CHAIN_LENGTH - 1, m_ResourceContainerCreateCallCount);
+    ASSERT_EQ(1U, m_FooResourceCreateCallCount);
     dmResource::DeletePreloader(pr);
 }
 

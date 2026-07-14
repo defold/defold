@@ -42,6 +42,27 @@ def generate_many_valid_resources(args):
             out_file.write(resource_foo)
 
 
+def generate_deep_resource_chain(args):
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    container_count = args.count - 1
+    for i in range(container_count):
+        container = bytearray()
+        append_length_delimited_field(container, 1, "Deep Resource Chain")
+        if i + 1 < container_count:
+            child_path = "/deep_chain_%04d.cont" % (i + 1)
+        else:
+            child_path = "/deep_chain_leaf.foo"
+        append_length_delimited_field(container, 2, child_path)
+
+        with open(os.path.join(args.output_dir, "deep_chain_%04d.cont" % i), "wb") as out_file:
+            out_file.write(container)
+
+    # TestResource.ResourceFoo { x: 123 }
+    with open(os.path.join(args.output_dir, "deep_chain_leaf.foo"), "wb") as out_file:
+        out_file.write(bytes([0x08, 0x7b]))
+
+
 def add_to_zip_file(args):
     extra_entries = {}
     cwd = os.path.abspath(args.cwd)
@@ -85,6 +106,11 @@ def main():
     generate_many_valid.add_argument("--output-dir", required=True)
     generate_many_valid.add_argument("--count", required=True, type=int)
     generate_many_valid.set_defaults(func=generate_many_valid_resources)
+
+    generate_deep_chain = subparsers.add_parser("generate-deep-resource-chain")
+    generate_deep_chain.add_argument("--output-dir", required=True)
+    generate_deep_chain.add_argument("--count", required=True, type=int)
+    generate_deep_chain.set_defaults(func=generate_deep_resource_chain)
 
     args = parser.parse_args()
     try:

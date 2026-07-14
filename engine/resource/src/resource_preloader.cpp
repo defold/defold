@@ -75,7 +75,11 @@
 typedef int16_t TRequestIndex;
 
 // This bounds the number of request nodes resident in the active tree, not the total number of dependencies.
-// Completed nodes are recycled, but a dependency chain must still fit because its ancestors remain resident.
+// A wide tree may contain more dependencies because completed siblings are removed and their slots are reused.
+// At most MAX_PRELOADER_REQUESTS nodes from a single chain can be resident: while its deepest resource is loading,
+// every parent on the path to it must remain resident so the preloader can later create the resources in
+// child-to-parent order. If a deeper chain fills the tree, its next dependency is left for the blocked parent's
+// Create callback to load synchronously, allowing the preloader to make progress without another request slot.
 
 typedef dmHashTable<dmhash_t, uint32_t> TPathHashTable;
 typedef dmHashTable<dmhash_t, bool> TPathInProgressTable;
@@ -399,12 +403,70 @@ namespace dmResource
         preloader->m_PendingHints.Push(hint);
     }
 
-    // Move the newest overflow hint into a free request slot during preloader updates.
-    static bool AdmitPendingHint(HPreloader preloader)
+    // A full request tree can normally make progress by completing a leaf and recycling its slot. If every leaf
+    // instead has queued children, no leaf can complete and no queued hint can be admitted. Drop the hints for one
+    // such leaf so its Create callback loads those dependencies synchronously and frees the blocked request chain.
+    static bool ResolveRequestTreeSlotDeadlock(HPreloader preloader)
     {
-        if (!preloader->m_FreelistSize || preloader->m_PendingHints.Empty())
+        if (preloader->m_FreelistSize || preloader->m_PendingHints.Empty())
         {
             return false;
+        }
+
+        for (uint32_t i = 0; i < MAX_PRELOADER_REQUESTS; ++i)
+        {
+            const PreloadRequest& request = preloader->m_Request[i];
+            if (request.m_FirstChild == -1 && request.m_QueuedChildCount == 0)
+            {
+                return false;
+            }
+        }
+
+        TRequestIndex blocked_parent = -1;
+        for (uint32_t i = preloader->m_PendingHints.Size(); i > 0; --i)
+        {
+            const PendingHint& hint = preloader->m_PendingHints[i - 1];
+            if (preloader->m_Request[hint.m_Parent].m_FirstChild == -1)
+            {
+                blocked_parent = hint.m_Parent;
+                break;
+            }
+        }
+        assert(blocked_parent != -1);
+
+        PreloadRequest& parent_request = preloader->m_Request[blocked_parent];
+        dmLogWarning("The preloader request tree is full while loading '%s'; queued dependencies will be loaded synchronously.",
+                     parent_request.m_PathDescriptor.m_InternalizedName);
+
+        for (uint32_t i = 0; i < preloader->m_PendingHints.Size();)
+        {
+            if (preloader->m_PendingHints[i].m_Parent == blocked_parent)
+            {
+                assert(parent_request.m_QueuedChildCount > 0);
+                parent_request.m_QueuedChildCount--;
+                preloader->m_PendingHints.EraseSwap(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
+        assert(parent_request.m_QueuedChildCount == 0);
+        return true;
+    }
+
+    // Move the newest overflow hint into a free request slot during preloader updates. Returns true if a hint was
+    // admitted, or if a full-tree deadlock was resolved by unblocking a leaf for synchronous dependency loading.
+    // Returns false when there are no pending hints or the active tree can still make progress without a free slot.
+    static bool AdmitPendingHint(HPreloader preloader)
+    {
+        if (preloader->m_PendingHints.Empty())
+        {
+            return false;
+        }
+        if (!preloader->m_FreelistSize)
+        {
+            return ResolveRequestTreeSlotDeadlock(preloader);
         }
 
         // LIFO makes hints discovered by the current request run before its remaining siblings.
@@ -1041,6 +1103,17 @@ namespace dmResource
         return ret;
     }
 
+    // Advance the preload operation until it completes or exhausts the soft time budget.
+    // Each iteration:
+    // - first advances deferred post-create callbacks by calling PostCreateUpdateOneItem()
+    // - then walks the active request tree depth-first to start or finish loads and create
+    //   resources whose children are ready using PreloaderUpdateOneItem()
+    // - if the root is resolved it invokes the completion callback once and returns after
+    //   all post-create work is done
+    // - otherwise it transfers and admits newly discovered dependency hints using PopHints(),
+    //   including full-tree deadlock recovery
+    // - waiting briefly for asynchronous work or yielding with RESULT_PENDING when
+    //   the time budget is reached.
     Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit)
     {
         DM_PROFILE("UpdatePreloader");
