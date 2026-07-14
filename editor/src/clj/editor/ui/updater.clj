@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.ui.updater
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.api :as fx]
+            [clojure.java.io :as io]
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
@@ -48,16 +49,20 @@
     (updater/restart! updater)
     (Platform/exit)))
 
-(defn- release-notes-update-dialog [{:keys [content project localization] :as props}]
+(ui/defc release-notes-update-dialog
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}]}
+  [{:keys [project localization-state content result-fn]}]
   {:fx/type dialogs/dialog-stage
-   :showing (fxui/dialog-showing? props)
-   :on-close-request {:result false}
-   :title (localization (localization/message "updater.release-notes-dialog.title"))
+   :showing true
+   :on-close-request (fn [_] (result-fn false))
+   :title (localization-state (localization/message "updater.release-notes-dialog.title"))
    :size :large
    :width 800
    :header {:fx/type fxui/legacy-label
             :variant :header
-            :text (localization (localization/message "updater.release-notes-dialog.header"))}
+            :text (localization-state (localization/message "updater.release-notes-dialog.header"))}
    :content {:fx/type markdown/view
              :content content
              :project project
@@ -65,25 +70,25 @@
              :root-props {:style-class "md-page-root"}}
    :footer {:fx/type dialogs/dialog-buttons
             :children [{:fx/type fxui/legacy-button
-                        :text (localization (localization/message "updater.release-notes-dialog.button.later"))
+                        :text (localization-state (localization/message "updater.release-notes-dialog.button.later"))
                         :cancel-button true
-                        :on-action {:result false}}
+                        :on-action (fn [_] (result-fn false))}
                        {:fx/type fxui/legacy-button
-                        :text (localization (localization/message "updater.release-notes-dialog.button.update-now"))
-                        :on-action {:result true}}]}})
+                        :text (localization-state (localization/message "updater.release-notes-dialog.button.update-now"))
+                        :on-action (fn [_] (result-fn true))}]}})
 
 (defn- show-release-notes-update-dialog!
   "Shows the release notes dialog, blocking the current thread until the user
   dismisses it. Must be called on the JavaFX application thread. Returns true if
   the user chose to update now, false otherwise."
   [content project localization]
-  (fxui/show-dialog-and-await-result!
-    :event-handler (fn [state event]
-                     (assoc state ::fxui/result (:result event)))
-    :description {:fx/type release-notes-update-dialog
-                  :content content
-                  :project project
-                  :localization localization}))
+  (fxui/show-stateless-dialog-and-await-result!
+    (fn [result-fn]
+      {:fx/type release-notes-update-dialog
+       :result-fn result-fn
+       :localization localization
+       :content content
+       :project project})))
 
 (defn- prompt-and-download! [stage project updater localization download-confirmed?]
   (if-let [content (updater/release-notes updater)]
@@ -103,20 +108,20 @@
     (localization/localize! link localization (localization/message "updater.button.update-available"))
     (ui/on-action! link
       (fn [_]
-        (let [can-install? (updater/can-install-update? updater)
-              can-download? (updater/can-download-update? updater)
-              can-get-new? (and can-download? (updater/platform-supported? updater))]
+        (let [can-install (updater/can-install-update? updater)
+              can-download (updater/can-download-update? updater)
+              can-get-new (and can-download (updater/platform-supported? updater))]
           (cond
-            (and can-install? can-get-new?)
+            (and can-install can-get-new)
             (case (dialogs/make-download-update-or-restart-dialog stage localization)
               :cancel nil
               :download (prompt-and-download! stage project updater localization true)
               :restart (install-and-restart!))
 
-            can-get-new?
+            can-get-new
             (prompt-and-download! stage project updater localization false)
 
-            can-install?
+            can-install
             (when (dialogs/make-confirmation-dialog
                     localization
                     {:title (localization/message "updater.dialog.title")
@@ -133,7 +138,7 @@
 
             ;; A newer version exists, but newer releases no longer support this
             ;; platform, so there's nothing to download.
-            can-download?
+            can-download
             (dialogs/make-platform-no-longer-supported-dialog stage localization)))))
     (updater/add-progress-watch updater render-progress!)
     (updater/add-state-watch updater link-fn)
