@@ -360,7 +360,9 @@
 
 (defn animation-preview-size
   [camera viewport ^double image-width ^double image-height]
-  (let [[^double sx ^double sy _] (camera/scale-factor camera viewport)
+  (let [[sx sy _] (camera/scale-factor camera viewport)
+        sx (double sx)
+        sy (double sy)
         scaled-width (/ image-width sx)
         scaled-height (/ image-height sy)
         max-width (max 0.0 (- (double (:right viewport))
@@ -418,7 +420,9 @@
                 anim-data (:anim-data user-data)
                 image-width (double (:width anim-data))
                 image-height (double (:height anim-data))
-                [^double scaled-width ^double scaled-height] (animation-preview-size camera viewport image-width image-height)
+                [scaled-width scaled-height] (animation-preview-size camera viewport image-width image-height)
+                scaled-width (double scaled-width)
+                scaled-height (double scaled-height)
                 scale-m (doto (Matrix4d.)
                           (.setIdentity)
                           (.setM00 (/ scaled-width image-width))
