@@ -13,14 +13,20 @@
 # specific language governing permissions and limitations under the License.
 
 import json
+import optparse
 import os
+import sys
+
+from log import log
+
+DEFOLD_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def build_json(config):
+def build_json(version):
     # Returns the per-version release notes JSON (releasenotes/<version>.json)
     # as produced by releasenotes_github_projectv2.py (which already includes
     # the forum 'external-link'). None if it hasn't been generated yet.
-    release_notes_path = os.path.join(config.defold_root, 'releasenotes', '%s.json' % config.version)
+    release_notes_path = os.path.join(DEFOLD_ROOT, 'releasenotes', '%s.json' % version)
     if not os.path.exists(release_notes_path):
         return None
     with open(release_notes_path) as f:
@@ -39,13 +45,13 @@ def _parse_semver(version):
     return tuple(parts)
 
 
-def update_manifest(config, bucket):
+def update_manifest(bucket, version, channel):
     # The manifest is an ordered (newest first) JSON array of every version
     # that has published notes on this channel. The editor reads it to work
     # out which versions sit between the running version and the update, then
     # fetches only those per-version files.
     import botocore
-    key = 'editor2/channels/%s/release-notes/manifest.json' % config.channel
+    key = 'editor2/channels/%s/release-notes/manifest.json' % channel
     obj = bucket.Object(key)
     versions = []
     try:
@@ -59,25 +65,49 @@ def update_manifest(config, bucket):
             raise
     if not isinstance(versions, list):
         versions = []
-    versions = sorted(set(versions) | {config.version}, key=_parse_semver, reverse=True)
-    config._log("Updating release notes manifest (%d versions) -> %s" % (len(versions), key))
+    versions = sorted(set(versions) | {version}, key=_parse_semver, reverse=True)
+    log("Updating release notes manifest (%d versions) -> %s" % (len(versions), key))
     obj.put(Body=json.dumps(versions), ContentType='application/json')
 
 
-def upload(config, bucket, required=False):
+def upload(bucket, version, channel, required=False):
     # Publishes the update dialog's release notes for the current channel:
     #   - release-notes/<version>.json  per-version, accumulates across releases
     #   - release-notes/manifest.json   ordered version list the editor walks
-    json_content = build_json(config)
+    json_content = build_json(version)
     if json_content is None:
-        message = "No release notes for %s in releasenotes/" % config.version
+        message = "No release notes for %s in releasenotes/" % version
         if required:
-            config.fatal(message)
-        config._log("%s; skipping upload" % message)
+            log(message)
+            sys.exit(1)
+        log("%s; skipping upload" % message)
         return
 
-    version_obj = bucket.Object('editor2/channels/%s/release-notes/%s.json' % (config.channel, config.version))
-    config._log("Uploading per-version release notes for %s -> %s" % (config.version, version_obj.key))
+    version_obj = bucket.Object('editor2/channels/%s/release-notes/%s.json' % (channel, version))
+    log("Uploading per-version release notes for %s -> %s" % (version, version_obj.key))
     version_obj.put(Body=json_content, ContentType='application/json')
 
-    update_manifest(config, bucket)
+    update_manifest(bucket, version, channel)
+
+
+def _main():
+    import s3
+    parser = optparse.OptionParser(usage = "usage: %prog --version VERSION --channel CHANNEL")
+    parser.add_option('--version', dest = 'version', help = 'Version to upload notes for, e.g. 1.13.0')
+    parser.add_option('--channel', dest = 'channel', help = 'Channel to publish to: alpha, beta or stable')
+    parser.add_option('--archive-domain', dest = 'archive_domain',
+                      default = os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com"),
+                      help = 'Domain the notes are published to. Default is %default')
+    options, _args = parser.parse_args()
+    if not options.version:
+        parser.error('--version is required')
+    if not options.channel:
+        parser.error('--channel is required')
+
+    s3.init_boto_data_path()
+    bucket = s3.get_bucket(options.archive_domain)
+    upload(bucket, options.version, options.channel, required = True)
+
+
+if __name__ == '__main__':
+    _main()
