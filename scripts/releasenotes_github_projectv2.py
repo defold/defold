@@ -487,7 +487,8 @@ def parse_github_project(version):
             "mergecommit": find_merge_commit(pr),
             "referencecommits": find_reference_commits(pr),
             "duplicate": duplicate,
-            "repository": issue.get("repository").get("name")
+            "repository": issue.get("repository").get("name"),
+            "pr_repository": pr.get("repository").get("name")
         }
         # strip from match to end of file
         flags = re.DOTALL|re.IGNORECASE
@@ -566,6 +567,14 @@ def check_issue_commits(issues, required_branches = ("dev", "beta")):
         print("  Checking #%s '%s' (%s)" % (issue["issue_number"], issue["title"], issue["url"]))
         if issue.get("repository") != "defold":
             yellow("    Ignored since issue is not from the defold repository")
+            ignored_count = ignored_count + 1
+            kept.append(issue)
+            continue
+
+        # The fix lives in another repository (e.g. an extension), so its commits
+        # will never be on defold's dev/beta.
+        if issue.get("pr_repository") != "defold":
+            yellow("    Ignored since the fix is a PR in the %s repository" % issue.get("pr_repository"))
             ignored_count = ignored_count + 1
             kept.append(issue)
             continue

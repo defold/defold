@@ -126,7 +126,7 @@
                   (when-some [parsed (parse-version v)]
                     (when (or (nil? current) (pos? (compare parsed current)))
                       [v parsed])))))
-        (->> (sort-by second #(compare %2 %1)))
+        (->> (sort-by second coll/descending-order))
         (coll/into-> []
           (map first)
           (take release-notes-range-limit)))))

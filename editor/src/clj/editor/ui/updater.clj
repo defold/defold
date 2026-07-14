@@ -75,6 +75,8 @@
                         :on-action (fn [_] (result-fn false))}
                        {:fx/type fxui/legacy-button
                         :text (localization-state (localization/message "updater.release-notes-dialog.button.update-now"))
+                        :variant :primary
+                        :default-button true
                         :on-action (fn [_] (result-fn true))}]}})
 
 (defn- show-release-notes-update-dialog!
