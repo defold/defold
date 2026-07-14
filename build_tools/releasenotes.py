@@ -64,7 +64,7 @@ def update_manifest(bucket, version, channel):
         if code not in ('NoSuchKey', 'NoSuchBucket', '404'):
             raise
     if not isinstance(versions, list):
-        versions = []
+        sys.exit("%s is not a JSON array (got %s)" % (key, type(versions).__name__))
     versions = sorted(set(versions) | {version}, key=_parse_semver, reverse=True)
     log("Updating release notes manifest (%d versions) -> %s" % (len(versions), key))
     obj.put(Body=json.dumps(versions), ContentType='application/json')

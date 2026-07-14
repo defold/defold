@@ -164,15 +164,26 @@
         (.cancel timer)
         (.purge timer)))))
 
-(deftest parse-version-test
-  (are [in out] (= out (#'updater/parse-version in))
-    "1.13.2" [1 13 2]
-    "1.0"    [1 0]
-    "42"     [42]
-    "1.x"    nil
-    "abc"    nil
-    ""       nil
-    nil      nil))
+(deftest version-string-test
+  (are [in out] (= out (#'updater/version-string? in))
+    "1.13.2" true
+    "1.0"    true
+    "42"     true
+    "1.x"    false
+    "abc"    false
+    ""       false
+    nil      false))
+
+(deftest newer-version-test
+  (let [newer? #'updater/newer-version?]
+    (is (true? (newer? "1.13.2" "1.13.1")))
+    (is (false? (newer? "1.13.1" "1.13.2")))
+    (is (false? (newer? "1.13.1" "1.13.1")))
+    ;; digit runs compare as numbers, not as characters
+    (is (true? (newer? "1.10.0" "1.9.0")))
+    ;; a shorter version is not automatically older
+    (is (true? (newer? "1.13" "1.2.1")))
+    (is (true? (newer? "1.13.2" "1.13")))))
 
 (deftest versions-to-fetch-test
   (let [vtf #'updater/versions-to-fetch]
@@ -193,7 +204,10 @@
            (vtf ["1.2.0" "garbage" "1.x"] "1.1.0")))
     ;; semver ordering, not lexicographic
     (is (= ["1.10.0" "1.9.0"]
-           (vtf ["1.9.0" "1.10.0"] "1.8.0")))))
+           (vtf ["1.9.0" "1.10.0"] "1.8.0")))
+    ;; segment count doesn't decide the order: 1.13 is newer than 1.2.1
+    (is (= ["1.13" "1.2.1"]
+           (vtf ["1.2.1" "1.13"] "1.1.0")))))
 
 (deftest fetch-release-notes-walks-manifest
   ;; happy path: manifest order preserved, newest first

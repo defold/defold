@@ -21,6 +21,7 @@
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
+            [editor.util :as util]
             [service.log :as log]
             [util.coll :as coll]
             [util.eduction :as e]
@@ -105,14 +106,13 @@
   behind. Each one links to its full notes online, so nothing older is lost."
   5)
 
-(defn- parse-version
-  "Turns \"1.13.2\" into [1 13 2] (nil for anything that isn't a plain dotted
-  number). Comparing these vectors with `compare` gives normal version ordering."
-  [s]
-  (when (string? s)
-    (let [parts (string/split s #"\.")]
-      (when (and (seq parts) (every? #(re-matches #"\d+" %) parts))
-        (mapv #(Long/parseLong %) parts)))))
+(defn- version-string? [s]
+  (boolean (and (string? s) (re-matches #"\d+(\.\d+)*" s))))
+
+(defn- newer-version? [^String a ^String b]
+  (pos? (.compare util/natural-order a b)))
+
+(def ^:private descending-version-order (.reversed util/natural-order))
 
 (defn- versions-to-fetch
   "Picks which versions to show from the manifest: the ones newer than the
@@ -120,16 +120,13 @@
   version strings are skipped. If we don't know the current version (dev builds),
   everything counts, so you get the most recent few."
   [manifest-versions current-version]
-  (let [current (parse-version current-version)]
-    (-> (coll/into-> manifest-versions []
-          (keep (fn [v]
-                  (when-some [parsed (parse-version v)]
-                    (when (or (nil? current) (pos? (compare parsed current)))
-                      [v parsed])))))
-        (->> (sort-by second coll/descending-order))
-        (coll/into-> []
-          (map first)
-          (take release-notes-range-limit)))))
+  (let [current (when (version-string? current-version) current-version)]
+    (into []
+          (take release-notes-range-limit)
+          (sort descending-version-order
+                (e/filter #(and (version-string? %)
+                                (or (nil? current) (newer-version? % current)))
+                          manifest-versions)))))
 
 (defn- fetch-json!
   "GETs `url` and parses the body as JSON with keyword keys, or nil on failure."
