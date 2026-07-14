@@ -69,32 +69,23 @@
 // to each request item. The path cache is also syncronized with the same spinlock as the new preloader hints array.
 // The path cache is not touched by the UpdatePreloader code, we keep the internalized pointers in the item.
 
-// If max number of preload items is reached or the path cache is full new items added to the preloader will
-// be thrown away and can potentially cause synced loading of those resources.
+// If the path cache is full new items added to the preloader will be thrown away and can potentially cause
+// synced loading of those resources.
 
 
 
-typedef int16_t TRequestIndex;
+typedef int32_t TRequestIndex;
 
-// The preloader will function even down to a value of 1 here (the root object)
-// and sets the limit of how large a dependencies tree can be stored. Since nodes
-// are always present with all their children inserted (unless there was not room)
-// the required size is something the sum of all children on each level down along
-// the largest branch.
+// The preloader request pool has a fixed capacity chosen when the preloader is
+// created. Nodes are always present with all their children inserted until the
+// completed branches are pruned.
 
 typedef dmHashTable<dmhash_t, uint32_t> TPathHashTable;
 typedef dmHashTable<dmhash_t, bool> TPathInProgressTable;
 
 
-static const uint32_t MAX_PRELOADER_REQUESTS         = 1024;
-static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE    = MAX_PRELOADER_REQUESTS / 3;
-static const uint32_t PATH_IN_PROGRESS_CAPACITY      = MAX_PRELOADER_REQUESTS;
-static const uint32_t PATH_IN_PROGRESS_HASHDATA_SIZE = (PATH_IN_PROGRESS_TABLE_SIZE * sizeof(uint32_t)) + (PATH_IN_PROGRESS_CAPACITY * sizeof(TPathInProgressTable::Entry));
+static const uint32_t DEFAULT_PRELOADER_REQUESTS     = 1024;
 static const uint32_t PATH_AVERAGE_LENGTH            = 40;
-static const uint32_t MAX_PRELOADER_PATHS            = 1536;
-static const uint32_t PATH_BUFFER_TABLE_SIZE         = 509;
-static const uint32_t PATH_BUFFER_TABLE_CAPACITY     = MAX_PRELOADER_PATHS;
-static const uint32_t PATH_BUFFER_HASHDATA_SIZE      = (PATH_BUFFER_TABLE_SIZE * sizeof(uint32_t)) + (PATH_BUFFER_TABLE_CAPACITY * sizeof(TPathHashTable::Entry));
 
 struct PathDescriptor
 {
@@ -126,7 +117,7 @@ struct PreloadRequest
     TRequestIndex m_Parent;
     TRequestIndex m_FirstChild;
     TRequestIndex m_NextSibling;
-    uint16_t m_PendingChildCount;
+    uint32_t m_PendingChildCount;
 
     // Set once resources have started loading, they have a load request
     dmLoadQueue::HRequest m_LoadRequest;
@@ -146,35 +137,28 @@ struct PreloadRequest
 
 struct ResourcePreloader
 {
-    ResourcePreloader()
-        : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
-    {
-    }
     struct SyncedData
     {
         SyncedData()
-            : m_PathLookup(m_LookupData, PATH_BUFFER_TABLE_SIZE, PATH_BUFFER_TABLE_CAPACITY)
-            , m_PathDataUsed(0)
+            : m_PathDataUsed(0)
         {
         }
         dmArray<PendingHint> m_NewHints;
         TPathHashTable m_PathLookup;
-        uint8_t m_LookupData[PATH_BUFFER_HASHDATA_SIZE];
-        char m_PathData[MAX_PRELOADER_PATHS * PATH_AVERAGE_LENGTH];
+        dmArray<char> m_PathData;
         uint32_t m_PathDataUsed;
     } m_SyncedData;
 
     dmSpinlock::Spinlock m_SyncedDataSpinlock;
 
-    PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
+    dmArray<PreloadRequest> m_Request;
 
     // list of free nodes
-    TRequestIndex m_Freelist[MAX_PRELOADER_REQUESTS];
+    dmArray<TRequestIndex> m_Freelist;
     uint32_t m_FreelistSize;
     dmLoadQueue::HQueue m_LoadQueue;
     dmResource::HFactory m_Factory;
     TPathInProgressTable m_InProgress;
-    uint8_t m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
 
     // used instead of dynamic allocs as far as it lasts.
     dmBlockAllocator::HContext m_BlockAllocator;
@@ -193,6 +177,11 @@ struct ResourcePreloader
 
 namespace dmResource
 {
+    static PreloadRequest* GetRequest(ResourcePreloader* preloader, TRequestIndex index)
+    {
+        return &preloader->m_Request[index];
+    }
+
     const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, dmhash_t path_hash, const char* path, uint32_t path_len)
     {
         uint32_t* path_lookup = preloader_synced_data->m_PathLookup.Get(path_hash);
@@ -204,7 +193,7 @@ namespace dmResource
         {
             return 0x0;
         }
-        if (preloader_synced_data->m_PathDataUsed + path_len + 1 > sizeof(preloader_synced_data->m_PathData))
+        if (path_len + 1 > preloader_synced_data->m_PathData.Size() - preloader_synced_data->m_PathDataUsed)
         {
             return 0x0;
         }
@@ -303,41 +292,92 @@ namespace dmResource
         preloader->m_InProgress.Erase(path_hash);
     }
 
+    static bool InitializeRequestPool(ResourcePreloader* preloader, uint32_t capacity)
+    {
+        if (capacity == 0 || capacity > INT32_MAX)
+        {
+            return false;
+        }
+
+        // Preserve the previous ratio of 1536 cached paths for 1024 requests.
+        // A request may need separate entries for its original and canonical path.
+        uint32_t path_capacity = capacity + (capacity + 1) / 2;
+        uint64_t path_data_capacity = (uint64_t)path_capacity * PATH_AVERAGE_LENGTH;
+        uint64_t minimum_path_data_capacity = (uint64_t)RESOURCE_PATH_MAX * 2;
+        if (path_data_capacity < minimum_path_data_capacity)
+        {
+            path_data_capacity = minimum_path_data_capacity;
+        }
+        if (path_data_capacity > UINT32_MAX)
+        {
+            return false;
+        }
+
+        preloader->m_Request.SetCapacity(capacity);
+        preloader->m_Request.SetSize(capacity);
+        preloader->m_Freelist.SetCapacity(capacity);
+        preloader->m_Freelist.SetSize(capacity);
+        preloader->m_InProgress.SetCapacity(capacity);
+        preloader->m_SyncedData.m_PathLookup.SetCapacity(path_capacity);
+        preloader->m_SyncedData.m_PathData.SetCapacity((uint32_t)path_data_capacity);
+        preloader->m_SyncedData.m_PathData.SetSize((uint32_t)path_data_capacity);
+
+        preloader->m_FreelistSize = 0;
+        for (uint32_t i = capacity - 1; i > 0; --i)
+        {
+            preloader->m_Freelist[preloader->m_FreelistSize++] = (TRequestIndex)i;
+        }
+
+        uint32_t post_create_capacity = capacity / 8;
+        if (post_create_capacity == 0)
+        {
+            post_create_capacity = 1;
+        }
+        if (preloader->m_PostCreateCallbacks.Capacity() < post_create_capacity)
+        {
+            preloader->m_PostCreateCallbacks.SetCapacity(post_create_capacity);
+        }
+        return true;
+    }
+
     static void PreloaderTreeInsert(ResourcePreloader* preloader, TRequestIndex index, TRequestIndex parent)
     {
-        PreloadRequest* reqs      = &preloader->m_Request[0];
-        reqs[index].m_NextSibling = reqs[parent].m_FirstChild;
-        reqs[index].m_Parent      = parent;
-        reqs[parent].m_FirstChild = index;
-        reqs[parent].m_PendingChildCount += 1;
+        PreloadRequest* req        = GetRequest(preloader, index);
+        PreloadRequest* parent_req = GetRequest(preloader, parent);
+        req->m_NextSibling         = parent_req->m_FirstChild;
+        req->m_Parent              = parent;
+        parent_req->m_FirstChild   = index;
+        parent_req->m_PendingChildCount += 1;
     }
 
     static void RemoveFromParentPendingCount(ResourcePreloader* preloader, PreloadRequest* req)
     {
         if (req->m_Parent != -1)
         {
-            assert(preloader->m_Request[req->m_Parent].m_PendingChildCount > 0);
-            preloader->m_Request[req->m_Parent].m_PendingChildCount -= 1;
+            PreloadRequest* parent_req = GetRequest(preloader, req->m_Parent);
+            assert(parent_req->m_PendingChildCount > 0);
+            parent_req->m_PendingChildCount -= 1;
         }
     }
 
     static Result PreloadPathDescriptor(HPreloader preloader, TRequestIndex parent, const PathDescriptor& path_descriptor)
     {
         // Quick deduplication, check if the child is already listed under the current parent
-        TRequestIndex child = preloader->m_Request[parent].m_FirstChild;
+        TRequestIndex child = GetRequest(preloader, parent)->m_FirstChild;
         while (child != -1)
         {
-            if (preloader->m_Request[child].m_PathDescriptor.m_NameHash == path_descriptor.m_NameHash)
+            PreloadRequest* child_req = GetRequest(preloader, child);
+            if (child_req->m_PathDescriptor.m_NameHash == path_descriptor.m_NameHash)
             {
                 return RESULT_ALREADY_REGISTERED;
             }
-            child = preloader->m_Request[child].m_NextSibling;
+            child = child_req->m_NextSibling;
         }
 
         if (!preloader->m_FreelistSize)
         {
             // Preload queue is exhausted; this is not fatal, it just means the resource will be loaded
-            // inside the main thread which may cause stuttering
+            // inside the main thread which may cause stuttering.
             return RESULT_OUT_OF_MEMORY;
         }
 
@@ -356,15 +396,16 @@ namespace dmResource
         TRequestIndex go_up = parent;
         while (go_up != -1)
         {
-            if (preloader->m_Request[go_up].m_PathDescriptor.m_CanonicalPathHash == path_descriptor.m_CanonicalPathHash)
+            if (GetRequest(preloader, go_up)->m_PathDescriptor.m_CanonicalPathHash == path_descriptor.m_CanonicalPathHash)
             {
                 req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
                 assert(parent != -1);
-                assert(preloader->m_Request[parent].m_PendingChildCount > 0);
-                preloader->m_Request[parent].m_PendingChildCount -= 1;
+                PreloadRequest* parent_req = GetRequest(preloader, parent);
+                assert(parent_req->m_PendingChildCount > 0);
+                parent_req->m_PendingChildCount -= 1;
                 break;
             }
-            go_up = preloader->m_Request[go_up].m_Parent;
+            go_up = GetRequest(preloader, go_up)->m_Parent;
         }
         return RESULT_OK;
     }
@@ -407,12 +448,12 @@ namespace dmResource
     // Only supports removing the first child, which is all the preloader uses anyway.
     static void PreloaderRemoveLeaf(ResourcePreloader* preloader, TRequestIndex index)
     {
-        assert(preloader->m_FreelistSize < MAX_PRELOADER_REQUESTS);
+        assert(preloader->m_FreelistSize < preloader->m_Request.Size());
 
-        PreloadRequest* me = &preloader->m_Request[index];
+        PreloadRequest* me = GetRequest(preloader, index);
         assert(me->m_FirstChild == -1);
         assert(me->m_PendingChildCount == 0);
-        PreloadRequest* parent = &preloader->m_Request[me->m_Parent];
+        PreloadRequest* parent = GetRequest(preloader, me->m_Parent);
         assert(parent->m_FirstChild == index);
 
         if (me->m_Resource)
@@ -446,16 +487,22 @@ namespace dmResource
         assert(req->m_PendingChildCount == 0);
     }
 
-    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
+    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names, uint32_t request_count)
     {
-        ResourcePreloader* preloader = new ResourcePreloader();
-        // root is always allocated so we don't add index zero in the free list
-        for (uint32_t i = 0; i < MAX_PRELOADER_REQUESTS - 1; i++)
+        dmLogInfo("NewPreloader() %d", request_count);
+        if (names.Empty() || request_count == 0 || request_count > INT32_MAX)
         {
-            preloader->m_Freelist[i] = MAX_PRELOADER_REQUESTS - i - 1;
+            return 0;
         }
 
-        preloader->m_FreelistSize = MAX_PRELOADER_REQUESTS - 1;
+        ResourcePreloader* preloader = new ResourcePreloader();
+        preloader->m_FreelistSize = 0;
+        uint32_t capacity = request_count > names.Size() ? request_count : names.Size();
+        if (!InitializeRequestPool(preloader, capacity))
+        {
+            delete preloader;
+            return 0;
+        }
 
         preloader->m_Factory         = factory;
         preloader->m_LoadQueue       = dmLoadQueue::CreateQueue(factory);
@@ -465,7 +512,7 @@ namespace dmResource
         preloader->m_PersistedResources.SetCapacity(names.Size());
 
         // Insert root.
-        PreloadRequest* root = &preloader->m_Request[0];
+        PreloadRequest* root = GetRequest(preloader, 0);
         memset(root, 0x00, sizeof(PreloadRequest));
 
         root->m_LoadResult        = MakePathDescriptor(preloader, names[0], root->m_PathDescriptor);
@@ -475,7 +522,6 @@ namespace dmResource
         preloader->m_PersistResourceCount++;
 
         // Post create setup
-        preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS / 8);
         preloader->m_LoadQueueFull           = false;
         preloader->m_CreateComplete          = false;
         preloader->m_PostCreateCallbackIndex = 0;
@@ -504,9 +550,19 @@ namespace dmResource
 
     HPreloader NewPreloader(HFactory factory, const char* name)
     {
+        return NewPreloader(factory, name, DEFAULT_PRELOADER_REQUESTS);
+    }
+
+    HPreloader NewPreloader(HFactory factory, const char* name, uint32_t request_count)
+    {
         const char* name_array[1] = { name };
         dmArray<const char*> names(name_array, 1, 1);
-        return NewPreloader(factory, names);
+        return NewPreloader(factory, names, request_count);
+    }
+
+    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
+    {
+        return NewPreloader(factory, names, DEFAULT_PRELOADER_REQUESTS);
     }
 
     // CreateResource operation ends either with
@@ -570,7 +626,8 @@ namespace dmResource
             {
                 if (preloader->m_PostCreateCallbacks.Full())
                 {
-                    preloader->m_PostCreateCallbacks.OffsetCapacity(MAX_PRELOADER_REQUESTS / 8);
+                    uint32_t offset = preloader->m_Request.Size() / 8;
+                    preloader->m_PostCreateCallbacks.OffsetCapacity(offset > 0 ? offset : 1);
                 }
                 preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size() + 1);
                 ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
@@ -686,7 +743,7 @@ namespace dmResource
         {
             return false;
         }
-        PreloadRequest* parent_req = &preloader->m_Request[parent];
+        PreloadRequest* parent_req = GetRequest(preloader, parent);
         if (parent_req->m_PendingChildCount > 0)
         {
             return false;
@@ -765,7 +822,7 @@ namespace dmResource
         DM_PROFILE("PreloaderUpdateOneItem");
         while (index >= 0)
         {
-            PreloadRequest* req = &preloader->m_Request[index];
+            PreloadRequest* req = GetRequest(preloader, index);
             switch (req->m_LoadResult)
             {
                 case RESULT_PENDING:
@@ -942,7 +999,8 @@ namespace dmResource
 
         do
         {
-            Result root_result        = preloader->m_Request[0].m_LoadResult;
+            PreloadRequest* root      = GetRequest(preloader, 0);
+            Result root_result        = root->m_LoadResult;
             Result post_create_result = RESULT_OK;
             if (preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
             {
@@ -955,7 +1013,7 @@ namespace dmResource
                         // Just waiting for the post-create functions to complete
                         // If main result is RESULT_OK pick up any errors from
                         // post create function
-                        preloader->m_Request[0].m_LoadResult = post_create_result;
+                        root->m_LoadResult = post_create_result;
                     }
                     continue;
                 }
@@ -981,7 +1039,7 @@ namespace dmResource
                     {
                         if (!complete_callback(complete_callback_params))
                         {
-                            preloader->m_Request[0].m_LoadResult = RESULT_NOT_LOADED;
+                            root->m_LoadResult = RESULT_NOT_LOADED;
                         }
                         empty_runs = 0;
                         // We need to continue to do all post create functions
@@ -1045,7 +1103,7 @@ namespace dmResource
         }
 
         // Release root and persisted resources
-        preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
+        preloader->m_PersistedResources.Push(GetRequest(preloader, 0)->m_Resource);
         for (uint32_t i = 0; i < preloader->m_PersistedResources.Size(); ++i)
         {
             void* resource = preloader->m_PersistedResources[i];
@@ -1054,7 +1112,7 @@ namespace dmResource
             Release(preloader->m_Factory, resource);
         }
 
-        assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS - 1));
+        assert(preloader->m_FreelistSize == (preloader->m_Request.Size() - 1));
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
 
         dmBlockAllocator::DeleteContext(preloader->m_BlockAllocator);
@@ -1090,4 +1148,5 @@ namespace dmResource
 
         return true;
     }
+
 } // namespace dmResource
