@@ -19,7 +19,8 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.txsteps.helpers :as helpers]
-            [support.test-support :as test-support]))
+            [support.test-support :as test-support]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
@@ -224,6 +225,70 @@
                :new-value :inherited-effecting-property-5-value}]
              (helpers/effect-log node-id))
           "Property setters run in declaration order across inherited node types."))))
+
+(deftest does-not-invoke-property-setters-with-nil-default-values-test
+  (test-support/with-clean-system
+    (let [node-id (first (g/take-node-ids world 1))]
+      (g/transact
+        (g/add-node (g/construct helpers/PropertyTestNode
+                      :_node-id node-id)))
+
+      (testing "Ensure the property has a nil default value so the test itself is correct."
+        (let [[_prop-kw default-value :as property-setter-info]
+              (coll/first-where
+                (fn [[prop-kw _default-value]]
+                  (= :effecting-property prop-kw))
+                (in/ordered-property-setter-infos (g/node-type* node-id)))]
+
+          (is (some? property-setter-info))
+          (is (nil? default-value))))
+
+      ;; Note: I'm not entirely sure about this, but it has been like this for a
+      ;; long time. I think this may be an attempt t an optimization rather than
+      ;; desirable behavior. We might want to change this behavior so that
+      ;; setters are invoked with the default value for unassigned properties if
+      ;; it turns out to cause problems.
+      (testing "Effects from setter not applied after construction."
+        (is (= []
+               (g/node-value node-id :effect-log-property)
+               (g/node-value node-id :effect-log-output)))
+        (is (= nil
+               (gt/assigned-properties (g/node-by-id node-id)))))
+
+      (testing "Effects from setter applied after setting the value."
+        (g/transact
+          (g/set-property node-id :effecting-property nil))
+        (is (= [{:prop-kw :effecting-property
+                 :old-value nil
+                 :new-value nil}]
+               (g/node-value node-id :effect-log-property)
+               (g/node-value node-id :effect-log-output)))
+        (is (= {:effecting-property nil
+                :effect-log-property [{:prop-kw :effecting-property
+                                       :old-value nil
+                                       :new-value nil}]}
+               (gt/assigned-properties (g/node-by-id node-id)))))
+
+      (testing "Undo."
+        (g/undo! :undo/global)
+        (is (= []
+               (g/node-value node-id :effect-log-property)
+               (g/node-value node-id :effect-log-output)))
+        (is (= nil
+               (gt/assigned-properties (g/node-by-id node-id)))))
+
+      (testing "Redo."
+        (g/redo! :undo/global)
+        (is (= [{:prop-kw :effecting-property
+                 :old-value nil
+                 :new-value nil}]
+               (g/node-value node-id :effect-log-property)
+               (g/node-value node-id :effect-log-output)))
+        (is (= {:effecting-property nil
+                :effect-log-property [{:prop-kw :effecting-property
+                                       :old-value nil
+                                       :new-value nil}]}
+               (gt/assigned-properties (g/node-by-id node-id))))))))
 
 (g/defnode UndoRedoTestNode
   (inherits helpers/EffectLogNode)

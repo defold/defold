@@ -727,7 +727,7 @@
   [ctx undoable-changes node property-label old-value new-value]
   (let [node-id (gt/node-id node)
         node-type (gt/node-type node)
-        is-override-node (gt/original node)
+        assigned-properties (gt/assigned-properties node)
 
         ctx+undoable-changes
         (if-let [{:keys [node-id
@@ -739,19 +739,8 @@
           (pair ctx undoable-changes))
 
         realize-setter-actions
-        (if is-override-node
-          ;; We could be introducing an override that is equal to the inherited
-          ;; value. In this case, we still want to perform the setter actions so
-          ;; that any connections made to the override node by the setter will
-          ;; shadow the inherited connections. If we do not, a later change to
-          ;; the originals property value will leak onto the override node.
-          ;; Since we're setting the new override value to be the new value, we
-          ;; can compare it against the old override value to figure out if we
-          ;; should be performing the setter actions.
-          (let [overridden-properties (gt/overridden-properties node)
-                old-override-value (get overridden-properties property-label not-overridden-sentinel)]
-            (not= old-override-value new-value))
-          (not= old-value new-value))]
+        (or (not (contains? assigned-properties property-label))
+            (not= old-value new-value))]
 
     (if realize-setter-actions
       (if-let [setter-fn (in/property-setter node-type property-label)]
@@ -801,11 +790,9 @@
             (perform-and-conj-change ctx undoable-changes change)
             (let [evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
                   old-value (in/node-property-value node property-label evaluation-context)
-                  [ctx undoable-changes :as ctx+undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
-              (if (nil? old-value)
-                ctx+undoable-changes
-                (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value nil)]
-                  (realize-tx ctx undoable-changes setter-actions))))))
+                  [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
+              (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value nil)]
+                (realize-tx ctx undoable-changes setter-actions)))))
         (pair ctx undoable-changes)))))
 
 (defn- realize-defaults

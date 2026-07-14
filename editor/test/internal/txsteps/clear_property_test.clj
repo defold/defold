@@ -15,8 +15,10 @@
 (ns internal.txsteps.clear-property-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.node :as in]
             [internal.txsteps.helpers :as helpers]
-            [support.test-support :as test-support])
+            [support.test-support :as test-support]
+            [util.coll :as coll])
   (:import [clojure.lang ExceptionInfo]))
 
 (set! *warn-on-reflection* true)
@@ -247,3 +249,75 @@
         (is (= :initial-property-value (g/node-value original-node-id :basic-output)))
         (is (= :initial-property-value (g/node-value override-node-id :basic-output)))
         (is (= 0 (g/node-value consumer-node-id :overridden-property-count)))))))
+
+(deftest effecting-property-nil-value-undo-redo-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [_original-node-id
+           override-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes graph-id
+                [original-node-id helpers/PropertyTestNode]
+                (g/override original-node-id helpers/effect-log-node-override-opts))))]
+
+      (testing "Ensure the property has a nil default value so the test itself is correct."
+        (let [[_prop-kw default-value :as property-setter-info]
+              (coll/first-where
+                (fn [[prop-kw _default-value]]
+                  (= :effecting-property prop-kw))
+                (in/ordered-property-setter-infos (g/node-type* override-node-id)))]
+
+          (is (some? property-setter-info))
+          (is (nil? default-value))))
+
+      (testing "Before transact."
+        (is (false? (g/property-overridden? override-node-id :effecting-property)))
+        (is (= []
+               (g/node-value override-node-id :effect-log-property)
+               (g/node-value override-node-id :effect-log-output))))
+
+      (testing "Override property with nil."
+        (g/transact
+          (g/set-property override-node-id :effecting-property nil))
+        (is (true? (g/property-overridden? override-node-id :effecting-property)))
+        (is (= [{:prop-kw :effecting-property
+                 :old-value nil
+                 :new-value nil}]
+               (g/node-value override-node-id :effect-log-property)
+               (g/node-value override-node-id :effect-log-output))))
+
+      (testing "Clear property override."
+        (g/transact
+          (g/clear-property override-node-id :effecting-property))
+        (is (false? (g/property-overridden? override-node-id :effecting-property)))
+        (is (= [{:prop-kw :effecting-property
+                 :old-value nil
+                 :new-value nil}
+                {:prop-kw :effecting-property
+                 :old-value nil
+                 :new-value nil}]
+               (g/node-value override-node-id :effect-log-property)
+               (g/node-value override-node-id :effect-log-output))))
+
+      (testing "Undo."
+        (g/undo! :undo/global)
+        (is (true? (g/property-overridden? override-node-id :effecting-property)))
+        (is (= [{:prop-kw :effecting-property
+                 :old-value nil
+                 :new-value nil}]
+               (g/node-value override-node-id :effect-log-property)
+               (g/node-value override-node-id :effect-log-output))))
+
+      (testing "Redo."
+        (g/redo! :undo/global)
+        (is (false? (g/property-overridden? override-node-id :effecting-property)))
+        (is (= [{:prop-kw :effecting-property
+                 :old-value nil
+                 :new-value nil}
+                {:prop-kw :effecting-property
+                 :old-value nil
+                 :new-value nil}]
+               (g/node-value override-node-id :effect-log-property)
+               (g/node-value override-node-id :effect-log-output)))))))

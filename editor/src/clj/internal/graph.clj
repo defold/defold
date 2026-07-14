@@ -1366,10 +1366,12 @@
 (defn basis-plan-clear-raw-property
   [basis node-id property-label]
   (when-let [node (gt/node-by-id-at basis node-id)]
-    (let [assigned-properties (gt/assigned-properties node)]
-      {:node-id node-id
-       :property-label property-label
-       :old-raw-value (get assigned-properties property-label unassigned-sentinel)})))
+    (let [assigned-properties (gt/assigned-properties node)
+          old-raw-value (get assigned-properties property-label unassigned-sentinel)]
+      (when (not (identical? unassigned-sentinel old-raw-value))
+        {:node-id node-id
+         :property-label property-label
+         :old-raw-value (get assigned-properties property-label unassigned-sentinel)}))))
 
 (defn basis-perform-clear-raw-property
   [basis node-id property-label]
