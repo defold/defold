@@ -27,6 +27,7 @@ import java.awt.image.DataBufferInt;
 import java.nio.ShortBuffer;
 import java.nio.IntBuffer;
 
+import java.io.ByteArrayInputStream;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
@@ -250,6 +251,125 @@ public class TextureGenerator {
 
     private static ITextureCompressor getDefaultTextureCompressor() {
         return TextureCompression.getCompressor(TextureCompressorUncompressed.TextureCompressorName);
+    }
+
+    private static boolean isHDRTextureFormat(TextureFormat textureFormat) {
+        switch (textureFormat) {
+            case TEXTURE_FORMAT_RGBA16F:
+            case TEXTURE_FORMAT_RGBA32F:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static int getHDRPixelFormat(TextureFormat textureFormat) throws TextureGeneratorException {
+        switch (textureFormat) {
+            case TEXTURE_FORMAT_RGBA16F:
+                return Texc.PixelFormat.PF_RGBA16F.getValue();
+            case TEXTURE_FORMAT_RGBA32F:
+                return Texc.PixelFormat.PF_RGBA32F.getValue();
+            default:
+                throw new TextureGeneratorException("HDR textures require a float texture format.");
+        }
+    }
+
+    private static List<byte[]> generateFromHDR(TextureImage.Image.Builder builder,
+                                                Texc.Image hdrImage,
+                                                TextureFormat textureFormat,
+                                                boolean generateMipMaps,
+                                                int maxTextureSize,
+                                                EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
+
+        if (!isHDRTextureFormat(textureFormat)) {
+            throw new TextureGeneratorException("HDR textures require RGBA16F or RGBA32F texture formats.");
+        }
+
+        TimeProfiler.start("Create HDR Texture");
+        long textureImage = TexcLibraryJni.CreateImage(hdrImage.path, hdrImage.width, hdrImage.height, hdrImage.pixelFormat.getValue(), hdrImage.colorSpace.getValue(), hdrImage.data);
+        TimeProfiler.stop();
+        if (textureImage == 0) {
+            throw new TextureGeneratorException("Failed to create HDR texture");
+        }
+
+        int width = TexcLibraryJni.GetWidth(textureImage);
+        int height = TexcLibraryJni.GetHeight(textureImage);
+        int originalWidth = width;
+        int originalHeight = height;
+        int pixelFormat = getHDRPixelFormat(textureFormat);
+
+        if (maxTextureSize > 0) {
+            while (width > maxTextureSize || height > maxTextureSize) {
+                width = Math.max(width / 2, 1);
+                height = Math.max(height / 2, 1);
+            }
+        }
+
+        try {
+            if (width != originalWidth || height != originalHeight) {
+                long resizedTextureImage = TexcLibraryJni.Resize(textureImage, width, height);
+                if (resizedTextureImage == 0) {
+                    throw new TextureGeneratorException("could not resize HDR texture");
+                }
+                TexcLibraryJni.DestroyImage(textureImage);
+                textureImage = resizedTextureImage;
+            }
+
+            for (Texc.FlipAxis flip : flipAxis) {
+                if (!TexcLibraryJni.Flip(textureImage, flip.getValue())) {
+                    throw new TextureGeneratorException("could not flip HDR texture on " + flip);
+                }
+            }
+
+            builder.setWidth(width)
+                    .setHeight(height)
+                    .setOriginalWidth(originalWidth)
+                    .setOriginalHeight(originalHeight)
+                    .setFormat(textureFormat);
+
+            List<byte[]> imageDatas = new ArrayList<>();
+            int offset = 0;
+            int mipMapLevel = 0;
+
+            ITextureCompressor textureCompressor = getDefaultTextureCompressor();
+            TextureCompressorPreset textureCompressorPreset = TextureCompression.getPreset(TextureCompressorUncompressed.TextureCompressorUncompressedPresetName);
+            List<Long> mipImages = GenerateImages(textureImage, width, height, generateMipMaps);
+
+            for (Long mipImage : mipImages) {
+                byte[] uncompressed = TexcLibraryJni.GetData(mipImage);
+                int mipWidth = TexcLibraryJni.GetWidth(mipImage);
+                int mipHeight = TexcLibraryJni.GetHeight(mipImage);
+                String paramsName = "MipMap_" + mipMapLevel;
+
+                TextureCompressorParams params = new TextureCompressorParams(paramsName, mipMapLevel, mipWidth, mipHeight, 0, 4, Texc.PixelFormat.PF_RGBA32F.getValue(), pixelFormat, Texc.ColorSpace.CS_LRGB.getValue());
+                byte[] encodedMipData = textureCompressor.compress(textureCompressorPreset, params, uncompressed);
+                if (encodedMipData.length == 0) {
+                    throw new TextureGeneratorException("could not encode HDR texture");
+                }
+
+                imageDatas.add(encodedMipData);
+                builder.addMipMapOffset(offset);
+                builder.addMipMapSize(encodedMipData.length);
+                builder.addMipMapSizeCompressed(encodedMipData.length);
+                builder.addMipMapDimensions(mipWidth);
+                builder.addMipMapDimensions(mipHeight);
+
+                offset += encodedMipData.length;
+                mipMapLevel++;
+            }
+
+            builder.setDataSize(offset);
+
+            for (Long mipImage : mipImages) {
+                if (mipImage != textureImage) {
+                    TexcLibraryJni.DestroyImage(mipImage);
+                }
+            }
+
+            return imageDatas;
+        } finally {
+            TexcLibraryJni.DestroyImage(textureImage);
+        }
     }
 
     private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
@@ -490,6 +610,24 @@ public class TextureGenerator {
     // For convenience, some methods without the flipAxis and/or compress argument.
     // It will always try to flip on Y axis since this is the byte order that OpenGL expects for regular/most textures,
     // for those methods without this argument.
+    public static GenerateResult generate(byte[] data, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
+        return generate(data, texProfile, compress, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
+    }
+
+    public static GenerateResult generate(byte[] data, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+        if (TexcLibraryJni.IsHDR(data)) {
+            TimeProfiler.start("Load HDR Texture");
+            Texc.Image hdrImage = TexcLibraryJni.LoadHDR(data);
+            TimeProfiler.stop();
+            if (hdrImage == null) {
+                throw new TextureGeneratorException("Failed to load HDR texture");
+            }
+            return generateHDR(hdrImage, texProfile, flipAxis);
+        }
+
+        return generate(new ByteArrayInputStream(data), texProfile, compress, flipAxis);
+    }
+
     public static GenerateResult generate(InputStream inputStream) throws TextureGeneratorException, IOException {
         TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
@@ -523,6 +661,44 @@ public class TextureGenerator {
         inputStream.close();
         TimeProfiler.stop();
         return generate(origImage, texProfile, compress, flipAxis);
+    }
+
+    private static GenerateResult generateHDR(Texc.Image hdrImage, TextureProfile texProfile, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
+        TextureImage.Builder textureBuilder = TextureImage.newBuilder();
+        GenerateResult result = new GenerateResult();
+        result.imageDatas = new ArrayList<>();
+
+        if (texProfile != null) {
+            for (PlatformProfile platformProfile : texProfile.getPlatformsList()) {
+                for (int i = 0; i < platformProfile.getFormatsList().size(); ++i) {
+                    TextureFormat textureFormat = platformProfile.getFormats(i).getFormat();
+                    if (!isHDRTextureFormat(textureFormat)) {
+                        continue;
+                    }
+
+                    TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
+                    List<byte[]> imageDatas = generateFromHDR(imageBuilder, hdrImage, textureFormat, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), flipAxis);
+                    imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
+                    textureBuilder.addAlternatives(imageBuilder);
+                    result.imageDatas.addAll(imageDatas);
+                }
+            }
+
+            if (textureBuilder.getAlternativesCount() == 0) {
+                throw new TextureGeneratorException("HDR textures require a texture profile with RGBA16F or RGBA32F texture formats.");
+            }
+        } else {
+            TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
+            List<byte[]> imageDatas = generateFromHDR(imageBuilder, hdrImage, TextureFormat.TEXTURE_FORMAT_RGBA32F, true, 0, flipAxis);
+            imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
+            textureBuilder.addAlternatives(imageBuilder);
+            result.imageDatas.addAll(imageDatas);
+        }
+
+        textureBuilder.setCount(1);
+        textureBuilder.setType(Type.TYPE_2D);
+        result.textureImage = textureBuilder.build();
+        return result;
     }
 
     public static GenerateResult generate(BufferedImage origImage, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {

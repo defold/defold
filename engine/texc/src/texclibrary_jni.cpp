@@ -18,6 +18,7 @@
 #include <jni/Texc_jni.h>
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <dlib/log.h>
 
@@ -47,6 +48,51 @@ JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls,
         dmTexc::Image* image = dmTexc::CreateImage(path, width, height, (dmTexc::PixelFormat)pixelFormat, (dmTexc::ColorSpace)colorSpace, j_array.m_ArraySize, (uint8_t*)j_array.m_Array);
         obj = (jlong)image;
 
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
+
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_IsHDR(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
+
+    if (!array)
+    {
+        dmLogError("%s: Image data array was null!", __FUNCTION__);
+        return JNI_FALSE;
+    }
+
+    jboolean result = JNI_FALSE;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmJNI::ScopedByteArray j_array(env, array);
+        result = dmTexc::IsHDR(j_array.m_ArraySize, (const uint8_t*)j_array.m_Array) ? JNI_TRUE : JNI_FALSE;
+    DM_JNI_GUARD_SCOPE_END(return JNI_FALSE;);
+    return result;
+}
+
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_LoadHDR(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
+
+    if (!array)
+    {
+        dmLogError("%s: Image data array was null!", __FUNCTION__);
+        return 0;
+    }
+
+    jobject obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::jni::ScopedContext jni_scope(env);
+        dmJNI::ScopedByteArray j_array(env, array);
+
+        dmTexc::Image image;
+        if (!dmTexc::LoadHDR(j_array.m_ArraySize, (const uint8_t*)j_array.m_Array, &image))
+        {
+            return 0;
+        }
+
+        obj = dmTexc::jni::C2J_CreateImage(env, &jni_scope.m_TypeInfos, &image);
+        dmTexc::DestroyLoadedImage(&image);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
 }
@@ -353,6 +399,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     static const JNINativeMethod methods[] = {
         // Image api
         JNIFUNC(CreateImage, "(Ljava/lang/String;IIII[B)J"),
+        JNIFUNC(IsHDR, "([B)Z"),
+        JNIFUNC(LoadHDR, "([B)L" CLASS_NAME "$Image;"),
         JNIFUNC(CreatePreviewImage, "(II[B[B)I"),
         JNIFUNC(DestroyImage, "(J)V"),
         JNIFUNC(GetWidth, "(J)I"),

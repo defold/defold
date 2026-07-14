@@ -17,6 +17,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -33,13 +34,22 @@ namespace dmTexc
         image->m_PixelFormat = pixel_format;
         image->m_ColorSpace = color_space;
 
-        image->m_DataCount = width * height * 4;
-        image->m_Data = (uint8_t*)malloc(image->m_DataCount);
-
-        if (!ConvertToRGBA8888((uint8_t*)data, width, height, pixel_format, image->m_Data))
+        if (pixel_format == PF_RGBA32F)
         {
-            DestroyImage(image);
-            return 0;
+            image->m_DataCount = width * height * 4 * sizeof(float);
+            image->m_Data = (uint8_t*)malloc(image->m_DataCount);
+            memcpy(image->m_Data, data, image->m_DataCount);
+        }
+        else
+        {
+            image->m_DataCount = width * height * 4;
+            image->m_Data = (uint8_t*)malloc(image->m_DataCount);
+
+            if (!ConvertToRGBA8888((uint8_t*)data, width, height, pixel_format, image->m_Data))
+            {
+                DestroyImage(image);
+                return 0;
+            }
         }
         return image;
     }
@@ -56,6 +66,18 @@ namespace dmTexc
         delete image;
     }
 
+    void DestroyLoadedImage(Image* image)
+    {
+        if (!image)
+        {
+            return;
+        }
+
+        free((void*)image->m_Data);
+        free((void*)image->m_Path);
+        memset(image, 0, sizeof(*image));
+    }
+
     uint32_t GetWidth(Image* image)
     {
         return image->m_Width;
@@ -68,7 +90,7 @@ namespace dmTexc
 
     Image* Resize(Image* image, uint32_t width, uint32_t height)
     {
-        Image* resized = dmTexc::ResizeBasis(image, width, height);
+        Image* resized = image->m_PixelFormat == PF_RGBA32F ? dmTexc::ResizeRGBA32F(image, width, height) : dmTexc::ResizeBasis(image, width, height);
         resized->m_Path = strdup(image->m_Path?image->m_Path:"null");
         return resized;
     }
@@ -85,10 +107,18 @@ namespace dmTexc
     {
         switch(flip_axis)
         {
-        case FLIP_AXIS_Y:   FlipImageY_RGBA8888((uint32_t*)image->m_Data, image->m_Width, image->m_Height);
-                            return true;
-        case FLIP_AXIS_X:   FlipImageX_RGBA8888((uint32_t*)image->m_Data, image->m_Width, image->m_Height);
-                            return true;
+        case FLIP_AXIS_Y:
+            if (image->m_PixelFormat == PF_RGBA32F)
+                FlipImageY_RGBA32F((float*)image->m_Data, image->m_Width, image->m_Height);
+            else
+                FlipImageY_RGBA8888((uint32_t*)image->m_Data, image->m_Width, image->m_Height);
+            return true;
+        case FLIP_AXIS_X:
+            if (image->m_PixelFormat == PF_RGBA32F)
+                FlipImageX_RGBA32F((float*)image->m_Data, image->m_Width, image->m_Height);
+            else
+                FlipImageX_RGBA8888((uint32_t*)image->m_Data, image->m_Width, image->m_Height);
+            return true;
         default:
             dmLogError("Unexpected flip direction: %d", flip_axis);
             return false;

@@ -18,7 +18,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.EnumSet;
 
 import com.defold.extension.pipeline.texture.*;
@@ -87,6 +91,46 @@ public class TextureGeneratorTest {
         return textureProfile.build();
     }
 
+    static TextureProfile createHDRTextureProfile(TextureFormat textureFormat, boolean mipmaps, int maxTextureSize)
+    {
+        TextureFormatAlternative.Builder textureFormatAlt = TextureFormatAlternative.newBuilder();
+        textureFormatAlt.setFormat(textureFormat);
+        textureFormatAlt.setCompressionType(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
+        textureFormatAlt.setCompressionLevel(CompressionLevel.NORMAL);
+
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt.build());
+        platformProfile.setMipmaps(mipmaps);
+        platformProfile.setMaxTextureSize(maxTextureSize);
+        platformProfile.setPremultiplyAlpha(false);
+
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        textureProfile.setName("HDR Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+        return textureProfile.build();
+    }
+
+    static byte[] loadResource(String path) throws IOException
+    {
+        InputStream inputStream = TextureGeneratorTest.class.getResourceAsStream(path);
+        assertNotNull(inputStream);
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        int read;
+        while ((read = inputStream.read(buffer)) != -1) {
+            outputStream.write(buffer, 0, read);
+        }
+        inputStream.close();
+        return outputStream.toByteArray();
+    }
+
+    static float getFloat(byte[] data, int index)
+    {
+        return ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(index);
+    }
+
     static void assertASTCMip(Image image, TextureGenerator.GenerateResult result, TextureFormat textureFormat, int mipIndex, int offset, int width, int height)
     {
         int expectedSize = TextureCompressorASTC.getCompressedDataSize(textureFormat, width, height);
@@ -138,6 +182,44 @@ public class TextureGeneratorTest {
             offset += size;
             ++i;
         }
+    }
+
+    @Test
+    public void testHDRDefaultRGBA32F() throws TextureGeneratorException, IOException {
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(loadResource("hdr_2x2.hdr"), null, false, EnumSet.noneOf(FlipAxis.class));
+
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA32F, image.getFormat());
+        assertEquals(2, image.getWidth());
+        assertEquals(2, image.getHeight());
+        assertEquals(2, image.getMipMapOffsetCount());
+        assertEquals(64, image.getMipMapSize(0));
+        assertEquals(16, image.getMipMapSize(1));
+        assertEquals(80, image.getDataSize());
+
+        byte[] firstMip = result.imageDatas.get(0);
+        assertEquals(1.0f, getFloat(firstMip, 0), 0.0001f);
+        assertEquals(0.0f, getFloat(firstMip, 1), 0.0001f);
+        assertEquals(0.0f, getFloat(firstMip, 2), 0.0001f);
+        assertEquals(1.0f, getFloat(firstMip, 3), 0.0001f);
+    }
+
+    @Test
+    public void testHDRProfileRGBA16F() throws TextureGeneratorException, IOException {
+        TextureProfile textureProfile = createHDRTextureProfile(TextureFormat.TEXTURE_FORMAT_RGBA16F, false, 0);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(loadResource("hdr_2x2.hdr"), textureProfile, false, EnumSet.noneOf(FlipAxis.class));
+
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA16F, image.getFormat());
+        assertEquals(1, image.getMipMapOffsetCount());
+        assertEquals(32, image.getMipMapSize(0));
+        assertEquals(32, image.getDataSize());
+
+        byte[] firstMip = result.imageDatas.get(0);
+        assertEquals(0x00, firstMip[0] & 0xff);
+        assertEquals(0x3c, firstMip[1] & 0xff);
     }
 
     @Test

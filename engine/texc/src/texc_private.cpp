@@ -18,6 +18,7 @@
 #include "texc.h"
 #include "texc_private.h"
 #include <dlib/log.h>
+#include <dlib/math.h>
 
 namespace dmTexc
 {
@@ -249,6 +250,90 @@ namespace dmTexc
         }
     }
 
+    void FlipImageX_RGBA32F(float* data, uint32_t width, uint32_t height)
+    {
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            for (uint32_t x = 0; x < width/2; ++x)
+            {
+                uint32_t x2 = width - x - 1;
+                float* a = data + (x + y * width) * 4;
+                float* b = data + (x2 + y * width) * 4;
+                for (uint32_t c = 0; c < 4; ++c)
+                {
+                    float t = a[c];
+                    a[c] = b[c];
+                    b[c] = t;
+                }
+            }
+        }
+    }
+
+    void FlipImageY_RGBA32F(float* data, uint32_t width, uint32_t height)
+    {
+        for (uint32_t y = 0; y < height/2; ++y)
+        {
+            uint32_t y2 = height - y - 1;
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                float* a = data + (x + y * width) * 4;
+                float* b = data + (x + y2 * width) * 4;
+                for (uint32_t c = 0; c < 4; ++c)
+                {
+                    float t = a[c];
+                    a[c] = b[c];
+                    b[c] = t;
+                }
+            }
+        }
+    }
+
+    Image* ResizeRGBA32F(Image* image, uint32_t width, uint32_t height)
+    {
+        Image* resized = new Image;
+        resized->m_Path = 0;
+        resized->m_Width = width;
+        resized->m_Height = height;
+        resized->m_PixelFormat = PF_RGBA32F;
+        resized->m_ColorSpace = image->m_ColorSpace;
+        resized->m_DataCount = width * height * 4 * sizeof(float);
+        resized->m_Data = (uint8_t*)malloc(resized->m_DataCount);
+
+        const float* src = (const float*)image->m_Data;
+        float* dst = (float*)resized->m_Data;
+        float scale_x = (float)image->m_Width / (float)width;
+        float scale_y = (float)image->m_Height / (float)height;
+
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            float src_y = dmMath::Max(0.0f, (y + 0.5f) * scale_y - 0.5f);
+            uint32_t y0 = dmMath::Min((uint32_t)src_y, image->m_Height - 1);
+            uint32_t y1 = dmMath::Min(y0 + 1, image->m_Height - 1);
+            float ty = src_y - y0;
+
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                float src_x = dmMath::Max(0.0f, (x + 0.5f) * scale_x - 0.5f);
+                uint32_t x0 = dmMath::Min((uint32_t)src_x, image->m_Width - 1);
+                uint32_t x1 = dmMath::Min(x0 + 1, image->m_Width - 1);
+                float tx = src_x - x0;
+
+                for (uint32_t c = 0; c < 4; ++c)
+                {
+                    float c00 = src[((y0 * image->m_Width + x0) * 4) + c];
+                    float c10 = src[((y0 * image->m_Width + x1) * 4) + c];
+                    float c01 = src[((y1 * image->m_Width + x0) * 4) + c];
+                    float c11 = src[((y1 * image->m_Width + x1) * 4) + c];
+                    float cx0 = c00 + (c10 - c00) * tx;
+                    float cx1 = c01 + (c11 - c01) * tx;
+                    dst[((y * width + x) * 4) + c] = cx0 + (cx1 - cx0) * ty;
+                }
+            }
+        }
+
+        return resized;
+    }
+
     bool HasAlpha(PixelFormat pf)
     {
         switch(pf)
@@ -290,6 +375,8 @@ namespace dmTexc
         case PF_L8A8:       return 2;
         case PF_R5G6B5:     return 2;
         case PF_L8:         return 1;
+        case PF_RGBA16F:    return 8;
+        case PF_RGBA32F:    return 16;
 
         default:
             assert("not supported");
@@ -333,6 +420,60 @@ namespace dmTexc
         case PF_R8G8B8A8:   memcpy((uint8_t*)out_data, input, width*height*4); break;
         default:
             dmLogError("ConvertRGBA8888ToPf: Format not yet supported: %d", pf);
+        }
+    }
+
+    static uint16_t FloatToHalf(float value)
+    {
+        uint32_t bits;
+        memcpy(&bits, &value, sizeof(bits));
+
+        uint32_t sign = (bits >> 16) & 0x8000;
+        int32_t exponent = ((bits >> 23) & 0xff) - 127 + 15;
+        uint32_t mantissa = bits & 0x7fffff;
+
+        if (exponent <= 0)
+        {
+            if (exponent < -10)
+            {
+                return (uint16_t)sign;
+            }
+            mantissa = (mantissa | 0x800000) >> (1 - exponent);
+            return (uint16_t)(sign | ((mantissa + 0x1000) >> 13));
+        }
+
+        if (exponent >= 31)
+        {
+            if (mantissa == 0)
+            {
+                return (uint16_t)(sign | 0x7c00);
+            }
+            return (uint16_t)(sign | 0x7c00 | (mantissa >> 13));
+        }
+
+        return (uint16_t)(sign | (exponent << 10) | ((mantissa + 0x1000) >> 13));
+    }
+
+    bool ConvertRGBA32FToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data)
+    {
+        switch(pf)
+        {
+        case PF_RGBA32F:
+            memcpy((uint8_t*)out_data, input, width * height * 4 * sizeof(float));
+            return true;
+        case PF_RGBA16F:
+        {
+            const float* src = (const float*)input;
+            uint16_t* dst = (uint16_t*)out_data;
+            for (uint32_t i = 0; i < width * height * 4; ++i)
+            {
+                dst[i] = FloatToHalf(src[i]);
+            }
+            return true;
+        }
+        default:
+            dmLogError("ConvertRGBA32FToPf: Format not yet supported: %d", pf);
+            return false;
         }
     }
 
