@@ -1120,8 +1120,8 @@
         y1 (- y0 scaled-height)
         left (- x1 preview-close-button-size)
         top y1]
-    {:anchor-pane/left (max 0.0 left)
-     :anchor-pane/top (max 0.0 top)}))
+    {:anchor-pane/left (max 0.0 (min left (- (double (:right viewport)) preview-close-button-size)))
+     :anchor-pane/top (max 0.0 (min top (- (double (:bottom viewport)) preview-close-button-size)))}))
 
 (defn- active-animation-anim-data [updatables active-updatable-ids]
   (some (fn [updatable-id]
