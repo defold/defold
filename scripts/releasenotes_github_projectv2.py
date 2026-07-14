@@ -243,11 +243,6 @@ def github_query(query):
         print("No response from GitHub")
         sys.exit(1)
     if 'errors' in response:
-        # NOT_FOUND usually just means we looked in the wrong repo (a cross-repo
-        # reference). Not fatal: hand back the (empty) data so the caller can skip
-        # it. Any other kind of error is still fatal.
-        if all(error.get('type') == 'NOT_FOUND' for error in response['errors']):
-            return response.get("data")
         print(response)
         _print_errors(response)
         sys.exit(1)
@@ -260,28 +255,16 @@ def get_project(name):
     # the token can't read projects). Let the caller report it cleanly.
     return nodes[0] if nodes else None
 
-def _entity(data, key):
-    # Safely dig out organization.repository.<key>; any level is null on NOT_FOUND.
-    return (((data or {}).get("organization") or {}).get("repository") or {}).get(key)
-
 def get_issue(number, repository = "defold"):
     data = github_query(QUERY_ISSUE % (repository, number))
-    issue = _entity(data, "issue")
-    if issue is None:
-        print("  WARNING: issue #%s not found in defold/%s (likely a cross-repo reference)" % (number, repository))
-    return issue
+    return data["organization"]["repository"]["issue"]
 
 def get_pullrequest(number, repository = "defold"):
     data = github_query(QUERY_PULLREQUEST % (repository, number))
-    pr = _entity(data, "pullRequest")
-    if pr is None:
-        print("  WARNING: PR #%s not found in defold/%s (likely a cross-repo reference)" % (number, repository))
-        return None
+    pr = data["organization"]["repository"]["pullRequest"]
     if find_merge_commit(pr) is None and len(find_reference_commits(pr)) == 0:
         timeline_data = github_query(QUERY_PULLREQUEST_TIMELINE_EVENTS % (repository, number))
-        timeline_pr = _entity(timeline_data, "pullRequest")
-        if timeline_pr is not None:
-            pr["timelineItems"] = timeline_pr["timelineItems"]
+        pr["timelineItems"] = timeline_data["organization"]["repository"]["pullRequest"]["timelineItems"]
     return pr
 
 def get_issues_and_prs(project):
@@ -311,13 +294,10 @@ def get_closing_issue(pr):
     for node in reversed(pr["closingIssuesReferences"]["nodes"]):
         issue_number = node["number"]
         repository = node["repository"]["name"]
-        issue = get_issue(issue_number, repository)
-        if issue is not None:
-            return issue
+        return get_issue(issue_number, repository)
     return pr
 
 def get_closing_pr(issue):
-    issue_repo = issue.get("repository").get("name")
     # an issue may reference multiple merged items on the
     # timeline - pick the last one! (ie newest)
     for node in reversed(issue["timelineItems"]["nodes"]):
@@ -326,12 +306,8 @@ def get_closing_pr(issue):
         source = node.get("source") or {}
         if source.get("merged") == True:
             closing_number = source["number"]
-            # The closing PR can live in a different repo (e.g. an extension), so
-            # use the source's own repository when present; fall back otherwise.
-            repository = (source.get("repository") or {}).get("name") or issue_repo
-            pr = get_pullrequest(closing_number, repository)
-            if pr is not None:
-                return pr
+            repository = (source.get("repository") or issue.get("repository")).get("name")
+            return get_pullrequest(closing_number, repository)
     return issue
 
 def find_merge_commit(pr):
@@ -441,13 +417,9 @@ def fetch_item(item):
 
     if item.get("type") == "ISSUE":
         issue = get_issue(content.get("number"), repository = repository)
-        if issue is None:
-            return dict(record, status = "ignored", reason = "issue #%s not resolvable in %s" % (content.get("number"), repository))
         pr = get_closing_pr(issue)
     elif item.get("type") == "PULL_REQUEST":
         pr = get_pullrequest(content.get("number"), repository = repository)
-        if pr is None:
-            return dict(record, status = "ignored", reason = "PR #%s not resolvable in %s" % (content.get("number"), repository))
         issue = get_closing_issue(pr)
         issue_number_matching = pr.get("number") == issue.get("number")
         repository_matching = pr.get("repository").get("name") == issue.get("repository").get("name")
