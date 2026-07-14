@@ -2441,9 +2441,9 @@
                      :inherit-selection false
                      :project project
                      :workspace workspace)
-              undo-stack-revision-before (g/undo-stack-revision :undo/global)
+              undo-stack-revisions-before (g/undo-stack-revisions)
               preview (make-preview-fn view-graph resource-node opts width height)]
-          (assert (= undo-stack-revision-before (g/undo-stack-revision :undo/global))
+          (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
                   (format "The %s view-type :make-preview-fn created undo steps for '%s'."
                           (:id view-type)
                           (resource/proj-path resource)))
@@ -2461,7 +2461,7 @@
                 (http-server/response 200 {"content-type" "image/png"} (.toByteArray out)))
               (finally
                 (dispose-preview preview evaluation-context)
-                (assert (= undo-stack-revision-before (g/undo-stack-revision :undo/global))
+                (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
                         (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
                                 (:id view-type)
                                 (resource/proj-path resource)))))))

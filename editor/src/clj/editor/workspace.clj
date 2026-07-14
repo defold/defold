@@ -602,34 +602,41 @@ ordinary paths."
 (defn- load-clojure-plugin! [workspace resource]
   (when-not (Boolean/getBoolean "defold.tests")
     (log/info :message (str "Loading plugin: " (resource/path resource))))
-  (try
-    (let [undo-stack-revision-before (g/undo-stack-revision :undo/global)
-          plugin-fn (load-string (slurp resource))]
-      (when-not (ifn? plugin-fn)
-        (throw
-          (ex-info "Plugin must return a function."
-                   {:return-value plugin-fn})))
-      (plugin-fn workspace)
-      (when (not= undo-stack-revision-before (g/undo-stack-revision :undo/global))
-        (throw
-          (ex-info "Plugin must not create undo steps during load." {})))
-      (when-not (Boolean/getBoolean "defold.tests")
-        (log/info :message (str "Loaded plugin: " (resource/path resource)))))
-    (catch Exception e
-      (when (Boolean/getBoolean "defold.tests")
-        (throw e))
-      (log/error :message (str "Exception while loading plugin: " (resource/path resource))
-                 :plugin-path (resource/path resource)
-                 :exception e)
-      (ui/run-later
-        (dialogs/make-info-dialog
-          (g/with-auto-evaluation-context evaluation-context
-            (localization workspace evaluation-context))
-          {:title (localization/message "dialog.plugin-load-error.title")
-           :icon :icon/triangle-error
-           :always-on-top true
-           :header (localization/message "dialog.plugin-load-error.header" {"plugin" (resource/proj-path resource)})}))
-      false)))
+  ;; If an exception is thrown, we reset the system back to the point it was
+  ;; before we attempted to load the plugin. This should be safe as long as
+  ;; there are no concurrent graph system mutations. However, we could still end
+  ;; up in a somewhat inconsistent state since the load-fn can perform mutations
+  ;; outside the system, but this is probably better than nothing.
+  (let [system-snapshot (g/clone-system)
+        undo-stack-revisions-before (g/undo-stack-revisions)]
+    (try
+      (let [plugin-fn (load-string (slurp resource))]
+        (when-not (ifn? plugin-fn)
+          (throw
+            (ex-info "Plugin must return a function."
+                     {:return-value plugin-fn})))
+        (plugin-fn workspace)
+        (when (not= undo-stack-revisions-before (g/undo-stack-revisions))
+          (throw
+            (ex-info "Plugin must not create undo steps during load." {})))
+        (when-not (Boolean/getBoolean "defold.tests")
+          (log/info :message (str "Loaded plugin: " (resource/path resource)))))
+      (catch Exception e
+        (reset! g/*the-system* system-snapshot)
+        (when (Boolean/getBoolean "defold.tests")
+          (throw e))
+        (log/error :message (str "Exception while loading plugin: " (resource/path resource))
+                   :plugin-path (resource/path resource)
+                   :exception e)
+        (ui/run-later
+          (dialogs/make-info-dialog
+            (g/with-auto-evaluation-context evaluation-context
+              (localization workspace evaluation-context))
+            {:title (localization/message "dialog.plugin-load-error.title")
+             :icon :icon/triangle-error
+             :always-on-top true
+             :header (localization/message "dialog.plugin-load-error.header" {"plugin" (resource/proj-path resource)})}))
+        false))))
 
 (defn load-clojure-editor-plugins! [workspace added]
   (->> added

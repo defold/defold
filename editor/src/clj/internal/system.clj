@@ -68,6 +68,9 @@
     (tape/revision undo)
     0))
 
+(defn undo-stack-revisions [system]
+  (coll/map-vals tape/revision (:undo system)))
+
 (defn undo [system undo-key]
   (or (maybe-undo system undo-key)
       (throw

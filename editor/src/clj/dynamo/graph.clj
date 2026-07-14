@@ -2125,6 +2125,13 @@
   [undo-key]
   (is/undo-stack-revision @*the-system* undo-key))
 
+(defn undo-stack-revisions
+  "Returns a map of undo-key -> undo-stack-revision that includes all undo
+  stacks. Useful when you need to know if there has been changes to any of the
+  undo stacks."
+  []
+  (is/undo-stack-revisions @*the-system*))
+
 (defn redo!
   "Reapplies the changes from the top redo step and moves it to the undo stack.
 
