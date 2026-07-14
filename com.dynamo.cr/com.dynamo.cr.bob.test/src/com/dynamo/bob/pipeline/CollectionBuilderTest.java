@@ -51,6 +51,24 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     private static final double epsilon = 0.000001;
 
     @Test
+    public void testResourceCount() throws Exception {
+        addFile("/shared.script", "");
+        addFile("/one.go", "components { id: \"script\" component: \"/shared.script\" }");
+        addFile("/two.go", "components { id: \"script\" component: \"/shared.script\" }");
+
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"main\"\n");
+        src.append("instances { id: \"one-a\" prototype: \"/one.go\" }\n");
+        src.append("instances { id: \"one-b\" prototype: \"/one.go\" }\n");
+        src.append("instances { id: \"two\" prototype: \"/two.go\" }\n");
+
+        CollectionDesc collection = getMessage(build("/test.collection", src.toString()), CollectionDesc.class);
+
+        // /one.goc, /two.goc and the shared /shared.scriptc
+        Assert.assertEquals(3, collection.getResourceCount());
+    }
+
+    @Test
     public void testProps() throws Exception {
         addFile("/test.go", "");
         StringBuilder src = new StringBuilder();
