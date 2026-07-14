@@ -44,6 +44,12 @@
 
 (defonce ^List axes [:x :y :z])
 
+(def ^:private ^:dynamic *suppress-dispose*
+  "Bound true only while the color row hides its popup for a pick (see
+  `make-color-row`), so the on-closed handler skips disposing the popup content
+  (it is about to be shown again)."
+  false)
+
 (defn- make-toggle-row [{:keys [key label accelerator command disabled? state swap-state on-selected-changed style-class]}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [_]
@@ -168,6 +174,11 @@
                                     (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
                                       (swap-state assoc key color)
                                       (on-value-changed color)))
+                ;; During a pick, hide the popup so it doesn't cover the magnifier (*suppress-dispose*
+                ;; keeps on-closed from tearing it down), then show it again in place afterward.
+                :on-dropper-activated (fn [] (binding [*suppress-dispose* true] (.hide ^PopupControl popup)))
+                :on-dropper-deactivated (fn [] (let [^PopupControl p popup]
+                                                 (.show p (.getOwnerNode p) (.getAnchorX p) (.getAnchorY p))))
                 :ignore-alpha false}}]})
 
 (defn- make-vec3-floats-row [{:keys [key state swap-state on-value-changed]}]
@@ -239,7 +250,7 @@
                           :accelerator (keymap/display-text keymap (:command descriptor) "")
                           :on-selected-changed (:on-value-changed descriptor))
       :slider      (assoc descriptor-with-state :fx/type make-slider-row :label (label))
-      :color       (assoc descriptor-with-state :fx/type make-color-row  :label (label))
+      :color       (assoc descriptor-with-state :fx/type make-color-row :label (label))
       :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row)
       :vec3-toggle (assoc descriptor-with-state :fx/type make-vec3-toggle-row :label (label))
       :reset-all   {:fx/type make-reset-button
@@ -273,9 +284,9 @@
   (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
 
 (defn- make-popup
-  ^PopupControl [^Styleable owner ^Node content]
+  ^PopupControl [^Styleable styleable-parent ^Node content]
   (let [popup (proxy [PopupControl] []
-                (getStyleableParent [] owner))
+                (getStyleableParent [] styleable-parent))
         *skinnable (atom popup)
         popup-skin (reify Skin
                      (getSkinnable [_] @*skinnable)
@@ -333,8 +344,14 @@
    (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
      (do (.hide popup) nil)
      (let [content (StackPane.)
-           popup (make-popup owner content)
+           ;; The popup inherits its CSS through this node (see make-popup); the #toolbar element is a
+           ;; stable ancestor to anchor styling to.
+           styleable-parent (or (ui/closest-node-where (fn [^Node n] (= "toolbar" (.getId n))) owner)
+                                owner)
+           popup (make-popup styleable-parent content)
            anchor ^Point2D (pref-popup-position (.getParent owner) width)
+           screen-x (.getX anchor)
+           screen-y (.getY anchor)
            advance! (fn [state]
                       (ui/advance-ui-user-data-component!
                         content ::popup
@@ -353,11 +370,14 @@
        (ui/user-data! owner ::popup popup)
        (doto popup
          (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
-         (ui/on-closed! (fn [e]
-                          (ui/advance-ui-user-data-component! content ::popup nil)
-                          (when on-closed (on-closed))
-                          (ui/user-data! owner ::popup nil)))
-         (.show owner (.getX anchor) (.getY anchor)))
+         ;; The color row hides the popup during a pick with *suppress-dispose* bound (see
+         ;; make-color-row), so we skip disposal and it gets shown again.
+         (ui/on-closed! (fn [_]
+                          (when-not *suppress-dispose*
+                            (ui/advance-ui-user-data-component! content ::popup nil)
+                            (when on-closed (on-closed))
+                            (ui/user-data! owner ::popup nil))))
+         (.show owner screen-x screen-y))
        ;; WORKAROUND: scene-visibility opens the popup right next to the outline's split pane divider, when you mouse over
        ;; the edge, the cursor gets set to H_RESIZE. If you move your cursor fast enough from the divider to the popup, the H_RESIZE
        ;; persists and only gets reset to DEFAULT when you leave the popup and reenter. The scene apparently still thinks it's
@@ -365,9 +385,9 @@
        ;; Note that this might just be linux specific, but wouldn't hurt to just do it for everyone.
        (.addEventHandler content MouseEvent/MOUSE_ENTERED
                          (ui/event-handler e
-                                           (let [scene (.getScene owner)]
-                                             (.setCursor scene Cursor/NONE)
-                                             (.setCursor scene Cursor/DEFAULT))))
+                           (let [scene (.getScene owner)]
+                             (.setCursor scene Cursor/NONE)
+                             (.setCursor scene Cursor/DEFAULT))))
        ;; Request focus so the first UI element loses focus
        (.requestFocus content)
        advance!))))
