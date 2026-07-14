@@ -15,7 +15,6 @@
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.slider :as fx.slider]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -635,7 +634,7 @@
            :on-value-changed #(set-values! property (repeat (cond-> % is-float float)))
            :editable (not read-only)}
           (resolve-validation property localization-state))
-      {:fx/type fx.slider/lifecycle
+      {:fx/type fxui/slider
        :grid-pane/column 1
        :focus-traversable false
        :min min

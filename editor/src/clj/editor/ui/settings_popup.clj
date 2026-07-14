@@ -18,7 +18,6 @@
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.separator :as fx.separator]
-            [cljfx.fx.slider :as fx.slider]
             [cljfx.fx.toggle-button :as fx.toggle-button]
             [cljfx.fx.toggle-group :as fx.toggle-group]
             [clojure.string :as string]
@@ -31,9 +30,8 @@
             [editor.ui :as ui])
   (:import [antlr.collections List]
            [com.sun.javafx.util Utils]
-           [javafx.beans.value ChangeListener]
            [javafx.css Styleable]
-           [javafx.event ActionEvent Event]
+           [javafx.event ActionEvent]
            [javafx.geometry HPos Point2D VPos]
            [javafx.scene Cursor Node Parent]
            [javafx.scene.control ColorPicker PopupControl Skin Slider ToggleButton]
@@ -98,27 +96,10 @@
         value (+ (.getValue slider) (* direction step))]
     (-> value (max min-value) (min max-value))))
 
-(defn- ext-safe-popup-slider
+(defn- ext-popup-slider
   [{:keys [popup] :as props}]
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [^Slider slider]
-                 (let [pressed? (volatile! false)
-                       install! (fn [^Node thumb]
-                                  (doto thumb
-                                    (.addEventFilter MouseEvent/MOUSE_PRESSED  (ui/event-handler _ (vreset! pressed? true)))
-                                    (.addEventFilter MouseEvent/MOUSE_RELEASED (ui/event-handler _ (vreset! pressed? false)))
-                                    (.addEventFilter MouseEvent/MOUSE_DRAGGED  (ui/event-handler e (when-not @pressed?
-                                                                                                     (.consume ^Event e))))))
-                       try-install! (fn []
-                                      (when-let [thumb (.lookup slider ".thumb")]
-                                        (install! thumb)
-                                        true))]
-                   (when-not (try-install!)
-                     (.addListener (.skinProperty slider)
-                                   (reify ChangeListener
-                                     (changed [this _ _ _]
-                                       (when (try-install!)
-                                         (.removeListener (.skinProperty slider) this)))))))
                  (.addEventFilter slider ScrollEvent/SCROLL
                                   (ui/event-handler event
                                     (when (and (not (.isDisabled slider))
@@ -130,7 +111,7 @@
                  (doto slider
                    (.setOnMouseEntered (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
                    (.setOnMouseExited  (ui/event-handler _ (.setAutoHide ^PopupControl popup true)))))
-   :desc (assoc (dissoc props :popup) :fx/type fx.slider/lifecycle)})
+   :desc (assoc (dissoc props :popup) :fx/type fxui/slider)})
 
 (defn- make-slider-row [{:keys [popup key label disabled? min max snap-to state swap-state slider-value->string on-value-changed]}]
   (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))]
@@ -144,7 +125,7 @@
                 {:fx/type fxui/label
                  :style-class "slider-value-label"
                  :text (slider-value->string (key state))}
-                (cond-> {:fx/type ext-safe-popup-slider
+                (cond-> {:fx/type ext-popup-slider
                          :popup popup
                          :min min
                          :max max
