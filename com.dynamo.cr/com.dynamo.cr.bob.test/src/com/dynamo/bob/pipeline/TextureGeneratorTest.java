@@ -18,9 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.EnumSet;
@@ -40,7 +38,7 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
-public class TextureGeneratorTest {
+public class TextureGeneratorTest extends AbstractProtoBuilderTest {
 
     //                                AABBGGRR
     private static int pixelWhite = 0xFF332211;
@@ -50,6 +48,7 @@ public class TextureGeneratorTest {
 
     @Before
     public void setUp() throws Exception {
+        addTestFiles();
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
         TextureCompression.registerCompressor(new TextureCompressorASTC());
     }
@@ -109,21 +108,6 @@ public class TextureGeneratorTest {
         textureProfile.setName("HDR Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
         return textureProfile.build();
-    }
-
-    static byte[] loadResource(String path) throws IOException
-    {
-        InputStream inputStream = TextureGeneratorTest.class.getResourceAsStream(path);
-        assertNotNull(inputStream);
-
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int read;
-        while ((read = inputStream.read(buffer)) != -1) {
-            outputStream.write(buffer, 0, read);
-        }
-        inputStream.close();
-        return outputStream.toByteArray();
     }
 
     static float getFloat(byte[] data, int index)
@@ -186,7 +170,7 @@ public class TextureGeneratorTest {
 
     @Test
     public void testHDRDefaultRGBA32F() throws TextureGeneratorException, IOException {
-        TextureGenerator.GenerateResult result = TextureGenerator.generate(loadResource("hdr_2x2.hdr"), null, false, EnumSet.noneOf(FlipAxis.class));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getFile("/hdr_2x2.hdr"), null, false, EnumSet.noneOf(FlipAxis.class));
 
         assertEquals(1, result.textureImage.getAlternativesCount());
         Image image = result.textureImage.getAlternatives(0);
@@ -208,7 +192,7 @@ public class TextureGeneratorTest {
     @Test
     public void testHDRProfileRGBA16F() throws TextureGeneratorException, IOException {
         TextureProfile textureProfile = createHDRTextureProfile(TextureFormat.TEXTURE_FORMAT_RGBA16F, false, 0);
-        TextureGenerator.GenerateResult result = TextureGenerator.generate(loadResource("hdr_2x2.hdr"), textureProfile, false, EnumSet.noneOf(FlipAxis.class));
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getFile("/hdr_2x2.hdr"), textureProfile, false, EnumSet.noneOf(FlipAxis.class));
 
         assertEquals(1, result.textureImage.getAlternativesCount());
         Image image = result.textureImage.getAlternatives(0);
