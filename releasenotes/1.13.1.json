@@ -1156,8 +1156,30 @@
             "title": "Added collectionproxy.load()",
             "type": "NEW",
             "url": "https://github.com/defold/defold/pull/12697"
+        },
+        {
+            "author": "paweljarosz",
+            "body": "Modified the built-in lit skinned materials and added vertex programs that take into account normal when applying lighting.",
+            "closed_issues": [
+                12624
+            ],
+            "duplicate": false,
+            "issue_number": 12624,
+            "labels": [
+                "bug",
+                "engine",
+                "model",
+                "render"
+            ],
+            "mergecommit": "56fc40544a5ed757223bb7700f88ca0578926d95",
+            "pr_number": 12661,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added lit materials with skinning taking into account normal.",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12661"
         }
     ],
-    "timestamp": 1783977537.463754,
+    "timestamp": 1784010591.5018282,
     "version": "1.13.1"
 }
