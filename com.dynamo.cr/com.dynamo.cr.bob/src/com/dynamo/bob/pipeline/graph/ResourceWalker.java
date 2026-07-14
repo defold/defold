@@ -103,4 +103,20 @@ public class ResourceWalker {
         visitResource(project, null, rootResource, visitor);
     }
 
+    /**
+     * Walk a resource using an already parsed message instead of reading the resource
+     * output. This is useful while a resource is being transformed and its compiled
+     * output has not been written yet.
+     */
+    public static void walk(Project project, IResource rootResource, Message message, IResourceVisitor visitor) throws CompileExceptionError {
+        if (rootResource.getPath().equals("") || !visitor.shouldVisit(rootResource, null)) {
+            return;
+        }
+
+        visitor.visit(rootResource, null);
+        visitor.visitMessage(message, rootResource, null);
+        visitMessage(project, rootResource, message, visitor);
+        visitor.leave(rootResource, null);
+    }
+
 }
