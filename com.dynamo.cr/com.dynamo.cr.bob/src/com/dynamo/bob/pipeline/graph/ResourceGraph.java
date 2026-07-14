@@ -128,6 +128,16 @@ public class ResourceGraph implements IResourceVisitor {
         ResourceWalker.walk(project, rootResource, this);
     }
 
+    /**
+     * Add a resource and all sub-resources from an already parsed resource message.
+     *
+     * @param rootResource The resource represented by the message.
+     * @param message The parsed resource message.
+     */
+    public void add(IResource rootResource, Message message) throws CompileExceptionError {
+        ResourceWalker.walk(project, rootResource, message, this);
+    }
+
     private void addNodeToParent(ResourceNode parentNode, ResourceNode childNode) {
         if (parentNode.checkType(ResourceNode.Type.ExcludedCollectionProxy)) {
             childNode.setType(ResourceNode.Type.ExcludedCollection);
