@@ -219,6 +219,19 @@ TEST_F(TexcTest, PreMultipliedAlpha)
     }
 }
 
+TEST_F(TexcTest, ConvertRGBA32FToRGBA16FRoundsMantissaIntoExponent)
+{
+    float rgba32f[4] = { 1.9999f, 1.0f, 0.0f, -1.9999f };
+    uint16_t rgba16f[4] = {};
+
+    ASSERT_TRUE(dmTexc::ConvertRGBA32FToPf((const uint8_t*)rgba32f, 1, 1, dmTexc::PF_RGBA16F, rgba16f));
+
+    ASSERT_EQ(0x4000, rgba16f[0]);
+    ASSERT_EQ(0x3c00, rgba16f[1]);
+    ASSERT_EQ(0x0000, rgba16f[2]);
+    ASSERT_EQ(0xc000, rgba16f[3]);
+}
+
 
 #define ASSERT_RGBA(exp, act)\
     ASSERT_EQ((exp)[0], (act)[0]);\

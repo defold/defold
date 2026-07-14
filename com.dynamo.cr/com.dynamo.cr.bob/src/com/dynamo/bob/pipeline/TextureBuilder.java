@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import com.dynamo.bob.Builder;
@@ -52,12 +51,10 @@ public class TextureBuilder extends Builder {
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(task.lastInput(), task.firstInput().getPath());
         logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
-        ByteArrayInputStream is = new ByteArrayInputStream(task.firstInput().getContent());
-
         TextureGenerator.GenerateResult generateResult;
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
-            generateResult = TextureGenerator.generate(is, texProfile, compress);
+            generateResult = TextureGenerator.generate(task.firstInput().getContent(), texProfile, compress);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }

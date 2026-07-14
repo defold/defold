@@ -428,12 +428,16 @@ namespace dmTexc
         uint32_t bits;
         memcpy(&bits, &value, sizeof(bits));
 
+        // IEEE-754 float32: 1 sign bit, 8 exponent bits, 23 mantissa bits.
+        // IEEE-754 float16: 1 sign bit, 5 exponent bits, 10 mantissa bits.
         uint32_t sign = (bits >> 16) & 0x8000;
         int32_t exponent = ((bits >> 23) & 0xff) - 127 + 15;
         uint32_t mantissa = bits & 0x7fffff;
 
         if (exponent <= 0)
         {
+            // Values too small for a normalized half become subnormals, or zero
+            // when the exponent is outside the representable subnormal range.
             if (exponent < -10)
             {
                 return (uint16_t)sign;
@@ -444,6 +448,7 @@ namespace dmTexc
 
         if (exponent >= 31)
         {
+            // Preserve infinities and NaNs as half-float special values.
             if (mantissa == 0)
             {
                 return (uint16_t)(sign | 0x7c00);
@@ -451,7 +456,9 @@ namespace dmTexc
             return (uint16_t)(sign | 0x7c00 | (mantissa >> 13));
         }
 
-        return (uint16_t)(sign | (exponent << 10) | ((mantissa + 0x1000) >> 13));
+        // Round the float32 mantissa from 23 to 10 bits. Use addition between
+        // exponent and mantissa fields so rounding overflow carries into exponent.
+        return (uint16_t)(sign | ((exponent << 10) + ((mantissa + 0x1000) >> 13)));
     }
 
     bool ConvertRGBA32FToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data)
