@@ -324,7 +324,10 @@
                 (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]
                   (is (= "Execute an editor command" (get post-command "summary")))
                   (is (string/includes? (get post-command "description") "`build-html5`"))
-                  (is (some #{"build-html5"} (get-in post-command ["parameters" 0 "schema" "enum"]))))))
+                  (let [commands (get-in post-command ["parameters" 0 "schema" "enum"])]
+                    (is (coll/any? #{"compile"} commands))
+                    (is (coll/any? #{"run"} commands))
+                    (is (coll/not-any? #{"build"} commands))))))
             (let [{:keys [status headers body]} @(http/request
                                                     (str url "/preview/collection/components/test.gui?width=32&height=32")
                                                     :as :byte-array)]
