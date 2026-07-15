@@ -20,8 +20,7 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [support.test-support :as test-support]
-            [util.coll :as coll]))
+            [support.test-support :as test-support]))
 
 (set! *warn-on-reflection* true)
 
@@ -104,10 +103,10 @@
 
 (defn connect-arc
   [graph arc]
-  (-> (ig/multigraph-basis [graph])
-      (ig/basis-connect-arc-at arc nil nil)
-      :graphs
-      (nth 0)))
+  (let [basis (ig/multigraph-basis [graph])
+        {:keys [arc->source+target-pkids]} (ig/basis-plan-connect-arc basis arc)
+        basis (ig/basis-perform-connect-arcs basis arc->source+target-pkids)]
+    (nth (:graphs basis) 0)))
 
 (defn- remove-arcs
   [dead-arcs]
@@ -117,11 +116,13 @@
 
 (defn remove-arc
   [graph arc]
-  (let [basis (ig/multigraph-basis [graph])
-        basis (coll/reduce-> (ig/find-source-and-target-arc-pkid-entries basis arc) basis
-                (fn [basis [arc source-arc-pkid target-arc-pkid]]
-                  (ig/basis-disconnect-arc-at basis arc source-arc-pkid target-arc-pkid)))]
-    (nth (:graphs basis) 0)))
+  (let [basis (ig/multigraph-basis [graph])]
+    (if-let [{:keys [arc->source+target-pkids]} (ig/basis-plan-disconnect-arc basis arc)]
+      (-> basis
+          (ig/basis-perform-disconnect-arcs arc->source+target-pkids)
+          :graphs
+          (nth 0))
+      graph)))
 
 (defn subselect
   [coll fraction]

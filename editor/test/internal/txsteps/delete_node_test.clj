@@ -744,7 +744,7 @@
             (let [basis (g/now)]
               (is (g/node-by-id basis source-node-id))
               (is (= nil (g/node-by-id basis target-node-id)))
-              (is (= []
+              (is (= [[target-node-id :regular-input]]
                      (g/targets basis source-node-id :property-output)))))]
 
       (testing "Before deleting source node."
@@ -819,7 +819,7 @@
               (is (g/node-by-id basis source-node-id))
               (is (= nil (g/node-by-id basis target-node-id)))
               (is (= nil (g/graph target-graph-id)))
-              (is (= []
+              (is (= [[target-node-id :regular-input]]
                      (g/targets basis source-node-id :property-output)))))]
 
       (testing "Before deleting source node."

@@ -112,12 +112,12 @@
   (let [basis (ig/multigraph-basis [graph])
 
         {:keys [deleted-nodes
-                removed-arc-pkid-entries
+                removed-arc->source+target-pkids
                 removed-node->overrides
                 removed-overrides-by-id]}
         (ig/basis-plan-delete-nodes basis [node-id])
 
-        basis (ig/basis-perform-delete-nodes basis deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides)]
+        basis (ig/basis-perform-delete-nodes basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node->overrides)]
 
     (first (:graphs basis))))
 

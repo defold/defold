@@ -377,21 +377,32 @@
   (when-not (coll/empty? arc-table)
     (vals arc-table)))
 
-(defn- arc-table-assoc [arc-table arc-pkid arc]
+(defn- arc-table-assoc-pkids [arc-table arc-pkids arc]
   (let [arc-table (or arc-table empty-arc-table)
-        old-next-pkid (arc-table-next-pkid arc-table)
-        arc-pkid (or arc-pkid old-next-pkid)
-        new-next-pkid (max old-next-pkid (inc (long arc-pkid)))]
-    (arc-table-set-next-pkid (assoc arc-table arc-pkid arc) new-next-pkid)))
+        next-pkid (volatile! (arc-table-next-pkid arc-table))
+        arc-table (-> arc-table
+                      (transient)
+                      (coll/reduce=> arc-pkids
+                        (fn [arc-table ^long arc-pkid]
+                          (let [old-next-pkid (long @next-pkid)
+                                arc-next-pkid (inc arc-pkid)]
+                            (when (< old-next-pkid arc-next-pkid)
+                              (vreset! next-pkid arc-next-pkid)))
+                          (assoc! arc-table arc-pkid arc)))
+                      (persistent!))]
+    (arc-table-set-next-pkid arc-table @next-pkid)))
 
-(defn- arc-table-dissoc [arc-table arc-pkid]
+(defn- arc-table-dissoc-pkids [arc-table arc-pkids]
   (when arc-table
-    (arc-table-set-next-pkid
-      (dissoc arc-table arc-pkid)
-      (arc-table-next-pkid arc-table))))
+    (let [next-pkid (arc-table-next-pkid arc-table)
+          arc-table (-> arc-table
+                        (transient)
+                        (coll/reduce=> arc-pkids dissoc!)
+                        (persistent!))]
+      (arc-table-set-next-pkid arc-table next-pkid))))
 
 (defn- arc-table-find-arc-pkids [arc-table arc]
-  (coll/into-> arc-table []
+  (coll/into-> arc-table (int-map/int-set)
     (keep (fn [[arc-pkid table-arc]]
             (when (= arc table-arc)
               arc-pkid)))))
@@ -468,83 +479,69 @@
     (assoc-in graph [:nodes node-id] (apply f node args))
     graph))
 
-(defn- assoc-source-arc-at
-  [graph arc source-arc-pkid]
+(defn- assoc-source-arcs-at
+  [graph arc source-arc-pkids]
   (update-in graph
              [:sarcs (gt/source-id arc) (gt/source-label arc)]
-             arc-table-assoc
-             source-arc-pkid
+             arc-table-assoc-pkids
+             source-arc-pkids
              arc))
 
-(defn- assoc-target-arc-at
-  [graph arc target-arc-pkid]
+(defn- assoc-target-arcs-at
+  [graph arc target-arc-pkids]
   (update-in graph
              [:tarcs (gt/target-id arc) (gt/target-label arc)]
-             arc-table-assoc
-             target-arc-pkid
+             arc-table-assoc-pkids
+             target-arc-pkids
              arc))
 
-(defn- dissoc-source-arc-at
-  [graph arc source-arc-pkid]
+(defn- dissoc-source-arcs-at
+  [graph arc source-arc-pkids]
   (update graph :sarcs
           update-existing-arc-table
           [(gt/source-id arc) (gt/source-label arc)]
-          arc-table-dissoc
-          source-arc-pkid))
+          arc-table-dissoc-pkids
+          source-arc-pkids))
 
-(defn- dissoc-target-arc-at
-  [graph arc target-arc-pkid]
+(defn- dissoc-target-arcs-at
+  [graph arc target-arc-pkids]
   (update graph :tarcs
           update-existing-arc-table
           [(gt/target-id arc) (gt/target-label arc)]
-          arc-table-dissoc
-          target-arc-pkid))
+          arc-table-dissoc-pkids
+          target-arc-pkids))
 
-(defn basis-connect-arc-at [basis arc source-arc-pkid target-arc-pkid]
+(defn- basis-connect-arc-pkids [basis arc source+target-arc-pkids]
   (let [source-id (gt/source-id arc)
         source-graph-id (gt/node-id->graph-id source-id)
-        source-graph (get-in basis [:graphs source-graph-id])
         target-id (gt/target-id arc)
         target-graph-id (gt/node-id->graph-id target-id)
-        target-graph (get-in basis [:graphs target-graph-id])]
-    (cond
-      (not (and (node-id->node source-graph source-id)
-                (node-id->node target-graph target-id)))
-      basis
+        graphs (:graphs basis)
+        [source-arc-pkids target-arc-pkids] source+target-arc-pkids]
+    (cond-> basis
+      (and (coll/not-empty source-arc-pkids)
+           (get graphs source-graph-id))
+      (update-in [:graphs source-graph-id] assoc-source-arcs-at arc source-arc-pkids)
 
-      (= source-graph-id target-graph-id)
-      (update basis :graphs assoc
-              source-graph-id (-> source-graph
-                                  (assoc-source-arc-at arc source-arc-pkid)
-                                  (assoc-target-arc-at arc target-arc-pkid)))
+      (and (coll/not-empty target-arc-pkids)
+           (get graphs target-graph-id))
+      (update-in [:graphs target-graph-id] assoc-target-arcs-at arc target-arc-pkids))))
 
-      :else
-      (update basis :graphs assoc
-              source-graph-id (assoc-source-arc-at source-graph arc source-arc-pkid)
-              target-graph-id (assoc-target-arc-at target-graph arc target-arc-pkid)))))
-
-(defn basis-disconnect-arc-at [basis arc source-arc-pkid target-arc-pkid]
+(defn- basis-disconnect-arc-pkids [basis arc source+target-arc-pkids]
   (let [source-id (gt/source-id arc)
         source-graph-id (gt/node-id->graph-id source-id)
-        source-graph (get-in basis [:graphs source-graph-id])
         target-id (gt/target-id arc)
         target-graph-id (gt/node-id->graph-id target-id)
-        target-graph (get-in basis [:graphs target-graph-id])]
-    (cond
-      (not (and (node-id->node source-graph source-id)
-                (node-id->node target-graph target-id)))
-      basis
+        graphs (:graphs basis)
+        [source-arc-pkids target-arc-pkids] source+target-arc-pkids]
+    (cond-> basis
+      (and (coll/not-empty source-arc-pkids)
+           (get graphs source-graph-id))
+      (update-in [:graphs source-graph-id] dissoc-source-arcs-at arc source-arc-pkids)
 
-      (= source-graph-id target-graph-id)
-      (update basis :graphs assoc
-              source-graph-id (-> source-graph
-                                  (dissoc-source-arc-at arc source-arc-pkid)
-                                  (dissoc-target-arc-at arc target-arc-pkid)))
-
-      :else
-      (update basis :graphs assoc
-              source-graph-id (dissoc-source-arc-at source-graph arc source-arc-pkid)
-              target-graph-id (dissoc-target-arc-at target-graph arc target-arc-pkid)))))
+      (and (coll/not-empty target-arc-pkids)
+           (get graphs target-graph-id))
+      (update-in [:graphs target-graph-id] dissoc-target-arcs-at arc target-arc-pkids))))
 
 (defn override-by-id
   [basis override-id]
@@ -1153,24 +1150,21 @@
 ;; their subjects no longer existing in the graph to allow changes from
 ;; different undo stacks to operate on the same subjects.
 
-(defn find-source-and-target-arc-pkid-entries [basis arc]
+(defn- find-arc-pkids [basis arc]
   (let [graphs (:graphs basis)
         source-arc-pkids (arc-table-find-arc-pkids (graphs-source-arc-table graphs arc) arc)
         target-arc-pkids (arc-table-find-arc-pkids (graphs-target-arc-table graphs arc) arc)]
-    (assert (= (count source-arc-pkids) (count target-arc-pkids)))
-    (mapv (fn [source-arc-pkid target-arc-pkid]
-            [arc source-arc-pkid target-arc-pkid])
-          source-arc-pkids
-          target-arc-pkids)))
+    (pair source-arc-pkids target-arc-pkids)))
 
-(defn find-connected-arc-pkid-entries [basis node-ids]
+(defn- find-connected-arc-pkids [basis node-ids]
   (coll/into->
     (pair (e/mapcat #(explicit-arcs-by-source basis %) node-ids)
           (e/mapcat #(explicit-arcs-by-target basis %) node-ids))
-    []
+    {}
     cat
     (distinct)
-    (mapcat #(find-source-and-target-arc-pkid-entries basis %))))
+    (map (fn [arc]
+           (pair arc (find-arc-pkids basis arc))))))
 
 (defn basis-plan-add-override
   [_basis override-id root-id traverse-fn init-props-fn]
@@ -1419,8 +1413,7 @@
           source-graph (graphs (gt/node-id->graph-id (gt/source-id arc)))
           target-graph (graphs (gt/node-id->graph-id (gt/target-id arc)))
           source-arc-pkid (arc-table-next-pkid (graphs-source-arc-table graphs arc))
-          target-arc-pkid (arc-table-next-pkid (graphs-target-arc-table graphs arc))
-          arc-pkid-entries [[arc source-arc-pkid target-arc-pkid]]]
+          target-arc-pkid (arc-table-next-pkid (graphs-target-arc-table graphs arc))]
       ;; There is no technical reason to respect volatility. Everything would
       ;; work just fine if we removed this assert. It is merely there to
       ;; safeguard against situations where the output of nodes in the project
@@ -1428,32 +1421,36 @@
       ;; if view graph state affected the save-data output of resource nodes.
       (assert (<= (:_volatility source-graph 0)
                   (:_volatility target-graph 0)))
-      {:arc-pkid-entries arc-pkid-entries})))
+      {:arc->source+target-pkids
+       {arc (pair (int-map/int-set [source-arc-pkid])
+                  (int-map/int-set [target-arc-pkid]))}})))
 
 (defn basis-perform-connect-arcs
-  [basis arc-pkid-entries]
-  (coll/reduce=> basis arc-pkid-entries
-    (fn [basis [arc source-arc-pkid target-arc-pkid]]
-      (basis-connect-arc-at basis arc source-arc-pkid target-arc-pkid))))
+  [basis arc->source+target-pkids]
+  (coll/reduce-kv-> arc->source+target-pkids basis
+    (fn [basis arc source+target-pkids]
+      (basis-connect-arc-pkids basis arc source+target-pkids))))
 
 (defn basis-revert-connect-arcs
-  [basis arc-pkid-entries]
-  (coll/reduce=> basis arc-pkid-entries
-    (fn [basis [arc source-arc-pkid target-arc-pkid]]
-      (basis-disconnect-arc-at basis arc source-arc-pkid target-arc-pkid))))
+  [basis arc->source+target-pkids]
+  (coll/reduce-kv-> arc->source+target-pkids basis
+    (fn [basis arc source+target-pkids]
+      (basis-disconnect-arc-pkids basis arc source+target-pkids))))
 
 (defn basis-plan-disconnect-arc
   [basis arc]
-  (when-let [arc-pkid-entries (coll/not-empty (find-source-and-target-arc-pkid-entries basis arc))]
-    {:arc-pkid-entries arc-pkid-entries}))
+  (let [source+target-pkids (find-arc-pkids basis arc)]
+    (when (coll/any? coll/not-empty source+target-pkids)
+      {:arc->source+target-pkids
+       {arc source+target-pkids}})))
 
 (defn basis-perform-disconnect-arcs
-  [basis arc-pkid-entries]
-  (basis-revert-connect-arcs basis arc-pkid-entries))
+  [basis arc->source+target-pkids]
+  (basis-revert-connect-arcs basis arc->source+target-pkids))
 
 (defn basis-revert-disconnect-arcs
-  [basis arc-pkid-entries]
-  (basis-perform-connect-arcs basis arc-pkid-entries))
+  [basis arc->source+target-pkids]
+  (basis-perform-connect-arcs basis arc->source+target-pkids))
 
 (defn basis-plan-delete-nodes
   [basis deleted-node-ids]
@@ -1478,8 +1475,8 @@
                                (pair override-id override))))))]
                 deleted-nodes)
 
-              removed-arc-pkid-entries
-              (find-connected-arc-pkid-entries basis deleted-node-ids)
+              removed-arc->source+target-pkids
+              (find-connected-arc-pkids basis deleted-node-ids)
 
               removed-node->overrides-for-deleted-node-ids
               (coll/into-> deleted-node-ids {}
@@ -1505,14 +1502,14 @@
                 removed-node->overrides-for-originals-of-deleted-node-ids)]
 
           {:deleted-nodes deleted-nodes
-           :removed-arc-pkid-entries removed-arc-pkid-entries
+           :removed-arc->source+target-pkids removed-arc->source+target-pkids
            :removed-overrides-by-id removed-overrides-by-id
            :removed-node->overrides removed-node->overrides})))))
 
 (defn basis-perform-delete-nodes
-  [basis deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides]
+  [basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node->overrides]
   (-> basis
-      (basis-perform-disconnect-arcs removed-arc-pkid-entries)
+      (basis-perform-disconnect-arcs removed-arc->source+target-pkids)
       (update
         :graphs
         (fn [graphs]
@@ -1534,7 +1531,7 @@
                       coll/transform-non-empty-> (remove (set override-node-ids)))))))))))
 
 (defn basis-revert-delete-nodes
-  [basis deleted-nodes removed-arc-pkid-entries removed-overrides-by-id removed-node->overrides]
+  [basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node->overrides]
   (-> basis
       (update
         :graphs
@@ -1555,4 +1552,4 @@
                     (update-in
                       graphs [graph-id :node->overrides node-id]
                       coll/into-vector override-node-ids)))))))
-      (basis-revert-disconnect-arcs removed-arc-pkid-entries)))
+      (basis-revert-disconnect-arcs removed-arc->source+target-pkids)))

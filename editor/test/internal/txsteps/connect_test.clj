@@ -194,6 +194,106 @@
         (g/redo! :undo/global)
         (ensure-after!)))))
 
+(deftest replace-connection-on-regular-input-with-missing-source-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [initial-source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undo-key ::add-initial-source}
+              (g/make-node graph-id helpers/ConnectionSourceNode :property :initial-value)))
+
+          [replacement-source-node-id target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id [_replacement-source-node-id [helpers/ConnectionSourceNode :property :replacement-value]
+                                      target-node-id helpers/ConnectionTargetNode]
+                (g/connect initial-source-node-id :property-output target-node-id :regular-input))))]
+
+      (testing "After undoing the initial source."
+        (g/undo! ::add-initial-source)
+        (let [basis (g/now)
+              initial-arc-tuple [initial-source-node-id :property-output target-node-id :regular-input]]
+          (is (nil? (g/node-by-id basis initial-source-node-id)))
+          (is (= [initial-arc-tuple]
+                 (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)
+                 (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
+          (is (nil? (g/node-value target-node-id :regular-output)))))
+
+      (testing "After replacing the connection."
+        (g/transact
+          {:undoable false}
+          (g/connect replacement-source-node-id :property-output target-node-id :regular-input))
+        (let [basis (g/now)
+              replacement-arc-tuple [replacement-source-node-id :property-output target-node-id :regular-input]]
+          (is (nil? (g/node-by-id basis initial-source-node-id)))
+          (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)))
+          (is (= [replacement-arc-tuple]
+                 (helpers/source-arc-table-tuples basis graph-id replacement-source-node-id :property-output)
+                 (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
+          (is (= :replacement-value (g/node-value target-node-id :regular-output)))))
+
+      (testing "After redoing the initial source."
+        (g/redo! ::add-initial-source)
+        (let [basis (g/now)
+              replacement-arc-tuple [replacement-source-node-id :property-output target-node-id :regular-input]]
+          (is (g/node-by-id basis initial-source-node-id))
+          (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)))
+          (is (= [replacement-arc-tuple]
+                 (helpers/source-arc-table-tuples basis graph-id replacement-source-node-id :property-output)
+                 (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
+          (is (= :replacement-value (g/node-value target-node-id :regular-output))))))))
+
+(deftest replace-connection-on-regular-input-with-missing-source-graph-test
+  (test-support/with-clean-system
+    (let [source-graph-id (g/make-graph!)
+          target-graph-id (g/make-graph! :volatility 10)
+
+          [source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-node source-graph-id helpers/ConnectionSourceNode :property :source-value)))
+
+          [replacement-source-node-id target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes target-graph-id [_replacement-source-node-id [helpers/ConnectionSourceNode :property :replacement-value]
+                                             target-node-id helpers/ConnectionTargetNode]
+                (g/connect source-node-id :property-output target-node-id :regular-input))))]
+
+      (g/transact
+        {:undo-key ::delete-target}
+        (g/delete-node target-node-id))
+      (g/delete-graph! source-graph-id)
+
+      (testing "After restoring the target without its source graph."
+        (g/undo! ::delete-target)
+        (let [basis (g/now)]
+          (is (nil? (g/graph source-graph-id)))
+          (is (g/node-by-id basis target-node-id))
+          (is (= [[source-node-id :property-output]]
+                 (g/sources basis target-node-id :regular-input)))
+          (is (= [[source-node-id :property-output target-node-id :regular-input]]
+                 (helpers/target-arc-table-tuples basis target-graph-id target-node-id :regular-input)))))
+
+      (testing "After replacing the target-only connection."
+        (g/transact
+          {:undoable false}
+          (g/connect replacement-source-node-id :property-output target-node-id :regular-input))
+        (let [basis (g/now)
+              replacement-arc-tuple [replacement-source-node-id :property-output target-node-id :regular-input]]
+          (is (nil? (g/graph source-graph-id)))
+          (is (= [[replacement-source-node-id :property-output]]
+                 (g/sources basis target-node-id :regular-input)))
+          (is (= [replacement-arc-tuple]
+                 (helpers/source-arc-table-tuples basis target-graph-id replacement-source-node-id :property-output)
+                 (helpers/target-arc-table-tuples basis target-graph-id target-node-id :regular-input)))
+          (is (= :replacement-value (g/node-value target-node-id :regular-output))))))))
+
 (deftest introduce-connection-on-array-input-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
