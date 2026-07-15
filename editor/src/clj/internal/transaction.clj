@@ -809,9 +809,10 @@
                        (fn regular-node-value-fn [property-label default-value]
                          (get assigned-properties property-label default-value)))]
         (coll/reduce-> ordered-property-setter-infos (pair ctx undoable-changes)
-          (fn [ctx+undoable-changes [property-label default-value setter-fn]]
+          (fn [ctx+undoable-changes [property-label default-value]]
             (if-some [property-value (value-fn property-label default-value)]
               (let [[ctx undoable-changes] ctx+undoable-changes
+                    setter-fn (in/property-setter node-type property-label)
                     setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value)]
                 (realize-tx ctx undoable-changes setter-actions))
               ctx+undoable-changes)))))))

@@ -342,10 +342,9 @@
 
     (coll/into-> prop-kws-in-declaration-order []
       (keep (fn [prop-kw]
-              (when-some [prop-info (prop-kw->prop-info prop-kw)]
-                (when-some [setter-fn (some-> prop-info :setter :fn util/var-get-recursive)]
-                  (let [default-value (prop-kw->default-value prop-kw)]
-                    [prop-kw default-value setter-fn]))))))))
+              (when (some-> prop-kw prop-kw->prop-info :setter :fn)
+                (let [default-value (prop-kw->default-value prop-kw)]
+                  (pair prop-kw default-value))))))))
 
 (def ^{:private true
        :arglists '([node-type-deref])}
@@ -356,7 +355,7 @@
   "Return a vector of property-setter-infos that can be used to invoke property
   setters during construction. The property-setter-infos are listed in the
   order the properties are declared in the defnode expression. Each element is a
-  vector of [prop-kw default-value setter-fn]."
+  pair of [prop-kw default-value]."
   [node-type]
   (node-type-deref-ordered-property-setter-infos @node-type))
 
