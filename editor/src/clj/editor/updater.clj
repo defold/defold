@@ -56,29 +56,32 @@
                                                 issue-url (format "https://github.com/defold/%s/issues/%s"
                                                                   repository
                                                                   issue-number)]
-                                            (format "[%s](%s)" issue-text issue-url)))
+                                            (format "<a href=\"%s\">%s</a>" issue-url issue-text)))
                                         closed_issues)))
-        issue->markdown (fn [{:keys [author pr_number title type url] :as issue}]
-                          (let [closed-issues (issue->closed-issues issue)]
-                            (format "* __%s__: (%s) %s (by %s) (PR [#%s](%s))\n"
-                                    type
-                                    closed-issues
-                                    title
-                                    author
-                                    pr_number
-                                    url)))
-        summary-markdown (fn [sections]
+        issue->summary (fn [{:keys [author pr_number title type url] :as issue}]
+                         (format "<strong>%s</strong>: (%s) %s (by %s) (PR <a href=\"%s\">#%s</a>)"
+                                 type
+                                 (issue->closed-issues issue)
+                                 title
+                                 author
+                                 url
+                                 pr_number))
+        issue->markdown (fn [{:keys [body] :as issue}]
+                          (let [summary (issue->summary issue)]
+                            (if (string/blank? body)
+                              (str summary "\n\n")
+                              ;; blank lines let commonmark format the body while
+                              ;; <details>/<summary> pass through as raw HTML
+                              (str "<details>\n<summary>" summary "</summary>\n\n" body "\n\n</details>\n\n"))))
+        section-markdown (fn [issues]
                            (reduce (fn [markdown issue-type]
-                                     (reduce (fn [markdown issues]
-                                               (reduce (fn [markdown issue]
-                                                         (if (and (= issue-type (:type issue))
-                                                                  (not (:duplicate issue)))
-                                                           (str markdown (issue->markdown issue))
-                                                           markdown))
-                                                       markdown
-                                                       issues))
+                                     (reduce (fn [markdown issue]
+                                               (if (and (= issue-type (:type issue))
+                                                        (not (:duplicate issue)))
+                                                 (str markdown (issue->markdown issue))
+                                                 markdown))
                                              markdown
-                                             sections))
+                                             issues))
                                    ""
                                    issue-types))
         {:keys [version issues]} release-notes
@@ -97,9 +100,14 @@
                  :editor []
                  :other []}
                 issues)]
-    (str "# Defold Release Summary - Version " version "\n"
-         "\nFor full release notes, please visit our forum at " (:external-link release-notes)
-         "\n" (summary-markdown [engine editor other]))))
+    (reduce (fn [markdown [heading issues]]
+              (let [section (section-markdown issues)]
+                (if (pos? (count section))
+                  (str markdown "\n## " heading "\n" section)
+                  markdown)))
+            (str "# Defold " version "\n"
+                 "\nFor full release notes, please visit our forum at " (:external-link release-notes) "\n")
+            [["Engine" engine] ["Editor" editor] ["Other" other]])))
 
 (def ^:private release-notes-range-limit
   "Most releases to show in the update dialog when someone is several versions
@@ -230,24 +238,22 @@
               editor-sha1))))
 
 (defn release-notes
-  "Returns the release notes markdown for the available update, or nil if we
-  haven't fetched any yet, the fetch failed, or the notes we have are for an
-  older update that's since been replaced. Versions render newest first; if one
-  version's notes didn't download, its heading still shows with a short 'failed
-  to download' note in its place, so gaps stay visible in order."
-  ^String
+  "Returns {:markdown <string> :versions <newest-first version strings>}, or nil
+  if there's nothing to show for the current update."
   [updater]
   (let [state @(:state-atom updater)
         slots (:release-notes state)]
     (when (and (= (:release-notes-sha state) (:server-sha1 state))
                (not (coll/empty? slots)))
-      (coll/join-to-string "\n\n---\n\n"
-                           (e/map (fn [{:keys [version notes]}]
-                                    (if notes
-                                      (release-notes->markdown notes)
-                                      (str "# Defold Release Summary - Version " version
-                                           "\n\n_Failed to download these release notes._")))
-                                  slots)))))
+      {:markdown (coll/join-to-string
+                   "\n\n---\n\n"
+                   (e/map (fn [{:keys [version notes]}]
+                            (if notes
+                              (release-notes->markdown notes)
+                              (str "# Defold " version
+                                   "\n\n_Failed to download these release notes._")))
+                          slots))
+       :versions (mapv :version slots)})))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))

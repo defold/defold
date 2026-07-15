@@ -53,7 +53,7 @@
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
               :key :localization-state}]}
-  [{:keys [project localization-state content result-fn]}]
+  [{:keys [project localization-state content versions result-fn]}]
   {:fx/type dialogs/dialog-stage
    :showing true
    :on-close-request (fn [_] (result-fn false))
@@ -62,7 +62,9 @@
    :width 800
    :header {:fx/type fxui/legacy-label
             :variant :header
-            :text (localization-state (localization/message "updater.release-notes-dialog.header"))}
+            :text (localization-state (localization/message "updater.release-notes-dialog.header"
+                                                            {"count" (count versions)
+                                                             "version" (first versions)}))}
    :content {:fx/type markdown/view
              :content content
              :project project
@@ -83,18 +85,19 @@
   "Shows the release notes dialog, blocking the current thread until the user
   dismisses it. Must be called on the JavaFX application thread. Returns true if
   the user chose to update now, false otherwise."
-  [content project localization]
+  [content versions project localization]
   (fxui/show-stateless-dialog-and-await-result!
     (fn [result-fn]
       {:fx/type release-notes-update-dialog
        :result-fn result-fn
        :localization localization
        :content content
+       :versions versions
        :project project})))
 
 (defn- prompt-and-download! [stage project updater localization download-confirmed?]
-  (if-let [content (updater/release-notes updater)]
-    (when (show-release-notes-update-dialog! content project localization)
+  (if-let [{:keys [markdown versions]} (updater/release-notes updater)]
+    (when (show-release-notes-update-dialog! markdown versions project localization)
       (updater/download-and-extract! updater))
     (when (or download-confirmed?
               (dialogs/make-download-update-dialog stage localization))

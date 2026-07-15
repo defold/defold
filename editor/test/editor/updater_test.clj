@@ -257,6 +257,25 @@
           (#'updater/check! updater)
           (is (= 2 @fetches)))))))
 
+(deftest release-notes-markdown-groups-and-details
+  (let [->md #'updater/release-notes->markdown
+        md (->md {:version "1.13.2"
+                  :external-link "https://forum"
+                  :issues [{:type "NEW" :title "Has body" :author "a" :pr_number 1
+                            :url "u1" :repository "defold" :labels [] :closed_issues [10]
+                            :body "The **body**."}
+                           {:type "FIX" :title "Editor thing" :author "b" :pr_number 2
+                            :url "u2" :repository "defold" :labels ["editor"] :closed_issues [11]
+                            :body ""}]})]
+    ;; version-only H1, engine/editor section headings
+    (is (re-find #"(?m)^# Defold 1\.13\.2$" md))
+    (is (re-find #"(?m)^## Engine$" md))
+    (is (re-find #"(?m)^## Editor$" md))
+    ;; an issue with a body becomes a collapsible details block
+    (is (re-find #"<details>\n<summary>.*Has body.*</summary>\n\nThe \*\*body\*\*\." md))
+    ;; an issue without a body stays a plain summary line, no details wrapper
+    (is (not (re-find #"<details>[^<]*Editor thing" md)))))
+
 (deftest release-notes-renders-missing-version-in-place
   (let [updater (make-updater "test" "1")]
     (swap! (:state-atom updater) assoc
@@ -266,12 +285,13 @@
                            {:version "1.13.0" :notes {:version "1.13.0"
                                                       :issues []
                                                       :external-link "https://forum"}}])
-    (let [md (updater/release-notes updater)]
-      (is (re-find #"Version 1\.14\.0" md))
-      (is (re-find #"(?i)failed to download" md))
-      (is (re-find #"Version 1\.13\.0" md))
+    (let [{:keys [markdown versions]} (updater/release-notes updater)]
+      (is (= ["1.14.0" "1.13.0"] versions))
+      (is (re-find #"Defold 1\.14\.0" markdown))
+      (is (re-find #"(?i)failed to download" markdown))
+      (is (re-find #"Defold 1\.13\.0" markdown))
       ;; the missing version renders before the one we have
-      (is (< (.indexOf md "1.14.0") (.indexOf md "1.13.0"))))))
+      (is (< (.indexOf markdown "1.14.0") (.indexOf markdown "1.13.0"))))))
 
 (deftest release-notes-not-shown-for-superseded-update
   ;; notes fetched for one update must not render once :server-sha1 moves on

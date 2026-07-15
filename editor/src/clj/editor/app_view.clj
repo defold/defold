@@ -2601,7 +2601,8 @@
    :width 1000
    :header {:fx/type fxui/legacy-label
             :variant :header
-            :text (localization-state (localization/message "release-notes-dialog.header"))}
+            :text (localization-state (localization/message "release-notes-dialog.header"
+                                                            {"version" (system/defold-version)}))}
    :content {:fx/type markdown/view
              :content content
              :project project
