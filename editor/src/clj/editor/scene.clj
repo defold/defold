@@ -1108,12 +1108,10 @@
    :anchor-pane/right camera-inset-margin})
 
 (defn- animation-preview-anchor-props [camera viewport anim-data]
-  (let [[sx sy _] (c/scale-factor camera viewport)
-        offset texture-set/animation-preview-offset
+  (let [offset texture-set/animation-preview-offset
         image-width (double (:width anim-data))
         image-height (double (:height anim-data))
-        scaled-width (/ image-width sx)
-        scaled-height (/ image-height sy)
+        [scaled-width scaled-height] (texture-set/animation-preview-size camera viewport image-width image-height)
         x0 offset
         y0 (- (double (:bottom viewport)) offset)
         x1 (+ x0 scaled-width)

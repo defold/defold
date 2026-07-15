@@ -22,7 +22,6 @@
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
-            [editor.color-dropper :as color-dropper]
             [editor.command-requests :as command-requests]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -179,7 +178,6 @@
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
-          color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          localization
@@ -189,7 +187,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs)
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* prefs)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs localization (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))

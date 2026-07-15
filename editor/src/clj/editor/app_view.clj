@@ -1455,7 +1455,7 @@
       (workspace/save-build-cache! workspace))
     (nil? error)))
 
-(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
+(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane launch]
   (let [project-directory (workspace/project-directory workspace)
         main-scene (.getScene ^Stage main-stage)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
@@ -1472,16 +1472,21 @@
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
         (when (handle-build-results! workspace render-build-error! build-results)
-          (when (or engine skip-engine)
+          (when (and launch (or engine skip-engine))
             (show-console! main-scene tool-tab-pane)
             (launch-built-project! project engine project-directory prefs web-server false)))
         build-results))))
+
+(handler/defhandler :project.compile :global
+  (enabled? [] (not (build-in-progress?)))
+  (run [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane false)))
 
 (handler/defhandler :project.build :global
   (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
     (debug-view/detach! debug-view)
-    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true)))
 
 (handler/defhandler :run.set-instance-count :global
   (options [prefs user-data]
@@ -1586,7 +1591,7 @@
               (dialogs/make-confirmation-dialog localization clean-build-dialog-info))
       (debug-view/detach! debug-view)
       (workspace/clear-build-cache! workspace)
-      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane))))
+      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true))))
 
 (defn- start-new-log-pipe!
   ^PipedOutputStream []

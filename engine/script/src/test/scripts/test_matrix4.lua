@@ -169,3 +169,12 @@ m.c1 = vmath.vector4(-10.01,-10.01,-10.01,-10.01)
 m.c2 = vmath.vector4(-10.01,-10.01,-10.01,-10.01)
 m.c3 = vmath.vector4(-10.01,-10.01,-10.01,-10.01)
 assert(tostring(m) == ("" .. m))
+
+-- matrix4_scale
+-- use value for x, y and z
+assert("foo " .. tostring(vmath.matrix4_scale(1)) == "foo vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)")
+-- use first value for x, y and z
+assert("foo " .. tostring(vmath.matrix4_scale(1,2)) == "foo vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)")
+-- use provided values as x,y and z
+assert("foo " .. tostring(vmath.matrix4_scale(1,2,3)) == "foo vmath.matrix4(1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1)")
+assert("foo " .. tostring(vmath.matrix4_scale(vmath.vector3(1,2,3))) == "foo vmath.matrix4(1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1)")
