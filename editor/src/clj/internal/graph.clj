@@ -967,7 +967,7 @@
                                                  (-> node-id
                                                      gt/node-id->graph-id
                                                      graph-id->node-successors
-                                                     (query-successors basis node-id output))))))
+                                                     (some-> (query-successors basis node-id output)))))))
                                          endpoints)))
                     endpoints->tasks-xf (comp (partition-all 512) (map make-task!))
                     future->tasks-xf (comp (mapcat deref) endpoints->tasks-xf)]
