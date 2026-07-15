@@ -470,18 +470,21 @@ def gen_release_notes(channel):
         print("%s already exists - using manually-authored notes as-is" % notes_md)
         return
 
-    # The generator audits every issue's fix for presence on the branch(es) this
-    # channel ships from and exits non-zero - failing the job - if any are missing
-    # or generation itself errors. --use-github-compare does that check via the
-    # GitHub compare API since CI runs on a shallow clone with no branch history.
+    # Run the generator. It exits non-zero if it errors or can't confirm a fix is
+    # on the required branch(es). --use-github-compare makes that branch check use
+    # the GitHub API, needed because CI clones are shallow.
+    mandatory = channel in MANDATORY_RELEASE_NOTES_CHANNELS
     call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s --use-github-compare generate' % (
-        sys.executable, version, channel, get_github_token()))
+        sys.executable, version, channel, get_github_token()),
+        failonerror = mandatory)
 
-    if channel in MANDATORY_RELEASE_NOTES_CHANNELS:
+    if mandatory:
         if not os.path.exists(notes_md):
             raise Exception("No release notes produced for %s on channel '%s'" % (version, channel))
         if not os.path.exists(notes_json):
             raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
+    elif not os.path.exists(notes_md):
+        print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
 
 def build_sdk(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
