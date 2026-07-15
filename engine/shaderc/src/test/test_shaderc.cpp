@@ -593,6 +593,7 @@ TEST(Shaderc, TestMetal)
 
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
 }
 
 TEST(Shaderc, TestMetalCompute)
