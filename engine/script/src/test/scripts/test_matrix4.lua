@@ -172,9 +172,9 @@ assert(tostring(m) == ("" .. m))
 
 -- matrix4_scale
 -- use value for x, y and z
-assert(vmath.matrix4_scale(1) == vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1))
+assert("foo " .. tostring(vmath.matrix4_scale(1)) == "foo vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)")
 -- use first value for x, y and z
-assert(vmath.matrix4_scale(1,2) == vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1))
+assert("foo " .. tostring(vmath.matrix4_scale(1,2)) == "foo vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)")
 -- use provided values as x,y and z
-assert(vmath.matrix4_scale(1,2,3) == vmath.matrix4(1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1))
-assert(vmath.matrix4_scale(vmath.vector3(1,2,3)) == vmath.matrix4(1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1))
+assert("foo " .. tostring(vmath.matrix4_scale(1,2,3)) == "foo vmath.matrix4(1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1)")
+assert("foo " .. tostring(vmath.matrix4_scale(vmath.vector3(1,2,3))) == "foo vmath.matrix4(1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 0, 1)")
