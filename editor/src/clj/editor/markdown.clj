@@ -112,11 +112,12 @@
             (ui/execute-command (ui/contexts (ui/main-scene) true) command user-data))
 
           "file"
-          (if-let [resource (g/with-auto-evaluation-context evaluation-context
-                              (let [basis (:basis evaluation-context)
-                                    workspace (project/workspace project evaluation-context)]
-                                (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
-                                  (workspace/find-resource basis workspace proj-path))))]
+          (if-let [resource (when project
+                              (g/with-auto-evaluation-context evaluation-context
+                                (let [basis (:basis evaluation-context)
+                                      workspace (project/workspace project evaluation-context)]
+                                  (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
+                                    (workspace/find-resource basis workspace proj-path)))))]
             (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource)
             (ui/open-url resolved-url))
 
@@ -554,8 +555,9 @@
 
   Supported props:
     :html             required, HTML string
-    :project          required, project node id (for opening urls with the
-                      defold scheme)
+    :project          optional, project node id (for opening urls with the
+                      defold scheme, and file urls as in-project resources);
+                      when absent, file urls open externally
     :base-url         optional, URI used for resolving relative urls in links
     :base-resource    optional, Resource used for resolving relative urls
     :root-props
@@ -615,8 +617,9 @@
 
   Supported props:
     :content          required, markdown string
-    :project          required, project node id (for opening urls with the
-                      defold scheme)
+    :project          optional, project node id (for opening urls with the
+                      defold scheme, and file urls as in-project resources);
+                      when absent, file urls open externally
     :base-url         optional, URI used for resolving relative urls in links
     :base-resource    optional, Resource used for resolving relative urls
     ...the rest of ScrollPane lifecycle props"

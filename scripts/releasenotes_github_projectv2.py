@@ -445,13 +445,13 @@ def parse_github_project(version):
     issues = []
     items = get_issues_and_prs(project)
     print("Fetching %d items..." % len(items))
-    records = [fetch_item(item) for item in items]
 
-    for record in records:
+    for item in items:
+        record = fetch_item(item)
         if record is None:
             continue
 
-        print("  %12s %-12s #%-8s - " % (record["type"], record["repository"], record["number"]), end = "")
+        print("  %12s %-12s #%-8s - " % (record["type"], record["repository"], record["number"]), end = "", flush = True)
         if record["status"] == "ignored":
             yellow("IGNORED (%s)" % record["reason"])
             continue

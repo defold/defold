@@ -3319,6 +3319,11 @@ class Configuration(object):
 
         release_sha1 = releases[0]['sha1']
 
+        # The editor release notes (the update dialog's source) must land before
+        # update-v4.json points users at the new sha1.
+        # DEV-ONLY (issue-7186 validation): 'release-notes-view' requires notes so
+        releasenotes.upload(bucket, self.version, self.channel, required = self.channel in ('beta', 'stable', 'release-notes-view'))
+
         html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:
             html = file.read()
@@ -3336,12 +3341,6 @@ class Configuration(object):
         new_obj_content = json.dumps({'version': self.version,
                                                  'sha1' : release_sha1})
         new_obj.put(Body=new_obj_content, ContentType='application/json')
-
-        # The editor release notes (the update dialog's source) must land before
-        # update-v4.json points users at the new sha1.
-        # DEV-ONLY (issue-7186 validation): 'release-notes-view' requires notes so
-        # the disposable channel exercises the full path. Remove before merge.
-        releasenotes.upload(bucket, self.version, self.channel, required = self.channel in ('beta', 'stable', 'release-notes-view'))
 
         # Editor update-v4.json
         v4_obj = bucket.Object('editor2/channels/%s/update-v4.json' % self.channel)
