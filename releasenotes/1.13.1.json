@@ -1,6 +1,49 @@
 {
     "issues": [
         {
+            "author": "JosephFerano",
+            "body": "You can now use the color dropper from the grid settings popup in the scene view toolbar.\r\n\r\n<img width=\"396\" height=\"194\" alt=\"image\" src=\"https://github.com/user-attachments/assets/aa13518b-210c-4f48-bc2d-37094a57c6a4\" />",
+            "closed_issues": [
+                12519
+            ],
+            "duplicate": false,
+            "issue_number": 12519,
+            "labels": [
+                "task",
+                "editor",
+                "scene editor",
+                "ux"
+            ],
+            "mergecommit": "18c09fbd5c44bab3a9feec36334d4df5735c3916",
+            "pr_number": 12497,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Color dropper from grid popup",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12497"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "",
+            "closed_issues": [
+                12623
+            ],
+            "duplicate": false,
+            "issue_number": 12623,
+            "labels": [
+                "editor",
+                "linux",
+                "javafx"
+            ],
+            "mergecommit": "5f6c7c633d6a241dcbb49bc188731fb50600a889",
+            "pr_number": 12724,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Editor: Fix rare exception on Linux related to Sliders in properties view ",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12724"
+        },
+        {
             "author": "britzl",
             "body": "This change makes sure that `texc_shared`, `shaderc_shared` and `modelc_shared` in the editor package are signed on Windows and macOS. The Windows and macOS versions of `dmengine`, `dmengine_release` and `dmengine_headless` are also signed.",
             "closed_issues": [
@@ -1178,8 +1221,113 @@
             "title": "Added lit materials with skinning taking into account normal.",
             "type": "FIX",
             "url": "https://github.com/defold/defold/pull/12661"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The Preferences Dialog Keymap tab now includes bindings for mouse related operations. This allows users to create their own custom mouse + keyboard modifiers (ctrl/alt/shift) for scene related operations, namely mouse controls like zoom/orbit/pan/free-cam. Scenes like Tilesource, Atlas, and Curve View can override default camera behaviors, while Curve Editor and Tilemap allow customization of their special actions like adding control points on curves and copying/erasing tiles.\r\n\r\n<img width=\"786\" height=\"404\" alt=\"image\" src=\"https://github.com/user-attachments/assets/47866f37-9459-4ddf-8edb-b32365e9bbb1\" />\r\n<img width=\"818\" height=\"354\" alt=\"image\" src=\"https://github.com/user-attachments/assets/eddc55c4-e51a-4d81-b095-f7b2fcf02a71\" />",
+            "closed_issues": [
+                12405,
+                11506,
+                11338
+            ],
+            "duplicate": false,
+            "issue_number": 12405,
+            "labels": [
+                "task",
+                "editor",
+                "camera",
+                "scene editor",
+                "ux"
+            ],
+            "mergecommit": "268c415b5776094fa26418addd78364b98048dac",
+            "pr_number": 12453,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Support configuring mouse bindings for scene view controls",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12453"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The Preferences Dialog Keymap tab now includes bindings for mouse related operations. This allows users to create their own custom mouse + keyboard modifiers (ctrl/alt/shift) for scene related operations, namely mouse controls like zoom/orbit/pan/free-cam. Scenes like Tilesource, Atlas, and Curve View can override default camera behaviors, while Curve Editor and Tilemap allow customization of their special actions like adding control points on curves and copying/erasing tiles.\r\n\r\n<img width=\"786\" height=\"404\" alt=\"image\" src=\"https://github.com/user-attachments/assets/47866f37-9459-4ddf-8edb-b32365e9bbb1\" />\r\n<img width=\"818\" height=\"354\" alt=\"image\" src=\"https://github.com/user-attachments/assets/eddc55c4-e51a-4d81-b095-f7b2fcf02a71\" />",
+            "closed_issues": [
+                11506
+            ],
+            "duplicate": true,
+            "issue_number": 11506,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "268c415b5776094fa26418addd78364b98048dac",
+            "pr_number": 12453,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Support configuring mouse bindings for scene view controls",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12453"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "The Preferences Dialog Keymap tab now includes bindings for mouse related operations. This allows users to create their own custom mouse + keyboard modifiers (ctrl/alt/shift) for scene related operations, namely mouse controls like zoom/orbit/pan/free-cam. Scenes like Tilesource, Atlas, and Curve View can override default camera behaviors, while Curve Editor and Tilemap allow customization of their special actions like adding control points on curves and copying/erasing tiles.\r\n\r\n<img width=\"786\" height=\"404\" alt=\"image\" src=\"https://github.com/user-attachments/assets/47866f37-9459-4ddf-8edb-b32365e9bbb1\" />\r\n<img width=\"818\" height=\"354\" alt=\"image\" src=\"https://github.com/user-attachments/assets/eddc55c4-e51a-4d81-b095-f7b2fcf02a71\" />",
+            "closed_issues": [
+                11338
+            ],
+            "duplicate": true,
+            "issue_number": 11338,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "268c415b5776094fa26418addd78364b98048dac",
+            "pr_number": 12453,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Support configuring mouse bindings for scene view controls",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12453"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "You can now press `Ctrl + Shift + O` on Windows/Linux and `Cmd + Shift + O` on Mac to open the jump-to-symbol dialog. You can fuzzy search symbols in the current script you are working on and press enter to jump to them, for quick navigation.\r\n\r\n<img width=\"1000\" height=\"664\" alt=\"output\" src=\"https://github.com/user-attachments/assets/e31e5e0c-0060-477b-8e0a-d4d038f15216\" />",
+            "closed_issues": [
+                12084
+            ],
+            "duplicate": false,
+            "issue_number": 12084,
+            "labels": [
+                "feature request",
+                "editor",
+                "ux"
+            ],
+            "mergecommit": "eeaa676db525013edb6e2f99141c6decc3083a5a",
+            "pr_number": 12696,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Jump to symbol dialog with fuzzy search",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12696"
+        },
+        {
+            "author": "britzl",
+            "body": "Fix when using a number value in call to `vmath.matrix4_scale()`.",
+            "closed_issues": [
+                12722
+            ],
+            "duplicate": false,
+            "issue_number": 12722,
+            "labels": [
+                "triage"
+            ],
+            "mergecommit": "527cdfe7cd6334907fe7adfd55b3a95a4828cc3f",
+            "pr_number": 12736,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix issue when using number in call to vmath.matrix4_scale",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12736"
         }
     ],
-    "timestamp": 1784010591.5018282,
+    "timestamp": 1784108967.206173,
     "version": "1.13.1"
 }
