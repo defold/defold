@@ -717,11 +717,12 @@
     `(do
        ~@type-regs
        ~@fn-defs
-       (defn ~runtime-definer [] ~node-type-def)
-       (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
-       ~@derivations)))
-
-
+       (let [~'node-type-def ~node-type-def]
+         (defn ~runtime-definer [] ~'node-type-def)
+         (def ~symb (in/register-node-type ~node-key (in/map->NodeTypeImpl (~runtime-definer))))
+         ~@derivations
+         (in/verify-property-defaults ~'node-type-def)
+         ~symb))))
 
 ;; ---------------------------------------------------------------------------
 ;; Transactions

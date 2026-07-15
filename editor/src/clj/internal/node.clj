@@ -546,21 +546,24 @@
   ;; nil values.
   (:schema property-schema)) ; Maybe -> Declared
 
-(defn- warn-declared-schema [node-id label node-type-name value declared-schema error]
-  (println "Schema validation failed for output" label "on" node-type-name node-id)
-  (println "Output value:" (pr-str value))
+(defn- warn-declared-schema-impl [value declared-schema error]
+  (println "Value:" (pr-str value))
   (println "Should match:" (s/explain declared-schema))
   (println "But:" (pr-str error)))
 
 (defn warn-output-schema [node-id label node-type-name value output-schema error]
   (when-not *suppress-schema-warnings*
     (let [declared-schema (output-schema->declared-schema output-schema)]
-      (warn-declared-schema node-id label node-type-name value declared-schema error))))
+      (println "Schema validation failed for output" label "on" node-type-name node-id)
+      (warn-declared-schema-impl value declared-schema error))))
 
 (defn warn-property-schema [node-id label node-type-name value output-schema error]
   (when-not *suppress-schema-warnings*
     (let [declared-schema (property-schema->declared-schema output-schema)]
-      (warn-declared-schema node-id label node-type-name value declared-schema error))))
+      (if node-id
+        (println "Schema validation failed for property" label "on" node-type-name node-id)
+        (println "Schema validation failed for property" label "default in" node-type-name))
+      (warn-declared-schema-impl value declared-schema error))))
 
 ;;; ----------------------------------------
 ;; Type checking
@@ -602,42 +605,51 @@
           (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
           (and (instance? ConditionalSchema input-schema) (some #(type-compatible? output-schema %) (map second (:preds-and-schemas input-schema))))))))
 
-(defn validate-property-value-impl [node-type-ref node-id property-label property-value]
-  (let [value-type (some-> (property-type node-type-ref property-label) deref schema s/maybe)
-        node-type-name (type-name node-type-ref)]
-    (when-let [validation-error (some-> value-type (s/check property-value))]
-      (warn-property-schema node-id property-label node-type-name property-value value-type validation-error)
-      (throw (ex-info "SCHEMA-VALIDATION"
-                      {:node-id node-id
-                       :type node-type-name
-                       :property property-label
-                       :expected value-type
-                       :actual property-value
-                       :validation-error validation-error})))))
+(defn validate-property-value-impl [node-type-deref node-id property-label property-value]
+  (let [property-label->prop-info (:property node-type-deref)
+        {:keys [flags value-type]} (property-label->prop-info property-label)
+        element-type (some-> value-type deref schema)
+        value-type (when element-type
+                     (s/maybe (if (contains? flags :collection)
+                                [element-type]
+                                element-type)))
+        validation-error (some-> value-type (s/check property-value))]
+    (when validation-error
+      (let [node-type-name (:name node-type-deref)]
+        (warn-property-schema node-id property-label node-type-name property-value value-type validation-error)
+        (throw
+          (ex-info
+            "SCHEMA-VALIDATION"
+            {:node-id node-id
+             :type node-type-name
+             :property property-label
+             :expected value-type
+             :actual property-value
+             :validation-error validation-error}))))))
 
 (defmacro validate-property-value [node-type-ref node-id property-label property-value]
   `(when-check-schemas
-     (validate-property-value-impl ~node-type-ref ~node-id ~property-label ~property-value)))
+     (validate-property-value-impl (deref ~node-type-ref) ~node-id ~property-label ~property-value)))
 
-(defn- validate-property-values-impl
-  [node-type-ref node-id property-values]
+(defn- validate-property-values-impl [node-type-deref node-id property-values]
   (let [unknown-property-labels
         (set/difference
           (util/key-set property-values)
-          (util/key-set (:property (deref node-type-ref))))]
+          (util/key-set (:property node-type-deref)))]
+
     (assert (coll/empty? unknown-property-labels)
             (str "You have given values for properties "
                  unknown-property-labels
                  ", but those don't exist on nodes of type "
-                 (:k node-type-ref))))
+                 (:name node-type-deref))))
 
   (coll/reduce-kv-> property-values nil
     (fn [_ property-label property-value]
-      (validate-property-value-impl node-type-ref node-id property-label property-value))))
+      (validate-property-value-impl node-type-deref node-id property-label property-value))))
 
 (defmacro validate-property-values [node-type-ref node-id property-values]
   `(when-check-schemas
-     (validate-property-values-impl ~node-type-ref ~node-id ~property-values)))
+     (validate-property-values-impl (deref ~node-type-ref) ~node-id ~property-values)))
 
 ;;; ----------------------------------------
 ;;; Construction
@@ -794,6 +806,15 @@
         properties (util/key-set (:property description))
         collisions (set/intersection inputs properties)]
     (assert (empty? collisions) (str "inputs and properties can not be overloaded (problematic fields: " (str/join "," (map #(str "'" (name %) "'") collisions)) ")")))
+  description)
+
+(defn verify-property-defaults
+  [description]
+  (doseq [[property-label prop-info] (:property description)]
+    (when-some [property-default-value (prop-info-default prop-info)]
+      (let [node-type-name (:name description)
+            property-value-type (:value-type prop-info)]
+        (validate-property-value-impl description nil property-label property-default-value))))
   description)
 
 (defn- invert-map

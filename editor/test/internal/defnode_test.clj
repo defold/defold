@@ -1158,3 +1158,10 @@
                                                          (g/map->error {:severity :fatal})))))]
         (is (not (g/error? (g/node-value node-id :target))))
         (is (g/error? (:result (g/node-value node-id :target))))))))
+
+(deftest property-default-schema-validation-test
+  (binding [in/*suppress-schema-warnings* true]
+    (is (thrown-with-msg?
+          Exception #"SCHEMA-VALIDATION"
+          (g/defnode BadPropertyDefaultTestNode
+            (property keyword-property g/Keyword (default "not a keyword")))))))
