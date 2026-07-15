@@ -453,6 +453,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         // Count the unique compiled resources reachable from this collection. Use the
         // in-memory collection message since the collection output is not written until
         // after transform() returns.
+        messageBuilder.setResourceCount(0);
         ResourceGraph resourceGraph = new ResourceGraph(project);
         String collectionPath = BuilderUtil.getRelativePath(project, task.output(0));
         resourceGraph.add(project.getResource(collectionPath), messageBuilder.build());
