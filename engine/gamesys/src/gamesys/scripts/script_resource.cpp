@@ -613,7 +613,6 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
 
     // Max mipmap count is inclusive, so need at least 1
     max_mipmaps                                        = dmMath::Max((uint32_t) 1, max_mipmaps);
-    uint32_t tex_bpp                                   = dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) format);
     dmGraphics::TextureImage::Type tex_type            = GraphicsTextureTypeToImageType(type);
     dmGraphics::TextureImage::TextureFormat tex_format = GraphicsTextureFormatToImageFormat(format);
 
@@ -640,7 +639,6 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_MaxMipMaps      = max_mipmaps;
     params->m_Type            = type;
     params->m_Format          = format;
-    params->m_TextureBpp      = tex_bpp;
     params->m_TextureType     = tex_type;
     params->m_TextureFormat   = tex_format;
     params->m_CompressionType = compression_type;
@@ -1112,7 +1110,14 @@ static int CreateTextureAsync(lua_State* L)
 
     if (create_params.m_Buffer == 0)
     {
-        raw_data = new uint8_t[create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp];
+        // Block-aware byte size of the full texture. GetTextureFormatDataSize handles both compressed
+        // and uncompressed formats (the old width*height*bpp math over-allocated by 8x for uncompressed
+        // and mis-sized every compressed format). Scaled by faces/layers/depth like MakeTextureImage.
+        uint32_t slice_size = dmGraphics::GetTextureFormatDataSize(create_params.m_Format, create_params.m_Width, create_params.m_Height);
+        uint32_t num_slices = dmGraphics::GetLayerCount(create_params.m_Type)
+                            * dmMath::Max((uint16_t) 1, create_params.m_Depth)
+                            * dmMath::Max((uint8_t) 1, create_params.m_LayerCount);
+        raw_data = new uint8_t[slice_size * num_slices];
     }
 
     // The callback is optional, we don't have to do anything with the result if we don't need to.

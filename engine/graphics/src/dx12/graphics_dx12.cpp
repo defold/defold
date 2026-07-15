@@ -1438,37 +1438,37 @@ namespace dmGraphics
         return pitch;
     }
 
-    static void CopyTextureDataMipmapLevel(const TextureParams& params, TextureFormat format_dst, TextureFormat format_src,
-        const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts, const uint32_t* num_rows, uint32_t array_count,
-        uint32_t mipmap_count, const uint32_t* slice_row_pitch, const uint8_t* pixels, uint8_t* upload_data, uint32_t mipmap)
+    static void CopyTextureDataMipmapLevel(const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts,
+        const uint32_t* num_rows, const uint64_t* row_size_in_bytes, uint32_t array_count,
+        const uint8_t* pixels, uint8_t* upload_data)
     {
-        const uint8_t bpp_dst = GetTextureFormatBitsPerPixel(format_dst) / 8;
-        const uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
-        const uint64_t srcRowPitch = slice_row_pitch[0];  // Assuming only one mip being uploaded
-        const uint32_t copy_width = params.m_Width;
-        const uint32_t copy_height = params.m_Height;
-        const uint32_t copy_x = params.m_X;
-        const uint32_t copy_y = params.m_Y;
-
+        // GetCopyableFootprints describes the destination in terms the tightly-packed source shares:
+        // num_rows is the number of (block-)rows and row_size_in_bytes is the unpadded (block-)row size.
+        // Using those instead of a bits-per-pixel value keeps this correct for block-compressed formats,
+        // where a per-pixel byte size is meaningless (BC1/BC4 would truncate to 0 bytes-per-pixel).
+        uint64_t src_offset = 0;
         for (uint32_t array = 0; array < array_count; ++array)
         {
             const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& layout = layouts[array];
-            const uint64_t dstRowPitch = layout.Footprint.RowPitch;
+            const uint64_t dstRowPitch = layout.Footprint.RowPitch;   // 256-byte aligned (padded)
+            const uint64_t srcRowPitch = row_size_in_bytes[array];    // unpadded, matches the source
+            const uint32_t rows = num_rows[array];
             const uint32_t depth = layout.Footprint.Depth;
 
             uint8_t* dst = upload_data + layout.Offset;
-            const uint8_t* src = pixels + array * copy_height * srcRowPitch * depth;
 
             for (uint32_t z = 0; z < depth; ++z)
             {
-                for (uint32_t row = 0; row < copy_height; ++row)
+                for (uint32_t row = 0; row < rows; ++row)
                 {
-                    const uint8_t* src_row = src + (z * copy_height + row) * srcRowPitch;
-                    uint8_t* dst_row = dst + (z * copy_height + row) * dstRowPitch;
+                    const uint8_t* src_row = pixels + src_offset + (uint64_t) (z * rows + row) * srcRowPitch;
+                    uint8_t* dst_row = dst + (uint64_t) (z * rows + row) * dstRowPitch;
 
-                    memcpy(dst_row, src_row, copy_width * bpp_dst);
+                    memcpy(dst_row, src_row, srcRowPitch);
                 }
             }
+
+            src_offset += (uint64_t) rows * srcRowPitch * depth;
         }
     }
 
@@ -1528,7 +1528,7 @@ namespace dmGraphics
         CloseHandle(fence_event);
     }
 
-    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format_dst, TextureFormat format_src, const TextureParams& params, uint8_t* pixels)
+    static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, const TextureParams& params, uint8_t* pixels)
     {
         const uint32_t target_mip        = params.m_MipMap;
         const uint16_t tex_layer_count   = dmMath::Max(texture->m_LayerCount, (uint16_t) params.m_LayerCount);
@@ -1585,13 +1585,9 @@ namespace dmGraphics
         hr = upload_heap->Map(0, NULL, (void**)&upload_data);
         CHECK_HR_ERROR(hr);
 
-        // Compute only the target mip’s row pitch
-        uint8_t bpp_src = GetTextureFormatBitsPerPixel(format_src) / 8;
-        uint32_t slice_row_pitch[1] = { (uint32_t)(params.m_Width * bpp_src) };
-
-        // Copy only the selected mip level's data
-        CopyTextureDataMipmapLevel(params, format_dst, format_src, fp, num_rows, tex_layer_count,
-            texture->m_Base.m_MipMapCount, slice_row_pitch, pixels, upload_data, target_mip);
+        // The footprint (num_rows / row_size_in_bytes) already describes the block-compressed layout,
+        // so no bits-per-pixel row-pitch calculation is needed here.
+        CopyTextureDataMipmapLevel(fp, num_rows, row_size_in_bytes, tex_layer_count, pixels, upload_data);
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
         DX12OneTimeCommandList one_time_cmd_list = {};
@@ -3944,7 +3940,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
             tex->m_ResourceDesc = desc;
         }
 
-        TextureBufferUploadHelper(g_DX12Context, tex, format_actual, format_actual, params, (uint8_t*) tex_data_ptr);
+        TextureBufferUploadHelper(g_DX12Context, tex, params, (uint8_t*) tex_data_ptr);
 
         tex->m_Base.m_Format = format_actual;
         SetTextureResourceSize(&tex->m_Base, sizeof(DX12Texture));

@@ -4767,7 +4767,7 @@ bail:
         TextureFormat format_orig   = params.m_Format;
         uint8_t tex_layer_count     = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
         uint16_t tex_depth          = dmMath::Max(texture->m_Base.m_Depth, params.m_Depth);
-        uint8_t tex_bpp             = GetTextureFormatBitsPerPixel(params.m_Format);
+        uint8_t tex_bpp             = IsTextureFormatCompressed(params.m_Format) ? 0 : GetTextureFormatBitsPerPixel(params.m_Format);
         size_t tex_data_size_bpp    = params.m_DataSize * tex_layer_count * 8; // Convert into bits
         void*  tex_data_ptr         = (void*)params.m_Data;
         VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
@@ -4909,7 +4909,9 @@ bail:
         if (!memoryless)
         {
             uint32_t tex_data_size;
-            if (IsTextureFormatASTC(params.m_Format))
+            // Compressed formats (ASTC/BC/ETC/PVRTC) can't be sized from bits-per-pixel; trust the
+            // block-aware data size res_texture computed (same as the OpenGL/DX12 backends do).
+            if (IsTextureFormatCompressed(params.m_Format))
                 tex_data_size = params.m_DataSize * tex_layer_count;
             else
                 tex_data_size = (int) ceil((float) tex_data_size_bpp / 8.0f);
@@ -5065,7 +5067,8 @@ bail:
             bool is_memoryless        = IsTextureMemoryless(tex);
 
             uint32_t tex_data_size;
-            if (IsTextureFormatASTC(ap.m_Params.m_Format))
+            // Compressed formats can't be sized from bits-per-pixel; trust the block-aware data size.
+            if (IsTextureFormatCompressed(ap.m_Params.m_Format))
             {
                 tex_data_size = ap.m_Params.m_DataSize * tex_layer_count;
             }

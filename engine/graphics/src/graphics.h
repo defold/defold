@@ -487,6 +487,8 @@ namespace dmGraphics
     bool        GetAstcTextureFormat(const void* mem, uint32_t memsize, dmGraphics::TextureFormat* out);
 
     uint32_t    GetTextureFormatBitsPerPixel(TextureFormat format);
+    // Size in bytes of a single image slice, for compressed as well as uncompressed formats
+    uint32_t    GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height);
     uint8_t     GetTexturePageCount(HTexture texture);
 
     // Calculating mipmap info helpers

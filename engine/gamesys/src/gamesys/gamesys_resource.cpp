@@ -51,16 +51,18 @@ namespace dmGameSystem
 
             for (uint32_t i = 0; i < params.m_MaxMipMaps; ++i)
             {
-                mip_map_offsets[i]            = (data_size / 8);
+                mip_map_offsets[i]            = data_size;
                 mip_map_dimensions[i * 2 + 0] = mm_width;
                 mip_map_dimensions[i * 2 + 1] = mm_height;
 
-                // Calculate the data size per mipmap in bytes
+                // Calculate the data size per mipmap in bytes.
                 // Graphics APIs require that the data size is _per slice_ and not the whole texture.
                 // This is a quirk from how the OpenGL adapter is implemented, and should probably be fixed.
-                uint32_t data_size_per_slice  = mm_width * mm_height * params.m_TextureBpp;
+                // GetTextureFormatDataSize counts whole compressed blocks (and falls back to the
+                // bits-per-pixel value for uncompressed formats), so block-compressed mips are sized correctly.
+                uint32_t data_size_per_slice  = dmGraphics::GetTextureFormatDataSize(params.m_Format, mm_width, mm_height);
                 data_size                    += data_size_per_slice * layer_count;
-                mip_map_data_size[i]          = data_size_per_slice / 8;
+                mip_map_data_size[i]          = data_size_per_slice;
 
                 mm_width                     /= 2;
                 mm_height                    /= 2;
@@ -88,7 +90,7 @@ namespace dmGameSystem
         }
         else
         {
-            image_data_size  = data_size / 8; // bits -> bytes for compression formats
+            image_data_size  = data_size; // already in bytes (GetTextureFormatDataSize)
             image_data = new uint8_t[image_data_size];
             memset(image_data, 0, image_data_size);
         }

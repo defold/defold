@@ -2762,7 +2762,6 @@ namespace dmGameSystem
         params.m_Height             = height;
         params.m_Depth              = 1;
         params.m_MaxMipMaps         = 1;
-        params.m_TextureBpp         = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
         params.m_UsageFlags         = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
 
         // Creates a texture and invokes the res_texture.cpp code path

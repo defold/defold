@@ -155,12 +155,11 @@ namespace dmGameSystem
         }
 
         // Validate data size (this should be true even if a NULL pointer is passed for the data, i.e blank texture)
-        uint32_t bitspp = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
-
+        //
         // NOTE! The params.m_Depth is NOT included here. This is because of how the pipeline (and I think, OpenGL adapter is built),
         //       the data size is supposed to be per slice and not the full data size. With this in mind, we unfortunately can't
         //       properly validate 3D textures here. We will have to solve this at some point.
-        uint32_t data_size = params.m_Width * params.m_Height * bitspp / 8;
+        uint32_t data_size = dmGraphics::GetTextureFormatDataSize(params.m_Format, params.m_Width, params.m_Height);
 
         // NOTE! We can't check that the _exact_ size matches here (data_size != params.m_DataSize) because the data may be
         //       passed in from a buffer, which can align the data buffer being passed in. So best we can do is make sure
