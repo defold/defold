@@ -76,7 +76,14 @@
 
    :build
    {:ui-handler :project.build
-    :help "Build and run the project."
+    ;; Deprecated compatibility alias. Remove after 2027-07-15.
+    :deprecated true
+    :resource-sync true
+    :response-fn build-response}
+
+   :compile
+   {:ui-handler :project.compile
+    :help "Compile the project without running it."
     :resource-sync true
     :response-fn build-response}
 
@@ -182,6 +189,12 @@
    {:ui-handler :help.report-suggestion
     :help "Open the Report Suggestion page in a web browser."}
 
+   :run
+   {:ui-handler :project.build
+    :help "Compile and run the project."
+    :resource-sync true
+    :response-fn build-response}
+
    :show-build-errors
    {:ui-handler :window.show-build-errors
     :help "Show the Build Errors tab."}
@@ -212,8 +225,9 @@
 
 (defn- command-openapi []
   (let [command->help (coll/into-> supported-commands (sorted-map)
-                       (map (fn [[command {:keys [help]}]]
-                              (coll/pair (name command) help))))]
+                       (keep (fn [[command {:keys [deprecated help]}]]
+                               (when-not deprecated
+                                 (coll/pair (name command) help)))))]
     {:summary "Execute an editor command"
      :description (str "Available commands:\n"
                        (coll/join-to-string
@@ -302,7 +316,7 @@
   (-> @(util.http-client/request
          (str "http://localhost:"
               (slurp (str (g/node-value (dev/workspace) :root) "/.internal/editor.port"))
-              "/command/build")
+              "/command/run")
          :method "POST"
          :as :string)
       :body
