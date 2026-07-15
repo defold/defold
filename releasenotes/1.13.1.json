@@ -1321,13 +1321,37 @@
             ],
             "mergecommit": "527cdfe7cd6334907fe7adfd55b3a95a4828cc3f",
             "pr_number": 12736,
-            "referencecommits": [],
+            "referencecommits": [
+                "f19232815d3b1539ca7df89ed4dd441acdae0730"
+            ],
             "repository": "defold",
             "title": "Fix issue when using number in call to vmath.matrix4_scale",
             "type": "FIX",
             "url": "https://github.com/defold/defold/pull/12736"
+        },
+        {
+            "author": "paweljarosz",
+            "body": "On ES2 based backends (WebGL) the medium precision produced bad results with lighting on edges of models. Increasing the precision of the mtx_world in vertex programs used by lit materials solves these issues.",
+            "closed_issues": [
+                12737
+            ],
+            "duplicate": false,
+            "issue_number": 12737,
+            "labels": [
+                "feature request",
+                "render",
+                "shader",
+                "Light"
+            ],
+            "mergecommit": "99a8113fdc55a56f0704a15847c8285d8ecd8fd9",
+            "pr_number": 12738,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Increased precision of the world matrix for vp used by lit materials",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12738"
         }
     ],
-    "timestamp": 1784108967.206173,
+    "timestamp": 1784142894.1177459,
     "version": "1.13.1"
 }
