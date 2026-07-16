@@ -48,7 +48,7 @@
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
         issue->closed-issues (fn [{:keys [closed_issues repository]}]
                                (coll/join-to-string
-                                 ","
+                                 ", "
                                  (e/map (fn [issue-number]
                                           (let [issue-text (if (= "defold" repository)
                                                              (str "#" issue-number)
@@ -58,21 +58,20 @@
                                                                   issue-number)]
                                             (format "<a href=\"%s\">%s</a>" issue-url issue-text)))
                                         closed_issues)))
-        issue->summary (fn [{:keys [author pr_number title type url] :as issue}]
-                         (format "<strong>%s</strong>: (%s) %s (by %s) (PR <a href=\"%s\">#%s</a>)"
-                                 type
-                                 (issue->closed-issues issue)
-                                 title
-                                 author
-                                 url
-                                 pr_number))
-        issue->markdown (fn [{:keys [body] :as issue}]
-                          (let [summary (issue->summary issue)]
-                            (if (string/blank? body)
-                              (str summary "\n\n")
-                              ;; blank lines let commonmark format the body while
-                              ;; <details>/<summary> pass through as raw HTML
-                              (str "<details>\n<summary>" summary "</summary>\n\n" body "\n\n</details>\n\n"))))
+        issue->summary (fn [{:keys [title type]}]
+                         ;; the summary wraps in the disclosure header; links and
+                         ;; author go in the body
+                         (format "<strong>%s</strong>: %s" type title))
+        issue->body (fn [{:keys [author body pr_number url] :as issue}]
+                      (let [closed (issue->closed-issues issue)
+                            meta (str (when (pos? (count closed)) (str "Closes " closed ". "))
+                                      (format "PR <a href=\"%s\">#%s</a> by %s." url pr_number author))]
+                        (str meta
+                             (when-not (string/blank? body) (str "\n\n" body)))))
+        issue->markdown (fn [issue]
+                          (str "<details>\n<summary>" (issue->summary issue) "</summary>\n\n"
+                               (issue->body issue) "\n\n"
+                               "</details>\n\n"))
         section-markdown (fn [issues]
                            (reduce (fn [markdown issue-type]
                                      (reduce (fn [markdown issue]

@@ -47,6 +47,7 @@
            [javafx.scene.control ContextMenu MenuItem ScrollPane]
            [javafx.scene.image Image]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
+           [javafx.scene.layout HBox]
            [org.commonmark.ext.autolink AutolinkExtension]
            [org.commonmark.ext.front.matter YamlFrontMatterExtension]
            [org.commonmark.ext.gfm.tables TablesExtension]
@@ -400,6 +401,17 @@
               (with-open [is (io/input-stream resource)]
                 (Image. is)))))))))
 
+(def ^:private prop-image-width-cap
+  (fx/make-binding-prop
+    (fn [^HBox hbox ^Image image]
+      (.bind (.maxWidthProperty hbox) (.widthProperty image))
+      #(.unbind (.maxWidthProperty hbox)))
+    fx.lifecycle/scalar))
+
+(def ^:private ext-with-image-width-cap
+  (fx/make-ext-with-props
+    {::image-width-cap prop-image-width-cap}))
+
 (ui/defc image-view-impl
   {:compose [{:fx/type ui/ext-memo
               :fn construct-image
@@ -407,7 +419,13 @@
               :key :image}]}
   [{:keys [image]}]
   (if image
-    {:fx/type fx.h-box/lifecycle :children [{:fx/type fxui/resizable-image :image image}]}
+    ;; Remote images may load in the background, so natural width is 0 until ready.
+    ;; Bind the cap to the live width so a fill-width parent shrinks a too-wide
+    ;; image but never upscales a smaller one.
+    {:fx/type ext-with-image-width-cap
+     :props {::image-width-cap image}
+     :desc {:fx/type fx.h-box/lifecycle
+            :children [{:fx/type fxui/resizable-image :image image :h-box/hgrow :always}]}}
     {:fx/type fx.region/lifecycle}))
 
 (defn- image-view [^Element node ctx]
@@ -508,7 +526,7 @@
       "ul" (with-separators acc 3 0 add-view (unordered-list-view node ctx))
       "ol" (with-separators acc 3 0 add-view (ordered-list-view node ctx))
       "hr" (with-separators acc 3 3 add-view {:fx/type fx.region/lifecycle :style-class "md-hr"})
-      "details" (with-separators acc 0 0 add-view (details-view node ctx))
+      "details" (with-separators acc 5 5 add-view (details-view node ctx))
       ("#comment" "head" "summary") acc
       (-> acc
           (add-text (str "<" tag ">") (style ctx "error"))

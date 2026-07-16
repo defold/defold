@@ -149,6 +149,6 @@
     (updater/add-state-watch updater link-fn)
     (.addEventHandler stage
                       WindowEvent/WINDOW_HIDING
-                      (ui/event-handler event
+                      (ui/event-handler _
                         (updater/remove-progress-watch updater render-progress!)
                         (updater/remove-state-watch updater link-fn)))))
