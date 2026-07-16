@@ -145,7 +145,7 @@ namespace dmGameSystem
             buffer->SetCapacity(file_size);
             buffer->SetSize(file_size);
 
-            size_t nread = fread(buffer->Begin(), 1, file_size, file);
+            fread(buffer->Begin(), 1, file_size, file);
             bool result = ferror(file) == 0;
             fclose(file);
 

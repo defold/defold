@@ -177,8 +177,8 @@ TEST_F(dlib, ReverseHashSafeStack)
         DM_HASH_REVERSE_MEM(hash_ctx, 52+21);
 
         const char* reverse64 = dmHashReverseSafe64Alloc(&hash_ctx, h64);
-        ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // 30 chars
-        ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32Alloc(&hash_ctx, h32)); // 20 chars
+        ASSERT_STREQ("<unknown:16993514797287668626>", dmHashReverseSafe64Alloc(&hash_ctx, h64unk)); // 30 chars
+        ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32Alloc(&hash_ctx, h32unk)); // 20 chars
         ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // Check that the null termination wasn't messed up
 
         // Test that the string will get truncated, and we'll fallback to the default string
@@ -193,6 +193,8 @@ TEST_F(dlib, ReverseHashSafeStack)
         // Making sure the macro works and that the variables names don't collide
         DM_HASH_REVERSE_MEM(hash_ctx2, 32);
         DM_HASH_REVERSE_MEM(hash_ctx3, 32);
+        (void)hash_ctx2;
+        (void)hash_ctx3;
     }
 }
 
