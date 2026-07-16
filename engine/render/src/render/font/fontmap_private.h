@@ -41,8 +41,17 @@ namespace dmRender
             free(m_VectorCurveData);
             m_VectorCurveData = 0;
 
+            free(m_VectorBandData);
+            m_VectorBandData = 0;
+
             if (m_Texture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
+
+            if (m_VectorSdfTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorSdfTexture);
+
+            if (m_VectorBandTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorBandTexture);
 
             dmHashTable<uint64_t, FontGlyph*>::Iterator iter = m_Glyphs.GetIterator();
             while(iter.Next())
@@ -60,10 +69,13 @@ namespace dmRender
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         HFontRenderBackend      m_FontRenderBackend;
-        dmGraphics::HTexture    m_Texture;       // Legacy glyph cache texture, or Slug curve texture for vector fonts
+        dmGraphics::HTexture    m_Texture;       // Legacy glyph cache texture, or curve texture for vector fonts
+        dmGraphics::HTexture    m_VectorSdfTexture;
+        dmGraphics::HTexture    m_VectorBandTexture;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
         void*                   m_VectorCurveData;
+        float*                  m_VectorBandData;
         dmGraphics::TextureFormat m_VectorCurveFormat;
 
         dmHashTable64<FontGlyph*>   m_Glyphs;       // Ache with generated glyphs (with bitmap data!)
@@ -112,6 +124,8 @@ namespace dmRender
         uint16_t                m_MaxGlyphHeight;       // Maximum height of any of the used glyphs
         uint32_t                m_VectorCurveCapacity;  // Number of texels in the vector curve texture
         uint32_t                m_VectorCurveCursor;    // Next free texel in the vector curve texture
+        uint32_t                m_VectorBandCapacity;   // Number of texels in the Slug band texture
+        uint32_t                m_VectorBandCursor;     // Next free row in the Slug band texture
         uint8_t                 m_VectorCurveComponentSize;
         uint8_t                 m_VectorCurveTexelsPerCurve;
         uint8_t                 m_CacheCellPadding;
@@ -125,8 +139,10 @@ namespace dmRender
         uint8_t                 m_CacheChannels:3;      // Number of channels (1-4)
         uint8_t                 m_IsSdf:1;
         uint8_t                 m_IsVector:1;
+        uint8_t                 m_VectorRenderer:2;
+        uint8_t                 m_ShadowSdf:1;
         uint8_t                 m_DebugGlyphBBoxes:1;
-        uint8_t                 :6;
+        uint8_t                 :3;
     };
 }
 

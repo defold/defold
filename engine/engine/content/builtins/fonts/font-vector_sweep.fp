@@ -12,6 +12,7 @@ precision highp int;
 
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;
+in highp vec2 var_sdf_texcoord;
 flat in highp vec4 var_effect_params;
 flat in highp vec4 var_glyph;
 flat in highp vec4 var_params;
@@ -19,6 +20,7 @@ flat in highp vec4 var_params;
 out vec4 out_fragColor;
 
 uniform highp sampler2D curve_texture;
+uniform mediump sampler2D sdf_shadow_texture;
 
 uniform fs_uniforms
 {
@@ -33,11 +35,29 @@ const int MAX_VECTOR_CURVES = 256;
 const float LAYER_MODE_FACE = 0.0;
 const float LAYER_MODE_OUTLINE = 1.0;
 const float LAYER_MODE_SHADOW = 2.0;
-const float PACKED_CURVE_COORD_MIN = -1.0;
-const float PACKED_CURVE_COORD_SPAN = 3.0;
+const float SDF_EDGE = 0.75;
 #define SHADOW_USE_SEPARABLE_BOX_REFERENCE 0
 #define SHADOW_USE_LEGACY_SDF_REFERENCE 1
+#define SHADOW_USE_OFFSET_SWEEP 1
 #define SHADOW_LEGACY_SDF_BLUR_3X3 0
+
+float EvaluateRuntimeSdfShadowAlpha(vec2 p)
+{
+    float sdf_sample = texture(sdf_shadow_texture, var_sdf_texcoord).r;
+    float sdf_outline = max(var_effect_params.x, 1.0 / 255.0);
+    float sdf_shadow = var_effect_params.y;
+    float sdf_spread = max(var_params.w, 0.0001);
+
+    // Match the native runtime SDF path's third-channel remap without storing
+    // that redundant channel in the vector font atlas.
+    float shadow_value = clamp(sdf_sample / sdf_outline, 0.0, 1.0) * SDF_EDGE;
+    vec2 source_pixel_footprint = fwidth(p) * max(var_params.xy, vec2(0.0001));
+    float sdf_smoothing = 0.25 * max(source_pixel_footprint.x,
+                                     source_pixel_footprint.y) / sdf_spread;
+    return smoothstep(sdf_shadow - sdf_smoothing,
+                      SDF_EDGE + sdf_smoothing,
+                      shadow_value);
+}
 
 vec4 SampleCurveTexel(float texel_index)
 {
@@ -49,39 +69,46 @@ vec4 SampleCurveTexel(float texel_index)
 
 float CurveTexelStride()
 {
-    return max(var_params.z, 2.0);
-}
-
-float DecodePackedUint16(float low_byte, float high_byte)
-{
-    float low = floor(low_byte * 255.0 + 0.5);
-    float high = floor(high_byte * 255.0 + 0.5);
-    return (low + high * 256.0) / 65535.0;
-}
-
-vec2 DecodePackedCurvePoint(vec4 packed_point)
-{
-    vec2 normalized = vec2(DecodePackedUint16(packed_point.x, packed_point.y),
-                           DecodePackedUint16(packed_point.z, packed_point.w));
-    return normalized * PACKED_CURVE_COORD_SPAN + vec2(PACKED_CURVE_COORD_MIN);
+    return 2.0;
 }
 
 void LoadCurve(float curve_texel, out vec2 p0, out vec2 p1, out vec2 p2)
 {
-    if (CurveTexelStride() > 2.5)
+    vec4 curve_a = SampleCurveTexel(curve_texel);
+    vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
+    p0 = curve_a.xy;
+    p1 = curve_a.zw;
+    p2 = curve_b.xy;
+}
+
+void LoadCurveWithJoinAngles(float curve_texel,
+                             out vec2 p0,
+                             out vec2 p1,
+                             out vec2 p2,
+                             out vec2 join_angles)
+{
+    vec4 curve_a = SampleCurveTexel(curve_texel);
+    vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
+    p0 = curve_a.xy;
+    p1 = curve_a.zw;
+    p2 = curve_b.xy;
+    join_angles = curve_b.zw;
+}
+
+bool LoadScanlineStripeRange(float y, out float curve_start, out float curve_count)
+{
+    float stripe_count = var_effect_params.y;
+    if (stripe_count <= 0.5)
     {
-        p0 = DecodePackedCurvePoint(SampleCurveTexel(curve_texel));
-        p1 = DecodePackedCurvePoint(SampleCurveTexel(curve_texel + 1.0));
-        p2 = DecodePackedCurvePoint(SampleCurveTexel(curve_texel + 2.0));
+        return false;
     }
-    else
-    {
-        vec4 curve_a = SampleCurveTexel(curve_texel);
-        vec4 curve_b = SampleCurveTexel(curve_texel + 1.0);
-        p0 = curve_a.xy;
-        p1 = curve_a.zw;
-        p2 = curve_b.xy;
-    }
+
+    float stripe_index = floor(clamp(y, 0.0, 0.999999) * stripe_count);
+    float stripe_texel = var_effect_params.x;
+    vec4 stripe_metadata = SampleCurveTexel(stripe_texel + stripe_index);
+    curve_start = stripe_texel + stripe_metadata.x;
+    curve_count = stripe_metadata.y;
+    return true;
 }
 
 float QuadraticAxis(float t, float p0, float p1, float p2)
@@ -482,6 +509,22 @@ vec4 ScanlineSweepDebugPage(vec2 render_coord,
 
 float ScanlineSweepRender(vec2 render_coord, float curve_start, float curve_count, vec2 filter_width)
 {
+    float stripe_count = var_effect_params.y;
+    if (stripe_count > 0.5)
+    {
+        float stripe_height = 1.0 / stripe_count;
+        float half_filter_height = filter_width.y * 0.5;
+        float stripe_index = floor(clamp(render_coord.y, 0.0, 0.999999) * stripe_count);
+        float stripe_min_y = stripe_index * stripe_height;
+        float stripe_max_y = stripe_min_y + stripe_height;
+        bool crosses_lower_boundary = stripe_index > 0.5 && render_coord.y - half_filter_height < stripe_min_y;
+        bool crosses_upper_boundary = stripe_index < stripe_count - 0.5 && render_coord.y + half_filter_height > stripe_max_y;
+        if (half_filter_height <= stripe_height && !crosses_lower_boundary && !crosses_upper_boundary)
+        {
+            LoadScanlineStripeRange(render_coord.y, curve_start, curve_count);
+        }
+    }
+
     vec2 inv_filter_width = 1.0 / max(filter_width, vec2(1.0 / 65536.0));
     vec2 size = vec2(1.0);
     vec2 offset = render_coord * inv_filter_width - size * 0.5;
@@ -504,6 +547,87 @@ float ScanlineSweepRender(vec2 render_coord, float curve_start, float curve_coun
                                       p0 * inv_filter_width,
                                       p1 * inv_filter_width,
                                       p2 * inv_filter_width);
+    }
+
+    return clamp(abs(signed_area), 0.0, 1.0);
+}
+
+vec2 OffsetCurveNormal(vec2 tangent, vec2 glyph_scale)
+{
+    vec2 pixel_tangent = tangent * glyph_scale;
+    float tangent_length = length(pixel_tangent);
+    if (tangent_length <= 0.000001)
+    {
+        return vec2(0.0);
+    }
+
+    // TrueType contours keep the filled region on their right-hand side, so
+    // the left-hand normal points away from both outer contours and counters.
+    vec2 pixel_normal = vec2(-pixel_tangent.y, pixel_tangent.x) / tangent_length;
+    return pixel_normal / glyph_scale;
+}
+
+void OffsetQuadratic(vec2 p0,
+                     vec2 p1,
+                     vec2 p2,
+                     vec2 join_angles,
+                     vec2 glyph_scale,
+                     float offset_pixels,
+                     out vec2 q0,
+                     out vec2 q1,
+                     out vec2 q2)
+{
+    vec2 tangent0 = vec2(cos(join_angles.x), sin(join_angles.x));
+    vec2 tangent1 = p2 - p0;
+    vec2 tangent2 = vec2(cos(join_angles.y), sin(join_angles.y));
+
+    q0 = p0 + OffsetCurveNormal(tangent0, glyph_scale) * offset_pixels;
+    q2 = p2 + OffsetCurveNormal(tangent2, glyph_scale) * offset_pixels;
+    vec2 midpoint = evaluate_bezier(p0, p1, p2, 0.5);
+    vec2 offset_midpoint = midpoint + OffsetCurveNormal(tangent1, glyph_scale) * offset_pixels;
+    q1 = 2.0 * offset_midpoint - 0.5 * (q0 + q2);
+    // The sweeper requires both axes to remain monotonic. Constraining the
+    // fitted control point to the endpoint bounds prevents a new interior
+    // extremum after the dynamic offset.
+    q1 = clamp(q1, min(q0, q2), max(q0, q2));
+}
+
+float ScanlineSweepRenderOffset(vec2 render_coord,
+                                float curve_start,
+                                float curve_count,
+                                vec2 glyph_scale,
+                                vec2 filter_width,
+                                float offset_pixels)
+{
+    vec2 inv_filter_width = 1.0 / max(filter_width, vec2(1.0 / 65536.0));
+    vec2 size = vec2(1.0);
+    vec2 offset = render_coord * inv_filter_width - size * 0.5;
+    float signed_area = 0.0;
+
+    // Dynamic offsets can move curves across stripe boundaries, so this first
+    // prototype intentionally uses the canonical curve list for correctness.
+    for (int i = 0; i < MAX_VECTOR_CURVES; ++i)
+    {
+        if (float(i) >= curve_count)
+        {
+            break;
+        }
+
+        float curve_texel = curve_start + float(i) * CurveTexelStride();
+        vec2 p0;
+        vec2 p1;
+        vec2 p2;
+        vec2 join_angles;
+        LoadCurveWithJoinAngles(curve_texel, p0, p1, p2, join_angles);
+        vec2 q0;
+        vec2 q1;
+        vec2 q2;
+        OffsetQuadratic(p0, p1, p2, join_angles, glyph_scale, offset_pixels, q0, q1, q2);
+        signed_area += scanline_sweep(size,
+                                      offset,
+                                      q0 * inv_filter_width,
+                                      q1 * inv_filter_width,
+                                      q2 * inv_filter_width);
     }
 
     return clamp(abs(signed_area), 0.0, 1.0);
@@ -594,6 +718,7 @@ float ComputeGlyphWinding(vec2 p, float curve_start, float curve_count)
 
 float IsInsideGlyph(vec2 p, float curve_start, float curve_count)
 {
+    LoadScanlineStripeRange(p.y, curve_start, curve_count);
     return step(0.5, abs(ComputeGlyphWinding(p, curve_start, curve_count)));
 }
 
@@ -677,35 +802,36 @@ float ComputeGlyphCoverage(vec2 p, float curve_start, float curve_count, vec2 gl
 
 float QuadraticDistanceSqPixels(vec2 p, vec2 p0, vec2 p1, vec2 p2, vec2 glyph_scale)
 {
-    float best_distance_sq = 1e20;
+    // Curve generation splits quadratics into x/y-monotonic segments. Seed the
+    // closest-point search by projecting onto the endpoint chord; four bounded
+    // Newton steps are sufficient for these short, well-behaved segments.
+    vec2 scaled_p = p * glyph_scale;
+    vec2 scaled_p0 = p0 * glyph_scale;
+    vec2 scaled_p2 = p2 * glyph_scale;
+    vec2 chord = scaled_p2 - scaled_p0;
+    float chord_length_sq = dot(chord, chord);
+    float t = chord_length_sq > 0.000001
+        ? clamp(dot(scaled_p - scaled_p0, chord) / chord_length_sq, 0.0, 1.0)
+        : 0.5;
     vec2 dd = QuadraticSecondDerivative(p0, p1, p2) * glyph_scale;
 
-    for (int seed_index = 0; seed_index < 5; ++seed_index)
+    for (int iter = 0; iter < 4; ++iter)
     {
-        float t = float(seed_index) * 0.25;
-
-        for (int iter = 0; iter < 6; ++iter)
+        vec2 delta = (evaluate_bezier(p0, p1, p2, t) - p) * glyph_scale;
+        vec2 tangent = QuadraticTangent(t, p0, p1, p2) * glyph_scale;
+        float f = dot(delta, tangent);
+        float df = dot(tangent, tangent) + dot(delta, dd);
+        if (abs(df) < 0.000001)
         {
-            vec2 delta = (evaluate_bezier(p0, p1, p2, t) - p) * glyph_scale;
-            vec2 tangent = QuadraticTangent(t, p0, p1, p2) * glyph_scale;
-
-            float f = dot(delta, tangent);
-            float df = dot(tangent, tangent) + dot(delta, dd);
-            if (abs(df) < 0.000001)
-            {
-                break;
-            }
-
-            t = clamp(t - f / df, 0.0, 1.0);
+            break;
         }
-
-        vec2 curve_p = evaluate_bezier(p0, p1, p2, t);
-        vec2 delta = (curve_p - p) * glyph_scale;
-        best_distance_sq = min(best_distance_sq, dot(delta, delta));
+        t = clamp(t - f / df, 0.0, 1.0);
     }
 
-    vec2 delta0 = (p0 - p) * glyph_scale;
-    vec2 delta1 = (p2 - p) * glyph_scale;
+    vec2 curve_delta = (evaluate_bezier(p0, p1, p2, t) - p) * glyph_scale;
+    float best_distance_sq = dot(curve_delta, curve_delta);
+    vec2 delta0 = scaled_p0 - scaled_p;
+    vec2 delta1 = scaled_p2 - scaled_p;
     best_distance_sq = min(best_distance_sq, dot(delta0, delta0));
     best_distance_sq = min(best_distance_sq, dot(delta1, delta1));
 
@@ -733,19 +859,73 @@ float ComputeCurveDistanceSqPixels(vec2 p, float curve_start, float curve_count,
     return best_distance_sq;
 }
 
-float ComputeStableGlyphCoverage(vec2 p,
-                                 float curve_start,
-                                 float curve_count,
-                                 vec2 pixel_filter_width,
-                                 vec2 glyph_screen_scale)
+float ComputePartitionedCurveDistanceSqPixels(vec2 p,
+                                              float curve_start,
+                                              float curve_count,
+                                              vec2 glyph_scale,
+                                              float max_distance_pixels)
 {
-    float coverage = ScanlineSweepRender(p, curve_start, curve_count, pixel_filter_width);
-    float edge_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_screen_scale));
-    if (edge_distance > 1.0)
+    float stripe_count = var_effect_params.y;
+    if (stripe_count <= 0.5)
     {
-        coverage = IsInsideGlyph(p, curve_start, curve_count);
+        return ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_scale);
     }
-    return coverage;
+
+    float radius_y = max_distance_pixels / max(glyph_scale.y, 0.0001);
+    float min_y = p.y - radius_y;
+    float max_y = p.y + radius_y;
+    if (max_y < 0.0 || min_y > 1.0)
+    {
+        float outside_distance = max_distance_pixels + 1.0;
+        return outside_distance * outside_distance;
+    }
+
+    float first_stripe = floor(clamp(min_y, 0.0, 0.999999) * stripe_count);
+    float last_stripe = floor(clamp(max_y, 0.0, 0.999999) * stripe_count);
+    float stripe_texel = var_effect_params.x;
+    float partition_curve_count = 0.0;
+    for (int stripe = 0; stripe < 8; ++stripe)
+    {
+        float stripe_index = float(stripe);
+        if (stripe_index >= first_stripe && stripe_index <= last_stripe)
+        {
+            partition_curve_count += SampleCurveTexel(stripe_texel + stripe_index).y;
+        }
+    }
+    if (partition_curve_count >= curve_count)
+    {
+        return ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_scale);
+    }
+
+    float best_distance_sq = 1e20;
+    for (int stripe = 0; stripe < 8; ++stripe)
+    {
+        float stripe_index = float(stripe);
+        if (stripe_index < first_stripe || stripe_index > last_stripe)
+        {
+            continue;
+        }
+
+        vec4 stripe_metadata = SampleCurveTexel(stripe_texel + stripe_index);
+        float stripe_curve_start = stripe_texel + stripe_metadata.x;
+        float stripe_curve_count = stripe_metadata.y;
+        for (int i = 0; i < MAX_VECTOR_CURVES; ++i)
+        {
+            if (float(i) >= stripe_curve_count)
+            {
+                break;
+            }
+
+            float curve_texel = stripe_curve_start + float(i) * CurveTexelStride();
+            vec2 p0;
+            vec2 p1;
+            vec2 p2;
+            LoadCurve(curve_texel, p0, p1, p2);
+            best_distance_sq = min(best_distance_sq,
+                QuadraticDistanceSqPixels(p, p0, p1, p2, glyph_scale));
+        }
+    }
+    return best_distance_sq;
 }
 
 float EvaluateOutlineSilhouetteAlpha(float curve_distance, float outline_width)
@@ -955,7 +1135,12 @@ float LegacySdfShadowValue(vec2 p,
 {
     const float sdf_edge = 0.75;
     const float sdf_range = 1.0 - sdf_edge;
-    float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_metric_scale));
+    float max_distance = LegacySdfShadowSpread(shadow_blur) + outline_width + 1.0;
+    float curve_distance = sqrt(ComputePartitionedCurveDistanceSqPixels(p,
+                                                                        curve_start,
+                                                                        curve_count,
+                                                                        glyph_metric_scale,
+                                                                        max_distance));
     float inside = IsInsideGlyph(p, curve_start, curve_count);
     float signed_distance = mix(-curve_distance, curve_distance, inside);
     float distance_to_shadow_body = signed_distance + outline_width;
@@ -1029,6 +1214,44 @@ float EvaluateLegacySdfShadowAlpha(vec2 p,
                       shadow_value);
 }
 
+float EvaluateOffsetSweepShadowAlpha(vec2 p,
+                                     float curve_start,
+                                     float curve_count,
+                                     vec2 glyph_metric_scale,
+                                     vec2 pixel_filter_width,
+                                     float outline_width,
+                                     float shadow_blur)
+{
+    // Combine a broad footprint with a narrower detail footprint. Summing in
+    // optical-density space keeps the transition continuous while retaining
+    // counters and terminals that a single large box footprint averages away.
+    float broad_offset_pixels = outline_width + shadow_blur * 0.28;
+    float broad_radius_pixels = 0.7 + shadow_blur * 0.72;
+    vec2 broad_filter_width = max(pixel_filter_width,
+                                  vec2(2.0 * broad_radius_pixels) / glyph_metric_scale);
+    float broad_coverage = ScanlineSweepRenderOffset(p,
+                                                     curve_start,
+                                                     curve_count,
+                                                     glyph_metric_scale,
+                                                     broad_filter_width,
+                                                     broad_offset_pixels);
+
+    float detail_offset_pixels = outline_width + shadow_blur * 0.08;
+    float detail_radius_pixels = 0.5 + shadow_blur * 0.22;
+    vec2 detail_filter_width = max(pixel_filter_width,
+                                   vec2(2.0 * detail_radius_pixels) / glyph_metric_scale);
+    float detail_coverage = ScanlineSweepRenderOffset(p,
+                                                      curve_start,
+                                                      curve_count,
+                                                      glyph_metric_scale,
+                                                      detail_filter_width,
+                                                      detail_offset_pixels);
+
+    float broad_density = 1.8 + 0.32 * shadow_blur;
+    float detail_density = 0.65 + 0.10 * shadow_blur;
+    return 1.0 - exp(-(broad_coverage * broad_density + detail_coverage * detail_density));
+}
+
 float EvaluateFilteredShadowAlpha(vec2 p,
                                   float curve_start,
                                   float curve_count,
@@ -1040,12 +1263,24 @@ float EvaluateFilteredShadowAlpha(vec2 p,
 {
     if (shadow_blur <= 0.0)
     {
-        float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_metric_scale));
+        float curve_distance = sqrt(ComputePartitionedCurveDistanceSqPixels(p,
+                                                                            curve_start,
+                                                                            curve_count,
+                                                                            glyph_metric_scale,
+                                                                            outline_width + 1.0));
         float center_alpha = EvaluateShadowSilhouetteAlpha(face_coverage, curve_distance, outline_width);
         return center_alpha;
     }
 
-#if SHADOW_USE_LEGACY_SDF_REFERENCE
+#if SHADOW_USE_OFFSET_SWEEP
+    return EvaluateOffsetSweepShadowAlpha(p,
+                                          curve_start,
+                                          curve_count,
+                                          glyph_metric_scale,
+                                          pixel_filter_width,
+                                          outline_width,
+                                          shadow_blur);
+#elif SHADOW_USE_LEGACY_SDF_REFERENCE
     return EvaluateLegacySdfShadowAlpha(p,
                                         curve_start,
                                         curve_count,
@@ -1084,7 +1319,11 @@ float EvaluateFilteredShadowAlpha(vec2 p,
     }
 
     float soft_alpha = ShadowResponseAlpha(filtered_alpha / max(total_weight, 0.0001), profile, large_profile);
-    float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_metric_scale));
+    float curve_distance = sqrt(ComputePartitionedCurveDistanceSqPixels(p,
+                                                                        curve_start,
+                                                                        curve_count,
+                                                                        glyph_metric_scale,
+                                                                        shadow_blur + outline_width + 1.0));
     float feather_distance = max(curve_distance - outline_width, 0.0);
     float feather_alpha = ShadowFeatherAlpha(feather_distance, shadow_blur, profile);
     soft_alpha = 1.0 - (1.0 - soft_alpha) * (1.0 - feather_alpha);
@@ -1109,6 +1348,7 @@ float EvaluateFilteredShadowAlpha(vec2 p,
 void main()
 {
     float curve_count = var_glyph.x;
+    bool use_sdf_shadow = var_glyph.y > 0.5;
     float curve_start = var_glyph.z;
     float layer_mode = var_glyph.w;
     if (curve_count <= 0.0)
@@ -1121,7 +1361,6 @@ void main()
     float shadow_blur = max(var_effect_params.w, 0.0);
     vec2 glyph_metric_scale = max(var_params.xy, vec2(0.0001));
     vec2 pixel_filter_width = max(fwidth(p), vec2(1.0 / 65536.0));
-    vec2 glyph_screen_scale = 1.0 / pixel_filter_width;
 
     if (scanline_debug.x > 0.5 && abs(layer_mode - LAYER_MODE_FACE) < 0.5)
     {
@@ -1145,7 +1384,20 @@ void main()
         return;
     }
 
-    float coverage = ComputeStableGlyphCoverage(p, curve_start, curve_count, pixel_filter_width, glyph_screen_scale);
+    if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5 && use_sdf_shadow)
+    {
+        float shadow_alpha = EvaluateRuntimeSdfShadowAlpha(p);
+        if (shadow_alpha <= 0.0)
+        {
+            discard;
+        }
+
+        float alpha = var_color.a * shadow_alpha;
+        out_fragColor = vec4(var_color.rgb * alpha, alpha);
+        return;
+    }
+
+    float coverage = ScanlineSweepRender(p, curve_start, curve_count, pixel_filter_width);
 
     if (abs(layer_mode - LAYER_MODE_FACE) < 0.5)
     {
@@ -1179,7 +1431,11 @@ void main()
         return;
     }
 
-    float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_metric_scale));
+    float curve_distance = sqrt(ComputePartitionedCurveDistanceSqPixels(p,
+                                                                        curve_start,
+                                                                        curve_count,
+                                                                        glyph_metric_scale,
+                                                                        outline_width + 1.0));
     if (coverage <= 0.0 && curve_distance > outline_width)
     {
         discard;

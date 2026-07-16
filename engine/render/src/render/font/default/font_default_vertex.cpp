@@ -46,6 +46,7 @@ struct DM_ALIGNED(16) GlyphVertex
     float m_Position[4];
     float m_VectorTexcoord[4];
     float m_VectorEffectParams[4];
+    float m_VectorBanding[4];
     uint8_t m_VectorColor[4];
     float m_UV[2];
     float m_FaceColor[4];
@@ -86,6 +87,7 @@ dmGraphics::HVertexDeclaration CreateVertexDeclaration(HFontRenderBackend backen
     dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "texcoord", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "effect_params", 4, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "banding", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "color", 4, dmGraphics::TYPE_UNSIGNED_BYTE, true);
     dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(stream_declaration, "face_color", 4, dmGraphics::TYPE_FLOAT, true);
@@ -424,6 +426,24 @@ static void OutputGlyphVector(uint32_t vertexindex,
                               float curve_start,
                               float curve_count,
                               float curve_texel_stride,
+                              float stripe_texel,
+                              float stripe_count,
+                              FontRendererType vector_renderer,
+                              float band_index,
+                              float band_max_x,
+                              float band_max_y,
+                              float band_scale_x,
+                              float band_scale_y,
+                              float band_offset_x,
+                              float band_offset_y,
+                              float sdf_u0,
+                              float sdf_v0,
+                              float sdf_u1,
+                              float sdf_v1,
+                              bool use_sdf_shadow,
+                              float sdf_outline,
+                              float sdf_shadow,
+                              float sdf_spread,
                               float texcoord_min_x,
                               float texcoord_min_y,
                               float texcoord_max_x,
@@ -452,6 +472,7 @@ static void OutputGlyphVector(uint32_t vertexindex,
     float quad_left = x - size_diff * 0.5f + placement_left_bearing + offset_x;
     float quad_bottom = y - descent + offset_y;
     float height = dmMath::Max(0.0001f, ascent + descent);
+    bool use_slug = vector_renderer == FONT_RENDERER_SLUG;
 
     (Vector4&)v1.m_Position = transform * Vector4(quad_left + texcoord_min_x * width, quad_bottom + texcoord_min_y * height, 0.0f, 1.0f);
     (Vector4&)v2.m_Position = transform * Vector4(quad_left + texcoord_min_x * width, quad_bottom + texcoord_max_y * height, 0.0f, 1.0f);
@@ -462,17 +483,22 @@ static void OutputGlyphVector(uint32_t vertexindex,
         v.m_VectorTexcoord[0] = u; \
         v.m_VectorTexcoord[1] = vv; \
         v.m_VectorTexcoord[2] = curve_count; \
-        v.m_VectorTexcoord[3] = 0.0f; \
-        v.m_VectorEffectParams[0] = 0.0f; \
-        v.m_VectorEffectParams[1] = 0.0f; \
+        v.m_VectorTexcoord[3] = use_slug ? band_index : (use_sdf_shadow ? 1.0f : 0.0f); \
+        v.m_VectorEffectParams[0] = use_sdf_shadow ? sdf_outline : (use_slug ? band_max_x : stripe_texel); \
+        v.m_VectorEffectParams[1] = use_sdf_shadow ? sdf_shadow : (use_slug ? band_max_y : stripe_count); \
         v.m_VectorEffectParams[2] = outline_width; \
         v.m_VectorEffectParams[3] = shadow_blur; \
+        v.m_VectorBanding[0] = band_scale_x; \
+        v.m_VectorBanding[1] = band_scale_y; \
+        v.m_VectorBanding[2] = band_offset_x; \
+        v.m_VectorBanding[3] = band_offset_y; \
         v.m_Position[2] = curve_start; \
         v.m_Position[3] = layer_mode; \
         v.m_SdfParams[0] = width; \
         v.m_SdfParams[1] = height; \
         v.m_SdfParams[2] = curve_texel_stride; \
-        v.m_SdfParams[3] = 0.0f; \
+        v.m_SdfParams[3] = sdf_spread; \
+        v.m_LayerMasks[0] = use_sdf_shadow ? 1.0f : 0.0f; \
         SetVectorColor(v, color);
 
     SET_VECTOR_VERTEX(v1, texcoord_min_x, texcoord_min_y)
@@ -481,6 +507,15 @@ static void OutputGlyphVector(uint32_t vertexindex,
     SET_VECTOR_VERTEX(v6, texcoord_max_x, texcoord_max_y)
 
     #undef SET_VECTOR_VERTEX
+
+    v1.m_UV[0] = sdf_u0;
+    v1.m_UV[1] = sdf_v1;
+    v2.m_UV[0] = sdf_u0;
+    v2.m_UV[1] = sdf_v0;
+    v3.m_UV[0] = sdf_u1;
+    v3.m_UV[1] = sdf_v1;
+    v6.m_UV[0] = sdf_u1;
+    v6.m_UV[1] = sdf_v0;
 
     v4 = v3;
     v5 = v2;
@@ -637,6 +672,26 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             float shadow_texcoord_min_y = -shadow_width_v;
             float shadow_texcoord_max_x = 1.0f + shadow_width_u;
             float shadow_texcoord_max_y = 1.0f + shadow_width_v;
+            bool use_sdf_shadow = emit_shadow && cache_glyph->m_VectorSdfCached;
+            float sdf_u0 = 0.0f;
+            float sdf_v0 = 0.0f;
+            float sdf_u1 = 0.0f;
+            float sdf_v1 = 0.0f;
+            if (use_sdf_shadow)
+            {
+                float atlas_width = (float)dmGraphics::GetTextureWidth(font_map->m_GraphicsContext,
+                                                                       font_map->m_VectorSdfTexture);
+                float atlas_height = (float)dmGraphics::GetTextureHeight(font_map->m_GraphicsContext,
+                                                                         font_map->m_VectorSdfTexture);
+                sdf_u0 = (cache_glyph->m_X + 0.5f) / atlas_width;
+                sdf_v0 = (cache_glyph->m_Y + 0.5f) / atlas_height;
+                sdf_u1 = (cache_glyph->m_X + glyph->m_Bitmap.m_Width - 0.5f) / atlas_width;
+                sdf_v1 = (cache_glyph->m_Y + glyph->m_Bitmap.m_Height - 0.5f) / atlas_height;
+                shadow_texcoord_min_x = 0.0f;
+                shadow_texcoord_min_y = 0.0f;
+                shadow_texcoord_max_x = 1.0f;
+                shadow_texcoord_max_y = 1.0f;
+            }
 
             if (emit_shadow)
             {
@@ -652,6 +707,24 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   cache_glyph->m_VectorCurveTexel,
                                   cache_glyph->m_VectorCurveCount,
                                   font_map->m_VectorCurveTexelsPerCurve,
+                                  cache_glyph->m_VectorStripeTexel,
+                                  cache_glyph->m_VectorStripeCount,
+                                  (FontRendererType)font_map->m_VectorRenderer,
+                                  cache_glyph->m_VectorBandIndex,
+                                  cache_glyph->m_VectorBandMaxX,
+                                  cache_glyph->m_VectorBandMaxY,
+                                  cache_glyph->m_VectorBandScaleX,
+                                  cache_glyph->m_VectorBandScaleY,
+                                  cache_glyph->m_VectorBandOffsetX,
+                                  cache_glyph->m_VectorBandOffsetY,
+                                  sdf_u0,
+                                  sdf_v0,
+                                  sdf_u1,
+                                  sdf_v1,
+                                  use_sdf_shadow,
+                                  font_map->m_SdfOutline,
+                                  font_map->m_SdfShadow,
+                                  font_map->m_SdfSpread,
                                   shadow_texcoord_min_x,
                                   shadow_texcoord_min_y,
                                   shadow_texcoord_max_x,
@@ -679,6 +752,24 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   cache_glyph->m_VectorCurveTexel,
                                   cache_glyph->m_VectorCurveCount,
                                   font_map->m_VectorCurveTexelsPerCurve,
+                                  cache_glyph->m_VectorStripeTexel,
+                                  cache_glyph->m_VectorStripeCount,
+                                  (FontRendererType)font_map->m_VectorRenderer,
+                                  cache_glyph->m_VectorBandIndex,
+                                  cache_glyph->m_VectorBandMaxX,
+                                  cache_glyph->m_VectorBandMaxY,
+                                  cache_glyph->m_VectorBandScaleX,
+                                  cache_glyph->m_VectorBandScaleY,
+                                  cache_glyph->m_VectorBandOffsetX,
+                                  cache_glyph->m_VectorBandOffsetY,
+                                  0.0f,
+                                  0.0f,
+                                  0.0f,
+                                  0.0f,
+                                  false,
+                                  font_map->m_SdfOutline,
+                                  font_map->m_SdfShadow,
+                                  font_map->m_SdfSpread,
                                   -outline_width_u,
                                   -outline_width_v,
                                   1.0f + outline_width_u,
@@ -704,6 +795,24 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                               cache_glyph->m_VectorCurveTexel,
                               cache_glyph->m_VectorCurveCount,
                               font_map->m_VectorCurveTexelsPerCurve,
+                              cache_glyph->m_VectorStripeTexel,
+                              cache_glyph->m_VectorStripeCount,
+                              (FontRendererType)font_map->m_VectorRenderer,
+                              cache_glyph->m_VectorBandIndex,
+                              cache_glyph->m_VectorBandMaxX,
+                              cache_glyph->m_VectorBandMaxY,
+                              cache_glyph->m_VectorBandScaleX,
+                              cache_glyph->m_VectorBandScaleY,
+                              cache_glyph->m_VectorBandOffsetX,
+                              cache_glyph->m_VectorBandOffsetY,
+                              0.0f,
+                              0.0f,
+                              0.0f,
+                              0.0f,
+                              false,
+                              font_map->m_SdfOutline,
+                              font_map->m_SdfShadow,
+                              font_map->m_SdfSpread,
                               0.0f,
                               0.0f,
                               1.0f,

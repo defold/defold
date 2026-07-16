@@ -158,6 +158,9 @@ namespace dmRender
 
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
     static dmhash_t g_ViewportHash = dmHashString64("viewport");
+    static dmhash_t g_CurveTextureHash = dmHashString64("curve_texture");
+    static dmhash_t g_BandTextureHash = dmHashString64("band_texture");
+    static dmhash_t g_SdfShadowTextureHash = dmHashString64("sdf_shadow_texture");
 
     static float CalcSdfScale(const Matrix4& view_proj, float half_w, float half_h, const Matrix4& world_transform)
     {
@@ -353,6 +356,10 @@ namespace dmRender
         const TextEntry& first_te = *(TextEntry*) buf[*begin].m_UserData;
 
         HFontMap font_map = first_te.m_FontMap;
+        // Cache updates may recreate textures, so resolve them before deriving
+        // texture dimensions or storing handles in the render object.
+        UpdateCacheTexture(font_map);
+
         float im_recip = 1.0f;
         float ih_recip = 1.0f;
         float cache_cell_width_ratio  = 0.0;
@@ -387,7 +394,18 @@ namespace dmRender
         ro->m_DestinationBlendFactor = first_te.m_DestinationBlendFactor;
         ro->m_SetBlendFactors = 1;
         ro->m_Material = first_te.m_Material;
-        ro->m_Textures[0] = font_map->m_Texture;
+        memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
+        uint32_t curve_unit = dmRender::GetMaterialSamplerUnit(first_te.m_Material, g_CurveTextureHash);
+        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(first_te.m_Material, g_BandTextureHash);
+        uint32_t sdf_shadow_unit = dmRender::GetMaterialSamplerUnit(first_te.m_Material, g_SdfShadowTextureHash);
+        if (curve_unit != dmRender::INVALID_SAMPLER_UNIT)
+            ro->m_Textures[curve_unit] = font_map->m_Texture;
+        else
+            ro->m_Textures[0] = font_map->m_Texture;
+        if (band_unit != dmRender::INVALID_SAMPLER_UNIT)
+            ro->m_Textures[band_unit] = font_map->m_VectorBandTexture;
+        if (sdf_shadow_unit != dmRender::INVALID_SAMPLER_UNIT)
+            ro->m_Textures[sdf_shadow_unit] = font_map->m_VectorSdfTexture;
         ro->m_VertexStart = text_context.m_VertexIndex;
         ro->m_StencilTestParams = first_te.m_StencilTestParams;
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
@@ -414,12 +432,6 @@ namespace dmRender
         dmRender::SetNamedConstant(constants_buffer, g_ViewportHash, &viewport, 1);
 
         ro->m_ConstantBuffer = constants_buffer;
-
-        // The cache size may have changed, and we need to update the font map glyph texture
-        if (!font_map->m_IsVector)
-        {
-            UpdateCacheTexture(font_map);
-        }
 
         bool calc_sdf_scale = font_map->m_IsSdf;
         Matrix4 sdf_view_proj;

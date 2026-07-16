@@ -40,14 +40,17 @@ namespace dmGameSystem
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
     const static dmhash_t SAMPLER_HASH_CURVE_TEXTURE = dmHashString64("curve_texture");
-    const static char* FORCED_SDF_MATERIAL = "/builtins/fonts/font-df.materialc";
+    const static char* SDF_MATERIAL = "/builtins/fonts/font-df.materialc";
+    const static char* SLUG_MATERIAL = "/builtins/fonts/font-vector_slug.materialc";
+    const static char* SWEEP_MATERIAL = "/builtins/fonts/font-vector_sweep.materialc";
 
     struct FontResourceContext
     {
         dmRender::HRenderContext m_RenderContext;
-        uint8_t                  m_VectorForceSdf:1;
+        uint8_t                  m_Renderer:2;
+        uint8_t                  m_ShadowSdf:1;
         uint8_t                  m_DebugGlyphBBoxes:1;
-        uint8_t                  :6;
+        uint8_t                  :4;
     };
 
     struct ImageDataHeader
@@ -334,6 +337,17 @@ namespace dmGameSystem
                dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE) != dmRender::INVALID_SAMPLER_UNIT;
     }
 
+    static const char* GetRendererMaterial(uint8_t renderer)
+    {
+        switch ((dmRender::FontRendererType)renderer)
+        {
+            case dmRender::FONT_RENDERER_SDF:   return SDF_MATERIAL;
+            case dmRender::FONT_RENDERER_SLUG:  return SLUG_MATERIAL;
+            case dmRender::FONT_RENDERER_SWEEP: return SWEEP_MATERIAL;
+            default:                            return SWEEP_MATERIAL;
+        }
+    }
+
     static dmResource::Result AcquireResources(FontResourceContext* context, dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
                                                     FontResource* font_map, const char* filename)
     {
@@ -345,15 +359,16 @@ namespace dmGameSystem
             return result;
         }
 
-        if (context && context->m_VectorForceSdf && IsVectorMaterial(font_map->m_MaterialResource))
+        if (context && IsVectorMaterial(font_map->m_MaterialResource))
         {
+            const char* renderer_material = GetRendererMaterial(context->m_Renderer);
             dmResource::Release(factory, (void*) font_map->m_MaterialResource);
             font_map->m_MaterialResource = 0;
 
-            result = dmResource::Get(factory, FORCED_SDF_MATERIAL, (void**) &font_map->m_MaterialResource);
+            result = dmResource::Get(factory, renderer_material, (void**) &font_map->m_MaterialResource);
             if (result != dmResource::RESULT_OK)
             {
-                dmLogError("Failed to load forced SDF font material '%s' for '%s': %d", FORCED_SDF_MATERIAL, filename, result);
+                dmLogError("Failed to load font renderer material '%s' for '%s': %d", renderer_material, filename, result);
                 return result;
             }
         }
@@ -662,6 +677,7 @@ namespace dmGameSystem
     {
         dmRender::FontMapParams params;
         SetupParamsBase(ddf, path, &params);
+        params.m_ShadowSdf = context ? context->m_ShadowSdf : 0;
         params.m_DebugGlyphBBoxes = context ? context->m_DebugGlyphBBoxes : 0;
 
         HFont hfont;
@@ -756,9 +772,9 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
-        if (context && context->m_VectorForceSdf)
+        if (context)
         {
-            dmResource::PreloadHint(params->m_HintInfo, FORCED_SDF_MATERIAL);
+            dmResource::PreloadHint(params->m_HintInfo, GetRendererMaterial(context->m_Renderer));
         }
         if (IsDynamic(ddf))
             dmResource::PreloadHint(params->m_HintInfo, ddf->m_Font);
@@ -1116,8 +1132,24 @@ namespace dmGameSystem
         dmConfigFile::HConfig config = context_registry ? (dmConfigFile::HConfig) ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME) : 0;
         if (config)
         {
-            font_context->m_VectorForceSdf = dmConfigFile::GetInt(config, "font.vector_force_sdf", 0) != 0;
+            const char* renderer = dmConfigFile::GetString(config, "font.renderer", "sweep");
+            if (strcmp(renderer, "sdf") == 0)
+                font_context->m_Renderer = dmRender::FONT_RENDERER_SDF;
+            else if (strcmp(renderer, "slug") == 0)
+                font_context->m_Renderer = dmRender::FONT_RENDERER_SLUG;
+            else if (strcmp(renderer, "sweep") == 0)
+                font_context->m_Renderer = dmRender::FONT_RENDERER_SWEEP;
+            else
+            {
+                dmLogWarning("Unknown font.renderer value '%s'; using 'sweep'", renderer);
+                font_context->m_Renderer = dmRender::FONT_RENDERER_SWEEP;
+            }
+            font_context->m_ShadowSdf = dmConfigFile::GetInt(config, "font.shadow_sdf", 0) != 0;
             font_context->m_DebugGlyphBBoxes = dmConfigFile::GetInt(config, "font.debug_glyph_bboxes", 0) != 0;
+        }
+        else
+        {
+            font_context->m_Renderer = dmRender::FONT_RENDERER_SWEEP;
         }
 
         return (ResourceResult)dmResource::SetupType(ctx,
