@@ -488,14 +488,14 @@
 
       (let [basis (g/now)]
         (testing "Entries remain in arc-tables."
-          (is (= #{[source-node-id :property-output target-node-id :regular-input]
-                   [source-node-id :property-output target-node-id :array-input]}
-                 (set (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output))))
-          (is (= #{[source-node-id :property-output target-node-id :regular-input]}
-                 (set (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input))))
-          (is (= #{[source-node-id :property-output target-node-id :array-input]
-                   [persistent-source-node-id :property-output target-node-id :array-input]}
-                 (set (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input)))))
+          (is (= [[source-node-id :property-output target-node-id :regular-input]
+                  [source-node-id :property-output target-node-id :array-input]]
+                 (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)))
+          (is (= [[source-node-id :property-output target-node-id :regular-input]]
+                 (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
+          (is (= [[source-node-id :property-output target-node-id :array-input]
+                  [persistent-source-node-id :property-output target-node-id :array-input]]
+                 (helpers/target-arc-table-tuples basis graph-id target-node-id :array-input))))
 
         (testing "Dangling connections are excluded from query results."
           (is (= []
