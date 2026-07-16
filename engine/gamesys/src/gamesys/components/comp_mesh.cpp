@@ -523,7 +523,6 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompMeshLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         DM_PROFILE("LateUpdate");
-        MeshContext* context = (MeshContext*)params.m_Context;
         MeshWorld* world = (MeshWorld*)params.m_World;
 
         UpdateTransforms(world);
@@ -1020,7 +1019,6 @@ namespace dmGameSystem
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
                 BufferResource* br = GetBufferResource(component);
-                uint32_t old_version = component->m_BufferVersion;
                 component->m_BufferVersion = CalcBufferVersion(component, br);
 
                 // If the buffer resource was changed, we might need to recreate the vertex declaration.

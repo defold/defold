@@ -2891,12 +2891,10 @@ static int GetAtlas(lua_State* L)
     lua_pushliteral(L, "geometries");
     lua_newtable(L);
     {
-        int geometry_count = 0;
         for (int i = 0; i < texture_set->m_Geometries.m_Count; ++i)
         {
             dmGameSystemDDF::SpriteGeometry& geom = texture_set->m_Geometries[i];
             PushGeometry(L, i, geom, tex_width, tex_height);
-            geometry_count++;
         }
 
     }
