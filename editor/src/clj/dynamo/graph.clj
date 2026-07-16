@@ -1639,47 +1639,52 @@
   (when-some [target-node (gt/node-by-id-at basis target-id)]
     (let [graph-id (gt/node-id->graph-id target-id)
           graph (ig/node-id->graph basis target-id)
+          graph-nodes (:nodes graph)
           graph-tarcs (:tarcs graph)]
       (loop [result []
              node-id target-id
              override-chain '()
              followed-inputs (in/cascade-deletes (gt/node-type target-node))]
-        (let [arc-tables-by-input-label (graph-tarcs node-id)
-              explicit-arcs (when arc-tables-by-input-label
-                              (into []
-                                    (comp
-                                      (mapcat (comp vals arc-tables-by-input-label))
-                                      (filter (fn [^Arc arc]
-                                                (and (= graph-id (gt/node-id->graph-id (.source-id arc)))
-                                                     (pred basis arc)))))
-                                    followed-inputs))
-              source-node-ids (into []
-                                    (comp
-                                      (map gt/source-id)
-                                      (distinct))
-                                    explicit-arcs)
-              result' (if (zero? (count source-node-ids))
-                        result
-                        (into result
-                              (reduce (fn [source-node-ids override-id]
-                                        (mapv (fn [source-node-id]
-                                                (or (ig/override-of graph source-node-id override-id)
-                                                    source-node-id))
-                                              source-node-ids))
-                                      source-node-ids
-                                      override-chain)))
-              node (ig/node-id->node graph node-id)
-              original-node-id (gt/original node)]
-          (if (nil? original-node-id)
-            result'
-            (recur result'
-                   (long original-node-id)
-                   (conj override-chain (gt/override-id node))
-                   (persistent!
-                     (transduce (map gt/target-label)
-                                disj!
-                                (transient followed-inputs)
-                                explicit-arcs)))))))))
+        (let [node (get graph-nodes node-id)]
+          (if-not node
+            result
+            (let [arc-tables-by-input-label (graph-tarcs node-id)
+                  explicit-arcs (when arc-tables-by-input-label
+                                  (into []
+                                        (comp
+                                          (mapcat (comp vals arc-tables-by-input-label))
+                                          (filter (fn [arc]
+                                                    (let [source-id (gt/source-id arc)]
+                                                      (and (= graph-id (gt/node-id->graph-id source-id))
+                                                           (contains? graph-nodes source-id)
+                                                           (pred basis arc))))))
+                                        followed-inputs))
+                  source-node-ids (into []
+                                        (comp
+                                          (map gt/source-id)
+                                          (distinct))
+                                        explicit-arcs)
+                  result' (if (zero? (count source-node-ids))
+                            result
+                            (into result
+                                  (reduce (fn [source-node-ids override-id]
+                                            (mapv (fn [source-node-id]
+                                                    (or (ig/override-of graph source-node-id override-id)
+                                                        source-node-id))
+                                                  source-node-ids))
+                                          source-node-ids
+                                          override-chain)))
+                  original-node-id (gt/original node)]
+              (if (nil? original-node-id)
+                result'
+                (recur result'
+                       (long original-node-id)
+                       (conj override-chain (gt/override-id node))
+                       (persistent!
+                         (transduce (map gt/target-label)
+                                    disj!
+                                    (transient followed-inputs)
+                                    explicit-arcs)))))))))))
 
 (defn- input-traverse
   [basis pred root-ids]

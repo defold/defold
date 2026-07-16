@@ -314,10 +314,15 @@
         ctx (-> ctx
                 (update :basis ig/basis-perform-add-nodes nodes introduced-node->overrides)
                 (update :nodes-added into node-ids))
-        new-basis (:basis ctx)]
+        new-basis (:basis ctx)
+        source-arcs (coll/into-> node-ids []
+                      (mapcat #(ig/explicit-arcs-by-source new-basis %)))]
     (-> ctx
         (mark-nodes-outputs-activated nodes)
-        (flag-successors-changed (node-successor-changes old-basis new-basis changed-node-ids)))))
+        (flag-successors-changed
+          (e/concat
+            (node-successor-changes old-basis new-basis changed-node-ids)
+            (arc-successor-changes old-basis new-basis source-arcs))))))
 
 (defn- ctx-delete-nodes [ctx nodes removed-arc->source+target-pkids overrides node->overrides]
   (let [old-basis (:basis ctx)
@@ -836,7 +841,9 @@
         new-basis (:basis ctx)]
     (flag-successors-changed
       ctx
-      (node-successor-changes old-basis new-basis changed-node-ids))))
+      (e/concat
+        (node-successor-changes old-basis new-basis changed-node-ids)
+        (arc-successor-changes old-basis new-basis source-arcs)))))
 
 (defn- ctx-callback
   [ctx fn args opts]

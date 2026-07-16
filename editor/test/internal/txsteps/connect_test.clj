@@ -275,7 +275,7 @@
         (let [basis (g/now)]
           (is (nil? (g/graph source-graph-id)))
           (is (g/node-by-id basis target-node-id))
-          (is (= [[source-node-id :property-output]]
+          (is (= []
                  (g/sources basis target-node-id :regular-input)))
           (is (= [[source-node-id :property-output target-node-id :regular-input]]
                  (helpers/target-arc-table-tuples basis target-graph-id target-node-id :regular-input)))))
