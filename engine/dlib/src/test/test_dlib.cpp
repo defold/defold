@@ -176,8 +176,8 @@ TEST_F(dlib, ReverseHashSafeStack)
     {
         DM_HASH_REVERSE_MEM(hash_ctx, 52+21);
 
-        const char* reverse64 = dmHashReverseSafe64Alloc(&hash_ctx, h64);
-        ASSERT_STREQ("<unknown:16993514797287668626>", dmHashReverseSafe64Alloc(&hash_ctx, h64unk)); // 30 chars
+        const char* reverse64 = dmHashReverseSafe64Alloc(&hash_ctx, h64unk);
+        ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // 30 chars
         ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32Alloc(&hash_ctx, h32unk)); // 20 chars
         ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // Check that the null termination wasn't messed up
 
