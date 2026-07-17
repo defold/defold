@@ -2516,6 +2516,17 @@ bail:
                 return PROPERTY_RESULT_OK;
             }
         }
+        n = defs->m_TextEntries.m_Count;
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            const PropertyDeclarationEntry& entry = defs->m_TextEntries[i];
+            if (entry.m_Id == id)
+            {
+                out_var.m_Type = PROPERTY_TYPE_TEXT;
+                out_var.m_Text = defs->m_StringValues[entry.m_Index];
+                return PROPERTY_RESULT_OK;
+            }
+        }
         return PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -2690,6 +2701,16 @@ bail:
             CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_BOOLEAN, result)
             lua_pushstring(L, entry.m_Key);
             lua_pushboolean(L, var.m_Bool);
+            lua_settable(L, index - 2);
+        }
+        count = declarations->m_TextEntries.m_Count;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const PropertyDeclarationEntry& entry = declarations->m_TextEntries[i];
+            PropertyResult result = GetProperty(properties, entry.m_Id, var);
+            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_TEXT, result)
+            lua_pushstring(L, entry.m_Key);
+            lua_pushstring(L, var.m_Text);
             lua_settable(L, index - 2);
         }
         return PROPERTY_RESULT_OK;

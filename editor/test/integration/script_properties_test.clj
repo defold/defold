@@ -93,9 +93,9 @@
       (testing "reading values"
                (is (= 1.0 (prop script-id "number")))
                (is (read-only? script-id "number")))
-      (testing "broken prop defs" ;; string vals are not supported
+      (testing "string prop defs"
                (with-source script-id "go.property(\"number\", \"my_string\")\n"
-                 (is (nil? (prop script-id "number"))))))))
+                 (is (= "my_string" (prop script-id "number"))))))))
 
 (deftest script-properties-component
   (tu/with-loaded-project
@@ -341,7 +341,7 @@
           project (tu/setup-project! workspace)
           bad-source "go.property('number', 1)\n"
           bad-invalid-args-source "go.property()\n"
-          bad-invalid-value-source "go.property('number', 'string')\n"
+          bad-invalid-value-source "go.property('number')\n"
           bad-invalid-location-source "function init()\n  go.property('number', 1)\nend\n"
           two-bad-source "go.property('number', 1)\ngo.property('other', 2)\n"
           assert-script-only-error!
@@ -386,8 +386,8 @@
              [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 13))]])
           (assert-script-only-error!
             "bad_invalid_value.lua" bad-invalid-value-source
-            [["unexpected argument" (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 31))]
-             [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 31))]])
+            [["2 arguments expected" (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 21))]
+             [script-compilation/go-property-disallowed-message (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 21))]])
           (assert-script-only-error!
             "bad_invalid_location.lua" bad-invalid-location-source
             [["go.property declaration should be a top-level statement" (data/->CursorRange (data/->Cursor 1 2) (data/->Cursor 1 26))]

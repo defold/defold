@@ -199,6 +199,11 @@ namespace dmGameObject
         m_Type = PROPERTY_TYPE_BOOLEAN;
         m_Bool = v;
     }
+    PropertyVar::PropertyVar(const char* v)
+    {
+        m_Type = PROPERTY_TYPE_TEXT;
+        m_Text = v;
+    }
 
     PropertyVar::PropertyVar(Matrix4 v)
     {
