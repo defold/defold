@@ -90,6 +90,10 @@ def upload(bucket, version, channel, required=False):
         log("%s; skipping upload" % message)
         return
 
+    if upload_markdown and markdown_content is None:
+        log("Missing md release notes for %s in releasenotes/" % version)
+        sys.exit(1)
+
     if upload_markdown:
         markdown_obj = bucket.Object('editor2/channels/%s/release-notes/%s.md' % (channel, version))
         log("Uploading per-version release notes markdown for %s -> %s" % (version, markdown_obj.key))
