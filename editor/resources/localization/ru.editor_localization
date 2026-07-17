@@ -371,6 +371,9 @@ notification.reload-editor-scripts.action.reload = Перезагрузить с
 notification.reload-plugins-failed = Не удалось перезагрузить нативные плагины расширений. Перезапустите Defold, чтобы загрузить их заново.\n\nФайл\: {file}\n\nИсходная ошибка от ОС\:\n{error}
 notification.reload-plugins-failed.action.restart = Перезапустить Defold
 
+# Disabled functionality notification
+
+
 # Open custom editor notifications
 
 notification.open-custom-editor-failed.error = Не удалось запустить внешний редактор «{editor}».\n\nИсходная ошибка ОС\:\n{error}

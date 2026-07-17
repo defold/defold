@@ -371,6 +371,9 @@ notification.reload-editor-scripts.action.reload = Recarregar Scripts do Editor
 notification.reload-plugins-failed = Os plugins de extensão nativos não puderam ser recarregados. Reinicie o Defold para recarregá-los.\n\nArquivo\: {file}\n\nErro subjacente do SO\:\n{error}
 notification.reload-plugins-failed.action.restart = Reiniciar Defold
 
+# Disabled functionality notification
+
+
 # Open custom editor notifications
 
 notification.open-custom-editor-failed.error = Não foi possível executar o editor externo "{editor}".\n\nErro subjacente do SO\:\n{error}
