@@ -1,0 +1,17 @@
+name: "proxy"
+scale_along_z: 0
+instances {
+  id: "gui"
+  prototype: "/sentry_7087016600/gui.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}

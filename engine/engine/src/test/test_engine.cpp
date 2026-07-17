@@ -626,6 +626,14 @@ TEST_F(EngineTest, ISSUE_12362)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
+// Reproduces Sentry issue 7087016600 using only project resources and Lua APIs.
+TEST_F(EngineTest, LuaModuleHashCollision)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/sentry_7087016600/main.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, ModelComponent)
 {
     char project_path[256];
