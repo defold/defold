@@ -28,12 +28,12 @@
 (defn- make-link-fn [link localization]
   (fn [updater]
     (ui/run-later
-      (let [can-install? (updater/can-install-update? updater)
-            can-download? (updater/can-download-update? updater)]
-        (ui/visible! link (or can-install? can-download?))
+      (let [can-install (updater/can-install-update? updater)
+            can-download (updater/can-download-update? updater)]
+        (ui/visible! link (or can-install can-download))
         (cond
-          can-install? (localization/localize! link localization (localization/message "updater.button.restart-to-update"))
-          can-download? (localization/localize! link localization (localization/message "updater.button.update-available")))))))
+          can-install (localization/localize! link localization (localization/message "updater.button.restart-to-update"))
+          can-download (localization/localize! link localization (localization/message "updater.button.update-available")))))))
 
 (defn- install! [^Stage stage updater localization]
   (try
@@ -95,11 +95,11 @@
        :versions versions
        :project project})))
 
-(defn- prompt-and-download! [stage project updater localization download-confirmed?]
+(defn- prompt-and-download! [stage project updater localization download-confirmed]
   (if-let [{:keys [markdown versions]} (updater/release-notes updater)]
     (when (show-release-notes-update-dialog! markdown versions project localization)
       (updater/download-and-extract! updater))
-    (when (or download-confirmed?
+    (when (or download-confirmed
               (dialogs/make-download-update-dialog stage localization))
       (updater/download-and-extract! updater))))
 
