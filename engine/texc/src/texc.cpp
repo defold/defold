@@ -27,24 +27,33 @@ namespace dmTexc
 {
     Image* CreateImage(const char* path, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, uint32_t data_size, uint8_t* data)
     {
+        PixelFormat storage_format = pixel_format == PF_RGBA32F ? PF_RGBA32F : PF_R8G8B8A8;
+        uint32_t data_count = GetDataSize(storage_format, width, height);
+        if (!data || data_count == 0 || (pixel_format == PF_RGBA32F && data_size < data_count))
+        {
+            return 0;
+        }
+
         Image* image = new Image;
         image->m_Path = strdup(path?path:"null");
         image->m_Width = width;
         image->m_Height = height;
         image->m_PixelFormat = pixel_format;
         image->m_ColorSpace = color_space;
+        image->m_DataCount = data_count;
+        image->m_Data = (uint8_t*)malloc(image->m_DataCount);
+        if (!image->m_Data)
+        {
+            DestroyImage(image);
+            return 0;
+        }
 
         if (pixel_format == PF_RGBA32F)
         {
-            image->m_DataCount = width * height * 4 * sizeof(float);
-            image->m_Data = (uint8_t*)malloc(image->m_DataCount);
             memcpy(image->m_Data, data, image->m_DataCount);
         }
         else
         {
-            image->m_DataCount = width * height * 4;
-            image->m_Data = (uint8_t*)malloc(image->m_DataCount);
-
             if (!ConvertToRGBA8888((uint8_t*)data, width, height, pixel_format, image->m_Data))
             {
                 DestroyImage(image);

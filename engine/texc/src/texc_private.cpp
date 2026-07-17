@@ -296,8 +296,19 @@ namespace dmTexc
         resized->m_Height = height;
         resized->m_PixelFormat = PF_RGBA32F;
         resized->m_ColorSpace = image->m_ColorSpace;
-        resized->m_DataCount = width * height * 4 * sizeof(float);
+        resized->m_DataCount = GetDataSize(PF_RGBA32F, width, height);
+        if (resized->m_DataCount == 0)
+        {
+            delete resized;
+            return 0;
+        }
+
         resized->m_Data = (uint8_t*)malloc(resized->m_DataCount);
+        if (!resized->m_Data)
+        {
+            delete resized;
+            return 0;
+        }
 
         const float* src = (const float*)image->m_Data;
         float* dst = (float*)resized->m_Data;
@@ -387,7 +398,8 @@ namespace dmTexc
     uint32_t GetDataSize(PixelFormat pf, uint32_t width, uint32_t height)
     {
         uint32_t bytes_per_pixel = GetBytesPerPixel(pf);
-        return bytes_per_pixel * width * height;
+        uint64_t data_size = (uint64_t)bytes_per_pixel * (uint64_t)width * (uint64_t)height;
+        return data_size <= 0xffffffffULL ? (uint32_t)data_size : 0;
     }
 
     bool ConvertToRGBA8888(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, uint8_t* out)
@@ -463,16 +475,23 @@ namespace dmTexc
 
     bool ConvertRGBA32FToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data)
     {
+        uint32_t input_data_size = GetDataSize(PF_RGBA32F, width, height);
+        if (input_data_size == 0)
+        {
+            return false;
+        }
+
         switch(pf)
         {
         case PF_RGBA32F:
-            memcpy((uint8_t*)out_data, input, width * height * 4 * sizeof(float));
+            memcpy((uint8_t*)out_data, input, input_data_size);
             return true;
         case PF_RGBA16F:
         {
             const float* src = (const float*)input;
             uint16_t* dst = (uint16_t*)out_data;
-            for (uint32_t i = 0; i < width * height * 4; ++i)
+            uint32_t component_count = input_data_size / sizeof(float);
+            for (uint32_t i = 0; i < component_count; ++i)
             {
                 dst[i] = FloatToHalf(src[i]);
             }
