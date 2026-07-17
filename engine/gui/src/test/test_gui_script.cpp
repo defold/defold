@@ -474,6 +474,64 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
     dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestCloneTreeReverseHashTableGrowth)
+{
+    // A debug engine stores generated clone ids in the reverse-hash table. Repeatedly
+    // cloning and deleting a tree can grow that table until its resize allocation fails
+    // (the reported crash happened while hashing "__node431253"). The final allocation
+    // failure needs a memory-constrained process; this test reproduces the Lua path and
+    // crosses the same table resize.
+    dmHashEnableReverseHash(false);
+    dmHashEnableReverseHash(true);
+
+    dmGui::HScript script = NewScript(m_Context);
+
+    dmGui::NewSceneParams params;
+    // 64 source nodes plus 64 trees of 64 clones alive during each Lua callback,
+    // with a little headroom so the test does not depend on an exact pool boundary.
+    params.m_MaxNodes = 64 + 64 * 64 + 32;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    dmGui::SetSceneScript(scene, script);
+
+    const char* src =
+            "function init(self)\n"
+            "    self.root = gui.new_box_node(vmath.vector3(), vmath.vector3(1))\n"
+            "    gui.set_id(self.root, 'root')\n"
+            "    for _ = 2, 64 do\n"
+            "        local child = gui.new_box_node(vmath.vector3(), vmath.vector3(1))\n"
+            "        gui.set_parent(child, self.root)\n"
+            "    end\n"
+            "end\n"
+            "function update(self, dt)\n"
+            "    for _ = 1, 64 do\n"
+            "        local clones = gui.clone_tree(self.root)\n"
+            "        gui.delete_node(clones.root)\n"
+            "    end\n"
+            "end\n";
+
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::InitScene(scene);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    // 147 * 64 * 64 = 602,112 generated clone ids. This crosses the 573,440-entry
+    // reverse-hash resize that failed in the client report.
+    for (uint32_t i = 0; i < 147; ++i)
+    {
+        result = dmGui::UpdateScene(scene, 1.0f / 60.0f);
+        ASSERT_EQ(dmGui::RESULT_OK, result);
+    }
+
+    dmGui::DeleteScene(scene);
+    dmGui::DeleteScript(script);
+
+    // Clear the stress-test entries and restore the default state for this test binary.
+    dmHashEnableReverseHash(false);
+}
+
 TEST_F(dmGuiScriptTest, TestGetTree)
 {
     dmGui::HScript script = NewScript(m_Context);
