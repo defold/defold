@@ -22,11 +22,8 @@ from log import log
 DEFOLD_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def build_json(version):
-    # Returns the per-version release notes JSON (releasenotes/<version>.json)
-    # as produced by releasenotes_github_projectv2.py (which already includes
-    # the forum 'external-link'). None if it hasn't been generated yet.
-    release_notes_path = os.path.join(DEFOLD_ROOT, 'releasenotes', '%s.json' % version)
+def read_release_notes_file(version, extension):
+    release_notes_path = os.path.join(DEFOLD_ROOT, 'releasenotes', '%s.%s' % (version, extension))
     if not os.path.exists(release_notes_path):
         return None
     with open(release_notes_path) as f:
@@ -71,21 +68,32 @@ def update_manifest(bucket, version, channel):
 
 
 def upload(bucket, version, channel, required=False):
-    # Publishes the update dialog's release notes for the current channel:
-    #   - release-notes/<version>.json  per-version, accumulates across releases
+    # Publishes release notes for the current channel:
+    #   - release-notes/<version>.md    human-readable per-version notes
+    #   - release-notes/<version>.json  structured notes consumed by the editor
     #   - release-notes/manifest.json   ordered version list the editor walks
-    json_content = build_json(version)
+    markdown_content = read_release_notes_file(version, 'md')
+    json_content = read_release_notes_file(version, 'json')
+    missing = []
+    if markdown_content is None:
+        missing.append('md')
     if json_content is None:
-        message = "No release notes for %s in releasenotes/" % version
-        if required:
+        missing.append('json')
+    if missing:
+        message = "Missing %s release notes for %s in releasenotes/" % (", ".join(missing), version)
+        if required or len(missing) != 2:
             log(message)
             sys.exit(1)
         log("%s; skipping upload" % message)
         return
 
-    version_obj = bucket.Object('editor2/channels/%s/release-notes/%s.json' % (channel, version))
-    log("Uploading per-version release notes for %s -> %s" % (version, version_obj.key))
-    version_obj.put(Body=json_content, ContentType='application/json')
+    markdown_obj = bucket.Object('editor2/channels/%s/release-notes/%s.md' % (channel, version))
+    log("Uploading per-version release notes markdown for %s -> %s" % (version, markdown_obj.key))
+    markdown_obj.put(Body=markdown_content, ContentType='text/markdown')
+
+    json_obj = bucket.Object('editor2/channels/%s/release-notes/%s.json' % (channel, version))
+    log("Uploading per-version release notes JSON for %s -> %s" % (version, json_obj.key))
+    json_obj.put(Body=json_content, ContentType='application/json')
 
     update_manifest(bucket, version, channel)
 

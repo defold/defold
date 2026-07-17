@@ -23,6 +23,7 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
+            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -86,6 +87,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
+            [editor.updater :as updater]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -2606,7 +2608,17 @@
        (perform-open-resource-plan! localization))))
 
 (def ^:private release-notes-resource-delay
-  (delay (io/resource (str "release-notes/" (system/defold-version) ".md"))))
+  (delay (io/resource (str "release-notes/" (system/defold-version) ".json"))))
+
+(defn- bundled-release-notes-markdown [url]
+  (try
+    (with-open [reader (io/reader url)]
+      (updater/release-notes-markdown (json/read reader :key-fn keyword)))
+    (catch Exception e
+      (log/warn :message "Failed to read bundled release notes"
+                :url (str url)
+                :exception e)
+      nil)))
 
 (ui/defc release-notes-dialog
   {:compose [{:fx/type fx/ext-watcher
@@ -2639,13 +2651,14 @@
   notes shipped. Must be called on the JavaFX application thread."
   [localization project]
   (when-let [url @release-notes-resource-delay]
-    (fxui/show-stateless-dialog-and-await-result!
-      (fn [result-fn]
-        {:fx/type release-notes-dialog
-         :result-fn result-fn
-         :localization localization
-         :content (slurp url)
-         :project project}))))
+    (when-let [content (bundled-release-notes-markdown url)]
+      (fxui/show-stateless-dialog-and-await-result!
+        (fn [result-fn]
+          {:fx/type release-notes-dialog
+           :result-fn result-fn
+           :localization localization
+           :content content
+           :project project})))))
 
 (handler/defhandler :help.open-release-notes :global
   (enabled? [] @release-notes-resource-delay)

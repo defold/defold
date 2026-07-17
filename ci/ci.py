@@ -462,12 +462,17 @@ def gen_release_notes(channel):
     notes_md = os.path.join("releasenotes", "%s.md" % version)
     notes_json = os.path.join("releasenotes", "%s.json" % version)
 
-    # Manually-authored notes win: if a file is already on disk, use it as-is and
-    # don't hit the API or overwrite it.
-    if os.path.exists(notes_md):
-        if not os.path.exists(notes_json):
+    notes_md_exists = os.path.exists(notes_md)
+    notes_json_exists = os.path.exists(notes_json)
+
+    # Manually-authored notes win: if the files are already on disk, use them
+    # as-is and don't hit the API or overwrite them.
+    if notes_md_exists or notes_json_exists:
+        if not notes_md_exists:
+            raise Exception("%s already exists, but matching %s is missing" % (notes_json, notes_md))
+        if not notes_json_exists:
             raise Exception("%s already exists, but matching %s is missing" % (notes_md, notes_json))
-        print("%s already exists - using manually-authored notes as-is" % notes_md)
+        print("%s and %s already exist - using manually-authored notes as-is" % (notes_md, notes_json))
         return
 
     # Run the generator. It exits non-zero if it errors or can't confirm a fix is
@@ -478,12 +483,17 @@ def gen_release_notes(channel):
         sys.executable, version, channel, get_github_token()),
         failonerror = mandatory)
 
+    notes_md_exists = os.path.exists(notes_md)
+    notes_json_exists = os.path.exists(notes_json)
     if mandatory:
-        if not os.path.exists(notes_md):
-            raise Exception("No release notes produced for %s on channel '%s'" % (version, channel))
-        if not os.path.exists(notes_json):
+        if not notes_md_exists:
+            raise Exception("No release notes markdown produced for %s on channel '%s'" % (version, channel))
+        if not notes_json_exists:
             raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
-    elif not os.path.exists(notes_md):
+    elif notes_md_exists != notes_json_exists:
+        raise Exception("Incomplete release notes produced for %s on channel '%s'; expected both %s and %s" % (
+            version, channel, notes_md, notes_json))
+    elif not notes_json_exists:
         print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
 
 def build_sdk(channel, platform=None):

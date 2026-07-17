@@ -715,10 +715,10 @@ def place_release_notes(options):
     # like editor.css). Best-effort, cleared each build so only this version ships.
     dest_dir = os.path.join('resources', 'release-notes')
     rmtree(dest_dir)
-    notes_src = os.path.join('..', 'releasenotes', '%s.md' % options.version)
+    notes_src = os.path.join('..', 'releasenotes', '%s.json' % options.version)
     if os.path.exists(notes_src):
         mkdirs(dest_dir)
-        shutil.copy(notes_src, os.path.join(dest_dir, '%s.md' % options.version))
+        shutil.copy(notes_src, os.path.join(dest_dir, '%s.json' % options.version))
         log("Staged release notes: %s" % notes_src)
     else:
         log("No release notes at %s; bundling none" % notes_src)

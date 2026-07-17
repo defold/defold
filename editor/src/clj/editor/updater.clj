@@ -43,7 +43,7 @@
 (defn- update-url [archive-domain channel]
   (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
 
-(defn- release-notes->markdown
+(defn release-notes-markdown
   ^String [release-notes]
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
         issue->closed-issues (fn [{:keys [closed_issues repository]}]
@@ -248,7 +248,7 @@
                    "\n\n---\n\n"
                    (e/map (fn [{:keys [version notes]}]
                             (if notes
-                              (release-notes->markdown notes)
+                              (release-notes-markdown notes)
                               (str "# Defold " version
                                    "\n\n_Failed to download these release notes._")))
                           slots))
