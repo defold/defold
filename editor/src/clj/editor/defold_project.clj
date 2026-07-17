@@ -1230,7 +1230,8 @@
   (let [process-metrics (du/make-metrics-collector)
         resource-metrics (du/make-metrics-collector)
         transaction-metrics (du/make-metrics-collector)
-        transact-opts (du/when-metrics {:metrics transaction-metrics})
+        transact-opts {:metrics transaction-metrics
+                       :undoable false}
 
         collected-properties-by-resource
         (du/measuring process-metrics :collect-overridden-properties
@@ -1264,6 +1265,15 @@
           ;; created or already (still!) existing node.
           (or (resource->new-node-id resource)
               (resource->old-node-id resource)))]
+
+    ;; Significant resource changes can replace or delete nodes referenced by
+    ;; existing undo entries, so clear undo before the first mutation. Doing this
+    ;; up front also prevents a failed reload from leaving stale undo entries.
+    ;; All transactions from this point on will be non-undoable. Find out if we
+    ;; have any significant changes, but take care to exclude non-change
+    ;; information such as the list of :kept resources from this check.
+    (when (coll/some seq (vals (dissoc plan :invalidate-outputs :kept)))
+      (g/reset-undo! :undo/global))
 
     ;; Create the new nodes in the graph.
     (du/measuring process-metrics :make-new-nodes
@@ -1433,13 +1443,6 @@
                                (when (not= old-all-sub-selections all-sub-selections)
                                  (perform-sub-selection project all-sub-selections)))))]
         (g/transact transact-opts tx-data)))
-
-    ;; Invalidating outputs is the only change that does not reset undo. This
-    ;; is a quick way to find out if we have any significant changes, but we
-    ;; must take care to also exclude non-change information such as the list of
-    ;; :kept resources from this check.
-    (when (some seq (vals (dissoc plan :invalidate-outputs :kept)))
-      (g/reset-undo! :undo/global))
 
     (du/when-metrics
       (reset! resource-change-metrics-atom

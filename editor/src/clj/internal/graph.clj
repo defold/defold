@@ -363,15 +363,30 @@
 
 (defonce ^:private unassigned-sentinel (Object.))
 
+;; Most arc tables contain only one arc. Share their immutable metadata maps so
+;; every table does not retain a separate map containing the same next pkid.
+(def ^:private ^:const shared-arc-table-metadata-count 1024)
+
+(def ^:private arc-table-metadata-by-next-pkid
+  (mapv (fn [next-pkid]
+          {:next-pkid next-pkid})
+        (range shared-arc-table-metadata-count)))
+
+(defn- arc-table-metadata [^long next-pkid]
+  (if (< next-pkid shared-arc-table-metadata-count)
+    (arc-table-metadata-by-next-pkid next-pkid)
+    {:next-pkid next-pkid}))
+
 (defn- arc-table-next-pkid
   ^long [arc-table]
   (long (get (meta arc-table) :next-pkid 0)))
 
 (defn- arc-table-set-next-pkid [arc-table next-pkid]
   {:pre [(nat-int? next-pkid)]}
-  (vary-meta arc-table assoc :next-pkid next-pkid))
+  (with-meta arc-table (arc-table-metadata next-pkid)))
 
-(def ^:private empty-arc-table (arc-table-set-next-pkid (int-map/int-map) 0))
+(def ^:private empty-arc-table
+  (with-meta (int-map/int-map) (arc-table-metadata 0)))
 
 (defn arc-table-arcs [arc-table]
   (when-not (coll/empty? arc-table)
@@ -400,6 +415,13 @@
                         (coll/reduce=> arc-pkids dissoc!)
                         (persistent!))]
       (arc-table-set-next-pkid arc-table next-pkid))))
+
+(defn- arc-table-append [arc-table arc]
+  (let [arc-table (or arc-table empty-arc-table)
+        next-pkid (arc-table-next-pkid arc-table)]
+    (-> arc-table
+        (assoc next-pkid arc)
+        (arc-table-set-next-pkid (inc next-pkid)))))
 
 (defn- arc-table-find-arc-pkids [arc-table arc]
   (coll/into-> arc-table (int-map/int-set)
@@ -511,7 +533,7 @@
           arc-table-dissoc-pkids
           target-arc-pkids))
 
-(defn- basis-connect-arc-pkids [basis arc source+target-arc-pkids]
+(defn basis-perform-connect-arc-pkids [basis arc source+target-arc-pkids]
   (let [source-id (gt/source-id arc)
         source-graph-id (gt/node-id->graph-id source-id)
         target-id (gt/target-id arc)
@@ -527,7 +549,7 @@
            (get graphs target-graph-id))
       (update-in [:graphs target-graph-id] assoc-target-arcs-at arc target-arc-pkids))))
 
-(defn- basis-disconnect-arc-pkids [basis arc source+target-arc-pkids]
+(defn basis-perform-disconnect-arc-pkids [basis arc source+target-arc-pkids]
   (let [source-id (gt/source-id arc)
         source-graph-id (gt/node-id->graph-id source-id)
         target-id (gt/target-id arc)
@@ -1469,17 +1491,55 @@
        {arc (pair (int-map/int-set [source-arc-pkid])
                   (int-map/int-set [target-arc-pkid]))}})))
 
+(defn basis-perform-append-arc
+  [basis arc]
+  (let [source-id (gt/source-id arc)
+        target-id (gt/target-id arc)]
+    (if-not (and (gt/node-by-id-at basis source-id)
+                 (gt/node-by-id-at basis target-id))
+      basis
+      (let [graphs (:graphs basis)
+            source-label (gt/source-label arc)
+            target-label (gt/target-label arc)
+            source-graph-id (gt/node-id->graph-id source-id)
+            target-graph-id (gt/node-id->graph-id target-id)]
+        (assoc basis
+          :graphs
+          (if (= source-graph-id target-graph-id)
+            (let [graph (get graphs source-graph-id)]
+              (assoc graphs
+                source-graph-id (-> graph
+                                    (update-in
+                                      [:sarcs source-id source-label]
+                                      arc-table-append arc)
+                                    (update-in
+                                      [:tarcs target-id target-label]
+                                      arc-table-append arc))))
+            (let [source-graph (get graphs source-graph-id)
+                  target-graph (get graphs target-graph-id)]
+              ;; See the corresponding comment in basis-plan-connect-arc.
+              (assert (<= (:_volatility source-graph 0)
+                          (:_volatility target-graph 0)))
+              (assoc graphs
+                source-graph-id (update-in
+                                  source-graph [:sarcs source-id source-label]
+                                  arc-table-append arc)
+
+                target-graph-id (update-in
+                                  target-graph [:tarcs target-id target-label]
+                                  arc-table-append arc)))))))))
+
 (defn basis-perform-connect-arcs
   [basis arc->source+target-pkids]
   (coll/reduce-kv-> arc->source+target-pkids basis
     (fn [basis arc source+target-pkids]
-      (basis-connect-arc-pkids basis arc source+target-pkids))))
+      (basis-perform-connect-arc-pkids basis arc source+target-pkids))))
 
 (defn basis-revert-connect-arcs
   [basis arc->source+target-pkids]
   (coll/reduce-kv-> arc->source+target-pkids basis
     (fn [basis arc source+target-pkids]
-      (basis-disconnect-arc-pkids basis arc source+target-pkids))))
+      (basis-perform-disconnect-arc-pkids basis arc source+target-pkids))))
 
 (defn basis-plan-disconnect-arc
   [basis arc]

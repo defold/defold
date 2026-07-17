@@ -109,7 +109,14 @@
                 (testing "Internal arc tables."
                   (is (= [[source-node-id :property-output target-node-id :regular-input]]
                          (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input))))
+                         (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
+                  (let [source-arc-table-metadata (meta (get-in basis [:graphs graph-id :sarcs source-node-id :property-output]))
+                        target-arc-table-metadata (meta (get-in basis [:graphs graph-id :tarcs target-node-id :regular-input]))]
+                    (is (= {:next-pkid 1}
+                           source-arc-table-metadata
+                           target-arc-table-metadata))
+                    (is (identical? source-arc-table-metadata
+                                    target-arc-table-metadata))))
 
                 (testing "Output values."
                   (is (= :source-value (g/node-value target-node-id :regular-output evaluation-context)))))))]
@@ -1254,7 +1261,7 @@
         (g/redo! :undo/global)
         (ensure-after!)))))
 
-(deftest override-node-creation-from-non-undoable-connect-test
+(defn- test-override-node-creation-from-non-undoable-connect [transact-opts]
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
 
@@ -1293,6 +1300,7 @@
 
       (testing "Transact."
         (g/transact
+          transact-opts
           (concat
             (g/set-property source-node-id :property :after)
             (g/non-undoable
@@ -1309,3 +1317,75 @@
         (g/redo! :undo/global)
         (is (= :after (g/node-value source-node-id :property-output)))
         (ensure-connected!)))))
+
+(deftest override-node-creation-from-non-undoable-connect-test
+  (test-override-node-creation-from-non-undoable-connect nil))
+
+(deftest override-node-creation-from-non-undoable-connect-with-full-invalidation-test
+  (test-override-node-creation-from-non-undoable-connect {:full-invalidation true}))
+
+(deftest non-undoable-full-invalidation-connect-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [source-node-id
+           target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                 target-node-id helpers/ConnectionTargetNode])))
+
+          {:keys [basis] :as tx-result}
+          (g/transact
+            {:full-invalidation true
+             :undoable false}
+            [(g/connect source-node-id :property-output target-node-id :array-input)
+             (g/connect source-node-id :property-output target-node-id :array-input)])
+
+          source-arc-table-metadata (meta (get-in basis [:graphs graph-id :sarcs source-node-id :property-output]))
+          target-arc-table-metadata (meta (get-in basis [:graphs graph-id :tarcs target-node-id :array-input]))]
+
+      (is (= [] (:undoable-changes tx-result)))
+      (is (= 0 (g/undo-stack-count :undo/global)))
+      (is (= [[source-node-id :property-output]
+              [source-node-id :property-output]]
+             (g/sources basis target-node-id :array-input)))
+      (is (= [:source-value :source-value]
+             (g/node-value target-node-id :array-output)))
+      (is (= {:next-pkid 2}
+             source-arc-table-metadata
+             target-arc-table-metadata))
+      (is (identical? source-arc-table-metadata
+                      target-arc-table-metadata)))))
+
+(deftest non-undoable-full-invalidation-replace-cross-graph-connection-test
+  (test-support/with-clean-system
+    (let [source-graph-id (g/make-graph!)
+          target-graph-id (g/make-graph!)
+
+          [initial-source-node-id
+           replacement-source-node-id
+           target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes source-graph-id
+                [initial-source-node-id [helpers/OverrideTestNode :property :initial-value]
+                 replacement-source-node-id [helpers/OverrideTestNode  :property :replacement-value]]
+                (g/make-nodes target-graph-id
+                  [target-node-id helpers/ConnectionTargetNode]
+                  (g/connect initial-source-node-id :property-output target-node-id :regular-input)))))
+
+          {:keys [basis] :as tx-result}
+          (g/transact
+            {:full-invalidation true
+             :undoable false}
+            (g/connect replacement-source-node-id :property-output target-node-id :regular-input))]
+
+      (is (= [] (:undoable-changes tx-result)))
+      (is (= 0 (g/undo-stack-count :undo/global)))
+      (is (= [] (g/targets basis initial-source-node-id :property-output)))
+      (is (= [[replacement-source-node-id :property-output]] (g/sources basis target-node-id :regular-input)))
+      (is (= :replacement-value (g/node-value target-node-id :regular-output))))))

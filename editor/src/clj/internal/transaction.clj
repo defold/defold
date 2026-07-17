@@ -310,19 +310,21 @@
 (defn- ctx-add-nodes [ctx nodes introduced-node->overrides]
   (let [old-basis (:basis ctx)
         node-ids (mapv gt/node-id nodes)
-        changed-node-ids (e/concat node-ids (e/map key introduced-node->overrides))
         ctx (-> ctx
                 (update :basis ig/basis-perform-add-nodes nodes introduced-node->overrides)
-                (update :nodes-added into node-ids))
-        new-basis (:basis ctx)
-        source-arcs (coll/into-> node-ids []
-                      (mapcat #(ig/explicit-arcs-by-source new-basis %)))]
-    (-> ctx
-        (mark-nodes-outputs-activated nodes)
-        (flag-successors-changed
-          (e/concat
-            (node-successor-changes old-basis new-basis changed-node-ids)
-            (arc-successor-changes old-basis new-basis source-arcs))))))
+                (update :nodes-added into node-ids))]
+    (if (:full-invalidation ctx)
+      ctx
+      (let [changed-node-ids (e/concat node-ids (e/map key introduced-node->overrides))
+            new-basis (:basis ctx)
+            source-arcs (coll/into-> node-ids []
+                          (mapcat #(ig/explicit-arcs-by-source new-basis %)))]
+        (-> ctx
+            (mark-nodes-outputs-activated nodes)
+            (flag-successors-changed
+              (e/concat
+                (node-successor-changes old-basis new-basis changed-node-ids)
+                (arc-successor-changes old-basis new-basis source-arcs))))))))
 
 (defn- ctx-delete-nodes [ctx nodes removed-arc->source+target-pkids overrides node->overrides]
   (let [old-basis (:basis ctx)
@@ -648,26 +650,28 @@
   ;; state changed, because evaluating the value-fns can potentially be
   ;; expensive. Besides, we're already skipping creating TransactionChanges for
   ;; unchanged properties when we realize the TransactionSteps.
-  (let [basis (:basis ctx)
-        node (gt/node-by-id-at basis node-id)]
-    (if-not node
-      ctx
-      (let [node-type (gt/node-type node)
-            is-override-node (gt/original node)
-            is-declared-property (contains? (in/all-properties node-type) property-label)
+  (if (:full-invalidation ctx)
+    ctx
+    (let [basis (:basis ctx)
+          node (gt/node-by-id-at basis node-id)]
+      (if-not node
+        ctx
+        (let [node-type (gt/node-type node)
+              is-override-node (gt/original node)
+              is-declared-property (contains? (in/all-properties node-type) property-label)
 
-            invalidated-output-labels
-            (cond-> (if is-declared-property
-                      [property-label]
-                      [property-label :_properties]) ; :_properties is not automatically invalidated for us, so we must do it ourselves.
+              invalidated-output-labels
+              (cond-> (if is-declared-property
+                        [property-label]
+                        [property-label :_properties]) ; :_properties is not automatically invalidated for us, so we must do it ourselves.
 
-              is-override-node
-              (conj :_overridden-properties))] ; This is a map of property-label->value.
+                is-override-node
+                (conj :_overridden-properties))] ; This is a map of property-label->value.
 
-        (case (count invalidated-output-labels)
-          0 ctx
-          1 (mark-output-activated ctx node-id (invalidated-output-labels 0))
-          (mark-outputs-activated ctx node-id invalidated-output-labels))))))
+          (case (count invalidated-output-labels)
+            0 ctx
+            1 (mark-output-activated ctx node-id (invalidated-output-labels 0))
+            (mark-outputs-activated ctx node-id invalidated-output-labels)))))))
 
 (defn- ctx-perform-set-raw-property
   [ctx node-id property-label new-raw-value]
@@ -907,7 +911,7 @@
           (fn [[ctx changed-arcs :as result] arc source+target-pkids]
             (let [[_source-arc-pkids target-arc-pkids] source+target-pkids
                   old-basis (:basis ctx)
-                  new-basis (ig/basis-perform-connect-arcs old-basis {arc source+target-pkids})]
+                  new-basis (ig/basis-perform-connect-arc-pkids old-basis arc source+target-pkids)]
               (if (identical? old-basis new-basis)
                 result
                 (let [target-id (gt/target-id arc)
@@ -947,7 +951,7 @@
           (fn [[ctx changed-arcs :as result] arc source+target-pkids]
             (let [[_source-arc-pkids target-arc-pkids] source+target-pkids
                   old-basis (:basis ctx)
-                  new-basis (ig/basis-perform-disconnect-arcs old-basis {arc source+target-pkids})]
+                  new-basis (ig/basis-perform-disconnect-arc-pkids old-basis arc source+target-pkids)]
               (if (identical? old-basis new-basis)
                 result
                 (pair
@@ -1338,12 +1342,31 @@
                     (realize-disconnect ctx undoable-changes existing-arc))))]
 
           (assert-type-compatible source-id source source-label target-id target target-label)
-          (if-let [{:keys [arc->source+target-pkids]}
-                   (ig/basis-plan-connect-arc (:basis ctx) arc)]
-            (let [undoable (some? undoable-changes)
-                  change (->ConnectArcsTXC arc->source+target-pkids undoable)]
-              (perform-and-conj-change ctx undoable-changes change))
-            ctx+undoable-changes))
+
+          ;; Large projects have a lot of connections, so we have a fast-path
+          ;; here in case we don't need to track changes or create an undo step.
+          (if (and (nil? undoable-changes)
+                   (:full-invalidation ctx))
+
+            ;; Fast path. Just append the arc to the arc-tables without keeping
+            ;; track of where it ended up.
+            (let [old-basis (:basis ctx)
+                  new-basis (ig/basis-perform-append-arc old-basis arc)]
+              (if (identical? old-basis new-basis)
+                ctx+undoable-changes
+                (pair
+                  (cond-> (assoc ctx :basis new-basis)
+                    (contains? (in/cascade-deletes target-node-type) target-label)
+                    (mark-override-nodes-affected target-id false))
+                  undoable-changes)))
+
+            ;; Regular path with undo and invalidation tracking.
+            (if-let [{:keys [arc->source+target-pkids]}
+                     (ig/basis-plan-connect-arc (:basis ctx) arc)]
+              (let [undoable (some? undoable-changes)
+                    change (->ConnectArcsTXC arc->source+target-pkids undoable)]
+                (perform-and-conj-change ctx undoable-changes change))
+              ctx+undoable-changes)))
         (pair ctx undoable-changes))
       (pair ctx undoable-changes))))
 
