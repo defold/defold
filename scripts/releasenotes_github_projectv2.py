@@ -24,6 +24,7 @@ import json
 import time
 import math
 import subprocess
+from urllib.parse import quote
 
 token = None
 
@@ -333,11 +334,11 @@ def find_reference_commits(pr):
             commits.append(node["commit"]["oid"])
     return commits
 
-# Branches a release-note issue's fix has to be on. get_commit_branches checks
-# membership with local git by default, or GitHub's "compare two commits" API
-# when --use-github-compare is set (below). AUDIT_BRANCHES only matters for the
-# API path, which has to name the branches to compare against.
-AUDIT_BRANCHES = ["dev", "beta"]
+CHANNEL_RELEASE_BRANCHES = {
+    "alpha": ["dev"],
+    "beta": ["beta"],
+    "stable": ["master"],
+}
 
 def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
     # True when `branch` already contains `commit`. GitHub's compare endpoint
@@ -346,7 +347,7 @@ def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
     # Only an unreachable repo or unknown sha gives a null response, which we
     # retry a few times; if it still can't be confirmed we treat it as missing
     # (False) so it blocks the release.
-    url = "/repos/defold/%s/compare/%s...%s" % (repository, branch, commit)
+    url = "/repos/defold/%s/compare/%s...%s" % (repository, quote(branch, safe = ""), commit)
     for attempt in range(max_retries):
         response = github.get(url, token)
         if response is not None:
@@ -357,7 +358,7 @@ def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
 
 def git_branch_contains(commit):
     # Local branches that contain the commit. Only sees what's in the checkout,
-    # so it needs a full clone with dev/beta fetched (not a shallow CI clone).
+    # so it needs a full clone with the audited branches fetched (not a shallow CI clone).
     # --format gives bare branch names; without it `git branch` prefixes the
     # current branch with "* " and one checked out in another worktree with "+ ",
     # and that marker stays in the string so "+ dev" would never match "dev".
@@ -367,15 +368,15 @@ def git_branch_contains(commit):
     red(result.stderr.decode('utf-8'))
     sys.exit(result.returncode)
 
-def get_commit_branches(commit):
+def get_commit_branches(commit, branches):
     # Which branches contain this commit. Locally we just ask git; on a shallow
     # CI clone there's no history, so --use-github-compare asks GitHub instead.
     if use_github_compare:
-        return [branch for branch in AUDIT_BRANCHES if commit_in_branch(branch, commit)]
-    return git_branch_contains(commit)
+        return [branch for branch in branches if commit_in_branch(branch, commit)]
+    return [branch for branch in git_branch_contains(commit) if branch in branches]
 
 def check_commit_branches(commit, branches):
-    result = get_commit_branches(commit)
+    result = get_commit_branches(commit, branches)
     for branch in branches:
         if not branch in result:
             return False
@@ -536,34 +537,38 @@ def parse_github_project(version):
 
     return issues
 
-def audit_branches_for_channel(channel):
-    # Which branches a note's fix has to be on, per release channel.
-    # beta/stable ship from beta with everything merged forward -> require both.
-    # alpha (dev track) and custom validation channels build off dev / a feature
-    # branch, so requiring beta would fail them for fixes that just haven't
-    # reached beta yet -> require dev only. Unknown channel (manual run with no
-    # --channel) keeps the strict default.
-    if channel in ("beta", "stable", None):
-        return ["dev", "beta"]
-    return ["dev"]
+def audit_branches_for_release(channel, release_branch = None):
+    # A release note is valid when its fix is present on the branch that ships
+    # the channel. CI passes the checked-out release branch explicitly; local
+    # runs can derive it for the standard channels.
+    if release_branch:
+        return [release_branch]
+    if channel in CHANNEL_RELEASE_BRANCHES:
+        return CHANNEL_RELEASE_BRANCHES[channel]
+    sys.exit("No release branch known for channel '%s'; pass --release-branch" % channel)
 
 def check_issue_commits(issues, required_branches = ("dev", "beta")):
     print("\nChecking issue commits for presence on: %s" % ", ".join(required_branches))
-    merge_dev_count = 0
-    merge_beta_count = 0
-    merge_dev_beta_count = 0
-    reference_dev_count = 0
-    reference_beta_count = 0
-    reference_dev_beta_count = 0
+    merge_count_by_branch = dict((branch, 0) for branch in required_branches)
+    reference_count_by_branch = dict((branch, 0) for branch in required_branches)
+    missing_count_by_branch = dict((branch, 0) for branch in required_branches)
     ignored_count = 0
-    missing_dev_count = 0
-    missing_beta_count = 0
-    missing_dev_beta_count = 0
     kept = []
     skipped = []
+
+    def mark_present(branch_ok, branches, commit, source):
+        for branch in branches:
+            if not branch_ok[branch]:
+                branch_ok[branch] = True
+                if source == "merge":
+                    green("    %s OK via merge commit (%s)" % (branch, commit))
+                    merge_count_by_branch[branch] = merge_count_by_branch[branch] + 1
+                else:
+                    yellow("    %s OK via reference commit (%s)" % (branch, commit))
+                    reference_count_by_branch[branch] = reference_count_by_branch[branch] + 1
+
     for issue in issues:
-        dev_ok = False
-        beta_ok = False
+        branch_ok = dict((branch, False) for branch in required_branches)
         print("  Checking #%s '%s' (%s)" % (issue["issue_number"], issue["title"], issue["url"]))
         if issue.get("repository") != "defold":
             yellow("    Ignored since issue is not from the defold repository")
@@ -572,7 +577,7 @@ def check_issue_commits(issues, required_branches = ("dev", "beta")):
             continue
 
         # The fix lives in another repository (e.g. an extension), so its commits
-        # will never be on defold's dev/beta.
+        # will never be on defold's audited release branch.
         if issue.get("pr_repository") != "defold":
             yellow("    Ignored since the fix is a PR in the %s repository" % issue.get("pr_repository"))
             ignored_count = ignored_count + 1
@@ -580,65 +585,34 @@ def check_issue_commits(issues, required_branches = ("dev", "beta")):
             continue
 
         if issue.get("mergecommit") != None:
-            branches = get_commit_branches(issue["mergecommit"])
-            if "dev" in branches and "beta" in branches:
-                merge_dev_beta_count = merge_dev_beta_count + 1
-            if "dev" in branches:
-                green("    dev  OK via merge commit (%s)" % (issue["mergecommit"]))
-                dev_ok = True
-                merge_dev_count = merge_dev_count + 1
-            if "beta" in branches:
-                green("    beta OK via merge commit (%s)" % (issue["mergecommit"]))
-                beta_ok = True
-                merge_beta_count = merge_beta_count + 1
+            branches = get_commit_branches(issue["mergecommit"], required_branches)
+            mark_present(branch_ok, branches, issue["mergecommit"], "merge")
 
         for referencecommit in issue.get("referencecommits"):
-            if dev_ok and beta_ok: break
-            branches = get_commit_branches(referencecommit)
-            if "dev" in branches and "beta" in branches:
-                reference_dev_beta_count = reference_dev_beta_count + 1
-            if not dev_ok and "dev" in branches:
-                yellow("    dev  OK via reference commit (%s)" % referencecommit)
-                dev_ok = True
-                reference_dev_count = reference_dev_count + 1
-            if not beta_ok and "beta" in branches:
-                yellow("    beta OK via reference commit (%s)" % referencecommit)
-                beta_ok = True
-                reference_beta_count = reference_beta_count + 1
+            if all(branch_ok.values()): break
+            branches = get_commit_branches(referencecommit, required_branches)
+            mark_present(branch_ok, branches, referencecommit, "reference")
 
-        if not dev_ok and not beta_ok:
-            red("    Missing from dev+beta")
-            missing_dev_beta_count = missing_dev_beta_count + 1
-        else:
-            if not dev_ok:
-                red("    Missing from dev")
-                missing_dev_count = missing_dev_count + 1
-            if not beta_ok:
-                red("    Missing from beta")
-                missing_beta_count = missing_beta_count + 1
+        missing = [branch for branch, ok in branch_ok.items() if not ok]
+        for branch in missing:
+            red("    Missing from %s" % branch)
+            missing_count_by_branch[branch] = missing_count_by_branch[branch] + 1
 
         # A fix must be present on every branch this channel ships from to be
         # listed, otherwise the notes would advertise a change that isn't in the
-        # release. The dev/beta tallies above are diagnostics only.
-        branch_ok = {"dev": dev_ok, "beta": beta_ok}
-        if all(branch_ok.get(b, False) for b in required_branches):
+        # release.
+        if not missing:
             kept.append(issue)
         else:
-            missing = [b for b in required_branches if not branch_ok.get(b, False)]
             yellow("    Left out of the notes (not on required branch(es): %s)" % ", ".join(missing))
             skipped.append(issue)
 
     print("\nSummary (%d issues)" % len(issues))
     print("  %d issue(s) from external repositories not checked" % ignored_count)
-    green("  %d issue(s) present on dev+beta via merge commits" % merge_dev_beta_count)
-    green("  %d issue(s) present on dev+beta via reference commits" % reference_dev_beta_count)
-    yellow("  %d issue(s) present on dev via merge commits" % merge_dev_count)
-    yellow("  %d issue(s) present on beta via merge commits" % merge_beta_count)
-    yellow("  %d issue(s) present on dev via reference commits" % reference_dev_count)
-    yellow("  %d issue(s) present on beta via reference commits" % reference_beta_count)
-    red("  %d issue(s) not present on dev" % missing_dev_count)
-    red("  %d issue(s) not present on beta" % missing_beta_count)
-    red("  %d issue(s) not present on dev+beta" % missing_dev_beta_count)
+    for branch in required_branches:
+        green("  %d issue(s) present on %s via merge commits" % (merge_count_by_branch[branch], branch))
+        yellow("  %d issue(s) present on %s via reference commits" % (reference_count_by_branch[branch], branch))
+        red("  %d issue(s) not present on %s" % (missing_count_by_branch[branch], branch))
 
     if skipped:
         yellow("\n%d issue(s) left out of the release notes - not present on required branch(es) %s:" % (len(skipped), ", ".join(required_branches)))
@@ -719,7 +693,7 @@ def generate_json(version, issues, channel = None):
         print("Wrote %s" % file)
 
 
-def generate(version, hide_details = False, channel = None):
+def generate(version, hide_details = False, channel = None, release_branch = None):
     print("Generating release notes for %s" % version)
 
     issues = parse_github_project(version)
@@ -732,7 +706,7 @@ def generate(version, hide_details = False, channel = None):
     # Notes are generated only from fixes confirmed present on the branch(es)
     # this channel ships from, so they never list a change that isn't in the
     # release; check_issue_commits drops the rest.
-    issues = check_issue_commits(issues, audit_branches_for_channel(channel))
+    issues = check_issue_commits(issues, audit_branches_for_release(channel, release_branch))
     generate_markdown(version, issues, hide_details)
     generate_json(version, issues, channel)
 
@@ -761,7 +735,11 @@ generate - Generate release notes
 
     parser.add_option('--channel', dest='channel',
                       default = None,
-                      help = 'Release channel; selects which branch(es) the commit audit requires')
+                      help = 'Release channel; used for release links and default branch selection')
+
+    parser.add_option('--release-branch', dest='release_branch',
+                      default = None,
+                      help = 'Git branch the release is built from; overrides the channel default for commit auditing')
 
     parser.add_option('--use-github-compare', dest='use_github_compare',
                       default = False,
@@ -788,7 +766,11 @@ generate - Generate release notes
     use_github_compare = options.use_github_compare
     for cmd in args:
         if cmd == "generate":
-            generate(options.version, options.hide_details, options.channel)
+            if not options.channel:
+                print("No channel specified")
+                parser.print_help()
+                exit(1)
+            generate(options.version, options.hide_details, options.channel, options.release_branch)
 
 
     print('Done')
