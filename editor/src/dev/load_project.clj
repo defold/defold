@@ -12,6 +12,10 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
+;; Silence log spam.
+(when-let [^ch.qos.logback.classic.Logger root-logger (org.slf4j.LoggerFactory/getLogger ch.qos.logback.classic.Logger/ROOT_LOGGER_NAME)]
+  (.setLevel root-logger ch.qos.logback.classic.Level/ERROR))
+
 (ns load-project
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
@@ -32,14 +36,23 @@
             [internal.graph.types]
             [internal.system :as is]
             [internal.transaction :as it]
-            [service.log :as log]
             [util.coll :as coll]
             [util.debug-util :as du]
             [util.eduction :as e]
             [util.fn :as fn])
-  (:import [java.util List]))
+  (:import [java.util ArrayList Collection Collections List Random]))
 
 (set! *warn-on-reflection* true)
+
+(defn- log-data [tag & {:as args}]
+  {:pre [(#{:INFO :WARNING :ERROR} tag)
+         (string? (:message args))]}
+  (prn (into {tag (:message args)}
+             (dissoc args :message))))
+
+(def ^:private log-info (partial log-data :INFO))
+(def ^:private log-warning (partial log-data :WARNING))
+(def ^:private log-error (partial log-data :ERROR))
 
 ;; Set DM_DEV_LOAD_PROJECT_PATH to the path of the project directory you want to load.
 (def ^:private default-project-path "test/resources/all_types_project")
@@ -51,13 +64,30 @@
       default-project-path
       env-project-path)))
 
+;; The reload ratio determines the percentage of resources that are reloaded
+;; during the simulated reload phase. Set DM_DEV_LOAD_PROJECT_RELOAD_RATIO to a
+;; number between 0.0 and 1.0 if you want to limit the number of resources that
+;; are reloaded. Defaults to 1.0.
+(def ^:private ^:const default-simulated-reload-ratio 1.0)
+
+(defonce simulated-reload-ratio
+  (let [^String env-simulated-reload-ratio (System/getenv "DM_DEV_LOAD_PROJECT_RELOAD_RATIO")]
+    (if (or (nil? env-simulated-reload-ratio)
+            (.isEmpty env-simulated-reload-ratio))
+      default-simulated-reload-ratio
+      (max 0.0 (min (Double/parseDouble env-simulated-reload-ratio) 1.0)))))
+
+;; The reload seed affects which random resources are reloaded during the
+;; simulated reload phase.
+(def ^:const simulated-reload-seed 0x5eed)
+
 ;; When true, generate tx-data for loaded nodes in a separate step before
 ;; applying it in a transaction. Allows us to profile the two phases in
 ;; isolation at the cost of increased peak memory usage.
 (defonce separate-load-tx-data-generation true)
 
 ;; Set to one of the task-phases below to skip the rest of the tasks.
-(def final-task :build-build-targets)
+(def final-task :simulate-reload)
 
 ;; You can use this to start and stop your own profiling tool for certain tasks.
 (defn- user-profiling-hook! [task-key task-fn]
@@ -77,6 +107,25 @@
     ;; A task we do not care about. Just invoke the task-fn.
     (task-fn)))
 
+(defmacro log-time-and-memory [label expr]
+  `(let [runtime# (Runtime/getRuntime)
+         start-bytes# (du/allocated-bytes runtime#)
+         start-ns# (System/nanoTime)
+         ret# ~expr
+         end-ns# (System/nanoTime)
+         end-bytes# (du/allocated-bytes runtime#)
+         allocated-bytes# (- end-bytes# start-bytes#)
+         elapsed-ns# (- end-ns# start-ns#)]
+     (if (pos? allocated-bytes#)
+       (log-info :message ~label
+                 :elapsed (du/nanos->string elapsed-ns#)
+                 :allocated (du/bytes->string allocated-bytes#)
+                 :heap (du/bytes->string end-bytes#))
+       (log-info :message ~label
+                 :elapsed (du/nanos->string elapsed-ns#)
+                 :heap (du/bytes->string end-bytes#)))
+     ret#))
+
 (def ^:private ^List task-phases
   [:resource-sync
    :list-resources
@@ -89,7 +138,8 @@
    :cache-save-data
    :evaluate-build-targets
    :resolve-build-target-deps
-   :build-build-targets])
+   :build-build-targets
+   :simulate-reload])
 
 (def ^:private final-task-index
   (let [task-index (.indexOf task-phases final-task)]
@@ -123,7 +173,7 @@
 
 (defn- measure-task-impl! [task-key task-fn]
   (let [task-label (name task-key)]
-    (du/log-time-and-memory task-label
+    (log-time-and-memory task-label
       (du/measuring task-metrics task-key
         (user-profiling-hook! task-key task-fn)))))
 
@@ -166,6 +216,9 @@
         dependencies (project/read-dependencies game-project-file)
         library-results (library/fetch! project-directory dependencies progress/null-render-progress!)]
     (workspace/set-project-dependencies! workspace library-results)))
+
+(defonce ^:private -log-project-path-
+  (log-info :message "Loading project." :project-path project-path))
 
 (defonce start-allocated-bytes (du/allocated-bytes runtime))
 (defonce start-time-nanos (System/nanoTime))
@@ -264,7 +317,7 @@
                 (map #(resource/proj-path (resource-node/resource basis %)))
                 migrated-resource-node-ids)]
       (when (pos? (count migrated-proj-paths))
-        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
+        (log-info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
 
     migrated-resource-node-ids))
 
@@ -285,8 +338,40 @@
                 (build/build-build-targets! all-build-targets workspace {} progress/null-render-progress! evaluation-context))]
           (when-some [error-value (:error build-results)]
             (doseq [error-line (string/split-lines (localization (g/error-message error-value)))]
-              (log/error :message "build-failure" :cause error-line)))
+              (log-error :message "build-failure" :cause error-line)))
           build-results)))))
+
+(defn- select-simulated-reload-resources [resources]
+  (if (<= 1.0 simulated-reload-ratio)
+    (filterv #(= :file (resource/source-type %))
+             resources)
+    (let [random (Random. (long simulated-reload-seed))]
+      (into []
+            (mapcat
+              (fn [[_ resources]]
+                (let [shuffled-resources (ArrayList. ^Collection (sort-by resource/proj-path resources))
+                      selection-count (int (Math/ceil (* simulated-reload-ratio
+                                                         (.size shuffled-resources))))]
+                  (Collections/shuffle shuffled-resources random)
+                  (.subList shuffled-resources 0 selection-count))))
+            (->> resources
+                 (filter #(= :file (resource/source-type %)))
+                 (group-by (comp :ext resource/resource-type))
+                 (sort-by key))))))
+
+(defonce simulated-reload-changes
+  (when (run-task? :simulate-reload)
+    {:added []
+     :removed []
+     :changed (select-simulated-reload-resources (g/node-value workspace :resource-list))
+     :moved []}))
+
+(defonce ^:private -simulate-reload-
+  (run-and-measure-task!
+    :simulate-reload
+    (doseq [[_ listener] @(g/node-value workspace :resource-listeners)]
+      (resource/handle-changes listener simulated-reload-changes progress/null-render-progress!))
+    nil))
 
 (defonce total-duration-nanos
   (let [end-time-nanos (System/nanoTime)]
@@ -298,7 +383,7 @@
   (- end-allocated-bytes (long start-allocated-bytes)))
 
 (defonce ^:private -log-statistics-
-  (log/info :message "total"
+  (log-info :message "total"
             :elapsed (du/nanos->string total-duration-nanos)
             :elapsed-sans-gc (du/nanos->string (- total-duration-nanos (du/gc-overhead-ns)))
             :allocated (du/bytes->string total-allocated-bytes)
@@ -309,4 +394,5 @@
     {:new-nodes-by-path (some-> project (g/node-value :nodes-by-resource-path))
      :task-metrics @task-metrics
      :resource-metrics @resource-metrics
+     :resource-change-metrics @project/resource-change-metrics-atom
      :transaction-metrics @transaction-metrics}))
