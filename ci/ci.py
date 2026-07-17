@@ -476,7 +476,7 @@ def gen_release_notes(channel):
         return
 
     # Run the generator. It exits non-zero if it errors or can't confirm a fix is
-    # on the required branch(es). --use-github-compare makes that branch check use
+    # on the channel's release branch. --use-github-compare makes that check use
     # the GitHub API, needed because CI clones are shallow.
     mandatory = channel in MANDATORY_RELEASE_NOTES_CHANNELS
     call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s --use-github-compare generate' % (
