@@ -2880,47 +2880,6 @@ namespace dmGui
         return 0;
     }
 
-    static void PushTextMetrics(lua_State* L, Scene* scene, dmhash_t font_id_hash, const char* text, float width, bool line_break, float leading, float tracking)
-    {
-        dmGui::TextMetrics metrics;
-        dmGui::Result r = dmGui::GetTextMetrics(scene, text, font_id_hash, width, line_break, leading, tracking, &metrics);
-        if (r != RESULT_OK) {
-            luaL_error(L, "Font '%s' is not specified in scene", dmHashReverseSafe64(font_id_hash));
-        }
-
-        lua_createtable(L, 0, 4);
-        lua_pushliteral(L, "width");
-        lua_pushnumber(L, metrics.m_Width);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "height");
-        lua_pushnumber(L, metrics.m_Height);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "max_ascent");
-        lua_pushnumber(L, metrics.m_MaxAscent);
-        lua_rawset(L, -3);
-        lua_pushliteral(L, "max_descent");
-        lua_pushnumber(L, metrics.m_MaxDescent);
-        lua_rawset(L, -3);
-    }
-
-    static inline float LuaUtilGetDefaultFloat(lua_State* L, int index, float defaultvalue)
-    {
-        if( lua_isnoneornil(L, index) )
-        {
-            return defaultvalue;
-        }
-        return (float) luaL_checknumber(L, index);
-    }
-
-    static inline bool LuaUtilGetDefaultBool(lua_State* L, int index, bool defaultvalue)
-    {
-        if( lua_isnoneornil(L, index) )
-        {
-            return defaultvalue;
-        }
-        return lua_toboolean(L, index);
-    }
-
     /*# gets the x-anchor of a node
      * The x-anchor specifies how the node is moved when the game is run in a different resolution.
      *

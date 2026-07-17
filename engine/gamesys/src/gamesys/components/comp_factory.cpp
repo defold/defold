@@ -253,7 +253,7 @@ namespace dmGameSystem
             }
 
             dmGameObject::HInstance spawned_instance;
-            dmGameObject::Result result = DoSpawn(world, component, collection, create->m_Id, create->m_Position, create->m_Rotation, scale, properties, &spawned_instance);
+            DoSpawn(world, component, collection, create->m_Id, create->m_Position, create->m_Rotation, scale, properties, &spawned_instance);
 
             if (properties)
             {

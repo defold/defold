@@ -40,6 +40,7 @@
 #if defined(__MACH__)
 #include <OpenAL/al.h>
 #include <OpenAL/alc.h>
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #else
 #include <AL/al.h>
 #include <AL/alc.h>

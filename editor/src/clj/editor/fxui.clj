@@ -32,6 +32,7 @@
             [cljfx.fx.password-field :as fx.password-field]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
+            [cljfx.fx.slider :as fx.slider]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.svg-path :as fx.svg-path]
@@ -69,8 +70,8 @@
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
            [javafx.scene Node Parent]
-           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextInputControl Tooltip]
-           [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane Slider TextInputControl Tooltip]
+           [javafx.scene.control.skin ScrollPaneSkin SliderSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region StackPane]
            [javafx.scene.paint Color]
@@ -139,6 +140,34 @@
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created focus-when-on-scene!
    :desc desc})
+
+(def ^{:arglists '([props])} slider
+  "Slider component with a guard for JavaFX SliderSkin drag events that did not start on the thumb."
+  (let [drag-start-guard-prop
+        (fx/make-binding-prop
+          (fn bind-drag-start-guard [^Slider slider _]
+            ;; The event handlers need the ^EventHandler hints: without them, every
+            ;; interop call site coerces the fn into a fresh adapter, and the filters
+            ;; can no longer be removed.
+            (let [thumb-pressed (volatile! false)
+                  ^EventHandler on-thumb-pressed  (fn on-thumb-pressed [_] (vreset! thumb-pressed true))
+                  ^EventHandler on-thumb-released (fn on-thumb-released [_] (vreset! thumb-pressed false))
+                  ^EventHandler on-thumb-dragged  (fn on-thumb-dragged [^Event event] (when-not @thumb-pressed (.consume event)))]
+              (.setSkin slider (SliderSkin. slider))
+              (when-let [^Node thumb (.lookup slider ".thumb")]
+                (doto thumb
+                  (.addEventFilter MouseEvent/MOUSE_PRESSED on-thumb-pressed)
+                  (.addEventFilter MouseEvent/MOUSE_RELEASED on-thumb-released)
+                  (.addEventFilter MouseEvent/MOUSE_DRAGGED on-thumb-dragged))
+                #(doto thumb
+                   (.removeEventFilter MouseEvent/MOUSE_PRESSED on-thumb-pressed)
+                   (.removeEventFilter MouseEvent/MOUSE_RELEASED on-thumb-released)
+                   (.removeEventFilter MouseEvent/MOUSE_DRAGGED on-thumb-dragged)))))
+          fx.lifecycle/scalar)]
+    (fn slider [props]
+      (assoc props
+        :fx/type fx.slider/lifecycle
+        drag-start-guard-prop true))))
 
 (def ext-with-advance-events
   "Extension lifecycle that notifies all listeners even during advancing
@@ -1443,55 +1472,66 @@
     :on-value-changed      value change callback
     :ignore-alpha          whether the view should ignore the alpha, default
                            false
-    :color-dropper-view    node id of a color dropper component, enables color
-                           dropper if provided
+    :color-dropper         whether to show the color dropper, default true
     :prefs                 if provided, loads/persists custom colors
     :color                 either :warning or :error"
-  [{:keys [value on-value-changed ignore-alpha color-dropper-view prefs editable]
-    :or {editable true}
+  [{:keys [value on-value-changed ignore-alpha color-dropper prefs editable on-dropper-activated on-dropper-deactivated]
+    :or {color-dropper true
+         editable true}
     :as props}]
-  (-> props
-      (dissoc :value :on-value-changed :ignore-alpha :color-dropper-view :prefs :editable)
-      (assoc
-        :fx/type horizontal
-        :style-class "ext-color-picker"
-        :children [(cond->
-                     {:fx/type value-field
-                      :style-class "ext-color-picker-field"
-                      :h-box/hgrow :always
-                      :to-string (fn/partial color->web-string ignore-alpha)
-                      :to-value (fn/partial web-string->color ignore-alpha)
-                      :on-invalid-value on-color-picker-invalid-value
-                      :editable editable
-                      :value value
-                      :on-value-changed on-value-changed}
-                     (and color-dropper-view editable)
-                     (assoc
-                       :hover-overlay
-                       {:fx/type hover-overlay
-                        :alignment :right
-                        :padding 4
-                        :content
-                        (cond->
-                          {:fx/type fx.pane/lifecycle
-                           :style-class "color-dropper-icon"
-                           :children [{:fx/type ui/image-icon
-                                       :path "icons/32/Icons_M_03_colorpicker.png"
-                                       :size 16.0}]
-                           :on-mouse-pressed on-color-dropper-mouse-pressed}
-                          on-value-changed
-                          (assoc :on-mouse-clicked #(color-dropper/activate! color-dropper-view on-value-changed %)))}))
-                   (cond-> {:fx/type fx.color-picker/lifecycle
-                            :focus-traversable false
-                            :disable (not editable)
-                            :style-class "ext-color-picker-icon"
-                            :on-shown handle-color-picker-shown
-                            :on-hidden handle-color-picker-hidden}
-                           value (assoc :value value)
-                           on-value-changed (assoc :on-value-changed on-value-changed)
-                           prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
-                                        :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))])
-      resolve-input-color))
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [^Node node]
+                 (ui/user-data! node ::color-dropper-key (color-dropper/make-color-dropper!)))
+   :on-deleted (fn [^Node node]
+                 (when-let [color-dropper (ui/user-data node ::color-dropper-key)]
+                   (color-dropper/deactivate! color-dropper)
+                   (ui/user-data! node ::color-dropper-key nil)))
+   :desc
+   (-> props
+       (dissoc :value :on-value-changed :ignore-alpha :color-dropper :prefs :editable :on-dropper-activated :on-dropper-deactivated)
+       (assoc
+         :fx/type horizontal
+         :style-class "ext-color-picker"
+         :children [(cond->
+                      {:fx/type value-field
+                       :style-class "ext-color-picker-field"
+                       :h-box/hgrow :always
+                       :to-string (fn/partial color->web-string ignore-alpha)
+                       :to-value (fn/partial web-string->color ignore-alpha)
+                       :on-invalid-value on-color-picker-invalid-value
+                       :editable editable
+                       :value value
+                       :on-value-changed on-value-changed}
+                      (and color-dropper on-value-changed editable)
+                      (assoc
+                        :hover-overlay
+                        {:fx/type hover-overlay
+                         :alignment :right
+                         :padding 4
+                         :content
+                         {:fx/type fx.pane/lifecycle
+                          :style-class "color-dropper-icon"
+                          :children [{:fx/type ui/image-icon
+                                      :path "icons/32/Icons_M_03_colorpicker.png"
+                                      :size 16.0}]
+                          :on-mouse-pressed on-color-dropper-mouse-pressed
+                          :on-mouse-clicked (fn [^MouseEvent event]
+                                              (let [source (.getSource event)]
+                                                (when (instance? Node source)
+                                                  (when-let [node (ui/closest-node-with-style "ext-color-picker" source)]
+                                                    (when-let [color-dropper (ui/user-data node ::color-dropper-key)]
+                                                      (color-dropper/activate! color-dropper on-value-changed on-dropper-activated on-dropper-deactivated event))))))}}))
+                    (cond-> {:fx/type fx.color-picker/lifecycle
+                             :focus-traversable false
+                             :disable (not editable)
+                             :style-class "ext-color-picker-icon"
+                             :on-shown handle-color-picker-shown
+                             :on-hidden handle-color-picker-hidden}
+                            value (assoc :value value)
+                            on-value-changed (assoc :on-value-changed on-value-changed)
+                            prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
+                                         :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))])
+       resolve-input-color)})
 
 (def ^:private ext-with-expanded-scroll-pane-content-props
   (fx/make-ext-with-props

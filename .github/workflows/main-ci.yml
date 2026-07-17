@@ -72,10 +72,10 @@ jobs:
       },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-darwin:
@@ -123,10 +123,10 @@ jobs:
       },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-web:
@@ -155,10 +155,10 @@ jobs:
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-android:
@@ -195,10 +195,10 @@ jobs:
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-linux-x64:
@@ -234,10 +234,10 @@ jobs:
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-linux-arm64:
@@ -261,10 +261,10 @@ jobs:
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-switch:
@@ -292,10 +292,10 @@ jobs:
       { name: 'Stop Gradle Daemon', if: *should_build_switch, run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   bld-eng-ps:
@@ -323,10 +323,10 @@ jobs:
       { name: 'Stop Gradle Daemon', if: *should_build_ps, run: '.\\com.dynamo.cr\\com.dynamo.cr.bob\\gradlew.bat --stop' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / ${{ matrix.platform }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
 
@@ -371,10 +371,10 @@ jobs:
             -f release="$release"
       - {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: x86_64-xbone', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }} / x86_64-xbone\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
 
   # ---- BUILD BOB AND SDK ------------------
@@ -405,10 +405,10 @@ jobs:
       { name: 'Stop Gradle Daemon', run: 'com.dynamo.cr/com.dynamo.cr.bob/gradlew --stop' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   test-bob:
@@ -446,10 +446,10 @@ jobs:
       },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   build-sdk:
@@ -467,10 +467,10 @@ jobs:
       },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
 
   # ---- BUILD EDITOR ------------------
@@ -513,10 +513,10 @@ jobs:
       { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
     ]
 
@@ -554,10 +554,10 @@ jobs:
       { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
     ]
 
@@ -609,10 +609,10 @@ jobs:
       { name: 'Remove generated Bob artifact from Maven cache', run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
     ]
 
@@ -664,10 +664,10 @@ jobs:
       { name: 'Remove generated Bob artifact from Maven cache', shell: bash, run: 'rm -rf editor/.m2/repository/com/defold/lib/bob' },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }
     ]
 
@@ -721,8 +721,8 @@ jobs:
       },
       {
         name: 'Notify if build status changed',
-        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc, # v3.0.5
         if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+        with: { webhook: '${{ secrets.SLACK_WEBHOOK }}', webhook-type: incoming-webhook, errors: true,
+                payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}' }
       }]
