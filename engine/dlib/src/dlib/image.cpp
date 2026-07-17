@@ -23,11 +23,8 @@
 #define STBI_NO_PSD
 #define STBI_NO_TGA
 #define STBI_NO_GIF
-#define STBI_NO_HDR
 #define STBI_NO_PIC
 #define STBI_NO_PNM
-#define STBI_NO_HDR
-#define STBI_NO_LINEAR
 #define STBI_NO_STDIO
 #define STBI_FAILURE_USERMSG
 #define STB_IMAGE_IMPLEMENTATION
@@ -64,8 +61,58 @@ namespace dmImage
         }
     }
 
+    bool IsHDR(const void* buffer, uint32_t buffer_size)
+    {
+        if (!buffer || buffer_size > 0x7fffffffU)
+        {
+            return false;
+        }
+
+        return stbi_is_hdr_from_memory((const stbi_uc*)buffer, (int)buffer_size) != 0;
+    }
+
+    static Result LoadHDR(const void* buffer, uint32_t buffer_size, bool flip_vertically, Image* image)
+    {
+        int x = 0;
+        int y = 0;
+        int comp = 0;
+
+        stbi_set_flip_vertically_on_load(flip_vertically);
+        float* ret = stbi_loadf_from_memory((const stbi_uc*)buffer, (int)buffer_size, &x, &y, &comp, 4);
+
+        // Reset to default state
+        stbi_set_flip_vertically_on_load(0);
+
+        if (!ret)
+        {
+            dmLogError("Failed to load HDR image: '%s'", stbi_failure_reason());
+            return RESULT_IMAGE_ERROR;
+        }
+
+        uint64_t data_size = (uint64_t)x * (uint64_t)y * 4U * sizeof(float);
+        if (x <= 0 || y <= 0 || data_size > 0xffffffffULL)
+        {
+            stbi_image_free(ret);
+            dmLogError("Invalid HDR image dimensions (%d x %d)", x, y);
+            return RESULT_IMAGE_ERROR;
+        }
+
+        Image i;
+        i.m_Width = (uint32_t)x;
+        i.m_Height = (uint32_t)y;
+        i.m_Type = TYPE_RGBA32F;
+        i.m_Buffer = (void*)ret;
+        *image = i;
+        return RESULT_OK;
+    }
+
     HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult)
     {
+        if (IsHDR(buffer, buffer_size))
+        {
+            return 0;
+        }
+
         Image* image = new Image();
 
         if (Load(buffer, buffer_size, premult, false, image) != RESULT_OK)
@@ -85,6 +132,11 @@ namespace dmImage
 
     Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
     {
+        if (IsHDR(buffer, buffer_size))
+        {
+            return LoadHDR(buffer, buffer_size, flip_vertically, image);
+        }
+
         int x, y, comp;
 
         stbi_set_flip_vertically_on_load(flip_vertically);
@@ -121,7 +173,7 @@ namespace dmImage
                 break;
             default:
                 dmLogError("Unexpected number of components in image (%d)", comp);
-                free(ret);
+                stbi_image_free(ret);
                 return RESULT_IMAGE_ERROR;
             }
             i.m_Buffer = (void*) ret;
@@ -135,7 +187,7 @@ namespace dmImage
 
     void Free(Image* image)
     {
-        free(image->m_Buffer);
+        stbi_image_free(image->m_Buffer);
         memset(image, 0, sizeof(*image));
     }
 

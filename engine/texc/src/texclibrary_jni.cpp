@@ -20,9 +20,93 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <dlib/image.h>
 #include <dlib/log.h>
 
 #include <texc.h>
+
+namespace
+{
+    bool GetPixelFormat(dmImage::Type type, dmTexc::PixelFormat* pixel_format, uint32_t* bytes_per_pixel)
+    {
+        switch (type)
+        {
+        case dmImage::TYPE_RGB:
+            *pixel_format = dmTexc::PF_R8G8B8;
+            *bytes_per_pixel = 3;
+            return true;
+        case dmImage::TYPE_RGBA:
+            *pixel_format = dmTexc::PF_R8G8B8A8;
+            *bytes_per_pixel = 4;
+            return true;
+        case dmImage::TYPE_LUMINANCE:
+            *pixel_format = dmTexc::PF_L8;
+            *bytes_per_pixel = 1;
+            return true;
+        case dmImage::TYPE_LUMINANCE_ALPHA:
+            *pixel_format = dmTexc::PF_L8A8;
+            *bytes_per_pixel = 2;
+            return true;
+        case dmImage::TYPE_RGBA32F:
+            *pixel_format = dmTexc::PF_RGBA32F;
+            *bytes_per_pixel = 4U * sizeof(float);
+            return true;
+        }
+
+        return false;
+    }
+
+    bool CreateImageFromBuffer(uint32_t data_size, const uint8_t* data, dmTexc::Image* image)
+    {
+        if (!image)
+        {
+            return false;
+        }
+
+        memset(image, 0, sizeof(*image));
+
+        dmImage::Image loaded_image;
+        dmImage::Result result = dmImage::Load(data, data_size, false, false, &loaded_image);
+        if (result != dmImage::RESULT_OK)
+        {
+            return false;
+        }
+
+        dmTexc::PixelFormat pixel_format;
+        uint32_t bytes_per_pixel;
+        if (!GetPixelFormat(loaded_image.m_Type, &pixel_format, &bytes_per_pixel))
+        {
+            dmImage::Free(&loaded_image);
+            return false;
+        }
+
+        uint64_t texc_data_count = (uint64_t)loaded_image.m_Width * (uint64_t)loaded_image.m_Height * bytes_per_pixel;
+        if (texc_data_count > 0xffffffffULL)
+        {
+            dmImage::Free(&loaded_image);
+            return false;
+        }
+
+        image->m_Path = strdup("image");
+        image->m_Data = (uint8_t*)malloc((size_t)texc_data_count);
+        image->m_DataCount = (uint32_t)texc_data_count;
+        image->m_Width = loaded_image.m_Width;
+        image->m_Height = loaded_image.m_Height;
+        image->m_PixelFormat = pixel_format;
+        image->m_ColorSpace = dmTexc::CS_LRGB;
+
+        if (!image->m_Path || !image->m_Data)
+        {
+            dmImage::Free(&loaded_image);
+            dmTexc::DestroyLoadedImage(image);
+            return false;
+        }
+
+        memcpy(image->m_Data, loaded_image.m_Buffer, (size_t)texc_data_count);
+        dmImage::Free(&loaded_image);
+        return true;
+    }
+}
 
 JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls, jstring _path, jint width, jint height, jint pixelFormat, jint colorSpace, jbyteArray array)
 {
@@ -65,12 +149,12 @@ JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_IsHDR(JNIEnv* env, jclass cls, jb
     jboolean result = JNI_FALSE;
     DM_JNI_GUARD_SCOPE_BEGIN();
         dmJNI::ScopedByteArray j_array(env, array);
-        result = dmTexc::IsHDR(j_array.m_ArraySize, (const uint8_t*)j_array.m_Array) ? JNI_TRUE : JNI_FALSE;
+        result = dmImage::IsHDR(j_array.m_Array, j_array.m_ArraySize) ? JNI_TRUE : JNI_FALSE;
     DM_JNI_GUARD_SCOPE_END(return JNI_FALSE;);
     return result;
 }
 
-JNIEXPORT jobject JNICALL Java_TexcLibraryJni_LoadHDR(JNIEnv* env, jclass cls, jbyteArray array)
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CreateImageFromBuffer(JNIEnv* env, jclass cls, jbyteArray array)
 {
     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
 
@@ -86,7 +170,7 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_LoadHDR(JNIEnv* env, jclass cls, j
         dmJNI::ScopedByteArray j_array(env, array);
 
         dmTexc::Image image;
-        if (!dmTexc::LoadHDR(j_array.m_ArraySize, (const uint8_t*)j_array.m_Array, &image))
+        if (!CreateImageFromBuffer(j_array.m_ArraySize, (const uint8_t*)j_array.m_Array, &image))
         {
             return 0;
         }
@@ -400,7 +484,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         // Image api
         JNIFUNC(CreateImage, "(Ljava/lang/String;IIII[B)J"),
         JNIFUNC(IsHDR, "([B)Z"),
-        JNIFUNC(LoadHDR, "([B)L" CLASS_NAME "$Image;"),
+        JNIFUNC(CreateImageFromBuffer, "([B)L" CLASS_NAME "$Image;"),
         JNIFUNC(CreatePreviewImage, "(II[B[B)I"),
         JNIFUNC(DestroyImage, "(J)V"),
         JNIFUNC(GetWidth, "(J)I"),

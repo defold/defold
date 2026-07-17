@@ -616,7 +616,7 @@ public class TextureGenerator {
     public static GenerateResult generate(byte[] data, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
         if (TexcLibraryJni.IsHDR(data)) {
             TimeProfiler.start("Load HDR Texture");
-            Texc.Image hdrImage = TexcLibraryJni.LoadHDR(data);
+            Texc.Image hdrImage = TexcLibraryJni.CreateImageFromBuffer(data);
             TimeProfiler.stop();
             if (hdrImage == null) {
                 throw new TextureGeneratorException("Failed to load HDR texture");
