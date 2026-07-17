@@ -60,7 +60,7 @@
 // older sibling hints. This preserves depth-first loading: children are loaded and created before their parent.
 //
 // A parent is created only after both its admitted children and its queued child hints have been resolved.
-// Completed leaves are retained in m_PersistedResources and removed early so their request slots can be reused.
+// Completed leaves are retained until their parent is created and removed early so their request slots can be reused.
 // After creating a parent, PreloaderTryPruneParent continues upward and recycles completed intermediate nodes.
 //
 // PreloadHint adds new items to a guarded dmArray. UpdatePreloader moves them to m_PendingHints after load
@@ -113,6 +113,14 @@ struct ResourcePostCreateParamsInternal
 struct PendingHint
 {
     PathDescriptor m_PathDescriptor;
+    TRequestIndex m_Parent;
+};
+
+// Holds a completed child's factory reference after its request slot has been recycled. The reference is
+// released as soon as the parent has run Create and acquired any child references it needs.
+struct RetainedResource
+{
+    void* m_Resource;
     TRequestIndex m_Parent;
 };
 
@@ -192,6 +200,8 @@ struct ResourcePreloader
     TRequestIndex m_PersistResourceCount;
 
     dmArray<void*> m_PersistedResources;
+
+    dmArray<RetainedResource> m_RetainedResources;
 
     // Overflow hints live here until a completed leaf returns a slot to m_Freelist.
     dmArray<PendingHint> m_PendingHints;
@@ -572,14 +582,43 @@ namespace dmResource
         {
             // Keep the factory reference alive until the parent acquires the resource during Create.
             // The request node can then be recycled without causing a later synchronous reload.
-            if (preloader->m_PersistedResources.Full())
+            if (index < preloader->m_PersistResourceCount)
             {
-                preloader->m_PersistedResources.OffsetCapacity(128);
+                if (preloader->m_PersistedResources.Full())
+                {
+                    preloader->m_PersistedResources.OffsetCapacity(128);
+                }
+                preloader->m_PersistedResources.Push(req->m_Resource);
             }
-            preloader->m_PersistedResources.Push(req->m_Resource);
+            else
+            {
+                if (preloader->m_RetainedResources.Full())
+                {
+                    preloader->m_RetainedResources.OffsetCapacity(128);
+                }
+                RetainedResource retained = { req->m_Resource, req->m_Parent };
+                preloader->m_RetainedResources.Push(retained);
+            }
             req->m_Resource = 0;
         }
         PreloaderRemoveLeaf(preloader, index);
+    }
+
+    static void ReleaseRetainedResources(HPreloader preloader, TRequestIndex parent)
+    {
+        for (uint32_t i = 0; i < preloader->m_RetainedResources.Size();)
+        {
+            const RetainedResource& retained = preloader->m_RetainedResources[i];
+            if (retained.m_Parent == parent)
+            {
+                Release(preloader->m_Factory, retained.m_Resource);
+                preloader->m_RetainedResources.EraseSwap(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
     }
 
     static void RemoveChildren(ResourcePreloader* preloader, PreloadRequest* req)
@@ -589,6 +628,9 @@ namespace dmResource
             PreloaderRemoveLeaf(preloader, req->m_FirstChild);
         }
         assert(req->m_PendingChildCount == 0);
+
+        TRequestIndex request_index = (TRequestIndex)(req - preloader->m_Request);
+        ReleaseRetainedResources(preloader, request_index);
     }
 
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
@@ -735,9 +777,8 @@ namespace dmResource
 
         RemoveFromParentPendingCount(preloader, req);
 
-        // Children can now be removed (and their resources released) as they are not
-        // needed any longer as the parent resource have its own references to the
-        // child resources.
+        // Children can now be removed (and both active and recycled child references released) as they are not
+        // needed any longer and the parent resource has acquired its own references to the child resources.
         RemoveChildren(preloader, req);
 
         if (req->m_LoadResult != RESULT_OK)
@@ -1240,6 +1281,10 @@ namespace dmResource
                 continue;
             }
             Release(preloader->m_Factory, resource);
+        }
+        for (uint32_t i = 0; i < preloader->m_RetainedResources.Size(); ++i)
+        {
+            Release(preloader->m_Factory, preloader->m_RetainedResources[i].m_Resource);
         }
 
         assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS - 1));
