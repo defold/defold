@@ -66,6 +66,7 @@ public class TextureGenerator {
     }
 
     private static class DecodedImage {
+        public boolean hdr;
         public String path;
         public int width;
         public int height;
@@ -282,7 +283,7 @@ public class TextureGenerator {
         return TextureCompression.getCompressor(TextureCompressorUncompressed.TextureCompressorName);
     }
 
-    private static boolean isHDRTextureFormat(TextureFormat textureFormat) {
+    private static boolean isFloatTextureFormat(TextureFormat textureFormat) {
         switch (textureFormat) {
             case TEXTURE_FORMAT_RGBA16F:
             case TEXTURE_FORMAT_RGBA32F:
@@ -292,6 +293,15 @@ public class TextureGenerator {
         }
     }
 
+    private static boolean supportsASTCTextureFormat(TextureFormat textureFormat) {
+        ITextureCompressor textureCompressor = TextureCompression.getCompressor(TextureCompressorASTC.TextureCompressorName);
+        return textureCompressor != null && textureCompressor.supportsTextureFormat(textureFormat);
+    }
+
+    private static boolean isHDRTextureFormat(TextureFormat textureFormat) {
+        return isFloatTextureFormat(textureFormat) || supportsASTCTextureFormat(textureFormat);
+    }
+
     private static int getHDRPixelFormat(TextureFormat textureFormat) throws TextureGeneratorException {
         switch (textureFormat) {
             case TEXTURE_FORMAT_RGBA16F:
@@ -299,22 +309,17 @@ public class TextureGenerator {
             case TEXTURE_FORMAT_RGBA32F:
                 return Texc.PixelFormat.PF_RGBA32F.getValue();
             default:
-                throw new TextureGeneratorException("HDR textures require a float texture format.");
+                Integer pixelFormat = pixelFormatLUT.get(textureFormat);
+                if (supportsASTCTextureFormat(textureFormat) && pixelFormat != null) {
+                    return pixelFormat;
+                }
+                throw new TextureGeneratorException("HDR textures require a float or ASTC texture format.");
         }
     }
 
-    private static List<byte[]> generateFromHDR(TextureImage.Image.Builder builder,
-                                                Texc.Image hdrImage,
-                                                TextureFormat textureFormat,
-                                                boolean generateMipMaps,
-                                                int maxTextureSize,
-                                                EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
-
-        if (!isHDRTextureFormat(textureFormat)) {
-            throw new TextureGeneratorException("HDR textures require RGBA16F or RGBA32F texture formats.");
-        }
-
+    private static DecodedImage createDecodedImage(Texc.Image hdrImage) {
         DecodedImage source = new DecodedImage();
+        source.hdr = true;
         source.path = hdrImage.path;
         source.width = hdrImage.width;
         source.height = hdrImage.height;
@@ -322,26 +327,62 @@ public class TextureGenerator {
         source.texcPixelFormat = hdrImage.pixelFormat.getValue();
         source.texcColorSpace = hdrImage.colorSpace.getValue();
         source.data = hdrImage.data;
+        return source;
+    }
+
+    private static TextureGenerationSettings createTextureGenerationSettings(DecodedImage source,
+                                                                              TextureFormat textureFormat,
+                                                                              String compressorName,
+                                                                              String compressorPresetName,
+                                                                              boolean generateMipMaps,
+                                                                              int maxTextureSize,
+                                                                              boolean premulAlpha) throws TextureGeneratorException {
 
         TextureGenerationSettings settings = new TextureGenerationSettings();
-        settings.textureFormat = textureFormat;
-        settings.outputPixelFormat = getHDRPixelFormat(textureFormat);
-        settings.compressorName = TextureCompressorUncompressed.TextureCompressorName;
-        settings.compressorPresetName = TextureCompressorUncompressed.TextureCompressorUncompressedPresetName;
+        settings.compressorName = compressorName;
+        settings.compressorPresetName = compressorPresetName;
         settings.generateMipMaps = generateMipMaps;
         settings.maxTextureSize = maxTextureSize;
-        settings.premulAlpha = false;
-        settings.powerOfTwo = false;
-        settings.squarePVRTC = false;
-        settings.alignToCompressor = false;
-        settings.dither = false;
-        settings.compressionInputPixelFormat = Texc.PixelFormat.PF_RGBA32F.getValue();
-        settings.createProfileName = "Create HDR Texture";
-        settings.resizeErrorMessage = "could not resize HDR texture";
-        settings.flipErrorMessage = "could not flip HDR texture on ";
-        settings.encodeErrorMessage = "could not encode HDR texture";
 
-        return generateFromDecodedImage(builder, source, settings, flipAxis);
+        if (source.hdr) {
+            if (!isHDRTextureFormat(textureFormat)) {
+                throw new TextureGeneratorException("HDR textures require RGBA16F, RGBA32F, or ASTC texture formats.");
+            }
+
+            settings.textureFormat = textureFormat;
+            settings.outputPixelFormat = getHDRPixelFormat(textureFormat);
+            settings.premulAlpha = false;
+            settings.powerOfTwo = false;
+            settings.squarePVRTC = false;
+            settings.alignToCompressor = supportsASTCTextureFormat(textureFormat);
+            settings.dither = false;
+            settings.compressionInputPixelFormat = Texc.PixelFormat.PF_RGBA32F.getValue();
+            settings.createProfileName = "Create HDR Texture";
+            settings.resizeErrorMessage = "could not resize HDR texture";
+            settings.flipErrorMessage = "could not flip HDR texture on ";
+            settings.encodeErrorMessage = "could not encode HDR texture";
+        } else {
+            textureFormat = textureFormatToSupportedTextureFormat(textureFormat);
+            Integer pixelFormat = pixelFormatLUT.get(textureFormat);
+            if (pixelFormat == null) {
+                throw new TextureGeneratorException("Invalid texture format.");
+            }
+
+            settings.textureFormat = textureFormat;
+            settings.outputPixelFormat = pixelFormat;
+            settings.premulAlpha = premulAlpha;
+            settings.powerOfTwo = true;
+            settings.squarePVRTC = true;
+            settings.alignToCompressor = true;
+            settings.dither = true;
+            settings.compressionInputPixelFormat = Texc.PixelFormat.PF_R8G8B8A8.getValue();
+            settings.createProfileName = "CreateTexture";
+            settings.resizeErrorMessage = "could not resize texture to POT";
+            settings.flipErrorMessage = "could not flip on ";
+            settings.encodeErrorMessage = "could not encode";
+        }
+
+        return settings;
     }
 
     private static List<byte[]> generateFromDecodedImage(TextureImage.Image.Builder builder,
@@ -548,62 +589,18 @@ public class TextureGenerator {
         return images;
     }
 
-    private static List<byte[]> generateFromColorAndFormat(TextureImage.Image.Builder builder,
-                                                           BufferedImage image,
-                                                           ColorModel colorModel,
-                                                           TextureFormat textureFormat,
-                                                           String compressorName,
-                                                           String compressorPresetName,
-                                                           boolean generateMipMaps,
-                                                           int maxTextureSize,
-                                                           boolean premulAlpha,
-                                                           EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
-
-        int width = image.getWidth();
-        int height = image.getHeight();
-        int componentCount = colorModel.getNumComponents();
-        Integer pixelFormat;
-
-        // Transform the texture format to a supported texture format
-        textureFormat = textureFormatToSupportedTextureFormat(textureFormat);
-
-        // pick a pixel format (for texc) based on the texture format
-        pixelFormat = pixelFormatLUT.get(textureFormat);
-        if (pixelFormat == null) {
-            throw new TextureGeneratorException("Invalid texture format.");
-        }
-
+    private static DecodedImage createDecodedImage(BufferedImage image, ColorModel colorModel) {
         ByteBuffer byteBuffer = getByteBuffer(image);
-        byte[] bytes = byteBuffer.array();
-
         DecodedImage source = new DecodedImage();
+        source.hdr = false;
         source.path = null;
-        source.width = width;
-        source.height = height;
-        source.componentCount = componentCount;
+        source.width = image.getWidth();
+        source.height = image.getHeight();
+        source.componentCount = colorModel.getNumComponents();
         source.texcPixelFormat = Texc.PixelFormat.PF_A8B8G8R8.getValue();
         source.texcColorSpace = Texc.ColorSpace.CS_SRGB.getValue();
-        source.data = bytes;
-
-        TextureGenerationSettings settings = new TextureGenerationSettings();
-        settings.textureFormat = textureFormat;
-        settings.outputPixelFormat = pixelFormat;
-        settings.compressorName = compressorName;
-        settings.compressorPresetName = compressorPresetName;
-        settings.generateMipMaps = generateMipMaps;
-        settings.maxTextureSize = maxTextureSize;
-        settings.premulAlpha = premulAlpha;
-        settings.powerOfTwo = true;
-        settings.squarePVRTC = true;
-        settings.alignToCompressor = true;
-        settings.dither = true;
-        settings.compressionInputPixelFormat = Texc.PixelFormat.PF_R8G8B8A8.getValue();
-        settings.createProfileName = "CreateTexture";
-        settings.resizeErrorMessage = "could not resize texture to POT";
-        settings.flipErrorMessage = "could not flip on ";
-        settings.encodeErrorMessage = "could not encode";
-
-        return generateFromDecodedImage(builder, source, settings, flipAxis);
+        source.data = byteBuffer.array();
+        return source;
     }
 
     // For convenience, some methods without the flipAxis and/or compress argument.
@@ -621,7 +618,7 @@ public class TextureGenerator {
             if (hdrImage == null) {
                 throw new TextureGeneratorException("Failed to load HDR texture");
             }
-            return generateHDR(hdrImage, texProfile, flipAxis);
+            return generate(createDecodedImage(hdrImage), texProfile, compress, flipAxis);
         }
 
         return generate(new ByteArrayInputStream(data), texProfile, compress, flipAxis);
@@ -662,40 +659,92 @@ public class TextureGenerator {
         return generate(origImage, texProfile, compress, flipAxis);
     }
 
-    private static GenerateResult generateHDR(Texc.Image hdrImage, TextureProfile texProfile, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
+    private static GenerateResult generate(DecodedImage source, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
         TextureImage.Builder textureBuilder = TextureImage.newBuilder();
         GenerateResult result = new GenerateResult();
         result.imageDatas = new ArrayList<>();
 
         if (texProfile != null) {
             for (PlatformProfile platformProfile : texProfile.getPlatformsList()) {
-                for (int i = 0; i < platformProfile.getFormatsList().size(); ++i) {
-                    TextureFormat textureFormat = platformProfile.getFormats(i).getFormat();
-                    if (!isHDRTextureFormat(textureFormat)) {
-                        continue;
+                for (TextureFormatAlternative formatAlternative : platformProfile.getFormatsList()) {
+                    TextureFormat textureFormat = formatAlternative.getFormat();
+
+                    if (source.hdr) {
+                        if (!isHDRTextureFormat(textureFormat)) {
+                            continue;
+                        }
+                    } else {
+                        // Prefer an output format matching the number of source channels.
+                        textureFormat = pickOptimalFormat(source.componentCount, textureFormat);
+                    }
+
+                    String textureCompressor = formatAlternative.getCompressor();
+                    String textureCompressorPreset = formatAlternative.getCompressorPreset();
+                    TextureImage.CompressionType compressionType;
+
+                    if (compress) {
+                        if (textureCompressor.isEmpty()) {
+                            compressionType = textureFormatToSupportedCompressionTypeOrDefault(textureFormat, formatAlternative.getCompressionType());
+                        } else {
+                            compressionType = textureCompressorToCompressionType(textureCompressor);
+                        }
+
+                        if (textureCompressorPreset.isEmpty()) {
+                            textureCompressor = compressionTypeToTextureCompressor(compressionType);
+                            textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, formatAlternative.getCompressionLevel());
+                        }
+                    } else {
+                        if (source.hdr) {
+                            if (supportsASTCTextureFormat(textureFormat)) {
+                                textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA32F;
+                            }
+                        } else {
+                            textureFormat = pickUncompressedFormat(textureFormat);
+                        }
+                        compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
+                        textureCompressor = compressionTypeToTextureCompressor(compressionType);
+                        textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, TextureFormatAlternative.CompressionLevel.NORMAL);
                     }
 
                     TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
-                    List<byte[]> imageDatas = generateFromHDR(imageBuilder, hdrImage, textureFormat, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), flipAxis);
-                    imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
+                    TextureGenerationSettings settings = createTextureGenerationSettings(source,
+                                                                                         textureFormat,
+                                                                                         textureCompressor,
+                                                                                         textureCompressorPreset,
+                                                                                         platformProfile.getMipmaps(),
+                                                                                         platformProfile.getMaxTextureSize(),
+                                                                                         !source.hdr && platformProfile.getPremultiplyAlpha());
+                    List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis);
+                    imageBuilder.setCompressionType(compressionType);
                     textureBuilder.addAlternatives(imageBuilder);
                     result.imageDatas.addAll(imageDatas);
                 }
             }
 
-            if (textureBuilder.getAlternativesCount() == 0) {
-                throw new TextureGeneratorException("HDR textures require a texture profile with RGBA16F or RGBA32F texture formats.");
+            if (source.hdr && textureBuilder.getAlternativesCount() == 0) {
+                throw new TextureGeneratorException("HDR textures require a texture profile with RGBA16F, RGBA32F, or ASTC texture formats.");
             }
-        } else {
+        }
+
+        if (textureBuilder.getAlternativesCount() == 0) {
+            TextureFormat textureFormat = source.hdr
+                    ? TextureFormat.TEXTURE_FORMAT_RGBA32F
+                    : pickOptimalFormat(source.componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
             TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
-            List<byte[]> imageDatas = generateFromHDR(imageBuilder, hdrImage, TextureFormat.TEXTURE_FORMAT_RGBA32F, true, 0, flipAxis);
+            TextureGenerationSettings settings = createTextureGenerationSettings(source,
+                                                                                 textureFormat,
+                                                                                 TextureCompressorUncompressed.TextureCompressorName,
+                                                                                 TextureCompressorUncompressed.TextureCompressorUncompressedPresetName,
+                                                                                 true,
+                                                                                 0,
+                                                                                 !source.hdr);
+            List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis);
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             result.imageDatas.addAll(imageDatas);
         }
 
-        textureBuilder.setCount(1);
-        textureBuilder.setType(Type.TYPE_2D);
+        textureBuilder.setCount(1).setType(Type.TYPE_2D);
         result.textureImage = textureBuilder.build();
         return result;
     }
@@ -796,9 +845,9 @@ public class TextureGenerator {
     // Main TextureGenerator.generate method that has all required arguments and the expected BufferedImage type for origImage.
     // Used by the editor
     public static GenerateResult generate(BufferedImage origImage, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
-        // Convert image into readable format
-        // Always convert to ABGR since the texc lib demands that for resizing etc
         TimeProfiler.start("generateTexture");
+
+        // Always convert to ABGR since the texc lib demands that for resizing etc.
         BufferedImage image;
         if (origImage.getType() != BufferedImage.TYPE_4BYTE_ABGR) {
             image = convertImage(origImage, BufferedImage.TYPE_4BYTE_ABGR);
@@ -806,91 +855,7 @@ public class TextureGenerator {
             image = origImage;
         }
 
-        // Setup texture format and settings
-        ColorModel colorModel = origImage.getColorModel();
-        int componentCount = colorModel.getNumComponents();
-        TextureImage.Builder textureBuilder = TextureImage.newBuilder();
-
-        GenerateResult result = new GenerateResult();
-        result.imageDatas = new ArrayList<>();
-
-        int currentDataOffset = 0;
-        if (texProfile != null) {
-
-            // Generate an image for each format specified in the profile
-            for (PlatformProfile platformProfile : texProfile.getPlatformsList()) {
-                for (int i = 0; i < platformProfile.getFormatsList().size(); ++i) {
-                    TextureFormat textureFormat = platformProfile.getFormats(i).getFormat();
-                    String textureCompressor = platformProfile.getFormats(i).getCompressor();
-                    String textureCompressorPreset = platformProfile.getFormats(i).getCompressorPreset();
-                    TextureImage.CompressionType compressionType;
-
-                    // We pick a "new" format based on the input image component count and a "target" format.
-                    // For example, we would rather have a texture format with 3 channels if the input
-                    // image has 3 channels, even if the texture profile specified a format with 4 channels.
-                    textureFormat = pickOptimalFormat(componentCount, textureFormat);
-
-                    if (compress) {
-                        // If the textureCompressor field is empty, we use the leagcy settings
-                        if (textureCompressor.isEmpty()) {
-                            compressionType = textureFormatToSupportedCompressionTypeOrDefault(textureFormat, platformProfile.getFormats(i).getCompressionType());
-                        } else {
-                            compressionType = textureCompressorToCompressionType(textureCompressor);
-                        }
-
-                        // If the textureCompressorPreset field is empty, we use the leagcy pipeline
-                        if (textureCompressorPreset.isEmpty()) {
-                            TextureFormatAlternative.CompressionLevel compressionLevel = platformProfile.getFormats(i).getCompressionLevel();
-                            textureCompressor = compressionTypeToTextureCompressor(compressionType);
-                            textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, compressionLevel);
-                        }
-                    } else {
-                        // If there has been no compression requested, we still need to produce alternatives since
-                        // there are other settings that control how textures are produced (e.g pixel format)
-                        textureFormat = pickUncompressedFormat(textureFormat);
-                        compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
-                        textureCompressor = compressionTypeToTextureCompressor(compressionType);
-                        textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, TextureFormatAlternative.CompressionLevel.NORMAL);
-                    }
-
-                    try {
-                        TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
-                        List<byte[]> imageDatas = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, textureCompressor, textureCompressorPreset, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha(), flipAxis);
-                        imageBuilder.setCompressionType(compressionType);
-                        textureBuilder.addAlternatives(imageBuilder);
-
-                        result.imageDatas.addAll(imageDatas);
-                    } catch (TextureGeneratorException e) {
-                        throw e;
-                    }
-
-                }
-            }
-
-            textureBuilder.setCount(1);
-            if (textureBuilder.getAlternativesCount() == 0) {
-                texProfile = null;
-            }
-        }
-
-        // If no texture profile was supplied, or no matching format was found, or no compression has been requested
-        if (texProfile == null) {
-
-            // Guess texture format based on number color components of input image
-            TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
-            List<byte[]> imageDatas = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.TextureCompressorUncompressedPresetName, true, 0, true, flipAxis);
-
-            imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
-            textureBuilder.addAlternatives(imageBuilder);
-            textureBuilder.setCount(1);
-
-            result.imageDatas.addAll(imageDatas);
-        }
-
-        textureBuilder.setType(Type.TYPE_2D);
-        result.textureImage = textureBuilder.build();
-
+        GenerateResult result = generate(createDecodedImage(image, origImage.getColorModel()), texProfile, compress, flipAxis);
         TimeProfiler.stop();
         return result;
     }

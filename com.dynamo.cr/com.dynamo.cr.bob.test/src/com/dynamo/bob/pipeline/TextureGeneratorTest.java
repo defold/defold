@@ -207,6 +207,23 @@ public class TextureGeneratorTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testHDRProfileASTC() throws TextureGeneratorException, IOException {
+        TextureFormat textureFormat = TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4;
+        TextureProfile textureProfile = createASTCTextureProfile(textureFormat, true, 0);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getFile("/hdr_2x2.hdr"), textureProfile, true, EnumSet.noneOf(FlipAxis.class));
+
+        assertEquals(1, result.textureImage.getAlternativesCount());
+        Image image = result.textureImage.getAlternatives(0);
+        assertEquals(textureFormat, image.getFormat());
+        assertEquals(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_ASTC, image.getCompressionType());
+        assertEquals(2, image.getMipMapOffsetCount());
+
+        assertASTCMip(image, result, textureFormat, 0, 0, 2, 2);
+        assertASTCMip(image, result, textureFormat, 1, 16, 1, 1);
+        assertEquals(32, image.getDataSize());
+    }
+
+    @Test
     public void testRGB() throws TextureGeneratorException, IOException {
         TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgb.png"));
 
