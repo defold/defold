@@ -14,6 +14,7 @@
 
 go.property("boolean", false)
 go.property("number", 0)
+go.property("text", "")
 go.property("vector3", vmath.vector3())
 go.property("vector4", vmath.vector4())
 go.property("quat", vmath.quat())

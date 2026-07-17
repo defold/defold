@@ -156,6 +156,9 @@ namespace dmGameObject
         case PROPERTY_TYPE_BOOLEAN:
             lua_pushboolean(L, var.m_Bool);
             break;
+        case PROPERTY_TYPE_TEXT:
+            lua_pushstring(L, var.m_Text);
+            break;
         case PROPERTY_TYPE_MATRIX4:
             dmScript::PushMatrix4(L, dmVMath::Matrix4(
                 dmVMath::Vector4(var.m_M4[0],  var.m_M4[1],  var.m_M4[2],  var.m_M4[3]),
@@ -206,6 +209,8 @@ namespace dmGameObject
                     case PROPERTY_TYPE_BOOLEAN:
                         ++params.m_BoolCount;
                         break;
+                    case PROPERTY_TYPE_TEXT:
+                        // Not supported (TODO)
                     case PROPERTY_TYPE_MATRIX4:
                         // Not supported
                     case PROPERTY_TYPE_COUNT:
@@ -247,6 +252,8 @@ namespace dmGameObject
                     case PROPERTY_TYPE_BOOLEAN:
                         PropertyContainerPushBool(builder, id, lua_toboolean(L, -1) != 0);
                         break;
+                    case PROPERTY_TYPE_TEXT:
+                        // Not supported (TODO)
                     case PROPERTY_TYPE_MATRIX4:
                         // Not supported
                     case PROPERTY_TYPE_COUNT:

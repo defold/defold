@@ -62,7 +62,8 @@
                                       GameObject$PropertyType/PROPERTY_TYPE_VECTOR3 :script-property-type-vector3
                                       GameObject$PropertyType/PROPERTY_TYPE_VECTOR4 :script-property-type-vector4
                                       GameObject$PropertyType/PROPERTY_TYPE_QUAT :script-property-type-quat
-                                      GameObject$PropertyType/PROPERTY_TYPE_BOOLEAN :script-property-type-boolean))
+                                      GameObject$PropertyType/PROPERTY_TYPE_BOOLEAN :script-property-type-boolean
+                                      GameObject$PropertyType/PROPERTY_TYPE_TEXT :script-property-type-text))
 
                        (some? value)
                        (assoc :value (if (and is-resource value)

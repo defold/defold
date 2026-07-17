@@ -2592,7 +2592,8 @@
                            (catch Throwable t
                              (.stop ^AnimationTimer this)
                              (swap! stopped-timers conj this)
-                             (error-reporting/report-exception! t)))))))))})))
+                             (error-reporting/report-exception! t)
+                             (error-reporting/report-disabled-functionality!)))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -2600,12 +2601,16 @@
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
 
-(defn enable-stopped-timers!
-  "Re-enables any AnimationTimers that were stopped due to exceptions."
+(defn enable-disabled-functionality!
+  "Re-enables editor functionality that was disabled due to exceptions. This
+  covers AnimationTimers that were stopped, along with the command handlers that
+  were disabled after throwing."
   []
-  (doseq [timer @stopped-timers]
-    (.start ^AnimationTimer timer))
+  (doseq [^AnimationTimer timer @stopped-timers]
+    (.start timer))
   (reset! stopped-timers #{})
+  (handler/enable-disabled-handlers!)
+  (user-data! (main-scene) ::refresh-requested? true)
   nil)
 
 (defn anim! [^double duration anim-fn end-fn]

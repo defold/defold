@@ -371,6 +371,12 @@ notification.reload-editor-scripts.action.reload = Reload Editor Scripts
 notification.reload-plugins-failed = Native extension plugins could not be reloaded. Restart Defold to reload them.\n\nFile: {file}\n\nUnderlying error from the OS:\n{error}
 notification.reload-plugins-failed.action.restart = Restart Defold
 
+# Disabled functionality notification
+
+notification.disabled-functionality = An error caused some editor functionality to be disabled. You can re-enable it now or restart the editor.
+notification.disabled-functionality.action.enable = Re-enable
+notification.disabled-functionality.action.restart = Restart
+
 # Open custom editor notifications
 
 notification.open-custom-editor-failed.error = Could not run external editor "{editor}".\n\nUnderlying error from the OS:\n{error}

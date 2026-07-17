@@ -635,7 +635,8 @@ install(FILES
   "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest"
   DESTINATION content)
 install(DIRECTORY "${ENGINE_CONTENT_DIR}/builtins/"
-  DESTINATION content/builtins)
+  DESTINATION content/builtins
+  PATTERN "connect" EXCLUDE)
 
 if(BUILD_TESTS)
   set(ENGINE_BOB_ENGINE_JAR "${CMAKE_CURRENT_BINARY_DIR}/content/bob-engine.jar")

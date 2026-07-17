@@ -2291,6 +2291,21 @@
       (ui/register-menubar app-scene menu-bar ::menubar)
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
 
+      (error-reporting/init-disabled-functionality-notifier!
+        (fn notify-disabled-functionality! []
+          (notifications/show!
+            (workspace/notifications (project/workspace project))
+            {:id ::disabled-functionality
+             :type :warning
+             :message (localization/message "notification.disabled-functionality")
+             :actions [{:message (localization/message "notification.disabled-functionality.action.enable")
+                        :on-action ui/enable-disabled-functionality!}
+                       {:message (localization/message "notification.disabled-functionality.action.restart")
+                        :on-action #(ui/execute-command
+                                      (ui/contexts (ui/main-scene) true)
+                                      :app.restart
+                                      nil)}]})))
+
       (let [prev-localization-bundle (volatile! nil)
             reload-editor-scripts-notification-updater (make-reload-editor-scripts-notification-updater project)
             refresh-timer (ui/->timer
