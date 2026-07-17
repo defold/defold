@@ -40,7 +40,7 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.graph.ResourceWalker;
 import com.dynamo.bob.pipeline.graph.ResourceWalker.IResourceVisitor;
-import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
 
 import com.google.protobuf.Message;
 

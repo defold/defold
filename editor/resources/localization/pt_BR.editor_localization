@@ -147,6 +147,7 @@ dialog.button.report = Reportar
 dialog.button.disable-scene-editor = Desativar Editor de Cena
 dialog.button.cancel = Cancelar
 dialog.button.delete = Deletar
+dialog.button.apply = Aplicar
 
 # Error Dialog
 
@@ -498,6 +499,9 @@ dialog.select-gui-component.title = Selecionar {component}
 dialog.select-resource.title = Selecionar Recurso
 dialog.recent-files.title = Arquivos Recentes
 dialog.recent-files.button.ok = Abrir
+dialog.jump-to-symbol.title = Ir para Símbolo
+dialog.jump-to-symbol.prompt = Buscar por símbolo…
+dialog.jump-to-symbol.button.ok = OK
 
 # Open resource dialogs
 
@@ -706,6 +710,8 @@ prefs.label.dev.custom-engine = Motor Personalizado
 prefs.keymap.filter.prompt = Filtrar atalho…
 prefs.keymap.command = Comando
 prefs.keymap.shortcuts = Atalhos
+prefs.keymap.badge.mouse-binding = Vinculação do Mouse
+prefs.keymap.badge.mouse-modifier = Modificador do Mouse
 prefs.keymap.context-menu.new-shortcut = Novo Atalho…
 prefs.keymap.context-menu.reset-to-default = Restaurar Padrões
 prefs.keymap.context-menu.remove = Remover {shortcut}
@@ -718,6 +724,16 @@ prefs.keymap.warnings = Avisos\:{warnings}
 prefs.keymap.warning = \n• {warning}
 prefs.keymap.warning.typable = Digitável (pode interferir com entradas de texto)
 prefs.keymap.warning.conflicts = Conflitos com {shortcuts}
+prefs.keymap.warning.duplicate = Vinculação já existe, será ignorada
+prefs.keymap.mouse-binding.button.left = Esquerda
+prefs.keymap.mouse-binding.button.middle = Meio
+prefs.keymap.mouse-binding.button.right = Direita
+prefs.keymap.mouse-binding.section.button = Botão do Mouse
+prefs.keymap.mouse-binding.section.modifiers = Modificadores
+prefs.keymap.context-menu.add-mouse-binding = Adicionar Vínculação do Mouse
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = Restaurar Padrões
+prefs.keymap.context-menu.edit-modifier = Editar Modificador
+prefs.keymap.inherited-from = Herdado de {context}
 
 # Progress
 
@@ -951,6 +967,7 @@ command.code.duplicate-selection = Duplicar Seleção
 command.code.split-selection-into-lines = Dividir Seleção em Linhas
 command.code.goto-definition = Ir para Definição
 command.code.goto-line = Ir para a Linha…
+command.code.jump-to-symbol = Ir para Símbolo…
 command.code.show-references = Encontrar Referências
 command.code.toggle-minimap = Minimapa
 command.code.toggle-indentation-guides = Guias de Indentação
@@ -1155,6 +1172,7 @@ property.appmanifest.graphics = Gráficos
 property.appmanifest.graphics.tooltip = Vulkan suporta apenas computadores e dispositivos móveis
 property.appmanifest.graphics-osx = Gráficos (macOS)
 property.appmanifest.graphics-osx.tooltip = Vulkan é o renderizador padrão para o macOS
+property.appmanifest.graphics-ios = Gráficos (iOS)
 property.appmanifest.graphics-android = Gráficos (Android)
 property.appmanifest.graphics-android.tooltip = OpenGL+Vulkan é o padrão para Android
 property.appmanifest.graphics-web = Gráficos (HTML5)
@@ -1609,6 +1627,8 @@ form.label.project.project.compress_archive = Compactar Arquivo
 form.help.project.project.compress_archive = Compactar arquivo (não para Android)
 form.label.project.project.dependencies = Dependências
 form.help.project.project.dependencies = Uma lista de URLs de projetos exigidos por este projeto
+form.label.project.project.dependencies_metadata = Metadados de Dependências
+form.help.project.project.dependencies_metadata = Incluir metadados de dependências no pacote de tempo de execução
 form.label.project.project.custom_resources = Recursos Personalizados
 form.help.project.project.custom_resources = Uma lista separada por vírgulas de recursos que serão incluídos no projeto. Se os diretórios forem especificados, todos os arquivos e diretórios são recursivamente incluídos
 form.label.project.project.bundle_resources = Empacotar Recursos
@@ -2330,6 +2350,7 @@ error.sound.invalid-ogg-file = Arquivo Ogg inválido.
 error.sound.invalid-ogg-file-details = Arquivo Ogg inválido (oggz-validate)\:\n{output}
 error.sound.could-not-read-audio-file = Não foi possível ler o arquivo de áudio {resource}.
 error.unknown-source = Fonte desconhecida
+error.game-project.gamepad-database-must-be-txt = input.gamepad_database deve apontar para um arquivo .txt.
 error.unspecified-property = "{property}" deve ser especificado.
 error.mesh.stream-must-be-specified-for-world-vertex-space = "{property}" deve ser especificado ao usar um Material com uma configuração de "Espaço de Vértices" mundial.
 error.mesh.stream-not-found-in-buffer = Transmissão "{stream}" não pôde ser encontrada no buffer especificado.

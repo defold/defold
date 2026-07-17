@@ -16,10 +16,8 @@
   (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :as ts]
             [internal.graph.types :as gt]
-            [internal.util :refer :all]
-            [internal.system :as is]))
+            [support.test-support :as ts]))
 
 (defn- dependencies
   [& pairs]
@@ -34,6 +32,15 @@
 (g/defnode InputUsedByOutput
   (input string-input g/Str)
   (output out-from-input g/Str (g/fnk [string-input] string-input)))
+
+(deftest dependencies-from-deleted-graph
+  (ts/with-clean-system
+    (let [graph-id (g/make-graph!)
+          [node-id] (ts/tx-nodes (g/make-node graph-id SingleOutput))
+          endpoint (gt/endpoint node-id :out-from-inline)]
+      (g/delete-graph! graph-id)
+      (is (= #{endpoint}
+             (ts/graph-dependencies [endpoint]))))))
 
 (deftest single-connection
   (testing "results include inputs"
@@ -120,7 +127,6 @@
                           (g/connect a :out-from-inline z :string-input)
                           (g/connect a :out-from-inline w :string-input)))
             deps        (dependencies a :out-from-inline)]
-        (def basis* (g/now))
         (is (= deps
                #{(gt/endpoint a :out-from-inline)
                  (gt/endpoint w :out-from-input)
@@ -215,16 +221,6 @@
         (is (= deps
                #{(gt/endpoint a :out-from-inline)
                  (gt/endpoint x :string-value)}))))))
-
-(g/defnode SingleOutput
-  (output out-from-inline g/Str (g/fnk [] "out-from-inline")))
-
-(g/defnode InputNoOutput
-  (input unused-input g/Str))
-
-(g/defnode InputUsedByOutput
-  (input string-input g/Str)
-  (output out-from-input g/Str (g/fnk [string-input] string-input)))
 
 (deftest diamond-pattern
   (testing "multipath reaching the same node"

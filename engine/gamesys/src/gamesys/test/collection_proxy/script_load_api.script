@@ -1,0 +1,44 @@
+cp_script_load1_loading_count = 0
+cp_script_load1_first_progress = nil
+cp_script_load1_last_progress = nil
+cp_script_load1_error = nil
+cp_script_load1_ready = false
+
+cp_script_load2_loading = nil
+cp_script_load2_error = nil
+cp_script_load2_ready = false
+cp_script_load_legacy_posted = false
+
+
+-- this second load should fail because it will be started while the
+-- collection is already loading
+local function load_second()
+    collectionproxy.load("#callbackproxy", nil, function(self, message_id, message, sender)
+        if message_id == hash("proxy_loading") then
+            cp_script_load2_loading = true
+        elseif message_id == hash("proxy_ready") then
+            cp_script_load2_ready = true
+        elseif message_id == hash("proxy_error") then
+            cp_script_load2_error = message.code
+        end
+    end)
+end
+
+function init(self)
+    collectionproxy.load("#callbackproxy", nil, function(self, message_id, message, sender)
+        if message_id == hash("proxy_loading") then
+            cp_script_load1_loading_count = cp_script_load1_loading_count + 1
+            cp_script_load1_first_progress = cp_script_load1_first_progress or message.progress
+            cp_script_load1_last_progress = message.progress
+            if message.progress == 0 then
+                load_second()
+                msg.post("#callbackproxy", "async_load")
+                cp_script_load_legacy_posted = true
+            end
+        elseif message_id == hash("proxy_ready") then
+            cp_script_load1_ready = true
+        elseif message_id == hash("proxy_error") then
+            cp_script_load1_error = message.code
+        end
+    end)
+end

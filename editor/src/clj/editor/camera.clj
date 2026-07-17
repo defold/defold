@@ -45,6 +45,8 @@
 (def fov-x-35mm-full-frame 54.4)
 (def fov-y-35mm-full-frame 37.8)
 
+(def ^:const orthographic-framing-margin 1.1)
+
 (def vector3-up (Vector3d. 0.0 1.0 0.0))
 
 (defn camera-forward-vector
@@ -547,14 +549,14 @@
               factor-y (/ proj-height h)
               fov-x-prim  (* factor-x (.fov-x camera))
               fov-y-prim  (* factor-y (.fov-y camera))]
-          [(* 1.1 fov-x-prim) (* 1.1 fov-y-prim)])))))
+          [(* orthographic-framing-margin fov-x-prim) (* orthographic-framing-margin fov-y-prim)])))))
 
 (defn camera-orthographic-frame-aabb
   ^Camera [^Camera camera ^Region viewport ^AABB aabb]
   {:pre [(= :orthographic (:type camera))]}
   (let [aspect (/ ^double (:fov-x camera) ^double (:fov-y camera))
         [^double fov-x ^double fov-y] (camera-orthographic-fov-from-aabb camera viewport aabb)
-        [fov-x fov-y] (if (> (/ fov-x aspect) (* aspect fov-y))
+        [fov-x fov-y] (if (> (/ fov-x aspect) fov-y)
                         [fov-x (/ fov-x aspect)]
                         [(* aspect fov-y) fov-y])
         filter-fn (or (:filter-fn camera) identity)]

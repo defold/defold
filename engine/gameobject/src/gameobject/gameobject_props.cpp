@@ -139,6 +139,7 @@ namespace dmGameObject
         PCV_TYPE_QUAT = 5,
         PCV_TYPE_BOOLEAN = 6,
         PCV_TYPE_URL_STRING = 7,
+        PCV_TYPE_TEXT = 8,
         PCV_TYPE_COUNT
     };
 
@@ -148,6 +149,7 @@ namespace dmGameObject
         uint32_t m_Count;
         dmhash_t* m_Ids;
         uint32_t* m_Indexes;
+        uint32_t* m_ValueLengths;
         PropertyContainerValueType* m_Types;
         dmhash_t* m_HashData;
         float* m_FloatData;
@@ -157,12 +159,13 @@ namespace dmGameObject
         // [optional padding to align dmhash_t ID array]
         // dmhash_t [entry_count]               The ID hash of each entry
         // uint32_t [entry_count]               The offset into respective data array depending on type
+        // uint32_t [entry_count]               The byte length of text values, excluding null terminator
         // PropertyContainerValueType [entry_count]  The type of the entry
         // [optional padding to align dmhash_t data]
         // dmhash_t [hash_count]                All the hash values
         // float [float_count]                  All the number, vector3, vector4 and quad values
         // char [32*url_count]                  All the URLs (dmMessage::URL in char[32] form)
-        // char [url_string_size + bool_count]  All the string for string based urls and one char per boolean
+        // char [url_string_size + text_size + bool_count]  All strings and one char per boolean
     };
 
     PropertyContainerBuilderParams::PropertyContainerBuilderParams()
@@ -175,6 +178,8 @@ namespace dmGameObject
     , m_Vector4Count(0)
     , m_QuatCount(0)
     , m_BoolCount(0)
+    , m_TextCount(0)
+    , m_TextSize(0)
     {
     }
 
@@ -198,7 +203,7 @@ namespace dmGameObject
 
     static HPropertyContainer AllocatePropertyContainer(const PropertyContainerBuilderParams& params)
     {
-        uint32_t prop_count = params.m_NumberCount + params.m_HashCount + params.m_URLStringCount + params.m_URLCount + params.m_Vector3Count + params.m_Vector4Count + params.m_QuatCount + params.m_BoolCount;
+        uint32_t prop_count = params.m_NumberCount + params.m_HashCount + params.m_URLStringCount + params.m_TextCount + params.m_URLCount + params.m_Vector3Count + params.m_Vector4Count + params.m_QuatCount + params.m_BoolCount;
 
         // The sizes are aligned so the data following after will be properly aligned.
         size_t struct_offset = 0;
@@ -210,7 +215,10 @@ namespace dmGameObject
         size_t indexes_offset = DM_ALIGN(ids_offset + ids_size, 4);
         size_t indexes_size = sizeof(uint32_t) * prop_count;
 
-        size_t types_offset = DM_ALIGN(indexes_offset + indexes_size, 4);
+        size_t value_lengths_offset = DM_ALIGN(indexes_offset + indexes_size, 4);
+        size_t value_lengths_size = sizeof(uint32_t) * prop_count;
+
+        size_t types_offset = DM_ALIGN(value_lengths_offset + value_lengths_size, 4);
         size_t types_size = sizeof(PropertyContainerValueType) * prop_count;
 
         size_t hashes_offset = DM_ALIGN(types_offset + types_size, 8);
@@ -223,7 +231,7 @@ namespace dmGameObject
         size_t urls_size = params.m_URLCount * sizeof(dmMessage::URL);
 
         size_t strings_offset = urls_offset + urls_size;
-        size_t strings_size = params.m_URLStringSize + params.m_BoolCount;
+        size_t strings_size = params.m_URLStringSize + params.m_TextSize + params.m_BoolCount;
 
         size_t property_container_size = strings_offset + strings_size;
 
@@ -240,6 +248,7 @@ namespace dmGameObject
         result->m_Count = prop_count;
         result->m_Ids = (dmhash_t*)&p[ids_offset];
         result->m_Indexes = (uint32_t*)&p[indexes_offset];
+        result->m_ValueLengths = (uint32_t*)&p[value_lengths_offset];
         result->m_Types = (PropertyContainerValueType*)&p[types_offset];
         result->m_HashData = (dmhash_t*)&p[hashes_offset];
         result->m_FloatData = (float*)&p[floats_offset];
@@ -354,6 +363,17 @@ namespace dmGameObject
         builder->m_StringOffset += string_length;
     }
 
+    void PropertyContainerPushText(HPropertyContainerBuilder builder, dmhash_t id, const char* value, uint32_t value_len)
+    {
+        uint32_t entry_offset = AllocateEntry(builder, id, PCV_TYPE_TEXT);
+        uint32_t string_offset = builder->m_StringOffset;
+        builder->m_PropertyContainer->m_Indexes[entry_offset] = string_offset;
+        builder->m_PropertyContainer->m_ValueLengths[entry_offset] = value_len;
+        uint32_t string_size = value_len + 1;
+        memcpy(&builder->m_PropertyContainer->m_StringData[string_offset], value, string_size);
+        builder->m_StringOffset += string_size;
+    }
+
     void PropertyContainerPushURL(HPropertyContainerBuilder builder, dmhash_t id, const char value[sizeof(dmMessage::URL)])
     {
         uint32_t entry_offset = AllocateEntry(builder, id, PCV_TYPE_URL);
@@ -402,6 +422,7 @@ namespace dmGameObject
 
         SERIALIZE_PTR(result->m_Ids, container, dmhash_t);
         SERIALIZE_PTR(result->m_Indexes, container, uint32_t);
+        SERIALIZE_PTR(result->m_ValueLengths, container, uint32_t);
         SERIALIZE_PTR(result->m_Types, container, PropertyContainerValueType);
         SERIALIZE_PTR(result->m_HashData, container, dmhash_t);
         SERIALIZE_PTR(result->m_FloatData, container, float);
@@ -426,6 +447,7 @@ namespace dmGameObject
 
         DESERIALIZE_OFFSET(out->m_Ids, out, dmhash_t);
         DESERIALIZE_OFFSET(out->m_Indexes, out, uint32_t);
+        DESERIALIZE_OFFSET(out->m_ValueLengths, out, uint32_t);
         DESERIALIZE_OFFSET(out->m_Types, out, PropertyContainerValueType);
         DESERIALIZE_OFFSET(out->m_HashData, out, dmhash_t);
         DESERIALIZE_OFFSET(out->m_FloatData, out, float);
@@ -452,6 +474,7 @@ namespace dmGameObject
 
         UPDATE_PTR(m_Ids, original, out, dmhash_t);
         UPDATE_PTR(m_Indexes, original, out, uint32_t);
+        UPDATE_PTR(m_ValueLengths, original, out, uint32_t);
         UPDATE_PTR(m_Types, original, out, PropertyContainerValueType);
         UPDATE_PTR(m_HashData, original, out, dmhash_t);
         UPDATE_PTR(m_FloatData, original, out, float);
@@ -514,6 +537,9 @@ namespace dmGameObject
             case PCV_TYPE_BOOLEAN:
                 printf("  %d (bool)\n", container->m_StringData[index] != 0 ? 1 : 0);
                 break;
+            case PCV_TYPE_TEXT:
+                printf("  %s (text)\n", &container->m_StringData[index]);
+                break;
 
             case PCV_TYPE_COUNT:
             default:
@@ -565,6 +591,10 @@ namespace dmGameObject
                 params.m_URLStringSize += strlen(&container->m_StringData[container->m_Indexes[i]]) + 1;
                 ++params.m_URLStringCount;
                 break;
+            case PCV_TYPE_TEXT:
+                params.m_TextSize += container->m_ValueLengths[i] + 1;
+                ++params.m_TextCount;
+                break;
             default:
                 assert(false);
                 break;
@@ -598,6 +628,9 @@ namespace dmGameObject
                 break;
             case PCV_TYPE_URL_STRING:
                 PropertyContainerPushURLString(builder, container->m_Ids[i], &container->m_StringData[container->m_Indexes[i]]);
+                break;
+            case PCV_TYPE_TEXT:
+                PropertyContainerPushText(builder, container->m_Ids[i], &container->m_StringData[container->m_Indexes[i]], container->m_ValueLengths[i]);
                 break;
             default:
                 assert(false);
@@ -710,6 +743,10 @@ namespace dmGameObject
             case PCV_TYPE_BOOLEAN:
                 out_var.m_Bool = property_container->m_StringData[index] != 0;
                 out_var.m_Type = PROPERTY_TYPE_BOOLEAN;
+                break;
+            case PCV_TYPE_TEXT:
+                out_var.m_Text = &property_container->m_StringData[index];
+                out_var.m_Type = PROPERTY_TYPE_TEXT;
                 break;
             default:
                 assert(false);
