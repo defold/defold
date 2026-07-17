@@ -71,6 +71,30 @@ namespace dmImage
         return stbi_is_hdr_from_memory((const stbi_uc*)buffer, (int)buffer_size) != 0;
     }
 
+    HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult)
+    {
+        if (IsHDR(buffer, buffer_size))
+        {
+            return 0;
+        }
+
+        Image* image = new Image();
+
+        if (Load(buffer, buffer_size, premult, false, image) != RESULT_OK)
+        {
+            delete image;
+            return 0;
+        }
+
+        return (HImage) image;
+    }
+
+    void DeleteImage(Image* image)
+    {
+        Free(image);
+        delete image;
+    }
+
     static Result LoadHDR(const void* buffer, uint32_t buffer_size, bool flip_vertically, Image* image)
     {
         int x = 0;
@@ -106,37 +130,8 @@ namespace dmImage
         return RESULT_OK;
     }
 
-    HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult)
+    static Result LoadLDR(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
     {
-        if (IsHDR(buffer, buffer_size))
-        {
-            return 0;
-        }
-
-        Image* image = new Image();
-
-        if (Load(buffer, buffer_size, premult, false, image) != RESULT_OK)
-        {
-            delete image;
-            return 0;
-        }
-
-        return (HImage) image;
-    }
-
-    void DeleteImage(Image* image)
-    {
-        Free(image);
-        delete image;
-    }
-
-    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
-    {
-        if (IsHDR(buffer, buffer_size))
-        {
-            return LoadHDR(buffer, buffer_size, flip_vertically, image);
-        }
-
         int x, y, comp;
 
         stbi_set_flip_vertically_on_load(flip_vertically);
@@ -182,6 +177,18 @@ namespace dmImage
         } else {
             dmLogError("Failed to load image: '%s'", stbi_failure_reason());
             return RESULT_IMAGE_ERROR;
+        }
+    }
+
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
+    {
+        if (IsHDR(buffer, buffer_size))
+        {
+            return LoadHDR(buffer, buffer_size, flip_vertically, image);
+        }
+        else
+        {
+            return LoadLDR(buffer, buffer_size, premult, flip_vertically, image);
         }
     }
 

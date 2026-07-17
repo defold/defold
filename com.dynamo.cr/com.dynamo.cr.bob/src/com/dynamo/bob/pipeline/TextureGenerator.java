@@ -331,12 +331,8 @@ public class TextureGenerator {
     }
 
     private static TextureGenerationSettings createTextureGenerationSettings(DecodedImage source,
-                                                                              TextureFormat textureFormat,
-                                                                              String compressorName,
-                                                                              String compressorPresetName,
-                                                                              boolean generateMipMaps,
-                                                                              int maxTextureSize,
-                                                                              boolean premulAlpha) throws TextureGeneratorException {
+        TextureFormat textureFormat, String compressorName, String compressorPresetName,
+        boolean generateMipMaps, int maxTextureSize, boolean premulAlpha) throws TextureGeneratorException {
 
         TextureGenerationSettings settings = new TextureGenerationSettings();
         settings.compressorName = compressorName;
@@ -385,10 +381,7 @@ public class TextureGenerator {
         return settings;
     }
 
-    private static List<byte[]> generateFromDecodedImage(TextureImage.Image.Builder builder,
-                                                         DecodedImage source,
-                                                         TextureGenerationSettings settings,
-                                                         EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
+    private static List<byte[]> generateFromDecodedImage(TextureImage.Image.Builder builder, DecodedImage source, TextureGenerationSettings settings, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
 
         Logger logger = Logger.getLogger(TextureGenerator.class.getName());
 
