@@ -550,6 +550,22 @@ void main()
     }
 
     mediump vec2 p = var_texcoord;
+
+    // Keep the runtime-SDF shadow path ahead of all vector-rendering setup.
+    // This layer only needs the atlas sample and must not evaluate contours.
+    if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5 && var_use_sdf_shadow > 0.5)
+    {
+        float shadow_alpha = EvaluateRuntimeSdfShadowAlpha(p);
+        if (shadow_alpha <= 0.0)
+        {
+            discard;
+        }
+
+        float alpha = var_color.a * shadow_alpha;
+        out_fragColor = vec4(var_color.rgb * alpha, alpha);
+        return;
+    }
+
     float outline_width = max(var_jacobian.z, 0.0);
     float shadow_blur = max(var_jacobian.w, 0.0);
     ivec2 band_max = ivec2(int(var_jacobian.x + 0.5), int(var_jacobian.y + 0.5));
@@ -571,12 +587,14 @@ void main()
     if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5)
     {
         float shadow_alpha = 0.0;
-        if (var_use_sdf_shadow > 0.5)
+        if (shadow_blur <= 0.0)
         {
-            shadow_alpha = EvaluateRuntimeSdfShadowAlpha(p);
-        }
-        else if (shadow_blur <= 0.0)
-        {
+            vec2 hard_shadow_margin = vec2(outline_width) / glyph_metric_scale;
+            if (any(lessThan(p, -hard_shadow_margin)) ||
+                any(greaterThan(p, vec2(1.0) + hard_shadow_margin)))
+            {
+                discard;
+            }
             shadow_alpha = EvaluateHardShadowAlpha(p,
                                                    var_banding,
                                                    band_row,
@@ -589,6 +607,18 @@ void main()
         }
         else
         {
+            // Some vector-font shadow quads retain conservative atlas padding.
+            // Keep the winding test inside the only domain where this blur can
+            // contribute; outside it, an unrelated contour can otherwise be
+            // classified as "inside" and make the padded quad opaque.
+            const float shadow_filter_guard = 2.4142;
+            vec2 shadow_margin = vec2(outline_width + shadow_blur + shadow_filter_guard) /
+                                 glyph_metric_scale;
+            if (any(lessThan(p, -shadow_margin)) ||
+                any(greaterThan(p, vec2(1.0) + shadow_margin)))
+            {
+                discard;
+            }
             shadow_alpha = EvaluateSdfCompatibleShadowAlpha(p,
                                                             curve_start,
                                                             curve_count,

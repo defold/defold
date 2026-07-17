@@ -1357,6 +1357,22 @@ void main()
     }
 
     highp vec2 p = var_texcoord;
+
+    // Keep the runtime-SDF shadow path ahead of all vector-rendering setup.
+    // This layer only needs the atlas sample and must not evaluate contours.
+    if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5 && use_sdf_shadow)
+    {
+        float shadow_alpha = EvaluateRuntimeSdfShadowAlpha(p);
+        if (shadow_alpha <= 0.0)
+        {
+            discard;
+        }
+
+        float alpha = var_color.a * shadow_alpha;
+        out_fragColor = vec4(var_color.rgb * alpha, alpha);
+        return;
+    }
+
     float outline_width = max(var_effect_params.z, 0.0);
     float shadow_blur = max(var_effect_params.w, 0.0);
     vec2 glyph_metric_scale = max(var_params.xy, vec2(0.0001));
@@ -1384,19 +1400,6 @@ void main()
         return;
     }
 
-    if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5 && use_sdf_shadow)
-    {
-        float shadow_alpha = EvaluateRuntimeSdfShadowAlpha(p);
-        if (shadow_alpha <= 0.0)
-        {
-            discard;
-        }
-
-        float alpha = var_color.a * shadow_alpha;
-        out_fragColor = vec4(var_color.rgb * alpha, alpha);
-        return;
-    }
-
     float coverage = ScanlineSweepRender(p, curve_start, curve_count, pixel_filter_width);
 
     if (abs(layer_mode - LAYER_MODE_FACE) < 0.5)
@@ -1412,6 +1415,15 @@ void main()
 
     if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5)
     {
+        if (shadow_blur <= 0.0)
+        {
+            vec2 hard_shadow_margin = vec2(outline_width) / glyph_metric_scale;
+            if (any(lessThan(p, -hard_shadow_margin)) ||
+                any(greaterThan(p, vec2(1.0) + hard_shadow_margin)))
+            {
+                discard;
+            }
+        }
         float shadow_alpha = EvaluateFilteredShadowAlpha(p,
                                                          curve_start,
                                                          curve_count,
