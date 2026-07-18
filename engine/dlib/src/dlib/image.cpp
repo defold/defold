@@ -73,6 +73,8 @@ namespace dmImage
 
     HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult)
     {
+        // HDR is supported by the internal Load() path used by the texture pipeline,
+        // but NewImage() remains byte-oriented until float image types are exposed publicly.
         if (IsHDR(buffer, buffer_size))
         {
             return 0;
