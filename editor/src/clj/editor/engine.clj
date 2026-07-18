@@ -35,6 +35,7 @@
 (set! *warn-on-reflection* true)
 
 (def ^:const timeout 2000)
+(def ^:private start-unfocused-argument "--config=display.start_unfocused=1")
 
 (defn- get-connection [^URI uri]
   (doto ^HttpURLConnection (.openConnection (.toURL uri))
@@ -101,20 +102,25 @@
       (change-resolution! target (:width data) (:height data)
                           (prefs/get prefs [:run :simulate-rotated-device])))))
 
-(defn reboot! [target local-url debug?]
+(defn- reboot-arguments [target local-url debug? focus?]
+  (let [instance-index (:instance-index target)]
+    (cond-> [(str "--config=resource.uri=" local-url)]
+            debug?
+            (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
+
+            true
+            (conj (str local-url "/game.projectc"))
+
+            (and (some? instance-index) (> instance-index 0))
+            (conj (format "--config=project.instance_index=%d" instance-index))
+
+            (not focus?)
+            (conj start-unfocused-argument))))
+
+(defn reboot! [target local-url debug? focus?]
   (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection uri)
-        instance-index (:instance-index target)
-        instance-index? (some? instance-index)
-        args (cond-> [(str "--config=resource.uri=" local-url)]
-                     debug?
-                     (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
-
-                     true
-                     (conj (str local-url "/game.projectc"))
-
-                     (and instance-index? (> instance-index 0))
-                     (conj (format "--config=project.instance_index=%d" instance-index)))]
+        args (reboot-arguments target local-url debug? focus?)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -299,25 +305,31 @@
           (str port)))
       (catch Exception _))))
 
-(defn launch! [^File engine project-directory prefs debug? instance-index]
+(defn- launch-arguments [defold-log-dir engine-arguments debug? instance-index focus?]
+  (cond-> []
+          defold-log-dir
+          (into ["--config=project.write_log=1"
+                 (format "--config=project.log_dir=%s" defold-log-dir)])
+
+          debug?
+          (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
+
+          (> instance-index 0)
+          (conj (format "--config=project.instance_index=%d" instance-index))
+
+          (not (str/blank? engine-arguments))
+          (into (remove str/blank?) (split-lines engine-arguments))
+
+          (not focus?)
+          (conj start-unfocused-argument)))
+
+(defn launch! [^File engine project-directory prefs debug? instance-index focus?]
   (let [defold-log-dir (some-> (system/defold-log-dir)
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
         engine-arguments (prefs/get prefs [:run :engine-arguments])
-        args (cond-> []
-                     defold-log-dir
-                     (into ["--config=project.write_log=1"
-                            (format "--config=project.log_dir=%s" defold-log-dir)])
-
-                     debug?
-                     (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
-
-                     (> instance-index 0)
-                     (into [(format "--config=project.instance_index=%d" instance-index)])
-
-                     (not (str/blank? engine-arguments))
-                     (into (remove str/blank?) (split-lines engine-arguments)))
+        args (launch-arguments defold-log-dir engine-arguments debug? instance-index focus?)
         env {"DM_SERVICE_PORT" (or (validate-service-port (System/getenv "DM_SERVICE_PORT"))
                                    "dynamic")
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])

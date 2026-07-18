@@ -14,6 +14,7 @@
 
 (ns editor.command-requests
   (:require [cljfx.api :as fx]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
             [editor.disk :as disk]
@@ -28,6 +29,20 @@
   (:import [com.dynamo.bob.util Library$Result]))
 
 (set! *warn-on-reflection* true)
+
+(defn- query-param [request param-name]
+  (some (fn [query-part]
+          (let [[name value] (string/split query-part #"=" 2)]
+            (when (= param-name name)
+              (or value ""))))
+        (some-> (:query request) (string/split #"&"))))
+
+(defn- run-request-user-data [request]
+  (case (query-param request "focus")
+    nil {}
+    "true" {:focus true}
+    "false" {:focus false}
+    (throw (http-server/error (http-server/response 400 "Invalid focus value; expected true or false\n")))))
 
 (defn- build-response [result localization-state]
   (future/then
@@ -192,6 +207,7 @@
    :run
    {:ui-handler :project.build
     :help "Compile and run the project."
+    :request->user-data run-request-user-data
     :resource-sync true
     :response-fn build-response}
 
@@ -244,9 +260,15 @@
                                     (reduce-kv (fn [acc command _]
                                                  (conj! acc command))
                                                (transient [])
-                                               command->help))}}]
+                                               command->help))}}
+                  {:name "focus"
+                   :in "query"
+                   :description "Whether the launched game should take focus. Only applies to the `run` command."
+                   :schema {:type "boolean"
+                            :default true}}]
      :responses {"200" {:description "Command completed and returned a response body"}
                  "202" {:description "Accepted"}
+                 "400" {:description "Invalid command option"}
                  "403" {:description "Forbidden"}
                  "404" {:description "Unknown command"}
                  "422" {:description "Command failed validation/build checks"}
@@ -265,8 +287,10 @@
    {"POST" (with-meta
              (bound-fn [request]
                (let [command (-> request :path-params :command keyword)]
-                 (if-let [{:keys [ui-handler user-data resource-sync response-fn]} (supported-commands command)]
-                   (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler (or user-data {}))]
+                 (if-let [{:keys [ui-handler user-data request->user-data resource-sync response-fn]} (supported-commands command)]
+                   (let [user-data (cond-> (or user-data {})
+                                     request->user-data (merge (request->user-data request)))
+                         ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler user-data)]
                      (case ui-handler-ctx
                        (::ui/not-active ::ui/not-enabled) http-server/forbidden
                        (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))

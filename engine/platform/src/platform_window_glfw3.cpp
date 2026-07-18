@@ -349,7 +349,7 @@ namespace dmPlatform
 
         if (res == WINDOW_RESULT_OK)
         {
-            if (!params.m_Hidden)
+            if (!params.m_Hidden && !params.m_StartUnfocused)
             {
                 FocusWindowNative(window);
             }
@@ -358,7 +358,7 @@ namespace dmPlatform
 
             const bool windowed = glfwGetWindowMonitor(window->m_Window) == NULL && !window->m_FullscreenWindowed;
 
-            if (!params.m_Hidden && window->m_FullscreenWindowed)
+            if (!params.m_Hidden && !params.m_StartUnfocused && window->m_FullscreenWindowed)
             {
                 SetWindowedFullscreenFocusNative(window, true);
             }
