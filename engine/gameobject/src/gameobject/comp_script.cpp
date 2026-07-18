@@ -904,6 +904,12 @@ namespace dmGameObject
             *out_type = PROPERTY_TYPE_URL;
             return true;
         }
+        if (FindPropertyNameFromEntries(decls->m_TextEntries.m_Data, decls->m_TextEntries.m_Count,
+                property_id, out_key, out_element_ids))
+        {
+            *out_type = PROPERTY_TYPE_TEXT;
+            return true;
+        }
         if (FindPropertyNameFromEntries(decls->m_Vector3Entries.m_Data, decls->m_Vector3Entries.m_Count,
                 property_id, out_key, out_element_ids))
         {
@@ -1114,6 +1120,7 @@ namespace dmGameObject
             case dmGameObject::PROPERTY_TYPE_VECTOR4:   entries = decls->m_Vector4Entries.m_Data; element_count = decls->m_Vector4Entries.m_Count; break;
             case dmGameObject::PROPERTY_TYPE_QUAT:      entries = decls->m_QuatEntries.m_Data; element_count = decls->m_QuatEntries.m_Count; break;
             case dmGameObject::PROPERTY_TYPE_BOOLEAN:   entries = decls->m_BoolEntries.m_Data; element_count = decls->m_BoolEntries.m_Count; break;
+            case dmGameObject::PROPERTY_TYPE_TEXT:      entries = decls->m_TextEntries.m_Data; element_count = decls->m_TextEntries.m_Count; break;
             default: break;
             }
 
@@ -1178,10 +1185,16 @@ namespace dmGameObject
             pit->m_Property.m_Value.m_V4[3] = var.m_V4[3];
             break;
         case dmGameObject::PROPERTY_TYPE_URL:
+        {
             pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_URL;
             dmMessage::URL* url = (dmMessage::URL*)&var.m_URL[0];
             dmSnPrintf(pit->m_Property.m_Value.m_URL, sizeof(pit->m_Property.m_Value.m_URL), "%s:%s%s%s",
                             dmHashReverseSafe64(url->m_Socket), dmHashReverseSafe64(url->m_Path), url->m_Fragment?"#":"", url->m_Fragment?dmHashReverseSafe64(url->m_Fragment):"");
+            break;
+        }
+        case dmGameObject::PROPERTY_TYPE_TEXT:
+            pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_TEXT;
+            pit->m_Property.m_Value.m_Text = var.m_Text;
             break;
         }
 

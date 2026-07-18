@@ -86,6 +86,13 @@ function init(self)
     -- bool
     assert(not go.get("b#script", "bool"))
     go.set("b#script", "bool", true)
+    -- text
+    assert(go.get("b#script", "text") == "default text")
+    go.set("b#script", "text", "")
+    assert(go.get("b#script", "text") == "")
+    local text = "Spelare åäö\nsecond line"
+    go.set("b#script", "text", text)
+    assert(go.get("b#script", "text") == text)
     -- material
     assert(self.material == go.get("b#script", "material"))
     go.set("b#script", "material", hash("material"))
