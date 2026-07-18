@@ -1652,7 +1652,7 @@
                   explicit-arcs (when arc-tables-by-input-label
                                   (into []
                                         (comp
-                                          (mapcat (comp vals arc-tables-by-input-label))
+                                          (mapcat (comp ig/arc-table-arcs arc-tables-by-input-label))
                                           (filter (fn [arc]
                                                     (let [source-id (gt/source-id arc)]
                                                       (and (= graph-id (gt/node-id->graph-id source-id))
