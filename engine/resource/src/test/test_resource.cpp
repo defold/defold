@@ -917,6 +917,11 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
 
 TEST_P(GetResourceTest, PreloadGetManyValidRefs)
 {
+    // This stress-test data is intentionally not included in resources_pb. Passing
+    // all input paths to ArchiveBuilder exceeds the Windows command-line limit.
+    if (strstr(GetParam(), "dmanif:") == GetParam())
+        SKIP();
+
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/many_valid_refs.cont");
 
     uint32_t timeout = 100*1000;
@@ -937,6 +942,11 @@ TEST_P(GetResourceTest, PreloadGetManyValidRefs)
 
 TEST_P(GetResourceTest, PreloadGetDeepResourceChain)
 {
+    // This stress-test data is intentionally not included in resources_pb. Passing
+    // all input paths to ArchiveBuilder exceeds the Windows command-line limit.
+    if (strstr(GetParam(), "dmanif:") == GetParam())
+        SKIP();
+
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/deep_chain_0000.cont");
 
     uint32_t timeout = 100*1000;
