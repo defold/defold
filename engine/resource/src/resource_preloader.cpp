@@ -168,7 +168,11 @@ struct ResourcePreloader
             m_PathLookup.SetCapacity(INITIAL_PATH_CAPACITY / 3, INITIAL_PATH_CAPACITY);
             m_Paths.SetCapacity(INITIAL_PATH_CAPACITY);
         }
+        // hints written by asynchronous preload callbacks.
         dmArray<PendingHint> m_NewHints;
+
+        // path interning table
+        // maps path hash -> index in m_Paths -> stable char* path
         TPathHashTable m_PathLookup;
 
         // Individually allocated strings keep PathDescriptor pointers stable when this array grows.
@@ -177,13 +181,17 @@ struct ResourcePreloader
 
     dmSpinlock::Spinlock m_SyncedDataSpinlock;
 
+    // the bounded active dependency tree
     PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
 
-    // list of free nodes
+    // list of free request slots
     TRequestIndex m_Freelist[MAX_PRELOADER_REQUESTS];
     uint32_t m_FreelistSize;
+
     dmLoadQueue::HQueue m_LoadQueue;
     dmResource::HFactory m_Factory;
+
+    // prevents two tree nodes from loading the same canonical path concurrently
     TPathInProgressTable m_InProgress;
     uint8_t m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
 
@@ -201,9 +209,11 @@ struct ResourcePreloader
 
     dmArray<void*> m_PersistedResources;
 
+    // keeps completed child references alive after recycling their request slots
     dmArray<RetainedResource> m_RetainedResources;
 
     // Overflow hints live here until a completed leaf returns a slot to m_Freelist.
+    // Hints are consumed LIFO, producing depth-first traversal
     dmArray<PendingHint> m_PendingHints;
 };
 
