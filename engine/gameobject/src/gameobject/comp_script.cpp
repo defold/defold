@@ -1044,6 +1044,8 @@ namespace dmGameObject
         uint32_t element_index = 0;
         if (!FindPropertyName(declarations, params.m_PropertyId, &property_name, &type, &element_ids, &is_element, &element_index))
             return PROPERTY_RESULT_NOT_FOUND;
+        if (params.m_Value.m_Type != type)
+            return PROPERTY_RESULT_TYPE_MISMATCH;
 
         lua_State* L = GetLuaState(script_instance);
 

@@ -45,6 +45,9 @@ function init(self)
     -- script properties
     -- number
     assert(go.get("b#script", "number") == 1)
+    local ok = pcall(go.set, "b#script", "number", "oops")
+    assert(not ok)
+    assert(go.get("b#script", "number") == 1)
     go.set("b#script", "number", 2)
     -- hash
     assert(go.get("b#script", "hash") == hash("test"))

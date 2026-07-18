@@ -716,6 +716,10 @@ TEST_F(PropsTest, PropsGetSetAs)
     ASSERT_STREQ("runtime text with a longer value", gettext);
     r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("number"), &gettext);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromText(instance, hash("script"), hash("number"), "invalid");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromFloat(instance, hash("script"), hash("text"), 1.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
     r = dmGameObject::SetPropertyFromText(instance, 0, hash("position"), "invalid");
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
 
