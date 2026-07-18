@@ -18,6 +18,7 @@
             [dynamo.graph :as g]
             [editor.fs :as fs]
             [editor.ui :as ui]
+            [internal.graph :as ig]
             [util.fn :as fn])
   (:import [java.io BufferedWriter File IOException StringWriter]
            [javafx.scene.paint Color]))
@@ -57,7 +58,7 @@
 
 (defn- flatten-arcs [arcs]
   (mapcat (fn [[_node-id label->arc-table]]
-            (mapcat (comp vals val) label->arc-table))
+            (mapcat (comp ig/arc-table-arcs val) label->arc-table))
           arcs))
 
 (defn- nodes->arcs [basis nodes]

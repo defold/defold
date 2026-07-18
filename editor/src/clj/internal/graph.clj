@@ -20,7 +20,8 @@
             [util.array :as array]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.pkid-table :as pkid-table])
   (:import [clojure.lang IPersistentSet Indexed]
            [com.github.benmanes.caffeine.cache Cache Caffeine]
            [internal.graph.types Endpoint]
@@ -363,71 +364,34 @@
 
 (defonce ^:private unassigned-sentinel (Object.))
 
-;; Most arc tables contain only one arc. Share their immutable metadata maps so
-;; every table does not retain a separate map containing the same next pkid.
-(def ^:private ^:const shared-arc-table-metadata-count 1024)
+(def ^:private empty-arc-table (pkid-table/pkid-table))
 
-(def ^:private arc-table-metadata-by-next-pkid
-  (mapv (fn [next-pkid]
-          {:next-pkid next-pkid})
-        (range shared-arc-table-metadata-count)))
-
-(defn- arc-table-metadata [^long next-pkid]
-  (if (< next-pkid shared-arc-table-metadata-count)
-    (arc-table-metadata-by-next-pkid next-pkid)
-    {:next-pkid next-pkid}))
-
-(defn- arc-table-next-pkid
+(defn arc-table-next-pkid
   ^long [arc-table]
-  (long (get (meta arc-table) :next-pkid 0)))
-
-(defn- arc-table-set-next-pkid [arc-table next-pkid]
-  {:pre [(nat-int? next-pkid)]}
-  (with-meta arc-table (arc-table-metadata next-pkid)))
-
-(def ^:private empty-arc-table
-  (with-meta (int-map/int-map) (arc-table-metadata 0)))
+  (if-not arc-table
+    0
+    (pkid-table/next-pkid arc-table)))
 
 (defn arc-table-arcs [arc-table]
-  (when-not (coll/empty? arc-table)
-    (vals arc-table)))
+  (when arc-table
+    (coll/not-empty (pkid-table/vals arc-table))))
 
 (defn- arc-table-assoc-pkids [arc-table arc-pkids arc]
-  (let [arc-table (or arc-table empty-arc-table)
-        next-pkid (volatile! (arc-table-next-pkid arc-table))
-        arc-table (-> arc-table
-                      (transient)
-                      (coll/reduce=> arc-pkids
-                        (fn [arc-table ^long arc-pkid]
-                          (let [old-next-pkid (long @next-pkid)
-                                arc-next-pkid (inc arc-pkid)]
-                            (when (< old-next-pkid arc-next-pkid)
-                              (vreset! next-pkid arc-next-pkid)))
-                          (assoc! arc-table arc-pkid arc)))
-                      (persistent!))]
-    (arc-table-set-next-pkid arc-table @next-pkid)))
+  (pkid-table/assoc-pkids (or arc-table empty-arc-table)
+                          arc-pkids
+                          arc))
 
 (defn- arc-table-dissoc-pkids [arc-table arc-pkids]
   (when arc-table
-    (let [next-pkid (arc-table-next-pkid arc-table)
-          arc-table (-> arc-table
-                        (transient)
-                        (coll/reduce=> arc-pkids dissoc!)
-                        (persistent!))]
-      (arc-table-set-next-pkid arc-table next-pkid))))
+    (pkid-table/dissoc-pkids arc-table arc-pkids)))
 
 (defn- arc-table-append [arc-table arc]
-  (let [arc-table (or arc-table empty-arc-table)
-        next-pkid (arc-table-next-pkid arc-table)]
-    (-> arc-table
-        (assoc next-pkid arc)
-        (arc-table-set-next-pkid (inc next-pkid)))))
+  (pkid-table/append (or arc-table empty-arc-table) arc))
 
 (defn- arc-table-find-arc-pkids [arc-table arc]
-  (coll/into-> arc-table (int-map/int-set)
-    (keep (fn [[arc-pkid table-arc]]
-            (when (= arc table-arc)
-              arc-pkid)))))
+  (if-not arc-table
+    (int-map/int-set)
+    (pkid-table/find-pkids arc-table arc)))
 
 (defn- graphs-source-arc-table [graphs arc]
   (let [source-id (gt/source-id arc)
@@ -777,8 +741,8 @@
                                                (rest source-override-node-chain)
                                                (rest conflicting-source-overrides-chain)
                                                (assoc arc
-                                                      :source-id (first source-override-node-chain)
-                                                      :target-id target-override-node-id))
+                                                 :source-id (first source-override-node-chain)
+                                                 :target-id target-override-node-id))
                               (lift-source-arc basis
                                                source-override-chain
                                                source-override-node-chain

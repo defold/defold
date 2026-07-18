@@ -110,13 +110,11 @@
                   (is (= [[source-node-id :property-output target-node-id :regular-input]]
                          (helpers/source-arc-table-tuples basis graph-id source-node-id :property-output)
                          (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
-                  (let [source-arc-table-metadata (meta (get-in basis [:graphs graph-id :sarcs source-node-id :property-output]))
-                        target-arc-table-metadata (meta (get-in basis [:graphs graph-id :tarcs target-node-id :regular-input]))]
-                    (is (= {:next-pkid 1}
-                           source-arc-table-metadata
-                           target-arc-table-metadata))
-                    (is (identical? source-arc-table-metadata
-                                    target-arc-table-metadata))))
+                  (let [source-arc-table (get-in basis [:graphs graph-id :sarcs source-node-id :property-output])
+                        target-arc-table (get-in basis [:graphs graph-id :tarcs target-node-id :regular-input])]
+                    (is (= 1
+                           (ig/arc-table-next-pkid source-arc-table)
+                           (ig/arc-table-next-pkid target-arc-table)))))
 
                 (testing "Output values."
                   (is (= :source-value (g/node-value target-node-id :regular-output evaluation-context)))))))]
@@ -1344,8 +1342,8 @@
             [(g/connect source-node-id :property-output target-node-id :array-input)
              (g/connect source-node-id :property-output target-node-id :array-input)])
 
-          source-arc-table-metadata (meta (get-in basis [:graphs graph-id :sarcs source-node-id :property-output]))
-          target-arc-table-metadata (meta (get-in basis [:graphs graph-id :tarcs target-node-id :array-input]))]
+          source-arc-table (get-in basis [:graphs graph-id :sarcs source-node-id :property-output])
+          target-arc-table (get-in basis [:graphs graph-id :tarcs target-node-id :array-input])]
 
       (is (= [] (:undoable-changes tx-result)))
       (is (= 0 (g/undo-stack-count :undo/global)))
@@ -1354,11 +1352,9 @@
              (g/sources basis target-node-id :array-input)))
       (is (= [:source-value :source-value]
              (g/node-value target-node-id :array-output)))
-      (is (= {:next-pkid 2}
-             source-arc-table-metadata
-             target-arc-table-metadata))
-      (is (identical? source-arc-table-metadata
-                      target-arc-table-metadata)))))
+      (is (= 2
+             (ig/arc-table-next-pkid source-arc-table)
+             (ig/arc-table-next-pkid target-arc-table))))))
 
 (deftest non-undoable-full-invalidation-replace-cross-graph-connection-test
   (test-support/with-clean-system
