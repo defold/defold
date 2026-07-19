@@ -21,15 +21,22 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.graph.ResourceWalker.IResourceVisitor;
+import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
+import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
+import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 
 import com.google.protobuf.Message;
 
 public class ResourceCounter implements IResourceVisitor {
     private final Set<IResource> visitedResources = new HashSet<>();
+    private final Set<IResource> resourcesWithExcludedReferences = new HashSet<>();
     private int resourceCount = 0;
 
     @Override
     public boolean shouldVisit(IResource resource, IResource parentResource) {
+        if (resourcesWithExcludedReferences.contains(parentResource)) {
+            return false;
+        }
         return visitedResources.add(resource);
     }
 
@@ -40,6 +47,11 @@ public class ResourceCounter implements IResourceVisitor {
 
     @Override
     public void visitMessage(Message message, IResource resource, IResource parentResource) {
+        if (message instanceof CollectionProxyDesc
+                || message instanceof FactoryDesc && ((FactoryDesc) message).getLoadDynamically()
+                || message instanceof CollectionFactoryDesc && ((CollectionFactoryDesc) message).getLoadDynamically()) {
+            resourcesWithExcludedReferences.add(resource);
+        }
     }
 
     @Override

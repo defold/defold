@@ -69,6 +69,51 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testResourceCountExcludesDynamicallyLoadedFactoryPrototype() throws Exception {
+        addFile("/spawn.script", "");
+        addFile("/spawn.go", "components { id: \"script\" component: \"/spawn.script\" }");
+        addFile("/dynamic.factory", "prototype: \"/spawn.go\" load_dynamically: true");
+        addFile("/host.go", "components { id: \"factory\" component: \"/dynamic.factory\" }");
+
+        CollectionDesc collection = getMessage(build("/test.collection",
+                "name: \"main\" instances { id: \"host\" prototype: \"/host.go\" }"), CollectionDesc.class);
+
+        // /host.goc and /dynamic.factoryc. The dynamically loaded prototype and
+        // its resources are not loaded with the collection.
+        Assert.assertEquals(2, collection.getResourceCount());
+    }
+
+    @Test
+    public void testResourceCountExcludesDynamicallyLoadedCollectionFactoryPrototype() throws Exception {
+        addFile("/spawn.script", "");
+        addFile("/spawn.go", "components { id: \"script\" component: \"/spawn.script\" }");
+        addFile("/spawn.collection", "name: \"spawn\" instances { id: \"spawn\" prototype: \"/spawn.go\" }");
+        addFile("/dynamic.collectionfactory", "prototype: \"/spawn.collection\" load_dynamically: true");
+        addFile("/host.go", "components { id: \"factory\" component: \"/dynamic.collectionfactory\" }");
+
+        CollectionDesc collection = getMessage(build("/test.collection",
+                "name: \"main\" instances { id: \"host\" prototype: \"/host.go\" }"), CollectionDesc.class);
+
+        // /host.goc and /dynamic.collectionfactoryc.
+        Assert.assertEquals(2, collection.getResourceCount());
+    }
+
+    @Test
+    public void testResourceCountExcludesCollectionProxyCollection() throws Exception {
+        addFile("/proxied.script", "");
+        addFile("/proxied.go", "components { id: \"script\" component: \"/proxied.script\" }");
+        addFile("/proxied.collection", "name: \"proxied\" instances { id: \"proxied\" prototype: \"/proxied.go\" }");
+        addFile("/proxy.collectionproxy", "collection: \"/proxied.collection\"");
+        addFile("/host.go", "components { id: \"proxy\" component: \"/proxy.collectionproxy\" }");
+
+        CollectionDesc collection = getMessage(build("/test.collection",
+                "name: \"main\" instances { id: \"host\" prototype: \"/host.go\" }"), CollectionDesc.class);
+
+        // /host.goc and /proxy.collectionproxyc. The proxied collection is loaded separately.
+        Assert.assertEquals(2, collection.getResourceCount());
+    }
+
+    @Test
     public void testProps() throws Exception {
         addFile("/test.go", "");
         StringBuilder src = new StringBuilder();

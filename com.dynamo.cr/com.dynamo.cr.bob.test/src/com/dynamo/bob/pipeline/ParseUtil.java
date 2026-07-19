@@ -26,6 +26,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
 import com.dynamo.gamesys.proto.DataProto;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
@@ -275,6 +276,12 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return CollectionFactoryDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("collectionproxyc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return CollectionProxyDesc.parseFrom(content);
             }
         });
         parseMap.put("compcount_col", new IParser() {
