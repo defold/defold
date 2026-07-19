@@ -21,7 +21,7 @@
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.eduction :as e]
-            [util.pkid-table :as pkid-table])
+            [util.pkid-vector :as pkid-vector])
   (:import [clojure.lang IPersistentSet Indexed]
            [com.github.benmanes.caffeine.cache Cache Caffeine]
            [internal.graph.types Endpoint]
@@ -364,34 +364,34 @@
 
 (defonce ^:private unassigned-sentinel (Object.))
 
-(def ^:private empty-arc-table (pkid-table/pkid-table))
+(def ^:private empty-arc-table (pkid-vector/pkid-vector))
 
 (defn arc-table-next-pkid
   ^long [arc-table]
   (if-not arc-table
     0
-    (pkid-table/next-pkid arc-table)))
+    (pkid-vector/next-pkid arc-table)))
 
 (defn arc-table-arcs [arc-table]
   (when arc-table
-    (coll/not-empty (pkid-table/vals arc-table))))
+    (coll/not-empty arc-table)))
 
 (defn- arc-table-assoc-pkids [arc-table arc-pkids arc]
-  (pkid-table/assoc-pkids (or arc-table empty-arc-table)
+  (pkid-vector/assoc-pkids (or arc-table empty-arc-table)
                           arc-pkids
                           arc))
 
 (defn- arc-table-dissoc-pkids [arc-table arc-pkids]
   (when arc-table
-    (pkid-table/dissoc-pkids arc-table arc-pkids)))
+    (pkid-vector/dissoc-pkids arc-table arc-pkids)))
 
 (defn- arc-table-append [arc-table arc]
-  (pkid-table/append (or arc-table empty-arc-table) arc))
+  (conj (or arc-table empty-arc-table) arc))
 
 (defn- arc-table-find-arc-pkids [arc-table arc]
   (if-not arc-table
     (int-map/int-set)
-    (pkid-table/find-pkids arc-table arc)))
+    (pkid-vector/find-pkids arc-table arc)))
 
 (defn- graphs-source-arc-table [graphs arc]
   (let [source-id (gt/source-id arc)

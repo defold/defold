@@ -12,41 +12,47 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns util.pkid-table
+(ns util.pkid-vector
+  "A persistent vector with stable pkids that are independent of realized indexes.
+
+  Ordinary vector operations use realized indexes, while assoc-pkids,
+  dissoc-pkids, and find-pkids use stable pkids. Vector equality and hashing
+  consider only realized values. Generic transient conversion is unsupported."
   (:refer-clojure :exclude [vals])
   (:require [clojure.data.int-map :as int-map]
-            [util.coll :as coll]
-            [util.defonce :as defonce])
-  (:import [clojure.data.int_map PersistentIntSet]))
+            [util.coll :as coll])
+  (:import [clojure.data.int_map PersistentIntSet]
+           [clojure.lang PkidVector PersistentVector]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defonce/type PkidTable [vals missing-pkids ^long next-pkid])
-
 (def ^:private empty-missing-pkids
-  (int-map/dense-int-set))
+  (int-map/int-set))
 
-(def ^:private empty-pkid-table
-  (PkidTable. [] empty-missing-pkids 0))
+(def ^:private empty-pkid-vector
+  (PkidVector. PersistentVector/EMPTY empty-missing-pkids 0))
 
-(defn pkid-table
-  "Returns an empty pkid table."
-  ^PkidTable []
-  empty-pkid-table)
+(defn pkid-vector
+  "Returns an empty pkid vector."
+  ^PkidVector []
+  empty-pkid-vector)
 
 (definline vals
-  "Returns the table values in ascending pkid order."
-  [^PkidTable table]
-  `(.-vals ~(with-meta table {:tag `PkidTable})))
+  "Returns the realized values vector."
+  [^PkidVector vector]
+  (with-meta vector {:tag `PkidVector}))
 
 (definline next-pkid
   "Returns the pkid that will be assigned by the next append."
-  [^PkidTable table]
-  `(.-next-pkid ~(with-meta table {:tag `PkidTable})))
+  [^PkidVector vector]
+  `(.-nextPkid ~(with-meta vector {:tag `PkidVector})))
 
-(definline ^:private missing-pkids [^PkidTable table]
-  `(.-missing-pkids ~(with-meta table {:tag `PkidTable})))
+(definline ^:private missing-pkids [^PkidVector vector]
+  `(.-missingPkids ~(with-meta vector {:tag `PkidVector})))
+
+(definline ^:private transient-values [^PkidVector vector]
+  `(.asTransientValues ~(with-meta vector {:tag `PkidVector})))
 
 (defn- missing-pkid-count-in-range
   "Counts missing pkids in the half-open interval. Sorted batch operations use
@@ -126,9 +132,8 @@
 (defn- assoc-pkids-without-restoration
   "Updates existing positions in a transient copy and appends new positions.
   This avoids copying all existing values for replacement-only batches."
-  ^PkidTable [^PkidTable table normalized-pkids val]
-  (let [table-vals (vals table)
-        table-missing-pkids (missing-pkids table)
+  ^PkidVector [^PkidVector table normalized-pkids val]
+  (let [table-missing-pkids (missing-pkids table)
         table-next-pkid (next-pkid table)
         new-missing-pkids (volatile! nil)
         new-next-pkid (volatile! table-next-pkid)
@@ -155,19 +160,20 @@
                                                    pkid)))
                       (vreset! new-next-pkid (inc pkid))
                       (conj! new-table-vals val))))
-                (transient table-vals)
+                (transient-values table)
                 normalized-pkids)]
-    (PkidTable. (persistent! new-table-vals)
-                (if-let [new-missing-pkids @new-missing-pkids]
-                  (persistent-missing-pkids new-missing-pkids)
-                  table-missing-pkids)
-                @new-next-pkid)))
+    (PkidVector/fromTransient new-table-vals
+                              (meta table)
+                              (if-let [new-missing-pkids @new-missing-pkids]
+                                (persistent-missing-pkids new-missing-pkids)
+                                table-missing-pkids)
+                              @new-next-pkid)))
 
 (defn- assoc-pkids-with-restoration
   "Merges sorted updates with the existing values, copying each old value at
   most once."
-  ^PkidTable [^PkidTable table normalized-pkids val]
-  (let [table-vals (vals table)
+  ^PkidVector [^PkidVector table normalized-pkids val]
+  (let [table-vals table
         table-val-count (count table-vals)
         table-missing-pkids (missing-pkids table)
         table-next-pkid (next-pkid table)
@@ -211,22 +217,22 @@
                       (conj! new-table-vals val))))
                 (transient [])
                 normalized-pkids)]
-    (PkidTable. (-> new-table-vals
-                    (conj-vals! table-vals (long @source-index) table-val-count)
-                    (persistent!))
-                (persistent-missing-pkids @new-missing-pkids)
-                @new-next-pkid)))
+    (PkidVector/fromTransient (conj-vals! new-table-vals
+                                          table-vals
+                                          (long @source-index)
+                                          table-val-count)
+                              (meta table)
+                              (persistent-missing-pkids @new-missing-pkids)
+                              @new-next-pkid)))
 
 (defn append
   "Appends a value at the next pkid."
-  ^PkidTable [^PkidTable table val]
-  (PkidTable. (conj (vals table) val)
-              (missing-pkids table)
-              (inc (next-pkid table))))
+  ^PkidVector [^PkidVector table val]
+  (conj table val))
 
 (defn assoc-pkids
   "Associates a value with every supplied pkid."
-  ^PkidTable [^PkidTable table pkids val]
+  ^PkidVector [^PkidVector table pkids val]
   (let [table-missing-pkids (missing-pkids table)
         table-next-pkid (next-pkid table)
         [normalized-pkids restores-missing]
@@ -268,8 +274,8 @@
 
 (defn dissoc-pkids
   "Dissociates the values at the supplied pkids."
-  ^PkidTable [^PkidTable table pkids]
-  (let [table-vals (vals table)
+  ^PkidVector [^PkidVector table pkids]
+  (let [table-vals table
         table-missing-pkids (missing-pkids table)
         table-next-pkid (next-pkid table)
         normalized-pkids (normalize-dissoc-pkids pkids
@@ -300,13 +306,13 @@
                         new-table-vals))
                     (transient [])
                     normalized-pkids)]
-        (PkidTable. (-> new-table-vals
-                        (conj-vals! table-vals
-                                    (long @source-index)
-                                    (count table-vals))
-                        (persistent!))
-                    (persistent! @new-missing-pkids)
-                    table-next-pkid)))))
+        (PkidVector/fromTransient (conj-vals! new-table-vals
+                                              table-vals
+                                              (long @source-index)
+                                              (count table-vals))
+                                  (meta table)
+                                  (persistent! @new-missing-pkids)
+                                  table-next-pkid)))))
 
 (defn- binary-search-height
   ^long [^long item-count]
@@ -368,8 +374,8 @@
 
 (defn find-pkids
   "Returns the pkids whose values equal the supplied value."
-  [^PkidTable table val]
-  (let [table-vals (vals table)
+  [^PkidVector table val]
+  (let [table-vals table
         table-missing-pkids (missing-pkids table)
         table-next-pkid (next-pkid table)]
     (if (coll/empty? table-missing-pkids)
