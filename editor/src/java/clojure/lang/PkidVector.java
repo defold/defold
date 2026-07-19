@@ -14,11 +14,20 @@
 
 package clojure.lang;
 
+import clojure.data.int_map.IntSet;
+import clojure.data.int_map.IntSet.BitSetContainer;
+import clojure.data.int_map.IntSet.SingleContainer;
+import clojure.data.int_map.INode;
+
+import java.io.Serial;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
- * A persistent vector whose realized indexes are separate from its stable pkids.
+ * A persistent vector whose realized indexes are separate from its stable
+ * pkids.
  *
  * <p>This class lives in {@code clojure.lang} because {@link PersistentVector}
  * exposes only package-private constructors. Normal vector operations use
@@ -26,52 +35,36 @@ import java.util.Iterator;
  * values.</p>
  *
  * <p>Clojure's transient vector implementation is final and cannot retain the
- * additional fields, so generic transient conversion is rejected. Consequently,
- * this class cannot be used as the target of transient-optimized operations such
- * as {@code into}. This class also does not define a Java serialization format
- * for its pkid state.</p>
+ * additional fields, so generic transient conversion is rejected.
+ * Consequently, this class cannot be used as the target of
+ * transient-optimized operations such as {@code into}. This class also does
+ * not define a Java serialization format for its pkid state.</p>
  */
 public final class PkidVector extends PersistentVector {
+    @Serial
     private static final long serialVersionUID = 1L;
 
-    private static final Var INT_MAP_RANGE = RT.var("clojure.data.int-map", "range");
+    private static final short MISSING_PKID_LEAF_SIZE = 128;
     private static final long[] EMPTY_PKIDS = new long[0];
 
-    public final IPersistentSet missingPkids;
+    public static final PkidVector EMPTY = new PkidVector(PersistentVector.EMPTY, new IntSet(MISSING_PKID_LEAF_SIZE), 0, 0);
+
+    private final IntSet missingPkids;
+    private final long missingPkidsEpoch;
     public final long nextPkid;
 
-    /**
-     * Creates a pkid vector backed by an ordered, editable
-     * {@code clojure.data.int-map} set of missing pkids.
-     */
-    public PkidVector(final PersistentVector values,
-                      final IPersistentSet missingPkids,
-                      final long nextPkid) {
-        this(values._meta,
-             values.cnt,
-             values.shift,
-             values.root,
-             values.tail,
-             missingPkids,
-             nextPkid);
+    private PkidVector(final PersistentVector values, final IntSet missingPkids, final long missingPkidsEpoch, final long nextPkid) {
+        this(values._meta, values.cnt, values.shift, values.root, values.tail, missingPkids, missingPkidsEpoch, nextPkid);
     }
 
-    private PkidVector(final IPersistentMap meta,
-                       final int count,
-                       final int shift,
-                       final Node root,
-                       final Object[] tail,
-                       final IPersistentSet missingPkids,
-                       final long nextPkid) {
+    private PkidVector(final IPersistentMap meta, final int count, final int shift, final Node root, final Object[] tail, final IntSet missingPkids, final long missingPkidsEpoch, final long nextPkid) {
         super(meta, count, shift, root, tail);
         this.missingPkids = missingPkids;
+        this.missingPkidsEpoch = missingPkidsEpoch;
         this.nextPkid = nextPkid;
     }
 
-    private static PkidVector fromTransient(final ITransientVector transientValues,
-                                            final IPersistentMap meta,
-                                            final IPersistentSet missingPkids,
-                                            final long nextPkid) {
+    private static PkidVector fromTransient(final ITransientVector transientValues, final IPersistentMap meta, final IntSet missingPkids, final long missingPkidsEpoch, final long nextPkid) {
         final TransientVector transientVector = (TransientVector) transientValues;
         transientVector.ensureEditable();
         transientVector.root.edit.set(null);
@@ -81,54 +74,12 @@ public final class PkidVector extends PersistentVector {
         final Object[] tail = new Object[count - tailOffset];
         System.arraycopy(transientVector.tail, 0, tail, 0, tail.length);
 
-        return new PkidVector(meta,
-                              count,
-                              transientVector.shift,
-                              transientVector.root,
-                              tail,
-                              missingPkids,
-                              nextPkid);
+        return new PkidVector(meta, count, transientVector.shift, transientVector.root, tail, missingPkids, missingPkidsEpoch, nextPkid);
     }
 
-    private static ITransientSet asTransientSet(final IPersistentSet set) {
-        return (ITransientSet) ((IEditableCollection) set).asTransient();
-    }
-
-    private IPersistentSet emptyMissingPkids() {
-        if (missingPkids.count() == 0) {
-            return missingPkids;
-        }
-
-        return (IPersistentSet) missingPkids.empty();
-    }
-
-    private IPersistentSet asPersistentMissingPkids(final ITransientSet set) {
-        return (IPersistentSet) set.persistent();
-    }
-
-    private static ITransientVector conj(final ITransientVector vector, final Object value) {
-        return (ITransientVector) vector.conj(value);
-    }
-
-    private static ITransientSet conj(final ITransientSet set, final long value) {
-        return (ITransientSet) set.conj(Long.valueOf(value));
-    }
-
-    private static ITransientSet disjoin(final ITransientSet set, final long value) {
-        return set.disjoin(Long.valueOf(value));
-    }
-
-    private static long checkedPkid(final Object value) {
-        if (!(value instanceof Long
-              || value instanceof Integer
-              || value instanceof Short
-              || value instanceof Byte)) {
-            throw new AssertionError("Assert failed: (nat-int? pkid)");
-        }
-
-        final long pkid = ((Number) value).longValue();
+    private static long checkedPkid(final long pkid) {
         if (pkid < 0) {
-            throw new AssertionError("Assert failed: (nat-int? pkid)");
+            throw new IllegalArgumentException("pkid must not be negative: " + pkid);
         }
 
         return pkid;
@@ -142,10 +93,7 @@ public final class PkidVector extends PersistentVector {
         return pkids == null ? 0 : 8;
     }
 
-    private static ITransientVector conjValues(final ITransientVector result,
-                                               final PersistentVector values,
-                                               final int startIndex,
-                                               final int endIndex) {
+    private static ITransientVector conjValues(final ITransientVector result, final PersistentVector values, final int startIndex, final int endIndex) {
         ITransientVector newResult = result;
         int index = startIndex;
 
@@ -155,7 +103,7 @@ public final class PkidVector extends PersistentVector {
             final int limit = Math.min(array.length, offset + endIndex - index);
 
             while (offset < limit) {
-                newResult = conj(newResult, array[offset]);
+                newResult = (ITransientVector) newResult.conj(array[offset]);
                 ++offset;
                 ++index;
             }
@@ -164,11 +112,9 @@ public final class PkidVector extends PersistentVector {
         return newResult;
     }
 
-    private static ITransientSet conjPkidRange(ITransientSet result,
-                                               final long firstPkid,
-                                               final long endPkid) {
+    private static IntSet addPkidRange(IntSet result, final long epoch, final long firstPkid, final long endPkid) {
         for (long pkid = firstPkid; pkid < endPkid; ++pkid) {
-            result = conj(result, pkid);
+            result = (IntSet) result.add(epoch, pkid);
         }
 
         return result;
@@ -185,31 +131,24 @@ public final class PkidVector extends PersistentVector {
         return height;
     }
 
-    private static long missingPkidCountInRange(final IPersistentSet missingPkids,
-                                                final long startPkid,
-                                                final long endPkid) {
-        if (startPkid == endPkid) {
+    private long missingPkidCountInRange(final long endPkid) {
+        if (endPkid == 0) {
             return 0;
         }
 
-        final IFn.OLLO rangeFunction = (IFn.OLLO) INT_MAP_RANGE.getRawRoot();
-        final IPersistentCollection range =
-                (IPersistentCollection) rangeFunction.invokePrim(missingPkids,
-                                                                  startPkid,
-                                                                  endPkid - 1);
+        final long rangeEpoch = missingPkidsEpoch + 1;
+        final IntSet range = (IntSet) missingPkids.range(rangeEpoch, 0, endPkid - 1);
         return range.count();
     }
 
-    private static long pkidAtIndex(final IPersistentSet missingPkids,
-                                    final long nextPkid,
-                                    final long index) {
+    private long pkidAtIndex(final long index) {
         long low = index;
         long high = nextPkid - 1;
 
         while (low != high) {
             final long mid = low + (high - low) / 2;
-            final long liveCountThroughMid =
-                    mid + 1 - missingPkidCountInRange(missingPkids, 0, mid + 1);
+            final long missingCountThroughMid = missingPkidCountInRange(mid + 1);
+            final long liveCountThroughMid = mid + 1 - missingCountThroughMid;
 
             if (index < liveCountThroughMid) {
                 high = mid;
@@ -267,15 +206,38 @@ public final class PkidVector extends PersistentVector {
         }
     }
 
-    private static final class MissingPkidCursor {
-        private final Iterator<?> iterator;
+    private static final class MissingPkidCursor implements Iterator<Long> {
+        private final Iterator<?> leafIterator;
+        private BitSet bitSet;
+        private long leafBase;
+        private int bitIndex;
         private boolean hasValue;
         private long value;
         private long countBefore;
 
-        MissingPkidCursor(final IPersistentSet missingPkids) {
-            iterator = RT.iter(missingPkids);
+        MissingPkidCursor(final IntSet missingPkids) {
+            leafIterator = missingPkids.map.iterator(INode.IterationType.ENTRIES, false);
             advance();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return hasValue;
+        }
+
+        @Override
+        public Long next() {
+            return nextLong();
+        }
+
+        long nextLong() {
+            if (!hasValue) {
+                throw new NoSuchElementException();
+            }
+
+            final long result = value;
+            advance();
+            return result;
         }
 
         long countBefore(final long pkid) {
@@ -292,130 +254,153 @@ public final class PkidVector extends PersistentVector {
         }
 
         private void advance() {
-            hasValue = iterator.hasNext();
-            if (hasValue) {
-                value = ((Number) iterator.next()).longValue();
+            if (bitSet != null) {
+                final int nextBitIndex = bitSet.nextSetBit(bitIndex + 1);
+                if (nextBitIndex >= 0) {
+                    bitIndex = nextBitIndex;
+                    value = leafBase + bitIndex;
+                    return;
+                }
+
+                bitSet = null;
             }
+
+            while (leafIterator.hasNext()) {
+                final MapEntry entry = (MapEntry) leafIterator.next();
+                final long leafIndex = (long) entry.key();
+                final Object container = entry.val();
+                leafBase = leafIndex * MISSING_PKID_LEAF_SIZE;
+
+                if (container instanceof SingleContainer) {
+                    value = leafBase + ((SingleContainer) container).val;
+                    hasValue = true;
+                    return;
+                }
+
+                if (container instanceof BitSetContainer) {
+                    bitSet = ((BitSetContainer) container).bitSet;
+                    bitIndex = bitSet.nextSetBit(0);
+                    if (bitIndex >= 0) {
+                        value = leafBase + bitIndex;
+                        hasValue = true;
+                        return;
+                    }
+
+                    bitSet = null;
+                    continue;
+                }
+
+                final String containerClass = container == null ? "null" : container.getClass().getName();
+                throw new IllegalStateException("Unsupported IntSet container: " + containerClass);
+            }
+
+            hasValue = false;
         }
     }
 
-    private void addAssocPkid(final PkidBatch batch,
-                              final Object value,
-                              final boolean hasMissingPkids) {
-        final long pkid = checkedPkid(value);
-        batch.add(pkid);
-
-        if (!batch.restoresMissing
-            && hasMissingPkids
-            && pkid < nextPkid
-            && missingPkids.contains(Long.valueOf(pkid))) {
-            batch.restoresMissing = true;
-        }
-    }
-
-    private void addDissocPkid(final PkidBatch batch,
-                               final Object value,
-                               final boolean hasMissingPkids) {
-        final long pkid = checkedPkid(value);
-        if (pkid < nextPkid
-            && (!hasMissingPkids || !missingPkids.contains(Long.valueOf(pkid)))) {
-            batch.add(pkid);
-        }
-    }
-
-    private PkidBatch normalizeAssocPkids(final Object pkids) {
-        final PkidBatch batch = new PkidBatch(initialPkidCapacity(pkids));
-        final boolean hasMissingPkids = missingPkids.count() != 0;
-
-        if (pkids instanceof IReduceInit
-            && !(pkids instanceof Iterable)
-            && !(pkids instanceof Seqable)) {
+    private void intoBatch(Object pkids, PkidBatch batch) {
+        if (pkids instanceof IReduceInit) {
             ((IReduceInit) pkids).reduce(new AFn() {
                 @Override
                 public Object invoke(final Object result, final Object value) {
-                    addAssocPkid(batch, value, hasMissingPkids);
+                    final long pkid = (long) value;
+                    batch.add(checkedPkid(pkid));
                     return result;
                 }
             }, null);
         } else {
             final Iterator<?> iterator = RT.iter(pkids);
+
             while (iterator.hasNext()) {
-                addAssocPkid(batch, iterator.next(), hasMissingPkids);
+                final long pkid = (long) iterator.next();
+                batch.add(checkedPkid(pkid));
             }
         }
 
         batch.finish();
+    }
+
+    private PkidBatch normalizeAssocPkids(final Object pkids) {
+        final boolean hasMissingPkids = nextPkid != cnt;
+        final PkidBatch batch = new PkidBatch(initialPkidCapacity(pkids));
+        intoBatch(pkids, batch);
+
+        if (hasMissingPkids) {
+            for (int index = 0; index < batch.count; ++index) {
+                final long pkid = batch.pkids[index];
+                if (pkid >= nextPkid) {
+                    break;
+                }
+
+                if (missingPkids.contains(pkid)) {
+                    batch.restoresMissing = true;
+                    break;
+                }
+            }
+        }
+
         return batch;
     }
 
     private PkidBatch normalizeDissocPkids(final Object pkids) {
+        final boolean hasMissingPkids = nextPkid != cnt;
         final PkidBatch batch = new PkidBatch(0);
-        final boolean hasMissingPkids = missingPkids.count() != 0;
+        intoBatch(pkids, batch);
+        int livePkidCount = 0;
 
-        if (pkids instanceof IReduceInit
-            && !(pkids instanceof Iterable)
-            && !(pkids instanceof Seqable)) {
-            ((IReduceInit) pkids).reduce(new AFn() {
-                @Override
-                public Object invoke(final Object result, final Object value) {
-                    addDissocPkid(batch, value, hasMissingPkids);
-                    return result;
-                }
-            }, null);
-        } else {
-            final Iterator<?> iterator = RT.iter(pkids);
-            while (iterator.hasNext()) {
-                addDissocPkid(batch, iterator.next(), hasMissingPkids);
+        for (int index = 0; index < batch.count; ++index) {
+            final long pkid = batch.pkids[index];
+            if (pkid >= nextPkid) {
+                break;
+            }
+
+            if (!hasMissingPkids || !missingPkids.contains(pkid)) {
+                batch.pkids[livePkidCount] = pkid;
+                ++livePkidCount;
             }
         }
 
-        batch.finish();
+        batch.count = livePkidCount;
         return batch;
     }
 
-    private PkidVector assocPkidsWithoutRestoration(final PkidBatch batch,
-                                                    final Object value) {
-        final MissingPkidCursor missingCursor =
-                missingPkids.count() == 0 ? null : new MissingPkidCursor(missingPkids);
+    private PkidVector assocPkidsWithoutRestoration(final PkidBatch batch, final Object value) {
+        final MissingPkidCursor missingCursor = nextPkid == cnt ? null : new MissingPkidCursor(missingPkids);
         ITransientVector newValues = super.asTransient();
-        ITransientSet newMissingPkids = null;
+        IntSet newMissingPkids = missingPkids;
+        long newMissingPkidsEpoch = missingPkidsEpoch;
         long newNextPkid = nextPkid;
 
         for (int batchIndex = 0; batchIndex < batch.count; ++batchIndex) {
             final long pkid = batch.pkids[batchIndex];
 
             if (pkid < nextPkid) {
-                final long missingCountBefore =
-                        missingCursor == null ? 0 : missingCursor.countBefore(pkid);
+                final long missingCountBefore = missingCursor == null ? 0 : missingCursor.countBefore(pkid);
                 final int index = Math.toIntExact(pkid - missingCountBefore);
                 newValues = newValues.assocN(index, value);
             } else {
-                if (newMissingPkids == null && newNextPkid < pkid) {
-                    newMissingPkids = asTransientSet(missingPkids);
-                }
-
                 if (newNextPkid < pkid) {
-                    newMissingPkids = conjPkidRange(newMissingPkids, newNextPkid, pkid);
+                    if (newMissingPkidsEpoch == missingPkidsEpoch) {
+                        newMissingPkidsEpoch = missingPkidsEpoch + 1;
+                    }
+
+                    newMissingPkids = addPkidRange(newMissingPkids, newMissingPkidsEpoch, newNextPkid, pkid);
                 }
 
                 newNextPkid = pkid + 1;
-                newValues = conj(newValues, value);
+                newValues = (ITransientVector) newValues.conj(value);
             }
         }
 
-        final IPersistentSet resultMissingPkids =
-                newMissingPkids == null
-                ? missingPkids
-                : asPersistentMissingPkids(newMissingPkids);
-
-        return fromTransient(newValues, _meta, resultMissingPkids, newNextPkid);
+        return fromTransient(newValues, _meta, newMissingPkids, newMissingPkidsEpoch, newNextPkid);
     }
 
-    private PkidVector assocPkidsWithRestoration(final PkidBatch batch,
-                                                 final Object value) {
+    private PkidVector assocPkidsWithRestoration(final PkidBatch batch, final Object value) {
         final MissingPkidCursor missingCursor = new MissingPkidCursor(missingPkids);
+        long newMissingPkidsEpoch = missingPkidsEpoch + 1;
         ITransientVector newValues = PersistentVector.EMPTY.asTransient();
-        ITransientSet newMissingPkids = asTransientSet(missingPkids);
+        IntSet newMissingPkids = missingPkids;
+        long newMissingPkidCount = nextPkid - cnt;
         long newNextPkid = nextPkid;
         int sourceIndex = 0;
 
@@ -429,31 +414,31 @@ public final class PkidVector extends PersistentVector {
                 newValues = conjValues(newValues, this, sourceIndex, index);
 
                 if (restoresMissing) {
-                    newMissingPkids = disjoin(newMissingPkids, pkid);
+                    newMissingPkids = (IntSet) newMissingPkids.remove(newMissingPkidsEpoch, pkid);
+                    --newMissingPkidCount;
                     sourceIndex = index;
                 } else {
                     sourceIndex = index + 1;
                 }
 
-                newValues = conj(newValues, value);
+                newValues = (ITransientVector) newValues.conj(value);
             } else {
                 newValues = conjValues(newValues, this, sourceIndex, cnt);
                 sourceIndex = cnt;
-                newMissingPkids = conjPkidRange(newMissingPkids, newNextPkid, pkid);
+                newMissingPkids = addPkidRange(newMissingPkids, newMissingPkidsEpoch, newNextPkid, pkid);
+                newMissingPkidCount += pkid - newNextPkid;
                 newNextPkid = pkid + 1;
-                newValues = conj(newValues, value);
+                newValues = (ITransientVector) newValues.conj(value);
             }
         }
 
         newValues = conjValues(newValues, this, sourceIndex, cnt);
-        return fromTransient(newValues,
-                             _meta,
-                             asPersistentMissingPkids(newMissingPkids),
-                             newNextPkid);
-    }
+        if (newMissingPkidCount == 0) {
+            newMissingPkids = EMPTY.missingPkids;
+            newMissingPkidsEpoch = EMPTY.missingPkidsEpoch;
+        }
 
-    public PkidVector append(final Object value) {
-        return cons(value);
+        return fromTransient(newValues, _meta, newMissingPkids, newMissingPkidsEpoch, newNextPkid);
     }
 
     public PkidVector assocPkids(final Object pkids, final Object value) {
@@ -466,11 +451,7 @@ public final class PkidVector extends PersistentVector {
             return this;
         }
 
-        if (batch.restoresMissing) {
-            return assocPkidsWithRestoration(batch, value);
-        }
-
-        return assocPkidsWithoutRestoration(batch, value);
+        return batch.restoresMissing ? assocPkidsWithRestoration(batch, value) : assocPkidsWithoutRestoration(batch, value);
     }
 
     public PkidVector dissocPkids(final Object pkids) {
@@ -483,35 +464,30 @@ public final class PkidVector extends PersistentVector {
             return this;
         }
 
-        final MissingPkidCursor missingCursor =
-                missingPkids.count() == 0 ? null : new MissingPkidCursor(missingPkids);
+        final MissingPkidCursor missingCursor = nextPkid == cnt ? null : new MissingPkidCursor(missingPkids);
+        final long newMissingPkidsEpoch = missingPkidsEpoch + 1;
         ITransientVector newValues = PersistentVector.EMPTY.asTransient();
-        ITransientSet newMissingPkids = asTransientSet(missingPkids);
+        IntSet newMissingPkids = missingPkids;
         int sourceIndex = 0;
 
         for (int batchIndex = 0; batchIndex < batch.count; ++batchIndex) {
             final long pkid = batch.pkids[batchIndex];
-            final long missingCountBefore =
-                    missingCursor == null ? 0 : missingCursor.countBefore(pkid);
+            final long missingCountBefore = missingCursor == null ? 0 : missingCursor.countBefore(pkid);
             final int index = Math.toIntExact(pkid - missingCountBefore);
             newValues = conjValues(newValues, this, sourceIndex, index);
             sourceIndex = index + 1;
-            newMissingPkids = conj(newMissingPkids, pkid);
+            newMissingPkids = (IntSet) newMissingPkids.add(newMissingPkidsEpoch, pkid);
         }
 
         newValues = conjValues(newValues, this, sourceIndex, cnt);
-        return fromTransient(newValues,
-                             _meta,
-                             asPersistentMissingPkids(newMissingPkids),
-                             nextPkid);
+        return fromTransient(newValues, _meta, newMissingPkids, newMissingPkidsEpoch, nextPkid);
     }
 
-    public IPersistentSet findPkids(final Object value) {
-        final int missingCount = missingPkids.count();
-        final IPersistentSet emptyResult = emptyMissingPkids();
+    public PersistentVector findPkids(final Object value) {
+        final long missingCount = nextPkid - cnt;
 
         if (missingCount == 0) {
-            ITransientSet result = null;
+            ITransientVector result = null;
             int index = 0;
 
             while (index < cnt) {
@@ -519,15 +495,15 @@ public final class PkidVector extends PersistentVector {
                 for (int offset = 0; offset < array.length; ++offset, ++index) {
                     if (Util.equiv(value, array[offset])) {
                         if (result == null) {
-                            result = asTransientSet(emptyResult);
+                            result = PersistentVector.EMPTY.asTransient();
                         }
 
-                        result = conj(result, index);
+                        result = (ITransientVector) result.conj((long) index);
                     }
                 }
             }
 
-            return result == null ? emptyResult : asPersistentMissingPkids(result);
+            return result == null ? PersistentVector.EMPTY : (PersistentVector) result.persistent();
         }
 
         int[] matchingIndexes = null;
@@ -543,8 +519,7 @@ public final class PkidVector extends PersistentVector {
                     }
 
                     if (matchingIndexCount == matchingIndexes.length) {
-                        final int newCapacity =
-                                matchingIndexCount < 8 ? 8 : Math.multiplyExact(matchingIndexCount, 2);
+                        final int newCapacity = matchingIndexCount < 8 ? 8 : Math.multiplyExact(matchingIndexCount, 2);
                         matchingIndexes = Arrays.copyOf(matchingIndexes, newCapacity);
                     }
 
@@ -555,17 +530,17 @@ public final class PkidVector extends PersistentVector {
         }
 
         if (matchingIndexCount == 0) {
-            return emptyResult;
+            return PersistentVector.EMPTY;
         }
 
-        ITransientSet result = asTransientSet(emptyResult);
+        ITransientVector result = PersistentVector.EMPTY.asTransient();
         if (missingCount <= (long) matchingIndexCount * binarySearchHeight(nextPkid)) {
             int matchingIndexPosition = 0;
             long missingPkidCount = 0;
-            final Iterator<?> missingIterator = RT.iter(missingPkids);
+            final MissingPkidCursor missingIterator = new MissingPkidCursor(missingPkids);
 
             while (missingIterator.hasNext() && matchingIndexPosition < matchingIndexCount) {
-                final long missingPkid = ((Number) missingIterator.next()).longValue();
+                final long missingPkid = missingIterator.nextLong();
 
                 while (matchingIndexPosition < matchingIndexCount) {
                     final long pkid = matchingIndexes[matchingIndexPosition] + missingPkidCount;
@@ -573,7 +548,7 @@ public final class PkidVector extends PersistentVector {
                         break;
                     }
 
-                    result = conj(result, pkid);
+                    result = (ITransientVector) result.conj(pkid);
                     ++matchingIndexPosition;
                 }
 
@@ -581,22 +556,25 @@ public final class PkidVector extends PersistentVector {
             }
 
             while (matchingIndexPosition < matchingIndexCount) {
-                result = conj(result,
-                              matchingIndexes[matchingIndexPosition] + missingPkidCount);
+                final long pkid = matchingIndexes[matchingIndexPosition] + missingPkidCount;
+                result = (ITransientVector) result.conj(pkid);
                 ++matchingIndexPosition;
             }
         } else {
-            for (int matchingIndexPosition = 0;
-                 matchingIndexPosition < matchingIndexCount;
-                 ++matchingIndexPosition) {
-                result = conj(result,
-                              pkidAtIndex(missingPkids,
-                                          nextPkid,
-                                          matchingIndexes[matchingIndexPosition]));
+            for (int matchingIndexPosition = 0; matchingIndexPosition < matchingIndexCount; ++matchingIndexPosition) {
+                final long pkid = pkidAtIndex(matchingIndexes[matchingIndexPosition]);
+                result = (ITransientVector) result.conj(pkid);
             }
         }
 
-        return asPersistentMissingPkids(result);
+        return (PersistentVector) result.persistent();
+    }
+
+    /**
+     * Returns a read-only ascending iterator over missing pkids.
+     */
+    public Iterator<Long> missingPkidIterator() {
+        return new MissingPkidCursor(missingPkids);
     }
 
     @Override
@@ -605,33 +583,33 @@ public final class PkidVector extends PersistentVector {
             return cons(value);
         }
 
-        return new PkidVector(super.assocN(index, value), missingPkids, nextPkid);
+        final PersistentVector newValues = super.assocN(index, value);
+        return new PkidVector(newValues, missingPkids, missingPkidsEpoch, nextPkid);
     }
 
     @Override
     public PkidVector cons(final Object value) {
-        return new PkidVector(super.cons(value), missingPkids, nextPkid + 1);
+        final PersistentVector newValues = super.cons(value);
+        return new PkidVector(newValues, missingPkids, missingPkidsEpoch, nextPkid + 1);
     }
 
     @Override
     public PkidVector pop() {
-        final PersistentVector poppedValues = super.pop();
+        final PersistentVector newValues = super.pop();
         long removedPkid = nextPkid - 1;
 
-        while (missingPkids.contains(Long.valueOf(removedPkid))) {
+        while (missingPkids.contains(removedPkid)) {
             --removedPkid;
         }
 
-        return new PkidVector(poppedValues,
-                              (IPersistentSet) missingPkids.cons(Long.valueOf(removedPkid)),
-                              nextPkid);
+        final long newMissingPkidsEpoch = missingPkidsEpoch + 1;
+        final IntSet newMissingPkids = (IntSet) missingPkids.add(newMissingPkidsEpoch, removedPkid);
+        return new PkidVector(newValues, newMissingPkids, newMissingPkidsEpoch, nextPkid);
     }
 
     @Override
     public PkidVector empty() {
-        return new PkidVector((PersistentVector) super.empty(),
-                              emptyMissingPkids(),
-                              0);
+        return _meta == null ? EMPTY : EMPTY.withMeta(_meta);
     }
 
     @Override
@@ -640,13 +618,7 @@ public final class PkidVector extends PersistentVector {
             return this;
         }
 
-        return new PkidVector(meta,
-                              cnt,
-                              shift,
-                              root,
-                              tail,
-                              missingPkids,
-                              nextPkid);
+        return new PkidVector(meta, cnt, shift, root, tail, missingPkids, missingPkidsEpoch, nextPkid);
     }
 
     /**
@@ -654,7 +626,6 @@ public final class PkidVector extends PersistentVector {
      */
     @Override
     public TransientVector asTransient() {
-        throw new UnsupportedOperationException(
-                "PkidVector does not support generic transient conversion");
+        throw new UnsupportedOperationException("PkidVector does not support generic transient conversion");
     }
 }

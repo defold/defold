@@ -390,7 +390,7 @@
 
 (defn- arc-table-find-arc-pkids [arc-table arc]
   (if-not arc-table
-    (int-map/int-set)
+    []
     (pkid-vector/find-pkids arc-table arc)))
 
 (defn- graphs-source-arc-table [graphs arc]
