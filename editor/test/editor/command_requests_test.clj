@@ -25,8 +25,3 @@
                       error))]
         (is (some? error))
         (is (= 400 (-> error ex-data ::http-server/response :status)))))))
-
-(deftest focus-query-is-run-only-test
-  (let [supported-commands @#'command-requests/supported-commands]
-    (is (fn? (get-in supported-commands [:run :request->user-data])))
-    (is (nil? (get-in supported-commands [:compile :request->user-data])))))

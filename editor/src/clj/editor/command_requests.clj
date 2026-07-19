@@ -31,11 +31,11 @@
 (set! *warn-on-reflection* true)
 
 (defn- query-param [request param-name]
-  (some (fn [query-part]
-          (let [[name value] (string/split query-part #"=" 2)]
-            (when (= param-name name)
-              (or value ""))))
-        (some-> (:query request) (string/split #"&"))))
+  (coll/some (fn [query-part]
+               (let [[name value] (string/split query-part #"=" 2)]
+                 (when (= param-name name)
+                   (or value ""))))
+             (some-> (:query request) (string/split #"&"))))
 
 (defn- run-request-user-data [request]
   (case (query-param request "focus")
