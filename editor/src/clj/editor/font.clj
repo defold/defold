@@ -731,6 +731,8 @@
   (inherits resource-node/ResourceNode)
   (property texture resource/Resource ; Nil is valid default.
             (value (gu/passthrough texture-resource))
+            (dynamic label (properties/label-dynamic :font :texture))
+            (dynamic tooltip (properties/tooltip-dynamic :font :texture))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :texture-resource]
