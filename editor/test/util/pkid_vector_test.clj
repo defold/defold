@@ -20,7 +20,7 @@
             [clojure.test.check.properties :as prop]
             [util.coll :as coll]
             [util.pkid-vector :as pkid-vector])
-  (:import [clojure.lang PkidVector]))
+  (:import [clojure.lang IReduceInit PersistentVector PkidVector]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -150,6 +150,53 @@
                     (into [:x] (concat (range 2 32) [:x] (range 34 64) [:x]))
                     [1 33]
                     65))))
+
+(deftest java-method-api-test
+  (let [initial-vector (-> (pkid-vector/pkid-vector)
+                           (.append :a)
+                           (.append 1))]
+    (testing "Direct Java methods match the Clojure wrappers."
+      (let [direct-vector (.assocPkids initial-vector [5 1 3] :x)
+            wrapped-vector (pkid-vector/assoc-pkids initial-vector [5 1 3] :x)]
+        (check-state! direct-vector [:a :x :x :x] [2 4] 6)
+        (check-state! wrapped-vector [:a :x :x :x] [2 4] 6)
+        (is (= (missing-pkids direct-vector)
+               (missing-pkids wrapped-vector)))
+        (is (= (pkid-vector/next-pkid direct-vector)
+               (pkid-vector/next-pkid wrapped-vector)))
+        (check-state! (.dissocPkids direct-vector [0 5])
+                      [:x :x]
+                      [0 2 4 5]
+                      6)))
+
+    (testing "Direct no-op batches preserve identity."
+      (is (identical? initial-vector (.assocPkids initial-vector nil :x)))
+      (is (identical? initial-vector (.dissocPkids initial-vector [10]))))
+
+    (testing "Find uses Clojure equality and returns a regular sorted int-set."
+      (let [matching-pkids (.findPkids initial-vector (int 1))]
+        (is (= [1] (vec matching-pkids)))
+        (is (= (class (int-map/int-set))
+               (class matching-pkids))))))
+
+  (testing "Reducible-only pkid batches are traversed once."
+    (let [visit-count (atom 0)
+          pkids (reify IReduceInit
+                  (reduce [_ reducing-fn init]
+                    (clojure.core/reduce
+                      (fn [result pkid]
+                        (swap! visit-count inc)
+                        (reducing-fn result pkid))
+                      init
+                      [3 1 3 0])))
+          vector (.assocPkids (pkid-vector/pkid-vector) pkids :x)]
+      (is (= 4 @visit-count))
+      (check-state! vector [:x :x :x] [2] 4)))
+
+  (testing "The constructor retains its supplied missing-pkid set."
+    (let [missing-pkids #{}
+          vector (PkidVector. PersistentVector/EMPTY missing-pkids 0)]
+      (is (identical? missing-pkids (.-missingPkids vector))))))
 
 (deftest append-test
   (let [empty-table (pkid-vector/pkid-vector)
