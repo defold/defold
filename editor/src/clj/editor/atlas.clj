@@ -241,6 +241,7 @@
   (property id g/Str ; Required protobuf field.
             (value (g/fnk [maybe-image-resource rename-patterns]
                      (some-> maybe-image-resource (texture-set-gen/resource-id rename-patterns))))
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.image :id))
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
 
@@ -426,6 +427,7 @@
   (inherits outline/OutlineNode)
 
   (property id g/Str ; Required protobuf field.
+            (dynamic tooltip (properties/tooltip-dynamic :atlas.animation :id))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-animation-id _node-id id id-counts))))
   (property fps g/Int (default (protobuf/default AtlasProto$AtlasAnimation :fps))
             (dynamic label (properties/label-dynamic :atlas.animation :fps))
