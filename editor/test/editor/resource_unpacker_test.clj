@@ -24,6 +24,8 @@
            [com.jogamp.common.os DynamicLibraryBundle NativeLibrary]
            [com.jogamp.opengl GLProfile]
            [jogamp.opengl GLDrawableFactoryImpl]
+           [java.io File]
+           [java.nio.file Files]
            [java.nio.file Path]
            [java.util LinkedHashMap Map$Entry]
            [java.util.concurrent CountDownLatch TimeUnit]
@@ -164,6 +166,58 @@
           (is (.contains message (.toString beta-path)))
           (is (not (.contains message (.toString gamma-path))))
           (is (= 2 (count (.getSuppressed e)))))))))
+
+(deftest configure-jogamp-primary-library-path-orders-controlled-directories-and-respects-overrides
+  (let [root-dir (.toPath (fs/create-temp-directory! "resource-unpacker-jogamp-path"))
+        unpacked-lib-dir (.resolve root-dir "unpacked-lib")
+        java-home (.resolve root-dir "jdk")
+        java-bin-dir (.resolve java-home "bin")
+        windows-system-dir (.resolve root-dir "System32")
+        property-name ResourceUnpacker/JOGAMP_PRIMARY_LIBRARY_PATH_KEY
+        original-property-value (System/getProperty property-name)
+        expected-value (string/join File/pathSeparator
+                                    (map #(-> ^Path % .toAbsolutePath .normalize str)
+                                         [unpacked-lib-dir java-bin-dir windows-system-dir]))]
+    (try
+      (System/clearProperty property-name)
+      (ResourceUnpacker/configureJogampPrimaryLibraryPath unpacked-lib-dir java-home windows-system-dir)
+      (is (= expected-value (System/getProperty property-name)))
+
+      (System/setProperty property-name "explicit-override")
+      (ResourceUnpacker/configureJogampPrimaryLibraryPath unpacked-lib-dir java-home windows-system-dir)
+      (is (= "explicit-override" (System/getProperty property-name)))
+
+      ;; Even an explicitly empty value is an expert override and must not be replaced.
+      (System/setProperty property-name "")
+      (ResourceUnpacker/configureJogampPrimaryLibraryPath unpacked-lib-dir java-home windows-system-dir)
+      (is (= "" (System/getProperty property-name)))
+      (finally
+        (if (nil? original-property-value)
+          (System/clearProperty property-name)
+          (System/setProperty property-name original-property-value))))))
+
+(deftest find-non-system-opengl-library-paths-excludes-system-library-and-reports-conflicts
+  (let [root-dir (.toPath (fs/create-temp-directory! "resource-unpacker-opengl-path"))
+        windows-system-dir (.resolve root-dir "System32")
+        first-conflict-dir (.resolve root-dir "First Conflict")
+        second-conflict-dir (.resolve root-dir "Second Conflict")
+        system-library (make-temp-library! windows-system-dir "opengl32.dll")
+        first-conflict-library (make-temp-library! first-conflict-dir "opengl32.dll")
+        second-conflict-library (make-temp-library! second-conflict-dir "opengl32.dll")
+        path-environment (string/join File/pathSeparator
+                                      [(str windows-system-dir)
+                                       (str "\"" first-conflict-dir "\"")
+                                       (str first-conflict-dir)
+                                       (str second-conflict-dir)])
+        detected-libraries (ResourceUnpacker/findNonSystemOpenGLLibraryPaths path-environment windows-system-dir)
+        expected-libraries [(.toRealPath first-conflict-library (make-array java.nio.file.LinkOption 0))
+                            (.toRealPath second-conflict-library (make-array java.nio.file.LinkOption 0))]
+        diagnostics (ResourceUnpacker/formatOpenGLInitializationDiagnostics detected-libraries)]
+    (is (Files/isRegularFile system-library (make-array java.nio.file.LinkOption 0)))
+    (is (= expected-libraries detected-libraries))
+    (is (string/starts-with? diagnostics "Non-system opengl32.dll files detected on PATH:"))
+    (doseq [^Path expected-library expected-libraries]
+      (is (string/includes? diagnostics (str expected-library))))))
 
 (deftest unpack-resources-preloads-host-bundled-native-libraries
   (ResourceUnpacker/unpackResources)

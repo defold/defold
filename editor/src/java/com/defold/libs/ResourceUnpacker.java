@@ -23,6 +23,7 @@ import java.net.URL;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -35,12 +36,14 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import com.defold.editor.Editor;
@@ -70,9 +73,11 @@ public class ResourceUnpacker {
     public static final String DEFOLD_UNPACK_PATH_KEY = "defold.unpack.path";
     public static final String DEFOLD_UNPACK_PATH_ENV_VAR = "DEFOLD_UNPACK_PATH";
     public static final String DEFOLD_EDITOR_SHA1_KEY = "defold.editor.sha1";
+    public static final String JOGAMP_PRIMARY_LIBRARY_PATH_KEY = "jogamp.primary.library.path";
 
     private static volatile boolean isInitialized = false;
     private static volatile Map<String, Path> preloadedLibraryPaths = Collections.emptyMap();
+    private static volatile List<Path> nonSystemOpenGLLibraryPaths = Collections.emptyList();
     private static final Object lock = new Object();
     private static final Logger logger = LoggerFactory.getLogger(ResourceUnpacker.class);
     private static final NativeLibraryLoader SYSTEM_NATIVE_LIBRARY_LOADER = libraryPath -> System.load(libraryPath.toString());
@@ -161,6 +166,7 @@ public class ResourceUnpacker {
                 }
 
                 Path unpackedLibDir = unpackPath.resolve(platform.getPair() + "/lib").toAbsolutePath();
+                configureWindowsNativeLibrarySearch(unpackedLibDir, platform);
                 System.setProperty("jna.nosys", "true");
                 // Exact-path preloading is authoritative, but JOGL still resolves some bundled
                 // natives by logical name, and JNA-by-name callers still expect these paths.
@@ -193,6 +199,79 @@ public class ResourceUnpacker {
         return preloadedLibraryPaths;
     }
 
+    public static List<Path> getNonSystemOpenGLLibraryPaths() {
+        return nonSystemOpenGLLibraryPaths;
+    }
+
+    public static String getOpenGLInitializationDiagnostics() {
+        return formatOpenGLInitializationDiagnostics(nonSystemOpenGLLibraryPaths);
+    }
+
+    public static String buildJogampPrimaryLibraryPath(Path unpackedLibDir, Path javaHome, Path windowsSystemDirectory) {
+        Objects.requireNonNull(unpackedLibDir, "unpackedLibDir");
+        Objects.requireNonNull(javaHome, "javaHome");
+        Objects.requireNonNull(windowsSystemDirectory, "windowsSystemDirectory");
+
+        return String.join(File.pathSeparator,
+                           unpackedLibDir.toAbsolutePath().normalize().toString(),
+                           javaHome.resolve("bin").toAbsolutePath().normalize().toString(),
+                           windowsSystemDirectory.toAbsolutePath().normalize().toString());
+    }
+
+    public static void configureJogampPrimaryLibraryPath(Path unpackedLibDir, Path javaHome, Path windowsSystemDirectory) {
+        if (System.getProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY) != null) {
+            return;
+        }
+
+        System.setProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY,
+                           buildJogampPrimaryLibraryPath(unpackedLibDir, javaHome, windowsSystemDirectory));
+    }
+
+    public static List<Path> findNonSystemOpenGLLibraryPaths(String pathEnvironment, Path windowsSystemDirectory) {
+        Objects.requireNonNull(windowsSystemDirectory, "windowsSystemDirectory");
+        if (pathEnvironment == null || pathEnvironment.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        Path systemOpenGLLibrary = normalizePath(windowsSystemDirectory.resolve("opengl32.dll"));
+        LinkedHashMap<String, Path> detectedLibraries = new LinkedHashMap<>();
+        String[] pathEntries = pathEnvironment.split(Pattern.quote(File.pathSeparator), -1);
+        for (String pathEntry : pathEntries) {
+            String unquotedPathEntry = stripSurroundingQuotes(pathEntry.trim());
+            if (unquotedPathEntry.isEmpty()) {
+                continue;
+            }
+
+            try {
+                Path candidateLibrary = Paths.get(unquotedPathEntry).resolve("opengl32.dll");
+                if (!Files.isRegularFile(candidateLibrary)) {
+                    continue;
+                }
+
+                Path normalizedCandidate = normalizePath(candidateLibrary);
+                if (!isSameWindowsPath(normalizedCandidate, systemOpenGLLibrary)) {
+                    detectedLibraries.putIfAbsent(normalizedCandidate.toString().toLowerCase(Locale.ROOT), normalizedCandidate);
+                }
+            } catch (InvalidPathException | SecurityException ignored) {
+                // Ignore malformed or inaccessible PATH entries and continue checking the rest.
+            }
+        }
+        return List.copyOf(detectedLibraries.values());
+    }
+
+    public static String formatOpenGLInitializationDiagnostics(List<Path> libraryPaths) {
+        Objects.requireNonNull(libraryPaths, "libraryPaths");
+        if (libraryPaths.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder message = new StringBuilder("Non-system opengl32.dll files detected on PATH:");
+        for (Path libraryPath : libraryPaths) {
+            message.append(System.lineSeparator()).append(" - ").append(libraryPath);
+        }
+        return message.toString();
+    }
+
     public static Path getPreloadedLibraryPath(String logicalName) {
         Objects.requireNonNull(logicalName, "logicalName");
         Path libraryPath = preloadedLibraryPaths.get(logicalName);
@@ -200,6 +279,68 @@ public class ResourceUnpacker {
             throw new IllegalStateException("Bundled native library '" + logicalName + "' has not been preloaded");
         }
         return libraryPath;
+    }
+
+    private static void configureWindowsNativeLibrarySearch(Path unpackedLibDir, Platform platform) {
+        if (!platform.isWindows()) {
+            return;
+        }
+
+        Path windowsSystemDirectory = getWindowsSystemDirectory();
+        if (windowsSystemDirectory == null) {
+            logger.warn("Unable to configure the JOGL primary library path because neither SystemRoot nor windir is set");
+            return;
+        }
+
+        nonSystemOpenGLLibraryPaths = findNonSystemOpenGLLibraryPaths(System.getenv("PATH"), windowsSystemDirectory);
+
+        String explicitLibraryPath = System.getProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY);
+        if (explicitLibraryPath != null) {
+            logger.info("preserving explicitly configured {}={}", JOGAMP_PRIMARY_LIBRARY_PATH_KEY, explicitLibraryPath);
+            return;
+        }
+
+        Path javaHome = Paths.get(System.getProperty("java.home"));
+        configureJogampPrimaryLibraryPath(unpackedLibDir, javaHome, windowsSystemDirectory);
+        logger.info("configured {}={}", JOGAMP_PRIMARY_LIBRARY_PATH_KEY,
+                    System.getProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY));
+    }
+
+    private static Path getWindowsSystemDirectory() {
+        String windowsDirectory = System.getenv("SystemRoot");
+        if (windowsDirectory == null || windowsDirectory.isBlank()) {
+            windowsDirectory = System.getenv("windir");
+        }
+        if (windowsDirectory == null || windowsDirectory.isBlank()) {
+            return null;
+        }
+        return Paths.get(windowsDirectory).resolve("System32").toAbsolutePath().normalize();
+    }
+
+    private static String stripSurroundingQuotes(String pathEntry) {
+        if (pathEntry.length() >= 2 && pathEntry.charAt(0) == '"' && pathEntry.charAt(pathEntry.length() - 1) == '"') {
+            return pathEntry.substring(1, pathEntry.length() - 1);
+        }
+        return pathEntry;
+    }
+
+    private static Path normalizePath(Path path) {
+        try {
+            return path.toRealPath();
+        } catch (IOException ignored) {
+            return path.toAbsolutePath().normalize();
+        }
+    }
+
+    private static boolean isSameWindowsPath(Path left, Path right) {
+        try {
+            if (Files.exists(right) && Files.isSameFile(left, right)) {
+                return true;
+            }
+        } catch (IOException ignored) {
+            // Fall back to case-insensitive normalized path comparison below.
+        }
+        return left.toString().equalsIgnoreCase(right.toString());
     }
 
     public static Map<String, Path> discoverBundledNativeLibraries(Path libDir, Platform platform) throws IOException {

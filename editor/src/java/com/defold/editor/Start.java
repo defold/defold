@@ -42,6 +42,14 @@ public class Start extends Application {
 
     private static Logger logger = LoggerFactory.getLogger(Start.class);
 
+    private static String appendOpenGLInitializationDiagnostics(String message) {
+        String diagnostics = ResourceUnpacker.getOpenGLInitializationDiagnostics();
+        if (diagnostics.isEmpty()) {
+            return message;
+        }
+        return message + System.lineSeparator() + diagnostics;
+    }
+
     private void kickLoading(Splash splash) {
         // Do this work in a different thread, or it will stop the splash screen from showing/animating.
         Thread kickThread = new Thread(() -> {
@@ -61,7 +69,7 @@ public class Start extends Application {
                     init.invoke(null);
                 } catch (Throwable t) {
                     t.printStackTrace();
-                    logger.error("failed to initialize GLProfile singleton", t);
+                    logger.error(appendOpenGLInitializationDiagnostics("failed to initialize GLProfile singleton"), t);
                 }
 
                 // Boot the editor.
