@@ -1,0 +1,14 @@
+name: "issue-12703"
+scale_along_z: 0
+embedded_instances {
+  id: "go"
+  data: "components {\n"
+  "  id: \"script\"\n"
+  "  component: \"/issue-12703/issue-12703.script\"\n"
+  "}\n"
+  "components {\n"
+  "  id: \"sprite\"\n"
+  "  component: \"/sprite/coll.sprite\"\n"
+  "}\n"
+  ""
+}
