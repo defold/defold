@@ -70,7 +70,7 @@ public class ResourceUnpacker {
     public static final String DEFOLD_UNPACK_PATH_KEY = "defold.unpack.path";
     public static final String DEFOLD_UNPACK_PATH_ENV_VAR = "DEFOLD_UNPACK_PATH";
     public static final String DEFOLD_EDITOR_SHA1_KEY = "defold.editor.sha1";
-    public static final String JOGAMP_PRIMARY_LIBRARY_PATH_KEY = "jogamp.primary.library.path";
+    private static final String JOGAMP_PRIMARY_LIBRARY_PATH_KEY = "jogamp.primary.library.path";
 
     private static volatile boolean isInitialized = false;
     private static volatile Map<String, Path> preloadedLibraryPaths = Collections.emptyMap();
@@ -195,26 +195,6 @@ public class ResourceUnpacker {
         return preloadedLibraryPaths;
     }
 
-    public static String buildJogampPrimaryLibraryPath(Path unpackedLibDir, Path javaHome, Path windowsSystemDirectory) {
-        Objects.requireNonNull(unpackedLibDir, "unpackedLibDir");
-        Objects.requireNonNull(javaHome, "javaHome");
-        Objects.requireNonNull(windowsSystemDirectory, "windowsSystemDirectory");
-
-        return String.join(File.pathSeparator,
-                           unpackedLibDir.toAbsolutePath().normalize().toString(),
-                           javaHome.resolve("bin").toAbsolutePath().normalize().toString(),
-                           windowsSystemDirectory.toAbsolutePath().normalize().toString());
-    }
-
-    public static void configureJogampPrimaryLibraryPath(Path unpackedLibDir, Path javaHome, Path windowsSystemDirectory) {
-        if (System.getProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY) != null) {
-            return;
-        }
-
-        System.setProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY,
-                           buildJogampPrimaryLibraryPath(unpackedLibDir, javaHome, windowsSystemDirectory));
-    }
-
     public static Path getPreloadedLibraryPath(String logicalName) {
         Objects.requireNonNull(logicalName, "logicalName");
         Path libraryPath = preloadedLibraryPaths.get(logicalName);
@@ -229,18 +209,21 @@ public class ResourceUnpacker {
             return;
         }
 
+        if (System.getProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY) != null) {
+            return;
+        }
+
         Path windowsSystemDirectory = getWindowsSystemDirectory();
         if (windowsSystemDirectory == null) {
             logger.warn("Unable to determine the Windows system directory");
             return;
         }
 
-        if (System.getProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY) == null) {
-            configureJogampPrimaryLibraryPath(
-                    unpackedLibDir,
-                    Paths.get(System.getProperty("java.home")),
-                    windowsSystemDirectory);
-        }
+        System.setProperty(JOGAMP_PRIMARY_LIBRARY_PATH_KEY,
+                           String.join(File.pathSeparator,
+                                       unpackedLibDir.toAbsolutePath().normalize().toString(),
+                                       Paths.get(System.getProperty("java.home"), "bin").toAbsolutePath().normalize().toString(),
+                                       windowsSystemDirectory.toString()));
     }
 
     private static Path getWindowsSystemDirectory() {

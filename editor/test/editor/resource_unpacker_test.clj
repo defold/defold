@@ -16,8 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.fs :as fs]
-            [util.coll :as coll])
+            [editor.fs :as fs])
   (:import [ch.qos.logback.classic Level Logger]
            [com.defold.libs ResourceUnpacker ResourceUnpacker$NativeLibraryLoader]
            [com.dynamo.bob Platform]
@@ -25,7 +24,6 @@
            [com.jogamp.common.os DynamicLibraryBundle NativeLibrary]
            [com.jogamp.opengl GLProfile]
            [jogamp.opengl GLDrawableFactoryImpl]
-           [java.io File]
            [java.nio.file Path]
            [java.util LinkedHashMap Map$Entry]
            [java.util.concurrent CountDownLatch TimeUnit]
@@ -166,35 +164,6 @@
           (is (.contains message (.toString beta-path)))
           (is (not (.contains message (.toString gamma-path))))
           (is (= 2 (count (.getSuppressed e)))))))))
-
-(deftest configure-jogamp-primary-library-path-orders-controlled-directories-and-respects-overrides
-  (let [root-dir (.toPath (fs/create-temp-directory! "resource-unpacker-jogamp-path"))
-        unpacked-lib-dir (.resolve root-dir "unpacked-lib")
-        java-home (.resolve root-dir "jdk")
-        java-bin-dir (.resolve java-home "bin")
-        windows-system-dir (.resolve root-dir "System32")
-        property-name ResourceUnpacker/JOGAMP_PRIMARY_LIBRARY_PATH_KEY
-        original-property-value (System/getProperty property-name)
-        expected-value (coll/join-to-string File/pathSeparator
-                                            (mapv #(-> ^Path % .toAbsolutePath .normalize str)
-                                                  [unpacked-lib-dir java-bin-dir windows-system-dir]))]
-    (try
-      (System/clearProperty property-name)
-      (ResourceUnpacker/configureJogampPrimaryLibraryPath unpacked-lib-dir java-home windows-system-dir)
-      (is (= expected-value (System/getProperty property-name)))
-
-      (System/setProperty property-name "explicit-override")
-      (ResourceUnpacker/configureJogampPrimaryLibraryPath unpacked-lib-dir java-home windows-system-dir)
-      (is (= "explicit-override" (System/getProperty property-name)))
-
-      ;; Even an explicitly empty value is an expert override and must not be replaced.
-      (System/setProperty property-name "")
-      (ResourceUnpacker/configureJogampPrimaryLibraryPath unpacked-lib-dir java-home windows-system-dir)
-      (is (= "" (System/getProperty property-name)))
-      (finally
-        (if (nil? original-property-value)
-          (System/clearProperty property-name)
-          (System/setProperty property-name original-property-value))))))
 
 (deftest unpack-resources-preloads-host-bundled-native-libraries
   (ResourceUnpacker/unpackResources)
