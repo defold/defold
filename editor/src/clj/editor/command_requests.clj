@@ -30,15 +30,12 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- query-param [request param-name]
-  (coll/some (fn [query-part]
-               (let [[name value] (string/split query-part #"=" 2)]
-                 (when (= param-name name)
-                   (or value ""))))
-             (some-> (:query request) (string/split #"&"))))
-
 (defn- run-request-user-data [request]
-  (case (query-param request "focus")
+  (case (coll/some (fn [query-part]
+                     (let [[name value] (string/split query-part #"=" 2)]
+                       (when (= "focus" name)
+                         (or value ""))))
+                   (string/split (:query request "") #"&"))
     nil {}
     "true" {:focus true}
     "false" {:focus false}
@@ -288,9 +285,11 @@
              (bound-fn [request]
                (let [command (-> request :path-params :command keyword)]
                  (if-let [{:keys [ui-handler user-data request->user-data resource-sync response-fn]} (supported-commands command)]
-                   (let [user-data (cond-> (or user-data {})
-                                     request->user-data (merge (request->user-data request)))
-                         ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler user-data)]
+                   (let [ui-handler-ctx (resolve-ui-handler-ctx
+                                          ui-node
+                                          ui-handler
+                                          (cond-> (or user-data {})
+                                                  request->user-data (merge (request->user-data request))))]
                      (case ui-handler-ctx
                        (::ui/not-active ::ui/not-enabled) http-server/forbidden
                        (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))

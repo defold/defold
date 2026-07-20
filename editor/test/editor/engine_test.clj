@@ -18,9 +18,14 @@
     (is (= ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"]
            (launch-arguments nil nil true 0 true)))
     (is (= ["--config=project.instance_index=2"
-            "--config=custom.value=1"
-            start-unfocused-argument]
-           (launch-arguments nil "--config=custom.value=1" false 2 false)))))
+            start-unfocused-argument
+            "--config=display.start_unfocused=0"
+            "--config=custom.value=1"]
+           (launch-arguments nil
+                             "--config=display.start_unfocused=0\n--config=custom.value=1"
+                             false
+                             2
+                             false)))))
 
 (deftest reboot-arguments-focus-test
   (let [reboot-arguments #'engine/reboot-arguments

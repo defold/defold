@@ -23,5 +23,5 @@
                     nil
                     (catch Exception error
                       error))]
-        (is (some? error))
+        (is error)
         (is (= 400 (-> error ex-data ::http-server/response :status)))))))
