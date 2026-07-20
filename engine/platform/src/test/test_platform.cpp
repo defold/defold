@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
-#include <string.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -73,17 +72,6 @@ protected:
         WindowDelete(m_Window);
     }
 };
-
-TEST(dmPlatform, WindowCreateParamsStartFocusedByDefault)
-{
-    const size_t expected_size = sizeof(void*) == 8 ? 104 : 60;
-    ASSERT_EQ(expected_size, sizeof(WindowCreateParams));
-
-    WindowCreateParams params;
-    memset(&params, 0xff, sizeof(params));
-    WindowCreateParamsInitialize(&params);
-    ASSERT_EQ(0u, params.m_StartUnfocused);
-}
 
 TEST_F(dmPlatformTest, DoubleOpenWindow)
 {

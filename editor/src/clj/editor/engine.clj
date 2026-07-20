@@ -102,25 +102,22 @@
       (change-resolution! target (:width data) (:height data)
                           (prefs/get prefs [:run :simulate-rotated-device])))))
 
-(defn- reboot-arguments [target local-url debug focus]
-  (let [instance-index (:instance-index target)]
-    (cond-> [(str "--config=resource.uri=" local-url)]
-            debug
-            (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
-
-            true
-            (conj (str local-url "/game.projectc"))
-
-            (and instance-index (> instance-index 0))
-            (conj (format "--config=project.instance_index=%d" instance-index))
-
-            (not focus)
-            (conj start-unfocused-argument))))
-
-(defn reboot! [target local-url debug? focus]
+(defn reboot! [target local-url debug focus]
   (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection uri)
-        args (reboot-arguments target local-url debug? focus)]
+        instance-index (:instance-index target)
+        args (cond-> [(str "--config=resource.uri=" local-url)]
+                     debug
+                     (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
+
+                     true
+                     (conj (str local-url "/game.projectc"))
+
+                     (and instance-index (> instance-index 0))
+                     (conj (format "--config=project.instance_index=%d" instance-index))
+
+                     (not focus)
+                     (conj start-unfocused-argument))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -305,31 +302,28 @@
           (str port)))
       (catch Exception _))))
 
-(defn- launch-arguments [defold-log-dir engine-arguments debug instance-index focus]
-  (cond-> []
-          defold-log-dir
-          (into ["--config=project.write_log=1"
-                 (format "--config=project.log_dir=%s" defold-log-dir)])
-
-          debug
-          (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
-
-          (> instance-index 0)
-          (conj (format "--config=project.instance_index=%d" instance-index))
-
-          (not focus)
-          (conj start-unfocused-argument)
-
-          (not (str/blank? engine-arguments))
-          (into (remove str/blank?) (split-lines engine-arguments))))
-
-(defn launch! [^File engine project-directory prefs debug? instance-index focus]
+(defn launch! [^File engine project-directory prefs debug instance-index focus]
   (let [defold-log-dir (some-> (system/defold-log-dir)
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
         engine-arguments (prefs/get prefs [:run :engine-arguments])
-        args (launch-arguments defold-log-dir engine-arguments debug? instance-index focus)
+        args (cond-> []
+                     defold-log-dir
+                     (into ["--config=project.write_log=1"
+                            (format "--config=project.log_dir=%s" defold-log-dir)])
+
+                     debug
+                     (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
+
+                     (> instance-index 0)
+                     (conj (format "--config=project.instance_index=%d" instance-index))
+
+                     (not focus)
+                     (conj start-unfocused-argument)
+
+                     (not (str/blank? engine-arguments))
+                     (into (remove str/blank?) (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" (or (validate-service-port (System/getenv "DM_SERVICE_PORT"))
                                    "dynamic")
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
@@ -338,15 +332,16 @@
              "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))
              "MESA_GL_VERSION_OVERRIDE" nil
              "MESA_LOADER_DRIVER_OVERRIDE" nil}
-        opts {:dir project-directory
-              :err :stdout
-              :env env}]
-    ;; Closing "is" seems to cause any dmengine output to stdout/err
-    ;; to generate SIGPIPE and close/crash. Also, we need to read
-    ;; the output of dmengine because there is a risk of the stream
-    ;; buffer filling up, stopping the process.
-    ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
-    (let [p (apply process/start! opts command args)]
-      {:process p
-       :name (.getName engine)
-       :log-stream (process/out p)})))
+        ;; Closing "is" seems to cause any dmengine output to stdout/err
+        ;; to generate SIGPIPE and close/crash. Also, we need to read
+        ;; the output of dmengine because there is a risk of the stream
+        ;; buffer filling up, stopping the process.
+        ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
+        p (apply process/start! {:dir project-directory
+                                 :err :stdout
+                                 :env env}
+                 command
+                 args)]
+    {:process p
+     :name (.getName engine)
+     :log-stream (process/out p)}))

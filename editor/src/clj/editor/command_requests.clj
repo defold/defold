@@ -260,12 +260,11 @@
                                                command->help))}}
                   {:name "focus"
                    :in "query"
-                   :description "Whether the launched game should take focus. Only applies to the `run` command."
+                   :description "Whether the launched game takes focus; only applies to `run`"
                    :schema {:type "boolean"
                             :default true}}]
      :responses {"200" {:description "Command completed and returned a response body"}
                  "202" {:description "Accepted"}
-                 "400" {:description "Invalid command option"}
                  "403" {:description "Forbidden"}
                  "404" {:description "Unknown command"}
                  "422" {:description "Command failed validation/build checks"}
