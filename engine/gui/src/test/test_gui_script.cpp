@@ -474,6 +474,28 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
     dmGui::DeleteScript(script);
 }
 
+TEST_F(dmGuiScriptTest, TestCloneNodeInternalIdNotReverseHashed)
+{
+    dmHashEnableReverseHash(false);
+    dmHashEnableReverseHash(true);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 2;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+
+    dmGui::HNode node = dmGui::NewNode(scene, Point3(), Vector3(1.0f), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode clone = dmGui::INVALID_HANDLE;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::CloneNode(scene, node, &clone));
+
+    dmhash_t clone_id = dmGui::GetNodeId(scene, clone);
+    ASSERT_EQ((const void*) 0, dmHashReverse64(clone_id, 0));
+
+    dmGui::DeleteScene(scene);
+    dmHashEnableReverseHash(false);
+}
+
 TEST_F(dmGuiScriptTest, TestGetTree)
 {
     dmGui::HScript script = NewScript(m_Context);
