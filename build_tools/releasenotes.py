@@ -67,20 +67,13 @@ def update_manifest(bucket, version, channel):
     obj.put(Body=json.dumps(versions), ContentType='application/json')
 
 
-# Channels that also publish the human-readable notes. Alpha releases on every
-# push, and nobody reads its markdown, so it only ships what the editor needs.
-MARKDOWN_CHANNELS = ('beta', 'stable')
-
-
 def upload(bucket, version, channel, required=False):
     # Publishes release notes for the current channel:
     #   - release-notes/<version>.json  structured notes consumed by the editor
-    #   - release-notes/<version>.md    human-readable per-version notes,
-    #                                   MARKDOWN_CHANNELS only
+    #   - release-notes/<version>.md    human-readable per-version notes
     #   - release-notes/manifest.json   ordered version list the editor walks
-    upload_markdown = channel in MARKDOWN_CHANNELS
     json_content = read_release_notes_file(version, 'json')
-    markdown_content = read_release_notes_file(version, 'md') if upload_markdown else None
+    markdown_content = read_release_notes_file(version, 'md')
 
     if json_content is None:
         message = "Missing json release notes for %s in releasenotes/" % version
@@ -90,14 +83,17 @@ def upload(bucket, version, channel, required=False):
         log("%s; skipping upload" % message)
         return
 
-    if upload_markdown and markdown_content is None:
-        log("Missing md release notes for %s in releasenotes/" % version)
-        sys.exit(1)
+    if markdown_content is None:
+        message = "Missing md release notes for %s in releasenotes/" % version
+        if required:
+            log(message)
+            sys.exit(1)
+        log("%s; skipping upload" % message)
+        return
 
-    if upload_markdown:
-        markdown_obj = bucket.Object('editor2/channels/%s/release-notes/%s.md' % (channel, version))
-        log("Uploading per-version release notes markdown for %s -> %s" % (version, markdown_obj.key))
-        markdown_obj.put(Body=markdown_content, ContentType='text/markdown')
+    markdown_obj = bucket.Object('editor2/channels/%s/release-notes/%s.md' % (channel, version))
+    log("Uploading per-version release notes markdown for %s -> %s" % (version, markdown_obj.key))
+    markdown_obj.put(Body=markdown_content, ContentType='text/markdown')
 
     json_obj = bucket.Object('editor2/channels/%s/release-notes/%s.json' % (channel, version))
     log("Uploading per-version release notes JSON for %s -> %s" % (version, json_obj.key))

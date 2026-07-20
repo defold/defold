@@ -3321,8 +3321,7 @@ class Configuration(object):
 
         # The editor release notes (the update dialog's source) must land before
         # update-v4.json points users at the new sha1.
-        # DEV-ONLY (issue-7186 validation): 'release-notes-view' requires notes so
-        releasenotes.upload(bucket, self.version, self.channel, required = self.channel in ('beta', 'stable', 'release-notes-view'))
+        releasenotes.upload(bucket, self.version, self.channel, required = self.channel in ('beta', 'stable'))
 
         html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:

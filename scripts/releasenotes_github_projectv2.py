@@ -341,11 +341,6 @@ CHANNEL_RELEASE_BRANCHES = {
     "stable": "master",
 }
 
-# DEV-ONLY (issue-7186 validation): let the feature branch exercise the full
-# notes pipeline on a disposable channel. Delete this whole statement before
-# merging to dev.
-CHANNEL_RELEASE_BRANCHES["release-notes-view"] = "dev"
-
 def commit_in_branch(branch, commit, repository = "defold", max_retries = 6):
     # True when `branch` already contains `commit`. GitHub's compare endpoint
     # tells us: comparing <branch>...<commit> comes back with ahead_by == 0.

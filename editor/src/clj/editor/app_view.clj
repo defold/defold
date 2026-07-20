@@ -2610,7 +2610,7 @@
 (def ^:private release-notes-resource-delay
   (delay (io/resource (str "release-notes/" (system/defold-version) ".json"))))
 
-(defn- bundled-release-notes-markdown [url]
+(defn- bundled-release-notes-json [url]
   (try
     (with-open [reader (io/reader url)]
       (updater/release-notes-markdown (json/read reader :key-fn keyword)))
@@ -2651,7 +2651,7 @@
   notes shipped. Must be called on the JavaFX application thread."
   [localization project]
   (when-let [url @release-notes-resource-delay]
-    (when-let [content (bundled-release-notes-markdown url)]
+    (when-let [content (bundled-release-notes-json url)]
       (fxui/show-stateless-dialog-and-await-result!
         (fn [result-fn]
           {:fx/type release-notes-dialog
