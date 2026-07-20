@@ -635,7 +635,7 @@ assets.dependencies = Зависимости
 console.button.clear = Очистить
 console.button.filter = Фильтры
 console.filter.enable-filtering = Включить фильтрацию
-console.filter.add-filter = Новый фильтр («текст» или «\!убрать»)
+console.filter.add-filter = Новый фильтр ("текст" или "\!убрать")
 console.search = Поиск
 
 # Breakpoints Tab
@@ -1129,7 +1129,7 @@ scene-popup.scene-visibility.skeletons = Скелеты
 scene-popup.scene-visibility.spine-scenes = Spine-сцены
 scene-popup.scene-visibility.sprites = Спрайты
 scene-popup.scene-visibility.text = Текст
-scene-popup.scene-visibility.tile-maps = Тайловые карты
+scene-popup.scene-visibility.tile-maps = Карты тайлов
 scene-popup.scene-visibility.component-guides = Направляющие компонентов
 scene-popup.scene-visibility.scene-visibility-bounds = Границы видимости сцены
 
@@ -1201,7 +1201,7 @@ property.appmanifest.graphics-osx.tooltip = Выберите графическ�
 property.appmanifest.graphics-ios = Графика (iOS)
 property.appmanifest.graphics-ios.tooltip = Выберите графический бэкенд для сборок iOS. По умолчанию используется OpenGL; комбинированный вариант включает запасной бэкенд, но увеличивает размер движка.
 property.appmanifest.graphics-android = Графика (Android)
-property.appmanifest.graphics-android.tooltip = Выберите графический бэкенд для сборок Android. По умолчанию включены оба варианта: предпочтительно используется Vulkan, а OpenGL ES служит запасным.
+property.appmanifest.graphics-android.tooltip = Выберите графический бэкенд для сборок Android. По умолчанию включены оба варианта\: предпочтительно используется Vulkan, а OpenGL ES служит запасным.
 property.appmanifest.graphics-web = Графика (HTML5)
 property.appmanifest.graphics-web.tooltip = Выберите графический бэкенд для сборок HTML5. По умолчанию используется WebGL; включение WebGL и WebGPU позволяет использовать запасной вариант, но увеличивает размер движка.
 property.appmanifest.use-font-layout = Полная система текста
@@ -1217,7 +1217,7 @@ property.atlas.animation.flip-horizontal.tooltip = Горизонтально о
 property.atlas.animation.flip-vertical = Вертикальное отражение
 property.atlas.animation.flip-vertical.tooltip = Вертикально отражает каждый кадр анимации при воспроизведении.
 property.atlas.animation.playback = Воспроизведение
-property.atlas.animation.playback.tooltip = Определяет, остаётся ли анимация на первом кадре, проигрывается один раз или зацикливается, а также порядок кадров: прямой, обратный или туда-обратно. **Once Ping Pong** останавливается после возврата ко второму кадру, чтобы не повторять первый при последовательном воспроизведении анимаций.
+property.atlas.animation.playback.tooltip = Определяет, остаётся ли анимация на первом кадре, проигрывается один раз или зацикливается, а также порядок кадров\: прямой, обратный или туда-обратно. **Once Ping Pong** останавливается после возврата ко второму кадру, чтобы не повторять первый при последовательном воспроизведении анимаций.
 property.atlas.image.id.tooltip = Доступный только для чтения идентификатор, полученный из базового имени исходного изображения после применения **Шаблонов переименований**. Используется для выбора изображения и сопоставления соответствующих кадров в разных атласах.
 property.atlas.image.pivot = Опорная точка
 property.atlas.image.pivot.tooltip = Точка, совмещаемая с позицией компонента при отображении изображения. `(0, 0)` — левый верхний угол, `(1, 1)` — правый нижний, а `(0.5, 0.5)` — центр; допустимы значения за пределами этого диапазона.
@@ -1234,7 +1234,7 @@ property.atlas.max-page-height = Макс. высота страницы
 property.atlas.max-page-size = Макс. размер страницы
 property.atlas.max-page-size.tooltip = Максимальные ширина и высота каждой страницы многостраничного атласа. Задайте оба значения больше нуля, чтобы включить разбиение на страницы; использующие атлас компоненты должны применять материал для постраничного атласа.
 property.atlas.rename-patterns = Шаблоны переименований
-property.atlas.rename-patterns.tooltip = Разделённые запятыми шаблоны `search=replace`, применяемые к базовому имени каждого изображения. Например, `hat=cat,_normal=` заменяет `hat_normal` на `cat`; совпадающие имена полезны, когда соответствующие кадры находятся в разных атласах.
+property.atlas.rename-patterns.tooltip = Разделённые запятыми шаблоны `search\=replace`, применяемые к базовому имени каждого изображения. Например, `hat\=cat,_normal\=` заменяет `hat_normal` на `cat`; совпадающие имена полезны, когда соответствующие кадры находятся в разных атласах.
 
 # Properties: camera
 
@@ -1251,7 +1251,7 @@ property.camera.auto-aspect-ratio.tooltip = **Только для перспек
 property.camera.orthographic-projection = Ортографическая проекция
 property.camera.orthographic-projection.tooltip = Использует ортографическую проекцию, в которой видимый размер объектов не зависит от расстояния до камеры. Обычно применяется для 2D-сцен.
 property.camera.orthographic-zoom = Ортографический зум
-property.camera.orthographic-zoom.tooltip = **Только для ортографической проекции.** Положительный множитель масштаба: значения больше `1` приближают, а меньше `1` — отдаляют. В режимах **Auto Fit** и **Auto Cover** умножает автоматически вычисленный масштаб.
+property.camera.orthographic-zoom.tooltip = **Только для ортографической проекции.** Положительный множитель масштаба\: значения больше `1` приближают, а меньше `1` — отдаляют. В режимах **Auto Fit** и **Auto Cover** умножает автоматически вычисленный масштаб.
 property.camera.orthographic-mode = Режим ортографического зума
 property.camera.orthographic-mode.tooltip = **Только для ортографической проекции.** **Fixed** напрямую использует **Ортографический зум**. **Auto Fit** сохраняет видимой всю проектную область и может показывать дополнительное пространство; **Auto Cover** заполняет окно и может обрезать содержимое. В авторежимах проектным размером служат ширина и высота экрана из `game.project`.
 
@@ -1323,7 +1323,7 @@ property.cubemap.top.tooltip = Изображение, назначенное в
 # Properties: factory
 
 property.factory.prototype = Прототип
-property.factory.prototype.tooltip = Ресурс, экземпляр которого создаётся этим компонентом: игровой объект для «Фабрики» или коллекция для «Фабрики коллекций». Создайте его с помощью `factory.create()` или `collectionfactory.create()`.
+property.factory.prototype.tooltip = Ресурс, экземпляр которого создаётся этим компонентом\: игровой объект для «Фабрики» или коллекция для «Фабрики коллекций». Создайте его с помощью `factory.create()` или `collectionfactory.create()`.
 property.factory.load-dynamically = Динамическая загрузка
 property.factory.load-dynamically.tooltip = Откладывает загрузку ресурсов прототипа до момента, когда они понадобятся, но по-прежнему включает их в бандл. Вызов `factory.create()` или `collectionfactory.create()` загружает их синхронно и может вызвать задержку; для асинхронной загрузки сначала вызовите `factory.load()` или `collectionfactory.load()`.
 property.factory.dynamic-prototype = Динамический прототип
@@ -1332,7 +1332,7 @@ property.factory.dynamic-prototype.tooltip = Позволяет `factory.set_pro
 # Properties: font
 
 property.font.font = Шрифт
-property.font.font.tooltip = Выбирает исходный шрифт: файл TrueType (`.ttf`), OpenType (`.otf`) или BMFont (`.fnt`).
+property.font.font.tooltip = Выбирает исходный шрифт\: файл TrueType (`.ttf`), OpenType (`.otf`) или BMFont (`.fnt`).
 property.font.texture = Текстура
 property.font.texture.tooltip = PNG-таблица глифов, на которую ссылается этот файл BMFont (`.fnt`). Текстура должна находиться в той же папке, а её имя файла должно совпадать с указанным в BMFont.
 property.font.output-format = Формат вывода
@@ -1453,7 +1453,7 @@ property.gui.y-anchor.tooltip = Управляет вертикальным по
 property.label.color = Цвет
 property.label.color.tooltip = Задаёт RGBA-цвет текста. Альфа-канал управляет непрозрачностью.
 property.label.font = Шрифт
-property.label.font.tooltip = Выбирает ресурс шрифта для отрисовки метки. Материал метки должен быть совместим с типом шрифта: растровым, шрифтом с полем расстояний или BMFont.
+property.label.font.tooltip = Выбирает ресурс шрифта для отрисовки метки. Материал метки должен быть совместим с типом шрифта\: растровым, шрифтом с полем расстояний или BMFont.
 property.label.leading = Интерлиньяж
 property.label.leading.tooltip = Масштабирует интервал между строками текста. `1` соответствует обычному интервалу, а `0` убирает его.
 property.label.line-break = Перенос строки
@@ -1491,7 +1491,7 @@ property.mesh.normal-stream.tooltip = Выбирает поток буфера, 
 property.mesh.position-stream = Поток позиций
 property.mesh.position-stream.tooltip = Выбирает поток буфера, содержащий позиции вершин. При пустом значении используется поток `position`; если материал использует **Мировое пространство**, поток нужно выбрать явно, чтобы движок мог правильно его преобразовать.
 property.mesh.primitive-type = Тип примитива
-property.mesh.primitive-type.tooltip = Определяет, как последовательные вершины образуют геометрию: **Lines** использует независимые пары, **Triangles** — независимые группы по три вершины, а **Triangle Strip** добавляет треугольник для каждой вершины после первых двух.
+property.mesh.primitive-type.tooltip = Определяет, как последовательные вершины образуют геометрию\: **Lines** использует независимые пары, **Triangles** — независимые группы по три вершины, а **Triangle Strip** добавляет треугольник для каждой вершины после первых двух.
 property.mesh.vertices = Вершины
 property.mesh.vertices.tooltip = Выбирает ресурс `.buffer` с потоками данных вершин меша, такими как позиции, нормали, цвета и текстурные координаты. Во время выполнения его содержимое можно заменить с помощью `resource.set_buffer()`.
 
@@ -1499,7 +1499,7 @@ property.mesh.vertices.tooltip = Выбирает ресурс `.buffer` с по
 
 property.model.animations = Анимации
 property.model.animations.tooltip = Ресурс «Набор анимаций», glTF или GLB со скелетными анимациями или анимациями морф-целей, доступными этой модели. Выберите один из идентификаторов в качестве **Анимации по умолчанию** или воспроизведите его с помощью `model.play_anim()`.
-property.model.create-go-bones = Создавать GO для костей
+property.model.create-go-bones = Создавать GO кости
 property.model.create-go-bones.tooltip = Создаёт во время выполнения игровой объект для каждой кости скелета, позволяя, например, прикрепить оружие к кости руки. Созданные игровые объекты можно найти с помощью `model.get_go()`; они учитываются в лимите игровых объектов коллекции.
 property.model.default-animation = Анимация по умолчанию
 property.model.default-animation.tooltip = Анимация из **Анимаций**, которая запускается автоматически вместе с моделью. Оставьте поле пустым, если анимацию следует запускать явно с помощью `model.play_anim()`.
@@ -1510,7 +1510,7 @@ property.model.skeleton.tooltip = Ресурс glTF или GLB, содержащ
 
 # Properties: particlefx
 
-property.particlefx.category.particle-life = Жизнь частицы
+property.particlefx.category.particle-life = Частица в течении жизни
 
 property.particlefx.id.tooltip = Идентификатор эмиттера. Используется для обращения к конкретному эмиттеру при задании или сбросе констант отрисовки ParticleFX и свойств эмиттера во время выполнения.
 property.particlefx.animation = Анимация
@@ -1523,10 +1523,10 @@ property.particlefx.material = Материал
 property.particlefx.material.tooltip = Выбирает материал для затенения и отрисовки частиц этого эмиттера. Его шейдер, сэмплеры и атрибуты вершин должны подходить для отрисовки частиц.
 property.particlefx.max-particle-count = Макс. число частиц
 property.particlefx.max-particle-count.tooltip = Максимальное число частиц этого эмиттера, которые могут существовать одновременно. При достижении лимита новые частицы не создаются; более высокие значения резервируют больше памяти.
-property.particlefx.mode = Режим воспроизведения
+property.particlefx.mode = Режим проигрывания
 property.particlefx.mode.tooltip = **Once** прекращает эмиссию по истечении **Длительности**. **Loop** перезапускает временную шкалу эмиттера каждый раз по истечении длительности.
 property.particlefx.particle-orientation = Ориентация частиц
-property.particlefx.particle-orientation.tooltip = Управляет поворотом частиц: **Default** задаёт им начальную ориентацию эмиттера, **Initial Direction** однократно выравнивает их по направлению запуска, **Movement Direction** ориентирует их по скорости, а **Angular Velocity** вращает их с помощью свойств угловой скорости.
+property.particlefx.particle-orientation.tooltip = Управляет поворотом частиц\: **Default** задаёт им начальную ориентацию эмиттера, **Initial Direction** однократно выравнивает их по направлению запуска, **Movement Direction** ориентирует их по скорости, а **Angular Velocity** вращает их с помощью свойств угловой скорости.
 property.particlefx.pivot = Опорная точка
 property.particlefx.pivot.tooltip = Смещает изображение каждой частицы относительно её позиции перед поворотом и масштабированием. `(0, 0, 0)` располагает изображение по центру; положительный X или Y сдвигает его вправо или вверх.
 property.particlefx.size-mode = Режим размера
@@ -1625,7 +1625,7 @@ property.sprite.playback-rate.tooltip = Множитель заданной ск
 property.sprite.size-mode = Режим размера
 property.sprite.size-mode.tooltip = В режиме **Auto** используются размеры выбранного изображения или анимации. Режим **Manual** позволяет задать свой **Размер** и использовать масштабирование Slice-9.
 property.sprite.slice9 = 9-слайс
-property.sprite.slice9.tooltip = **Только для режима размера Manual.** Поля в пикселях для краёв **Слева**, **Сверху**, **Справа** и **Снизу**: углы сохраняют размер, а края и центр растягиваются. Применяется при изменении **Размера**, но не масштаба трансформации; параметр **Обрезка спрайта** изображения атласа должен быть **Off**.
+property.sprite.slice9.tooltip = **Только для режима размера Manual.** Поля в пикселях для краёв **Слева**, **Сверху**, **Справа** и **Снизу**\: углы сохраняют размер, а края и центр растягиваются. Применяется при изменении **Размера**, но не масштаба трансформации; параметр **Обрезка спрайта** изображения атласа должен быть **Off**.
 
 # Properties: tile map
 
@@ -1634,7 +1634,7 @@ property.tile-map.layer.visible = Видимость
 property.tile-map.layer.visible.tooltip = Определяет, отрисовывается ли этот слой. Если тайловая карта предоставляет формы объекту коллизии, скрытые слои также отключаются для коллизий.
 property.tile-map.layer.z = Z
 property.tile-map.layer.z.tooltip = Локальное смещение по глубине, применяемое ко всем тайлам слоя. При стандартной настройке рендеринга более высокие итоговые значения Z отображаются спереди; значения вне диапазона **от -1 до 1** не отрисовываются. На итоговое значение Z влияют трансформации компонента тайловой карты, игрового объекта и родительских объектов.
-property.tile-map.tile-source = Источник тайлов
+property.tile-map.tile-source = Набор тайлов
 property.tile-map.tile-source.tooltip = Источник тайлов, предоставляющий изображения тайлов и необязательные формы коллизии, используемые этой тайловой картой.
 
 # Properties: tile source
@@ -1694,7 +1694,7 @@ outline.non-editable-game-object = Нередактируемый игровой
 outline.particlefx = ParticleFX
 outline.sound = Звук
 outline.tile-map = Тайловая карта
-outline.tile-source = Источник тайлов
+outline.tile-source = Набор тайлов
 outline.unknown = Неизвестно
 outline.unnamed-collision-shape = <Безымянная форма\: {shape}>
 
@@ -1824,7 +1824,7 @@ form.label.project.bootstrap.main_collection = Главная коллекция
 form.help.project.bootstrap.main_collection = Исходный ресурс `.collection`, который движок загружает и инициализирует при запуске приложения, например `/main/main.collection`. Его игровые объекты и компоненты образуют исходный игровой мир.
 form.label.project.bootstrap.render = Рендер
 form.help.project.bootstrap.render = Исходный ресурс `.render`, загружаемый при запуске, например `/builtins/render/default.render`. Он выбирает скрипт рендеринга и предоставляет доступ к именованным материалам, целям рендеринга и вычислительным программам.
-form.label.project.bootstrap.debug_init_script = Скрипт иниц. отладки
+form.label.project.bootstrap.debug_init_script = Скрипт инициализации отладки
 form.help.project.bootstrap.debug_init_script = Необязательный Lua-модуль, загружаемый перед инициализацией главной коллекции. Он предназначен для инструментов отладки и выполняется только в нерелизных сборках движка; релизные сборки его игнорируют.
 
 form.label.project.project = Проект
@@ -1840,14 +1840,14 @@ form.help.project.project.developer = Имя человека или орган�
 form.label.project.project.write_log = Запись лога
 form.help.project.project.write_log = **Устарело.** Оставленный для совместимости прежний переключатель записи файла журнала на диск. Вместо него используйте **Лог в файл**.
 form.label.project.project.write_log_file = Лог в файл
-form.help.project.project.write_log_file = Определяет, когда приложения из пакетов записывают журналы на диск: **Never** — никогда, **Debug** — только в отладочных сборках, **Always** — и в отладочных, и в релизных сборках. Запущенные из редактора приложения даже с **Never** записывают отладочные журналы. Файл называется `log.txt`, а для дополнительных экземпляров редактора — `instance_N_log.txt`.
+form.help.project.project.write_log_file = Определяет, когда приложения из пакетов записывают журналы на диск\: **Never** — никогда, **Debug** — только в отладочных сборках, **Always** — и в отладочных, и в релизных сборках. Запущенные из редактора приложения даже с **Never** записывают отладочные журналы. Файл называется `log.txt`, а для дополнительных экземпляров редактора — `instance_N_log.txt`.
 form.label.project.project.minimum_log_level = Мин. уровень логов
 form.help.project.project.minimum_log_level = Самый низкий уровень важности, сообщения которого будут записываться в журнал. Сообщения ниже выбранного уровня отбрасываются, а сообщения выбранного и более высоких уровней сохраняются.
 form.label.project.project.compress_archive = Сжимать архив
 form.help.project.project.compress_archive = Сжимает игровой архив при создании пакета. Не влияет на Android, поскольку данные уже хранятся в APK в сжатом виде.
 form.label.project.project.dependencies = Зависимости
 form.help.project.project.dependencies = URL проектов библиотек Defold, которые нужно импортировать. Предпочтительно указывать URL конкретного выпуска или коммита, чтобы обновления библиотеки неожиданно не нарушили работу проекта.
-form.label.project.project.dependencies_metadata = Метаданные зависим.
+form.label.project.project.dependencies_metadata = Метаданные зависимостей
 form.help.project.project.dependencies_metadata = Включает URL и ревизии библиотек в пакет времени выполнения, чтобы по отчётам о сбоях можно было определить точные используемые версии зависимостей.
 form.label.project.project.custom_resources = Дополнительные ресурсы
 form.help.project.project.custom_resources = Разделённые запятыми файлы или папки, которые нужно включить в основной игровой архив. Папки включаются рекурсивно; во время выполнения эти файлы загружаются с помощью `sys.load_resource()`.
@@ -1905,7 +1905,7 @@ form.help.project.android.push_field_text = Имя поля полезной н�
 form.label.project.android.version_code = Код версии
 form.help.project.android.version_code = Внутренний целочисленный идентификатор выпуска Android, используемый для определения того, какой пакет новее. Увеличивайте его для каждого опубликованного обновления; пользователи обычно видят значение **Проект > Версия**.
 form.label.project.android.minimum_sdk_version = Минимальная версия SDK
-form.help.project.android.minimum_sdk_version = Самый низкий уровень Android API, на котором приложение можно установить и запустить. Повышение значения позволяет использовать новые API, но исключает старые устройства. Минимум: `21`.
+form.help.project.android.minimum_sdk_version = Самый низкий уровень Android API, на котором приложение можно установить и запустить. Повышение значения позволяет использовать новые API, но исключает старые устройства. Минимум\: `21`.
 form.label.project.android.target_sdk_version = Целевая версия SDK
 form.help.project.android.target_sdk_version = Уровень Android API, для которого приложение разработано и протестировано. Он влияет на поведение совместимости платформы и требования магазина, но не исключает устройства, допускаемые параметром **Минимальная версия SDK**.
 form.label.project.android.package = Пакет
@@ -1925,7 +1925,7 @@ form.help.project.android.immersive_mode = Скрывает панель нав�
 form.label.project.android.display_cutout = Область выреза
 form.help.project.android.display_cutout = Позволяет полноэкранному содержимому заходить в области вырезов дисплея, например чёлок и отверстий для камеры. В Android 15/API 35 и новее такое поведение может быть обязательным. Используйте `window.get_safe_area()`, чтобы важные элементы интерфейса находились внутри безопасной области.
 form.label.project.android.debuggable = Возможность отладки
-form.help.project.android.debuggable = Задаёт `android:debuggable` в манифесте, позволяя таким инструментам, как профилировщики и отладчики Android Studio, исследовать приложение и его файлы. Оставляйте отключённым для релизных сборок, если это явно не требуется.
+form.help.project.android.debuggable = Задаёт `android\:debuggable` в манифесте, позволяя таким инструментам, как профилировщики и отладчики Android Studio, исследовать приложение и его файлы. Оставляйте отключённым для релизных сборок, если это явно не требуется.
 form.label.project.android.proguard = Конфигурация ProGuard
 form.help.project.android.proguard = Пользовательские правила `.pro`, используемые при сокращении и обфускации Java-кода в сборке Android. Добавьте правила сохранения для кода, доступного через рефлексию или JNI, чтобы он не был удалён или переименован. Оставьте пустым, если правила для проекта не нужны.
 form.label.project.android.extract_native_libs = Извлекать библиотеки
@@ -1933,24 +1933,24 @@ form.help.project.android.extract_native_libs = Определяет, извле
 
 form.label.project.html5 = HTML5
 form.help.project.html5 = Настройки HTML5
-form.label.project.html5.set_custom_heap_size = Задать свой размер кучи
+form.label.project.html5.set_custom_heap_size = Задавать размер heap вручную
 form.help.project.html5.set_custom_heap_size = **Устарело.** Оставьте этот параметр выключенным и используйте **Размер кучи**. Если включить этот параметр, **Свой размер кучи** переопределит **Размер кучи**.
-form.label.project.html5.custom_heap_size = Свой размер кучи
+form.label.project.html5.custom_heap_size = Размер heap (байты)
 form.help.project.html5.custom_heap_size = **Устарело.** Если включено **Задать свой размер кучи**, это значение в байтах переопределяет **Размер кучи**. Чтобы перевести значение из байтов в МиБ, разделите его на `1048576`, а затем введите результат в поле **Размер кучи**.
-form.label.project.html5.heap_size = Размер кучи
-form.help.project.html5.heap_size = Начальный размер кучи WebAssembly в МиБ. Куча может увеличиваться во время работы; больший начальный размер снижает накладные расходы на увеличение, но изначально резервирует больше памяти. Допустимый диапазон: `32`–`4096`.
+form.label.project.html5.heap_size = Размер heap (МБ)
+form.help.project.html5.heap_size = Начальный размер кучи WebAssembly в МиБ. Куча может увеличиваться во время работы; больший начальный размер снижает накладные расходы на увеличение, но изначально резервирует больше памяти. Допустимый диапазон\: `32`–`4096`.
 form.label.project.html5.htmlfile = HTML-оболочка
 form.help.project.html5.htmlfile = HTML-шаблон, из которого создаётся `index.html` с canvas игры. Поддерживает шаблонные токены Mustache от Defold.
 form.label.project.html5.cssfile = Пользовательский .css
 form.help.project.html5.cssfile = CSS-шаблон, встраиваемый в созданный `index.html` перед загрузчиком игры. Чтобы вставить этот CSS, в пользовательской HTML-оболочке должен быть токен `DEFOLD_CUSTOM_CSS_INLINE`.
 form.label.project.html5.splash_image = Изображение заставки
-form.help.project.html5.splash_image = Изображение, копируемое в бандл для показа во время загрузки игры. Допустимые расширения: `.gif`, `.jpg`, `.jpeg`, `.png`, `.svg`, `.webp` и `.avif`. Чтобы показать заставку, пользовательский CSS должен использовать токен `DEFOLD_SPLASH_IMAGE`.
+form.help.project.html5.splash_image = Изображение, копируемое в бандл для показа во время загрузки игры. Допустимые расширения\: `.gif`, `.jpg`, `.jpeg`, `.png`, `.svg`, `.webp` и `.avif`. Чтобы показать заставку, пользовательский CSS должен использовать токен `DEFOLD_SPLASH_IMAGE`.
 form.label.project.html5.archive_location_prefix = Префикс пути архива
 form.help.project.html5.archive_location_prefix = Добавляется в начало пути к каждому файлу данных архива при запуске. Полный URL позволяет раздавать данные игры с другого хоста; этот хост должен разрешать запросы заголовками CORS.
 form.label.project.html5.archive_location_suffix = Суффикс пути архива
-form.help.project.html5.archive_location_suffix = Добавляется в конец пути к каждому файлу данных архива при запуске. Строка запроса наподобие `?v=2` может принудительно обновить кэшированную версию.
+form.help.project.html5.archive_location_suffix = Добавляется в конец пути к каждому файлу данных архива при запуске. Строка запроса наподобие `?v\=2` может принудительно обновить кэшированную версию.
 form.label.project.html5.engine_arguments = Аргументы движка
-form.help.project.html5.engine_arguments = Разделённые запятыми аргументы движка, передаваемые при запуске. Чтобы переопределить значение конфигурации, используйте `--config=section.key=value`.
+form.help.project.html5.engine_arguments = Разделённые запятыми аргументы движка, передаваемые при запуске. Чтобы переопределить значение конфигурации, используйте `--config\=section.key\=value`.
 form.label.project.html5.wasm_streaming = Потоковый WASM
 form.help.project.html5.wasm_streaming = Компилирует WebAssembly по мере загрузки, ускоряя запуск и снижая пиковое потребление памяти. Сервер должен отдавать файлы `.wasm` с типом `application/wasm`. Если потоковая загрузка не сработает, загрузчик переключится на обычную загрузку.
 form.label.project.html5.show_fullscreen_button = Кнопка полного экрана
@@ -2086,9 +2086,9 @@ form.label.project.model.max_bone_matrix_texture_width = Ширина текст
 form.help.project.model.max_bone_matrix_texture_width = Максимальная ширина в пикселях текстуры **RGBA32F**, которая хранит матрицы костей для компонентов «Модель» с GPU-скиннингом в рамках каждой коллекции. Текстура увеличивается только по мере необходимости, но не более этого значения и лимита GPU. Если кэш слишком мал, увеличьте одно из измерений, учитывая, что фактически большие текстуры расходуют больше памяти.
 form.label.project.model.max_bone_matrix_texture_height = Высота текстуры матриц
 form.help.project.model.max_bone_matrix_texture_height = Максимальная высота в пикселях текстуры **RGBA32F**, которая хранит матрицы костей для компонентов «Модель» с GPU-скиннингом в рамках каждой коллекции. Текстура увеличивается только по мере необходимости, но не более этого значения и лимита GPU. Если кэш слишком мал, увеличьте одно из измерений, учитывая, что фактически большие текстуры расходуют больше памяти.
-form.label.project.model.max_morph_target_texture_width = Ширина морф-текстуры
+form.label.project.model.max_morph_target_texture_width = Макс. ширина текстуры морф-таргета
 form.help.project.model.max_morph_target_texture_width = Максимальная ширина в пикселях каждого создаваемого массива текстур морф-таргетов. Используйте лимит, равный степени двойки. Рассчитанная компоновка должна умещаться как в заданные ширину и высоту, так и в максимальный размер текстуры целевого GPU; иначе модель не удастся собрать или загрузить.
-form.label.project.model.max_morph_target_texture_height = Высота морф-текстуры
+form.label.project.model.max_morph_target_texture_height = Макс. высота текстуры морф-таргета
 form.help.project.model.max_morph_target_texture_height = Максимальная высота в пикселях каждого создаваемого массива текстур морф-таргетов. Используйте лимит, равный степени двойки. Рассчитанная компоновка должна умещаться как в заданные ширину и высоту, так и в максимальный размер текстуры целевого GPU; иначе модель не удастся собрать или загрузить.
 
 form.label.project.particle_fx = ParticleFX
@@ -2133,7 +2133,7 @@ form.label.project.sound.stream_chunk_size = Размер чанка поток�
 form.help.project.sound.stream_chunk_size = Число байт, загружаемых для каждой следующей части потокового звука. Небольшие части эффективнее используют общий кэш при загрузке множества звуков, но увеличивают накладные расходы ввода-вывода. Полная загрузка звука зависит от **Размер предзагрузки**, а не от размера этой части.
 form.label.project.sound.stream_preload_size = Размер предзагрузки
 form.help.project.sound.stream_preload_size = Число байт, изначально загружаемых для каждого потокового звука из архива ресурсов. Эта начальная часть не может быть вытеснена и остаётся в кэше, пока загружен звуковой ресурс, поэтому более высокие значения увеличивают постоянный расход памяти.
-form.label.project.sound.stream_cache_size = Размер кэша потока
+form.label.project.sound.stream_cache_size = Размер кеша потока
 form.help.project.sound.stream_cache_size = Общий лимит в байтах для частей потокового звука, включая невытесняемую предзагруженную часть каждого загруженного звука. Его должно хватать для всех сохраняемых предзагрузок и рабочих частей потока, иначе вытесняемые части могут часто перезагружаться, а воспроизведение — завершаться ошибкой.
 
 form.label.project.sprite = Спрайт
@@ -2239,7 +2239,7 @@ form.label.project.input.gamepads = Геймпады
 form.help.project.input.gamepads = Устаревшие сопоставления `.gamepads`, преобразующие зависящие от устройства кнопки и оси в стандартные сигналы геймпада. Они предоставляют резервные сопоставления по имени устройства, когда нет подходящего сопоставления по GUID SDL.
 form.label.project.input.gamepad_database = База данных геймпадов
 form.help.project.input.gamepad_database = Файл SDL `gamecontrollerdb.txt`, сопоставляющий GUID и раскладки контроллеров со стандартными сигналами геймпада. Сопоставления по GUID имеют приоритет над устаревшими сопоставлениями по имени устройства.
-form.label.project.input.gamepad_deadzone = Мёртвая зона геймпада
+form.label.project.input.gamepad_deadzone = Мертвая зона геймпада
 form.help.project.input.gamepad_deadzone = Нормализованный порог радиальной мёртвой зоны для аналоговых стиков, сопоставленных через базу данных геймпадов SDL. Векторы стиков с такой или меньшей величиной становятся нулевыми; устаревшие сопоставления `.gamepads` используют собственную мёртвую зону.
 form.label.project.input.game_binding = Привязки ввода
 form.help.project.input.game_binding = Общий для проекта ресурс привязок ввода, преобразующий необработанный ввод с клавиатуры, мыши, сенсорного экрана, геймпада и текстовый ввод в именованные действия, передаваемые скриптам и GUI-скриптам с фокусом ввода.
@@ -2254,7 +2254,7 @@ form.label.project.network.ssl_certificates = Сертификаты SSL
 form.help.project.network.ssl_certificates = PEM-файл с доверенными сертификатами центров сертификации или самоподписанными сертификатами — не просто открытыми ключами. Нативные платформы используют его для проверки цепочки сертификатов, а HTML5 использует хранилище браузера. Набор сертификатов центров сертификации доступен по адресу `/builtins/ca-certificates/cacert.pem`.
 form.label.project.network.http_thread_count = Потоки HTTP
 form.help.project.network.http_thread_count = Число рабочих потоков, обслуживающих нативные HTTP-запросы. `0` означает один поток, а значения выше `15` ограничиваются; на Nintendo Switch значение ограничено `2`. HTML5 игнорирует этот параметр. Большее число потоков может повысить пропускную способность при параллельной загрузке, но требует больше памяти и ресурсов CPU.
-form.label.project.network.http_cache_enabled = HTTP-кэш
+form.label.project.network.http_cache_enabled = HTTP кеш
 form.help.project.network.http_cache_enabled = Включает нативный дисковый кэш для подходящих ответов `http.request()` и ресурсов, загруженных по HTTP, чтобы повторно использовать или перепроверять их по заголовкам HTTP-кэша. HTML5 вместо него использует кэш браузера. Отключите параметр, если на нативных платформах ответы не должны сохраняться.
 
 form.label.project.physics = Физика
@@ -2262,7 +2262,7 @@ form.help.project.physics = Настройки физики
 form.label.project.physics.max_collision_object_count = Макс. объектов коллизий
 form.help.project.physics.max_collision_object_count = Максимальное число компонентов объектов коллизий в каждом физическом мире. Увеличьте его, если создание объектов во время выполнения может превысить предел; более высокие значения резервируют больше памяти.
 form.label.project.physics.type = Тип
-form.help.project.physics.type = Выбирает физический движок и размерность: **2D** использует Box2D, а **3D** — Bullet. От этого зависят поддерживаемые формы, соединения и поведение симуляции.
+form.help.project.physics.type = Выбирает физический движок и размерность\: **2D** использует Box2D, а **3D** — Bullet. От этого зависят поддерживаемые формы, соединения и поведение симуляции.
 form.label.project.physics.use_fixed_timestep = Фиксированный шаг
 form.help.project.physics.use_fixed_timestep = Обновляет физику с постоянным интервалом, не зависящим от частоты кадров, что делает симуляцию стабильнее. Для связанной с физикой логики скриптов используйте `fixed_update(self, dt)`; интервал задаётся параметром **Частота обновлений**. Рекомендуется для новых проектов.
 form.label.project.physics.debug = Отладка
@@ -2280,7 +2280,7 @@ form.help.project.physics.gravity_y = Глобальное ускорение с
 form.label.project.physics.gravity_z = Гравитация Z
 form.help.project.physics.gravity_z = Глобальное ускорение свободного падения вдоль оси Z в игровых единицах в секунду в квадрате. Используется физикой **3D**; симуляция **2D** использует только X и Y.
 form.label.project.physics.scale = Масштаб
-form.help.project.physics.scale = Коэффициент пересчёта единиц игрового мира в физические метры. Например, при `0.02` один метр равен `50` игровым единицам. Выберите значение, при котором размер движущихся тел составляет примерно `0.1`–`10` метров. Диапазон: `0.01`–`1.0`.
+form.help.project.physics.scale = Коэффициент пересчёта единиц игрового мира в физические метры. Например, при `0.02` один метр равен `50` игровым единицам. Выберите значение, при котором размер движущихся тел составляет примерно `0.1`–`10` метров. Диапазон\: `0.01`–`1.0`.
 form.label.project.physics.allow_dynamic_transforms = Дин. трансформации
 form.help.project.physics.allow_dynamic_transforms = Позволяет непосредственно применять изменения позиции, поворота и масштаба игрового объекта к прикреплённым объектам коллизий типа **Dynamic**. Отключите, если динамические тела должны перемещаться только физической симуляцией.
 form.label.project.physics.max_collisions = Макс. коллизий
@@ -2313,13 +2313,13 @@ form.help.project.profiler.sleep_between_server_updates = Задержка в м
 form.label.project.profiler.performance_timeline_enabled = Веб-таймлайн
 form.help.project.profiler.performance_timeline_enabled = Публикует области и счётчики профайлера Defold на временной шкале Performance браузера в сборках HTML5. Требует наличия профайлера в сборке и создаёт дополнительную нагрузку, пока включено.
 form.label.project.profiler.max_sample_count = Макс. число сэмплов
-form.help.project.profiler.max_sample_count = Максимальное число сэмплов, записываемых бэкендом встроенного базового профайлера для каждого потока за кадр. Лишние сэмплы отбрасываются. Увеличивайте значение только для действительно больших профилей; непарные вызовы функций профилирования областей из нативных расширений также могут исчерпать лимит. Минимум: `128`.
+form.help.project.profiler.max_sample_count = Максимальное число сэмплов, записываемых бэкендом встроенного базового профайлера для каждого потока за кадр. Лишние сэмплы отбрасываются. Увеличивайте значение только для действительно больших профилей; непарные вызовы функций профилирования областей из нативных расширений также могут исчерпать лимит. Минимум\: `128`.
 
 form.label.project.render = Рендер
 form.help.project.render = Настройки рендера
 form.label.project.render.clear_color_red = Красный канал
 form.help.project.render.clear_color_red = **Красный** компонент цвета очистки, используемого при создании окна. Встроенный скрипт рендеринга Defold также использует его при очистке кадра, но пользовательский скрипт рендеринга не обязан этого делать. `0.0` не добавляет красного, а `1.0` задаёт полную интенсивность красного.
-form.label.project.render.clear_color_green = Зелёный канал
+form.label.project.render.clear_color_green = Зеленый канал
 form.help.project.render.clear_color_green = **Зелёный** компонент цвета очистки, используемого при создании окна. Встроенный скрипт рендеринга Defold также использует его при очистке кадра, но пользовательский скрипт рендеринга не обязан этого делать. `0.0` не добавляет зелёного, а `1.0` задаёт полную интенсивность зелёного.
 form.label.project.render.clear_color_blue = Синий канал
 form.help.project.render.clear_color_blue = **Синий** компонент цвета очистки, используемого при создании окна. Встроенный скрипт рендеринга Defold также использует его при очистке кадра, но пользовательский скрипт рендеринга не обязан этого делать. `0.0` не добавляет синего, а `1.0` задаёт полную интенсивность синего.
@@ -2328,7 +2328,7 @@ form.help.project.render.clear_color_alpha = Компонент **альфа** �
 
 form.label.project.resource = Ресурс
 form.help.project.resource = Настройки загрузки и управления ресурсами
-form.label.project.resource.http_cache = HTTP-кэш
+form.label.project.resource.http_cache = HTTP-кеш
 form.help.project.resource.http_cache = **Устарело и игнорируется.** Теперь HTTP-кэшированием загружаемых по сети ресурсов управляет параметр **Сеть → HTTP-кэш**. Изменение этой настройки больше не влияет на движок.
 form.label.project.resource.uri = URI
 form.help.project.resource.uri = Базовый URI, с которого работающий движок загружает скомпилированные ресурсы проекта. Не задавайте его, чтобы использовать папку сборки проекта или архив пакета; явно заданное пустое значение может переопределить резервное поведение. Используйте сетевой URI только при удалённой раздаче данных сборки.
@@ -2342,9 +2342,9 @@ form.help.project.shader.output_spirv = **Устарело.** Принудите
 form.label.project.shader.exclude_gles_sm100 = Исключить GLES 2.0
 form.help.project.shader.exclude_gles_sm100 = Исключает вариант шейдера GLSL ES 1.00, используемый OpenGL ES 2.0 и WebGL 1.0. Включайте только при отсутствии поддержки этих графических API для обратной совместимости; после этого игра может не запускаться на старых устройствах и в браузерах.
 form.label.project.shader.glsl_es_default_precision_float = Точность float в GLSL ES
-form.help.project.shader.glsl_es_default_precision_float = Задаёт точность по умолчанию для значений с плавающей точкой без квалификатора в транскомпилированных шейдерах GLSL ES: `mediump` или `highp`. Явные квалификаторы шейдера имеют приоритет; в фрагментных шейдерах OpenGL ES 2.0 и WebGL 1.0 неподдерживаемая точность `highp` заменяется на `mediump`.
+form.help.project.shader.glsl_es_default_precision_float = Задаёт точность по умолчанию для значений с плавающей точкой без квалификатора в транскомпилированных шейдерах GLSL ES\: `mediump` или `highp`. Явные квалификаторы шейдера имеют приоритет; в фрагментных шейдерах OpenGL ES 2.0 и WebGL 1.0 неподдерживаемая точность `highp` заменяется на `mediump`.
 form.label.project.shader.glsl_es_default_precision_int = Точность int в GLSL ES
-form.help.project.shader.glsl_es_default_precision_int = Задаёт точность по умолчанию для целочисленных значений без квалификатора в транскомпилированных шейдерах GLSL ES: `mediump` или `highp`. Явные квалификаторы имеют приоритет; во фрагментных шейдерах OpenGL ES 2.0 и WebGL 1.0 неподдерживаемая точность `highp` заменяется на `mediump`.
+form.help.project.shader.glsl_es_default_precision_int = Задаёт точность по умолчанию для целочисленных значений без квалификатора в транскомпилированных шейдерах GLSL ES\: `mediump` или `highp`. Явные квалификаторы имеют приоритет; во фрагментных шейдерах OpenGL ES 2.0 и WebGL 1.0 неподдерживаемая точность `highp` заменяется на `mediump`.
 
 form.label.project.library = Библиотека
 form.help.project.library = Настройки при использовании проекта как библиотеки
@@ -2373,7 +2373,7 @@ form.help.animationset.animations = Ресурсы анимации, объед�
 
 form.label.camera = Камера
 form.label.camera.aspect-ratio = Пропорция сторон
-form.help.camera.aspect-ratio = **Только для перспективной проекции.** Задаёт отношение ширины пирамиды видимости к её высоте. Например, `1.0` соответствует квадрату, а `1.7778` — формату 16:9. Игнорируется, когда включён параметр **Авто-пропорция сторон**.
+form.help.camera.aspect-ratio = **Только для перспективной проекции.** Задаёт отношение ширины пирамиды видимости к её высоте. Например, `1.0` соответствует квадрату, а `1.7778` — формату 16\:9. Игнорируется, когда включён параметр **Авто-пропорция сторон**.
 form.label.camera.fov = Угол обзора
 form.help.camera.fov = **Только для перспективной проекции.** Задаёт вертикальный угол обзора в радианах. При больших значениях видно больше сцены, но перспективные искажения сильнее. При меньших значениях видно меньше, будто изображение приближено.
 form.label.camera.near-z = Ближняя Z
@@ -2446,7 +2446,7 @@ form.help.input-binding.gamepad-trigger = Сопоставляет станда�
 form.label.input-binding.gamepad-trigger.input = Ввод
 form.label.input-binding.gamepad-trigger.action = Действие
 form.label.input-binding.touch-trigger = Триггеры касаний
-form.help.input-binding.touch-trigger = Сопоставляет `TOUCH_MULTI` с именованным действием, которое передаётся через `on_input()` со всеми текущими точками касания в `action.touch`. Доступно на iOS, Android и в мобильном HTML5. Одиночное касание здесь не настраивается: привязка `MOUSE_BUTTON_LEFT` или `MOUSE_BUTTON_1` создаёт его автоматически, а для мультитача нужно использовать другое имя действия.
+form.help.input-binding.touch-trigger = Сопоставляет `TOUCH_MULTI` с именованным действием, которое передаётся через `on_input()` со всеми текущими точками касания в `action.touch`. Доступно на iOS, Android и в мобильном HTML5. Одиночное касание здесь не настраивается\: привязка `MOUSE_BUTTON_LEFT` или `MOUSE_BUTTON_1` создаёт его автоматически, а для мультитача нужно использовать другое имя действия.
 form.label.input-binding.touch-trigger.input = Ввод
 form.label.input-binding.touch-trigger.action = Действие
 form.label.input-binding.text-trigger = Текстовые триггеры
@@ -2513,7 +2513,7 @@ form.help.sound.group = Направляет звук в именованную 
 form.label.sound.gain = Усиление
 form.help.sound.gain = Неотрицательное усиление компонента. `0.0` означает тишину, а `1.0` — единичное усиление. При линейном усилении значения выше `1.0` повышают громкость, а совокупное усиление воспроизведения, группы и общего выхода может вызвать клиппинг.
 form.label.sound.pan = Панорама
-form.help.sound.pan = Положение в стереополе: от `-1.0` слева через `0.0` в центре до `1.0` справа.
+form.help.sound.pan = Положение в стереополе\: от `-1.0` слева через `0.0` в центре до `1.0` справа.
 form.label.sound.speed = Скорость
 form.help.sound.speed = Множитель скорости воспроизведения компонента, ограниченный диапазоном `0.0`–`50.0`. `1.0` соответствует обычной скорости. Он умножается на скорость, заданную при запуске воспроизведения, а полученная скорость также ограничивается поддерживаемым диапазоном.
 
@@ -2558,7 +2558,7 @@ form.label.liveupdate.liveupdate.publickey = Открытый ключ
 form.help.liveupdate.liveupdate.publickey = Устарело. Открытые ключи манифеста больше не используются, а этот параметр вызывает критическую ошибку проекта. Ранее он указывал на открытый ключ RSA в кодировке X.509 DER, соответствующий закрытому ключу подписи и предназначенный для проверки манифеста Live Update.
 form.title.liveupdate.liveupdate.publickey = Выберите открытый ключ манифеста
 form.label.liveupdate.liveupdate.privatekey = Закрытый ключ
-form.help.liveupdate.liveupdate.privatekey = Устарело. Закрытые ключи манифеста больше не используются, а этот параметр вызывает критическую ошибку проекта. Ранее он указывал на закрытый ключ RSA в кодировке PKCS #8 DER, соответствующий открытому ключу проверки и предназначенный для подписи манифеста Live Update. Закрытые ключи необходимо хранить в тайне.
+form.help.liveupdate.liveupdate.privatekey = Устарело. Закрытые ключи манифеста больше не используются, а этот параметр вызывает критическую ошибку проекта. Ранее он указывал на закрытый ключ RSA в кодировке PKCS \#8 DER, соответствующий открытому ключу проверки и предназначенный для подписи манифеста Live Update. Закрытые ключи необходимо хранить в тайне.
 form.title.liveupdate.liveupdate.privatekey = Выберите закрытый ключ манифеста
 form.label.liveupdate.liveupdate.supported-versions = Поддерживаемые версии
 form.help.liveupdate.liveupdate.supported-versions = Дополнительные строки версий движка, которым разрешено монтировать этот манифест Live Update. Введите их через запятую. Версия движка, используемая для сборки, включается всегда. Монтирование завершается ошибкой `ENGINE_VERSION_MISMATCH`, если версия запущенного движка не совпадает ни с одной из них.
@@ -2589,7 +2589,7 @@ form.help.material.fragment-constants = Значения uniform-перемен�
 form.label.material.fragment-constants.name = Имя
 form.label.material.fragment-constants.type = Тип
 form.label.material.fragment-constants.value = Значение
-form.label.material.samplers = Сэмплеры
+form.label.material.samplers = Семплеры
 form.help.material.samplers = Параметры выборки текстуры, используемые шейдером. Каждое `Имя` должно точно совпадать с uniform-переменной сэмплера. Режимы обёртки задают обработку координат за пределами текстуры, а фильтры и анизотропия управляют выбором текселей. Текстуры поступают из слотов компонентов или привязок скрипта рендера. Ненастроенные сэмплеры используют параметры фильтрации проекта по умолчанию, если они поддерживаются.
 form.label.material.samplers.name = Имя
 form.label.material.samplers.wrap-u = Обёртка U
@@ -2612,7 +2612,7 @@ form.help.compute.constants = Начальные значения uniform-пер
 form.label.compute.constants.name = Имя
 form.label.compute.constants.type = Тип
 form.label.compute.constants.value = Значение
-form.label.compute.samplers = Сэмплеры
+form.label.compute.samplers = Семплеры
 form.help.compute.samplers = Параметры выборки для uniform-переменных сэмплеров, объявленных в программе `.cp`. К изображениям для хранения данных эти параметры не применяются. **Имя** должно в точности совпадать с uniform-переменной сэмплера; перед запуском отдельно привяжите его текстуру из скрипта рендеринга.
 form.label.compute.samplers.name = Имя
 form.label.compute.samplers.wrap-u = Обёртка U
@@ -2641,7 +2641,7 @@ error.game-project.gamepad-database-must-be-txt = Параметр input.gamepad
 error.unspecified-property = Свойство «{property}» должно быть указано.
 error.mesh.stream-must-be-specified-for-world-vertex-space = Свойство «{property}» должно быть указано при использовании материала с параметром «Vertex Space», установленным в world-space.
 error.mesh.stream-not-found-in-buffer = Поток «{stream}» не найден в указанном буфере.
-error.tile-map.tiles-outside-tile-source-range = Тайловая карта использует тайлы вне диапазона этого источника тайлов ({count} в источнике, но используется тайл с индексом {index}).
+error.tile-map.tiles-outside-tile-source-range = Тайловая карта использует тайлы вне диапазона этого набора тайлов ({count} в наборе, но используется тайл с индексом {index}).
 error.tile-source.more-than-max-collision-groups-in-use = Используется более {max} {max, plural, one {группы} few {групп} other {групп}} коллизий.
 error.tile-source.tile-outside-range = Свойство «{property}» вне диапазона тайлов (1-{max}).
 error.tile-source.tile-data-could-not-be-generated-due-to-invalid-values = Не удалось сгенерировать данные тайлов из-за некорректных значений.
