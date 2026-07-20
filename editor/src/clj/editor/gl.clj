@@ -33,11 +33,10 @@
 (defonce ^:private gl-info-atom (atom nil))
 (defonce ^:private required-functions ["glGenBuffers"])
 
-(defn- profile
-  ^GLProfile []
+(defn- profile ^GLProfile []
   (try
     (GLProfile/getGL2ES1)
-    (catch GLException _
+    (catch GLException e
       (log/warn :message "Failed to acquire GL profile for GL2/GLES1.")
       (GLProfile/getDefault))))
 
