@@ -626,6 +626,17 @@ TEST_F(EngineTest, ISSUE_12362)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
+// The collection proxy contains a script that fails during regular update and a sprite
+// that is rendered without frustum culling. Rendering still runs after the script error,
+// so the proxy collection's late update must run and allocate the sprite vertex buffer.
+// Without that late update, ASan reports a heap-buffer-overflow in sprite rendering.
+TEST_F(EngineTest, ISSUE_12703)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-12703/issue-12703.collectionc", "--config=bootstrap.render=/issue-12703/issue-12703.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, ModelComponent)
 {
     char project_path[256];
