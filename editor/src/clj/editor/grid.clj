@@ -245,16 +245,16 @@
                     (conj (snap-out-to-grid aabb grid-size-large)))
      :plane plane}))
 
-(defn- grid-mode [camera]
+(defn- grid-mode
+  "Returns :grid-2d or :grid-3d depending on camera projection mode"
+  [camera]
   (if (c/mode-2d? camera) :grid-2d :grid-3d))
 
 (defn- get-grid-pref [prefs camera path]
-  (let [grid-mode (grid-mode camera)]
-    (prefs/get prefs (into [:scene grid-mode] path))))
+  (prefs/get prefs (into [:scene (grid-mode camera)] path)))
 
 (defn- set-grid-pref! [prefs camera path value]
-  (let [grid-mode (grid-mode camera)]
-    (prefs/set! prefs (into [:scene grid-mode] path) value)))
+  (prefs/set! prefs (into [:scene (grid-mode camera)] path) value))
 
 (g/defnk produce-merged-options
   [prefs camera options]
