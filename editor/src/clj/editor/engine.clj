@@ -116,7 +116,7 @@
                      (conj (format "--config=project.instance_index=%d" instance-index))
 
                      (not focus)
-                     (conj "--config=display.start_unfocused=1"))]
+                     (conj "--config=display.focus_on_show=0"))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -319,7 +319,7 @@
                      (conj (format "--config=project.instance_index=%d" instance-index))
 
                      (not focus)
-                     (conj "--config=display.start_unfocused=1")
+                     (conj "--config=display.focus_on_show=0")
 
                      (not (str/blank? engine-arguments))
                      (into (remove str/blank?) (split-lines engine-arguments)))
