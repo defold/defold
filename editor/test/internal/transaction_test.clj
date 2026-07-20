@@ -370,6 +370,57 @@
                     [nil])]
       (is (identical? ctx (#'it/flag-successors-changed ctx changes))))))
 
+(deftest successor-changes-test
+  (testing "Skips arcs targeting a changed node."
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+            [source target] (ts/tx-nodes
+                              (g/make-node graph-id Resource)
+                              (g/make-node graph-id Downstream))
+            basis (g/now)
+            changed-arc (gt/->Arc source :b target :consumer)]
+        (is (= #{target}
+               (set (#'it/successor-changes basis basis #{target} #{changed-arc})))))))
+
+  (testing "Skips arcs targeting an override of a changed node."
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+            [source target] (ts/tx-nodes
+                              (g/make-node graph-id Resource)
+                              (g/make-node graph-id Downstream))
+            [override-target] (ts/tx-nodes (g/override target))
+            basis (g/now)
+            changed-arc (gt/->Arc source :b override-target :consumer)]
+        (is (= #{target}
+               (set (#'it/successor-changes basis basis #{target} #{changed-arc})))))))
+
+  (testing "Omits the direct endpoint for a changed source node."
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+            [source] (ts/tx-nodes (g/make-node graph-id Resource))
+            missing-target (gt/make-node-id graph-id 1000000)
+            basis (g/now)
+            changed-arc (gt/->Arc source :b missing-target :consumer)]
+        (is (= #{source}
+               (set (#'it/successor-changes basis basis #{source} #{changed-arc})))))))
+
+  (testing "Retains target-side arc propagation for a changed source node."
+    (ts/with-clean-system
+      (let [graph-id (g/make-graph!)
+
+            [changed-source affected-source target]
+            (ts/tx-nodes
+              (g/make-node graph-id Resource)
+              (g/make-node graph-id Resource)
+              (g/make-node graph-id Downstream))
+
+            _ (g/transact (g/connect affected-source :b target :consumer))
+            basis (g/now)
+            changed-arc (gt/->Arc changed-source :b target :consumer)]
+
+        (is (= #{changed-source [affected-source :b]}
+               (set (#'it/successor-changes basis basis #{changed-source} #{changed-arc}))))))))
+
 (g/defnode CachedValueNode
   (output cached-output g/Str :cached (g/fnk [] "an-output-value")))
 

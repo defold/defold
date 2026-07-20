@@ -274,48 +274,51 @@
     ctx
     (update ctx :successor-arcs-changed into arcs)))
 
-(defn- node-successor-changes
+(defn- successor-changes
   "Returns a deferred stream of successor changes caused by the specified
-  nodes differing between the old-basis and the new-basis."
-  [old-basis new-basis node-ids]
-  (coll/into-> (pair old-basis new-basis) :eduction
-    (mapcat
-      (fn [basis]
-        (e/mapcat
-          (fn [node-id]
-            (when (gt/node-by-id-at basis node-id)
-              (e/concat
-                ;; The node and its originals must account for changes to their
-                ;; immediate override nodes.
-                (ig/override-originals basis node-id)
+  nodes and arcs differing between the old-basis and the new-basis."
+  [old-basis new-basis node-ids arcs]
+  {:pre [(set? node-ids)]}
+  (let [arc-target->sources (coll/reduce-> arcs {}
+                              (fn [arc-target->sources arc]
+                                (update arc-target->sources
+                                        (gt/target arc)
+                                        coll/conj-set
+                                        (gt/source arc))))]
+    (coll/into-> (pair old-basis new-basis) :eduction
+      (mapcat
+        (fn [basis]
+          (let [existing-node-ids (filterv #(gt/node-by-id-at basis %) node-ids)
+                node-and-override-ids (ig/pre-traverse basis existing-node-ids ig/get-overrides)
+                node-and-override-id-set (set node-and-override-ids)]
+            (e/concat
+              ;; The changed nodes and their originals must account for changes
+              ;; to their immediate override nodes.
+              (e/mapcat #(ig/override-originals basis %) existing-node-ids)
 
-                ;; Sources targeting the node or any of its overrides must
-                ;; account for changes to their effective outgoing arcs.
-                (e/mapcat #(gt/sources basis %)
-                          (ig/pre-traverse basis [node-id] ig/get-overrides)))))
-          node-ids)))
-    (distinct)))
+              ;; Sources targeting a changed node or any of its overrides must
+              ;; account for changes to their effective outgoing arcs.
+              (e/mapcat #(gt/sources basis %) node-and-override-ids)
 
-(defn- arc-successor-changes
-  "Returns a deferred stream of successor changes caused by the specified
-  arcs differing between the old-basis and the new-basis."
-  [old-basis new-basis arcs]
-  (coll/into-> (pair old-basis new-basis) :eduction
-    (mapcat
-      (fn [basis]
-        (e/mapcat
-          (fn [arc]
-            (let [source (pair (gt/source-id arc) (gt/source-label arc))
-                  target-id (gt/target-id arc)
-                  target-label (gt/target-label arc)]
-              (if-not (gt/node-by-id-at basis target-id)
-                [source]
-                (e/cons
-                  source
-                  (e/mapcat #(gt/sources basis % target-label)
-                            (ig/pre-traverse basis [target-id] ig/get-overrides))))))
-          arcs)))
-    (distinct)))
+              (e/mapcat
+                (fn [[[target-id target-label] sources]]
+                  ;; The changed-node traversal above already covered every
+                  ;; source targeting this node and its overrides.
+                  (when-not (contains? node-and-override-id-set target-id)
+                    (let [direct-sources (e/remove
+                                           (fn [[source-id _source-label]]
+                                             ;; A changed source node already
+                                             ;; invalidates all of its labels.
+                                             (contains? node-ids source-id))
+                                           sources)]
+                      (if-not (gt/node-by-id-at basis target-id)
+                        direct-sources
+                        (e/concat
+                          direct-sources
+                          (e/mapcat #(gt/sources basis % target-label)
+                                    (ig/pre-traverse basis [target-id] ig/get-overrides)))))))
+                arc-target->sources)))))
+      (distinct))))
 
 (defn- ctx-add-nodes [ctx nodes introduced-node->overrides]
   (let [node-ids (mapv gt/node-id nodes)
@@ -1560,9 +1563,11 @@
     (cond-> ctx
       (not (:full-invalidation ctx))
       (flag-successors-changed
-        (e/concat
-          (node-successor-changes initial-basis basis successor-node-ids-changed)
-          (arc-successor-changes initial-basis basis successor-arcs-changed))))))
+        (successor-changes
+          initial-basis
+          basis
+          successor-node-ids-changed
+          successor-arcs-changed)))))
 
 (defn update-successors
   [{:keys [^long completed-action-count successors-changed] :as ctx}]
