@@ -626,6 +626,14 @@ TEST_F(EngineTest, ISSUE_12362)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
+// Reproduces Sentry issue 7087016600 using only project resources and Lua APIs.
+TEST_F(EngineTest, LuaModuleHashCollision)
+{
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-12785/main.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
 // The collection proxy contains a script that fails during regular update and a sprite
 // that is rendered without frustum culling. Rendering still runs after the script error,
 // so the proxy collection's late update must run and allocate the sprite vertex buffer.
