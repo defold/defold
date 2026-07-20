@@ -27,6 +27,7 @@
             [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.localization :as localization]
+            [editor.markdown :as markdown]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.properties :as properties]
@@ -727,7 +728,7 @@
                          (coll/mapcat-indexed
                            (fn [i [property-keyword property]]
                              (let [overridden (properties/overridden? property)]
-                               (coll/pair
+                               (pair
                                  {:fx/type fxui/menu-button
                                   :min-width :use-pref-size
                                   :style-class (cond-> ["property-label"] overridden (conj "overridden"))
@@ -738,11 +739,17 @@
                                   :mnemonic-parsing false
                                   :focus-traversable false
                                   :text (localization-state (properties/label property))
-                                  :tooltip (localization-state
-                                             (localization/message
-                                               "property.tooltip"
-                                               {"help" (properties/tooltip property)
-                                                "id" (string/replace (name property-keyword) \- \_)}))
+                                  :tooltip {:fx/type fxui/tooltip
+                                            :content-display :graphic-only
+                                            :style {:-fx-padding 0}
+                                            :graphic {:fx/type markdown/view
+                                                      :content (localization-state
+                                                                 (localization/message
+                                                                   "property.tooltip"
+                                                                   {"help" (properties/tooltip property)
+                                                                    "id" (string/replace (name property-keyword) \- \_)}))
+                                                      :max-width 350.0
+                                                      :project (:project context)}}
                                   prop-button-menu ::property-menu
                                   prop-mouse-pressed-handler focus-mouse-event-source!
                                   prop-property-context [(assoc context :property property) selection-provider]}
