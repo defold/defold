@@ -182,6 +182,7 @@
   (inherits outline/OutlineNode)
 
   (property id g/Str ; Always assigned in load-fn.
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source.collision-group :id))
             (dynamic error (g/fnk [_node-id id collision-groups-data]
                              (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id id-message)
                                  (when (collision-groups/overallocated? collision-groups-data)
@@ -293,6 +294,7 @@
 (g/defnode TileAnimationNode
   (inherits outline/OutlineNode)
   (property id g/Str ; Required protobuf field.
+            (dynamic tooltip (properties/tooltip-dynamic :tile-source.animation :id))
             (dynamic error (g/fnk [_node-id id]
                              (validate-animation-id _node-id id))))
   (property start-tile g/Int ; Required protobuf field.

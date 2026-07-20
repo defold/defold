@@ -1247,11 +1247,12 @@
   (output node-id+child-index NodeIndex (g/fnk [_node-id child-index] [_node-id child-index]))
 
   (property id g/Str (default (protobuf/default Gui$NodeDesc :id))
+            (dynamic tooltip (properties/tooltip-dynamic :gui :id))
             (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts id-message)))
             (dynamic visible not-override-node?))
   (property generated-id g/Str ; Just for presentation.
             (dynamic label (properties/label-dynamic :id))
-            (dynamic tooltip (properties/tooltip-dynamic :id))
+            (dynamic tooltip (properties/tooltip-dynamic :gui :id))
             (value (gu/passthrough id)) ; see (output id ...) below
             (dynamic read-only? (g/constantly true))
             (dynamic visible override-node?))
@@ -2654,8 +2655,8 @@
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id texture]
                              (prop-resource-error _node-id :texture texture texture-message)))
-            (dynamic label (properties/label-dynamic :gui :texture))
-            (dynamic tooltip (properties/tooltip-dynamic :gui :texture))
+            (dynamic label (properties/label-dynamic :gui.resource :texture))
+            (dynamic tooltip (properties/tooltip-dynamic :gui.resource :texture))
             (dynamic edit-type (g/fnk [^:unsafe _evaluation-context _node-id]
                                  (let [basis (:basis _evaluation-context)
                                        project (project/get-project basis _node-id)
@@ -2704,6 +2705,8 @@
             (set (partial update-gui-resource-references :font)))
   (property font resource/Resource ; Required protobuf field.
             (value (gu/passthrough font-resource))
+            (dynamic label (properties/label-dynamic :gui.resource :font))
+            (dynamic tooltip (properties/tooltip-dynamic :gui.resource :font))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
                      evaluation-context self old-value new-value
@@ -2848,8 +2851,8 @@
                      [:resource :particlefx-resource]
                      [:build-targets :dep-build-targets]
                      [:scene :particlefx-scene])))
-            (dynamic label (properties/label-dynamic :gui :particlefx))
-            (dynamic tooltip (properties/tooltip-dynamic :gui :particlefx))
+            (dynamic label (properties/label-dynamic :gui.resource :particlefx))
+            (dynamic tooltip (properties/tooltip-dynamic :gui.resource :particlefx))
             (dynamic error (g/fnk [_node-id particlefx]
                              (prop-resource-error _node-id :particlefx particlefx particlefx-message)))
             (dynamic edit-type (g/constantly

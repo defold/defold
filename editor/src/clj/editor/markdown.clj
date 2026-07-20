@@ -27,8 +27,6 @@
             [cljfx.fx.titled-pane :as fx.titled-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
-            [cljfx.mutator :as fx.mutator]
-            [cljfx.prop :as fx.prop]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -44,9 +42,14 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [java.net URI URISyntaxException URLDecoder]
+           [java.util.function BiConsumer]
+           [javafx.beans Observable]
+           [javafx.beans.binding Bindings]
+           [javafx.scene Parent]
            [javafx.scene.control ContextMenu MenuItem ScrollPane]
            [javafx.scene.image Image]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
+           [javafx.stage PopupWindow]
            [org.commonmark.ext.autolink AutolinkExtension]
            [org.commonmark.ext.front.matter YamlFrontMatterExtension]
            [org.commonmark.ext.gfm.tables TablesExtension]
@@ -535,19 +538,72 @@
                                         :children text-flow-children-or-separator})))
                        content)})))
 
-(def ^:private ext-with-pref-height-defining-max-width
-  (fx/make-ext-with-props
-    {:max-width (fx.prop/make
-                  (fx.mutator/setter
-                    (fn [^ScrollPane pane [_key max-width]]
-                      (.setMaxWidth pane max-width)
-                      (.applyCss pane)
-                      (.setPrefViewportHeight pane (.prefHeight (.getContent pane) max-width))
-                      ;; this is needed in some rare cases T_T
-                      ;; e.g. type "vmath", then type "."
-                      (ui/run-later
-                        (.setPrefViewportHeight pane (.prefHeight (.getContent pane) max-width)))))
-                  fx.lifecycle/scalar)}))
+(def ^:private prop-pref-height-defining-max-width
+  ;; Defines the ScrollPane viewport height as the preferred height of its content
+  ;; constrained to max-width. A plain binding is insufficient because cljfx can
+  ;; install this property before it installs the content, descendant layout can
+  ;; change the preferred height without changing the view description (e.g. when
+  ;; an image finishes loading), and Popup layout can retain stale preferred-size
+  ;; caches when such a change occurs during layout. The subscriptions below cover
+  ;; these lifecycle phases without making the HTML part of the property value.
+  (fx/make-binding-prop
+    (fn bind-pref-height-defining-max-width [^ScrollPane pane max-width]
+      (let [pref-viewport-height-property (.prefViewportHeightProperty pane)
+
+            pref-viewport-height-binding
+            (Bindings/createDoubleBinding
+              (fn pref-viewport-height []
+                (let [content (.getContent pane)]
+                  (if-not content
+                    0.0
+                    (.prefHeight ^Parent content (double max-width)))))
+              (into-array Observable [(.contentProperty pane)]))
+
+            invalidate-pref-viewport-height!
+            (fn invalidate-pref-viewport-height! []
+              (.invalidate pref-viewport-height-binding))
+
+            ;; Invalidate before layout when the content becomes dirty.
+            needs-layout-subscription
+            (-> (.contentProperty pane)
+                (.flatMap Parent/.needsLayoutProperty)
+                (.orElse false)
+                (.subscribe
+                  ^BiConsumer
+                  (fn content-needs-layout-changed [_old-value _new-value]
+                    (invalidate-pref-viewport-height!))))
+
+            ;; Invalidate after layout when changed descendant sizes are reflected
+            ;; in the content bounds.
+            layout-bounds-subscription
+            (-> (.contentProperty pane)
+                (.flatMap Parent/.layoutBoundsProperty)
+                (.subscribe
+                  ^BiConsumer
+                  (fn content-layout-bounds-changed [_old-bounds _new-bounds]
+                    (invalidate-pref-viewport-height!))))
+
+            ;; A Popup scene sizes its root before laying out descendants. If the
+            ;; height changes during that layout, JavaFX can suppress propagation
+            ;; through an ancestor already performing layout. Request layout on the
+            ;; complete ancestor path to clear every cached preferred size.
+            popup-layout-subscription
+            (.subscribe
+              pref-viewport-height-property
+              ^BiConsumer
+              (fn pref-viewport-height-changed [_old-height _new-height]
+                (when (instance? PopupWindow (some-> pane .getScene .getWindow))
+                  (loop [^Parent parent pane]
+                    (.requestLayout parent)
+                    (when-let [parent (.getParent parent)]
+                      (recur parent))))))]
+        (.bind pref-viewport-height-property pref-viewport-height-binding)
+        (fn unbind-pref-height-defining-max-width []
+          (.unsubscribe needs-layout-subscription)
+          (.unsubscribe layout-bounds-subscription)
+          (.unsubscribe popup-layout-subscription)
+          (.unbind pref-viewport-height-property))))
+    fx.lifecycle/scalar))
 
 (defn html-view
   "Cljfx component that defines HTML viewer
@@ -568,19 +624,13 @@
                    (-> (:root-props props {})
                        (into view)
                        (fxui/add-style-classes "md-root")))
-                 {:fx/type fx.region/lifecycle})
-        scroll-pane-view (-> props
-                             (dissoc :html :base-url :base-resource :project :root-props)
-                             (util/provide-defaults :fit-to-width true
-                                                    :hbar-policy :never)
-                             (fxui/add-style-classes "md-scroll-pane")
-                             (assoc :fx/type fx.scroll-pane/lifecycle
-                                    :content view))]
-    (if (and max-width (not pref-viewport-height))
-      {:fx/type ext-with-pref-height-defining-max-width
-       :props {:max-width [html max-width]}
-       :desc scroll-pane-view}
-      scroll-pane-view)))
+                 {:fx/type fx.region/lifecycle})]
+    (-> props
+        (dissoc :html :base-url :base-resource :project :root-props)
+        (util/provide-defaults :fit-to-width true :hbar-policy :never)
+        (fxui/add-style-classes "md-scroll-pane")
+        (assoc :fx/type fx.scroll-pane/lifecycle :content view)
+        (cond-> (and max-width (not pref-viewport-height)) (assoc prop-pref-height-defining-max-width max-width)))))
 
 (def ^:private extensions
   [(AutolinkExtension/create)
