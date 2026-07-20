@@ -151,7 +151,7 @@
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
-
+    (ui/install-external-drag-guard! scene)
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
