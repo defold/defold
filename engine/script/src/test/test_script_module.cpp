@@ -19,6 +19,7 @@
 #include <script/lua_source_ddf.h>
 
 #include <testmain/testmain.h>
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 
@@ -133,6 +134,45 @@ TEST_F(ScriptModuleTest, TestReloadNotLoaded)
     dmScript::Result ret = dmScript::ReloadModule(m_Context, LuaSourceFromText(""), dmHashString64("not_loaded"));
     ASSERT_EQ(dmScript::RESULT_MODULE_NOT_LOADED, ret);
     ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptModuleTest, TestModulePathSurvivesModuleTableGrowth)
+{
+    const char* script = "return {}\n";
+    const dmhash_t first_path_hash = dmHashString64("/first_module.luac");
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(script), "first_module", 0, first_path_hash));
+
+    char module_name[32];
+    for (uint32_t i = 1; i < 257; ++i)
+    {
+        dmSnPrintf(module_name, sizeof(module_name), "module_%u", i);
+        ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(script), module_name, 0, dmHashString64(module_name)));
+    }
+
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::ReloadModule(m_Context, LuaSourceFromText(script), first_path_hash));
+}
+
+TEST_F(ScriptModuleTest, TestModuleTablesGrowIndependently)
+{
+    for (uint32_t i = 0; i < m_Context->m_PathToModule.Capacity(); ++i)
+    {
+        m_Context->m_PathToModule.Put(i, i);
+    }
+
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText("return {}\n"), "first_module", 0, 256));
+    ASSERT_TRUE(dmScript::ModuleLoaded(m_Context, (dmhash_t) 256));
+}
+
+TEST_F(ScriptModuleTest, TestModuleNameHashCollision)
+{
+    const char* script = "return {}\n";
+    const char* first_module_name = "issue_7087016600.collision_target_aaaaaaaaaaaaaa";
+    const char* second_module_name = "issue_7087016600.col_0000000000000216bdderzn_1dl";
+    ASSERT_EQ(dmHashString64(first_module_name), dmHashString64(second_module_name));
+    ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(script), first_module_name, 0, 1));
+
+    ASSERT_EQ(dmScript::RESULT_MODULE_NAME_HASH_COLLISION, dmScript::AddModule(m_Context, LuaSourceFromText(script), second_module_name, 0, 2));
+    ASSERT_FALSE(dmScript::ModuleLoaded(m_Context, (dmhash_t) 2));
 }
 
 extern "C" void dmExportedSymbols();

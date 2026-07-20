@@ -6,12 +6,13 @@ end
 function update(self, dt)
     self.frames = self.frames + 1
     if self.frames == 4096 then
-        sys.exit(2)
+        -- The colliding module name must make the proxy load fail cleanly.
+        sys.exit(0)
     end
 end
 
 function on_message(self, message_id, message, sender)
     if message_id == hash("proxy_loaded") then
-        sys.exit(0)
+        sys.exit(2)
     end
 end
