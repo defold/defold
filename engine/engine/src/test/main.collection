@@ -163,7 +163,7 @@ embedded_instances {
   "embedded_components {\n"
   "  id: \"collectionproxy34\"\n"
   "  type: \"collectionproxy\"\n"
-  "  data: \"collection: \\\"/sentry_7087016600/main.collection\\\"\\n"
+  "  data: \"collection: \\\"/issue-12785/main.collection\\\"\\n"
   "\"\n"
   "}\n"
   ""

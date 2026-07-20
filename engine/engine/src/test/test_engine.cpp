@@ -630,7 +630,7 @@ TEST_F(EngineTest, ISSUE_12362)
 TEST_F(EngineTest, LuaModuleHashCollision)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/sentry_7087016600/main.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-12785/main.collectionc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 

@@ -1,8 +1,8 @@
-name: "sentry_7087016600"
+name: "issue-12785"
 scale_along_z: 0
 instances {
   id: "loader"
-  prototype: "/sentry_7087016600/loader.go"
+  prototype: "/issue-12785/loader.go"
   position {
     x: 0.0
     y: 0.0

@@ -166,8 +166,8 @@ TEST_F(ScriptModuleTest, TestModuleTablesGrowIndependently)
 TEST_F(ScriptModuleTest, TestModuleNameHashCollision)
 {
     const char* script = "return {}\n";
-    const char* first_module_name = "issue_7087016600.collision_target_aaaaaaaaaaaaaa";
-    const char* second_module_name = "issue_7087016600.col_0000000000000216bdderzn_1dl";
+    const char* first_module_name = "issue-12785.collision_target_aaaaaaaaaaaaaa";
+    const char* second_module_name = "issue-12785.col_0000000000000216bdderzn_1dl";
     ASSERT_EQ(dmHashString64(first_module_name), dmHashString64(second_module_name));
     ASSERT_EQ(dmScript::RESULT_OK, dmScript::AddModule(m_Context, LuaSourceFromText(script), first_module_name, 0, 1));
 
