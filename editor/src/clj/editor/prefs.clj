@@ -78,6 +78,12 @@
 
 #_[:boolean :string :password :locale :keyword :integer :number :one-of :array :set :object :object-of :enum :tuple]
 
+(def ^:private vec3-schema
+  {:type :object
+   :properties {:x {:type :number :default 1.0}
+                :y {:type :number :default 1.0}
+                :z {:type :number :default 1.0}}})
+
 (def default-schema
   {:type :object
    :properties
@@ -249,15 +255,38 @@
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}
-             :grid {:type :object
-                    :scope :project
-                    :properties {:size {:type :object
-                                        :scope :project
-                                        :properties
-                                        {:x {:type :number :default 1.0}
-                                         :y {:type :number :default 1.0}
-                                         :z {:type :number :default 1.0}}}
-                                 :active-plane {:type :enum :values [:x :y :z] :default :z}
+             :resource-settings {:type :object-of
+                                 :scope :project
+                                 :key {:type :string}
+                                 :val {:type :object
+                                       :properties {:camera {:type :object
+                                                             :properties {:2d-mode {:type :boolean :default true}
+                                                                          :projection {:type :enum
+                                                                                       :values [:orthographic :perspective]
+                                                                                       :default :orthographic}
+                                                                          :position vec3-schema
+                                                                          :rotation {:type :object
+                                                                                     :properties {:x {:type :number :default 0.0}
+                                                                                                  :y {:type :number :default 0.0}
+                                                                                                  :z {:type :number :default 0.0}
+                                                                                                  :w {:type :number :default 1.0}}}
+                                                                          :fov-y {:type :number :default 1000.0}
+                                                                          :focus-point vec3-schema}}
+                                                    :visibility {:type :object
+                                                                 :properties {:filters-enabled {:type :boolean :default true}
+                                                                              :filtered-renderable-tags {:type :set :item {:type :keyword}}}}}}}
+             :grid-2d {:type :object
+                       :properties {:visible {:type :boolean :default true}
+                                    :size vec3-schema
+                                    :active-plane {:type :enum :values [:x :y :z] :default :z}
+                                    :opacity {:type :number :default 0.25}
+                                    :color {:type :tuple
+                                            :items [{:type :number} {:type :number} {:type :number} {:type :number}]
+                                            :default [0.5 0.5 0.5 1.0]}}}
+             :grid-3d {:type :object
+                    :properties {:visible {:type :boolean :default true}
+                                 :size vec3-schema
+                                 :active-plane {:type :enum :values [:x :y :z] :default :y}
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple
                                          :items [{:type :number} {:type :number} {:type :number} {:type :number}]
@@ -838,6 +867,30 @@
                  m
                  events))))
     nil))
+
+(defn get-pref-entry
+  ([prefs pref-path entry-key]
+   (get-pref-entry prefs pref-path entry-key nil))
+  ([prefs pref-path entry-key default]
+   (clojure.core/get (get prefs pref-path) entry-key default)))
+
+(defn get-pref-entry-in
+  ([prefs pref-path entry-key entry-path]
+   (get-pref-entry-in prefs pref-path entry-key entry-path nil))
+  ([prefs pref-path entry-key entry-path default]
+   (get-in (get prefs pref-path)
+           (into [entry-key] entry-path)
+           default)))
+
+(defn set-pref-entry! [prefs pref-path entry-key value]
+  (update! prefs pref-path assoc entry-key value))
+
+(defn set-pref-entry-in! [prefs pref-path entry-key entry-path value]
+  (update! prefs pref-path assoc-in (into [entry-key] entry-path) value))
+
+(defn update-pref-entry-in! [prefs pref-path entry-key entry-path f & args]
+  (update! prefs pref-path
+                 #(apply update-in % (into [entry-key] entry-path) f args)))
 
 (defn schema
   "Get a preference schema at a specified get-in path"
