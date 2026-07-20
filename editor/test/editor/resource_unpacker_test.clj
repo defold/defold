@@ -16,7 +16,8 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
-            [editor.fs :as fs])
+            [editor.fs :as fs]
+            [util.coll :as coll])
   (:import [ch.qos.logback.classic Level Logger]
            [com.defold.libs ResourceUnpacker ResourceUnpacker$NativeLibraryLoader]
            [com.dynamo.bob Platform]
@@ -25,7 +26,6 @@
            [com.jogamp.opengl GLProfile]
            [jogamp.opengl GLDrawableFactoryImpl]
            [java.io File]
-           [java.nio.file Files]
            [java.nio.file Path]
            [java.util LinkedHashMap Map$Entry]
            [java.util.concurrent CountDownLatch TimeUnit]
@@ -175,9 +175,9 @@
         windows-system-dir (.resolve root-dir "System32")
         property-name ResourceUnpacker/JOGAMP_PRIMARY_LIBRARY_PATH_KEY
         original-property-value (System/getProperty property-name)
-        expected-value (string/join File/pathSeparator
-                                    (map #(-> ^Path % .toAbsolutePath .normalize str)
-                                         [unpacked-lib-dir java-bin-dir windows-system-dir]))]
+        expected-value (coll/join-to-string File/pathSeparator
+                                            (mapv #(-> ^Path % .toAbsolutePath .normalize str)
+                                                  [unpacked-lib-dir java-bin-dir windows-system-dir]))]
     (try
       (System/clearProperty property-name)
       (ResourceUnpacker/configureJogampPrimaryLibraryPath unpacked-lib-dir java-home windows-system-dir)
@@ -195,29 +195,6 @@
         (if (nil? original-property-value)
           (System/clearProperty property-name)
           (System/setProperty property-name original-property-value))))))
-
-(deftest find-non-system-opengl-library-paths-excludes-system-library-and-reports-conflicts
-  (let [root-dir (.toPath (fs/create-temp-directory! "resource-unpacker-opengl-path"))
-        windows-system-dir (.resolve root-dir "System32")
-        first-conflict-dir (.resolve root-dir "First Conflict")
-        second-conflict-dir (.resolve root-dir "Second Conflict")
-        system-library (make-temp-library! windows-system-dir "opengl32.dll")
-        first-conflict-library (make-temp-library! first-conflict-dir "opengl32.dll")
-        second-conflict-library (make-temp-library! second-conflict-dir "opengl32.dll")
-        path-environment (string/join File/pathSeparator
-                                      [(str windows-system-dir)
-                                       (str "\"" first-conflict-dir "\"")
-                                       (str first-conflict-dir)
-                                       (str second-conflict-dir)])
-        detected-libraries (ResourceUnpacker/findNonSystemOpenGLLibraryPaths path-environment windows-system-dir)
-        expected-libraries [(.toRealPath first-conflict-library (make-array java.nio.file.LinkOption 0))
-                            (.toRealPath second-conflict-library (make-array java.nio.file.LinkOption 0))]
-        diagnostics (ResourceUnpacker/formatOpenGLInitializationDiagnostics detected-libraries)]
-    (is (Files/isRegularFile system-library (make-array java.nio.file.LinkOption 0)))
-    (is (= expected-libraries detected-libraries))
-    (is (string/starts-with? diagnostics "Non-system opengl32.dll files detected on PATH:"))
-    (doseq [^Path expected-library expected-libraries]
-      (is (string/includes? diagnostics (str expected-library))))))
 
 (deftest unpack-resources-preloads-host-bundled-native-libraries
   (ResourceUnpacker/unpackResources)

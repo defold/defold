@@ -20,8 +20,7 @@
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.num :as num])
-  (:import [com.defold.libs ResourceUnpacker]
-           [com.jogamp.opengl GL GL2 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
+  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
            [com.jogamp.opengl.util.awt TextRenderer]
            [java.awt Font]
            [java.nio IntBuffer]
@@ -34,23 +33,13 @@
 (defonce ^:private gl-info-atom (atom nil))
 (defonce ^:private required-functions ["glGenBuffers"])
 
-(defn- gl-profile-initialization-error-message ^String [^String diagnostics]
-  (cond-> "Failed to acquire any supported OpenGL profile."
-          (not (string/blank? diagnostics))
-          (str "\n" diagnostics)))
-
-(defn- profile ^GLProfile []
+(defn- profile
+  ^GLProfile []
   (try
     (GLProfile/getGL2ES1)
     (catch GLException _
       (log/warn :message "Failed to acquire GL profile for GL2/GLES1.")
-      (try
-        (GLProfile/getDefault)
-        (catch GLException e
-          (let [message (gl-profile-initialization-error-message
-                          (ResourceUnpacker/getOpenGLInitializationDiagnostics))]
-            (log/error :message message :exception e)
-            (throw (GLException. message e))))))))
+      (GLProfile/getDefault))))
 
 (defn drawable-factory
   (^GLDrawableFactory [] (drawable-factory (profile)))
