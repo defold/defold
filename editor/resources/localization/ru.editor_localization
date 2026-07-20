@@ -635,7 +635,7 @@ assets.dependencies = Зависимости
 console.button.clear = Очистить
 console.button.filter = Фильтры
 console.filter.enable-filtering = Включить фильтрацию
-console.filter.add-filter = Новый фильтр («текст» или «\\\!убрать»)
+console.filter.add-filter = Новый фильтр («текст» или «\!убрать»)
 console.search = Поиск
 
 # Breakpoints Tab
