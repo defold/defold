@@ -6,9 +6,10 @@ embedded_instances {
   "  id: \"script\"\n"
   "  component: \"/issue-12703/issue-12703.script\"\n"
   "}\n"
-  "components {\n"
-  "  id: \"sprite\"\n"
-  "  component: \"/sprite/coll.sprite\"\n"
+  "embedded_components {\n"
+  "  id: \"proxy\"\n"
+  "  type: \"collectionproxy\"\n"
+  "  data: \"collection: \\\"/issue-12703/level.collection\\\"\\n\"\n"
   "}\n"
   ""
 }
