@@ -6,8 +6,8 @@ if false then
     -- their generated resource paths are different. This puts two entries in
     -- the path table but only one in the module table. The 255 unique modules
     -- below then fill the path table one insertion before the module table.
-    require "issue-12785.collision_target_aaaaaaaaaaaaaa"
-    require "issue-12785.col_0000000000000216bdderzn_1dl"
+    require "issue-12785.collision_target_aaaaaaaaaaa00043b5a"
+    require "issue-12785.col_000000000000000000000000lnAXgm1b"
     require "issue-12785.module_000"
     require "issue-12785.module_001"
     require "issue-12785.module_002"
