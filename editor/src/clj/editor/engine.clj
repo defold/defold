@@ -35,7 +35,6 @@
 (set! *warn-on-reflection* true)
 
 (def ^:const timeout 2000)
-(def ^:private start-unfocused-argument "--config=display.start_unfocused=1")
 
 (defn- get-connection [^URI uri]
   (doto ^HttpURLConnection (.openConnection (.toURL uri))
@@ -117,7 +116,7 @@
                      (conj (format "--config=project.instance_index=%d" instance-index))
 
                      (not focus)
-                     (conj start-unfocused-argument))]
+                     (conj "--config=display.start_unfocused=1"))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -320,7 +319,7 @@
                      (conj (format "--config=project.instance_index=%d" instance-index))
 
                      (not focus)
-                     (conj start-unfocused-argument)
+                     (conj "--config=display.start_unfocused=1")
 
                      (not (str/blank? engine-arguments))
                      (into (remove str/blank?) (split-lines engine-arguments)))
@@ -332,16 +331,15 @@
              "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))
              "MESA_GL_VERSION_OVERRIDE" nil
              "MESA_LOADER_DRIVER_OVERRIDE" nil}
-        ;; Closing "is" seems to cause any dmengine output to stdout/err
-        ;; to generate SIGPIPE and close/crash. Also, we need to read
-        ;; the output of dmengine because there is a risk of the stream
-        ;; buffer filling up, stopping the process.
-        ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
-        p (apply process/start! {:dir project-directory
-                                 :err :stdout
-                                 :env env}
-                 command
-                 args)]
-    {:process p
-     :name (.getName engine)
-     :log-stream (process/out p)}))
+        opts {:dir project-directory
+              :err :stdout
+              :env env}]
+    ;; Closing "is" seems to cause any dmengine output to stdout/err
+    ;; to generate SIGPIPE and close/crash. Also, we need to read
+    ;; the output of dmengine because there is a risk of the stream
+    ;; buffer filling up, stopping the process.
+    ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers
+    (let [p (apply process/start! opts command args)]
+      {:process p
+       :name (.getName engine)
+       :log-stream (process/out p)})))
