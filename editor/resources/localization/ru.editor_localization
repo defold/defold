@@ -1129,6 +1129,7 @@ scene-popup.scene-visibility.skeletons = Скелеты
 scene-popup.scene-visibility.spine-scenes = Spine-сцены
 scene-popup.scene-visibility.sprites = Спрайты
 scene-popup.scene-visibility.text = Текст
+scene-popup.scene-visibility.tile-maps = Тайловые карты
 scene-popup.scene-visibility.component-guides = Направляющие компонентов
 scene-popup.scene-visibility.scene-visibility-bounds = Границы видимости сцены
 
@@ -1498,6 +1499,7 @@ property.mesh.vertices.tooltip = Выбирает ресурс `.buffer` с по
 
 property.model.animations = Анимации
 property.model.animations.tooltip = Ресурс «Набор анимаций», glTF или GLB со скелетными анимациями или анимациями морф-целей, доступными этой модели. Выберите один из идентификаторов в качестве **Анимации по умолчанию** или воспроизведите его с помощью `model.play_anim()`.
+property.model.create-go-bones = Создавать GO для костей
 property.model.create-go-bones.tooltip = Создаёт во время выполнения игровой объект для каждой кости скелета, позволяя, например, прикрепить оружие к кости руки. Созданные игровые объекты можно найти с помощью `model.get_go()`; они учитываются в лимите игровых объектов коллекции.
 property.model.default-animation = Анимация по умолчанию
 property.model.default-animation.tooltip = Анимация из **Анимаций**, которая запускается автоматически вместе с моделью. Оставьте поле пустым, если анимацию следует запускать явно с помощью `model.play_anim()`.
@@ -1508,6 +1510,7 @@ property.model.skeleton.tooltip = Ресурс glTF или GLB, содержащ
 
 # Properties: particlefx
 
+property.particlefx.category.particle-life = Жизнь частицы
 
 property.particlefx.id.tooltip = Идентификатор эмиттера. Используется для обращения к конкретному эмиттеру при задании или сбросе констант отрисовки ParticleFX и свойств эмиттера во время выполнения.
 property.particlefx.animation = Анимация
@@ -1520,6 +1523,7 @@ property.particlefx.material = Материал
 property.particlefx.material.tooltip = Выбирает материал для затенения и отрисовки частиц этого эмиттера. Его шейдер, сэмплеры и атрибуты вершин должны подходить для отрисовки частиц.
 property.particlefx.max-particle-count = Макс. число частиц
 property.particlefx.max-particle-count.tooltip = Максимальное число частиц этого эмиттера, которые могут существовать одновременно. При достижении лимита новые частицы не создаются; более высокие значения резервируют больше памяти.
+property.particlefx.mode = Режим воспроизведения
 property.particlefx.mode.tooltip = **Once** прекращает эмиссию по истечении **Длительности**. **Loop** перезапускает временную шкалу эмиттера каждый раз по истечении длительности.
 property.particlefx.particle-orientation = Ориентация частиц
 property.particlefx.particle-orientation.tooltip = Управляет поворотом частиц\: **Default** задаёт им начальную ориентацию эмиттера, **Initial Direction** однократно выравнивает их по направлению запуска, **Movement Direction** ориентирует их по скорости, а **Angular Velocity** вращает их с помощью свойств угловой скорости.
@@ -1630,6 +1634,7 @@ property.tile-map.layer.visible = Видимость
 property.tile-map.layer.visible.tooltip = Определяет, отрисовывается ли этот слой. Если тайловая карта предоставляет формы объекту коллизии, скрытые слои также отключаются для коллизий.
 property.tile-map.layer.z = Z
 property.tile-map.layer.z.tooltip = Локальное смещение по глубине, применяемое ко всем тайлам слоя. При стандартной настройке рендеринга более высокие итоговые значения Z отображаются спереди; значения вне диапазона **от -1 до 1** не отрисовываются. На итоговое значение Z влияют трансформации компонента тайловой карты, игрового объекта и родительских объектов.
+property.tile-map.tile-source = Источник тайлов
 property.tile-map.tile-source.tooltip = Источник тайлов, предоставляющий изображения тайлов и необязательные формы коллизии, используемые этой тайловой картой.
 
 # Properties: tile source
@@ -1689,6 +1694,7 @@ outline.non-editable-game-object = Нередактируемый игровой
 outline.particlefx = ParticleFX
 outline.sound = Звук
 outline.tile-map = Тайловая карта
+outline.tile-source = Источник тайлов
 outline.unknown = Неизвестно
 outline.unnamed-collision-shape = <Безымянная форма\: {shape}>
 
@@ -1818,6 +1824,7 @@ form.label.project.bootstrap.main_collection = Главная коллекция
 form.help.project.bootstrap.main_collection = Исходный ресурс `.collection`, который движок загружает и инициализирует при запуске приложения, например `/main/main.collection`. Его игровые объекты и компоненты образуют исходный игровой мир.
 form.label.project.bootstrap.render = Рендер
 form.help.project.bootstrap.render = Исходный ресурс `.render`, загружаемый при запуске, например `/builtins/render/default.render`. Он выбирает скрипт рендеринга и предоставляет доступ к именованным материалам, целям рендеринга и вычислительным программам.
+form.label.project.bootstrap.debug_init_script = Скрипт иниц. отладки
 form.help.project.bootstrap.debug_init_script = Необязательный Lua-модуль, загружаемый перед инициализацией главной коллекции. Он предназначен для инструментов отладки и выполняется только в нерелизных сборках движка; релизные сборки его игнорируют.
 
 form.label.project.project = Проект
@@ -1840,6 +1847,7 @@ form.label.project.project.compress_archive = Сжимать архив
 form.help.project.project.compress_archive = Сжимает игровой архив при создании пакета. Не влияет на Android, поскольку данные уже хранятся в APK в сжатом виде.
 form.label.project.project.dependencies = Зависимости
 form.help.project.project.dependencies = URL проектов библиотек Defold, которые нужно импортировать. Предпочтительно указывать URL конкретного выпуска или коммита, чтобы обновления библиотеки неожиданно не нарушили работу проекта.
+form.label.project.project.dependencies_metadata = Мета зависимостей
 form.help.project.project.dependencies_metadata = Включает URL и ревизии библиотек в пакет времени выполнения, чтобы по отчётам о сбоях можно было определить точные используемые версии зависимостей.
 form.label.project.project.custom_resources = Дополнительные ресурсы
 form.help.project.project.custom_resources = Разделённые запятыми файлы или папки, которые нужно включить в основной игровой архив. Папки включаются рекурсивно; во время выполнения эти файлы загружаются с помощью `sys.load_resource()`.
@@ -2581,6 +2589,7 @@ form.help.material.fragment-constants = Значения uniform-перемен�
 form.label.material.fragment-constants.name = Имя
 form.label.material.fragment-constants.type = Тип
 form.label.material.fragment-constants.value = Значение
+form.label.material.samplers = Сэмплеры
 form.help.material.samplers = Параметры выборки текстуры, используемые шейдером. Каждое `Имя` должно точно совпадать с uniform-переменной сэмплера. Режимы обёртки задают обработку координат за пределами текстуры, а фильтры и анизотропия управляют выбором текселей. Текстуры поступают из слотов компонентов или привязок скрипта рендера. Ненастроенные сэмплеры используют параметры фильтрации проекта по умолчанию, если они поддерживаются.
 form.label.material.samplers.name = Имя
 form.label.material.samplers.wrap-u = Обёртка U
@@ -2603,6 +2612,7 @@ form.help.compute.constants = Начальные значения uniform-пер
 form.label.compute.constants.name = Имя
 form.label.compute.constants.type = Тип
 form.label.compute.constants.value = Значение
+form.label.compute.samplers = Сэмплеры
 form.help.compute.samplers = Параметры выборки для uniform-переменных сэмплеров, объявленных в программе `.cp`. К изображениям для хранения данных эти параметры не применяются. **Имя** должно в точности совпадать с uniform-переменной сэмплера; перед запуском отдельно привяжите его текстуру из скрипта рендеринга.
 form.label.compute.samplers.name = Имя
 form.label.compute.samplers.wrap-u = Обёртка U
@@ -2631,6 +2641,7 @@ error.game-project.gamepad-database-must-be-txt = Параметр input.gamepad
 error.unspecified-property = Свойство «{property}» должно быть указано.
 error.mesh.stream-must-be-specified-for-world-vertex-space = Свойство «{property}» должно быть указано при использовании материала с параметром «Vertex Space», установленным в world-space.
 error.mesh.stream-not-found-in-buffer = Поток «{stream}» не найден в указанном буфере.
+error.tile-map.tiles-outside-tile-source-range = Тайловая карта использует тайлы вне диапазона этого источника тайлов ({count} в источнике, но используется тайл с индексом {index}).
 error.tile-source.more-than-max-collision-groups-in-use = Используется более {max} {max, plural, one {группы} few {групп} other {групп}} коллизий.
 error.tile-source.tile-outside-range = Свойство «{property}» вне диапазона тайлов (1-{max}).
 error.tile-source.tile-data-could-not-be-generated-due-to-invalid-values = Не удалось сгенерировать данные тайлов из-за некорректных значений.
