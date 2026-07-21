@@ -184,7 +184,7 @@ platforms:
 
   common:
     env:
-      ZIG_PATH:      '{{env.ZIG_PATH_0_11}}'
+      ZIG_PATH:      '{{env.ZIG_PATH}}'
       PYTHONPATH:    '{{dynamo_home}}/lib/python:{{dynamo_home}}/ext/lib/python'
     context:
       protoIncludes:    ['{{dynamo_home}}/share/proto', '{{dynamo_home}}/ext/include']
@@ -450,12 +450,12 @@ platforms:
   web:
     # It's here to whitelist this as a platform, currently used for general settings
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_4_0_6}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_4_0_6}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_4_0_6}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_4_0_6}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_4_0_6}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_4_0_6}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         optLevel: 3
