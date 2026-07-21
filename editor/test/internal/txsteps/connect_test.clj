@@ -19,7 +19,8 @@
             [internal.graph.types :as gt]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support]
-            [util.coll :as coll]))
+            [util.coll :as coll])
+  (:import [internal.transaction ReplaceArcTXC]))
 
 (set! *warn-on-reflection* true)
 
@@ -123,8 +124,11 @@
         (ensure-before!))
 
       (testing "Transact."
-        (g/transact
-          (g/connect source-node-id :property-output target-node-id :regular-input))
+        (let [{:keys [undoable-changes]}
+              (g/transact
+                (g/connect source-node-id :property-output target-node-id :regular-input))]
+          (is (= 1 (count undoable-changes)))
+          (is (instance? ReplaceArcTXC (undoable-changes 0))))
         (ensure-after!))
 
       (testing "Undo."
@@ -134,6 +138,55 @@
       (testing "Redo."
         (g/redo! :undo/global)
         (ensure-after!)))))
+
+(deftest introduce-connection-on-regular-input-replaces-target-arc-table-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [source-node-id target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (concat
+                (g/make-node graph-id helpers/ConnectionSourceNode :property :source-value)
+                (g/make-node graph-id helpers/ConnectionTargetNode))))
+
+          target-arc-table
+          (fn target-arc-table []
+            (get-in (g/now) [:graphs graph-id :tarcs target-node-id :regular-input]))]
+
+      (g/transact
+        {:undoable false}
+        (g/connect source-node-id :property-output target-node-id :regular-input))
+      (g/transact
+        {:undoable false}
+        (g/disconnect source-node-id :property-output target-node-id :regular-input))
+
+      (is (coll/empty? (ig/arc-table-arcs (target-arc-table))))
+      (is (= 1 (ig/arc-table-next-pkid (target-arc-table))))
+
+      (g/reset-undo! :undo/global)
+
+      (testing "Transact."
+        (let [{:keys [undoable-changes]}
+              (g/transact
+                (g/connect source-node-id :property-output target-node-id :regular-input))]
+          (is (= 1 (count undoable-changes)))
+          (is (instance? ReplaceArcTXC (undoable-changes 0))))
+        (is (= [[source-node-id :property-output]]
+               (g/sources-of target-node-id :regular-input)))
+        (is (= 1 (ig/arc-table-next-pkid (target-arc-table)))))
+
+      (testing "Undo."
+        (g/undo! :undo/global)
+        (is (coll/empty? (ig/arc-table-arcs (target-arc-table))))
+        (is (= 0 (ig/arc-table-next-pkid (target-arc-table)))))
+
+      (testing "Redo."
+        (g/redo! :undo/global)
+        (is (= [[source-node-id :property-output]]
+               (g/sources-of target-node-id :regular-input)))
+        (is (= 1 (ig/arc-table-next-pkid (target-arc-table))))))))
 
 (deftest replace-connection-on-regular-input-test
   (test-support/with-clean-system
@@ -178,7 +231,10 @@
                   (is (coll/empty? (helpers/source-arc-table-tuples basis graph-id initial-source-node-id :property-output)))
                   (is (= [[replacement-source-node-id :property-output target-node-id :regular-input]]
                          (helpers/source-arc-table-tuples basis graph-id replacement-source-node-id :property-output)
-                         (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input))))
+                         (helpers/target-arc-table-tuples basis graph-id target-node-id :regular-input)))
+                  (is (= 1
+                         (ig/arc-table-next-pkid
+                           (get-in basis [:graphs graph-id :tarcs target-node-id :regular-input])))))
 
                 (testing "Output values."
                   (is (= :replacement-value (g/node-value target-node-id :regular-output evaluation-context)))))))]
@@ -187,8 +243,11 @@
         (ensure-before!))
 
       (testing "Transact."
-        (g/transact
-          (g/connect replacement-source-node-id :property-output target-node-id :regular-input))
+        (let [{:keys [undoable-changes]}
+              (g/transact
+                (g/connect replacement-source-node-id :property-output target-node-id :regular-input))]
+          (is (= 1 (count undoable-changes)))
+          (is (instance? ReplaceArcTXC (undoable-changes 0))))
         (ensure-after!))
 
       (testing "Undo."
@@ -715,6 +774,67 @@
       (testing "Transact."
         (g/transact
           (g/connect replacement-shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input))
+        (ensure-after!))
+
+      (testing "Undo."
+        (g/undo! :undo/global)
+        (ensure-before!))
+
+      (testing "Redo."
+        (g/redo! :undo/global)
+        (ensure-after!)))))
+
+(deftest replace-connection-on-regular-cascade-delete-input-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [indirectly-owned-node-id
+           initially-owned-node-id
+           replacement-owned-node-id
+           owner-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [_indirectly-owned-node-id helpers/OverrideTestNode
+                 _initially-owned-node-id helpers/OverrideTestNode
+                 _replacement-owned-node-id helpers/OverrideTestNode
+                 _owner-node-id helpers/OverrideTestNode])))
+
+          [_override-owner-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (concat
+                (g/connect indirectly-owned-node-id :regular-cascade-delete-output initially-owned-node-id :regular-cascade-delete-input)
+                (g/connect initially-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)
+                (g/override owner-node-id))))
+
+          ensure-before!
+          (fn ensure-before! []
+            (is (= [[initially-owned-node-id :regular-cascade-delete-output]]
+                   (g/sources-of owner-node-id :regular-cascade-delete-input)))
+            (is (= 1 (count (g/overrides initially-owned-node-id))))
+            (is (= 1 (count (g/overrides indirectly-owned-node-id))))
+            (is (coll/empty? (g/overrides replacement-owned-node-id))))
+
+          ensure-after!
+          (fn ensure-after! []
+            (is (= [[replacement-owned-node-id :regular-cascade-delete-output]]
+                   (g/sources-of owner-node-id :regular-cascade-delete-input)))
+            (is (coll/empty? (g/overrides initially-owned-node-id)))
+            (is (coll/empty? (g/overrides indirectly-owned-node-id)))
+            (is (= 1 (count (g/overrides replacement-owned-node-id)))))]
+
+      (g/reset-undo! :undo/global)
+
+      (testing "Before transact."
+        (ensure-before!))
+
+      (testing "Transact."
+        (let [{:keys [undoable-changes]}
+              (g/transact
+                (g/connect replacement-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input))]
+          (is (instance? ReplaceArcTXC (undoable-changes 0))))
         (ensure-after!))
 
       (testing "Undo."
@@ -1384,4 +1504,6 @@
       (is (= 0 (g/undo-stack-count :undo/global)))
       (is (= [] (g/targets basis initial-source-node-id :property-output)))
       (is (= [[replacement-source-node-id :property-output]] (g/sources basis target-node-id :regular-input)))
-      (is (= :replacement-value (g/node-value target-node-id :regular-output))))))
+      (is (= :replacement-value (g/node-value target-node-id :regular-output)))
+      (is (= 1 (ig/arc-table-next-pkid
+                 (get-in basis [:graphs target-graph-id :tarcs target-node-id :regular-input])))))))

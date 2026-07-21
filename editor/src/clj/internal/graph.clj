@@ -497,6 +497,14 @@
           arc-table-dissoc-pkids
           target-arc-pkids))
 
+(defn- replace-target-arc-at
+  [graph target-id target-label arc]
+  (assoc-in graph
+            [:tarcs target-id target-label]
+            (if-not arc
+              empty-arc-table
+              (conj empty-arc-table arc))))
+
 (defn basis-perform-connect-arc-pkids [basis arc source+target-arc-pkids]
   (let [source-id (gt/source-id arc)
         source-graph-id (gt/node-id->graph-id source-id)
@@ -1435,6 +1443,63 @@
     (update-in basis [:graphs graph-id :graph-values] dissoc graph-value-key)
     (assoc-in basis [:graphs graph-id :graph-values graph-value-key] old-value)))
 
+(defn basis-plan-replace-arc
+  [basis new-arc]
+  (let [source-id (gt/source-id new-arc)
+        target-id (gt/target-id new-arc)]
+    (when (and (gt/node-by-id-at basis source-id)
+               (gt/node-by-id-at basis target-id))
+      (let [graphs (:graphs basis)
+            source-label (gt/source-label new-arc)
+            target-label (gt/target-label new-arc)
+            source-graph (graphs (gt/node-id->graph-id source-id))
+            target-graph (graphs (gt/node-id->graph-id target-id))
+            old-arc (first (explicit-arcs-by-target basis target-id target-label))
+            old-source-arc-pkids (when old-arc
+                                   (arc-table-find-arc-pkids
+                                     (graphs-source-arc-table graphs old-arc)
+                                     old-arc))
+
+            source-arc-pkid
+            (if (and (= source-id (some-> old-arc gt/source-id))
+                     (= source-label (some-> old-arc gt/source-label))
+                     (coll/not-empty old-source-arc-pkids))
+              (first old-source-arc-pkids)
+              (arc-table-next-pkid (graphs-source-arc-table graphs new-arc)))]
+        ;; See the corresponding comment in basis-plan-connect-arc.
+        (assert (<= (:_volatility source-graph 0)
+                    (:_volatility target-graph 0)))
+        {:new-arc new-arc
+         :new-source-arc-pkids (int-map/int-set [source-arc-pkid])
+         :old-arc old-arc
+         :old-source-arc-pkids old-source-arc-pkids}))))
+
+(defn basis-perform-replace-arc
+  [basis old-arc old-source-arc-pkids new-arc new-source-arc-pkids]
+  (let [graphs (:graphs basis)
+        target-arc (or new-arc old-arc)
+        target-id (gt/target-id target-arc)
+        target-label (gt/target-label target-arc)
+        target-graph-id (gt/node-id->graph-id target-id)
+        old-arc-source-graph-id (some-> old-arc gt/source-id gt/node-id->graph-id)
+        new-arc-source-graph-id (some-> new-arc gt/source-id gt/node-id->graph-id)]
+    (cond-> basis
+      (and old-arc
+           (coll/not-empty old-source-arc-pkids)
+           (get graphs old-arc-source-graph-id))
+      (update-in [:graphs old-arc-source-graph-id]
+                 dissoc-source-arcs-at old-arc old-source-arc-pkids)
+
+      (and new-arc
+           (coll/not-empty new-source-arc-pkids)
+           (get graphs new-arc-source-graph-id))
+      (update-in [:graphs new-arc-source-graph-id]
+                 assoc-source-arcs-at new-arc new-source-arc-pkids)
+
+      (get graphs target-graph-id)
+      (update-in [:graphs target-graph-id]
+                 replace-target-arc-at target-id target-label new-arc))))
+
 (defn basis-plan-connect-arc
   [basis arc]
   (when (and (gt/node-by-id-at basis (gt/source-id arc))
@@ -1456,7 +1521,7 @@
                   (int-map/int-set [target-arc-pkid]))}})))
 
 (defn basis-perform-append-arc
-  [basis arc]
+  [basis arc replace-target-arc-table]
   (let [source-id (gt/source-id arc)
         target-id (gt/target-id arc)]
     (if-not (and (gt/node-by-id-at basis source-id)
@@ -1470,15 +1535,16 @@
         (assoc basis
           :graphs
           (if (= source-graph-id target-graph-id)
-            (let [graph (get graphs source-graph-id)]
+            (let [graph (update-in (get graphs source-graph-id)
+                                   [:sarcs source-id source-label]
+                                   arc-table-append arc)]
               (assoc graphs
-                source-graph-id (-> graph
-                                    (update-in
-                                      [:sarcs source-id source-label]
-                                      arc-table-append arc)
-                                    (update-in
-                                      [:tarcs target-id target-label]
-                                      arc-table-append arc))))
+                source-graph-id
+                (if replace-target-arc-table
+                  (replace-target-arc-at graph target-id target-label arc)
+                  (update-in graph
+                             [:tarcs target-id target-label]
+                             arc-table-append arc))))
             (let [source-graph (get graphs source-graph-id)
                   target-graph (get graphs target-graph-id)]
               ;; See the corresponding comment in basis-plan-connect-arc.
@@ -1489,9 +1555,11 @@
                                   source-graph [:sarcs source-id source-label]
                                   arc-table-append arc)
 
-                target-graph-id (update-in
-                                  target-graph [:tarcs target-id target-label]
-                                  arc-table-append arc)))))))))
+                target-graph-id (if replace-target-arc-table
+                                  (replace-target-arc-at target-graph target-id target-label arc)
+                                  (update-in target-graph
+                                             [:tarcs target-id target-label]
+                                             arc-table-append arc))))))))))
 
 (defn basis-perform-connect-arcs
   [basis arc->source+target-pkids]
