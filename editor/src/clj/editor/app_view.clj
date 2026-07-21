@@ -367,6 +367,7 @@
   (property manip-space g/Keyword)
   (property keymap g/Any)
   (property localization g/Any)
+  (property scene-visibility g/Any)
 
   (input outline-pane-desc g/Any)
   (input properties-pane-desc g/Any)
@@ -486,8 +487,12 @@
              ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
              properties-view (g/node-value app-view :properties-view evaluation-context)
+             scene-visibility (g/node-value app-view :scene-visibility evaluation-context)
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
              new-view-node-id (some-> new-active-tab editor-tab/view-node-id)
+             resource (resource-node/resource basis new-resource-node-id)
+             prefs (g/node-value scene-visibility :prefs evaluation-context)
+             path-key (resource/resource->proj-path resource)
 
              tx-data
              (when (and is-in-active-tab-pane
@@ -509,6 +514,17 @@
     ;; The remaining steps should always be performed, even if we didn't end up
     ;; updating the graph connections.
     (recent-files/save-tab-selections! prefs app-view)
+
+    ;; Update scene-visibility settings
+    (g/with-auto-evaluation-context evaluation-context
+      (if-let [settings (prefs/get-pref-entry prefs [:scene :resource-settings] path-key)]
+        (scene-visibility/update-settings scene-visibility settings evaluation-context)
+        (scene-visibility/update-settings scene-visibility
+                                          ;; TODO JOE: This doesn't belong here
+                                          {:filters-enabled true :filtered-renderable-tags (cond-> #{}
+                                                                                             (system/defold-dev?)
+                                                                                             (conj :dev-visibility-bounds))}
+                                          evaluation-context)))
 
     (g/let-ec [active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
       (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]

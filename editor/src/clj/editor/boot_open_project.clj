@@ -173,7 +173,7 @@
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
           [app-view ui-timer]  (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split right-split tool-tabs prefs localization)
-          scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph* app-view)
+          scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph* prefs app-view)
           outline-view         (outline-view/make-outline-view *view-graph* project app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
@@ -369,6 +369,7 @@
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         (concat
+          (g/set-property app-view :scene-visibility scene-visibility)
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label))
           (g/connect project :_node-id app-view :project-id)
