@@ -923,7 +923,7 @@
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
 
-(defn- launch-engine! [engine-descriptor project-directory prefs debug?]
+(defn- launch-engine! [engine-descriptor project-directory prefs debug focus]
   (try
     (report-build-launch-progress! (localization/message "progress.launching-engine"))
     (let [engine (engine/install-engine! project-directory engine-descriptor)
@@ -932,8 +932,8 @@
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
                              (let [last-instance? (or (= count 1) (= instance-index count))
-                                   instance-debug? (and debug? last-instance?)
-                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug? instance-index)
+                                   instance-debug (and debug last-instance?)
+                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! instance-index))]
                                (when (not last-instance?)
@@ -979,11 +979,11 @@
       (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
-(defn- reboot-engine! [target web-server debug?]
+(defn- reboot-engine! [target web-server debug focus]
   (try
     (report-build-launch-progress!
       (localization/message "progress.rebooting-engine" {"engine" (targets/target-message target)}))
-    (engine/reboot! target (local-url target web-server) debug?)
+    (engine/reboot! target (local-url target web-server) debug focus)
     (report-build-launch-progress!
       (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
     target
@@ -1006,11 +1006,11 @@
 (defn- on-service-url-found [prefs target]
   (engine/apply-simulated-resolution! prefs target))
 
-(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
+(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug focus]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
                              (targets/kill-launched-targets!)
-                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug?)
+                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
@@ -1033,7 +1033,7 @@
         (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
           (console/set-log-service-stream log-stream)
-          (reboot-engine! selected-target web-server debug?))
+          (reboot-engine! selected-target web-server debug focus))
 
         :else
         (do
@@ -1048,7 +1048,7 @@
               ;; running to keep engine process
               ;; from halting because stdout/err is
               ;; not consumed.
-              (reboot-engine! selected-target web-server debug?))
+              (reboot-engine! selected-target web-server debug focus))
             (launch-new-engine!))))
       (catch SocketTimeoutException e
         (debug-view/show-connect-failed-info! e (project/workspace project)))
@@ -1442,7 +1442,7 @@
       (workspace/save-build-cache! workspace))
     (nil? error)))
 
-(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane launch]
+(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane launch focus]
   (let [project-directory (workspace/project-directory workspace)
         main-scene (.getScene ^Stage main-stage)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
@@ -1461,19 +1461,19 @@
         (when (handle-build-results! workspace render-build-error! build-results)
           (when (and launch (or engine skip-engine))
             (show-console! main-scene tool-tab-pane)
-            (launch-built-project! project engine project-directory prefs web-server false)))
+            (launch-built-project! project engine project-directory prefs web-server false focus)))
         build-results))))
 
 (handler/defhandler :project.compile :global
   (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
-    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane false)))
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane false true)))
 
 (handler/defhandler :project.build :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane user-data]
     (debug-view/detach! debug-view)
-    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true)))
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true (get user-data :focus true))))
 
 (handler/defhandler :run.set-instance-count :global
   (options [prefs user-data]
@@ -1519,7 +1519,7 @@
       (fn [{:keys [engine] :as build-results}]
         (when (handle-build-results! workspace render-build-error! build-results)
           (when (or engine skip-engine)
-            (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
+            (when-let [target (launch-built-project! project engine project-directory prefs web-server true true)]
               (when (nil? (debug-view/current-session debug-view))
                 (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
@@ -1578,7 +1578,7 @@
               (dialogs/make-confirmation-dialog localization clean-build-dialog-info))
       (debug-view/detach! debug-view)
       (workspace/clear-build-cache! workspace)
-      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true))))
+      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true true))))
 
 (defn- start-new-log-pipe!
   ^PipedOutputStream []

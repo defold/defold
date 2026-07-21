@@ -327,7 +327,13 @@
                   (let [commands (get-in post-command ["parameters" 0 "schema" "enum"])]
                     (is (coll/any? #{"compile"} commands))
                     (is (coll/any? #{"run"} commands))
-                    (is (coll/not-any? #{"build"} commands))))))
+                    (is (coll/not-any? #{"build"} commands)))
+                  (let [focus-parameter (coll/first-where #(= "focus" (get % "name")) (get post-command "parameters"))]
+                    (is (= "query" (get focus-parameter "in")))
+                    (is (string/includes? (get focus-parameter "description") "`run`"))
+                    (is (= {"type" "boolean" "default" true} (get focus-parameter "schema")))))))
+            (let [{:keys [status]} @(http/request (str url "/command/run?focus=invalid") :method "POST")]
+              (is (= 400 status)))
             (let [{:keys [status headers body]} @(http/request
                                                     (str url "/preview/collection/components/test.gui?width=32&height=32")
                                                     :as :byte-array)]
