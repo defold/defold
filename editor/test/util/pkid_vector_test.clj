@@ -254,8 +254,20 @@
       (is (identical? table (pkid-vector/assoc-pkids table nil :a)))))
 
   (testing "Associating at the next pkid is equivalent to appending."
-    (let [table (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [0] :a)]
-      (check-state! table [:a] [] 1)))
+    (doseq [^long size [0 1 31 32 33 1023 1024 1025]]
+      (let [metadata {:size size}
+            initial-table (with-meta (reduce conj (pkid-vector/pkid-vector) (range size))
+                            metadata)
+            table (pkid-vector/assoc-pkids initial-table [size] :appended)]
+        (check-state! table (conj (vec (range size)) :appended) [] (inc size))
+        (is (= metadata (meta table))))))
+
+  (testing "Associating at the next pkid preserves earlier holes."
+    (let [table (-> (pkid-vector/pkid-vector)
+                    (conj :a :b)
+                    (pkid-vector/dissoc-pkids [0])
+                    (pkid-vector/assoc-pkids [2] :c))]
+      (check-state! table [:b :c] [0] 3)))
 
   (testing "Associating beyond the next pkid records the intervening holes."
     (let [table (-> (pkid-vector/pkid-vector)

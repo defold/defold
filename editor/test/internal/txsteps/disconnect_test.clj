@@ -736,6 +736,45 @@
         (g/redo! :undo/global)
         (ensure-after!)))))
 
+(deftest override-node-deletion-traversal-uses-connected-basis-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [indirectly-owned-node-id
+           directly-owned-node-id
+           owner-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [_indirectly-owned-node-id helpers/ConnectionSourceNode
+                 _directly-owned-node-id helpers/ConnectionTargetNode
+                 _owner-node-id helpers/ConnectionTargetNode])))
+
+          connected-states (atom [])
+          traverse-fn (g/make-override-traverse-fn
+                        (fn [basis _arc]
+                          (swap! connected-states conj
+                                 (boolean
+                                   (g/connected? basis
+                                                 directly-owned-node-id :regular-cascade-delete-output
+                                                 owner-node-id :regular-cascade-delete-input)))
+                          true))]
+
+      (g/transact
+        {:undoable false}
+        (concat
+          (g/connect indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)
+          (g/connect directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)
+          (g/override owner-node-id {:traverse-fn traverse-fn})))
+
+      (reset! connected-states [])
+
+      (g/transact
+        (g/disconnect directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input))
+
+      (is (= [true] @connected-states)))))
+
 (deftest override-node-deletion-from-non-undoable-disconnect-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)

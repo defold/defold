@@ -845,6 +845,48 @@
         (g/redo! :undo/global)
         (ensure-after!)))))
 
+(deftest replace-connection-override-deletion-traversal-uses-original-basis-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [indirectly-owned-node-id
+           initially-owned-node-id
+           replacement-owned-node-id
+           owner-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [_indirectly-owned-node-id helpers/ConnectionSourceNode
+                 _initially-owned-node-id helpers/ConnectionTargetNode
+                 _replacement-owned-node-id helpers/ConnectionTargetNode
+                 _owner-node-id helpers/ConnectionTargetNode])))
+
+          connected-states (atom [])
+          traverse-fn (g/make-override-traverse-fn
+                        (fn [basis arc]
+                          (when (= indirectly-owned-node-id (gt/source-id arc))
+                            (swap! connected-states conj
+                                   (boolean
+                                     (g/connected? basis
+                                                   initially-owned-node-id :regular-cascade-delete-output
+                                                   owner-node-id :regular-cascade-delete-input))))
+                          true))]
+
+      (g/transact
+        {:undoable false}
+        (concat
+          (g/connect indirectly-owned-node-id :property-output initially-owned-node-id :regular-cascade-delete-input)
+          (g/connect initially-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)
+          (g/override owner-node-id {:traverse-fn traverse-fn})))
+
+      (reset! connected-states [])
+
+      (g/transact
+        (g/connect replacement-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input))
+
+      (is (= [true] @connected-states)))))
+
 (deftest introduce-shadowing-connection-on-array-input-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)
@@ -1473,6 +1515,41 @@
       (is (= [:source-value :source-value]
              (g/node-value target-node-id :array-output)))
       (is (= 2
+             (ig/arc-table-next-pkid source-arc-table)
+             (ig/arc-table-next-pkid target-arc-table))))))
+
+(deftest non-undoable-full-invalidation-initial-regular-connect-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [source-node-id
+           target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                 target-node-id helpers/ConnectionTargetNode])))
+
+          {:keys [basis] :as tx-result}
+          (with-redefs [ig/basis-plan-replace-arc
+                        (fn [_basis _old-arc _new-arc]
+                          (throw (AssertionError. "Initial regular connect must use the append fast path.")))]
+            (g/transact
+              {:full-invalidation true
+               :undoable false}
+              (g/connect source-node-id :property-output target-node-id :regular-input)))
+
+          source-arc-table (get-in basis [:graphs graph-id :sarcs source-node-id :property-output])
+          target-arc-table (get-in basis [:graphs graph-id :tarcs target-node-id :regular-input])]
+
+      (is (= [] (:undoable-changes tx-result)))
+      (is (= 0 (g/undo-stack-count :undo/global)))
+      (is (= [[source-node-id :property-output]]
+             (g/sources basis target-node-id :regular-input)))
+      (is (= :source-value
+             (g/node-value target-node-id :regular-output)))
+      (is (= 1
              (ig/arc-table-next-pkid source-arc-table)
              (ig/arc-table-next-pkid target-arc-table))))))
 

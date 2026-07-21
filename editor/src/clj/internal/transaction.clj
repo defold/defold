@@ -899,6 +899,18 @@
                     (in/type-name input-nodetype) target-label))
     (assert-schema-type-compatible source-id source-label output-nodetype output-valtype target-id target-label input-nodetype input-valtype)))
 
+(defn- ctx-perform-append-arc
+  [ctx arc target-node-type]
+  (let [old-basis (:basis ctx)
+        new-basis (ig/basis-perform-append-arc old-basis arc)]
+    (if (identical? old-basis new-basis)
+      ctx
+      (let [target-id (gt/target-id arc)
+            target-label (gt/target-label arc)]
+        (cond-> (assoc ctx :basis new-basis)
+          (contains? (in/cascade-deletes target-node-type) target-label)
+          (mark-override-nodes-affected target-id false))))))
+
 (defn- ctx-replace-arc
   [ctx removed-arc removed-source-arc-pkids added-arc added-source-arc-pkids undoable]
   (let [old-basis (:basis ctx)
@@ -1311,7 +1323,10 @@
   (revert [_this ctx]
     (ctx-revert-replace-arc ctx old-arc old-source-arc-pkids new-arc new-source-arc-pkids undoable)))
 
-(defn- override-node-ids-removed-by-disconnect [ctx arc]
+(defn- override-node-ids-removed-by-disconnect
+  "Returns override nodes affected by disconnecting arc. The context must still
+  contain the arc so traversal functions can inspect the original graph state."
+  [ctx arc]
   (let [basis (:basis ctx)
         node-id->node #(gt/node-by-id-at basis %)
         source-id (gt/source-id arc)
@@ -1338,41 +1353,26 @@
 
                 (ig/pre-traverse basis source-override-node-ids-in-target-override traverse-fn)))))))))
 
-(defn- realize-replace-arc
-  [ctx undoable-changes new-arc]
-  (if-let [{:keys [new-source-arc-pkids
-                   old-arc
-                   old-source-arc-pkids]}
-           (ig/basis-plan-replace-arc (:basis ctx) new-arc)]
-    (let [deleted-override-node-ids
-          (when old-arc
-            (override-node-ids-removed-by-disconnect
-              ;; TODO(decouple-undo-from-graph): Will this change the result? It seems unnecessary.
-              (update ctx :basis ig/basis-perform-replace-arc old-arc old-source-arc-pkids nil nil)
-              old-arc))
-
-          undoable (some? undoable-changes)
-          change (->ReplaceArcTXC old-arc old-source-arc-pkids new-arc new-source-arc-pkids undoable)
-          [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
-      (realize-delete-nodes ctx undoable-changes deleted-override-node-ids))
-    (pair ctx undoable-changes)))
-
-(defn- realize-disconnect-arc
+(defn- realize-disconnect
   [ctx undoable-changes arc]
   (if-let [{:keys [arc->source+target-pkids]}
            (ig/basis-plan-disconnect-arc (:basis ctx) arc)]
     (let [undoable (some? undoable-changes)
           change (->DisconnectArcsTXC arc->source+target-pkids undoable)
-          [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)
           [_source-arc-pkids target-arc-pkids] (arc->source+target-pkids arc)
-          deleted-override-node-ids (if (coll/empty? target-arc-pkids)
-                                      []
-                                      (override-node-ids-removed-by-disconnect ctx arc))]
+          ctx+undoable-changes (perform-and-conj-change ctx undoable-changes change)
 
-      (realize-delete-nodes ctx undoable-changes deleted-override-node-ids))
+          deleted-override-node-ids
+          (when-not (coll/empty? target-arc-pkids)
+            (override-node-ids-removed-by-disconnect ctx arc))]
+
+      (if (coll/empty? deleted-override-node-ids)
+        ctx+undoable-changes
+        (let [[ctx undoable-changes] ctx+undoable-changes]
+          (realize-delete-nodes ctx undoable-changes deleted-override-node-ids))))
     (pair ctx undoable-changes)))
 
-(defn- realize-connect-arc
+(defn- realize-connect
   [{:keys [basis] :as ctx} undoable-changes arc]
   (let [source-id (gt/source-id arc)
         source-label (gt/source-label arc)
@@ -1381,39 +1381,68 @@
     (if-let [source (gt/node-by-id-at basis source-id)]
       (if-let [target (gt/node-by-id-at basis target-id)]
         (let [target-node-type (gt/node-type target)
-              target-input-cardinality (in/input-cardinality target-node-type target-label)]
+              fast-path (and (nil? undoable-changes)
+                             (:full-invalidation ctx))]
           (assert-type-compatible source-id source source-label target-id target target-label)
+          (case (in/input-cardinality target-node-type target-label)
+            :one
+            (if fast-path
+              ;; Regular input, bookkeeping disabled.
+              (if-let [old-arc (first (ig/explicit-arcs-by-target basis target-id target-label))]
+                (if-let [{:keys [new-source-arc-pkids
+                                 old-source-arc-pkids]}
+                         (ig/basis-plan-replace-arc basis old-arc arc)]
+                  (let [new-basis (ig/basis-perform-replace-arc
+                                    basis
+                                    old-arc old-source-arc-pkids
+                                    arc new-source-arc-pkids)]
+                    (if (identical? basis new-basis)
+                      (pair ctx undoable-changes)
+                      (let [deleted-override-node-ids
+                            (override-node-ids-removed-by-disconnect ctx old-arc)
 
-          ;; Large projects have a lot of connections, so we have a fast-path
-          ;; here in case we don't need to track changes or create an undo step.
-          (if (and (nil? undoable-changes)
-                   (:full-invalidation ctx))
+                            ctx (cond-> (assoc ctx :basis new-basis)
+                                  (contains? (in/cascade-deletes target-node-type) target-label)
+                                  (mark-override-nodes-affected target-id false))
+                            ctx (if-let [{:keys [deleted-nodes
+                                                 removed-arc->source+target-pkids
+                                                 removed-node->overrides
+                                                 removed-overrides-by-id]}
+                                         (ig/basis-plan-delete-nodes (:basis ctx) deleted-override-node-ids)]
+                                  (ctx-perform-delete-nodes ctx deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node->overrides)
+                                  ctx)]
+                        (pair ctx undoable-changes))))
+                  (pair ctx undoable-changes))
+                (pair (ctx-perform-append-arc ctx arc target-node-type)
+                      undoable-changes))
 
-            ;; TODO(decouple-undo-from-graph): Should we branch on cardinality before taking the fast path?
-            ;; Fast path. Just append the arc to the arc-tables without keeping
-            ;; track of where it ended up.
-            (let [[ctx undoable-changes :as ctx+undoable-changes]
-                  (cond-> (pair ctx undoable-changes)
-                    (= :one target-input-cardinality)
-                    (coll/reduce=> (ig/explicit-arcs-by-target basis target-id target-label)
-                      (fn [[ctx undoable-changes] existing-arc]
-                        (realize-disconnect-arc ctx undoable-changes existing-arc))))
+              ;; Regular input, bookkeeping enabled.
+              (let [old-arc (first (ig/explicit-arcs-by-target basis target-id target-label))]
+                (if-let [{:keys [new-source-arc-pkids
+                                 old-source-arc-pkids]}
+                         (ig/basis-plan-replace-arc basis old-arc arc)]
+                  (let [deleted-override-node-ids
+                        (when old-arc
+                          (override-node-ids-removed-by-disconnect ctx old-arc))
 
-                  old-basis (:basis ctx)
-                  new-basis (ig/basis-perform-append-arc old-basis arc (= :one target-input-cardinality))]
-              (if (identical? old-basis new-basis)
-                ctx+undoable-changes
-                (pair
-                  (cond-> (assoc ctx :basis new-basis)
-                    (contains? (in/cascade-deletes target-node-type) target-label)
-                    (mark-override-nodes-affected target-id false))
-                  undoable-changes)))
+                        undoable (some? undoable-changes)
+                        change (->ReplaceArcTXC old-arc old-source-arc-pkids arc new-source-arc-pkids undoable)
+                        ctx+undoable-changes (perform-and-conj-change ctx undoable-changes change)]
+                    (if (coll/empty? deleted-override-node-ids)
+                      ctx+undoable-changes
+                      (let [[ctx undoable-changes] ctx+undoable-changes]
+                        (realize-delete-nodes ctx undoable-changes deleted-override-node-ids))))
+                  (pair ctx undoable-changes))))
 
-            ;; Regular path with undo and invalidation tracking.
-            (if (= :one target-input-cardinality)
-              (realize-replace-arc ctx undoable-changes arc)
+            :many
+            (if fast-path
+              ;; Array input, bookkeeping disabled.
+              (pair (ctx-perform-append-arc ctx arc target-node-type)
+                    undoable-changes)
+
+              ;; Array input, bookkeeping enabled.
               (if-let [{:keys [arc->source+target-pkids]}
-                       (ig/basis-plan-connect-arc (:basis ctx) arc)]
+                       (ig/basis-plan-connect-arc basis arc)]
                 (let [undoable (some? undoable-changes)
                       change (->ConnectArcsTXC arc->source+target-pkids undoable)]
                   (perform-and-conj-change ctx undoable-changes change))
@@ -1430,7 +1459,7 @@
     arc)
 
   (realize [_this ctx undoable-changes]
-    (realize-connect-arc ctx undoable-changes arc)))
+    (realize-connect ctx undoable-changes arc)))
 
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and
@@ -1478,7 +1507,7 @@
     arc)
 
   (realize [_this ctx undoable-changes]
-    (realize-disconnect-arc ctx undoable-changes arc)))
+    (realize-disconnect ctx undoable-changes arc)))
 
 (defn disconnect
   "*transaction step* - The reverse of [[connect]]. Creates a transaction step

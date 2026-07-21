@@ -451,6 +451,10 @@ public final class PkidVector extends PersistentVector {
             return this;
         }
 
+        if (batch.count == 1 && batch.pkids[0] == nextPkid) {
+            return cons(value);
+        }
+
         return batch.restoresMissing ? assocPkidsWithRestoration(batch, value) : assocPkidsWithoutRestoration(batch, value);
     }
 

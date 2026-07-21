@@ -1444,17 +1444,15 @@
     (assoc-in basis [:graphs graph-id :graph-values graph-value-key] old-value)))
 
 (defn basis-plan-replace-arc
-  [basis new-arc]
+  [basis old-arc new-arc]
   (let [source-id (gt/source-id new-arc)
         target-id (gt/target-id new-arc)]
     (when (and (gt/node-by-id-at basis source-id)
                (gt/node-by-id-at basis target-id))
       (let [graphs (:graphs basis)
             source-label (gt/source-label new-arc)
-            target-label (gt/target-label new-arc)
             source-graph (graphs (gt/node-id->graph-id source-id))
             target-graph (graphs (gt/node-id->graph-id target-id))
-            old-arc (first (explicit-arcs-by-target basis target-id target-label))
             old-source-arc-pkids (when old-arc
                                    (arc-table-find-arc-pkids
                                      (graphs-source-arc-table graphs old-arc)
@@ -1521,7 +1519,7 @@
                   (int-map/int-set [target-arc-pkid]))}})))
 
 (defn basis-perform-append-arc
-  [basis arc replace-target-arc-table]
+  [basis arc]
   (let [source-id (gt/source-id arc)
         target-id (gt/target-id arc)]
     (if-not (and (gt/node-by-id-at basis source-id)
@@ -1540,11 +1538,9 @@
                                    arc-table-append arc)]
               (assoc graphs
                 source-graph-id
-                (if replace-target-arc-table
-                  (replace-target-arc-at graph target-id target-label arc)
-                  (update-in graph
-                             [:tarcs target-id target-label]
-                             arc-table-append arc))))
+                (update-in graph
+                           [:tarcs target-id target-label]
+                           arc-table-append arc)))
             (let [source-graph (get graphs source-graph-id)
                   target-graph (get graphs target-graph-id)]
               ;; See the corresponding comment in basis-plan-connect-arc.
@@ -1555,11 +1551,9 @@
                                   source-graph [:sarcs source-id source-label]
                                   arc-table-append arc)
 
-                target-graph-id (if replace-target-arc-table
-                                  (replace-target-arc-at target-graph target-id target-label arc)
-                                  (update-in target-graph
-                                             [:tarcs target-id target-label]
-                                             arc-table-append arc))))))))))
+                target-graph-id (update-in target-graph
+                                           [:tarcs target-id target-label]
+                                           arc-table-append arc)))))))))
 
 (defn basis-perform-connect-arcs
   [basis arc->source+target-pkids]
