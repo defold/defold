@@ -64,8 +64,10 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         CollectionDesc collection = getMessage(build("/test.collection", src.toString()), CollectionDesc.class);
 
-        // /one.goc, /two.goc and the shared /shared.scriptc
-        Assert.assertEquals(3, collection.getResourceCount());
+        // The duplicate /one.goc under the collection has the same parent and is
+        // counted once. The two /shared.scriptc requests have different parents
+        // and therefore occupy separate nodes in the runtime preloader tree.
+        Assert.assertEquals(4, collection.getResourceCount());
     }
 
     @Test

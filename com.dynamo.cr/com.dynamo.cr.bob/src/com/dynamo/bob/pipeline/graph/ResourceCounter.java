@@ -14,6 +14,8 @@
 
 package com.dynamo.bob.pipeline.graph;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -28,21 +30,43 @@ import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.google.protobuf.Message;
 
 public class ResourceCounter implements IResourceVisitor {
-    private final Set<IResource> visitedResources = new HashSet<>();
-    private final Set<IResource> resourcesWithExcludedReferences = new HashSet<>();
+    private static class ResourceContext {
+        final Set<IResource> visitedChildren = new HashSet<>();
+        boolean excludeReferences;
+    }
+
+    // Resources on the path from the root to the resource currently being visited.
+    // This prevents dependency cycles without globally deduplicating occurrences of
+    // the same resource below different parents.
+    private final Set<IResource> resourcesInCurrentBranch = new HashSet<>();
+
+    // Per-resource traversal state. Each context corresponds to one resource
+    // occurrence in the current branch and tracks the children of that occurrence.
+    private final Deque<ResourceContext> resourceContexts = new ArrayDeque<>();
     private int resourceCount = 0;
 
     @Override
     public boolean shouldVisit(IResource resource, IResource parentResource) {
-        if (resourcesWithExcludedReferences.contains(parentResource)) {
-            return false;
+        if (parentResource != null) {
+            ResourceContext parentContext = resourceContexts.peek();
+
+            // Dynamic factories and collection proxies do not preload their
+            // referenced resources. Also count repeated children of one parent only
+            // once, matching the runtime preloader's sibling deduplication.
+            if (parentContext.excludeReferences || !parentContext.visitedChildren.add(resource)) {
+                return false;
+            }
         }
-        return visitedResources.add(resource);
+
+        // The same resource can be counted below another parent, but not if it is
+        // already an ancestor of this occurrence, since that would form a cycle.
+        return resourcesInCurrentBranch.add(resource);
     }
 
     @Override
     public void visit(IResource resource, IResource parentResource) {
         ++resourceCount;
+        resourceContexts.push(new ResourceContext());
     }
 
     @Override
@@ -50,12 +74,14 @@ public class ResourceCounter implements IResourceVisitor {
         if (message instanceof CollectionProxyDesc
                 || message instanceof FactoryDesc && ((FactoryDesc) message).getLoadDynamically()
                 || message instanceof CollectionFactoryDesc && ((CollectionFactoryDesc) message).getLoadDynamically()) {
-            resourcesWithExcludedReferences.add(resource);
+            resourceContexts.peek().excludeReferences = true;
         }
     }
 
     @Override
     public void leave(IResource resource, IResource parentResource) {
+        resourceContexts.pop();
+        resourcesInCurrentBranch.remove(resource);
     }
 
     public int getReferencedResourceCount() {
@@ -63,9 +89,11 @@ public class ResourceCounter implements IResourceVisitor {
     }
 
     /**
-     * Count the unique resources referenced by an already parsed resource message.
-     * The root resource represented by the message is not included in the returned
-     * count.
+     * Count the resource request nodes referenced by an already parsed resource
+     * message. Repeated children of the same parent are counted once, matching the
+     * runtime preloader, while occurrences below different parents are counted
+     * separately. The root resource represented by the message is not included in
+     * the returned count.
      */
     public static int countResources(Project project, IResource rootResource, Message message) throws CompileExceptionError {
         ResourceCounter resourceCounter = new ResourceCounter();
