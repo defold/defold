@@ -409,6 +409,15 @@
     (mount-renderer-and-await-result! state-atom renderer)))
 
 (defn show-stateless-dialog-and-await-result!
+  "Creates a dialog, shows it and blocks the current thread until the dialog
+  delivers a result, then returns it
+
+  Args:
+    desc-fn    required, 1-argument fn that receives a `result-fn` and returns
+               an fx description of a dialog stage.
+
+  The dialog completes by calling `result-fn` with the result value, which
+  closes the stage and makes this fn return that value."
   [desc-fn]
   (let [event-loop-key (Object.)
         result-promise (promise)

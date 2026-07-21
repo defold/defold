@@ -23,6 +23,7 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
+            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -60,6 +61,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -85,6 +87,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
+            [editor.updater :as updater]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -2011,6 +2014,8 @@
                menu-items/separator
                {:label (localization/message "command.help.open-documentation")
                 :command :help.open-documentation}
+               {:label (localization/message "command.help.open-release-notes")
+                :command :help.open-release-notes}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
                {:label (localization/message "command.help.open-editor-server")
@@ -2601,6 +2606,64 @@
    (-> (g/with-auto-evaluation-context evaluation-context
          (make-open-resource-plan app-view prefs project resource opts evaluation-context))
        (perform-open-resource-plan! localization))))
+
+(def ^:private release-notes-resource-delay
+  (delay (io/resource (str "release-notes/" (system/defold-version) ".json"))))
+
+(defn- bundled-release-notes-json [url]
+  (try
+    (with-open [reader (io/reader url)]
+      (updater/release-notes-markdown (json/read reader :key-fn keyword)))
+    (catch Exception e
+      (log/warn :message "Failed to read bundled release notes"
+                :url (str url)
+                :exception e)
+      nil)))
+
+(ui/defc release-notes-dialog
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}]}
+  [{:keys [project localization-state content result-fn]}]
+  {:fx/type dialogs/dialog-stage
+   :showing true
+   :on-close-request (fn [_] (result-fn false))
+   :title (localization-state (localization/message "release-notes-dialog.title"))
+   :size :large
+   :width 1000
+   :header {:fx/type fxui/legacy-label
+            :variant :header
+            :text (localization-state (localization/message "release-notes-dialog.header"
+                                                            {"version" (system/defold-version)}))}
+   :content {:fx/type markdown/view
+             :content content
+             :project project
+             :stylesheets [(str (io/resource "editor.css"))]
+             :root-props {:style-class "md-page-root"}}
+   :footer {:fx/type dialogs/dialog-buttons
+            :children [{:fx/type fxui/legacy-button
+                        :text (localization-state (localization/message "release-notes-dialog.button.close"))
+                        :cancel-button true
+                        :on-action (fn [_] (result-fn false))}]}})
+
+(defn show-release-notes-dialog!
+  "Shows the running version's bundled release notes in a dialog. No-op when no
+  notes shipped. Must be called on the JavaFX application thread."
+  [localization project]
+  (when-let [url @release-notes-resource-delay]
+    (when-let [content (bundled-release-notes-json url)]
+      (fxui/show-stateless-dialog-and-await-result!
+        (fn [result-fn]
+          {:fx/type release-notes-dialog
+           :result-fn result-fn
+           :localization localization
+           :content content
+           :project project})))))
+
+(handler/defhandler :help.open-release-notes :global
+  (enabled? [] @release-notes-resource-delay)
+  (run [localization project]
+    (show-release-notes-dialog! localization project)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

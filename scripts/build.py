@@ -33,6 +33,7 @@ import wasm_runner
 import release_to_github
 import release_to_steam
 import release_to_egs
+import releasenotes
 import BuildUtility
 import http_cache
 import sdk_merge
@@ -3317,6 +3318,10 @@ class Configuration(object):
         editor_archive_path = urlparse(self.get_archive_path(self.channel)).path
 
         release_sha1 = releases[0]['sha1']
+
+        # The editor release notes (the update dialog's source) must land before
+        # update-v4.json points users at the new sha1.
+        releasenotes.upload(bucket, self.version, self.channel, required = self.channel in ('beta', 'stable'))
 
         html = None;
         with open(os.path.join("scripts", "resources", "downloads.html"), 'r') as file:

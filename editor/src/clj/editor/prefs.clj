@@ -81,7 +81,8 @@
 (def default-schema
   {:type :object
    :properties
-   {:asset-browser {:type :object
+   {:opened-versions {:type :set :item {:type :string}}
+    :asset-browser {:type :object
                     :properties
                     {:track-active-tab {:type :boolean}}}
     :input {:type :object

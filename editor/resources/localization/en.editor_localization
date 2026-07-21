@@ -124,6 +124,15 @@ updater.dialog.button.not-now = Not Now
 updater.dialog.button.download = Download Update
 updater.dialog.button.install-and-restart = Install and Restart
 updater.dialog.button.download-newer-version = Download Newer Version
+updater.release-notes-dialog.title = Update Available
+updater.release-notes-dialog.header = Defold Release Summary - What''s New{count, plural, =1{ in {version}} other{}}
+updater.release-notes-dialog.button.later = Maybe Later
+updater.release-notes-dialog.button.update-now = Update Now
+
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+release-notes-dialog.title = Release Notes
+release-notes-dialog.header = Defold Release Summary - What''s New in {version}
+release-notes-dialog.button.close = Close
 
 # Time
 time.vague.unknown = Unknown
@@ -1035,6 +1044,7 @@ command.help.report-issue = Report Issue
 command.help.report-suggestion = Report Suggestion
 command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
+command.help.open-release-notes = Release Notes
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
