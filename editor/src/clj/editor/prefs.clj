@@ -255,26 +255,28 @@
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}
-             :resource-settings {:type :object-of
-                                 :scope :project
-                                 :key {:type :string}
-                                 :val {:type :object
-                                       :properties {:camera {:type :object
-                                                             :properties {:2d-mode {:type :boolean :default true}
-                                                                          :projection {:type :enum
-                                                                                       :values [:orthographic :perspective]
-                                                                                       :default :orthographic}
-                                                                          :position vec3-schema
-                                                                          :rotation {:type :object
-                                                                                     :properties {:x {:type :number :default 0.0}
-                                                                                                  :y {:type :number :default 0.0}
-                                                                                                  :z {:type :number :default 0.0}
-                                                                                                  :w {:type :number :default 1.0}}}
-                                                                          :fov-y {:type :number :default 1000.0}
-                                                                          :focus-point vec3-schema}}
-                                                    :visibility {:type :object
-                                                                 :properties {:filters-enabled {:type :boolean :default true}
-                                                                              :filtered-renderable-tags {:type :set :item {:type :keyword}}}}}}}
+             :camera-resource-settings {:type :object-of
+                                        :scope :project
+                                        :key {:type :string}
+                                        :val {:type :object
+                                              :properties {:2d-mode {:type :boolean :default true}
+                                                           :projection {:type :enum
+                                                                        :values [:orthographic :perspective]
+                                                                        :default :orthographic}
+                                                           :position vec3-schema
+                                                           :rotation {:type :object
+                                                                      :properties {:x {:type :number :default 0.0}
+                                                                                   :y {:type :number :default 0.0}
+                                                                                   :z {:type :number :default 0.0}
+                                                                                   :w {:type :number :default 1.0}}}
+                                                           :fov-y {:type :number :default 1000.0}
+                                                           :focus-point vec3-schema}}}
+             :visibility-resource-settings {:type :object-of
+                                            :scope :project
+                                            :key {:type :string}
+                                            :val {:type :object
+                                                  :properties {:filters-enabled {:type :boolean :default true}
+                                                               :filtered-renderable-tags {:type :set :item {:type :keyword}}}}}
              :grid-2d {:type :object
                        :scope :project
                        :properties {:visible {:type :boolean :default true}

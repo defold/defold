@@ -285,22 +285,28 @@
     (when-let [advance! (g/node-value scene-visibility :popup-advance-fn)]
       (advance!))))
 
+(defn- set-visibility-settings! [scene-visibility filters-enabled filtered-renderable-tags evaluation-context]
+  (let [basis (:basis evaluation-context)
+        prefs (g/node-value scene-visibility :prefs evaluation-context)
+        resource-node (first (g/node-value scene-visibility :active-resource-node+type evaluation-context))
+        path-key (resource/resource->proj-path (resource-node/resource basis resource-node))]
+    (g/transact
+      (concat
+        (g/set-property scene-visibility :visibility-filters-enabled? filters-enabled)
+        (g/set-property scene-visibility :filtered-renderable-tags filtered-renderable-tags)))
+    (prefs/update! prefs [:scene :visibility-resource-settings] assoc
+                   path-key
+                   {:filters-enabled filters-enabled
+                    :filtered-renderable-tags filtered-renderable-tags})
+    (sync-popup-state! scene-visibility)))
+
 (defn- toggle-tag-visibility-fn [scene-visibility tag]
   (fn [v]
-    ;; TODO JOE: Refactor this somehow
     (g/with-auto-evaluation-context evaluation-context
-      (let [basis (:basis evaluation-context)
-            prefs (g/node-value scene-visibility :prefs evaluation-context)
-            resource-node (first (g/node-value scene-visibility :active-resource-node+type evaluation-context))
-            path-key (resource/resource->proj-path (resource-node/resource basis resource-node))
+      (let [filters-enabled (g/node-value scene-visibility :visibility-filters-enabled?)
             tags (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)
             updated-tags ((if v disj conj) tags tag)]
-        (g/set-property! scene-visibility :filtered-renderable-tags updated-tags)
-        (prefs/update! prefs [:scene :resource-settings] assoc
-                       path-key
-                       {:filters-enabled true
-                        :filtered-renderable-tags updated-tags}))
-      (sync-popup-state! scene-visibility))))
+        (set-visibility-settings! scene-visibility filters-enabled updated-tags evaluation-context)))))
 
 (defn renderable-tag-descriptors [scene-visibility]
   (let [filtered-tags (g/node-value scene-visibility :filtered-renderable-tags)
@@ -316,17 +322,8 @@
               :value filters-enabled?
               :on-value-changed (fn [v]
                                   (g/with-auto-evaluation-context evaluation-context
-                                    (let [basis (:basis evaluation-context)
-                                          prefs (g/node-value scene-visibility :prefs evaluation-context)
-                                          resource-node (first (g/node-value scene-visibility :active-resource-node+type evaluation-context))
-                                          path-key (resource/resource->proj-path (resource-node/resource basis resource-node))
-                                          tags (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)]
-                                      (g/set-property! scene-visibility :visibility-filters-enabled? v)
-                                      (prefs/update! prefs [:scene :resource-settings] assoc
-                                                     path-key
-                                                     {:filters-enabled v
-                                                      :filtered-renderable-tags tags}))
-                                    (sync-popup-state! scene-visibility)))
+                                    (let [tags (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)]
+                                      (set-visibility-settings! scene-visibility v tags evaluation-context))))
               :command :scene.visibility.toggle-filters}
              {:type :space}
              (tag-toggle :collision-shape "collision-shapes")
@@ -399,13 +396,13 @@
       (g/set-property! scene-visibility :popup-advance-fn advance-with-state!))))
 
 (defn toggle-tag-visibility! [scene-visibility tag]
-  (g/update-property! scene-visibility :filtered-renderable-tags
-                      (fn [tags]
-                        (if (contains? tags tag)
-                          (disj tags tag)
-                          (conj tags tag)))))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [filters-enabled (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)
+          tags (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)
+          updated-tags (if (contains? tags tag) (disj tags tag) (conj tags tag))]
+      (set-visibility-settings! scene-visibility filters-enabled updated-tags evaluation-context))))
 
-(defn update-settings [scene-visibility {:keys [filters-enabled filtered-renderable-tags]} evaluation-context]
+(defn update-settings [scene-visibility {:keys [filters-enabled filtered-renderable-tags]}]
   (g/transact
     (concat
       (g/set-property scene-visibility :visibility-filters-enabled? filters-enabled)
@@ -415,7 +412,10 @@
   (active? [scene-visibility evaluation-context]
     (g/node-value scene-visibility :active-scene-resource-node evaluation-context))
   (run [scene-visibility]
-    (g/update-property! scene-visibility :visibility-filters-enabled? not)))
+    (g/with-auto-evaluation-context evaluation-context
+      (let [filters-enabled (g/node-value scene-visibility :visibility-filters-enabled? evaluation-context)
+            tags (g/node-value scene-visibility :filtered-renderable-tags evaluation-context)]
+        (set-visibility-settings! scene-visibility (not filters-enabled) tags evaluation-context)))))
 
 (handler/defhandler :scene.visibility.toggle-component-guides :workbench
   (active? [scene-visibility evaluation-context]

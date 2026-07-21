@@ -490,10 +490,11 @@
              scene-visibility (g/node-value app-view :scene-visibility evaluation-context)
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
              new-view-node-id (some-> new-active-tab editor-tab/view-node-id)
-             resource (resource-node/resource basis new-resource-node-id)
-             prefs (g/node-value scene-visibility :prefs evaluation-context)
-             path-key (resource/resource->proj-path resource)
-
+             should-load-scene-visibility (and is-in-active-tab-pane
+                                               (= :scene (some-> new-active-tab editor-tab/view-type-id)))
+             path-key (when should-load-scene-visibility
+                        (resource/resource->proj-path
+                          (resource-node/resource basis new-resource-node-id)))
              tx-data
              (when (and is-in-active-tab-pane
                         (not= old-active-tab new-active-tab))
@@ -516,15 +517,14 @@
     (recent-files/save-tab-selections! prefs app-view)
 
     ;; Update scene-visibility settings
-    (g/with-auto-evaluation-context evaluation-context
-      (if-let [settings (prefs/get-pref-entry prefs [:scene :resource-settings] path-key)]
-        (scene-visibility/update-settings scene-visibility settings evaluation-context)
+    (when should-load-scene-visibility
+      (if-let [settings (prefs/get-pref-entry prefs [:scene :visibility-resource-settings] path-key)]
+        (scene-visibility/update-settings scene-visibility settings)
         (scene-visibility/update-settings scene-visibility
                                           ;; TODO JOE: This doesn't belong here
                                           {:filters-enabled true :filtered-renderable-tags (cond-> #{}
                                                                                              (system/defold-dev?)
-                                                                                             (conj :dev-visibility-bounds))}
-                                          evaluation-context)))
+                                                                                             (conj :dev-visibility-bounds))})))
 
     (g/let-ec [active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
       (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]
