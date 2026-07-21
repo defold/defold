@@ -125,6 +125,8 @@ updater.dialog.button.download = Загрузить Обновление
 updater.dialog.button.install-and-restart = Установить и Перезапустить
 updater.dialog.button.download-newer-version = Загрузить Более Новую Версию
 
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+
 # Time
 time.vague.unknown = Неизвестно
 time.vague.just-now = Только что
