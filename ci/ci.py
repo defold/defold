@@ -158,7 +158,7 @@ def install_linux(args):
     call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
 
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
-    clang_version = 19
+    clang_version = 20
     clang_path = "/usr/bin"
     clang_exe = f"/usr/bin/clang-{clang_version}" # installed on the recent GA runners
 

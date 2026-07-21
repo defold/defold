@@ -62,11 +62,9 @@ MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 VERSION_IPHONEOS_MIN="11.0"
 VERSION_MACOSX_MIN="10.15"
 
-SWIFT_VERSION="5.5"
+SWIFT_VERSION="6.2"
 
-VERSION_LINUX_CLANG="19.0.0"
-PACKAGES_LINUX_CLANG="clang-16.0.0"
-
+VERSION_LINUX_CLANG="20.1.8"
 ## **********************************************************************************************
 # Android
 
@@ -126,12 +124,6 @@ defold_info['win32']['pattern'] = defold_info['x86_64-win32']['pattern']
 
 defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK
 defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK
-
-defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['x86_64-linux']['pattern'] = 'x86_64-linux/clang-%s' % VERSION_LINUX_CLANG
-
-defold_info['arm64-linux']['version'] = VERSION_LINUX_CLANG
-defold_info['arm64-linux']['pattern'] = 'arm64-linux/clang-%s' % VERSION_LINUX_CLANG
 
 ## **********************************************************************************************
 
