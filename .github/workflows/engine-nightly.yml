@@ -32,7 +32,7 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'macos' }}
     runs-on: macos-26-intel
     steps: [
-      { name: 'Checkout', uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
@@ -68,7 +68,7 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'linux-x64' }}
     runs-on: ubuntu-22.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.2
@@ -107,7 +107,7 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'linux-arm64' }}
     runs-on: ubuntu-22.04-arm
     steps: [
-      { name: 'Checkout', uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.2
@@ -183,7 +183,7 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'windows' }}
     runs-on: windows-2025-vs2026
     steps: [
-      { name: 'Checkout', uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 }, # v6.0.2
+      { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.12} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
       { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.2
