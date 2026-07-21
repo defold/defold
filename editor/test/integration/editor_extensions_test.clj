@@ -810,6 +810,7 @@ resource exists after failed fetch: false
           :display-output! #(doto out (.append %2) (.append \newline))
           :fetch-libraries! (fn fetch-libraries! []
                               (future/io
+                                ;; Deliberately call library/fetch! directly to exercise failed fetch reporting.
                                 (let [lib-results (library/fetch!
                                                     (workspace/project-directory workspace)
                                                     (project/project-dependencies project)
