@@ -276,6 +276,7 @@
                                                                  :properties {:filters-enabled {:type :boolean :default true}
                                                                               :filtered-renderable-tags {:type :set :item {:type :keyword}}}}}}}
              :grid-2d {:type :object
+                       :scope :project
                        :properties {:visible {:type :boolean :default true}
                                     :size vec3-schema
                                     :active-plane {:type :enum :values [:x :y :z] :default :z}
@@ -284,13 +285,14 @@
                                             :items [{:type :number} {:type :number} {:type :number} {:type :number}]
                                             :default [0.5 0.5 0.5 1.0]}}}
              :grid-3d {:type :object
-                    :properties {:visible {:type :boolean :default true}
-                                 :size vec3-schema
-                                 :active-plane {:type :enum :values [:x :y :z] :default :y}
-                                 :opacity {:type :number :default 0.25}
-                                 :color {:type :tuple
-                                         :items [{:type :number} {:type :number} {:type :number} {:type :number}]
-                                         :default [0.5 0.5 0.5 1.0]}}}
+                       :scope :project
+                       :properties {:visible {:type :boolean :default true}
+                                    :size vec3-schema
+                                    :active-plane {:type :enum :values [:x :y :z] :default :y}
+                                    :opacity {:type :number :default 0.25}
+                                    :color {:type :tuple
+                                            :items [{:type :number} {:type :number} {:type :number} {:type :number}]
+                                            :default [0.5 0.5 0.5 1.0]}}}
              :perspective-camera {:type :object
                                   :scope :project
                                   :properties {:speed {:type :number :default 1.0}

@@ -259,9 +259,9 @@
 (g/defnk produce-merged-options
   [prefs camera options]
   (let [mode-2d (c/mode-2d? camera)]
-    (merge (get-grid-pref prefs camera [])
-           options
-           {:auto-scale true})))
+    (merge (if prefs (get-grid-pref prefs camera []) {})
+           {:auto-scale true}
+           options)))
 
 (g/defnode Grid
   (property prefs g/Any)
