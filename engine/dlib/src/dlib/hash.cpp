@@ -27,9 +27,10 @@
 
 struct ReverseHashEntry
 {
-    inline ReverseHashEntry(void* value, uint32_t length) : m_Value(value), m_Length (length) {}
+    inline ReverseHashEntry(void* value, uint32_t length) : m_Value(value), m_Length (length), m_Active(false) {}
     void*    m_Value;
     uint16_t m_Length;
+    bool     m_Active;
 };
 
 template<typename TABLE>
@@ -61,6 +62,13 @@ struct ReverseHashContainer
     ~ReverseHashContainer()
     {
         Enable(false);
+        for(uint32_t i = 0; i < m_HashStates.Size(); ++i)
+        {
+            if(m_HashStates[i].m_Value)
+            {
+                free(m_HashStates[i].m_Value);
+            }
+        }
         dmMutex::Delete(m_Mutex);
     }
 
@@ -68,13 +76,6 @@ struct ReverseHashContainer
     static inline void FreeEntryCallback(void* context, const KEY* key, ReverseHashEntry* value)
     {
         free(value->m_Value);
-    }
-
-    template <typename INDEX>
-    static inline void FreeStateCallback(void* context, const INDEX index)
-    {
-        dmArray<ReverseHashEntry>& states = *((dmArray<ReverseHashEntry>*) context);
-        states[index].m_Value = 0;
     }
 
     void Enable(bool enable)
@@ -92,12 +93,21 @@ struct ReverseHashContainer
                 IncreaseTableCapacity(&m_HashTable64Entries, m_HashTableCapacityIncrement);
             m_HashTable32Entries.Clear();
             m_HashTable64Entries.Clear();
-            m_HashStates.SetCapacity(m_HashStatesCapacity);
-            m_HashStates.SetSize(m_HashStatesCapacity);
-            m_HashStatesSlots.SetCapacity(m_HashStatesCapacity);
-            m_HashStatesSlots.Clear();
-            uint32_t invalid_slot = m_HashStatesSlots.Pop();
-            assert(invalid_slot == 0);  // we rely on first index to be 0 in the index pool implementation. 0 implies invalid/unused slot.
+            // Keep incremental reverse-hash state slots across disable/enable. A HashState
+            // may still hold an index and will release it when updated, finalized or released.
+            if (m_HashStates.Capacity() == 0)
+            {
+                m_HashStates.SetCapacity(m_HashStatesCapacity);
+                m_HashStates.SetSize(m_HashStatesCapacity);
+                for(uint32_t i = 0; i < m_HashStates.Size(); ++i)
+                {
+                    memset(&m_HashStates[i], 0x0, sizeof(ReverseHashEntry));
+                }
+                m_HashStatesSlots.SetCapacity(m_HashStatesCapacity);
+                m_HashStatesSlots.Clear();
+                uint32_t invalid_slot = m_HashStatesSlots.Pop();
+                assert(invalid_slot == 0);  // we rely on first index to be 0 in the index pool implementation. 0 implies invalid/unused slot.
+            }
         }
         else
         {
@@ -105,19 +115,6 @@ struct ReverseHashContainer
             m_HashTable32Entries.Clear();
             m_HashTable64Entries.Iterate(FreeEntryCallback, (void*) 0);
             m_HashTable64Entries.Clear();
-            if(m_HashStatesSlots.Size() != 0)
-            {
-                m_HashStatesSlots.Push(0);
-                m_HashStatesSlots.IterateRemaining(FreeStateCallback, (void*) &m_HashStates);
-                for(uint32_t i = 0; i < m_HashStates.Size(); ++i)
-                {
-                    if(m_HashStates[i].m_Value)
-                    {
-                        free(m_HashStates[i].m_Value);
-                    }
-                }
-                m_HashStatesSlots.Clear();
-            }
         }
     }
 
@@ -125,9 +122,15 @@ struct ReverseHashContainer
     {
         if(m_HashStatesSlots.Remaining() == 0)
         {
+            uint32_t old_size = m_HashStates.Size();
             m_HashStatesSlots.SetCapacity(m_HashStatesSlots.Capacity() + m_HashStatesCapacityIncrement);
             m_HashStates.SetCapacity(m_HashStates.Capacity() + m_HashStatesCapacityIncrement);
             m_HashStates.SetSize(m_HashStates.Capacity());
+            // New slots are raw memory; clear them before the index pool can hand them out.
+            for(uint32_t i = old_size; i < m_HashStates.Size(); ++i)
+            {
+                memset(&m_HashStates[i], 0x0, sizeof(ReverseHashEntry));
+            }
         }
         return m_HashStatesSlots.Pop();
     }
@@ -138,29 +141,117 @@ struct ReverseHashContainer
         m_HashStatesSlots.Push(slot_index);
     }
 
-    inline void CloneReverseHashState(uint32_t state_index, uint32_t source_state_index)
+    inline ReverseHashEntry* GetReverseHashState(uint32_t slot_index)
     {
-        assert(state_index != 0);
-        ReverseHashEntry& state = m_HashStates[state_index];
-        ReverseHashEntry& source_state = m_HashStates[source_state_index];
-        uint32_t length = source_state.m_Length;
-        state.m_Value = malloc(DM_ALIGN(length + 1, 16));
-        uint8_t* p = (uint8_t*) state.m_Value;
-        memcpy(p, source_state.m_Value, length);
-        p[length] = '\0';
-        state.m_Length = length;
+        if (slot_index == 0 || slot_index >= m_HashStates.Size())
+        {
+            return 0;
+        }
+        return &m_HashStates[slot_index];
     }
 
-    inline void UpdateReversHashState(uint32_t state_index, uint32_t len, const void* buffer, uint32_t buffer_len)
+    inline ReverseHashEntry* GetActiveReverseHashState(uint32_t slot_index)
+    {
+        ReverseHashEntry* entry = GetReverseHashState(slot_index);
+        return entry && entry->m_Active ? entry : 0;
+    }
+
+    inline ReverseHashEntry* AllocReverseHashState(uint32_t* slot_index)
+    {
+        *slot_index = 0;
+        // Callers check m_Enabled before locking, but disable can race with allocation.
+        if (!m_Enabled)
+        {
+            return 0;
+        }
+        uint32_t new_index = AllocReverseHashStatesSlot();
+        ReverseHashEntry* entry = GetReverseHashState(new_index);
+        if (!entry)
+        {
+            return 0;
+        }
+        memset(entry, 0x0, sizeof(ReverseHashEntry));
+        entry->m_Active = true;
+        *slot_index = new_index;
+        return entry;
+    }
+
+    inline bool CloneReverseHashState(uint32_t state_index, uint32_t source_state_index)
     {
         assert(state_index != 0);
-        ReverseHashEntry& entry = m_HashStates[state_index];
-        size_t length = entry.m_Length + buffer_len;
-        entry.m_Value = realloc(entry.m_Value, DM_ALIGN(length + 1, 16) + 16);
-        uint8_t* p = (uint8_t*) entry.m_Value;
-        memcpy(&p[entry.m_Length], buffer, buffer_len);
+        ReverseHashEntry* state = GetActiveReverseHashState(state_index);
+        ReverseHashEntry* source_state = GetActiveReverseHashState(source_state_index);
+        if (!state || !source_state)
+        {
+            return false;
+        }
+        uint32_t length = source_state->m_Length;
+        state->m_Value = malloc(DM_ALIGN(length + 1, 16));
+        uint8_t* p = (uint8_t*) state->m_Value;
+        memcpy(p, source_state->m_Value, length);
         p[length] = '\0';
-        entry.m_Length = length;
+        state->m_Length = length;
+        return true;
+    }
+
+    inline bool UpdateReversHashState(uint32_t state_index, uint32_t len, const void* buffer, uint32_t buffer_len)
+    {
+        assert(state_index != 0);
+        ReverseHashEntry* entry = GetActiveReverseHashState(state_index);
+        if (!entry)
+        {
+            return false;
+        }
+        size_t length = entry->m_Length + buffer_len;
+        entry->m_Value = realloc(entry->m_Value, DM_ALIGN(length + 1, 16) + 16);
+        uint8_t* p = (uint8_t*) entry->m_Value;
+        memcpy(&p[entry->m_Length], buffer, buffer_len);
+        p[length] = '\0';
+        entry->m_Length = length;
+        return true;
+    }
+
+    template <typename TABLE, typename HASH>
+    inline bool FinalizeReverseHashState(TABLE* hash_table, HASH hash, uint32_t state_index)
+    {
+        ReverseHashEntry* entry = GetActiveReverseHashState(state_index);
+        if (!entry)
+        {
+            return false;
+        }
+        if (hash_table->Get(hash) == 0)
+        {
+            if (hash_table->Full())
+            {
+                IncreaseTableCapacity(hash_table, m_HashTableCapacityIncrement);
+            }
+            hash_table->Put(hash, *entry);
+            entry->m_Value = 0;
+        }
+        else
+        {
+            free(entry->m_Value);
+            entry->m_Value = 0;
+        }
+        entry->m_Length = 0;
+        entry->m_Active = false;
+        FreeReverseHashStatesSlot(state_index);
+        return true;
+    }
+
+    inline bool ReleaseReverseHashState(uint32_t state_index)
+    {
+        ReverseHashEntry* entry = GetActiveReverseHashState(state_index);
+        if (!entry)
+        {
+            return false;
+        }
+        free(entry->m_Value);
+        entry->m_Value = 0;
+        entry->m_Length = 0;
+        entry->m_Active = false;
+        FreeReverseHashStatesSlot(state_index);
+        return true;
     }
 
 };
@@ -344,21 +435,35 @@ void dmHashInit32(HashState32* hash_state, bool reverse_hash)
     if(reverse_hash && dmHashContainer().m_Enabled)
     {
         DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
-        uint32_t new_index = hash_state->m_ReverseHashEntryIndex = dmHashContainer().AllocReverseHashStatesSlot();
-        memset(&dmHashContainer().m_HashStates[new_index], 0x0, sizeof(ReverseHashEntry));
+        uint32_t new_index = 0;
+        if (dmHashContainer().AllocReverseHashState(&new_index))
+        {
+            hash_state->m_ReverseHashEntryIndex = new_index;
+        }
     }
 }
 
 void dmHashClone32(HashState32* hash_state, const HashState32* source_hash_state, bool reverse_hash)
 {
     memcpy(hash_state, source_hash_state, sizeof(HashState32));
-    if(dmHashContainer().m_Enabled && source_hash_state->m_ReverseHashEntryIndex)
+    if(source_hash_state->m_ReverseHashEntryIndex)
     {
-        if(reverse_hash)
+        if(dmHashContainer().m_Enabled && reverse_hash)
         {
             DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
-            uint32_t new_index = hash_state->m_ReverseHashEntryIndex = dmHashContainer().AllocReverseHashStatesSlot();
-            dmHashContainer().CloneReverseHashState(new_index, source_hash_state->m_ReverseHashEntryIndex);
+            uint32_t new_index = 0;
+            if (!dmHashContainer().AllocReverseHashState(&new_index) || !dmHashContainer().CloneReverseHashState(new_index, source_hash_state->m_ReverseHashEntryIndex))
+            {
+                if (new_index)
+                {
+                    dmHashContainer().ReleaseReverseHashState(new_index);
+                }
+                hash_state->m_ReverseHashEntryIndex = 0;
+            }
+            else
+            {
+                hash_state->m_ReverseHashEntryIndex = new_index;
+            }
         }
         else
         {
@@ -418,7 +523,19 @@ void dmHashUpdateBuffer32(HashState32* hash_state, const void* buffer, uint32_t 
     MixTail32(hash_state, data, len);
     if (dmHashContainer().m_Enabled && hash_state->m_ReverseHashEntryIndex && hash_state->m_Size <= DMHASH_MAX_REVERSE_LENGTH)
     {
-        dmHashContainer().UpdateReversHashState(hash_state->m_ReverseHashEntryIndex, hash_state->m_Size, buffer, buffer_len);
+        DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
+        if (!dmHashContainer().UpdateReversHashState(hash_state->m_ReverseHashEntryIndex, hash_state->m_Size, buffer, buffer_len))
+        {
+            hash_state->m_ReverseHashEntryIndex = 0;
+        }
+    }
+    else if (hash_state->m_ReverseHashEntryIndex)
+    {
+        // Reverse hashing was disabled or the input grew too large. Drop only this
+        // incremental state; finalized reverse lookup entries are cleared by Enable(false).
+        DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
+        dmHashContainer().ReleaseReverseHashState(hash_state->m_ReverseHashEntryIndex);
+        hash_state->m_ReverseHashEntryIndex = 0;
     }
 }
 
@@ -438,19 +555,15 @@ uint32_t dmHashFinal32(HashState32* hash_state)
     {
         DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
         dmHashTable32<ReverseHashEntry>* hash_table = &dmHashContainer().m_HashTable32Entries;
-        if (hash_table->Get(hash_state->m_Hash) == 0)
-        {
-            if (hash_table->Full())
-            {
-                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
-            }
-            hash_table->Put(hash_state->m_Hash, dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex]);
-        }
-        else
-        {
-            free(dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex].m_Value);
-        }
-        dmHashContainer().FreeReverseHashStatesSlot(hash_state->m_ReverseHashEntryIndex);
+        dmHashContainer().FinalizeReverseHashState(hash_table, hash_state->m_Hash, hash_state->m_ReverseHashEntryIndex);
+        hash_state->m_ReverseHashEntryIndex = 0;
+    }
+    else if (hash_state->m_ReverseHashEntryIndex)
+    {
+        // The hash value is still valid, but this state must not be finalized into the
+        // reverse lookup table while reverse hashing is disabled or above the size limit.
+        DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
+        dmHashContainer().ReleaseReverseHashState(hash_state->m_ReverseHashEntryIndex);
         hash_state->m_ReverseHashEntryIndex = 0;
     }
 
@@ -459,11 +572,11 @@ uint32_t dmHashFinal32(HashState32* hash_state)
 
 void dmHashRelease32(HashState32* hash_state)
 {
-    if (dmHashContainer().m_Enabled && hash_state->m_ReverseHashEntryIndex)
+    if (hash_state->m_ReverseHashEntryIndex)
     {
+        // Release must clean up a live incremental state even if reverse hashing was disabled.
         DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
-        free(dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex].m_Value);
-        dmHashContainer().FreeReverseHashStatesSlot(hash_state->m_ReverseHashEntryIndex);
+        dmHashContainer().ReleaseReverseHashState(hash_state->m_ReverseHashEntryIndex);
         hash_state->m_ReverseHashEntryIndex = 0;
     }
 }
@@ -475,21 +588,35 @@ void dmHashInit64(HashState64* hash_state, bool reverse_hash)
     if(reverse_hash && dmHashContainer().m_Enabled)
     {
         DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
-        uint32_t new_index = hash_state->m_ReverseHashEntryIndex = dmHashContainer().AllocReverseHashStatesSlot();
-        memset(&dmHashContainer().m_HashStates[new_index], 0x0, sizeof(ReverseHashEntry));
+        uint32_t new_index = 0;
+        if (dmHashContainer().AllocReverseHashState(&new_index))
+        {
+            hash_state->m_ReverseHashEntryIndex = new_index;
+        }
     }
 }
 
 void dmHashClone64(HashState64* hash_state, const HashState64* source_hash_state, bool reverse_hash)
 {
     memcpy(hash_state, source_hash_state, sizeof(HashState64));
-    if(dmHashContainer().m_Enabled && source_hash_state->m_ReverseHashEntryIndex)
+    if(source_hash_state->m_ReverseHashEntryIndex)
     {
-        if(reverse_hash)
+        if(dmHashContainer().m_Enabled && reverse_hash)
         {
             DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
-            uint32_t new_index = hash_state->m_ReverseHashEntryIndex = dmHashContainer().AllocReverseHashStatesSlot();
-            dmHashContainer().CloneReverseHashState(new_index, source_hash_state->m_ReverseHashEntryIndex);
+            uint32_t new_index = 0;
+            if (!dmHashContainer().AllocReverseHashState(&new_index) || !dmHashContainer().CloneReverseHashState(new_index, source_hash_state->m_ReverseHashEntryIndex))
+            {
+                if (new_index)
+                {
+                    dmHashContainer().ReleaseReverseHashState(new_index);
+                }
+                hash_state->m_ReverseHashEntryIndex = 0;
+            }
+            else
+            {
+                hash_state->m_ReverseHashEntryIndex = new_index;
+            }
         }
         else
         {
@@ -553,7 +680,18 @@ void dmHashUpdateBuffer64(HashState64* hash_state, const void* buffer, uint32_t 
     MixTail64(hash_state, data, len);
     if (dmHashContainer().m_Enabled && hash_state->m_ReverseHashEntryIndex && hash_state->m_Size <= DMHASH_MAX_REVERSE_LENGTH)
     {
-        dmHashContainer().UpdateReversHashState(hash_state->m_ReverseHashEntryIndex, hash_state->m_Size, buffer, buffer_len);
+        DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
+        if (!dmHashContainer().UpdateReversHashState(hash_state->m_ReverseHashEntryIndex, hash_state->m_Size, buffer, buffer_len))
+        {
+            hash_state->m_ReverseHashEntryIndex = 0;
+        }
+    }
+    else if (hash_state->m_ReverseHashEntryIndex)
+    {
+        // Same stale-state cleanup as the 32-bit path.
+        DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
+        dmHashContainer().ReleaseReverseHashState(hash_state->m_ReverseHashEntryIndex);
+        hash_state->m_ReverseHashEntryIndex = 0;
     }
 }
 
@@ -574,19 +712,14 @@ uint64_t dmHashFinal64(HashState64* hash_state)
     {
         DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
         dmHashTable64<ReverseHashEntry>* hash_table = &dmHashContainer().m_HashTable64Entries;
-        if (hash_table->Get(hash_state->m_Hash) == 0)
-        {
-            if (hash_table->Full())
-            {
-                IncreaseTableCapacity(hash_table, dmHashContainer().m_HashTableCapacityIncrement);
-            }
-            hash_table->Put(hash_state->m_Hash, dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex]);
-        }
-        else
-        {
-            free(dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex].m_Value);
-        }
-        dmHashContainer().FreeReverseHashStatesSlot(hash_state->m_ReverseHashEntryIndex);
+        dmHashContainer().FinalizeReverseHashState(hash_table, hash_state->m_Hash, hash_state->m_ReverseHashEntryIndex);
+        hash_state->m_ReverseHashEntryIndex = 0;
+    }
+    else if (hash_state->m_ReverseHashEntryIndex)
+    {
+        // Same stale-state cleanup as the 32-bit path.
+        DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
+        dmHashContainer().ReleaseReverseHashState(hash_state->m_ReverseHashEntryIndex);
         hash_state->m_ReverseHashEntryIndex = 0;
     }
 
@@ -595,11 +728,11 @@ uint64_t dmHashFinal64(HashState64* hash_state)
 
 void dmHashRelease64(HashState64* hash_state)
 {
-    if (dmHashContainer().m_Enabled && hash_state->m_ReverseHashEntryIndex)
+    if (hash_state->m_ReverseHashEntryIndex)
     {
+        // Release must clean up a live incremental state even if reverse hashing was disabled.
         DM_MUTEX_SCOPED_LOCK(dmHashContainer().m_Mutex);
-        free(dmHashContainer().m_HashStates[hash_state->m_ReverseHashEntryIndex].m_Value);
-        dmHashContainer().FreeReverseHashStatesSlot(hash_state->m_ReverseHashEntryIndex);
+        dmHashContainer().ReleaseReverseHashState(hash_state->m_ReverseHashEntryIndex);
         hash_state->m_ReverseHashEntryIndex = 0;
     }
 }
@@ -731,12 +864,8 @@ DM_DLLEXPORT const char* dmHashReverseSafe32(uint32_t hash)
     return s != 0 ? s : "<unknown>";
 }
 
-#if defined(DM_PLATFORM_VENDOR)
-    #include <dmsdk/dlib/hash_vendor.h>
-#elif defined(__linux__) && !defined(__ANDROID__)
-    #define DM_HASH_LONG_FMT "%lu"
-#else
-    #define DM_HASH_LONG_FMT "%llu"
+#ifndef DM_HASH_LONG_FMT
+    #define DM_HASH_LONG_FMT "%" PRIu64
 #endif
 
 DM_DLLEXPORT const char* dmHashReverseSafe64Alloc(dmAllocator* allocator, uint64_t hash)

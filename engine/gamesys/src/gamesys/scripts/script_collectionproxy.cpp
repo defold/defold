@@ -19,6 +19,7 @@
 #include <gameobject/script.h>
 #include <gameobject/gameobject.h>
 #include <dmsdk/gamesys/script.h>
+#include <dmsdk/gameobject/script.h>
 #include <resource/resource_util.h>
 #include "../gamesys.h"
 #include "../gamesys_private.h"
@@ -110,12 +111,6 @@ namespace dmGameSystem
         dmResource::GetDependencies(factory, &params, GetResourceHashCallback, &ctx);
 
         return 1;
-    }
-
-    // See doc in comp_collection_proxy.cpp
-    static int CollectionProxy_MissingResources(lua_State* L)
-    {
-        return CollectionProxy_GetResourcesInternal(L, true);
     }
 
     // See doc in comp_collection_proxy.cpp
@@ -220,11 +215,64 @@ namespace dmGameSystem
         return 2;
     }
 
+    /*# load a collection proxy
+     *
+     * Loads the collection referenced by a collection proxy. The proxy is also
+     * initialized and the callback receives `proxy_loading`, `proxy_ready`, or
+     * `proxy_error` messages.
+     *
+     * @name collectionproxy.load
+     * @param url [type:string|hash|url] the collection proxy component
+     * @param options [type:table|nil] options table, currently unused
+     * @param callback [type:function(self, message_id, message, sender)] callback
+     * @examples
+     *
+     * ```lua
+     * collectionproxy.load("#proxy", nil, function(self, message_id, message, sender)
+     *     if message_id == hash("proxy_ready") then
+     *         print("proxy is ready")
+     *     elseif message_id == hash("proxy_loading") then
+     *         print("progress", message.progress)
+     *     elseif message_id == hash("proxy_error") then
+     *         print("error", message.code)
+     *     end
+     * end)
+     * ```
+     */
+    static int CollectionProxy_Load(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0)
+
+        (void)CheckGoInstance(L);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        // index 2 is the options table, ignored for now
+
+        luaL_checktype(L, 3, LUA_TFUNCTION);
+
+        lua_pushvalue(L, 3);
+        // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
+        int functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+
+        dmhash_t message_id = dmHashString64("async_load_and_init");
+        dmMessage::Result r = dmMessage::Post(&sender, &receiver, message_id, (uintptr_t)functionref, 0, 0, 0, 0);
+        if (r != dmMessage::RESULT_OK)
+        {
+            dmGameObject::PostScriptUnrefMessage(&sender, &sender, (uintptr_t)functionref);
+            return luaL_error(L, "collectionproxy.load could not post load message");
+        }
+
+        return 0;
+    }
+
     static const luaL_reg Module_methods[] =
     {
-        {"missing_resources", CollectionProxy_MissingResources},
         {"get_resources", CollectionProxy_GetResources},
         {"set_collection", CollectionProxy_SetCollection},
+        {"load", CollectionProxy_Load},
         {0, 0}
     };
 
@@ -566,50 +614,4 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# return an array of missing resources for a collection proxy
-     *
-     * return an array of missing resources for a collection proxy. Each
-     * entry is a hexadecimal string that represents the data of the specific
-     * resource. This representation corresponds with the filename for each
-     * individual resource that is exported when you bundle an application with
-     * LiveUpdate functionality. It should be considered good practise to always
-     * check whether or not there are any missing resources in a collection proxy
-     * before attempting to load the collection proxy.
-     *
-     * @namespace collectionproxy
-     * @name collectionproxy.missing_resources
-     * @param collectionproxy [type:url] the collectionproxy to check for missing
-     * resources.
-     * @return resources [type:table] the missing resources
-     *
-     * @examples
-     *
-     * ```lua
-     * function init(self)
-     * end
-     *
-     * local function callback(self, id, response)
-     *     local expected = self.resources[id]
-     *     if response ~= nil and response.status == 200 then
-     *         print("Successfully downloaded resource: " .. expected)
-     *         resource.store_resource(response.response)
-     *     else
-     *         print("Failed to download resource: " .. expected)
-     *         -- error handling
-     *     end
-     * end
-     *
-     * local function download_resources(self, cproxy)
-     *     self.resources = {}
-     *     local resources = collectionproxy.missing_resources(cproxy)
-     *     for _, v in ipairs(resources) do
-     *         print("Downloading resource: " .. v)
-     *
-     *         local uri = "http://example.defold.com/" .. v
-     *         local id = http.request(uri, "GET", callback)
-     *         self.resources[id] = v
-     *     end
-     * end
-     * ```
-     */
 };

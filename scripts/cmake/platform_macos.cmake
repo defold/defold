@@ -1,5 +1,11 @@
 defold_log("platform_macos.cmake")
 
+if(DEFOLD_TARGET_SYSROOT)
+  set(_DEFOLD_MACOS_SYSROOT "${DEFOLD_TARGET_SYSROOT}")
+else()
+  set(_DEFOLD_MACOS_SYSROOT "${CMAKE_OSX_SYSROOT}")
+endif()
+
 # Derive arch from TARGET_PLATFORM
 if(TARGET_PLATFORM MATCHES "^arm64-")
   set(_DEFOLD_TARGET_ARCH "arm64")
@@ -20,6 +26,7 @@ endif()
 # Common compile options for macOS (mirrors waf_dynamo defaults)
 target_compile_definitions(defold_sdk INTERFACE
   DM_PLATFORM_MACOS
+  DM_HOSTFS=\"\"
   GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED
   GL_SILENCE_DEPRECATION)
 
@@ -31,7 +38,7 @@ if(_XCODE_TOOLCHAIN)
   # Add libc++ include dir and disable default stdlib includes for C++
   target_compile_options(defold_sdk INTERFACE
     $<$<COMPILE_LANGUAGE:CXX>:-isystem>
-    $<$<COMPILE_LANGUAGE:CXX>:${CMAKE_OSX_SYSROOT}/usr/include/c++/v1>)
+    $<$<COMPILE_LANGUAGE:CXX>:${_DEFOLD_MACOS_SYSROOT}/usr/include/c++/v1>)
 endif()
 
 # C++ specific
@@ -44,9 +51,10 @@ target_link_options(defold_sdk INTERFACE
   -stdlib=libc++
   -mmacosx-version-min=${_DEFOLD_MACOS_MIN}
   -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19
+  -dead_strip
   # Frameworks
   -Wl,-framework,AppKit
   -Wl,-framework,Carbon
   -Wl,-weak_framework,Foundation
   # Always assume Xcode toolchain in use
-  -isysroot ${CMAKE_OSX_SYSROOT})
+  -isysroot ${_DEFOLD_MACOS_SYSROOT})

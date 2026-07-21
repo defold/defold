@@ -18,22 +18,43 @@ import subprocess
 import platform
 import os
 import base64
+import re
 from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
 PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
+SENSITIVE_OPTIONS = (
+    '--github-token',
+    '--token',
+    '--gcloud-service-key',
+    '--notarization-password',
+)
+
+REDACTED = '[REDACTED]'
+
+def redact_sensitive_data(text):
+    for option in SENSITIVE_OPTIONS:
+        option_pattern = re.escape(option)
+        text = re.sub(r'(%s(?:=|\s+))(?:"[^"]*"|\'[^\']*\'|\S+)' % option_pattern, r'\1%s' % REDACTED, text)
+
+    if re.search(r'(^|\s)security\s', text):
+        text = re.sub(r'((?:^|\s)-[Pkp]\s+)(?:"[^"]*"|\'[^\']*\'|\S+)', r'\1%s' % REDACTED, text)
+
+    return text
+
 def call(args, failonerror = True):
-    print(args)
+    print(redact_sensitive_data(args))
     process = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)
 
     output = ''
     while True:
         line = process.stdout.readline().decode()
         if line != '':
+            redacted_line = redact_sensitive_data(line)
             output += line
-            print(line.rstrip())
+            print(redacted_line.rstrip())
         else:
             break
 
@@ -42,22 +63,6 @@ def call(args, failonerror = True):
 
     return output
 
-
-def platform_from_host():
-    system = platform.system()
-    machine = platform.machine()
-    if system == "Linux":
-        if machine == 'aarch64':
-            return "arm64-linux"
-        else:
-            return "x86_64-linux"
-    elif system == "Darwin":
-        if machine in ['aarch64', 'arm64']:
-            return "arm64-macos"
-        else:
-            return "x86_64-macos"
-    else:
-        return "x86_64-win32"
 
 def aptget(package):
     call("sudo apt-get install -y --no-install-recommends " + package)
@@ -124,8 +129,6 @@ def get_github_token():
     return os.environ.get('SERVICES_GITHUB_TOKEN', None)
 
 def install_linux(args):
-    host_platform = platform_from_host()
-
     # # we use apt-fast to speed up apt-get downloads
     # # https://github.com/ilikenwf/apt-fast
     # call("sudo add-apt-repository ppa:apt-fast/stable")
@@ -140,13 +143,19 @@ def install_linux(args):
     call("update-alternatives --display clang")
     call("update-alternatives --display clang++")
 
-    # libtinfo needed when building wasm-web
-    if host_platform == "arm64-linux":
-        call("wget http://ports.ubuntu.com/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_arm64.deb")
-        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_arm64.deb")
+    # Legacy ncurses 5 libraries needed when building wasm-web.
+    # Ubuntu 24.04/Noble runners no longer provide these package names in apt.
+    if platform.machine() in ('aarch64', 'arm64'):
+        ncurses_url = "http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2_arm64.deb"
+        libncurses_deb = "libncurses5_6.3-2_arm64.deb"
     else:
-        call("wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb")
-        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+        ncurses_url = "http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2ubuntu0.2_amd64.deb"
+        libncurses_deb = "libncurses5_6.3-2ubuntu0.2_amd64.deb"
+
+    call(f"wget {ncurses_url}/{libtinfo_deb} {ncurses_url}/{libncurses_deb}")
+    call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
 
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
     clang_version = 19
@@ -222,81 +231,15 @@ def install(args):
     elif system == "Darwin":
         install_macos(args)
 
-def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
-                with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
-                skip_docs = False, skip_builtins = False, archive = False):
-
-    install_sdk = 'install_sdk'
-    # for some platforms, we use the locally installed platform sdk
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-linux', 'x86_64-linux'):
-        install_sdk = ''
-
-    args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
+def create_gcloud_options(gcloud_service_key):
+    gcloud_certfile = None
+    gcloud_keyfile = None
+    if gcloud_service_key:
+        gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
+        gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
+        b64decode_to_file(gcloud_service_key, gcloud_keyfile)
 
     opts = []
-    waf_opts = []
-
-    opts.append('--platform=%s' % platform)
-    # ccache isn't needed on CI
-    opts.append('--disable-ccache')
-
-    args.append('build_engine')
-
-    if channel:
-        opts.append('--channel=%s' % channel)
-
-    if archive:
-        args.append('archive_engine')
-
-    if skip_codesign:
-        opts.append('--skip-codesign')
-    if skip_docs:
-        opts.append('--skip-docs')
-    if skip_builtins:
-        opts.append('--skip-builtins')
-    if skip_tests:
-        opts.append('--skip-tests')
-    if skip_build_tests:
-        waf_opts.append('--skip-build-tests')
-
-    if with_valgrind:
-        waf_opts.append('--with-valgrind')
-    if with_asan:
-        waf_opts.append('--with-asan')
-    if with_ubsan:
-        waf_opts.append('--with-ubsan')
-    if with_tsan:
-        waf_opts.append('--with-tsan')
-    if with_vanilla_lua:
-        waf_opts.append('--use-vanilla-lua')
-
-    if platform == 'x86_64-linux':
-        args.append('build_sdk_headers') # gather headers after a successful build
-
-    cmd = ' '.join(args + opts)
-
-    # Add arguments to waf after a double-dash
-    if waf_opts:
-        cmd += ' -- ' + ' '.join(waf_opts)
-
-    call(cmd)
-
-
-def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False, notarization_username = None, notarization_password = None, notarization_itc_provider = None, gcloud_keyfile = None, gcloud_certfile = None):
-    if not platform in PLATFORMS_DESKTOP:
-        raise Exception("Unsupported platform for editor build: %s" % platform)
-
-    opts = []
-
-    if engine_artifacts:
-        opts.append('--engine-artifacts=%s' % engine_artifacts)
-    if notarization_username:
-        opts.append('--notarization-username="%s"' % notarization_username)
-    if notarization_password:
-        opts.append('--notarization-password="%s"' % notarization_password)
-    if notarization_itc_provider:
-        opts.append('--notarization-itc-provider="%s"' % notarization_itc_provider)
-
     # windows EV Code Signing with key in Google Cloud KMS
     if gcloud_keyfile and gcloud_certfile:
         opts.append("--gcloud-location=europe-west3")
@@ -308,6 +251,7 @@ def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False
         if not os.path.exists(gcloud_keyfile):
             print("Google Cloud key file not found:", gcloud_keyfile)
             sys.exit(1)
+
         print("Using Google Cloud key file", gcloud_keyfile)
         opts.append('--gcloud-keyfile=%s' % gcloud_keyfile)
 
@@ -315,81 +259,260 @@ def build_editor2(channel, platform, engine_artifacts = None, skip_tests = False
         if not os.path.exists(gcloud_certfile):
             print("Google Cloud certificate not found:", gcloud_certfile)
             sys.exit(1)
+
         print("Using Google Cloud certificate ", gcloud_certfile)
         opts.append('--gcloud-certfile=%s' % gcloud_certfile)
+    return opts
 
-    opts.append('--channel=%s' % channel)
+def build_engine(channel, platform, args):
 
-    if skip_tests:
-        opts.append('--skip-tests')
+    install_sdk = 'install_sdk'
+    # for some platforms, we use the locally installed platform sdk
+    if platform in ('x86_64-macos',
+                    'arm64-macos',
+                    'arm64-ios',
+                    'x86_64-ios',
+                    'wasm-web',
+                    'wasm_pthread-web',
+                    'arm64-linux',
+                    'x86_64-linux',
+                    'armv7-android',
+                    'arm64-android'):
+        install_sdk = ''
 
-    opts_string = ' '.join(opts)
+    cmd_args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()
 
-    call('python scripts/build.py distclean install_ext build_editor2 --platform=%s %s' % (platform, opts_string))
+    cmd_opts = []
+    waf_opts = []
 
-def archive_editor2(channel, engine_artifacts = None, platform = None):
+    cmd_opts.append('--platform=%s' % platform)
+    # ccache isn't needed on CI
+    cmd_opts.append('--disable-ccache')
+    if args.verbose:
+        cmd_opts.append('--verbose')
+
+    cmd_args.append('build_engine')
+
+    if channel:
+        cmd_opts.append('--channel=%s' % channel)
+
+    if args.archive:
+        cmd_args.append('archive_engine')
+
+    if args.codesign:
+        cmd_opts.append('--codesign')
+    if args.skip_docs:
+        cmd_opts.append('--skip-docs')
+    if args.skip_builtins:
+        cmd_opts.append('--skip-builtins')
+    if args.skip_tests:
+        cmd_opts.append('--skip-tests')
+    if args.skip_build_tests:
+        waf_opts.append('--skip-build-tests')
+    if args.codesign and args.gcloud_service_key:
+        cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
+
+    if args.with_valgrind:
+        waf_opts.append('--with-valgrind')
+    if args.with_asan:
+        waf_opts.append('--with-asan')
+    if args.with_ubsan:
+        waf_opts.append('--with-ubsan')
+    if args.with_tsan:
+        waf_opts.append('--with-tsan')
+    if args.with_vanilla_lua:
+        waf_opts.append('--use-vanilla-lua')
+
+    if platform == 'x86_64-linux':
+        cmd_args.append('build_sdk_headers') # gather headers after a successful build
+
+    cmd = ' '.join(cmd_args + cmd_opts)
+
+    # Add arguments to waf after a double-dash
+    if waf_opts:
+        cmd += ' -- ' + ' '.join(waf_opts)
+
+    call(cmd)
+
+def build_editor2(channel, platform, args):
+    if not platform in PLATFORMS_DESKTOP:
+        raise Exception("Unsupported platform for editor build: %s" % platform)
+
+    cmd_args = ('"%s" scripts/build.py distclean install_ext build_editor2' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append('--channel=%s' % channel)
+    cmd_opts.append('--platform=%s' % platform)
+
+    if args.engine_artifacts:
+        cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
+    if args.codesign and args.notarization_username:
+        cmd_opts.append('--notarization-username="%s"' % args.notarization_username)
+    if args.codesign and args.notarization_password:
+        cmd_opts.append('--notarization-password="%s"' % args.notarization_password)
+    if args.codesign and args.notarization_itc_provider:
+        cmd_opts.append('--notarization-itc-provider="%s"' % args.notarization_itc_provider)
+    if args.codesign and args.gcloud_service_key:
+        cmd_opts.extend(create_gcloud_options(args.gcloud_service_key))
+    if args.skip_tests:
+        cmd_opts.append('--skip-tests')
+    if args.codesign:
+        cmd_opts.append('--codesign')
+
+    cmd = ' '.join(cmd_args + cmd_opts)
+    call(cmd)
+
+def test_editor(channel, platform, args):
+    if not platform in PLATFORMS_DESKTOP:
+        raise Exception("Unsupported platform for editor tests: %s" % platform)
+
+    cmd_args = ('"%s" scripts/build.py distclean install_ext test_editor2' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append('--channel=%s' % channel)
+    cmd_opts.append('--platform=%s' % platform)
+
+    if args.engine_artifacts:
+        cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
+
+    cmd = ' '.join(cmd_args + cmd_opts)
+    call(cmd)
+
+def archive_editor2(channel, platform, args):
     if platform is None:
         platforms = PLATFORMS_DESKTOP
     else:
         platforms = [platform]
 
-    opts = []
-    opts.append("--channel=%s" % channel)
+    if args.skip_install_ext:
+        cmd_args = ('"%s" scripts/build.py archive_editor2' % sys.executable).split()
+    else:
+        cmd_args = ('"%s" scripts/build.py install_ext archive_editor2' % sys.executable).split()
 
-    if engine_artifacts:
-        opts.append('--engine-artifacts=%s' % engine_artifacts)
-
-    opts_string = ' '.join(opts)
     for platform in platforms:
-        call('python scripts/build.py install_ext archive_editor2 --platform=%s %s' % (platform, opts_string))
+        cmd_opts = []
+        cmd_opts.append("--channel=%s" % channel)
+        cmd_opts.append('--platform=%s' % platform)
+
+        if args.engine_artifacts:
+            cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
+
+        cmd = ' '.join(cmd_args + cmd_opts)
+        call(cmd)
 
 def distclean():
-    call("python scripts/build.py distclean")
+    call('"%s" scripts/build.py distclean' % sys.executable)
 
 
 def install_ext(platform = None):
-    opts = []
+    cmd_args = ('"%s" scripts/build.py install_ext' % sys.executable).split()
+    cmd_opts = []
     if platform:
-        opts.append('--platform=%s' % platform)
+        cmd_opts.append('--platform=%s' % platform)
 
-    call("python scripts/build.py install_ext %s" % ' '.join(opts))
-
-def build_bob(channel, branch = None):
-    args = "python scripts/build.py install_sdk install_ext sync_archive build_bob archive_bob".split()
-    opts = []
-    opts.append("--channel=%s" % channel)
-
-    cmd = ' '.join(args + opts)
+    cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 
-def release(channel):
-    args = "python scripts/build.py install_ext release".split()
-    opts = []
-    opts.append("--channel=%s" % channel)
+def build_bob(channel, branch, args):
+    cmd_args = ('"%s" scripts/build.py install_ext sync_archive build_bob archive_bob' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append("--channel=%s" % channel)
+    if args.skip_tests:
+        cmd_opts.append("--skip-tests")
+
+    cmd = ' '.join(cmd_args + cmd_opts)
+    call(cmd)
+
+def test_bob(channel):
+    call('"%s" scripts/build.py install_ext --channel=%s' % (sys.executable, channel))
+    call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
+
+
+def release(channel, platform=None):
+    cmd_args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
 
     token = get_github_token()
     if token:
-        opts.append("--github-token=%s" % token)
+        cmd_opts.append("--github-token=%s" % token)
 
-    cmd = ' '.join(args + opts)
+    cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
-def build_sdk(channel):
-    args = "python scripts/build.py install_ext build_sdk".split()
-    opts = []
-    opts.append("--channel=%s" % channel)
+# Channels that generate and ship editor release notes.
+RELEASE_NOTES_CHANNELS = ("alpha", "beta", "stable")
 
-    cmd = ' '.join(args + opts)
+# Channels where missing notes fail the release. Alpha builds continuously off an
+# in-progress board, so it ships notes best-effort rather than blocking a build.
+MANDATORY_RELEASE_NOTES_CHANNELS = ("beta", "stable")
+
+def gen_release_notes(channel):
+    if channel not in RELEASE_NOTES_CHANNELS:
+        print("Channel '%s' does not ship release notes - skipping" % channel)
+        return
+
+    version = open("VERSION").read().strip()
+    notes_md = os.path.join("releasenotes", "%s.md" % version)
+    notes_json = os.path.join("releasenotes", "%s.json" % version)
+
+    notes_md_exists = os.path.exists(notes_md)
+    notes_json_exists = os.path.exists(notes_json)
+
+    # Manually-authored notes win: if the files are already on disk, use them
+    # as-is and don't hit the API or overwrite them.
+    if notes_md_exists or notes_json_exists:
+        if not notes_md_exists:
+            raise Exception("%s already exists, but matching %s is missing" % (notes_json, notes_md))
+        if not notes_json_exists:
+            raise Exception("%s already exists, but matching %s is missing" % (notes_md, notes_json))
+        print("%s and %s already exist - using manually-authored notes as-is" % (notes_md, notes_json))
+        return
+
+    # Run the generator. It exits non-zero if it errors or can't confirm a fix is
+    # on the channel's release branch. --use-github-compare makes that check use
+    # the GitHub API, needed because CI clones are shallow.
+    mandatory = channel in MANDATORY_RELEASE_NOTES_CHANNELS
+    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s --use-github-compare generate' % (
+        sys.executable, version, channel, get_github_token()),
+        failonerror = mandatory)
+
+    notes_md_exists = os.path.exists(notes_md)
+    notes_json_exists = os.path.exists(notes_json)
+    if mandatory:
+        if not notes_md_exists:
+            raise Exception("No release notes markdown produced for %s on channel '%s'" % (version, channel))
+        if not notes_json_exists:
+            raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
+    elif notes_md_exists != notes_json_exists:
+        raise Exception("Incomplete release notes produced for %s on channel '%s'; expected both %s and %s" % (
+            version, channel, notes_md, notes_json))
+    elif not notes_json_exists:
+        print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
+
+def build_sdk(channel, platform=None):
+    cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
+    cmd_opts = []
+    cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
+
+    cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
 
 def smoke_test():
-    call('python scripts/build.py distclean install_ext smoke_test')
+    call('"%s" scripts/build.py distclean install_ext smoke_test' % sys.executable)
 
 
 
 def get_branch():
+    # Repository dispatch runs use this payload-derived ref for checkout.
+    branch = os.environ.get('BUILD_BRANCH', '')
+    if branch:
+        return branch
+
     # The name of the head branch. Only set for pull request events.
     branch = os.environ.get('GITHUB_HEAD_REF', '')
     if branch == '':
@@ -398,11 +521,27 @@ def get_branch():
 
     if branch == '':
         # https://stackoverflow.com/a/55276236/1266551
-        branch = call("git rev-parse --abbrev-ref HEAD").strip()
+        branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
         if branch == "HEAD":
-            branch = call("git rev-parse HEAD")
+            branch = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
 
     return branch
+
+def release_settings_for_branch(branch):
+    if branch == "master":
+        return "stable", True
+    if branch == "beta":
+        return "beta", True
+    if branch == "dev":
+        return "alpha", True
+    return "dev", False
+
+def should_release_branch(branch):
+    return release_settings_for_branch(branch)[1]
+
+def release_notes_required_for_branch(branch):
+    channel = release_settings_for_branch(branch)[0]
+    return channel in RELEASE_NOTES_CHANNELS
 
 def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
@@ -410,7 +549,7 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, archive-editor, bob, sdk, install, smoke)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -422,7 +561,11 @@ def main(argv):
     parser.add_argument("--skip-build-tests", dest="skip_build_tests", action='store_true', help="")
     parser.add_argument("--skip-builtins", dest="skip_builtins", action='store_true', help="")
     parser.add_argument("--skip-docs", dest="skip_docs", action='store_true', help="")
-    parser.add_argument("--engine-artifacts", dest="engine_artifacts", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--codesign", dest="codesign", action='store_true', help="Enable code signing")
+    parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
+    parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
+    parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
     parser.add_argument("--gcloud-service-key", dest="gcloud_service_key", help="String containing Google Cloud service account key")
@@ -436,6 +579,10 @@ def main(argv):
     args = parser.parse_args()
 
     platform = args.platform
+
+    if args.commands == ["should-build-platform"]:
+        print("true" if platform and is_platform_supported(platform) else "false")
+        return
 
     if platform and not is_platform_supported(platform):
         print("Platform {} is private and the repo '{}' cannot build for this platform. Skipping".format(platform, os.environ.get('GITHUB_REPOSITORY', '')))
@@ -456,87 +603,44 @@ def main(argv):
 
     branch = get_branch()
 
-    # configure build flags based on the branch
-    release_channel = None
-    make_release = False
-    if branch == "master":
-        engine_channel = "stable"
-        editor_channel = "editor-alpha"
-        release_channel = "stable"
-        make_release = True
-        engine_artifacts = args.engine_artifacts or "archived"
-    elif branch == "beta":
-        engine_channel = "beta"
-        editor_channel = "beta"
-        release_channel = "beta"
-        make_release = True
-        engine_artifacts = args.engine_artifacts or "archived"
-    elif branch == "dev":
-        engine_channel = "alpha"
-        editor_channel = "alpha"
-        release_channel = "alpha"
-        make_release = True
-        engine_artifacts = args.engine_artifacts or "archived"
-    elif branch == "editor-dev":
-        engine_channel = None
-        editor_channel = "editor-alpha"
-        release_channel = "editor-alpha"
-        make_release = True
-        engine_artifacts = args.engine_artifacts
-    elif branch and (branch.startswith("DEFEDIT-") or get_pull_request_target_branch() == "editor-dev"):
-        engine_channel = None
-        editor_channel = "editor-dev"
-        engine_artifacts = args.engine_artifacts or "archived-stable"
-    else: # engine dev branch
-        engine_channel = "dev"
-        editor_channel = "dev"
-        engine_artifacts = args.engine_artifacts or "archived"
+    if args.commands == ["should-release"]:
+        print("true" if should_release_branch(branch) else "false")
+        return
 
-    print("Using branch={} engine_channel={} editor_channel={} engine_artifacts={}".format(branch, engine_channel, editor_channel, engine_artifacts))
+    if args.commands == ["requires-release-notes"]:
+        print("true" if release_notes_required_for_branch(branch) else "false")
+        return
+
+    channel, make_release = release_settings_for_branch(branch)
+    if args.channel:
+        channel = args.channel
+
+    print(f"Using branch={branch} channel={channel} engine_artifacts={args.engine_artifacts}")
 
     # execute commands
     for command in args.commands:
         if command == "engine":
             if not platform:
                 raise Exception("No --platform specified.")
-            build_engine(
-                platform,
-                engine_channel,
-                with_valgrind = args.with_valgrind or (branch in [ "master", "beta" ]),
-                with_asan = args.with_asan,
-                with_ubsan = args.with_ubsan,
-                with_tsan = args.with_tsan,
-                with_vanilla_lua = args.with_vanilla_lua,
-                archive = args.archive,
-                skip_tests = args.skip_tests,
-                skip_build_tests = args.skip_build_tests,
-                skip_builtins = args.skip_builtins,
-                skip_docs = args.skip_docs)
+            build_engine(channel, platform, args)
         elif command == "build-editor":
             if not platform:
                 raise Exception("No --platform specified.")
-            gcloud_certfile = None
-            gcloud_keyfile = None
-            if args.gcloud_service_key:
-                gcloud_certfile = os.path.join("ci", "gcloud_certfile.cer")
-                gcloud_keyfile = os.path.join("ci", "gcloud_keyfile.json")
-                b64decode_to_file(args.gcloud_service_key, gcloud_keyfile)
-            build_editor2(
-                editor_channel, 
-                platform,
-                engine_artifacts = engine_artifacts, 
-                skip_tests = args.skip_tests,
-                notarization_username = args.notarization_username,
-                notarization_password = args.notarization_password,
-                notarization_itc_provider = args.notarization_itc_provider,
-                gcloud_keyfile = gcloud_keyfile, 
-                gcloud_certfile = gcloud_certfile)
+            build_editor2(channel, platform, args)
+        elif command == "test-editor":
+            if not platform:
+                raise Exception("No --platform specified.")
+            test_editor(channel, platform, args)
         elif command == "archive-editor":
-            archive_editor2(editor_channel, engine_artifacts = engine_artifacts, platform = platform)
+            archive_editor2(channel, platform, args)
+        elif command == "gen-release-notes":
+            gen_release_notes(channel)
         elif command == "bob":
-            build_bob(engine_channel, branch = branch)
+            build_bob(channel, branch, args)
+        elif command == "test-bob":
+            test_bob(channel)
         elif command == "sdk":
-            build_sdk(engine_channel)
+            build_sdk(channel, platform)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
@@ -547,7 +651,7 @@ def main(argv):
             distclean()
         elif command == "release":
             if make_release:
-                release(release_channel)
+                release(channel, platform)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         else:

@@ -27,10 +27,14 @@
 
 #include <script/script.h>
 
+#include <font/text_layout.h>
+
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/gameobject/gameobject.h>
+
+#include <dlib/safe_windows.h>
 
 /**
  * Defold GUI system
@@ -46,6 +50,12 @@
  */
 namespace dmGui
 {
+    struct CustomPropertyDesc
+    {
+        dmhash_t       m_Key;
+        CustomProperty m_Property;
+    };
+
     /**
      * Default layout id
      */
@@ -257,6 +267,12 @@ namespace dmGui
         float m_MaxAscent;
         /// Max descent of font, positive value
         float m_MaxDescent;
+    };
+
+    struct TextLayout
+    {
+        HTextLayout m_Handle;
+        uint64_t    m_Key;
     };
     /** callback for retrieving text metrics
      * The function is expected to fill out the supplied metrics struct with metrics of the supplied font and text.
@@ -895,6 +911,9 @@ namespace dmGui
     void SetNodeId(HScene scene, HNode node, const char* id);
     dmhash_t GetNodeId(HScene scene, HNode node);
 
+    // Ownershipt of string values are transferred to the GUI node on success.
+    Result SetNodeCustomProperties(HScene scene, HNode node, const CustomPropertyDesc* properties, uint32_t property_count);
+
     HNode GetNodeById(HScene scene, const char* id);
     HNode GetNodeById(HScene scene, dmhash_t id);
 
@@ -1065,6 +1084,10 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    // Returns the node-owned text layout as a borrowed handle.
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
+    // Stores a node-owned text layout reference. The incoming handle remains owned by the caller.
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);

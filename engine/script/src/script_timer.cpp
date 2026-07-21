@@ -88,8 +88,10 @@ namespace dmScript
         dmSet<uint16_t>     m_Instances; // the pool indices
         dmArray<uint16_t>   m_ScratchBuffer; // When doing operations on the timer instances, we need a copy to avoid self modification of m_Instances
         uint16_t            m_Version;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
+        uint16_t            m_CallbackInvocationDepth;
         uint16_t            m_InUpdate : 1;
         uint16_t            m_IsDirty : 1;
+        uint16_t            m_HasDeferredDeadTimers : 1;
     };
 
     dmArray<TimerWorld*> g_Worlds;
@@ -167,14 +169,17 @@ namespace dmScript
         timer_world->m_Instances.SetCapacity(INITIAL_TIMER_CAPACITY);
 
         timer_world->m_Version = 0;
+        timer_world->m_CallbackInvocationDepth = 0;
         timer_world->m_InUpdate = 0;
         timer_world->m_IsDirty = 0;
+        timer_world->m_HasDeferredDeadTimers = 0;
         return timer_world;
     }
 
     void DeleteTimerWorld(HTimerWorld timer_world)
     {
         assert(timer_world->m_InUpdate == 0);
+        assert(timer_world->m_CallbackInvocationDepth == 0);
         delete timer_world;
     }
 
@@ -212,6 +217,46 @@ namespace dmScript
             tgt[i] = src[i];
         }
         return size;
+    }
+
+    static uint32_t FreeDeadTimers(HTimerWorld timer_world)
+    {
+        assert(timer_world != 0x0);
+
+        uint32_t size = CopyIndices(timer_world->m_Instances, timer_world->m_ScratchBuffer);
+        uint32_t free_count = 0;
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            Timer* timer = GetTimerFromIndex(timer_world, timer_world->m_ScratchBuffer[i]);
+            if (timer && timer->m_IsAlive == 0)
+            {
+                FreeTimer(timer_world, timer);
+                ++free_count;
+            }
+        }
+        return free_count;
+    }
+
+    static void BeginLuaTimerCallback(HTimerWorld timer_world)
+    {
+        assert(timer_world != 0x0);
+        ++timer_world->m_CallbackInvocationDepth;
+    }
+
+    static void EndLuaTimerCallback(HTimerWorld timer_world)
+    {
+        assert(timer_world != 0x0);
+        assert(timer_world->m_CallbackInvocationDepth > 0);
+        --timer_world->m_CallbackInvocationDepth;
+
+        if (timer_world->m_CallbackInvocationDepth == 0 && timer_world->m_InUpdate == 0 && timer_world->m_HasDeferredDeadTimers)
+        {
+            timer_world->m_HasDeferredDeadTimers = 0;
+            if (FreeDeadTimers(timer_world) > 0)
+            {
+                ++timer_world->m_Version;
+            }
+        }
     }
 
     void UpdateTimers(HTimerWorld timer_world, float dt)
@@ -301,6 +346,12 @@ namespace dmScript
             }
         }
 
+        if (timer_world->m_HasDeferredDeadTimers)
+        {
+            timer_world->m_HasDeferredDeadTimers = 0;
+            FreeDeadTimers(timer_world);
+        }
+
         if (timer_world->m_IsDirty)
         {
             ++timer_world->m_Version;
@@ -351,10 +402,14 @@ namespace dmScript
         timer->m_IsAlive = 0;
         timer->m_Callback(timer_world, TIMER_EVENT_CANCELLED, timer->m_Handle, 0.f, timer->m_Owner, timer->m_UserData);
 
-        if (timer_world->m_InUpdate == 0)
+        if (timer_world->m_InUpdate == 0 && timer_world->m_CallbackInvocationDepth == 0)
         {
             FreeTimer(timer_world, timer);
             ++timer_world->m_Version;
+        }
+        else
+        {
+            timer_world->m_HasDeferredDeadTimers = 1;
         }
 
         return true;
@@ -387,9 +442,13 @@ namespace dmScript
                 ++cancelled_count;
             }
 
-            if (timer_world->m_InUpdate == 0)
+            if (timer_world->m_InUpdate == 0 && timer_world->m_CallbackInvocationDepth == 0)
             {
                 FreeTimer(timer_world, timer);
+            }
+            else
+            {
+                timer_world->m_HasDeferredDeadTimers = 1;
             }
         }
 
@@ -527,15 +586,9 @@ namespace dmScript
         {
             LuaTimerCallbackArgs args = { timer_handle, time_elapsed };
 
+            BeginLuaTimerCallback(timer_world);
             InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
-        }
-
-        if ((event_type != TIMER_EVENT_TRIGGER_WILL_REPEAT) && IsCallbackValid(callback))
-        {
-            DestroyCallback(callback);
-
-            Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
-            timer->m_UserData = 0;
+            EndLuaTimerCallback(timer_world);
         }
     }
 
@@ -700,7 +753,7 @@ namespace dmScript
         dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
-        if (!timer)
+        if (!timer || timer->m_IsAlive == 0)
         {
             lua_pushboolean(L, 0);
             return 1;
@@ -714,7 +767,9 @@ namespace dmScript
         }
 
         LuaTimerCallbackArgs args = { timer->m_Handle, timer->m_Delay - timer->m_Remaining };
+        BeginLuaTimerCallback(timer_world);
         InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
+        EndLuaTimerCallback(timer_world);
 
         lua_pushboolean(L, 1);
         return 1;
@@ -759,7 +814,7 @@ namespace dmScript
         dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
-        if (!timer)
+        if (!timer || timer->m_IsAlive == 0)
         {
             lua_pushnil(L);
             return 1;

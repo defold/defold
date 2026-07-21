@@ -18,6 +18,10 @@ function M.get_commands()
             run = function()
                 local dialog = editor.ui.dialog({
                     title = "Dialog title",
+                    modal = false,
+                    width = 720,
+                    height = 540,
+                    resizable = true,
                     header = editor.ui.heading({
                         text = "Header on the Right",
                         color = editor.ui.COLOR.HINT,
@@ -234,7 +238,45 @@ function M.get_commands()
                                                 issue = {severity = editor.ui.ISSUE_SEVERITY.ERROR, message = "error message"}
                                             }),
                                             editor.ui.check_box({
+                                                text = "Indeterminate check box",
+                                                indeterminate = true,
                                                 value = true
+                                            }),
+                                            editor.ui.check_box({
+                                                value = true
+                                            })
+                                        }
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Tabs",
+                                        alignment = editor.ui.ALIGNMENT.TOP_RIGHT
+                                    }),
+                                    editor.ui.tabs({
+                                        tabs = {
+                                            editor.ui.tab({
+                                                text = "General",
+                                                icon = editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png"
+                                                }),
+                                                content = editor.ui.vertical({
+                                                    padding = editor.ui.PADDING.LARGE,
+                                                    children = {
+                                                        editor.ui.label({
+                                                            text = "General content"
+                                                        })
+                                                    }
+                                                })
+                                            }),
+                                            false,
+                                            editor.ui.tab({
+                                                text = "Empty",
+                                                content = false
+                                            }),
+                                            editor.ui.tab({
+                                                text = "Disabled",
+                                                enabled = false
                                             })
                                         }
                                     })
@@ -264,6 +306,13 @@ function M.get_commands()
                 expect_error("editor.ui.image({image = false})", editor.ui.image, {image = false})
                 expect_error("editor.ui.image({image = 'foo', width = false})", editor.ui.image, {image = 'foo', width = false})
                 expect_error("editor.ui.image({image = 'foo', width = -1})", editor.ui.image, {image = 'foo', width = -1})
+                editor.ui.dialog({title = "Width-only dialog", width = 720})
+                editor.ui.dialog({title = "Height-only dialog", height = 540})
+                expect_error("editor.ui.dialog({title = 'Dialog title', width = false})", editor.ui.dialog, {title = "Dialog title", width = false})
+                expect_error("editor.ui.dialog({title = 'Dialog title', height = -1})", editor.ui.dialog, {title = "Dialog title", height = -1})
+                expect_error("editor.ui.dialog({title = 'Dialog title', resizable = 1})", editor.ui.dialog, {title = "Dialog title", resizable = 1})
+                expect_error("editor.ui.check_box({indeterminate = 1})", editor.ui.check_box, {indeterminate = 1})
+                expect_error("editor.ui.tab({})", editor.ui.tab, {})
 
                 -- editor.ui.show_dialog(dialog)
             end

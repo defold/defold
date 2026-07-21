@@ -18,9 +18,12 @@
 #include <map>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include "../dlib/endian.hpp"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 #include "../dlib/time.h"
+
+extern "C" int dmEndianCTest(void);
 
 class dlib : public jc_test_base_class
 {
@@ -120,6 +123,37 @@ TEST_F(dlib, ReverseHashSafeDeprecated)
     }
 }
 
+TEST_F(dlib, Endian)
+{
+    ASSERT_EQ(0, dmEndianCTest());
+
+    ASSERT_EQ((uint16_t)0x1234U, EndianToHost16(EndianToNetwork16((uint16_t)0x1234U)));
+    ASSERT_EQ((uint32_t)0x12345678U, EndianToHost32(EndianToNetwork32((uint32_t)0x12345678U)));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, EndianToHost64(EndianToNetwork64((uint64_t)0x123456789abcdef0ULL)));
+
+    ASSERT_EQ((uint16_t)0x1234U, dmEndian::ToHost(dmEndian::ToNetwork((uint16_t)0x1234U)));
+    ASSERT_EQ((uint32_t)0x12345678U, dmEndian::ToHost(dmEndian::ToNetwork((uint32_t)0x12345678U)));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, dmEndian::ToHost(dmEndian::ToNetwork((uint64_t)0x123456789abcdef0ULL)));
+
+#if DM_ENDIAN == DM_ENDIAN_LITTLE
+    ASSERT_EQ((uint16_t)0x3412U, EndianToNetwork16((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x78563412U, EndianToNetwork32((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0xf0debc9a78563412ULL, EndianToNetwork64((uint64_t)0x123456789abcdef0ULL));
+
+    ASSERT_EQ((uint16_t)0x3412U, dmEndian::ToNetwork((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x78563412U, dmEndian::ToNetwork((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0xf0debc9a78563412ULL, dmEndian::ToNetwork((uint64_t)0x123456789abcdef0ULL));
+#elif DM_ENDIAN == DM_ENDIAN_BIG
+    ASSERT_EQ((uint16_t)0x1234U, EndianToNetwork16((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x12345678U, EndianToNetwork32((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, EndianToNetwork64((uint64_t)0x123456789abcdef0ULL));
+
+    ASSERT_EQ((uint16_t)0x1234U, dmEndian::ToNetwork((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x12345678U, dmEndian::ToNetwork((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, dmEndian::ToNetwork((uint64_t)0x123456789abcdef0ULL));
+#endif
+}
+
 
 TEST_F(dlib, ReverseHashSafeStack)
 {
@@ -142,9 +176,9 @@ TEST_F(dlib, ReverseHashSafeStack)
     {
         DM_HASH_REVERSE_MEM(hash_ctx, 52+21);
 
-        const char* reverse64 = dmHashReverseSafe64Alloc(&hash_ctx, h64);
+        const char* reverse64 = dmHashReverseSafe64Alloc(&hash_ctx, h64unk);
         ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // 30 chars
-        ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32Alloc(&hash_ctx, h32)); // 20 chars
+        ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32Alloc(&hash_ctx, h32unk)); // 20 chars
         ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // Check that the null termination wasn't messed up
 
         // Test that the string will get truncated, and we'll fallback to the default string
@@ -159,6 +193,8 @@ TEST_F(dlib, ReverseHashSafeStack)
         // Making sure the macro works and that the variables names don't collide
         DM_HASH_REVERSE_MEM(hash_ctx2, 32);
         DM_HASH_REVERSE_MEM(hash_ctx3, 32);
+        (void)hash_ctx2;
+        (void)hash_ctx3;
     }
 }
 

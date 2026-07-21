@@ -13,25 +13,34 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.gui-test
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
+            [editor.editor-extensions.graph :as ext-graph]
+            [editor.editor-extensions.runtime :as rt]
             [editor.gl.pass :as pass]
+            [editor.graph-util :as gu]
             [editor.gui :as gui]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.types]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.node :as in]
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]]
-            [util.fn :as fn])
-  (:import [com.dynamo.gamesys.proto Gui$NodeDesc]))
+            [util.fn :as fn]
+            [util.murmur :as murmur])
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
+           [java.io StringReader]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -75,6 +84,163 @@
 (def ^:private gui-particlefx-resource (partial gui-resource-node gui-particlefx-resources))
 (def ^:private gui-material (partial gui-resource-node gui-materials))
 (def ^:private gui-spine-scene (partial gui-resource-node gui-spine-scenes))
+(def ^:private gui-test-gui-resource (partial gui-resource-node (partial gui-resources-node "Test GUI Resources")))
+
+(g/defnode TestCustomGuiNode
+  (inherits gui/BoxNode)
+
+  (property test-hash g/Str (default "")
+            (static custom-property {:id "test_hash"
+                                     :protobuf-type :type-hash})
+            (dynamic edit-type (gui/layout-property-edit-type test-hash {:type g/Str}))
+            (value (gui/layout-property-getter test-hash))
+            (set (gui/layout-property-setter test-hash)))
+  (property test-number g/Num (default 1.0)
+            (static custom-property {:id "test_number"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-number {:type g/Num}))
+            (value (gui/layout-property-getter test-number))
+            (set (gui/layout-property-setter test-number)))
+  (property test-quat editor.types/Vec4 (default [0.0 0.0 0.0 1.0])
+            (static custom-property {:id "test_quat"
+                                     :protobuf-type :type-quat})
+            (dynamic edit-type (gui/layout-property-edit-type test-quat {:type editor.types/Vec4}))
+            (value (gui/layout-property-getter test-quat))
+            (set (gui/layout-property-setter test-quat)))
+  (property test-resource g/Str (default "")
+            (static custom-property {:id "test_resource"
+                                     :protobuf-type :type-string})
+            (dynamic edit-type (gui/layout-property-edit-type test-resource {:type g/Str}))
+            (value (gui/layout-property-getter test-resource))
+            (set (gui/layout-property-setter test-resource)))
+  (property test-vector3 editor.types/Vec3 (default [0.0 0.0 0.0])
+            (static custom-property {:id "test_vector3"
+                                     :protobuf-type :type-vector3})
+            (dynamic edit-type (gui/layout-property-edit-type test-vector3 {:type editor.types/Vec3}))
+            (value (gui/layout-property-getter test-vector3))
+            (set (gui/layout-property-setter test-vector3)))
+  (property test-vector4 editor.types/Vec4 (default [0.0 0.0 0.0 0.0])
+            (static custom-property {:id "test_vector4"
+                                     :protobuf-type :type-vector4})
+            (dynamic edit-type (gui/layout-property-edit-type test-vector4 {:type editor.types/Vec4}))
+            (value (gui/layout-property-getter test-vector4))
+            (set (gui/layout-property-setter test-vector4)))
+  (property test-dash g/Num (default 0.0)
+            (static custom-property {:id "test-dash"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-dash {:type g/Num}))
+            (value (gui/layout-property-getter test-dash))
+            (set (gui/layout-property-setter test-dash)))
+  (property test-underscore g/Num (default 0.0)
+            (static custom-property {:id "test_underscore"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-underscore {:type g/Num}))
+            (value (gui/layout-property-getter test-underscore))
+            (set (gui/layout-property-setter test-underscore)))
+  (property test-slash g/Num (default 0.0)
+            (static custom-property {:id "test/slash"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-slash {:type g/Num}))
+            (value (gui/layout-property-getter test-slash))
+            (set (gui/layout-property-setter test-slash)))
+  (property test-colon g/Num (default 0.0)
+            (static custom-property {:id "test:colon"
+                                     :protobuf-type :type-number})
+            (dynamic edit-type (gui/layout-property-edit-type test-colon {:type g/Num}))
+            (value (gui/layout-property-getter test-colon))
+            (set (gui/layout-property-setter test-colon)))
+
+  (output node-msg g/Any :cached
+          (g/fnk [shape-base-node-msg
+                  ^:raw slice9
+                  ^:raw test-hash
+                  ^:raw test-number
+                  ^:raw test-quat
+                  ^:raw test-resource
+                  ^:raw test-vector3
+                  ^:raw test-vector4
+                  ^:raw test-dash
+                  ^:raw test-underscore
+                  ^:raw test-slash
+                  ^:raw test-colon]
+            (assoc shape-base-node-msg
+              :slice9 slice9
+              :test-hash test-hash
+              :test-number test-number
+              :test-quat test-quat
+              :test-resource test-resource
+              :test-vector3 test-vector3
+              :test-vector4 test-vector4
+              :test-dash test-dash
+              :test-underscore test-underscore
+              :test-slash test-slash
+              :test-colon test-colon))))
+
+(g/defnode TestGuiResourceNode
+  (inherits outline/OutlineNode)
+  (property name g/Str
+            (set (partial gui/update-gui-resource-references :test-gui-resource))
+            (dynamic error (g/fnk [_node-id name name-counts]
+                             (gui/prop-unique-id-error _node-id :name name name-counts "Name"))))
+  (property test-gui-resource resource/Resource
+            (value (gu/passthrough test-gui-resource-resource))
+            (dynamic error (g/fnk [_node-id test-gui-resource]
+                             (gui/prop-resource-error _node-id :test-gui-resource test-gui-resource "Test GUI Resource"))))
+  (input name-counts gui/NameCounts)
+  (input test-gui-resource-resource resource/Resource)
+  (output node-outline outline/OutlineData :cached
+          (g/fnk [_node-id name test-gui-resource-resource build-errors]
+            (cond-> {:node-id _node-id
+                     :node-outline-key name
+                     :label name
+                     :icon "icons/32/Icons_01-Folder-closed.png"
+                     :outline-error? (g/error-fatal? build-errors)}
+                    (resource/resource? test-gui-resource-resource)
+                    (assoc :link test-gui-resource-resource :outline-show-link? true))))
+  (output pb-msg g/Any (g/fnk [name test-gui-resource]
+                         {:name name
+                          :path (resource/resource->proj-path test-gui-resource)}))
+  (output build-errors g/Any
+          (g/fnk [_node-id name name-counts test-gui-resource]
+            (g/package-errors
+              _node-id
+              (gui/prop-unique-id-error _node-id :name name name-counts "Name")
+              (gui/prop-resource-error _node-id :test-gui-resource test-gui-resource "Test GUI Resource")))))
+
+(defmethod gui/update-gui-resource-reference [::TestCustomGuiNode :test-gui-resource]
+  [_ evaluation-context node-id old-name new-name]
+  (gui/update-basic-gui-resource-reference evaluation-context node-id :test-resource old-name new-name))
+
+(defn- attach-test-gui-resource [scene resources-node entry-node]
+  (concat
+    (g/connect entry-node :_node-id resources-node :nodes)
+    (g/connect entry-node :name resources-node :names)
+    (g/connect entry-node :build-errors resources-node :build-errors)
+    (g/connect entry-node :node-outline resources-node :child-outlines)
+    (g/connect entry-node :pb-msg scene :resource-msgs)
+    (g/connect resources-node :name-counts entry-node :name-counts)))
+
+(defn- register-test-gui-extensions [workspace]
+  (g/transact
+    (concat
+      (gui/register-custom-node-type-info
+        workspace
+        {:node-type TestCustomGuiNode
+         :display-name "Test Custom"
+         :custom-type-name "TestCustom"
+         :icon "icons/32/Icons_40-GUI-Box-node.png"
+         :defaults gui/shape-base-node-defaults})
+      (gui/register-node-tree-attachment-node-type workspace TestCustomGuiNode)
+      (gui/register-gui-resource-kind
+        workspace
+        :test-gui-resource
+        {:label "Test GUI Resources"
+         :icon "icons/32/Icons_01-Folder-closed.png"
+         :exts "testguiresource"
+         :node-type TestGuiResourceNode
+         :resource-property :test-gui-resource
+         :attachment-property :test-gui-resources
+         :attach-fn attach-test-gui-resource}))))
 
 (defn- property-value-choices [node-id label]
   (->> (g/node-value node-id :_properties)
@@ -84,11 +250,250 @@
        :options
        (mapv first)))
 
+(def ^:private test-custom-property-keys
+  [:test-hash
+   :test-number
+   :test-quat
+   :test-resource
+   :test-vector3
+   :test-vector4
+   :test-dash
+   :test-underscore
+   :test-slash
+   :test-colon])
+
+(defn- test-custom-property-values [node-id]
+  (select-keys (get (g/node-value node-id :layout->prop->value) "") test-custom-property-keys))
+
 (deftest load-gui
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")
           _gui-node (ffirst (g/sources-of node-id :child-outlines))]
       (is (some? _gui-node)))))
+
+(deftest custom-gui-extension-registration
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (let [custom-type (murmur/hash32 "TestCustom")
+          test-quat (vector-of :float 0.0 0.0 0.707 0.707)
+          test-vector3 (vector-of :float 1.0 2.0 3.0)
+          test-vector4 (vector-of :float 4.0 5.0 6.0 7.0)
+          test-hash "hash_value"
+          source-resources [{:name "beta" :path "/beta.testguiresource"}
+                            {:name "alpha" :path "/alpha.testguiresource"}]]
+      (register-test-gui-extensions workspace)
+      (doseq [editability [:editable :non-editable]
+              :let [gui-resource-type (get (workspace/get-resource-type-map workspace editability) "gui")
+                    node-type-info (get-in gui-resource-type [:gui-node-type-registry :custom-type-name->type-info "TestCustom"])
+                    resource-kind-info (get-in gui-resource-type [:gui-resource-kind-registry :test-gui-resource])]]
+        (is (= custom-type (:custom-type node-type-info)))
+        (is (= "TestCustom" (get-in gui-resource-type [:gui-node-type-registry :node-type->type-info TestCustomGuiNode :custom-type-name])))
+        (is (= ["testguiresource"] (:exts resource-kind-info))))
+      (doseq [proj-path ["/alpha.testguiresource" "/beta.testguiresource"]]
+        (let [file (test-util/file workspace proj-path)]
+          (io/make-parents file)
+          (spit file "")))
+      (let [gui-resource (test-util/make-resource!
+                           workspace
+                           "/custom_resources.gui"
+                           {:resources source-resources
+                            :nodes [{:type :type-custom
+                                     :custom-type-name "TestCustom"
+                                     :custom-properties [{:id "unknown"
+                                                          :type :type-string
+                                                          :string "kept"}
+                                                         {:id "test_hash"
+                                                          :type :type-hash
+                                                          :string test-hash}
+                                                         {:id "test_resource"
+                                                          :type :type-string
+                                                          :string "alpha"}
+                                                         {:id "test_number"
+                                                          :type :type-number
+                                                          :number 42.0}
+                                                         {:id "test_quat"
+                                                          :type :type-quat
+                                                          :quat test-quat}
+                                                         {:id "test_vector3"
+                                                          :type :type-vector3
+                                                          :vector3 test-vector3}
+                                                         {:id "test_vector4"
+                                                          :type :type-vector4
+                                                          :vector4 test-vector4}]
+                                     :id "custom"}]})]
+        (workspace/resource-sync! workspace)
+        (let [gui-scene (test-util/resource-node project gui-resource)
+              custom-node (gui-node gui-scene "custom")
+              resources-node (gui-resources-node "Test GUI Resources" gui-scene)
+              resource-outline (g/node-value resources-node :node-outline)
+              save-value (g/node-value gui-scene :save-value)]
+          (is (g/node-instance? TestCustomGuiNode custom-node))
+          (is (= {:test-hash test-hash
+                  :test-dash 0.0
+                  :test-colon 0.0
+                  :test-number 42.0
+                  :test-quat test-quat
+                  :test-resource "alpha"
+                  :test-underscore 0.0
+                  :test-vector3 test-vector3
+                  :test-vector4 test-vector4
+                  :test-slash 0.0}
+                 (test-custom-property-values custom-node)))
+          (is (= ["beta" "alpha"]
+                 (mapv :node-outline-key (:children resource-outline))))
+          (is (= source-resources (:resources save-value)))
+          (let [saved-node (first (:nodes save-value))]
+            (is (= {:type :type-custom
+                    :custom-type-name "TestCustom"
+                    :id "custom"}
+                   (select-keys saved-node [:type :custom-type-name :id])))
+            (is (= [{:id "test_hash"
+                     :type :type-hash
+                     :string test-hash}
+                    {:id "test_number"
+                     :type :type-number
+                     :number 42.0}
+                    {:id "test_quat"
+                     :type :type-quat
+                     :quat test-quat}
+                    {:id "test_resource"
+                     :type :type-string
+                     :string "alpha"}
+                    {:id "test_vector3"
+                     :type :type-vector3
+                     :vector3 test-vector3}
+                    {:id "test_vector4"
+                     :type :type-vector4
+                     :vector4 test-vector4}]
+                   (:custom-properties saved-node))))
+
+          (testing "Custom resource property references are renamed by node-specific handlers."
+            (test-util/prop! (gui-test-gui-resource gui-scene "alpha") :name "renamed_alpha")
+            (is (= "renamed_alpha" (prop custom-node :test-resource)))
+            (is (= "renamed_alpha" (:test-resource (test-custom-property-values custom-node))))))))))
+
+(deftest custom-gui-extension-build-output-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (let [custom-type (murmur/hash32 "TestCustom")
+          test-hash "hash_value"]
+      (register-test-gui-extensions workspace)
+      (let [gui-resource (test-util/make-resource!
+                           workspace
+                           "/custom_build.gui"
+                           {:nodes [{:type :type-custom
+                                     :custom-type-name "TestCustom"
+                                     :custom-properties [{:id "test_hash"
+                                                          :type :type-hash
+                                                          :string test-hash}
+                                                         {:id "test_number"
+                                                          :type :type-number
+                                                          :number 42.0}]
+                                     :id "custom"}]})]
+        (workspace/resource-sync! workspace)
+        (let [gui-scene (test-util/resource-node project gui-resource)
+              built-node (-> (g/valid-node-value gui-scene :build-targets)
+                             first
+                             (get-in [:user-data :pb :nodes])
+                             first)
+              built-custom-properties (:custom-properties built-node)]
+          (is (= {:type :type-custom
+                  :custom-type custom-type
+                  :id "custom"}
+                 (select-keys built-node [:type :custom-type :custom-type-name :id])))
+          (is (= [{:id-hash (murmur/hash64 "test-dash")
+                   :type :type-number
+                   :number 0.0}
+                  {:id-hash (murmur/hash64 "test/slash")
+                   :type :type-number
+                   :number 0.0}
+                  {:id-hash (murmur/hash64 "test:colon")
+                   :type :type-number
+                   :number 0.0}
+                  {:id-hash (murmur/hash64 "test_hash")
+                   :type :type-hash
+                   :hash (murmur/hash64 test-hash)}
+                  {:id-hash (murmur/hash64 "test_number")
+                   :type :type-number
+                   :number 42.0}
+                  {:id-hash (murmur/hash64 "test_quat")
+                   :type :type-quat
+                   :quat [0.0 0.0 0.0 1.0]}
+                  {:id-hash (murmur/hash64 "test_resource")
+                   :type :type-string
+                   :string ""}
+                  {:id-hash (murmur/hash64 "test_underscore")
+                   :type :type-number
+                   :number 0.0}
+                  {:id-hash (murmur/hash64 "test_vector3")
+                   :type :type-vector3
+                   :vector3 [0.0 0.0 0.0]}
+                  {:id-hash (murmur/hash64 "test_vector4")
+                   :type :type-vector4
+                   :vector4 [0.0 0.0 0.0 0.0]}]
+                 built-custom-properties)))))))
+
+(deftest custom-gui-readable-custom-type-name-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (register-test-gui-extensions workspace)
+    (let [custom-type (murmur/hash32 "TestCustom")
+          gui-resource (test-util/make-resource!
+                         workspace
+                         "/old_numeric_custom_type.gui"
+                         {:nodes [{:type :type-custom
+                                   :custom-type custom-type
+                                   :id "custom"}]})]
+      (workspace/resource-sync! workspace)
+      (test-util/clear-cached-save-data! project)
+      (let [gui-scene (test-util/resource-node project gui-resource)
+            save-value (g/node-value gui-scene :save-value)
+            saved-node (first (:nodes save-value))
+            source ((:write-fn (resource/resource-type gui-resource)) save-value)]
+        (is (= #{} (test-util/dirty-proj-paths project)))
+        (is (= {:type :type-custom
+                :custom-type-name "TestCustom"
+                :id "custom"}
+               (select-keys saved-node [:type :custom-type-name :id])))
+        (is (not (contains? saved-node :custom-type)))
+        (is (str/includes? source "custom_type_name: \"TestCustom\""))
+        (is (not (str/includes? source "custom_type:")))))
+    (let [gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
+          mismatched-node {:type :type-custom
+                           :custom-type-name "TestCustom"
+                           :custom-type (inc (murmur/hash32 "TestCustom"))
+                           :id "custom"}
+          boxed-node-with-stale-custom-type-name {:type :type-box
+                                                  :custom-type-name "TestCustom"
+                                                  :custom-type (murmur/hash32 "TestCustom")
+                                                  :id "box"}]
+      (is (= {:type :type-custom
+              :custom-type-name "TestCustom"
+              :id "custom"}
+             (-> (with-open [reader (StringReader.
+                                      (format "nodes { type: TYPE_CUSTOM custom_type: %d id: \"custom\" }"
+                                              (murmur/hash32 "TestCustom")))]
+                   ((:read-fn gui-resource-type) reader))
+                 (get-in [:nodes 0])
+                 (select-keys [:type :custom-type-name :custom-type :id]))))
+      (is (thrown-with-msg?
+            IllegalStateException
+            #"custom_type_name 'TestCustom' resolves to custom_type"
+            (#'gui/sanitize-scene workspace {:nodes [mismatched-node]})))
+      (let [sanitized-node (-> (#'gui/sanitize-scene
+                                 workspace
+                                 {:nodes [{:type :type-custom
+                                           :custom-type-name "TestCustom"
+                                           :id "custom"
+                                           :custom-properties [{:id "test_number"
+                                                                :type :type-string
+                                                                :string "wrong"}]}]})
+                               :nodes
+                               first)]
+        (is (not (contains? sanitized-node :custom-properties))))
+      (let [sanitized-node (-> (#'gui/sanitize-scene workspace {:nodes [boxed-node-with-stale-custom-type-name]})
+                               :nodes
+                               first)]
+        (is (= {:type :type-box
+                :id "box"}
+               (select-keys sanitized-node [:type :custom-type-name :custom-type :id])))))))
 
 (deftest gui-scene-generation
   (test-util/with-loaded-project
@@ -457,7 +862,11 @@
     (let [node-id (test-util/resource-node project "/gui/scene.gui")
           super (test-util/resource-node project "/gui/super_scene.gui")
           parent (:node-id (test-util/outline node-id [0]))
-          new-tmpl (gui/add-gui-node! project node-id parent :type-template 0 (fn [node-ids] (app-view/select app-view node-ids)))
+          new-tmpl (gui/add-gui-node! project
+                                      node-id
+                                      parent
+                                      (test-util/gui-node-type-info workspace gui/TemplateNode)
+                                      (fn [node-ids] (app-view/select app-view node-ids)))
           super-template (gui-node super "scene")]
       (is (= new-tmpl (gui-node node-id "template")))
       (is (not (contains? (:overrides (prop super-template :template)) "template/sub_box")))
@@ -482,8 +891,11 @@
         user-data {:scene scene :parent parent :display-profile name :handler-fn gui/add-layout-handler}]
     (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
-(defn- run-add-gui-node! [project scene app-view parent node-type custom-type]
-  (let [user-data {:scene scene :parent parent :node-type node-type :custom-type custom-type :handler-fn gui/add-gui-node-handler}]
+(defn- run-add-gui-node! [project scene app-view parent node-type]
+  (let [user-data (assoc (test-util/gui-node-type-info (project/workspace project) node-type)
+                    :scene scene
+                    :parent parent
+                    :handler-fn gui/add-gui-node-handler)]
     (test-util/handler-run :edit.add-embedded-component [{:name :workbench :env {:selection [parent] :project project :user-data user-data :app-view app-view}}] user-data)))
 
 (defn set-visible-layout! [scene layout]
@@ -529,7 +941,7 @@
       (set-visible-layout! scene "Portrait")
       (let [node-tree (g/node-value scene :node-tree)]
         (is (= #{"box"} (set (map :label (:children (test-util/outline scene [0]))))))
-        (run-add-gui-node! project scene app-view node-tree :type-box 0)
+        (run-add-gui-node! project scene app-view node-tree gui/BoxNode)
         (is (= #{"box" "box1"} (set (map :label (:children (test-util/outline scene [0]))))))))))
 
 (defn- gui-text [scene id]
@@ -585,10 +997,10 @@
                 (is (some? resources-node))
                 (is (some? resource-node))
                 (is (some? shape-node))
-                (let [shape-resource-before (g/node-value shape-node shape-resource-prop-kw)]
+                (let [shape-resource-before (test-util/prop shape-node shape-resource-prop-kw)]
                   (with-open [_ (make-restore-point!)]
                     (test-util/outline-duplicate! project resources-node [0])
-                    (is (= shape-resource-before (g/node-value shape-node shape-resource-prop-kw))
+                    (is (= shape-resource-before (test-util/prop shape-node shape-resource-prop-kw))
                         "Shape should still refer to the original resource name.")
                     (is (= expected-resource-choices
                            (property-value-choices shape-node shape-resource-prop-kw))
@@ -643,6 +1055,18 @@
         "layer" gui-layer "pie" :layer "renamed_layer" "renamed_layer" ["" "renamed_layer"]
         "texture" gui-texture "box" :texture "renamed_texture" "renamed_texture/particle_blob" ["" "renamed_texture/particle_blob"]
         "particlefx" gui-particlefx-resource "particlefx" :particlefx "renamed_particlefx" "renamed_particlefx" ["renamed_particlefx"]))))
+
+(deftest rename-referenced-gui-resource-ignores-visible-layout
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+          scene (project/get-resource-node project "/gui/resources/button.gui")
+          font-node (gui-font scene "button_font")
+          text-node (gui-node scene "text")]
+      (with-open [_ (make-restore-point!)]
+        (with-visible-layout! scene "Landscape"
+          (g/set-property! font-node :name "button_font_renamed"))
+        (is (= "button_font_renamed" (g/raw-property-value (g/now) text-node :font)))
+        (is (not (contains? (g/node-value text-node :layout->prop->override) "")))))))
 
 (deftest rename-referenced-gui-resource-in-template
   ;; Note: This test does not verify that override values in the outer scene
@@ -1105,6 +1529,195 @@
                   (select-keys node-desc [:parent])
                   (:overridden-fields node-desc)))))))
 
+(defn- saved-node-desc-custom-property-value [node-desc custom-property-id value-field]
+  (coll/some
+    (fn [custom-property]
+      (when (= custom-property-id (:id custom-property))
+        (value-field custom-property)))
+    (:custom-properties node-desc)))
+
+(defn- saved-node-desc-resource-field-values [node-desc]
+  (let [spine-scene (saved-node-desc-custom-property-value node-desc "spine_scene" :string)]
+    (cond-> (select-keys node-desc [:font :layer :material :particlefx :texture])
+            spine-scene
+            (assoc :spine-scene spine-scene))))
+
+(deftest custom-gui-custom-properties-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (register-test-gui-extensions workspace)
+    (let [gui-resource (test-util/make-resource!
+                         workspace
+                         "/custom_virtual_properties.gui"
+                         {:nodes [{:type :type-custom
+                                   :custom-type-name "TestCustom"
+                                   :id "custom"
+                                   :custom-properties [{:id "test_number"
+                                                        :type :type-number
+                                                        :number 2.0}]}]
+                          :layouts [{:name "Landscape"
+                                     :nodes [{:type :type-custom
+                                              :custom-type-name "TestCustom"
+                                              :id "custom"
+                                              :custom-properties [{:id "test_number"
+                                                                   :type :type-number
+                                                                   :number 1.0}]}]}]})]
+      (workspace/resource-sync! workspace)
+      (let [gui-scene (test-util/resource-node project gui-resource)
+            custom-node (gui-node gui-scene "custom")]
+        (testing "Properties panel exposes custom properties as real graph properties."
+          (let [properties (:properties (g/node-value custom-node :_properties))]
+            (is (= 2.0 (prop custom-node :test-number)))
+            (is (= 2.0 (:test-number (test-custom-property-values custom-node))))
+            (is (contains? properties :test-number))
+            (is (contains? properties :test-dash))
+            (is (contains? properties :test-underscore))
+            (is (contains? properties :test-slash))
+            (is (contains? properties :test-colon))
+            (is (not (contains? properties :custom-properties)))))
+
+        (testing "Editor scripts use graph property names with regular snake_case conversion."
+          (g/with-auto-evaluation-context evaluation-context
+            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "test_slash" project evaluation-context))))
+            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "test_colon" project evaluation-context))))
+            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "Landscape:test_slash" project evaluation-context))))
+            (is (= 0.0 ((ext-graph/ext-value-getter custom-node "Landscape:test_colon" project evaluation-context))))))
+
+        (testing "Default-valued layout overrides are retained on load."
+          (with-visible-layout! gui-scene "Landscape"
+            (is (= 1.0 (prop custom-node :test-number)))
+            (is (test-util/prop-overridden? custom-node :test-number))))
+
+        (testing "Changing visible layout does not affect custom-property save/build output."
+          (let [default-output (with-visible-layout! gui-scene ""
+                                 {:save-value (g/node-value gui-scene :save-value)
+                                  :build-pb (get-in (g/valid-node-value gui-scene :build-targets)
+                                                    [0 :user-data :pb])})
+
+                landscape-output (with-visible-layout! gui-scene "Landscape"
+                                   {:save-value (g/node-value gui-scene :save-value)
+                                    :build-pb (get-in (g/valid-node-value gui-scene :build-targets)
+                                                      [0 :user-data :pb])})]
+            (is (= default-output landscape-output))))
+
+        (testing "Default layout edits update nested graph storage."
+          (prop! custom-node :test-number 3.0)
+          (is (= {:test-hash ""
+                  :test-dash 0.0
+                  :test-colon 0.0
+                  :test-number 3.0
+                  :test-quat [0.0 0.0 0.0 1.0]
+                  :test-resource ""
+                  :test-underscore 0.0
+                  :test-vector3 [0.0 0.0 0.0]
+                  :test-vector4 [0.0 0.0 0.0 0.0]
+                  :test-slash 0.0}
+                 (test-custom-property-values custom-node))))
+
+        (testing "Default-valued layout overrides are saved per id."
+          (with-visible-layout! gui-scene "Landscape"
+            (prop! custom-node :test-number 1.0)
+            (is (= 1.0 (prop custom-node :test-number)))
+            (is (test-util/prop-overridden? custom-node :test-number)))
+          (let [saved-layout-node (-> (g/node-value gui-scene :save-value) :layouts first :nodes first)]
+            (is (not (contains? saved-layout-node :overridden-fields)))
+            (is (= 1.0 (saved-node-desc-custom-property-value saved-layout-node "test_number" :number)))))
+
+        (testing "Editor scripts can list, set, and reset custom properties by id."
+          (g/with-auto-evaluation-context evaluation-context
+            (let [rt (rt/make)
+                  default-setter (ext-graph/ext-lua-value-setter custom-node "test_number" rt project evaluation-context)
+                  layout-setter (ext-graph/ext-lua-value-setter custom-node "Landscape:test_number" rt project evaluation-context)]
+              (is (coll/any? #(= "test_number" %) (ext-graph/ext-readable-properties custom-node project evaluation-context)))
+              (is (coll/any? #(= "Landscape:test_number" %) (ext-graph/ext-readable-properties custom-node project evaluation-context)))
+              (g/transact (default-setter (rt/->varargs 4.0)))
+              (g/transact (layout-setter (rt/->varargs 5.0)))
+              (let [layout-resetter (((deref #'ext-graph/ext-property-resetter) :editor.gui/GuiNode)
+                                     custom-node
+                                     "Landscape:test_number"
+                                     evaluation-context)]
+                (g/transact (layout-resetter)))))
+          (g/with-auto-evaluation-context evaluation-context
+            (is (= 4 ((ext-graph/ext-value-getter custom-node "test_number" project evaluation-context))))
+            (is (= 4 ((ext-graph/ext-value-getter custom-node "Landscape:test_number" project evaluation-context))))))))))
+
+(deftest custom-gui-template-override-transfer-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (register-test-gui-extensions workspace)
+    (let [source-gui-resource (test-util/make-resource!
+                                workspace
+                                "/custom_template_source.gui"
+                                {:nodes [{:type :type-custom
+                                          :custom-type-name "TestCustom"
+                                          :id "custom"
+                                          :custom-properties [{:id "test_number"
+                                                               :type :type-number
+                                                               :number 2.0}]}]})
+          referencing-gui-resource (test-util/make-resource!
+                                     workspace
+                                     "/custom_template_referencing.gui"
+                                     {:nodes [{:type :type-template
+                                               :id "template"
+                                               :template "/custom_template_source.gui"}]})]
+      (workspace/resource-sync! workspace)
+      (let [source-gui-scene (test-util/resource-node project source-gui-resource)
+            referencing-gui-scene (test-util/resource-node project referencing-gui-resource)
+            source-node (gui-node source-gui-scene "custom")
+            override-node (gui-node referencing-gui-scene "template/custom")]
+        (prop! override-node :test-number 7.0)
+        (is (= 7.0 (prop override-node :test-number)))
+        (is (test-util/prop-overridden? override-node :test-number))
+        (g/with-auto-evaluation-context evaluation-context
+          (let [source-prop-infos-by-prop-kw (properties/transferred-properties override-node #{:test-number} evaluation-context)
+                transfer-overrides-plan (-> (properties/pull-up-overrides-plan-alternatives override-node source-prop-infos-by-prop-kw evaluation-context)
+                                            first)]
+            (is (properties/can-transfer-overrides? transfer-overrides-plan))
+            (properties/transfer-overrides! transfer-overrides-plan)))
+        (is (= 7.0 (prop source-node :test-number)))
+        (is (= 7.0 (prop override-node :test-number)))
+        (is (not (test-util/prop-overridden? override-node :test-number)))
+        (let [saved-source-node (-> (g/node-value source-gui-scene :save-value) :nodes first)
+              saved-override-node (-> (g/node-value referencing-gui-scene :save-value) :nodes first)]
+          (is (= 7.0 (saved-node-desc-custom-property-value saved-source-node "test_number" :number)))
+          (is (not (contains? saved-override-node :custom-properties)))
+          (is (not (contains? saved-override-node :overridden-fields))))))))
+
+;; Mirrors GuiBuilderTest.testTemplateCustomPropertyOverridePreservesBaseProperties.
+;; A sparse template override of one custom property must preserve other non-default base custom properties.
+(deftest custom-gui-template-custom-property-override-preserves-base-properties-test
+  (test-util/with-scratch-project "test/resources/empty_project"
+    (register-test-gui-extensions workspace)
+    (test-util/make-resource!
+      workspace
+      "/custom_template_source.gui"
+      {:nodes [{:type :type-custom
+                :custom-type-name "TestCustom"
+                :id "custom"
+                :custom-properties [{:id "test_hash"
+                                     :type :type-hash
+                                     :string "base_hash"}
+                                    {:id "test_number"
+                                     :type :type-number
+                                     :number 2.0}]}]})
+    (test-util/make-resource!
+      workspace
+      "/custom_template_referencing.gui"
+      {:nodes [{:type :type-template
+                :id "template"
+                :template "/custom_template_source.gui"}]})
+    (workspace/resource-sync! workspace)
+    (let [referencing-gui-scene (project/get-resource-node project "/custom_template_referencing.gui")]
+      (prop! (gui-node referencing-gui-scene "template/custom") :test-number 7.0)
+      (let [built-custom-properties (-> (g/valid-node-value referencing-gui-scene :build-targets)
+                                        (get-in [0 :user-data :pb :nodes])
+                                        (->> (coll/first-where #(= "template/custom" (:id %))))
+                                        :custom-properties)]
+        (is (= (murmur/hash64 "base_hash")
+               (:hash (coll/first-where #(= (murmur/hash64 "test_hash") (:id-hash %))
+                                        built-custom-properties))))
+        (is (= 7.0
+               (:number (coll/first-where #(= (murmur/hash64 "test_number") (:id-hash %))
+                                          built-custom-properties))))))))
+
 (defn has-successor?
   ([source-id+source-label target-id+target-label]
    (has-successor? (g/now) source-id+source-label target-id+target-label))
@@ -1127,7 +1740,11 @@
       (let [referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
             added-text-props {:id "added" :font "font" :text "button default"}
             referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
-            referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil)]
+            referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene
+                                                                      referenced-scene-node-tree
+                                                                      (test-util/gui-node-type-info workspace gui/TextNode)
+                                                                      added-text-props
+                                                                      nil)]
 
         ;; Override the text property on the added node for the Landscape layout in the referenced scene.
         (with-visible-layout! referenced-scene "Landscape"
@@ -2143,7 +2760,11 @@
           ;; Add a new node to the referenced scene.
           (let [referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
                 added-text-props {:id "added" :font "font" :text "button default"}]
-            (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil))
+            (gui/add-gui-node-with-props! referenced-scene
+                                          referenced-scene-node-tree
+                                          (test-util/gui-node-type-info workspace gui/TextNode)
+                                          added-text-props
+                                          nil))
 
           (testing "After adding a new text node to the referenced scene."
             (testing "Referenced scene."
@@ -2321,7 +2942,11 @@
           referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
           referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
           added-text-props {:id "added" :font "font" :text "button default"}
-          referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil)
+          referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene
+                                                                    referenced-scene-node-tree
+                                                                    (test-util/gui-node-type-info workspace gui/TextNode)
+                                                                    added-text-props
+                                                                    nil)
           referencing-scene-added-text (get (scene-gui-node-map referencing-scene) "button/added")]
 
       ;; Delete the original text node from the referenced scene in order to
@@ -2428,9 +3053,7 @@
                 (make-layout->node->field->value
                   scene-desc
                   (fn node-desc-fn [node-desc _is-override-node-desc]
-                    (-> node-desc
-                        (select-keys [:font :layer :material :particlefx :spine-scene :texture])
-                        (coll/not-empty))))))]
+                    (coll/not-empty (saved-node-desc-resource-field-values node-desc))))))]
 
         (testing "Before renaming resources."
           (testing "Referenced scene."
@@ -2778,9 +3401,7 @@
                 (make-layout->node->field->value
                   scene-desc
                   (fn node-desc-fn [node-desc _is-override-node-desc]
-                    (-> node-desc
-                        (select-keys [:font :layer :material :particlefx :spine-scene :texture])
-                        (coll/not-empty))))))]
+                    (coll/not-empty (saved-node-desc-resource-field-values node-desc))))))]
 
         (testing "Before renaming resources."
           (testing "Referenced scene."
@@ -3083,9 +3704,7 @@
       (is (= {"Default" {"imported_parent" {}
                          "imported/box" {:parent "imported_parent"}
                          "imported/box_child" {:parent "imported/box"}}
-              "Unaltered" {"imported_parent" {}
-                           "imported/box" {:parent "imported_parent"}
-                           "imported/box_child" {:parent "imported/box"}}}
+              "Unaltered" {}}
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value))))))
 
@@ -3186,17 +3805,10 @@
                          "enabled_off/box" {:enabled false}
                          "disabled_on/box" {:enabled false}
                          "enabled_on/box" {}}
-              "Unaltered" {"disabled_off/box" {:enabled false}
-                           "enabled_off/box" {:enabled false}
-                           "disabled_on/box" {:enabled false}
-                           "enabled_on/box" {}}
-              "Altered Parent" {"disabled_off/box" {:enabled false}
-                                "enabled_off/box" {:enabled false}
-                                "disabled_on/box" {}
+              "Unaltered" {}
+              "Altered Parent" {"disabled_on/box" {}
                                 "enabled_on/box" {:enabled false}}
-              "Altered Child" {"disabled_off/box" {:enabled false}
-                               "enabled_off/box" {}
-                               "disabled_on/box" {:enabled false}
+              "Altered Child" {"enabled_off/box" {}
                                "enabled_on/box" {:enabled false}}}
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value))))))
@@ -3271,10 +3883,8 @@
 
       (is (= {"Default" {"unlayered/box" {:layer "importing_layer"}
                          "layered/box" {:layer "imported_layer"}}
-              "Unaltered" {"unlayered/box" {:layer "importing_layer"}
-                           "layered/box" {:layer "imported_layer"}}
-              "Altered Parent" {"unlayered/box" {:layer "other_importing_layer"}
-                                "layered/box" {:layer "imported_layer"}}
+              "Unaltered" {}
+              "Altered Parent" {"unlayered/box" {:layer "other_importing_layer"}}
               "Altered Child" {"unlayered/box" {:layer "other_importing_layer"}
                                "layered/box" {:layer "other_importing_layer"}}}
              (-> (project/get-resource-node project "/importing.gui")
@@ -3346,10 +3956,8 @@
 
       (is (= {"Default" {"inheriting/box" {:alpha 0.25}
                          "forsaking/box" {:alpha 0.5}}
-              "Unaltered" {"inheriting/box" {:alpha 0.25}
-                           "forsaking/box" {:alpha 0.5}}
-              "Altered Parent" {"inheriting/box" {:alpha 0.375}
-                                "forsaking/box" {:alpha 0.5}}
+              "Unaltered" {}
+              "Altered Parent" {"inheriting/box" {:alpha 0.375}}
               "Altered Child" {"inheriting/box" {:alpha 0.375}
                                "forsaking/box" {:alpha 0.75}}}
              (-> (project/get-resource-node project "/importing.gui")
@@ -3442,10 +4050,7 @@
                          "not_inheriting/box" {}
                          "forsaking/box" {}
                          "not_forsaking/box" {:alpha 0.5}}
-              "Unaltered" {"inheriting/box" {:alpha 0.5}
-                           "not_inheriting/box" {}
-                           "forsaking/box" {}
-                           "not_forsaking/box" {:alpha 0.5}}
+              "Unaltered" {}
               "Altered Child" {"inheriting/box" {}
                                "not_inheriting/box" {:alpha 0.5}
                                "forsaking/box" {:alpha 0.5}
@@ -3543,23 +4148,18 @@
                          "untransformed/box" {:position [10.0 0.0 0.0 1.0]
                                               :rotation [0.0 0.0 90.0 0.0]
                                               :scale [2.0 2.0 1.0 1.0]}}
-              "Unaltered" {"transformed/box" {:position [10.0 20.0 0.0 1.0]
-                                              :rotation [0.0 0.0 180.0 0.0]
-                                              :scale [4.0 4.0 1.0 1.0]}
-                           "untransformed/box" {:position [10.0 0.0 0.0 1.0]
-                                                :rotation [0.0 0.0 90.0 0.0]
-                                                :scale [2.0 2.0 1.0 1.0]}}
+              "Unaltered" {}
               "Altered Parent" {"transformed/box" {:position [-10.0 0.0 0.0 1.0]
-                                                   :rotation [0.0 0.0 270.0 0.0]
+                                                   :rotation [0.0 0.0 -90.0 0.0]
                                                    :scale [6.0 6.0 1.0 1.0]}
                                 "untransformed/box" {:position [20.0 0.0 0.0 1.0]
                                                      :rotation [0.0 0.0 180.0 0.0]
                                                      :scale [3.0 3.0 1.0 1.0]}}
               "Altered Child" {"transformed/box" {:position [10.0 40.0 0.0 1.0]
-                                                  :rotation [0.0 0.0 270.0 0.0]
+                                                  :rotation [0.0 0.0 -90.0 0.0]
                                                   :scale [6.0 6.0 1.0 1.0]}
                                "untransformed/box" {:position [10.0 40.0 0.0 1.0]
-                                                    :rotation [0.0 0.0 270.0 0.0]
+                                                    :rotation [0.0 0.0 -90.0 0.0]
                                                     :scale [6.0 6.0 1.0 1.0]}}}
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value)

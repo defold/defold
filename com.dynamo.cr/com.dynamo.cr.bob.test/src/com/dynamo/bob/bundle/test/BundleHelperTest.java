@@ -40,7 +40,6 @@ import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.IResource;
@@ -203,7 +202,7 @@ public class BundleHelperTest {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogHTML5.txt");
             String log = new String(resource.getContent());
             List<ResourceInfo> issues = new ArrayList<ResourceInfo>();
-            BundleHelper.parseLog("js-web", log, issues);
+            BundleHelper.parseLog("wasm-web", log, issues);
 
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "unknown type name 'ubar'\nubar g_foo = 0;"));
         }
@@ -344,7 +343,6 @@ public class BundleHelperTest {
 
     private void createMockFile(File dir, String name) throws IOException {
         File file = new File(dir, name);
-        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream("dummy".getBytes()), file);
     }
 

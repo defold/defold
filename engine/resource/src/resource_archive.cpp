@@ -12,10 +12,23 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if defined(__linux__) && !defined(__ANDROID__) && !defined(_LARGEFILE64_SOURCE)
+#define _LARGEFILE64_SOURCE 1
+#endif
+
 #include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#if defined(__ANDROID__)
+#include <fcntl.h>
+#include <unistd.h>
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
+#endif
 
 #include "resource.h"
 #include "resource_archive.h"
@@ -24,11 +37,12 @@
 #include "resource_archive_private.h"
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
-#include <dlib/endian.h>
+#include <dlib/endian.hpp>
 #include <dlib/log.h>
 #include <dlib/lz4.h>
 #include <dlib/memory.h>
 #include <dlib/path.h>
+#include <dlib/static_assert.h>
 #include <dlib/sys.h>
 
 #define DEBUG_LOG 1
@@ -43,6 +57,111 @@ namespace dmResourceArchive
 {
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
 
+    DM_STATIC_ASSERT(sizeof(EntryData) == ENTRY_DATA_SIZE_V6, Invalid_Archive_EntryData_Size);
+
+    static bool IsSupportedVersion(uint32_t version)
+    {
+        return version == VERSION_6;
+    }
+
+    uint64_t PackEntryDataOffsetAndFlags(uint64_t resource_offset, uint32_t flags)
+    {
+        return ((uint64_t)(flags & ENTRY_DATA_FLAGS_MASK) << ENTRY_DATA_FLAGS_SHIFT) | (resource_offset & ENTRY_DATA_OFFSET_MASK);
+    }
+
+    uint64_t GetEntryResourceDataOffset(const EntryData* entry)
+    {
+        uint64_t offset_and_flags = dmEndian::ToNetwork(entry->m_ResourceDataOffsetAndFlags);
+        return offset_and_flags & ENTRY_DATA_OFFSET_MASK;
+    }
+
+    uint32_t GetEntryFlags(const EntryData* entry)
+    {
+        uint64_t offset_and_flags = dmEndian::ToNetwork(entry->m_ResourceDataOffsetAndFlags);
+        return (uint32_t)(offset_and_flags >> ENTRY_DATA_FLAGS_SHIFT);
+    }
+
+    static Result ReadEntryData(FILE* file, uint32_t entry_count, EntryData* entries)
+    {
+        uint32_t entries_total_size = entry_count * ENTRY_DATA_SIZE_V6;
+        if (fread(entries, 1, entries_total_size, file) != entries_total_size)
+        {
+            return RESULT_IO_ERROR;
+        }
+        return RESULT_OK;
+    }
+
+    static void ClearArchiveFileIndexLookup(ArchiveFileIndex* file_index)
+    {
+        if (!file_index)
+        {
+            return;
+        }
+
+        delete[] file_index->m_Hashes;
+        delete[] file_index->m_Entries;
+        file_index->m_Hashes = 0;
+        file_index->m_Entries = 0;
+    }
+
+    static uint8_t* GetArchiveHashes(HArchiveIndexContainer archive)
+    {
+        if (archive->m_ArchiveFileIndex && archive->m_ArchiveFileIndex->m_Hashes)
+        {
+            return archive->m_ArchiveFileIndex->m_Hashes;
+        }
+
+        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
+        return (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
+    }
+
+    static EntryData* GetArchiveEntries(HArchiveIndexContainer archive)
+    {
+        if (archive->m_ArchiveFileIndex && archive->m_ArchiveFileIndex->m_Entries)
+        {
+            return archive->m_ArchiveFileIndex->m_Entries;
+        }
+
+        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
+        return (EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
+    }
+
+    static FILE* FileOpen64(const char* path)
+    {
+#if defined(__ANDROID__)
+        int fd = open(path, O_RDONLY | O_LARGEFILE);
+        if (fd < 0)
+        {
+            return 0;
+        }
+        FILE* file = fdopen(fd, "rb");
+        if (!file)
+        {
+            close(fd);
+            return 0;
+        }
+        setvbuf(file, 0, _IONBF, 0);
+        return file;
+#elif defined(__linux__)
+        return fopen64(path, "rb");
+#else
+        return fopen(path, "rb");
+#endif
+    }
+
+    static int FileSeek64(FILE* file, uint64_t offset)
+    {
+#if defined(_WIN32)
+        return _fseeki64(file, (int64_t)offset, SEEK_SET);
+#elif defined(__ANDROID__)
+        return lseek64(fileno(file), (off64_t)offset, SEEK_SET) < 0 ? -1 : 0;
+#elif defined(__linux__)
+        return fseeko64(file, (off64_t)offset, SEEK_SET);
+#else
+        return fseeko(file, (off_t)offset, SEEK_SET);
+#endif
+    }
+
     ArchiveIndex::ArchiveIndex()
     {
         memset(this, 0, sizeof(ArchiveIndex));
@@ -52,6 +171,23 @@ namespace dmResourceArchive
 
     // *********************************************************************************
 
+    static void DeleteArchiveFileIndex(ArchiveFileIndex* afi)
+    {
+        if (afi != 0)
+        {
+            delete[] afi->m_Entries;
+            delete[] afi->m_Hashes;
+
+            if (afi->m_FileResourceData)
+            {
+                fclose(afi->m_FileResourceData);
+                afi->m_FileResourceData = 0;
+            }
+        }
+
+        delete afi;
+    }
+
     static void CleanupResources(FILE* index_file, FILE* data_file, ArchiveIndexContainer* archive)
     {
         if (index_file)
@@ -59,19 +195,28 @@ namespace dmResourceArchive
             fclose(index_file);
         }
 
-        if (data_file)
-        {
-            fclose(data_file);
-        }
-
         if (archive)
         {
+            bool archive_file_index_owns_data_file = data_file &&
+                archive->m_ArchiveFileIndex &&
+                archive->m_ArchiveFileIndex->m_FileResourceData == data_file;
+            DeleteArchiveFileIndex(archive->m_ArchiveFileIndex);
+            if (archive_file_index_owns_data_file)
+            {
+                data_file = 0;
+            }
+
             if (archive->m_ArchiveIndex)
             {
                 delete archive->m_ArchiveIndex;
             }
 
             delete archive;
+        }
+
+        if (data_file)
+        {
+            fclose(data_file);
         }
     }
 
@@ -99,9 +244,10 @@ namespace dmResourceArchive
             return RESULT_IO_ERROR;
         }
 
-        if(dmEndian::ToNetwork(ai->m_Version) != VERSION)
+        uint32_t version = dmEndian::ToNetwork(ai->m_Version);
+        if(!IsSupportedVersion(version))
         {
-            dmLogError("Archive version differs. Expected %d, but it was %d", VERSION, dmEndian::ToNetwork(ai->m_Version));
+            dmLogError("Archive version differs. Expected %d, but it was %d", VERSION_6, version);
             CleanupResources(f_index, f_data, aic);
             return RESULT_VERSION_MISMATCH;
         }
@@ -122,8 +268,7 @@ namespace dmResourceArchive
 
         fseek(f_index, entry_offset, SEEK_SET);
         aic->m_ArchiveFileIndex->m_Entries = new EntryData[entry_count];
-        uint32_t entries_total_size = entry_count * sizeof(EntryData);
-        if (fread(aic->m_ArchiveFileIndex->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
+        if (ReadEntryData(f_index, entry_count, aic->m_ArchiveFileIndex->m_Entries) != RESULT_OK)
         {
             CleanupResources(f_index, f_data, aic);
             return RESULT_IO_ERROR;
@@ -132,7 +277,7 @@ namespace dmResourceArchive
         // Mark that this archive was loaded from file, and not memory-mapped
         ai->m_Userdata = FILE_LOADED_INDICATOR;
 
-        f_data = fopen(data_file_path, "rb");
+        f_data = FileOpen64(data_file_path);
 
         if (!f_data)
         {
@@ -149,16 +294,18 @@ namespace dmResourceArchive
     }
 
     Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, bool mem_mapped_index,
-                             const void* resource_data, uint32_t resource_data_size, bool mem_mapped_data,
+                             const void* resource_data, uint64_t resource_data_size, bool mem_mapped_data,
                              HArchiveIndexContainer* archive)
     {
         *archive = new ArchiveIndexContainer;
         (*archive)->m_IsMemMapped = mem_mapped_index;
         ArchiveIndex* a = (ArchiveIndex*) index_buffer;
         uint32_t version = dmEndian::ToNetwork(a->m_Version);
-        if (version != VERSION)
+        if (!IsSupportedVersion(version))
         {
-            dmLogError("Archive version differs. Expected %d, but it was %d", VERSION, version);
+            dmLogError("Archive version differs. Expected %d, but it was %d", VERSION_6, version);
+            delete *archive;
+            *archive = 0;
             return RESULT_VERSION_MISMATCH;
         }
 
@@ -171,23 +318,6 @@ namespace dmResourceArchive
         (*archive)->m_ArchiveIndexSize = index_buffer_size;
 
         return RESULT_OK;
-    }
-
-    static void DeleteArchiveFileIndex(ArchiveFileIndex* afi)
-    {
-        if (afi != 0)
-        {
-            delete[] afi->m_Entries;
-            delete[] afi->m_Hashes;
-
-            if (afi->m_FileResourceData)
-            {
-                fclose(afi->m_FileResourceData);
-                afi->m_FileResourceData = 0;
-            }
-        }
-
-        delete afi;
     }
 
     void Delete(HArchiveIndexContainer &archive)
@@ -214,22 +344,8 @@ namespace dmResourceArchive
     dmResourceArchive::Result FindEntry(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, dmResourceArchive::EntryData** entry)
     {
         uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-        uint8_t* hashes = 0;
-        dmResourceArchive::EntryData* entries = 0;
-
-        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-        if (!archive->m_IsMemMapped)
-        {
-            hashes = archive->m_ArchiveFileIndex->m_Hashes;
-            entries = archive->m_ArchiveFileIndex->m_Entries;
-        }
-        else
-        {
-            hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-            entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-        }
+        uint8_t* hashes = GetArchiveHashes(archive);
+        dmResourceArchive::EntryData* entries = GetArchiveEntries(archive);
 
         // Search for hash with binary search (entries are sorted on hash)
         int first = 0;
@@ -261,250 +377,34 @@ namespace dmResourceArchive
         return dmResourceArchive::RESULT_NOT_FOUND;
     }
 
-    static const uint8_t* LowerBound(const uint8_t* first, size_t size, const uint8_t* hash_digest, uint32_t hash_length)
-    {
-        while (size > 0) {
-            size_t half = size >> 1;
-            const uint8_t* middle = first + half * dmResourceArchive::MAX_HASH;
-
-            int cmp = memcmp(hash_digest, middle, hash_length);
-            if (cmp >= 0)
-            {
-                first = middle + dmResourceArchive::MAX_HASH;
-                size = size - half - 1;
-            }
-            else
-            {
-                size = half;
-            }
-        }
-        return first;
-    }
-
-    Result GetInsertionIndex(ArchiveIndex* archive, const uint8_t* hash_digest, const uint8_t* hashes, int* out_index)
-    {
-        int count = dmEndian::ToNetwork(archive->m_EntryDataCount);
-        size_t hash_length = dmEndian::ToNetwork(archive->m_HashLength);
-        const uint8_t* end = hashes + count * dmResourceArchive::MAX_HASH;
-        const uint8_t* insert = LowerBound(hashes, (size_t)count, hash_digest, hash_length);
-        if (insert >= end)
-        {
-            *out_index = count;
-            return RESULT_OK;
-        }
-        if (memcmp(insert, hash_digest, hash_length) == 0)
-        {
-            return RESULT_ALREADY_STORED;
-        }
-
-        *out_index = (insert - hashes) / dmResourceArchive::MAX_HASH;
-        return RESULT_OK;
-    }
-
-    Result GetInsertionIndex(HArchiveIndexContainer archive, const uint8_t* hash_digest, int* out_index)
-    {
-        uint8_t* hashes = 0;
-        uint32_t hashes_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-
-        hashes = (archive->m_IsMemMapped) ? (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hashes_offset) : archive->m_ArchiveFileIndex->m_Hashes;
-
-        return GetInsertionIndex(archive->m_ArchiveIndex, hash_digest, hashes, out_index);
-    }
-
     void DebugArchiveIndex(HArchiveIndexContainer archive)
     {
         uint32_t entry_count = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t entry_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_offset = dmEndian::ToNetwork(archive->m_ArchiveIndex->m_HashOffset);
-        uint8_t* hashes = 0;
-        dmResourceArchive::EntryData* entries = 0;
+        uint8_t* hashes = GetArchiveHashes(archive);
+        dmResourceArchive::EntryData* entries = GetArchiveEntries(archive);
 
         dmLogInfo("HArchiveIndexContainer: %p  %s", archive, archive->m_ArchiveFileIndex?archive->m_ArchiveFileIndex->m_Path:"no path");
-
-        // If archive is loaded from file use the member arrays for hashes and entries, otherwise read with mem offsets.
-        if (!archive->m_IsMemMapped)
-        {
-            hashes = archive->m_ArchiveFileIndex->m_Hashes;
-            entries = archive->m_ArchiveFileIndex->m_Entries;
-        }
-        else
-        {
-            hashes = (uint8_t*)((uintptr_t)archive->m_ArchiveIndex + hash_offset);
-            entries = (dmResourceArchive::EntryData*)((uintptr_t)archive->m_ArchiveIndex + entry_offset);
-        }
 
         for (uint32_t i = 0; i < entry_count; ++i)
         {
             uint8_t* h = (hashes + dmResourceArchive::MAX_HASH * i);
             dmResourceArchive::EntryData* e = &entries[i];
-            uint32_t flags = dmEndian::ToNetwork(e->m_Flags);
+            uint32_t flags = GetEntryFlags(e);
+            uint64_t resource_offset = GetEntryResourceDataOffset(e);
 
-            printf("entry: off: %4u  sz: %4u  csz: %4u flags: %2u encr: %d lu: %d hash: ", dmEndian::ToNetwork(e->m_ResourceDataOffset), dmEndian::ToNetwork(e->m_ResourceSize), dmEndian::ToNetwork(e->m_ResourceCompressedSize),
+            printf("entry: off: %4" PRIu64 "  sz: %4u  csz: %4u flags: %2u encr: %d lu: %d hash: ", resource_offset, dmEndian::ToNetwork(e->m_ResourceSize), dmEndian::ToNetwork(e->m_ResourceCompressedSize),
                                 flags, flags & ENTRY_FLAG_ENCRYPTED, flags & ENTRY_FLAG_LIVEUPDATE_DATA);
             dmResource::PrintHash(h, 20);
             printf("\n");
         }
     }
 
-    void NewArchiveIndexFromCopy(ArchiveIndex*& dst, HArchiveIndexContainer src, uint32_t extra_entries_alloc)
-    {
-        ArchiveIndex* ai = src->m_ArchiveIndex;
-        uint32_t hash_digests_size = dmEndian::ToNetwork(ai->m_EntryDataCount) * dmResourceArchive::MAX_HASH;
-        uint32_t entry_datas_size = (dmEndian::ToNetwork(ai->m_EntryDataCount) * sizeof(EntryData));
-        uint32_t single_entry_size = dmResourceArchive::MAX_HASH + sizeof(EntryData);
-        uint32_t size_to_alloc = sizeof(ArchiveIndex) + hash_digests_size + entry_datas_size;
-
-        if (extra_entries_alloc > 0)
-        {
-            size_to_alloc += single_entry_size * extra_entries_alloc;
-        }
-
-        dst = (ArchiveIndex*)new uint8_t[size_to_alloc];
-
-        if (!src->m_IsMemMapped)
-        {
-            memcpy((void*)dst, (void*)ai, sizeof(ArchiveIndex)); // copy header data
-            uint8_t* cursor =  (uint8_t*)((uintptr_t)dst + sizeof(ArchiveIndex)); // step cursor to hash digests array
-            memcpy(cursor, src->m_ArchiveFileIndex->m_Hashes, hash_digests_size);
-            cursor = (uint8_t*)((uintptr_t)cursor + hash_digests_size); // step cursor to entry data array
-            if (extra_entries_alloc > 0)
-            {
-                cursor = (uint8_t*)((uintptr_t)cursor + dmResourceArchive::MAX_HASH * extra_entries_alloc);
-            }
-            memcpy(cursor, src->m_ArchiveFileIndex->m_Entries, entry_datas_size);
-        }
-        else
-        {
-            memcpy(dst, ai, sizeof(ArchiveIndex)); // copy header data
-            uint8_t* cursor =  (uint8_t*)((uintptr_t)dst + sizeof(ArchiveIndex)); // step cursor to hash digests array
-            memcpy(cursor, (void*)((uintptr_t)ai + dmEndian::ToNetwork(ai->m_HashOffset)), hash_digests_size);
-            cursor = (uint8_t*)((uintptr_t)cursor + hash_digests_size); // step cursor to entry data array
-            if (extra_entries_alloc > 0)
-            {
-                cursor = (uint8_t*)((uintptr_t)cursor + dmResourceArchive::MAX_HASH * extra_entries_alloc);
-            }
-            memcpy(cursor, (void*)(((uintptr_t)ai + dmEndian::ToNetwork(ai->m_EntryDataOffset))), entry_datas_size);
-        }
-
-        if (extra_entries_alloc > 0)
-        {
-            dst->m_EntryDataOffset = dmEndian::ToHost(dmEndian::ToNetwork(dst->m_EntryDataOffset) + dmResourceArchive::MAX_HASH * extra_entries_alloc);
-        }
-    }
-
-    Result WriteResourceToArchive(HArchiveIndexContainer& archive, const uint8_t* buf, uint32_t buf_len, uint32_t& bytes_written, uint32_t& offset)
-    {
-        ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
-        FILE* res_file = afi->m_FileResourceData;
-        assert(afi->m_FileResourceData != 0);
-
-        fseek(res_file, 0, SEEK_END);
-        uint32_t offs = (uint32_t)ftell(res_file);
-        size_t bytes = fwrite(buf, 1, buf_len, res_file);
-        if(bytes != buf_len)
-        {
-            return RESULT_IO_ERROR;
-        }
-        bytes_written = bytes;
-        offset = offs;
-
-        fflush(res_file); // make sure all writes flushed before mem-mapping below
-
-        // We have written to the resource file, need to update mapping
-        if (afi->m_IsMemMapped)
-        {
-            void* temp_map = (void*)afi->m_ResourceData;
-            assert(afi->m_ResourceSize == offset); // I want to use the m_ResourceSize
-            dmResource::UnmapFile(temp_map, offset);
-
-            temp_map = 0x0;
-            uint32_t map_size = 0;
-            dmResource::Result res = dmResource::MapFile(afi->m_Path, temp_map, map_size);
-            if (res != dmResource::RESULT_OK)
-            {
-                dmLogError("Failed to map liveupdate resource file, result = %i", res);
-                return RESULT_IO_ERROR;
-            }
-            afi->m_ResourceData = (uint8_t*)temp_map;
-            afi->m_ResourceSize = offset + bytes_written;
-            assert((offset + bytes_written) == map_size); // I want to use the map_size
-        }
-
-        return RESULT_OK;
-    }
-
-    // only used for live update archives
-    Result ShiftAndInsert(ArchiveIndexContainer* archive_container, ArchiveIndex* ai, const uint8_t* hash_digest, uint32_t hash_digest_len, int insertion_index,
-                            const dmResourceArchive::LiveUpdateResource* resource, const EntryData* entry_data)
-    {
-        assert(insertion_index >= 0);
-        ArchiveIndex* archive = (ai == 0x0) ? archive_container->m_ArchiveIndex : ai;
-        uint8_t* hashes = (uint8_t*)((uintptr_t)archive + dmEndian::ToNetwork(archive->m_HashOffset));
-        EntryData* entries = (EntryData*)((uintptr_t)archive + dmEndian::ToNetwork(archive->m_EntryDataOffset));
-
-        uint32_t entry_count = dmEndian::ToNetwork(archive->m_EntryDataCount);
-        // Shift hashes after insertion_index down
-        uint8_t* hash_shift_src = (uint8_t*)((uintptr_t)hashes + dmResourceArchive::MAX_HASH * insertion_index);
-        uint8_t* hash_shift_dst = (uint8_t*)((uintptr_t)hash_shift_src + dmResourceArchive::MAX_HASH);
-        if ((uint32_t)insertion_index < entry_count) // no need to memmove if inserting at tail
-        {
-            uint32_t size_to_shift = (entry_count - insertion_index) * dmResourceArchive::MAX_HASH;
-            memmove((void*)hash_shift_dst, (void*)hash_shift_src, size_to_shift);
-        }
-        memcpy(hash_shift_src, hash_digest, hash_digest_len);
-
-        // Shift entry datas
-        uint8_t* entries_shift_src = (uint8_t*)((uintptr_t)entries + sizeof(EntryData) * insertion_index);
-        uint8_t* entries_shift_dst = (uint8_t*)((uintptr_t)entries_shift_src + sizeof(EntryData));
-        if ((uint32_t)insertion_index < entry_count)
-        {
-            uint32_t size_to_shift = (entry_count - insertion_index) * sizeof(EntryData);
-            memmove(entries_shift_dst, entries_shift_src, size_to_shift);
-        }
-
-        bool write_resources = resource != 0x0;
-
-        EntryData entry;
-
-        if (!write_resources)
-        {
-            memcpy(&entry, entry_data, sizeof(EntryData));
-        }
-        else
-        {
-            /// --- WRITE RESOURCE START
-            // Write buf to resource file before creating EntryData instance
-            uint32_t bytes_written = 0;
-            uint32_t offs = 0;
-            Result write_res = WriteResourceToArchive(archive_container, (uint8_t*)resource->m_Data, resource->m_Count, bytes_written, offs);
-            if (write_res != RESULT_OK)
-            {
-                dmLogError("All bytes not written for resource, bytes written: %u, resource size: %u", bytes_written, resource->m_Count);
-                delete archive;
-                return RESULT_IO_ERROR;
-            }
-
-            // Create entrydata instance and insert into index
-            bool is_compressed = (resource->m_Header->m_Flags & ENTRY_FLAG_COMPRESSED);
-            //EntryData entry;
-            entry.m_ResourceDataOffset = dmEndian::ToHost(offs);
-            entry.m_ResourceSize = is_compressed ? resource->m_Header->m_Size : dmEndian::ToHost((uint32_t)resource->m_Count);
-            entry.m_ResourceCompressedSize = is_compressed ? dmEndian::ToHost((uint32_t)resource->m_Count) : (dmEndian::ToHost(0xffffffff));
-            entry.m_Flags = dmEndian::ToHost((uint32_t)(resource->m_Header->m_Flags | ENTRY_FLAG_LIVEUPDATE_DATA));
-            /// --- WRITE RESOURCE END
-        }
-
-        memcpy((void*)entries_shift_src, (void*)&entry, sizeof(EntryData));
-        archive->m_EntryDataCount = dmEndian::ToHost(dmEndian::ToNetwork(archive->m_EntryDataCount) + 1);
-        return RESULT_OK;
-    }
-
     Result ReadEntry(HArchiveIndexContainer archive, const EntryData* entry, void* buffer)
     {
         // We always assume it's in Host format, since it may arrive from memory mapped data
-        const uint32_t flags            = dmEndian::ToNetwork(entry->m_Flags);
+        const uint32_t flags            = GetEntryFlags(entry);
         const uint32_t size             = dmEndian::ToNetwork(entry->m_ResourceSize);
-        const uint32_t resource_offset  = dmEndian::ToNetwork(entry->m_ResourceDataOffset);
+        const uint64_t resource_offset  = GetEntryResourceDataOffset(entry);
               uint32_t compressed_size  = dmEndian::ToNetwork(entry->m_ResourceCompressedSize);
 
         bool encrypted = (flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED);
@@ -521,7 +421,10 @@ namespace dmResourceArchive
         {
             // we need to read from the file on disc
             FILE* resource_file = afi->m_FileResourceData;
-            fseek(resource_file, resource_offset, SEEK_SET);
+            if (FileSeek64(resource_file, resource_offset) != 0)
+            {
+                return dmResourceArchive::RESULT_IO_ERROR;
+            }
 
             Result result = dmResourceArchive::RESULT_OK;
             // Note, we don't need to check if it's encrypted here, as it's guaranteed to
@@ -622,7 +525,7 @@ namespace dmResourceArchive
     {
         // We always assume it's in Host format, since it may arrive from memory mapped data
         const uint32_t resource_size    = dmEndian::ToNetwork(entry->m_ResourceSize);
-        const uint32_t resource_offset  = dmEndian::ToNetwork(entry->m_ResourceDataOffset);
+        const uint64_t resource_offset  = GetEntryResourceDataOffset(entry);
 
         if (offset >= resource_size)
         {
@@ -643,7 +546,10 @@ namespace dmResourceArchive
         {
             // we need to read from the file on disc
             FILE* resource_file = afi->m_FileResourceData;
-            fseek(resource_file, resource_offset+offset, SEEK_SET);
+            if (FileSeek64(resource_file, resource_offset + offset) != 0)
+            {
+                return RESULT_IO_ERROR;
+            }
 
             // we can read directly to the output buffer
             size_t nmemb = fread(buffer, 1, size, resource_file);
@@ -667,73 +573,15 @@ namespace dmResourceArchive
         return dmResourceArchive::RESULT_OK;
     }
 
-    Result WriteArchiveIndex(const char* path, ArchiveIndex* ai)
-    {
-        // Write to temporary index file, filename liveupdate.arci.tmp
-        FILE* f = fopen(path, "wb");
-        if (!f)
-        {
-            dmLogError("Failed to create liveupdate index file: %s", path);
-            return RESULT_IO_ERROR;
-        }
-        uint32_t entry_count = dmEndian::ToNetwork(ai->m_EntryDataCount);
-        uint32_t total_size = sizeof(ArchiveIndex) + entry_count * dmResourceArchive::MAX_HASH + entry_count * sizeof(EntryData);
-        if (fwrite((void*)ai, 1, total_size, f) != total_size)
-        {
-            fclose(f);
-            dmLogError("Failed to write %u bytes to liveupdate index file: %s", (uint32_t)total_size, path);
-            return RESULT_IO_ERROR;
-        }
-        fflush(f);
-        fclose(f);
-
-        return RESULT_OK;
-    }
-
-    Result NewArchiveIndexWithResource(HArchiveIndexContainer archive_container, const char* path,
-                                        const uint8_t* hash_digest, uint32_t hash_digest_len,
-                                        const dmResourceArchive::LiveUpdateResource* resource, HArchiveIndex& out_new_index)
-    {
-        int idx = -1;
-        Result index_result = GetInsertionIndex(archive_container, hash_digest, &idx);
-        if (index_result != RESULT_OK)
-        {
-            dmLogError("Could not calculate valid resource insertion index, resource probably already stored in index. Result: %d", index_result);
-            return index_result;
-        }
-
-        // Make deep-copy. Operate on this and only overwrite when done inserting
-        ArchiveIndex* ai_temp = 0x0;
-        NewArchiveIndexFromCopy(ai_temp, archive_container, 1);
-
-        // Shift buffers and insert index- and resource data
-        Result result = ShiftAndInsert(archive_container, ai_temp, hash_digest, hash_digest_len, idx, resource, 0x0);
-
-        if (result != RESULT_OK)
-        {
-            delete ai_temp;
-            dmLogError("Failed to insert resource, result = %i", result);
-            return result;
-        }
-
-        result = WriteArchiveIndex(path, ai_temp);
-        if (RESULT_OK != result)
-        {
-            Delete(ai_temp);
-            return result;
-        }
-
-        // set result
-        out_new_index = ai_temp;
-        return RESULT_OK;
-    }
-
     void SetNewArchiveIndex(HArchiveIndexContainer archive_container, HArchiveIndex new_index, bool mem_mapped)
     {
         if (!archive_container->m_IsMemMapped)
         {
             delete archive_container->m_ArchiveIndex;
         }
+
+        ClearArchiveFileIndexLookup(archive_container->m_ArchiveFileIndex);
+
         // Use this runtime archive index until the next reboot
         archive_container->m_ArchiveIndex = new_index;
         // Since we store data sequentially when doing the deep-copy we want to access it in that fashion

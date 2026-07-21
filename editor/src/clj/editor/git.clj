@@ -19,7 +19,8 @@
             [editor.fs :as fs]
             [util.fn :as fn]
             [util.text-util :as text-util])
-  (:import [java.io File]
+  (:import [ch.qos.logback.classic Level Logger]
+           [java.io File]
            [java.util Collection]
            [org.eclipse.jgit.api Git]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
@@ -28,9 +29,23 @@
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.transport RemoteConfig URIish]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
-           [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]))
+           [org.eclipse.jgit.treewalk.filter PathFilter PathFilterGroup]
+           [org.slf4j LoggerFactory]))
 
 (set! *warn-on-reflection* true)
+
+;; Silence log spam.
+(run! (fn [^String class-name]
+        (let [logger (LoggerFactory/getLogger class-name)]
+          (when (instance? Logger logger)
+            (.setLevel ^Logger logger Level/WARN))))
+      ["org.eclipse.jgit.internal.storage.file.FileSnapshot"
+       "org.eclipse.jgit.internal.storage.file.Pack"
+       "org.eclipse.jgit.internal.util.ShutdownHook"
+       "org.eclipse.jgit.transport.PacketLineIn"
+       "org.eclipse.jgit.transport.PacketLineOut"
+       "org.eclipse.jgit.util.FS"
+       "org.eclipse.jgit.util.SystemReader"])
 
 ;; When opening a project, we ensure the .gitignore file contains every entry on this list.
 (defonce required-gitignore-entries ["/.editor_settings"

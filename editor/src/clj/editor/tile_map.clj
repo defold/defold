@@ -17,10 +17,10 @@
             [dynamo.graph :as g]
             [editor.attachment :as attachment]
             [editor.build-target :as bt]
-            [editor.core :as core]
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -32,7 +32,9 @@
             [editor.localization :as localization]
             [editor.material :as material]
             [editor.math :as math]
+            [editor.mouse-binding :as mouse-binding]
             [editor.outline :as outline]
+            [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -42,7 +44,8 @@
             [editor.tile-map-common :as tile-map-common]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -386,6 +389,7 @@
                 render-args (assoc render-args :view-proj (:world-view-proj render-args))
                 vertex-binding (vtx/use-with node-id vbuf shader)]
             (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+              (light/bind-preview-lights-for-shader! gl shader render-args)
               (gl/set-blend-mode gl blend-mode)
               ;; TODO: can't use selected because we also need to know when nothing is selected
               #_(if selected
@@ -459,7 +463,7 @@
   [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)
-          transform (doto (Matrix4d.) (.set (Vector3d. 0.0 0.0 z)))
+          layer-pose (pose/translation-pose 0.0 0.0 z)
 
           ;; The visibility-aabb is used to determine the scene extents. We use
           ;; it to adjust the camera near and far clip planes to encompass the
@@ -474,7 +478,7 @@
             aabb)]
       {:node-id _node-id
        :node-outline-key id
-       :transform transform
+       :pose layer-pose
        :aabb aabb
        :visibility-aabb visibility-aabb
        :renderable {:render-fn render-layer
@@ -521,7 +525,8 @@
   (property cell-map g/Any (default (int-map/int-map))
             (dynamic visible (g/constantly false)))
 
-  (property id g/Str) ; Required protobuf field.
+  (property id g/Str ; Required protobuf field.
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :id)))
   (property z g/Num ; Required protobuf field.
             (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
             (dynamic error (g/fnk [_node-id z]
@@ -565,7 +570,7 @@
       (attach-layer-node parent layer-node))))
 
 (defn world-pos->tile
-  [^Point3d pos tile-width tile-height]
+  [^Point3d pos ^double tile-width ^double tile-height]
   [(long (Math/floor (/ (.x pos) tile-width)))
    (long (Math/floor (/ (.y pos) tile-height)))])
 
@@ -580,9 +585,8 @@
 (defn- load-tile-map
   [project self resource tile-grid]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
-  (let [tile-source (workspace/resolve-resource resource (:tile-set tile-grid))
-        material (workspace/resolve-resource resource (:material tile-grid))
-        resolve-resource #(workspace/resolve-resource resource %)]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (gu/set-properties-from-pb-map self Tile$TileGrid tile-grid
@@ -1217,12 +1221,18 @@
 (defmulti update-op (fn [op node action state evaluation-context cursor-mode] op))
 (defmulti end-op (fn [op node action state evaluation-context cursor-mode] op))
 
+(defn- action->tile
+  [self action evaluation-context]
+  (when-let [world-pos (:world-pos action)]
+    (when-let [[w h] (g/node-value self :tile-dimensions evaluation-context)]
+      (world-pos->tile world-pos w h))))
+
 ;; painting tiles from brush
 
 (defmethod begin-op :paint
   [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
-    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
+    (when-let [current-tile (action->tile self action evaluation-context)]
       (let [brush (g/node-value self :brush evaluation-context)
             op-seq (gensym)]
         (swap! state assoc :last-tile current-tile)
@@ -1233,7 +1243,7 @@
 (defmethod update-op :paint
   [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
-    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
+    (when-let [current-tile (action->tile self action evaluation-context)]
       (when (not= current-tile (-> state deref :last-tile))
         (swap! state assoc :last-tile current-tile)
         (let [brush (g/node-value self :brush evaluation-context)
@@ -1251,14 +1261,14 @@
 (defmethod begin-op :select
   [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
-    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
+    (when-let [current-tile (action->tile self action evaluation-context)]
       [(g/set-property self :op-select-start current-tile)
        (g/set-property self :op-select-end current-tile)])))
 
 (defmethod update-op :select
   [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
-    (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
+    (when-let [current-tile (action->tile self action evaluation-context)]
       [(g/set-property self :op-select-end current-tile)])))
 
 (defmethod end-op :select
@@ -1276,19 +1286,35 @@
          (g/set-property self :op-select-end nil)]))))
 
 (defn- handle-input-editor
-  [self action state evaluation-context]
+  [self input-state action state evaluation-context]
   (let [op (g/node-value self :op evaluation-context)
-        cursor-mode (cond
-                      (and (true? (:shift action)) (true? (:control action))) :cut-mode
-                      (and (true? (:shift action)) (true? (:alt action))) :erase-mode
-                      (true? (:shift action)) :select-mode
-                      :else :paint-mode)
+        modifiers (:modifiers input-state)
+        mouse-binding-command (:mouse-binding-command action)
+        command (case mouse-binding-command
+                  (:scene.tile-map.paint :scene.tile-map.select-brush :scene.tile-map.erase :scene.tile-map.cut)
+                  mouse-binding-command
+
+                  (case (:type action)
+                    (:key-pressed :key-released :mouse-moved)
+                    (some #(mouse-binding/command-for-action ::tile-map-editor
+                                                             {:button % :modifiers modifiers})
+                          [:primary :secondary :middle])
+                    nil))
+        cursor-mode (case command
+                      :scene.tile-map.select-brush :select-mode
+                      :scene.tile-map.erase :erase-mode
+                      :scene.tile-map.cut :cut-mode
+                      :paint-mode)
         tx (case (:type action)
+             (:key-pressed :key-released)
+             (g/set-property self :cursor-mode cursor-mode)
+
              :mouse-pressed
-             (when-not (some? op)
-               (let [op (if (true? (:shift action))
-                          :select
-                          :paint)
+             (when (and (some? command)
+                        (nil? op))
+               (let [op (if (= :scene.tile-map.paint command)
+                          :paint
+                          :select)
                      op-tx (begin-op op self action state evaluation-context cursor-mode)]
                  (when (seq op-tx)
                    (concat
@@ -1311,8 +1337,12 @@
                  (end-op op self action state evaluation-context (g/node-value self :cursor-mode evaluation-context))))
 
              nil)]
-    (when (seq tx)
-      (g/transact tx)
+    (if (coll/not-empty tx)
+      (do
+        (g/transact tx)
+        nil)
+      ;; We want to disable the right-click context menu in the tilemap scene because there's really nothing to select,
+      ;; so the menu doesn't provide much. If we want to enable it, pass the action instead
       true)))
 
 (defn- handle-input-palette
@@ -1345,18 +1375,17 @@
       false)))
 
 (defn handle-input
-  [self action state]
+  [self input-state action state]
   (let [evaluation-context (g/make-evaluation-context)
         mode (g/node-value self :mode evaluation-context)]
     (case mode
       :palette (handle-input-palette self action state evaluation-context)
-      :editor  (handle-input-editor self action state evaluation-context))))
+      :editor  (handle-input-editor self input-state action state evaluation-context))))
 
-(defn make-input-handler
-  []
+(defn make-input-handler []
   (let [state (atom nil)]
-    (fn [self action _]
-      (handle-input self action state))))
+    (fn [self input-state action _]
+      (handle-input self input-state action state))))
 
 (defn- get-current-tile
   [cursor-world-pos tile-dimensions]
@@ -1416,6 +1445,11 @@
   (output palette-renderables pass/RenderData produce-palette-renderables)
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly (make-input-handler)))
+  (output mouse-binding-context g/Keyword (g/fnk [mode]
+                                            (case mode
+                                              :editor ::tile-map-editor
+                                              nil)))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions mode palette-tile]
                             (case mode
                               :editor (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)]
@@ -1554,6 +1588,29 @@
     :command :scene.flip-brush-vertically}
    {:label (localization/message "command.scene.rotate-brush-90-degrees")
     :command :scene.rotate-brush-90-degrees}])
+
+(mouse-binding/register!
+  ::tile-map-editor
+  "Tile Map Editor"
+  [{:command :scene.tile-map.paint
+    :action ["Paint"]
+    :binding {:button :primary :modifiers #{}}}
+   {:command :scene.tile-map.select-brush
+    :action ["Select Brush"]
+    :binding {:button :primary :modifiers #{:shift}}}
+   {:command :scene.tile-map.erase
+    :action ["Erase"]
+    :binding {:button :primary :modifiers #{:shift :alt}}}
+   {:command :scene.tile-map.cut
+    :action ["Cut"]
+    :binding {:button :primary :modifiers #{:shift :control}}}
+   {:command :scene.camera.orbit
+    :action ["Orbit"]}
+   {:command :scene.camera.pan
+    :action ["Pan"]}
+   {:command :scene.camera.zoom
+    :action ["Zoom"]}]
+  {:inherited-context :editor.camera/scene-camera-orthographic})
 
 (g/defnode TileMapGrid
   (inherits grid/Grid)

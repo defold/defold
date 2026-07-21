@@ -168,13 +168,15 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn- load-render [project self resource render-ddf]
-  (let [graph-id (g/node-id->graph-id self)
+(defn- load-render [_project self resource render-ddf]
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
+        graph-id (g/node-id->graph-id self)
         {script-path :script render-resources :render-resources} render-ddf]
     (concat
-      (g/set-property self :script (workspace/resolve-resource resource script-path))
+      (g/set-property self :script (resolve-resource script-path))
       (for [{:keys [name path]} render-resources]
-        (let [render-resource (workspace/resolve-resource resource path)]
+        (let [render-resource (resolve-resource path)]
           (make-named-render-resource-node graph-id self name render-resource))))))
 
 (defn- sanitize-render [render-ddf]

@@ -29,6 +29,13 @@
  * @language C++
  */
 
+/*# Web server extension context name
+ * Name used when registering the web server with the engine context registry.
+ * @constant
+ * @name WEBSERVER_CONTEXT_NAME
+ */
+#define WEBSERVER_CONTEXT_NAME "webserver"
+
 namespace dmWebServer
 {
     /*# web server handle
@@ -166,4 +173,3 @@ namespace dmWebServer
 }
 
 #endif // DMSDK_WEBSERVER_H
-

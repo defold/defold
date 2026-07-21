@@ -65,6 +65,7 @@ write_log = 1
 write_log_file = 1
 minimum_log_level = 2
 compress_archive = 1
+dependencies_metadata = 1
 custom_resources = /referenced/custom
 bundle_resources = /referenced/bundle
 bundle_exclude_resources = /referenced/bundle/log.txt
@@ -78,6 +79,8 @@ game_binding = /checked.input_bindingc
 repeat_delay = 0.4
 repeat_interval = 0.1
 gamepads = /checked.gamepadsc
+gamepad_database = /referenced/gamecontrollerdb.txt
+gamepad_deadzone = 0.35
 use_accelerometer = 0
 
 [html5]
@@ -152,6 +155,9 @@ safe_area_mode = long
 max_count = 32
 subpixels = 0
 
+[light]
+max_count = 32
+
 [mesh]
 max_count = 64
 
@@ -160,6 +166,8 @@ max_count = 64
 split_meshes = 1
 max_bone_matrix_texture_width = 512
 max_bone_matrix_texture_height = 512
+max_morph_target_texture_width = 1024
+max_morph_target_texture_height = 1024
 
 [particle_fx]
 max_count = 128
@@ -210,6 +218,8 @@ verify_graphics_calls = 0
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
 memory_size = 512
+vulkan_version_minor = 1
+vulkan_version_major = 0
 
 [iap]
 auto_finish_transactions = 0
@@ -249,8 +259,10 @@ sub_step_count = 3
 
 [profiler]
 track_cpu = 1
+track_detailed_memory = 1
 sleep_between_server_updates = 10
 performance_timeline_enabled = 0
+max_sample_count = 8192
 enabled = 1
 
 [render]
@@ -271,7 +283,6 @@ defold_min_version = 1.10.0
 [liveupdate]
 enabled = 1
 settings = /liveupdate.settings
-mount_on_start = 0
 
 [native_extension]
 app_manifest = /checked.appmanifest
@@ -282,6 +293,8 @@ player_health = 120
 
 [shader]
 exclude_gles_sm100 = 0
+glsl_es_default_precision_float = highp
+glsl_es_default_precision_int = mediump
 
 [font]
 runtime_generation = 1

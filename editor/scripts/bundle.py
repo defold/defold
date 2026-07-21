@@ -33,6 +33,7 @@ import datetime
 import fnmatch
 import urllib
 import urllib.parse
+import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'build_tools'))
@@ -52,15 +53,18 @@ finally:
 # defold/build_tools
 import run
 import http_cache
+import codesigning
+import sdk
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 
-# If you update java version, don't forget to update it here too:
-# - /editor/bundle-resources/config at "launcher.jdk" key
-# - /scripts/build.py smoke_test, `java` variable
-# - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-java_version = '25+36'
+java_version = sdk.VERSION_EDITOR_JDK
+
+REQUIRED_ANDROID_VKQUALITY_FILES = (
+    "libexec/armv7-android/libvkquality.so",
+    "libexec/arm64-android/libvkquality.so",
+)
 
 platform_to_java = {'x86_64-linux': 'x64_linux',
                     'x86_64-macos': 'x64_mac',
@@ -242,74 +246,6 @@ def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path, onerror=remove_readonly_retry)
 
-def mac_certificate(codesigning_identity):
-    if run.command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(codesigning_identity) >= 0:
-        return codesigning_identity
-    else:
-        return None
-
-def sign_file(platform, options, file):
-    if platform_is_windows(platform):
-        if not shutil.which('gcloud'):
-            sys.exit("No gcloud tool found")
-        gcloud = shutil.which('gcloud')
-        run.command([
-            gcloud,
-            'auth',
-            'activate-service-account',
-            '--key-file', options.gcloud_keyfile], silent = True)
-
-        # Capture the token ourselves so we can strip any stray lines emitted by the Windows
-        # Microsoft Store shim when `python.exe` is missing (it writes that warning to stdout).
-        token_proc = subprocess.run(
-            [gcloud, 'auth', 'print-access-token'],
-            stdout = subprocess.PIPE,
-            stderr = subprocess.PIPE,
-            check = False,
-            text = True)
-        if token_proc.returncode != 0:
-            log("gcloud auth print-access-token failed with exit code %d" % token_proc.returncode)
-            if token_proc.stderr:
-                log(token_proc.stderr.strip())
-            sys.exit(1)
-
-        token_lines = [line.strip() for line in token_proc.stdout.splitlines() if line.strip()]
-        if not token_lines:
-            log("Failed to read Google Cloud access token from gcloud output")
-            if token_proc.stderr:
-                log(token_proc.stderr.strip())
-            sys.exit(1)
-        storepass = token_lines[-1]
-
-        jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
-        keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
-        run.command([
-            'java', '-jar', jsign,
-            '--storetype', 'GOOGLECLOUD',
-            '--storepass', storepass,
-            '--keystore', keystore,
-            '--alias', options.gcloud_keyname,
-            '--certfile', options.gcloud_certfile,
-            '--tsmode', 'RFC3161',
-            '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
-            file], silent = True)
-
-    if platform_is_macos(platform):
-        codesigning_identity = options.codesigning_identity
-        certificate = mac_certificate(codesigning_identity)
-        if certificate is None:
-            log("Codesigning certificate not found for signing identity %s" % codesigning_identity)
-            sys.exit(1)
-
-        run.command([
-            'codesign',
-            '--deep',
-            '--force',
-            '--options', 'runtime',
-            '--entitlements', './scripts/entitlements.plist',
-            '-s', certificate,
-            file])
-
 def launcher_path(options, platform, exe_suffix):
     if options.launcher:
         return options.launcher
@@ -347,18 +283,61 @@ def get_jdk(platform):
 def invoke_lein(args, jdk_path=None, **kwargs):
     # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
     jdk_path = jdk_path or os.environ['JAVA_HOME']
-    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True, **kwargs)
+    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, **kwargs)
+
+def invoke_zip_parallel(args, jdk_path=None):
+    return invoke_lein(['with-profile', 'zip-parallel', 'run', '-m', 'editor.zip-parallel'] + args, jdk_path=jdk_path)
+
+def read_merged_project_value(profile, key, jdk_path=None):
+    """Print a value from the Leiningen project after profile merging.
+
+    Leiningen does not provide a small built-in task for printing an arbitrary
+    merged project key. `update-in` applies the function before running the
+    following task, so using `clojure.core/prn` lets us capture the value while
+    `version` gives Leiningen a cheap task to run afterwards.
+    """
+    return invoke_lein(['with-profile', profile, 'update-in', key, 'clojure.core/prn', '--', 'version'], jdk_path=jdk_path)
+
+def parse_lein_string(value):
+    for line in value.splitlines():
+        line = line.strip()
+        if line.startswith('"'):
+            return json.loads(line)
+    raise Exception("Unable to parse Leiningen string from output:\n%s" % value)
+
+def parse_lein_regexes(value):
+    for line in value.splitlines():
+        regexes = re.findall(r'#"([^"]*)"', line)
+        if regexes:
+            return regexes
+    raise Exception("Unable to parse Leiningen regexes from output:\n%s" % value)
 
 def write_docs(docs_dir, jdk_path=None):
-    invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
+    temp_dir = tempfile.mkdtemp()
+    try:
+        invoke_lein(['with-profile', 'docs', 'run', '-m', 'editor.docs', temp_dir], jdk_path)
+        source = path.join(temp_dir, 'editor.apidoc')
+        target = path.join(docs_dir, 'editor.apidoc')
+        with open(source, 'rb') as f:
+            source_bytes = f.read()
+        target_bytes = None
+        if path.isfile(target):
+            with open(target, 'rb') as f:
+                target_bytes = f.read()
+        if source_bytes != target_bytes:
+            os.makedirs(docs_dir, exist_ok=True)
+            shutil.copyfile(source, target)
+    finally:
+        shutil.rmtree(temp_dir)
 
 def get_exe_suffix(platform):
     return ".exe" if 'win32' in platform else ""
 
-def remove_platform_files_from_archive(platform, jar):
+def remove_platform_files_from_archive(platform, jar, jdk=None):
+    start_time = time.perf_counter()
     zin = zipfile.ZipFile(jar, 'r')
     files = zin.namelist()
-    files_to_remove = []
+    files_to_remove = set()
 
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
@@ -377,8 +356,12 @@ def remove_platform_files_from_archive(platform, jar):
             # don't remove the cross-platform bundletool-all.jar
             if "bundletool-all.jar" in file:
                 continue
+            # keep Android VkQuality native libraries; Bob needs these when bundling
+            # Vulkan-enabled Android apps from any desktop editor.
+            if file in REQUIRED_ANDROID_VKQUALITY_FILES:
+                continue
             # anything else should be removed
-            files_to_remove.append(file)
+            files_to_remove.add(file)
         # keep files needed only for this particular platform (+ shared files in '_defold' and 'shared')
         if file.startswith("_unpack"):
             # don't touch '_unpack/'
@@ -394,38 +377,98 @@ def remove_platform_files_from_archive(platform, jar):
             if file.startswith("_unpack/_defold"):
                 continue
             # anything else should be removed
-            files_to_remove.append(file)
+            files_to_remove.add(file)
 
 
     # find libs to remove in the root folder
     for file in files:
         if "/" not in file:
             if platform in ["x86_64-macos", "arm64-macos"] and (file.endswith(".so") or file.endswith(".dll")):
-                files_to_remove.append(file)
+                files_to_remove.add(file)
             elif platform in ["x86_64-win32"] and (file.endswith(".so") or file.endswith(".dylib")):
-                files_to_remove.append(file)
+                files_to_remove.add(file)
             elif platform in ["x86_64-linux", "arm64-linux"]  and (file.endswith(".dll") or file.endswith(".dylib")):
-                files_to_remove.append(file)
+                files_to_remove.add(file)
 
-    # write new jar without the files that should be removed
+    # Always rewrite the jar here, even when Leiningen already excluded all
+    # platform-specific files. The final editor package historically contained
+    # a Python-rewritten jar, and keeping that ZIP layout stable avoids changing
+    # macOS signing/notarization inputs while moving most filtering to uberjar.
+    scan_time = time.perf_counter() - start_time
+    if not files_to_remove:
+        zin.close()
+        log("No platform-specific files to remove from %s after %.3fs scan; keeping existing jar" %
+            (jar, scan_time))
+        return
+
+    log("Warning: removing %d platform-specific files from %s after %.3fs scan" %
+        (len(files_to_remove), jar, scan_time))
+    rewrite_start_time = time.perf_counter()
     newjar = jar + "_new"
-    zout = zipfile.ZipFile(newjar, 'w', zipfile.ZIP_DEFLATED, allowZip64=True)
-    for file in zin.infolist():
-        if file.filename not in files_to_remove:
-            zout.writestr(file, zin.read(file))
-    zout.close()
     zin.close()
+    if os.path.exists(newjar):
+        os.remove(newjar)
+    removals_file = jar + "_remove"
+    with open(removals_file, 'w') as f:
+        for file in sorted(files_to_remove):
+            f.write(file + "\n")
+    try:
+        invoke_zip_parallel(['filter-jar', jar, newjar, removals_file], jdk_path=jdk)
+    except BaseException:
+        if os.path.exists(newjar):
+            os.remove(newjar)
+        raise
+    finally:
+        if os.path.exists(removals_file):
+            os.remove(removals_file)
 
     # switch to jar without removed files
     os.remove(jar)
     os.rename(newjar, jar)
+    rewrite_time = time.perf_counter() - rewrite_start_time
+    log("Removed %d platform-specific files from %s in %.3fs (scan %.3fs, rewrite %.3fs)" %
+        (len(files_to_remove), jar, time.perf_counter() - start_time, scan_time, rewrite_time))
+
+
+def validate_android_vkquality_files(jar):
+    with zipfile.ZipFile(jar, 'r') as zf:
+        entries = set(zf.namelist())
+    missing = [file for file in REQUIRED_ANDROID_VKQUALITY_FILES if file not in entries]
+    if missing:
+        raise Exception("Editor Bob package is missing required Android VkQuality files: %s" %
+                        ", ".join(missing))
+
+
+def create_standalone_editor_jar(jdk, platform):
+    """Build the platform-specific standalone editor jar.
+
+    This replaces the old `lein zip-parallel uberjar` task. Since the parallel
+    zip code now runs as a normal Clojure namespace instead of a Leiningen task,
+    the Python build coordinates the few pieces the task previously handled:
+    build the project jar, read merged `project.clj` settings, resolve
+    dependency jars, and pass them to the zip writer.
+    """
+    profile = 'release,%s,uberjar' % platform
+    log("Creating uberjar for platform %s..." % platform)
+    jar_output = invoke_lein(['with-profile', profile, 'jar'], jdk_path=jdk)
+    jar_output_match = re.search(r'Created (.*\.jar)', jar_output)
+    if not jar_output_match:
+        raise Exception("Unable to determine editor jar from Leiningen output:\n%s" % jar_output)
+    project_jar = jar_output_match.group(1)
+    standalone_jar = path.join('target', parse_lein_string(read_merged_project_value(profile, ':uberjar-name', jdk)))
+    exclusions = parse_lein_regexes(read_merged_project_value(profile, ':uberjar-exclusions', jdk))
+    exclusions_file = 'target/parallel-uberjar-exclusions.edn'
+    with open(exclusions_file, 'w') as f:
+        json.dump(exclusions, f)
+    classpath = invoke_lein(['with-profile', 'release,%s' % platform, 'classpath'], jdk_path=jdk)
+    jars = [project_jar] + [jar_path for jar_path in classpath.split(os.pathsep) if jar_path.endswith('.jar')]
+    invoke_zip_parallel(['create-standalone-jar', standalone_jar, exclusions_file] + jars, jdk_path=jdk)
+    return standalone_jar
 
 
 def create_bundle(jdk, platform, options):
     mkdirs('target/editor')
-    log("Creating uberjar for platform %s..." % platform)
-    invoke_lein(['with-profile', 'release,%s' % platform, 'uberjar'], jdk_path=jdk)
-    jar_file = 'target/editor-%s-standalone.jar' % platform
+    jar_file = create_standalone_editor_jar(jdk, platform)
     log("Creating bundle for platform %s..." % platform)
     rmtree('tmp')
     tmp_dir = "tmp"
@@ -460,7 +503,7 @@ def create_bundle(jdk, platform, options):
     config = configparser.ConfigParser()
     config.read('bundle-resources/config')
     config.set('build', 'editor_sha1', options.editor_sha1)
-    config.set('build', 'engine_sha1', options.engine_sha1)
+    config.set('build', 'engine_sha1', options.engine_sha1 or '')
     config.set('build', 'version', options.version)
     config.set('build', 'time', datetime.datetime.now().isoformat())
     config.set('build', 'archive_domain', options.archive_domain)
@@ -475,7 +518,8 @@ def create_bundle(jdk, platform, options):
     shutil.copy(jar_file, defold_jar)
 
     # strip tools and libs for the platforms we're not currently bundling
-    remove_platform_files_from_archive(platform, defold_jar)
+    remove_platform_files_from_archive(platform, defold_jar, jdk)
+    validate_android_vkquality_files(defold_jar)
 
     # copy editor executable (the launcher)
     launcher = launcher_path(options, platform, get_exe_suffix(platform))
@@ -492,11 +536,11 @@ def create_bundle(jdk, platform, options):
                   '--output=%s' % packages_jdk])
 
     # Sign files
-    if options.skip_codesign:
-        log("Skipping code signing")
-    else:
+    if options.codesign:
         log("Signing for %s..." % platform)
         sign(bundle_dir, platform, options)
+    else:
+        log("Code signing disabled")
 
     # create final zip file
     zipfile = 'target/editor/Defold-%s.zip' % platform
@@ -523,13 +567,13 @@ def sign(bundle_dir, platform, options):
         jdk_dir = "jdk-%s" % java_version
         jdk_path = os.path.join(bundle_dir, "Contents", "Resources", "packages", jdk_dir)
         for exe in find_files(os.path.join(jdk_path, "bin"), "*"):
-            sign_file(platform, options, exe)
+            codesigning.sign_file(platform, options, exe)
         for lib in find_files(os.path.join(jdk_path, "lib"), "*.dylib"):
-            sign_file(platform, options, lib)
-        sign_file(platform, options, os.path.join(jdk_path, "lib", "jspawnhelper"))
-        sign_file(platform, options, bundle_dir)
+            codesigning.sign_file(platform, options, lib)
+        codesigning.sign_file(platform, options, os.path.join(jdk_path, "lib", "jspawnhelper"))
+        codesigning.sign_file(platform, options, bundle_dir)
     elif platform_is_windows(platform):
-        sign_file(platform, options, os.path.join(bundle_dir, "Defold.exe"))
+        codesigning.sign_file(platform, options, os.path.join(bundle_dir, "Defold.exe"))
 
 def find_files(root_dir, file_pattern):
     matches = []
@@ -562,8 +606,8 @@ def create_dmg(bundle_dir, options, platform):
     run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
-    if not options.skip_codesign:
-        certificate = mac_certificate(options.codesigning_identity)
+    if options.codesign:
+        certificate = codesigning.mac_certificate(options.codesigning_identity)
         if certificate is None:
             error("Codesigning certificate not found for signing identity %s" % (options.codesigning_identity))
             sys.exit(1)
@@ -666,33 +710,62 @@ def notarize_dmg(app, options):
             else:
                 log("Retrying notarization...")
 
-def build(options):
-    init_command = ['with-profile', '+release', 'init']
-    if options.engine_sha1:
-        init_command += [options.engine_sha1]
+def place_release_notes(options):
+    # Must run before prerelease: stages the notes onto the classpath (resources/,
+    # like editor.css). Best-effort, cleared each build so only this version ships.
+    dest_dir = os.path.join('resources', 'release-notes')
+    rmtree(dest_dir)
+    notes_src = os.path.join('..', 'releasenotes', '%s.json' % options.version)
+    if os.path.exists(notes_src):
+        mkdirs(dest_dir)
+        shutil.copy(notes_src, os.path.join(dest_dir, '%s.json' % options.version))
+        log("Staged release notes: %s" % notes_src)
+    else:
+        log("No release notes at %s; bundling none" % notes_src)
 
+def build(options):
+    place_release_notes(options)
     for platform in options.target_platform:
         log("Building editor for %s..." % platform)
         jdk = get_jdk(platform)
-        invoke_lein(init_command, jdk_path=jdk)
+        init_editor(options, platform, jdk)
         invoke_lein(['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
         if options.skip_tests:
             log("Skipping tests.")
         else:
-            invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
-            invoke_lein(['test'], jdk_path=jdk)
-            # test that docs can be successfully produced
-            write_docs('target/docs', jdk_path=jdk)
+            run_tests(jdk)
         invoke_lein(['prerelease'], jdk_path=jdk)
         create_bundle(jdk, platform, options)
 
+def init_editor(options, platform, jdk):
+    init_command = ['with-profile', '+release', 'init',
+                    options.engine_sha1 or 'dynamo-home',
+                    options.archive_domain,
+                    platform]
+    invoke_lein(init_command, jdk_path=jdk)
+
+def run_tests(jdk):
+    invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
+    invoke_lein(['test'], jdk_path=jdk)
+    # test that docs can be successfully produced
+    write_docs('target/docs', jdk_path=jdk)
+
+def test(options):
+    for platform in options.target_platform:
+        log("Testing editor for %s..." % platform)
+        jdk = get_jdk(platform)
+        init_editor(options, platform, jdk)
+        invoke_lein(['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
+        run_tests(jdk)
+
 if __name__ == '__main__':
-    allowed_commands = {'build', 'docs'}
+    allowed_commands = {'build', 'docs', 'test'}
     usage = '''%prog [options] command(s)
 
 Commands:
   build                 Build editor
-  docs                  Produce docs (editor.apidoc)'''
+  docs                  Produce docs (editor.apidoc)
+  test                  Run editor tests'''
 
     parser = optparse.OptionParser(usage)
 
@@ -727,14 +800,18 @@ Commands:
                       default = False,
                       help = 'Skip tests when building')
 
-    parser.add_option('--skip-codesign', dest='skip_codesign',
+    parser.add_option('--codesign', dest='codesign',
                       action = 'store_true',
                       default = False,
-                      help = 'Skip code signing when bundling')
+                      help = 'Enable code signing when bundling')
 
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
                       default = 'Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help = 'Codesigning identity for macOS')
+
+    parser.add_option('--codesigning-entitlements', dest='codesigning_entitlements',
+                      default = './scripts/entitlements.plist',
+                      help = 'Codesigning entitlements for macOS')
 
     parser.add_option('--gcloud-projectid', dest='gcloud_projectid',
                       default = None,
@@ -786,23 +863,25 @@ Commands:
     if invalid_commands:
         parser.error('Unknown command(s): %s' % ', '.join(invalid_commands))
 
-    if "build" in commands:
+    if "build" in commands or "test" in commands:
         if not options.target_platform:
             parser.error('No platform specified')
-        if not options.version:
-            parser.error('No version specified')
         supported = supported_platforms()
         unsupported = [platform for platform in options.target_platform if platform not in supported]
         if unsupported:
             log("Unsupported target(s): %s. Supported on this machine: %s." % (", ".join(unsupported), ", ".join(sorted(supported))))
             sys.exit(1)
 
+    if "build" in commands:
+        if not options.version:
+            parser.error('No version specified')
+
     options.editor_sha1 = git_sha1('HEAD')
 
     if options.engine_artifacts == 'auto':
         # If the VERSION file contains a version for which a tag
         # exists, then we're on a branch that uses a stable engine
-        # (ie. editor-dev or branch based on editor-dev), so use that.
+        # (ie. master or branch based on master), so use that.
         # Otherwise use archived artifacts for HEAD.
         options.engine_sha1 = git_sha1_from_version_file(options) or git_sha1('HEAD')
     elif options.engine_artifacts == 'dynamo-home':
@@ -821,5 +900,7 @@ Commands:
 
     if "docs" in commands:
         write_docs(options.docs_dir)
+    if "test" in commands:
+        test(options)
     if "build" in commands:
         build(options)

@@ -13,31 +13,43 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns load-project
-  (:require [dev :as dev]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.library :as library]
             [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.resource-types :as resource-types]
+            [editor.scene :as scene]
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
             [internal.graph.types]
             [internal.system :as is]
             [internal.transaction :as it]
             [service.log :as log]
-            [util.coll :as coll :refer [pair]]
+            [util.coll :as coll]
             [util.debug-util :as du]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.fn :as fn])
   (:import [java.util List]))
 
 (set! *warn-on-reflection* true)
 
-;; Set to the path of the project directory you want to load.
-(defonce project-path "test/resources/save_data_project")
+;; Set DM_DEV_LOAD_PROJECT_PATH to the path of the project directory you want to load.
+(def ^:private default-project-path "test/resources/all_types_project")
+
+(defonce project-path
+  (let [^String env-project-path (System/getenv "DM_DEV_LOAD_PROJECT_PATH")]
+    (if (or (nil? env-project-path)
+            (.isEmpty env-project-path))
+      default-project-path
+      env-project-path)))
 
 ;; When true, generate tx-data for loaded nodes in a separate step before
 ;; applying it in a transaction. Allows us to profile the two phases in
@@ -45,7 +57,7 @@
 (defonce separate-load-tx-data-generation true)
 
 ;; Set to one of the task-phases below to skip the rest of the tasks.
-(def final-task :cache-save-data)
+(def final-task :build-build-targets)
 
 ;; You can use this to start and stop your own profiling tool for certain tasks.
 (defn- user-profiling-hook! [task-key task-fn]
@@ -66,9 +78,7 @@
     (task-fn)))
 
 (def ^:private ^List task-phases
-  [:setup-workspace
-   :fetch-libraries
-   :resource-sync
+  [:resource-sync
    :list-resources
    :make-project
    :read-resources
@@ -77,8 +87,9 @@
    :update-overrides
    :update-successors
    :cache-save-data
-   :store-post-load-system
-   :calculate-scene-deps])
+   :evaluate-build-targets
+   :resolve-build-target-deps
+   :build-build-targets])
 
 (def ^:private final-task-index
   (let [task-index (.indexOf task-phases final-task)]
@@ -91,15 +102,23 @@
     (assert (nat-int? task-index) (str "Invalid task-key: " task-key))
     (<= task-index (int final-task-index))))
 
+(defmacro ^:private ensure-some [expr]
+  `(if-some [result# ~expr]
+     result#
+     (throw
+       (ex-info
+         "Expression returned nil."
+         {:expr '~expr}))))
+
 (defonce ^:private task-metrics (du/make-metrics-collector))
 (defonce ^:private resource-metrics (du/make-metrics-collector))
 (defonce ^:private transaction-metrics (du/make-metrics-collector))
 
-(defonce ^:private change-tracked-transact false)
+(defonce ^:private full-invalidation-transact true)
 
 (defonce ^:private transact-opts
   {:metrics transaction-metrics
-   :track-changes change-tracked-transact})
+   :full-invalidation full-invalidation-transact})
 
 (defn- measure-task-impl! [task-key task-fn]
   (let [task-label (name task-key)]
@@ -122,34 +141,42 @@
      (measure-task! ~task-key ~@body)))
 
 (defonce runtime (Runtime/getRuntime))
-(defonce start-allocated-bytes (du/allocated-bytes runtime))
-(defonce start-time-nanos (System/nanoTime))
 (defonce prefs (prefs/project project-path))
 (defonce localization (localization/make prefs ::load-project {} ^[] Throwable/.printStackTrace))
 (defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path localization) :cache-retain? project/cache-retain?))
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
 (defonce workspace-graph-id (g/last-graph-added))
 
+(defn- setup-workspace! [workspace-graph-id project-path]
+  (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
+        workspace (workspace/make-workspace workspace-graph-id project-path {} workspace-config localization)]
+    (g/transact
+      (concat
+        (scene/register-view-types workspace)))
+    (resource-types/register-resource-types! workspace)
+    workspace))
+
 (defonce workspace
-  (run-and-measure-task!
-    :setup-workspace
-    (test-util/setup-workspace! workspace-graph-id project-path)))
+  (setup-workspace! workspace-graph-id project-path))
 
-(defonce game-project-resource
-  (workspace/find-resource workspace "/game.project"))
+(defonce up-to-date-lib-results
+  (let [project-directory (workspace/project-directory workspace)
+        game-project-file (io/file project-directory "game.project")
+        dependencies (project/read-dependencies game-project-file)
+        library-results (library/fetch! project-directory dependencies progress/null-render-progress!)]
+    (workspace/set-project-dependencies! workspace library-results)))
 
-(defonce up-to-date-lib-states
-  (run-and-measure-task!
-    :fetch-libraries
-    (let [dependencies (project/read-dependencies game-project-resource)
-          stale-lib-states (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)]
-      (workspace/install-validated-libraries! workspace stale-lib-states))))
+(defonce start-allocated-bytes (du/allocated-bytes runtime))
+(defonce start-time-nanos (System/nanoTime))
 
 (defonce ^:private -initial-resource-sync-
   (run-and-measure-task!
     :resource-sync
     (workspace/resource-sync! workspace)
     nil))
+
+(defonce game-project-resource
+  (workspace/find-resource workspace "/game.project"))
 
 (defonce project-graph-id (g/make-graph! :history true :volatility 1))
 
@@ -188,7 +215,7 @@
             (coll/into->
               (e/concat
                 (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-                (project/setup-game-project-tx-data project game-project-node-id)
+                (project/setup-game-project-tx-data project (ensure-some game-project-node-id))
                 (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
                 (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
               (if separate-load-tx-data-generation [] :eduction)
@@ -225,8 +252,6 @@
                 (keep #(resource-node/owner-resource-node-id basis %))
                 (g/migrated-node-ids tx-result)))]
 
-    (when-not change-tracked-transact
-      (g/clear-system-cache!))
     (run-and-measure-task!
       :cache-save-data
       (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))
@@ -241,6 +266,26 @@
     migrated-resource-node-ids))
 
 (defonce ^:private -reset-undo- (g/reset-undo! project-graph-id))
+
+(defonce build-results
+  (g/with-auto-evaluation-context evaluation-context
+    (when-some [node-build-targets
+                (run-and-measure-task!
+                  :evaluate-build-targets
+                  (let [node-id->resource-path (build/make-node-id->resource-path project evaluation-context)]
+                    (build/node-build-targets (ensure-some game-project-node-id) node-id->resource-path progress/null-render-progress! fn/constantly-false evaluation-context)))]
+      (when-some [all-build-targets
+                  (run-and-measure-task!
+                    :resolve-build-target-deps
+                    (build/resolve-dependencies node-build-targets project evaluation-context))]
+        (let [build-results
+              (run-and-measure-task!
+                :build-build-targets
+                (build/build-build-targets! all-build-targets workspace {} progress/null-render-progress! evaluation-context))]
+          (when-some [error-value (:error build-results)]
+            (doseq [error-line (string/split-lines (localization (g/error-message error-value)))]
+              (log/error :message "build-failure" :cause error-line)))
+          build-results)))))
 
 (defonce total-duration-nanos
   (let [end-time-nanos (System/nanoTime)]
@@ -260,40 +305,7 @@
 
 (defonce load-metrics
   (du/when-metrics
-    {:new-nodes-by-path (g/node-value project :nodes-by-resource-path)
+    {:new-nodes-by-path (some-> project (g/node-value :nodes-by-resource-path))
      :task-metrics @task-metrics
      :resource-metrics @resource-metrics
      :transaction-metrics @transaction-metrics}))
-
-(defonce post-load-system
-  (run-task!
-    :store-post-load-system
-    @g/*the-system*))
-
-(defn- evaluated-endpoints-by-proj-path [project output-label render-progress!]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [basis (:basis evaluation-context)
-
-          proj-paths+node-ids
-          (->> (g/valid-node-value project :nodes-by-resource-path evaluation-context)
-               (filterv (fn [[_proj-path node-id]]
-                          (some-> (g/node-type* basis node-id)
-                                  (g/has-output? output-label))))
-               (sort-by key))
-
-          proj-path-count (count proj-paths+node-ids)]
-      (coll/into-> proj-paths+node-ids {}
-        (map-indexed
-          (fn [proj-path-index [proj-path node-id]]
-            (let [message (localization/message nil [] proj-path)
-                  progress (progress/make message proj-path-count proj-path-index)]
-              (render-progress! progress)
-              (let [evaluated-endpoints (dev/recursive-predecessor-endpoints basis node-id output-label)]
-                (pair proj-path evaluated-endpoints)))))))))
-
-(defonce evaluated-scene-endpoints-by-proj-path
-  (run-and-measure-task!
-    :calculate-scene-deps
-    (dev/run-with-terminal-progress "Calculating Scene Dependencies..."
-      (fn calc-scene-deps-with-progress [render-progress!]
-        (evaluated-endpoints-by-proj-path project :scene render-progress!)))))

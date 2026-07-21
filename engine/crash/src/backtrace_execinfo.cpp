@@ -25,16 +25,17 @@
 
 #include "crash.h"
 #include "crash_private.h"
+#include "backtrace_signal_posix.h"
 
 namespace dmCrash
 {
-    static const int SIGNAL_MAX = 64;
     static bool g_CrashDumpEnabled = true;
     static FCallstackExtraInfoCallback  g_CrashExtraInfoCallback = 0;
     static void*                        g_CrashExtraInfoCallbackCtx = 0;
 
-    // This array contains the default behavior for each signal.
-    static struct sigaction sigdfl[SIGNAL_MAX];
+    static struct sigaction             g_PreviousSignalActions[MAX_SIGNAL_COUNT];
+
+    static void Handler(const int signum, siginfo_t *const si, void *const sc);
 
     void EnableHandler(bool enable)
     {
@@ -100,25 +101,29 @@ namespace dmCrash
 
     static void Handler(const int signum, siginfo_t *const si, void *const sc)
     {
-        // The previous (default) behavior is restored for the signal.
+        bool first_signal_handler = BeginSignalHandler();
+
+        // The default behavior is restored for the signal.
         // Unless this is done first thing in the signal handler we'll
         // be stuck in a signal-handler loop forever.
-        sigaction(signum, &sigdfl[signum], NULL);
-        OnCrash(signum);
+        ResetToDefaultSignalHandler(signum);
+
+        if (g_CrashDumpEnabled && first_signal_handler)
+        {
+            OnCrash(signum);
+        }
+
+        if (first_signal_handler)
+        {
+            ChainSignalOrRaiseDefault(signum, si, sc, g_PreviousSignalActions, Handler);
+            EndSignalHandler();
+        }
     }
 
     void InstallOnSignal(int signum)
     {
-        assert(signum >= 0 && signum < SIGNAL_MAX);
-
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_sigaction = Handler;
-        sa.sa_flags = SA_SIGINFO;
-
-        // The current (default) behavior is stored in sigdfl.
-        sigaction(signum, &sa, &sigdfl[signum]);
+        assert(IsValidSignal(signum));
+        InstallSignalHandler(signum, Handler, g_PreviousSignalActions);
     }
 
     void SetCrashFilename(const char*)

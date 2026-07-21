@@ -1,9 +1,6 @@
 syntax = "proto2";
 package dmPropertiesDDF;
 
-import "ddf/ddf_extensions.proto";
-import "ddf/ddf_math.proto";
-
 option java_package = "com.dynamo.properties.proto";
 option java_outer_classname = "PropertiesProto";
 
@@ -13,6 +10,7 @@ message PropertyDeclarationEntry
     required uint64 id      = 2;
     required uint32 index   = 3;
     repeated uint64 element_ids = 4;
+    optional uint32 value_length = 5; // String value byte length, excluding the null terminator.
 }
 
 message PropertyDeclarations
@@ -24,6 +22,7 @@ message PropertyDeclarations
     repeated PropertyDeclarationEntry   vector4_entries = 5;
     repeated PropertyDeclarationEntry   quat_entries = 6;
     repeated PropertyDeclarationEntry   bool_entries = 7;
+    repeated PropertyDeclarationEntry   text_entries = 11;
     repeated float                      float_values = 8;
     repeated uint64                     hash_values = 9;
     repeated string                     string_values = 10;

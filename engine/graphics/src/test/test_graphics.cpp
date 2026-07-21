@@ -166,8 +166,8 @@ TEST_F(dmGraphicsTest, TestWindowState)
 
 TEST_F(dmGraphicsTest, TestWindowSize)
 {
-    ASSERT_EQ(m_NullContext->m_Width, dmGraphics::GetWidth(m_Context));
-    ASSERT_EQ(m_NullContext->m_Height, dmGraphics::GetHeight(m_Context));
+    ASSERT_EQ(m_NullContext->m_BaseContext.m_Width, dmGraphics::GetWidth(m_Context));
+    ASSERT_EQ(m_NullContext->m_BaseContext.m_Height, dmGraphics::GetHeight(m_Context));
     uint32_t width = WIDTH * 2;
     uint32_t height = HEIGHT * 2;
     dmGraphics::SetWindowSize(m_Context, width, height);
@@ -244,11 +244,11 @@ TEST_F(dmGraphicsTest, VertexBuffer)
 
     // Smaller size
     dmGraphics::SetVertexBufferData(vertex_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(1u, vb->m_Size);
+    ASSERT_EQ(1u, vb->m_Base.m_Size);
 
     // Bigger size
     dmGraphics::SetVertexBufferData(vertex_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(4u, vb->m_Size);
+    ASSERT_EQ(4u, vb->m_Base.m_Size);
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, 4));
 
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
@@ -284,11 +284,11 @@ TEST_F(dmGraphicsTest, IndexBuffer)
 
     // Smaller size
     dmGraphics::SetIndexBufferData(index_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(1u, ib->m_Size);
+    ASSERT_EQ(1u, ib->m_Base.m_Size);
 
     // Bigger size
     dmGraphics::SetIndexBufferData(index_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(4u, ib->m_Size);
+    ASSERT_EQ(4u, ib->m_Base.m_Size);
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, 4));
 
     dmGraphics::DeleteIndexBuffer(index_buffer);
@@ -528,7 +528,7 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
     {
         dmGraphics::UniformBufferLayout& pgm_ubo_0 = null_program->m_BaseProgram.m_UniformBufferLayouts[0];
 
-        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, pgm_ubo_0);
+        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, pgm_ubo_0, sizeof(ubo_data));
         dmGraphics::NullUniformBuffer* null_ubo = (dmGraphics::NullUniformBuffer*) ubo;
 
         dmGraphics::EnableProgram(m_Context, program);
@@ -558,6 +558,12 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
 
         dmGraphics::SetUniformBuffer(m_Context, ubo, 0, sizeof(ubo_data), &ubo_data);
         dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][0]);
+
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 1);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][1]);
 
         dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
         ASSERT_TRUE(null_ubo->m_UsedInDraw);
@@ -568,17 +574,19 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
         ASSERT_NEAR(written_floats[3], 8.0f, EPSILON);
 
         dmGraphics::DisableUniformBuffer(m_Context, ubo);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][1]);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundSet);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundBinding);
         dmGraphics::DisableProgram(m_Context);
         dmGraphics::DeleteUniformBuffer(m_Context, ubo);
     }
 
     // Create a ubo that doesn't match
     {
-        dmGraphics::UniformBufferLayout mismatched_layout = {};
-        mismatched_layout.m_Size = 1337;
-        mismatched_layout.m_Hash = -1;
+        dmGraphics::UniformBufferLayout mismatched_layout = (dmGraphics::UniformBufferLayout) -1;
 
-        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, mismatched_layout);
+        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, mismatched_layout, 1337);
         dmGraphics::NullUniformBuffer* null_ubo = (dmGraphics::NullUniformBuffer*) ubo;
 
         dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
@@ -586,6 +594,9 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
 
         dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
         ASSERT_FALSE(null_ubo->m_UsedInDraw);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundSet);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundBinding);
 
         dmGraphics::DisableUniformBuffer(m_Context, ubo);
         dmGraphics::DisableProgram(m_Context);
@@ -593,6 +604,78 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
     }
 
     dmGraphics::DeleteProgram(m_Context, program);
+}
+
+TEST_F(dmGraphicsTest, TestUniformBufferLayoutCompatibility)
+{
+    const dmhash_t info_hash   = dmHashString64("info");
+    const dmhash_t lights_hash = dmHashString64("lights");
+    const dmhash_t tail_hash   = dmHashString64("tail");
+    const dmhash_t light_hash  = dmHashString64("Light");
+    const dmhash_t buffer_hash = dmHashString64("Buffer");
+    const dmhash_t color_hash  = dmHashString64("color");
+
+    auto MakeLayout = [&](uint32_t light_count, bool trailing_array)
+    {
+        dmGraphics::ShaderResourceMember light_members[1];
+        dmGraphics::ShaderResourceMember buffer_members[3];
+        dmGraphics::ShaderResourceTypeInfo types[2];
+        memset(light_members, 0, sizeof(light_members));
+        memset(buffer_members, 0, sizeof(buffer_members));
+        memset(types, 0, sizeof(types));
+
+        light_members[0].m_Name                = (char*) "color";
+        light_members[0].m_NameHash            = color_hash;
+        light_members[0].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[0].m_Type.m_UseTypeIndex = 0;
+        light_members[0].m_ElementCount        = 1;
+
+        buffer_members[0].m_Name                = trailing_array ? (char*) "info" : (char*) "lights";
+        buffer_members[0].m_NameHash            = trailing_array ? info_hash : lights_hash;
+        buffer_members[0].m_ElementCount        = trailing_array ? 1 : light_count;
+        buffer_members[0].m_Type.m_UseTypeIndex = trailing_array ? 0 : 1;
+        if (trailing_array)
+            buffer_members[0].m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        else
+            buffer_members[0].m_Type.m_TypeIndex = 1;
+
+        buffer_members[1].m_Name                = trailing_array ? (char*) "lights" : (char*) "tail";
+        buffer_members[1].m_NameHash            = trailing_array ? lights_hash : tail_hash;
+        buffer_members[1].m_ElementCount        = trailing_array ? light_count : 1;
+        buffer_members[1].m_Type.m_UseTypeIndex = trailing_array ? 1 : 0;
+        if (trailing_array)
+            buffer_members[1].m_Type.m_TypeIndex = 1;
+        else
+            buffer_members[1].m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+
+        types[0].m_Name        = (char*) "Buffer";
+        types[0].m_NameHash    = buffer_hash;
+        types[0].m_Members     = buffer_members;
+        types[0].m_MemberCount = 2;
+
+        types[1].m_Name        = (char*) "Light";
+        types[1].m_NameHash    = light_hash;
+        types[1].m_Members     = light_members;
+        types[1].m_MemberCount = 1;
+
+        dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
+
+        return dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types));
+    };
+
+    dmGraphics::UniformBufferLayout trailing_4  = MakeLayout(4, true);
+    dmGraphics::UniformBufferLayout trailing_32 = MakeLayout(32, true);
+
+    ASSERT_NE(trailing_4, trailing_32);
+    ASSERT_TRUE(dmGraphics::IsUniformBufferLayoutCompatible(trailing_4, 64, trailing_4, 16));
+    ASSERT_FALSE(dmGraphics::IsUniformBufferLayoutCompatible(trailing_4, 16, trailing_4, 64));
+    ASSERT_FALSE(dmGraphics::IsUniformBufferLayoutCompatible(trailing_32, 64, trailing_4, 16));
+
+    dmGraphics::UniformBufferLayout non_trailing_4  = MakeLayout(4, false);
+    dmGraphics::UniformBufferLayout non_trailing_32 = MakeLayout(32, false);
+
+    ASSERT_NE(non_trailing_4, non_trailing_32);
+    ASSERT_FALSE(dmGraphics::IsUniformBufferLayoutCompatible(non_trailing_32, 64, non_trailing_4, 16));
 }
 
 TEST_F(dmGraphicsTest, TestProgram)
@@ -1580,14 +1663,14 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(m_Context, texture);
 }
 
-#if defined(DM_HAS_THREADS)
-
 static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
 {
     assert(dmGraphics::GetOpaqueHandle(texture) != INVALID_OPAQUE_HANDLE);
     int* value = (int*)user_data;
     *value = 1;
 }
+
+#if defined(DM_HAS_THREADS)
 
 TEST_F(dmGraphicsTest, TestTextureAsync)
 {
@@ -1783,6 +1866,39 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
 }
 #endif // DM_HAS_THREADS
+
+TEST_F(dmGraphicsSynchronousTest, TestTextureAsyncCallbackWithoutAsyncSupport)
+{
+    bool tmp_async_load = m_NullContext->m_UseAsyncTextureLoad;
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+
+    dmGraphics::TextureCreationParams creation_params;
+    dmGraphics::TextureParams params;
+
+    creation_params.m_Width          = WIDTH;
+    creation_params.m_Height         = HEIGHT;
+    creation_params.m_OriginalWidth  = WIDTH;
+    creation_params.m_OriginalHeight = HEIGHT;
+
+    params.m_DataSize = WIDTH * HEIGHT;
+    params.m_Data     = new char[params.m_DataSize];
+    params.m_Width    = WIDTH;
+    params.m_Height   = HEIGHT;
+    params.m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+
+    int callback_value = 0;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+    dmGraphics::SetTextureAsync(m_Context, texture, params, TestTextureAsyncCallback, &callback_value);
+
+    ASSERT_EQ(1, callback_value);
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
+
+    dmGraphics::DeleteTexture(m_Context, texture);
+    delete [] (char*)params.m_Data;
+
+    m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
+}
 
 TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
 {
@@ -2136,6 +2252,33 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
         }
         ASSERT_NE(0, dmGraphics::GetTextureFormatBitsPerPixel(format));
     }
+}
+
+// Compressed texture uploads need block dimensions and byte sizes to translate
+// logical texture dimensions into physical storage/copy extents.
+TEST_F(dmGraphicsTest, TestTextureFormatCompressedBlockSize)
+{
+    dmGraphics::TextureFormatCompressedBlockSize block_size;
+
+    ASSERT_TRUE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_6X6, &block_size));
+    ASSERT_EQ(6u, block_size.m_Width);
+    ASSERT_EQ(6u, block_size.m_Height);
+    ASSERT_EQ(16u, block_size.m_ByteSize);
+
+    const uint32_t block_columns = (4096 + block_size.m_Width - 1) / block_size.m_Width;
+    const uint32_t block_rows    = (4096 + block_size.m_Height - 1) / block_size.m_Height;
+    ASSERT_EQ(683u, block_columns);
+    ASSERT_EQ(683u, block_rows);
+    ASSERT_EQ(4098u, block_columns * block_size.m_Width);
+    ASSERT_EQ(4098u, block_rows * block_size.m_Height);
+    ASSERT_EQ(10928u, block_columns * block_size.m_ByteSize);
+
+    ASSERT_TRUE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2, &block_size));
+    ASSERT_EQ(4u, block_size.m_Width);
+    ASSERT_EQ(4u, block_size.m_Height);
+    ASSERT_EQ(16u, block_size.m_ByteSize);
+
+    ASSERT_FALSE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA, &block_size));
 }
 
 TEST_F(dmGraphicsTest, TestGetTextureParams)

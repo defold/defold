@@ -51,10 +51,9 @@ namespace dmSound
     #define SOUND_OUTBUFFER_COUNT (3)
     #define SOUND_OUTBUFFER_COUNT_NO_THREADS (4)
     #define SOUND_OUTBUFFER_MAX_COUNT (6)
-    #define SOUND_MAX_SPEED (5)
+    #define SOUND_MAX_SPEED (50)
     #define SOUND_MAX_HISTORY (4)
     #define SOUND_MAX_FUTURE (4)
-    #define SOUND_INSTANCE_STATEFRAMECOUNT (SOUND_MAX_HISTORY + SOUND_MAX_SPEED + SOUND_MAX_FUTURE)         // "max speed" is used as "extra sample count" as we can at most leave these many samples in the buffers due to fractional positions etc.
 
     const uint32_t RESAMPLE_FRACTION_BITS = 11; // matches number of polyphase filter bank entries (2048)
 

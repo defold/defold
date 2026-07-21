@@ -28,16 +28,6 @@ namespace dmResource
     // Decrypts a buffer, using the built in function, or the custom one set by RegisterResourceDecryption
     Result DecryptBuffer(void* buffer, uint32_t buffer_len);
 
-    /**
-     * The manifest has a signature embedded. This signature is created when bundling by hashing the manifest content
-     * and encrypting the hash with the private part of a public-private key pair. To verify a manifest this procedure
-     * is performed in reverse; first decrypting the signature using the public key (bundled with the engine) to
-     * retreive the content hash then hashing the actual manifest content and comparing the two.
-     * This method handles the signature decryption part.
-     */
-    Result DecryptSignatureHash(const dmResource::HManifest manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, uint8_t** out_digest, uint32_t* out_digest_len);
-
-
     /*#
      * Returns the length in bytes of the supplied hash algorithm
      * @name HashLength

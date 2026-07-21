@@ -26,6 +26,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,17 +62,17 @@ import org.junit.runners.Parameterized.Parameters;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
 @RunWith(Parameterized.class)
@@ -80,6 +81,8 @@ public class BundlerTest {
     private String contentRoot;
     private String outputDir;
     private String contentRootUnused;
+    private File buildReportJsonFile;
+    private File buildReportHtmlFile;
     private Platform platform;
 
     private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
@@ -113,7 +116,8 @@ public class BundlerTest {
             data.add(new Platform[]{Platform.Arm64MacOS});
             data.add(new Platform[]{Platform.X86_64Linux});
             data.add(new Platform[]{Platform.Armv7Android});
-            data.add(new Platform[]{Platform.JsWeb});
+            data.add(new Platform[]{Platform.WasmWeb});
+            data.add(new Platform[]{Platform.WasmPthreadWeb});
 
             // Can only do this on OSX machines currently
             if (Platform.getHostPlatform().isMacOS()) {
@@ -138,6 +142,10 @@ public class BundlerTest {
         if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
         {
                 return String.format("Payload/%s.app/", projectName);
+        }
+        else if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS)
+        {
+                return "Contents/Resources/";
         }
         return "";
     }
@@ -207,11 +215,6 @@ public class BundlerTest {
             checkFileExist(outputDirFile, wasmjsFile);
             File wasmFile = new File(outputDirFile, exeName + "_pthread.wasm");
             checkFileExist(outputDirFile, wasmFile);
-        }
-        else if (platform == Platform.JsWeb)
-        {
-            File asmjsFile = new File(outputDirFile, exeName + "_asmjs.js");
-            assertTrue(asmjsFile.exists());
         }
         else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
         {
@@ -339,21 +342,46 @@ public class BundlerTest {
     }
 
     void build() throws IOException, CompileExceptionError, MultipleCompileException {
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        setProjectProperties(project);
+            setProjectProperties(project);
+            if (buildReportJsonFile != null) {
+                project.setOption("build-report-json", buildReportJsonFile.getAbsolutePath());
+            }
+            if (buildReportHtmlFile != null) {
+                project.setOption("build-report-html", buildReportHtmlFile.getAbsolutePath());
+            }
 
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
-        for (TaskResult taskResult : result) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
+            List<TaskResult> result = project.build(Progress.discarding(), "clean", "build", "bundle");
+            for (TaskResult taskResult : result) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
+
+            verifyEngineBinaries();
         }
+    }
 
-        verifyEngineBinaries();
+    void buildContent(boolean archive) throws IOException, CompileExceptionError, MultipleCompileException {
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
+
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
+
+            setProjectProperties(project);
+            project.setOption("archive", archive ? "true" : "false");
+
+            List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
+            for (TaskResult taskResult : result) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
+        }
     }
 
     @SuppressWarnings("unused")
@@ -388,6 +416,31 @@ public class BundlerTest {
         return entries;
     }
 
+    private boolean archiveContainsContent(String content) throws IOException, NoSuchAlgorithmException {
+        final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(content.getBytes(StandardCharsets.UTF_8), HashAlgorithm.HASH_SHA1);
+        final int hlen = ManifestBuilder.CryptographicOperations.getHashSize(HashAlgorithm.HASH_SHA1);
+        Set<byte[]> entries = readDarcEntries(contentRoot);
+        for (byte[] entry : entries) {
+            boolean matches = true;
+            for (int i = 0; i < hlen; ++i) {
+                if (expectedHash[i] != entry[i]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void writeDependenciesMetadata(String content) throws IOException {
+        File metadataFile = new File(contentRoot, DependencyMetadata.PROJECT_PATH);
+        Files.createDirectories(metadataFile.getParentFile().toPath());
+        Files.write(metadataFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
+    }
+
     // Returns the number of files that will be put into the DARC file
     // Note that the game.project isn't put in the archive either
     protected int createDefaultFiles(String outputContentRoot) throws IOException {
@@ -406,6 +459,7 @@ public class BundlerTest {
         count++;
         createFile(outputContentRoot, "builtins/input/default.gamepads", "");
         count++;
+        createFile(outputContentRoot, "builtins/input/gamecontrollerdb.txt", "");
         createFile(outputContentRoot, "input/game.input_binding", "key_trigger { input: KEY_SPACE action: \"\" }");
         count++;
 
@@ -435,26 +489,26 @@ public class BundlerTest {
         createDefaultFiles(contentRoot);
         outputDir = new File(contentRoot, "build").getAbsolutePath();
 
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        setProjectProperties(project);
+            setProjectProperties(project);
 
-        try {
-            project.build(new NullProgress(), "bundle");
-            fail("Expected bundle output under build directory to be rejected.");
-        } catch (CompileExceptionError e) {
-            assertTrue(e.getMessage().contains(outputDir));
+            try {
+                project.build(Progress.discarding(), "bundle");
+                fail("Expected bundle output under build directory to be rejected.");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage().contains(outputDir));
+            }
         }
     }
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }
@@ -545,13 +599,58 @@ public class BundlerTest {
         assertTrue(found);
     }
 
+    @Test
+    public void testDependenciesMetadataResource() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, NoSuchAlgorithmException {
+        final String sourceData = "[ {\n  \"url\" : \"https://example.com/library.zip\",\n  \"payload-sha1\" : \"0123456789abcdef0123456789abcdef01234567\"\n} ]";
+        final String expectedData = "[{\"url\":\"https://example.com/library.zip\",\"payload-sha1\":\"0123456789abcdef0123456789abcdef01234567\"}]";
+        createDefaultFiles(contentRoot);
+        createFile(contentRoot, "game.project", "[project]\ndependencies_metadata=1\ncompress_archive=0\n[display]\nwidth=640\nheight=480\n");
+        writeDependenciesMetadata(sourceData);
+        buildReportJsonFile = new File(contentRoot, "report.json");
+        buildReportHtmlFile = new File(contentRoot, "report.html");
+
+        build();
+
+        assertTrue(archiveContainsContent(expectedData));
+        assertTrue(new String(Files.readAllBytes(buildReportJsonFile.toPath()), StandardCharsets.UTF_8).contains(DependencyMetadata.OUTPUT_PATH));
+        assertTrue(new String(Files.readAllBytes(buildReportHtmlFile.toPath()), StandardCharsets.UTF_8).contains(DependencyMetadata.OUTPUT_PATH));
+
+        createFile(contentRoot, "game.project", "[project]\ndependencies_metadata=0\ncompress_archive=0\n[display]\nwidth=640\nheight=480\n");
+        build();
+
+        assertFalse(archiveContainsContent(expectedData));
+    }
+
+    @Test
+    public void testDependenciesMetadataCopiedToContentBuildDirectory() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        final String sourceData = "[ {\n  \"url\" : \"https://example.com/library.zip\",\n  \"payload-sha1\" : \"0123456789abcdef0123456789abcdef01234567\"\n} ]";
+        final String expectedData = "[{\"url\":\"https://example.com/library.zip\",\"payload-sha1\":\"0123456789abcdef0123456789abcdef01234567\"}]";
+        File buildMetadataFile = new File(contentRoot, "build/" + DependencyMetadata.OUTPUT_PATH);
+        File legacyBuildMetadataFile = new File(contentRoot, "build/" + DependencyMetadata.PROJECT_PATH);
+
+        createDefaultFiles(contentRoot);
+        createFile(contentRoot, "game.project", "[project]\ndependencies_metadata=1\n[display]\nwidth=640\nheight=480\n");
+        writeDependenciesMetadata(sourceData);
+
+        buildContent(false);
+
+        assertTrue(buildMetadataFile.exists());
+        assertFalse(legacyBuildMetadataFile.exists());
+        assertEquals(expectedData, new String(Files.readAllBytes(buildMetadataFile.toPath()), StandardCharsets.UTF_8));
+
+        createFile(contentRoot, "game.project", "[project]\ndependencies_metadata=0\n[display]\nwidth=640\nheight=480\n");
+        buildContent(false);
+
+        assertFalse(buildMetadataFile.exists());
+        assertFalse(legacyBuildMetadataFile.exists());
+    }
+
     static HashSet<String> getExpectedFilesForPlatform(Platform platform, HashSet<String> actualFiles)
     {
         HashSet<String> expectedFiles = new HashSet<String>();
         if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32)
         {
                 expectedFiles.add("unnamed.exe");
-                expectedFiles.add("game.public.der");
                 expectedFiles.add("game.dmanifest");
                 expectedFiles.add("game.arci");
                 expectedFiles.add("game.arcd");
@@ -567,19 +666,18 @@ public class BundlerTest {
                 expectedFiles.add("archive/game0.arci");
                 expectedFiles.add("archive/game0.dmanifest");
                 expectedFiles.add("archive/game0.projectc");
-                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
         }
-        else if (platform == Platform.JsWeb)
+        else if (platform == Platform.WasmPthreadWeb)
         {
                 expectedFiles.add("dmloader.js");
                 expectedFiles.add("index.html");
-                expectedFiles.add("unnamed_asmjs.js");
+                expectedFiles.add("unnamed_pthread_wasm.js");
+                expectedFiles.add("unnamed_pthread.wasm");
                 expectedFiles.add("archive/game0.arcd");
                 expectedFiles.add("archive/game0.arci");
                 expectedFiles.add("archive/game0.dmanifest");
                 expectedFiles.add("archive/game0.projectc");
-                expectedFiles.add("archive/game0.public.der");
                 expectedFiles.add("archive/archive_files.json");
         }
         else if (platform == Platform.Armv7Android || platform == Platform.Arm64Android)
@@ -591,7 +689,6 @@ public class BundlerTest {
             expectedFiles.add("assets/game.arci");
             expectedFiles.add("assets/game.dmanifest");
             expectedFiles.add("assets/game.projectc");
-            expectedFiles.add("assets/game.public.der");
             expectedFiles.add("META-INF/MANIFEST.MF");
             expectedFiles.add("res/drawable-hdpi-v4/icon.png");
             expectedFiles.add("res/drawable-ldpi-v4/icon.png");
@@ -609,6 +706,15 @@ public class BundlerTest {
             if (actualFiles.contains("META-INF/BNDLTOOL.RSA")) {
                 expectedFiles.add("META-INF/BNDLTOOL.RSA");
             }
+            if (actualFiles.contains("assets/vkqualitydata.vkq")) {
+                expectedFiles.add("assets/vkqualitydata.vkq");
+            }
+            if (actualFiles.contains("lib/armeabi-v7a/libvkquality.so")) {
+                expectedFiles.add("lib/armeabi-v7a/libvkquality.so");
+            }
+            if (actualFiles.contains("lib/arm64-v8a/libvkquality.so")) {
+                expectedFiles.add("lib/arm64-v8a/libvkquality.so");
+            }
         }
         else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios)
         {
@@ -619,7 +725,6 @@ public class BundlerTest {
             expectedFiles.add("Payload/unnamed.app/game.arci");
             expectedFiles.add("Payload/unnamed.app/game.dmanifest");
             expectedFiles.add("Payload/unnamed.app/game.projectc");
-            expectedFiles.add("Payload/unnamed.app/game.public.der");
             expectedFiles.add("Payload/unnamed.app/AppIcon60x60@2x.png");
             expectedFiles.add("Payload/unnamed.app/AppIcon60x60@3x.png");
             expectedFiles.add("Payload/unnamed.app/AppIcon76x76@2x~ipad.png");
@@ -634,7 +739,9 @@ public class BundlerTest {
             expectedFiles.add("Contents/Resources/game.arci");
             expectedFiles.add("Contents/Resources/game.dmanifest");
             expectedFiles.add("Contents/Resources/game.projectc");
-            expectedFiles.add("Contents/Resources/game.public.der");
+            if (BundleHelper.isMacOS(Platform.getHostPlatform())) {
+                expectedFiles.add("Contents/_CodeSignature/CodeResources");
+            }
         }
         else if (platform == Platform.X86_64Linux)
         {
@@ -643,7 +750,6 @@ public class BundlerTest {
             expectedFiles.add("game.arci");
             expectedFiles.add("game.dmanifest");
             expectedFiles.add("game.projectc");
-            expectedFiles.add("game.public.der");
         }
         else if (platform == Platform.Arm64Linux)
         {
@@ -652,7 +758,6 @@ public class BundlerTest {
             expectedFiles.add("game.arci");
             expectedFiles.add("game.dmanifest");
             expectedFiles.add("game.projectc");
-            expectedFiles.add("game.public.der");
         }
         else
         {
@@ -795,44 +900,45 @@ public class BundlerTest {
     @Test
     public void testBundleWithDynamicLibraries()
             throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        if (platform == Platform.JsWeb || platform == Platform.WasmWeb) {
+        if (platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
             return;
         }
 
         createDefaultFiles(contentRoot);
 
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
-        setProjectProperties(project);
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
+            setProjectProperties(project);
 
-        List<TaskResult> buildResult = project.build(new NullProgress(), "clean", "build");
-        for (TaskResult taskResult : buildResult) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
-        }
+            List<TaskResult> buildResult = project.build(Progress.discarding(), "clean", "build");
+            for (TaskResult taskResult : buildResult) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
 
-        String binaryOutputDir = project.getBinaryOutputDirectory();
-        File platformBinaryDir = new File(binaryOutputDir, platform.getExtenderPair());
-        platformBinaryDir.mkdirs();
+            String binaryOutputDir = project.getBinaryOutputDirectory();
+            File platformBinaryDir = new File(binaryOutputDir, platform.getExtenderPair());
+            platformBinaryDir.mkdirs();
 
-        String libName = platform.getLibPrefix() + "testlib" + platform.getLibSuffix();
-        createFile(platformBinaryDir.getAbsolutePath(), libName, "mock_library_content");
+            String libName = platform.getLibPrefix() + "testlib" + platform.getLibSuffix();
+            createFile(platformBinaryDir.getAbsolutePath(), libName, "mock_library_content");
 
-        List<TaskResult> bundleResult = project.build(new NullProgress(), "bundle");
-        for (TaskResult taskResult : bundleResult) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
-        }
+            List<TaskResult> bundleResult = project.build(Progress.discarding(), "bundle");
+            for (TaskResult taskResult : bundleResult) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
 
-        List<String> bundleFiles = getBundleFiles();
-        String expectedLibPath = getExpectedDynamicLibraryPath(libName);
+            List<String> bundleFiles = getBundleFiles();
+            String expectedLibPath = getExpectedDynamicLibraryPath(libName);
 
-        if (expectedLibPath != null) {
-            assertTrue(
-                    "Expected dynamic library " + expectedLibPath + " not found in bundle. Bundle files: "
-                            + bundleFiles,
-                    bundleFiles.contains(expectedLibPath));
+            if (expectedLibPath != null) {
+                assertTrue(
+                        "Expected dynamic library " + expectedLibPath + " not found in bundle. Bundle files: "
+                                + bundleFiles,
+                        bundleFiles.contains(expectedLibPath));
+            }
         }
     }
 

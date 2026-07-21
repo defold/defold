@@ -164,7 +164,7 @@
                      (concat
                        (g/disconnect-sources basis self :included-proj-paths+full-lines)
                        (map (fn [include]
-                              (let [included-resource (workspace/resolve-resource resource include evaluation-context)]
+                              (let [included-resource (workspace/resolve-resource basis resource include)]
                                 (:tx-data (project/connect-resource-node evaluation-context project included-resource self connections))))
                             new-value))))))
 

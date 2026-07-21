@@ -119,17 +119,35 @@ void ProfileRegisterProfiler(const char* name, ProfileListener* profiler)
         }
     }
 
-    DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_ProfileLock);
-
-    dmSnPrintf(profiler->m_Name, sizeof(profiler->m_Name), "%s", name);
-    profiler->m_Next = g_ProfileListeners; // it's ok to add it first
+    bool initialized = IsProfileInitialized();
     profiler->m_Ctx = 0;
-    g_ProfileListeners = profiler;
 
-    if (IsProfileInitialized())
+    // Backend callback: do not hold g_ProfileLock here
+    if (initialized)
     {
         CreateListener(profiler);
-        CreateListenerProperties(profiler);
+    }
+
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_ProfileLock);
+
+        dmSnPrintf(profiler->m_Name, sizeof(profiler->m_Name), "%s", name);
+        profiler->m_Next = g_ProfileListeners;
+
+        // Publish as disabled so the listener cannot receive property callbacks
+        // before the existing property table has been replayed
+        if (initialized)
+        {
+            profiler->m_Disabled = true;
+        }
+
+        g_ProfileListeners = profiler;
+
+        if (initialized && profiler->m_Ctx != 0)
+        {
+            CreateListenerProperties(profiler);
+            profiler->m_Disabled = false;
+        }
     }
 
     dmLogDebug("Registered profiler '%s'", profiler->m_Name);
@@ -172,6 +190,44 @@ void ProfileUnregisterProfiler(const char* name)
             p->m_ ## _FUNC(p->m_Ctx, __VA_ARGS__);                      \
         }                                                               \
     }
+
+#define CHECK_INITIALIZED_RETVAL(_RETVAL)                               \
+    if (!IsProfileInitialized())                                        \
+        return _RETVAL;
+
+#define DO_LOOP_NOARGS_RETVAL(_FUNC)                                    \
+    do                                                                  \
+    {                                                                   \
+        ProfileResult result = PROFILE_RESULT_OK;                       \
+        for (ProfileListener* p = g_ProfileListeners; p != 0; p = p->m_Next) \
+        {                                                               \
+            if (p->m_Disabled) continue;                                \
+            if (p->m_ ## _FUNC)                                         \
+            {                                                           \
+                ProfileResult listener_result = p->m_ ## _FUNC(p->m_Ctx); \
+                if (listener_result != PROFILE_RESULT_OK)                           \
+                    result = listener_result;                           \
+            }                                                           \
+        }                                                               \
+        return result;                                                  \
+    } while (0)
+
+#define DO_LOOP_RETVAL(_FUNC, ...)                                      \
+    do                                                                  \
+    {                                                                   \
+        ProfileResult result = PROFILE_RESULT_OK;                       \
+        for (ProfileListener* p = g_ProfileListeners; p != 0; p = p->m_Next) \
+        {                                                               \
+            if (p->m_Disabled) continue;                                \
+            if (p->m_ ## _FUNC)                                         \
+            {                                                           \
+                ProfileResult listener_result = p->m_ ## _FUNC(p->m_Ctx, __VA_ARGS__); \
+                if (listener_result != PROFILE_RESULT_OK)                           \
+                    result = listener_result;                           \
+            }                                                           \
+        }                                                               \
+        return result;                                                  \
+    } while (0)
 
 
 // *****************************************************************************************
@@ -231,42 +287,48 @@ HProfile ProfileFrameBegin()
     return result;
 }
 
-void ProfileFrameEnd(HProfile profile)
+ProfileResult ProfileFrameEnd(HProfile profile)
 {
     if (!profile)
-        return;
+        return PROFILE_RESULT_OK;
 
-    DO_LOOP_NOARGS(FrameEnd);
-}
-
-void ProfileScopeBegin(const char* name, uint64_t* name_hash)
-{
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
+    DO_LOOP_NOARGS_RETVAL(FrameEnd);
+}
+
+ProfileResult ProfileScopeBegin(const char* name, uint64_t* name_hash)
+{
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
     if (name_hash && !*name_hash)
     {
         *name_hash = dmHashString64(name);
     }
 
-    DO_LOOP(ScopeBegin, name, name_hash ? *name_hash : 0);
+    DO_LOOP_RETVAL(ScopeBegin, name, name_hash ? *name_hash : 0);
 }
 
-void ProfileScopeEnd(const char* name, uint64_t name_hash)
+ProfileResult ProfileScopeEnd(const char* name, uint64_t name_hash)
 {
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
-    DO_LOOP(ScopeEnd, name, name_hash);
+    DO_LOOP_RETVAL(ScopeEnd, name, name_hash);
 }
 
-void ProfileSetThreadName(const char* name)
+ProfileResult ProfileSetThreadName(const char* name)
 {
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
-    DO_LOOP(SetThreadName, name);
+    DO_LOOP_RETVAL(SetThreadName, name);
 }
 
-void ProfileLogText(const char* format, ...)
+ProfileResult ProfileLogText(const char* format, ...)
 {
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
 
     char buffer[DM_PROFILE_TEXT_LENGTH];
@@ -280,7 +342,7 @@ void ProfileLogText(const char* format, ...)
     }
     va_end(lst);
 
-    DO_LOOP(LogText, buffer);
+    DO_LOOP_RETVAL(LogText, buffer);
 }
 
 // *****************************************************************************************
@@ -552,4 +614,3 @@ void ProfilePropertyReset(ProfileIdx idx)
     GET_PROP_AND_CHECK(idx);
     DO_LOOP(PropertyReset, idx);
 }
-

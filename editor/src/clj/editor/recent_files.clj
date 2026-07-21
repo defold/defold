@@ -48,7 +48,7 @@
     (prefs/set! prefs k (conj-history-item (prefs/get prefs k) item))))
 
 (defn- project-path+view-type-id->resource+view-type [workspace evaluation-context [project-path view-type-id]]
-  (when-let [res (workspace/find-resource workspace project-path evaluation-context)]
+  (when-let [res (workspace/find-resource (:basis evaluation-context) workspace project-path)]
     (when (resource/openable? res)
       (when-let [view-type (workspace/get-view-type workspace view-type-id evaluation-context)]
         [res view-type]))))

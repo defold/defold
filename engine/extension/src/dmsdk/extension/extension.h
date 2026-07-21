@@ -20,6 +20,7 @@
 
 #include <dmsdk/dlib/align.h> // DM_ALIGNED
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/dlib/context_registry.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -190,7 +191,24 @@ void ExtensionParamsInitialize(ExtensionParams* app_params);
 void ExtensionParamsFinalize(ExtensionParams* params);
 
 /*#
+ * Gets the context registry used by the extension app params.
+ * @name ExtensionAppParamsGetContextRegistry
+ * @param params [type:ExtensionAppParams*] the params
+ * @return context_registry [type:HContextRegistry] the context registry
+ */
+HContextRegistry ExtensionAppParamsGetContextRegistry(ExtensionAppParams* params);
+
+/*#
+ * Gets the context registry used by the extension params.
+ * @name ExtensionParamsGetContextRegistry
+ * @param params [type:ExtensionParams*] the params
+ * @return context_registry [type:HContextRegistry] the context registry
+ */
+HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params);
+
+/*#
  * Sets a context using a specified name
+ * @note Deprecated. Use [ref:ContextRegistrySet] on [ref:HContextRegistry] instead.
  * @name ExtensionAppParamsSetContext
  * @param params [type:ExtensionAppParams] the params
  * @param name [type:const char*] the context name
@@ -201,6 +219,7 @@ int ExtensionAppParamsSetContext(ExtensionAppParams* params, const char* name, v
 
 /*#
  * Gets a context using a specified name
+ * @note Deprecated. Use [ref:ContextRegistryGet] on [ref:HContextRegistry] instead.
  * @name ExtensionAppParamsGetContextByName
  * @param params [type:ExtensionAppParams] the params
  * @param name [type:const char*] the context name
@@ -210,6 +229,7 @@ void* ExtensionAppParamsGetContextByName(ExtensionAppParams* params, const char*
 
 /*#
  * Gets a context using a specified name hash
+ * @note Deprecated. Use [ref:ContextRegistryGetByHash] on [ref:HContextRegistry] instead.
  * @name ExtensionAppParamsGetContext
  * @param params [type:ExtensionAppParams] the params
  * @param name_hash [type:dmhash_t] the context name hash
@@ -226,8 +246,9 @@ ExtensionAppExitCode ExtensionAppParamsGetAppExitCode(ExtensionAppParams* app_pa
 
 /*#
  * Sets a context using a specified name
+ * @note Deprecated. Use [ref:ContextRegistrySet] on [ref:HContextRegistry] instead.
  * @name ExtensionParamsSetContext
- * @param params [type:ExtensionAppParams] the params
+ * @param params [type:ExtensionParams] the params
  * @param name [type:const char*] the context name
  * @param context [type:void*] the context
  * @return result [type:int] 0 if successful
@@ -236,6 +257,7 @@ int ExtensionParamsSetContext(ExtensionParams* params, const char* name, void* c
 
 /*#
  * Gets a context using a specified name
+ * @note Deprecated. Use [ref:ContextRegistryGet] on [ref:HContextRegistry] instead.
  * @name ExtensionParamsGetContextByName
  * @param params [type:ExtensionParams] the params
  * @param name [type:const char*] the context name
@@ -245,6 +267,7 @@ void* ExtensionParamsGetContextByName(ExtensionParams* params, const char* name)
 
 /*#
  * Gets a context using a specified name hash
+ * @note Deprecated. Use [ref:ContextRegistryGetByHash] on [ref:HContextRegistry] instead.
  * @name ExtensionParamsGetContext
  * @param params [type:ExtensionParams] the params
  * @param name_hash [type:dmhash_t] the context name hash
@@ -353,6 +376,7 @@ void ExtensionRegister(void* desc,
     FExtensionOnEvent       on_event);
 
 /** currently internal
+ * @name ExtensionRegisterCallback
  * Used for registing a pre or post render callback
  */
 bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCallback func);

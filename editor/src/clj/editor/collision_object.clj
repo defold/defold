@@ -41,16 +41,18 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [schema.core :as s]
+            [util.array :as array]
+            [util.coll :refer [pair]]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
            [com.jogamp.opengl GL2]
-           [javax.vecmath Matrix4d Quat4d Vector3d]))
+           [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def collision-object-icon "icons/32/Icons_49-Collision-object.png")
 (def ^:private collision-shape-message (properties/label-message :collision-object :collision-shape))
-(def ^:private dimensions-message (properties/label-message :collision-object.shape :dimensions))
 (def ^:private diameter-message (properties/label-message :collision-object.shape :diameter))
 (def ^:private height-message (properties/label-message :collision-object.shape :height))
 (def ^:private mass-message (properties/label-message :collision-object :mass))
@@ -114,6 +116,7 @@
   (property node-outline-key g/Str ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
   (property id g/Str (default (protobuf/default Physics$CollisionShape$Shape :id))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :id))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
@@ -161,111 +164,206 @@
 
 (def ^:private render-points-uniform-scale (wrap-uniform-scale scene-shapes/render-points))
 
+(defn- preview-sphere-shape-renderable
+  [visibility-aabb user-data prop-kw->override-value]
+  (let [^Point3d ext-override
+        (when-some [diameter-override (:diameter prop-kw->override-value)]
+          (let [radius (* 0.5 (double diameter-override))
+                ext-z (if (:is-2d user-data) 0.0 radius)]
+            (Point3d. radius radius ext-z)))
+
+        point-scale-override
+        (when ext-override
+          (array/of-floats (.x ext-override) (.y ext-override) (.z ext-override)))
+
+        visibility-aabb
+        (if ext-override
+          (geom/mirrored-point->aabb ext-override)
+          visibility-aabb)
+
+        user-data
+        (cond-> user-data
+                point-scale-override (assoc :point-scale point-scale-override))]
+
+    (pair visibility-aabb user-data)))
+
 (g/defnk produce-sphere-shape-scene
-  [_node-id transform diameter color node-outline-key project-physics-type]
-  (let [radius (* 0.5 diameter)
-        is-2d (= "2D" project-physics-type)
-        ext-z (if is-2d 0.0 radius)
-        ext [radius radius ext-z]
-        neg-ext [(- radius) (- radius) (- ext-z)]
-        aabb (geom/coords->aabb ext neg-ext)
-        point-scale (float-array ext)]
+  [_node-id pose diameter color node-outline-key project-physics-type]
+  (let [is-2d (= "2D" project-physics-type)
+
+        ;; The preview-fn technically takes and returns a visibility-aabb, but
+        ;; we can also use it for our local-aabb.
+        [local-aabb user-data]
+        (preview-sphere-shape-renderable
+          geom/null-aabb
+          {:is-2d is-2d}
+          {:diameter diameter})]
+
     {:node-id _node-id
      :node-outline-key node-outline-key
-     :transform transform
-     :aabb aabb
+     :pose pose
+     :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
-                  :tags #{:collision-shape}
+                  :preview-fn preview-sphere-shape-renderable
+                  :tags #{:collision-shape :gizmo}
                   :passes [pass/transparent pass/selection]
-                  :user-data {:color color
-                              :double-sided is-2d
-                              :point-scale point-scale
-                              :geometry (if is-2d
-                                          scene-shapes/disc-triangles
-                                          scene-shapes/capsule-triangles)}}
+                  :user-data (assoc user-data
+                               :color color
+                               :double-sided is-2d
+                               :geometry (if is-2d
+                                           scene-shapes/disc-triangles
+                                           scene-shapes/capsule-triangles))}
      :children [{:node-id _node-id
-                 :aabb aabb
+                 :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
-                              :tags #{:collision-shape :outline}
+                              :preview-fn preview-sphere-shape-renderable
+                              :tags #{:collision-shape :gizmo :outline}
                               :passes [pass/outline]
-                              :user-data {:color color
-                                          :point-scale point-scale
-                                          :geometry (if is-2d
-                                                      scene-shapes/disc-lines
-                                                      scene-shapes/capsule-lines)}}}]}))
+                              :user-data (assoc user-data
+                                           :color color
+                                           :geometry (if is-2d
+                                                       scene-shapes/disc-lines
+                                                       scene-shapes/capsule-lines))}}]}))
+
+
+(defn- preview-box-shape-renderable
+  [visibility-aabb user-data prop-kw->override-value]
+  (let [^Point3d ext-override
+        (when-some [dimensions-override (:dimensions prop-kw->override-value)]
+          (let [[^double w ^double h ^double d] dimensions-override
+                ext-x (* 0.5 w)
+                ext-y (* 0.5 h)
+                ext-z (if (:is-2d user-data) 0.0 (* 0.5 d))]
+            (Point3d. ext-x ext-y ext-z)))
+
+        point-scale-override
+        (when ext-override
+          (array/of-floats (.x ext-override) (.y ext-override) (.z ext-override)))
+
+        visibility-aabb
+        (if ext-override
+          (geom/mirrored-point->aabb ext-override)
+          visibility-aabb)
+
+        user-data
+        (cond-> user-data
+                point-scale-override (assoc :point-scale point-scale-override))]
+
+    (pair visibility-aabb user-data)))
 
 (g/defnk produce-box-shape-scene
-  [_node-id transform dimensions color node-outline-key project-physics-type]
-  (let [[w h d] dimensions
-        ext-x (* 0.5 w)
-        ext-y (* 0.5 h)
-        ext-z (case project-physics-type
-                "2D" 0.0
-                "3D" (* 0.5 d))
-        ext [ext-x ext-y ext-z]
-        neg-ext [(- ext-x) (- ext-y) (- ext-z)]
-        aabb (geom/coords->aabb ext neg-ext)
-        point-scale (float-array ext)]
+  [_node-id pose dimensions color node-outline-key project-physics-type]
+  (let [is-2d (= "2D" project-physics-type)
+
+        ;; The preview-fn technically takes and returns a visibility-aabb, but
+        ;; we can also use it for our local-aabb.
+        [local-aabb user-data]
+        (preview-box-shape-renderable
+          geom/null-aabb
+          {:is-2d is-2d}
+          {:dimensions dimensions})]
+
     {:node-id _node-id
      :node-outline-key node-outline-key
-     :transform transform
-     :aabb aabb
+     :pose pose
+     :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
-                  :tags #{:collision-shape}
+                  :preview-fn preview-box-shape-renderable
+                  :tags #{:collision-shape :gizmo}
                   :passes [pass/transparent pass/selection]
-                  :user-data (cond-> {:color color
-                                      :point-scale point-scale
-                                      :geometry scene-shapes/box-triangles}
+                  :user-data (cond-> (assoc user-data
+                                       :color color
+                                       :geometry scene-shapes/box-triangles)
 
-                                     (zero? ext-z)
+                                     is-2d
                                      (assoc :double-sided true
                                             :point-count 6))}
      :children [{:node-id _node-id
-                 :aabb aabb
+                 :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
-                              :tags #{:collision-shape :outline}
+                              :preview-fn preview-box-shape-renderable
+                              :tags #{:collision-shape :gizmo :outline}
                               :passes [pass/outline]
-                              :user-data (cond-> {:color color
-                                                  :point-scale point-scale
-                                                  :geometry scene-shapes/box-lines}
+                              :user-data (cond-> (assoc user-data
+                                                   :color color
+                                                   :geometry scene-shapes/box-lines)
 
-                                                 (zero? ext-z)
+                                                 is-2d
                                                  (assoc :point-count 8))}}]}))
 
+(defn- preview-capsule-shape-renderable
+  [visibility-aabb user-data prop-kw->override-value]
+  (let [radius-override
+        (when-some [diameter-override (:diameter prop-kw->override-value)]
+          (* 0.5 (double diameter-override)))
+
+        half-height-override
+        (when-some [height-override (:height prop-kw->override-value)]
+          (* 0.5 (double height-override)))
+
+        ^Point3d ext-override
+        (when (or radius-override half-height-override)
+          (let [^double radius (or radius-override (first (:point-scale user-data)))
+                ^double half-height (or half-height-override (second (:point-offset-by-w user-data)))
+                ext-y (+ half-height radius)
+                ext-z (if (:is-2d user-data) 0.0 radius)]
+            (Point3d. radius ext-y ext-z)))
+
+        point-scale-override
+        (when ext-override
+          ;; Note: X is repeated for Y in the point-scale.
+          (array/of-floats (.x ext-override) (.x ext-override) (.z ext-override)))
+
+        point-offset-by-w-override
+        (when half-height-override
+          (array/of-floats 0.0 half-height-override 0.0))
+
+        visibility-aabb
+        (if ext-override
+          (geom/mirrored-point->aabb ext-override)
+          visibility-aabb)
+
+        user-data
+        (cond-> user-data
+                point-scale-override (assoc :point-scale point-scale-override)
+                point-offset-by-w-override (assoc :point-offset-by-w point-offset-by-w-override))]
+
+    (pair visibility-aabb user-data)))
+
 (g/defnk produce-capsule-shape-scene
-  [_node-id transform diameter height color node-outline-key project-physics-type]
+  [_node-id pose diameter height color node-outline-key project-physics-type]
   ;; NOTE: Capsules are currently only supported when physics type is 3D.
-  (let [radius (* 0.5 diameter)
-        half-height (* 0.5 height)
-        ext-y (+ half-height radius)
-        ext-z (case project-physics-type
-                "2D" 0.0
-                "3D" radius)
-        ext [radius ext-y ext-z]
-        neg-ext [(- radius) (- ext-y) (- ext-z)]
-        aabb (geom/coords->aabb ext neg-ext)
-        point-scale (float-array [radius radius ext-z])
-        point-offset-by-w (float-array [0.0 half-height 0.0])]
+  (let [is-2d (= "2D" project-physics-type)
+
+        ;; The preview-fn technically takes and returns a visibility-aabb, but
+        ;; we can also use it for our local-aabb.
+        [local-aabb user-data]
+        (preview-capsule-shape-renderable
+          geom/null-aabb
+          {:is-2d is-2d}
+          {:diameter diameter
+           :height height})]
+
     {:node-id _node-id
      :node-outline-key node-outline-key
-     :transform transform
-     :aabb aabb
+     :pose pose
+     :aabb local-aabb
      :renderable {:render-fn render-triangles-uniform-scale
-                  :tags #{:collision-shape}
+                  :preview-fn preview-capsule-shape-renderable
+                  :tags #{:collision-shape :gizmo}
                   :passes [pass/transparent pass/selection]
-                  :user-data {:color color
-                              :point-scale point-scale
-                              :point-offset-by-w point-offset-by-w
-                              :geometry scene-shapes/capsule-triangles}}
+                  :user-data (assoc user-data
+                               :color color
+                               :geometry scene-shapes/capsule-triangles)}
      :children [{:node-id _node-id
-                 :aabb aabb
+                 :aabb local-aabb
                  :renderable {:render-fn render-lines-uniform-scale
-                              :tags #{:collision-shape :outline}
+                              :preview-fn preview-capsule-shape-renderable
+                              :tags #{:collision-shape :gizmo :outline}
                               :passes [pass/outline]
-                              :user-data {:color color
-                                          :point-scale point-scale
-                                          :point-offset-by-w point-offset-by-w
-                                          :geometry scene-shapes/capsule-lines}}}]}))
+                              :user-data (assoc user-data
+                                           :color color
+                                           :geometry scene-shapes/capsule-lines)}}]}))
 
 (g/defnode SphereShape
   (inherits Shape)
@@ -274,6 +372,8 @@
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :diameter))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
+            (dynamic edit-type (g/constantly {:type g/Num :min 0.0}))
+
             (dynamic error (g/fnk [_node-id diameter]
                              (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
 
@@ -281,21 +381,35 @@
 
   (output scene g/Any produce-sphere-shape-scene)
 
+  (output shape-errors g/Any (g/fnk [_node-id id id-counts diameter]
+                               (g/package-errors _node-id
+                                 (validate-image-id _node-id id id-counts)
+                                 (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
   (output shape-data g/Any (g/fnk [diameter]
-                             [(/ diameter 2)])))
+                             [(/ (double diameter) 2.0)])))
 
 (defmethod scene-tools/manip-scalable? ::SphereShape [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::SphereShape
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-diameter (g/node-value node-id :diameter evaluation-context)
+(defmethod scene-tools/manip-scale ::SphereShape [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (let [old-diameter (g/node-value node-id :diameter initial-evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))]
-    (g/set-property node-id :diameter new-diameter)))
+    (case manip-phase
+      :manip-phase/commit
+      {:manip/tx-data (g/set-property node-id :diameter new-diameter)}
 
-(defmethod scene-tools/manip-scale-manips ::SphereShape
-  [node-id]
-  [:scale-xy])
+      :manip-phase/preview
+      {:manip/prop-kw->override-value {:diameter new-diameter}})))
 
+(defmethod scene-tools/manip-scale-manips ::SphereShape [_node-id]
+  [:scale-uniform])
+
+;; NOTE: Use a custom, more specific error message to express that we're dealing with multiple properties
+(defn- prop-error-box-dimensions [node-id dimensions]
+  (validation/prop-error :fatal node-id :dimensions
+                         (fn [dimensions]
+                           (when (some #(<= ^double % 0.0) dimensions)
+                             (localization/message "error.collision-object-shape-dimensions-must-be-greater-than-zero")))
+                         dimensions))
 
 (g/defnode BoxShape
   (inherits Shape)
@@ -305,28 +419,33 @@
             (dynamic label (properties/label-dynamic :collision-object.shape :dimensions))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :dimensions))
             (dynamic error (g/fnk [_node-id dimensions]
-                             (validation/prop-error :fatal _node-id :dimensions
-                                                    (fn [d _] (when (some #(<= % 0.0) d)
-                                                                (localization/message "error.collision-object-shape-dimensions-must-be-greater-than-zero")))
-                                                    dimensions
-                                                    dimensions-message)))
-            (dynamic edit-type (g/constantly {:type types/Vec3 :labels ["W" "H" "D"]})))
+                             (prop-error-box-dimensions _node-id dimensions)))
+            (dynamic edit-type (g/constantly {:type types/Vec3
+                                              :labels ["W" "H" "D"]
+                                              :min 0.0})))
 
   (display-order [Shape :dimensions])
 
   (output scene g/Any produce-box-shape-scene)
-
+  (output shape-errors g/Any (g/fnk [_node-id id id-counts dimensions]
+                               (g/package-errors _node-id
+                                 (validate-image-id _node-id id id-counts)
+                                 (prop-error-box-dimensions _node-id dimensions))))
   (output shape-data g/Any (g/fnk [dimensions]
-                             (let [[w h d] dimensions]
-                               [(/ w 2) (/ h 2) (/ d 2)]))))
+                             (let [[^double w ^double h ^double d] dimensions]
+                               [(/ w 2.0) (/ h 2.0) (/ d 2.0)]))))
 
 (defmethod scene-tools/manip-scalable? ::BoxShape [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::BoxShape
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-dimensions (g/node-value node-id :dimensions evaluation-context)
+(defmethod scene-tools/manip-scale ::BoxShape [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (let [old-dimensions (g/node-value node-id :dimensions initial-evaluation-context)
         new-dimensions (math/zip-clj-v3 old-dimensions delta properties/scale-by-absolute-value-and-round)]
-    (g/set-property node-id :dimensions new-dimensions)))
+    (case manip-phase
+      :manip-phase/commit
+      {:manip/tx-data (g/set-property node-id :dimensions new-dimensions)}
+
+      :manip-phase/preview
+      {:manip/prop-kw->override-value {:dimensions new-dimensions}})))
 
 (g/defnode CapsuleShape
   (inherits Shape)
@@ -335,35 +454,44 @@
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :diameter))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :diameter))
+            (dynamic edit-type (g/constantly {:type g/Num :min 0.0}))
             (dynamic error (g/fnk [_node-id diameter]
                              (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message))))
   (property height g/Num ; Always assigned in load-fn.
             (default 0.0) ; Used to prevent validation errors during node initialization from editor scripts
             (dynamic label (properties/label-dynamic :collision-object.shape :height))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :height))
+            (dynamic edit-type (g/constantly {:type g/Num :min 0.0}))
             (dynamic error (g/fnk [_node-id height]
-                             (validation/prop-error :fatal _node-id :height validation/prop-zero-or-below? height height-message))))
+                             (validation/prop-error :fatal _node-id :height validation/prop-negative? height height-message))))
 
   (display-order [Shape :diameter :height])
 
   (output scene g/Any produce-capsule-shape-scene)
-
+  (output shape-errors g/Any (g/fnk [_node-id id id-counts diameter height]
+                               (g/package-errors _node-id
+                                 (validate-image-id _node-id id id-counts)
+                                 (validation/prop-error :fatal _node-id :diameter validation/prop-zero-or-below? diameter diameter-message)
+                                 (validation/prop-error :fatal _node-id :height validation/prop-negative? height height-message))))
   (output shape-data g/Any (g/fnk [diameter height]
-                             [(/ diameter 2) height])))
+                             [(/ (double diameter) 2) (double height)])))
 
 (defmethod scene-tools/manip-scalable? ::CapsuleShape [_node-id] true)
 
-(defmethod scene-tools/manip-scale ::CapsuleShape
-  [evaluation-context node-id ^Vector3d delta]
-  (let [old-diameter (g/node-value node-id :diameter evaluation-context)
-        old-height (g/node-value node-id :height evaluation-context)
+(defmethod scene-tools/manip-scale ::CapsuleShape [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (let [old-diameter (g/node-value node-id :diameter initial-evaluation-context)
+        old-height (g/node-value node-id :height initial-evaluation-context)
         new-diameter (properties/scale-by-absolute-value-and-round old-diameter (.getX delta))
         new-height (properties/scale-by-absolute-value-and-round old-height (.getY delta))]
-    (g/set-properties node-id :diameter new-diameter :height new-height)))
+    (case manip-phase
+      :manip-phase/commit
+      {:manip/tx-data (g/set-properties node-id :diameter new-diameter :height new-height)}
 
-(defmethod scene-tools/manip-scale-manips ::CapsuleShape
-  [node-id]
-  [:scale-x :scale-y :scale-xy])
+      :manip-phase/preview
+      {:manip/prop-kw->override-value {:diameter new-diameter :height new-height}})))
+
+(defmethod scene-tools/manip-scale-manips ::CapsuleShape [_node-id]
+  [:scale-x :scale-y :scale-xy :scale-uniform])
 
 (defn- resolve-shape-node-outline-key [evaluation-context parent-node shape-node]
   (let [type-label (:label (shape-type-ui (g/node-value shape-node :shape-type evaluation-context)))
@@ -383,24 +511,25 @@
      (g/connect shape-node :node-outline          parent     :child-outlines)
      (g/connect shape-node :scene                 parent     :child-scenes)
      (g/connect shape-node :shape                 parent     :shapes)
+     (g/connect shape-node :shape-errors          parent     :shape-errors)
      (g/connect parent     :id-counts             shape-node :id-counts)
      (g/connect parent     :collision-group-color shape-node :color)
      (g/connect parent     :project-physics-type  shape-node :project-physics-type))))
 
 (defmulti decode-shape-data
-  (fn [shape data] (:shape-type shape)))
+  (fn [shape _data] (:shape-type shape)))
 
 (defmethod decode-shape-data :type-sphere
-  [shape [r]]
-  {:diameter (* 2 r)})
+  [_shape [^double r]]
+  {:diameter (* 2.0 r)})
 
 (defmethod decode-shape-data :type-box
-  [shape [ext-x ext-y ext-z]]
-  {:dimensions [(* 2 ext-x) (* 2 ext-y) (* 2 ext-z)]})
+  [_shape [^double ext-x ^double ext-y ^double ext-z]]
+  {:dimensions [(* 2.0 ext-x) (* 2.0 ext-y) (* 2.0 ext-z)]})
 
 (defmethod decode-shape-data :type-capsule
-  [shape [r h]]
-  {:diameter (* 2 r)
+  [_shape [^double r h]]
+  {:diameter (* 2.0 r)
    :height h})
 
 (defn make-shape-node
@@ -416,9 +545,11 @@
       [shape-node [node-type node-props]]
       (attach-shape-node false parent shape-node))))
 
-(defn- decode-embedded-shape [embedded-collision-shape-data {:keys [index count] :as shape}]
+(defn- decode-embedded-shape [embedded-collision-shape-data shape]
   (let [shape-data (if embedded-collision-shape-data
-                     (subvec embedded-collision-shape-data index (+ index count))
+                     (let [^long count (:count shape)
+                           ^long index (:index shape)]
+                       (subvec embedded-collision-shape-data index (+ index count)))
                      protobuf/vector3-zero)
         decoded-shape-data (decode-shape-data shape shape-data)]
     (merge shape decoded-shape-data)))
@@ -426,7 +557,8 @@
 (defn load-collision-object
   [project self resource collision-object-desc]
   {:pre [(map? collision-object-desc)]} ; Physics$CollisionObjectDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
         to-comma-separated-string #(some->> % (string/join ", "))]
     (concat
       (gu/set-properties-from-pb-map self Physics$CollisionObjectDesc collision-object-desc
@@ -473,7 +605,7 @@
          :node-outline-key "2D Convex Hull"
          :aabb aabb
          :renderable {:render-fn render-triangles-uniform-scale
-                      :tags #{:collision-shape}
+                      :tags #{:collision-shape :gizmo}
                       :passes [pass/transparent pass/selection]
                       :user-data {:color color
                                   :double-sided true
@@ -482,7 +614,7 @@
          :children [{:node-id _node-id
                      :aabb aabb
                      :renderable {:render-fn render-lines-uniform-scale
-                                  :tags #{:collision-shape :outline}
+                                  :tags #{:collision-shape :gizmo :outline}
                                   :passes [pass/outline]
                                   :user-data {:color color
                                               :geometry {:primitive-type GL2/GL_LINE_LOOP
@@ -491,7 +623,7 @@
          :node-outline-key "3D Convex Hull"
          :aabb aabb
          :renderable {:render-fn render-points-uniform-scale
-                      :tags #{:collision-shape :outline}
+                      :tags #{:collision-shape :gizmo :outline}
                       :passes [pass/outline]
                       :user-data {:color color
                                   :point-size 3.0
@@ -590,7 +722,7 @@
         shapes))
 
 (g/defnk produce-build-targets
-  [_node-id resource save-value collision-shape dep-build-targets mass type project-physics-type shapes id-counts]
+  [_node-id resource save-value collision-shape dep-build-targets shape-errors mass type project-physics-type shapes id-counts]
   (let [dep-build-targets (flatten dep-build-targets)
         convex-shape (when (and collision-shape (= "convexshape" (resource/type-ext collision-shape)))
                        (get-in (first dep-build-targets) [:user-data :pb]))
@@ -608,7 +740,8 @@
                    (update :embedded-collision-shape merge-convex-shape convex-shape)
                    (update-in [:embedded-collision-shape :shapes] insert-id-hashes))]
     (g/precluding-errors
-      [(validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape collision-shape-message)
+      [shape-errors
+       (validation/prop-error :fatal _node-id :collision-shape validation/prop-resource-not-exists? collision-shape collision-shape-message)
        (when (= :collision-object-type-dynamic type)
          (validation/prop-error :fatal _node-id :mass validation/prop-zero-or-below? mass mass-message))
        (when (and (empty? (:collision-shape pb-msg))
@@ -639,6 +772,11 @@
   [collision-groups-data group]
   (collision-groups/color collision-groups-data group))
 
+(defn- tilemap-collision-shape? [collision-shape]
+  (boolean
+    (when collision-shape
+      (contains? #{"tilemap" "tilegrid"} (resource/type-ext collision-shape)))))
+
 (g/defnode CollisionObjectNode
   (inherits resource-node/ResourceNode)
 
@@ -649,6 +787,7 @@
   (input collision-groups-data g/Any)
   (input project-settings g/Any)
   (input convex-shape-data g/Any)
+  (input shape-errors g/Any :array)
 
   (property collision-shape resource/Resource ; Nil is valid default.
             (value (gu/passthrough collision-shape-resource))
@@ -716,8 +855,13 @@
             (dynamic tooltip (properties/tooltip-dynamic :collision-object :event-trigger)))
 
   (property group g/Str ; Required protobuf field.
+            (dynamic read-only? (g/fnk [collision-shape] (tilemap-collision-shape? collision-shape)))
             (dynamic label (properties/label-dynamic :collision-object :group))
-            (dynamic tooltip (properties/tooltip-dynamic :collision-object :group)))
+            (dynamic tooltip (g/fnk [collision-shape]
+                               (localization/message
+                                 (if (tilemap-collision-shape? collision-shape)
+                                   "property.collision-object.group.tilemap.tooltip"
+                                   "property.collision-object.group.tooltip")))))
   (property mask g/Str ; Nil is valid default.
             (dynamic label (properties/label-dynamic :collision-object :mask))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object :mask)))

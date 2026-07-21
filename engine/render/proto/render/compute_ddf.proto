@@ -2,7 +2,6 @@ syntax = "proto2";
 package dmRenderDDF;
 
 import "ddf/ddf_extensions.proto";
-import "ddf/ddf_math.proto";
 
 import "render/material_ddf.proto";
 

@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.light :as light]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -206,6 +207,7 @@
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
         (shader/set-samplers-by-name shader gl name (:texture-units texture)))
+      (light/bind-preview-lights-for-shader! gl shader render-args)
       (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
       (gl/gl-enable gl GL2/GL_CULL_FACE)
       (gl/gl-cull-face gl GL2/GL_BACK)
@@ -512,7 +514,8 @@
 
 (defn- load-mesh [_project self resource pb]
   {:pre [(map? pb)]} ; MeshProto$MeshDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
         resolve-resources #(mapv resolve-resource %)]
     (gu/set-properties-from-pb-map self MeshProto$MeshDesc pb
       primitive-type :primitive-type

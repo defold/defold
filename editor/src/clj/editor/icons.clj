@@ -48,10 +48,10 @@
 
 (defn- find-resource
   ([workspace proj-path]
-   (g/with-auto-evaluation-context evaluation-context
-     (find-resource workspace proj-path evaluation-context)))
-  ([workspace proj-path evaluation-context]
-   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
+   (find-resource (g/now) workspace proj-path))
+  ([basis workspace proj-path]
+   (let [resources-by-proj-path (g/raw-property-value basis workspace :resource-map)]
+     (get resources-by-proj-path proj-path))))
 
 (defn- load-icon-image
   ^Image [^String name ^Double size]

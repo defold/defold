@@ -40,9 +40,8 @@ import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.LightDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
@@ -50,7 +49,6 @@ import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
-import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
@@ -172,19 +170,6 @@ public class ProtoBuilders {
     @BuilderParams(name="InputBinding", inExts=".input_binding", outExt=".input_bindingc")
     public static class InputBindingBuilder extends ProtoBuilder<InputBinding.Builder> {}
 
-    @ProtoParams(srcClass = GamepadMaps.class, messageClass = GamepadMaps.class)
-    @BuilderParams(name="GamepadMaps", inExts=".gamepads", outExt=".gamepadsc")
-    public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {
-        @Override
-        public Task create(IResource input) throws IOException, CompileExceptionError {
-            Task.TaskBuilder taskBuilder = Task.newBuilder(this)
-                    .setName(params.name())
-                    .addInput(input)
-                    .addOutput(input.changeExt(params.outExt()));
-            return taskBuilder.build();
-        }
-    }
-
     @ProtoParams(srcClass = RenderTargetDesc.class, messageClass = RenderTargetDesc.class)
     @BuilderParams(name="RenderTarget", inExts=".render_target", outExt=".render_targetc")
     public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {}
@@ -210,10 +195,6 @@ public class ProtoBuilders {
             return messageBuilder.setPrototype(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getPrototype(), ".collection", ".collectionc"));
         }
     }
-
-    @ProtoParams(srcClass = LightDesc.class, messageClass = LightDesc.class)
-    @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
-    public static class LightBuilder extends ProtoBuilder<LightDesc.Builder> {}
 
     @ProtoParams(srcClass = RenderPrototypeDesc.class, messageClass = RenderPrototypeDesc.class)
     @BuilderParams(name="Render", inExts=".render", outExt=".renderc")
@@ -450,6 +431,5 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = Data.class, messageClass = Data.class)
     @BuilderParams(name="Data", inExts=".data", outExt=".datac")
     public static class DataBuilder extends ProtoBuilder<Data.Builder> {}
-
 
 }

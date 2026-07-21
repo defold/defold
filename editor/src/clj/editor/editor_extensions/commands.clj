@@ -87,18 +87,20 @@
 
 (defmethod gen-selection-query :outline [q acc _]
   (gen-query acc [env cont]
-             (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))]
-               (when-let [res (some-> (:selection env)
-                                      (coll/into-> []
-                                        (halt-when
-                                          (fn [selected-item]
-                                            (not (and (map? selected-item)
-                                                      (contains? selected-item :node-id)
-                                                      (contains? selected-item :node-id-path))))
-                                          fn/constantly-nil)
-                                        (map #(editor-lookup-userdata (graph/node-id-with-ancestors (:node-id %) (pop (:node-id-path %))))))
-                                      coll/not-empty
-                                      (ensure-selection-cardinality q))]
+             (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))
+                   selection (:selection env)]
+               (when-let [res (if (coll/every? #(and (map? %)
+                                                     (contains? % :node-id)
+                                                     (contains? % :node-id-path))
+                                               selection)
+                                (some-> selection
+                                        (coll/into-> []
+                                          (map #(editor-lookup-userdata (graph/node-id-with-ancestors (:node-id %) (pop (:node-id-path %))))))
+                                        coll/not-empty
+                                        (ensure-selection-cardinality q))
+                                (some-> selection
+                                        (handler/adapt-every Long evaluation-context)
+                                        (node-ids->lua-selection q)))]
                  (when-not (:evaluation-context env)
                    (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
@@ -113,11 +115,30 @@
                    (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
 
+(defn- gen-active-view-query [q acc]
+  (let [expected-type (case (:type q)
+                        "code" :editor.code.view/CodeEditorView
+                        "scene" :editor.scene/SceneView
+                        "html" :editor.html-view/HtmlViewNode
+                        "form" :editor.cljfx-form-view/CljfxFormView)]
+    (gen-query acc [env cont]
+      (when-let [app-view (:app-view env)]
+        (let [evaluation-context (or (:evaluation-context env)
+                                     (g/make-evaluation-context))]
+          (try
+            (when-let [view (g/node-value app-view :active-view evaluation-context)]
+              (when (g/node-kw-instance? (:basis evaluation-context) expected-type view)
+                (cont assoc :active_view (editor-lookup-userdata view))))
+            (finally
+              (when-not (:evaluation-context env)
+                (g/update-cache-from-evaluation-context! evaluation-context)))))))))
+
 (defn- compile-query [q project]
   (reduce-kv
     (fn [acc k v]
       (case k
         :selection (gen-selection-query v acc project)
+        :active_view (gen-active-view-query v acc)
         :argument (gen-query acc [env cont] (cont assoc :argument (:user-data env)))
         acc))
     (fn [lua-fn]
@@ -129,13 +150,16 @@
   (coerce/hash-map
     :req {:label ui-docs/string-or-message-pattern-coercer
           :locations (coerce/vector-of
-                       (coerce/enum "Assets" "Bundle" "Debug" "Edit" "Outline" "Project" "Scene" "View" "Help")
+                       (coerce/enum "Assets" "Bundle" "Code" "Debug" "Edit" "Outline" "Project" "Scene" "View" "Help")
                        :distinct true
                        :min-count 1)}
     :opt {:query (coerce/hash-map
                    :opt {:selection (coerce/hash-map
                                       :req {:type (coerce/enum :resource :outline :scene)
                                             :cardinality (coerce/enum :one :many)})
+                         :active_view (coerce/hash-map
+                                        :req {:type (coerce/enum "code" "scene" "html" "form")}
+                                        :extra-keys false)
                          :argument (coerce/const true)})
           :id prefs-docs/serializable-keyword-coercer
           :active coerce/function
@@ -157,22 +181,24 @@
           (rt/wrap-userdata "editor.command(...)")))))
 
 (defn command->dynamic-handler [{:keys [label query active id run locations]} path project state]
-  (let [{:keys [rt display-output!]} state
+  (let [{:keys [rt]} state
         lua-fn->env-fn (compile-query query project)
         contexts (into #{}
                        (map {"Assets" :asset-browser
                              "Bundle" :global
+                             "Code" :code-view
                              "Debug" :global
                              "Edit" :global
                              "Outline" :outline
                              "Project" :global
-                             "Scene" :global
+                             "Scene" :workbench
                              "View" :global
                              "Help" :global})
                        locations)
         locations (into #{}
                         (map {"Assets" :editor.asset-browser/context-menu-end
                               "Bundle" :editor.bundle/menu
+                              "Code" :editor.code-view/context-menu-end
                               "Debug" :editor.debug-view/debug-end
                               "Edit" :editor.app-view/edit-end
                               "Outline" :editor.outline-view/context-menu-end
@@ -193,13 +219,13 @@
                    (lua-fn->env-fn
                      (fn [env opts]
                        (error-handling/try-with-extension-exceptions
-                         :display-output! display-output!
+                         :rt rt
                          :label (str label "'s \"active\" in " path)
                          :catch false
-                         (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
+                         (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) {:evaluation-context (:evaluation-context env)} active (rt/->lua opts)))))))
 
             (and (not active) query)
-            (assoc :active? (lua-fn->env-fn (constantly true)))
+            (assoc :active? (lua-fn->env-fn fn/constantly-true))
 
             run
             (assoc :run
@@ -212,4 +238,4 @@
                                  (when-not (rt/coerces-to? rt coerce/null lua-result)
                                    (lsp.async/with-auto-evaluation-context evaluation-context
                                      (actions/perform! lua-result project state evaluation-context)))))
-                             (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))))
+                             (future/catch #(error-handling/display-script-error! rt error-label %))))))))))

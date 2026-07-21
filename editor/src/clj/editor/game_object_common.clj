@@ -28,8 +28,7 @@
             [internal.util :as util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
-           [java.io StringReader]
-           [javax.vecmath Matrix4d]))
+           [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,10 +38,9 @@
 
 (defn template-pb-map
   ([workspace resource-type]
-   (g/with-auto-evaluation-context evaluation-context
-     (template-pb-map workspace resource-type evaluation-context)))
-  ([workspace resource-type evaluation-context]
-   (let [template (workspace/template workspace resource-type evaluation-context)
+   (template-pb-map (g/now) workspace resource-type))
+  ([basis workspace resource-type]
+   (let [template (workspace/template basis workspace resource-type)
          read-fn (:read-fn resource-type)]
      (with-open [reader (StringReader. template)]
        (read-fn reader)))))
@@ -244,20 +242,19 @@
                        (util/distinct-by (comp resource/proj-path :resource)))
                  component-instance-datas)}))
 
-(defn component-scene [node-id node-outline-key ^Matrix4d transform-matrix source-component-resource-scene]
+(defn component-scene [node-id node-outline-key component-pose source-component-resource-scene]
   {:pre [(g/node-id? node-id)
-         (instance? Matrix4d transform-matrix)
+         (pose/pose? component-pose)
          (or (nil? source-component-resource-scene) (map? source-component-resource-scene))]}
   (if source-component-resource-scene
 
     ;; We have a source scene. This is usually the case.
-    (let [transform (if-some [^Matrix4d source-component-resource-transform (:transform source-component-resource-scene)]
-                      (doto (Matrix4d. transform-matrix)
-                        (.mul source-component-resource-transform))
-                      transform-matrix)
+    (let [scene-pose (if-some [source-component-resource-pose (:pose source-component-resource-scene)]
+                       (pose/pre-multiply source-component-resource-pose component-pose)
+                       component-pose)
           scene (-> source-component-resource-scene
                     (scene/claim-scene node-id node-outline-key)
-                    (assoc :transform transform))
+                    (assoc :pose scene-pose))
           updatable (:updatable source-component-resource-scene)]
       (if (nil? updatable)
         scene
@@ -270,7 +267,7 @@
     ;; such as the Script component. The bad data case is covered by for
     ;; instance unknown_components.go in the test project.
     {:node-id node-id
-     :transform transform-matrix
+     :pose component-pose
      :aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 

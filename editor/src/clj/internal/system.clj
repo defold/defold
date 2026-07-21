@@ -405,11 +405,11 @@
 
 (defn user-data [system node-id key]
   (let [graph-id (gt/node-id->graph-id node-id)]
-    (get-in (:user-data system) [graph-id node-id key])))
+    (-> system :user-data (get graph-id) (get node-id) (get key))))
 
 (defn assoc-user-data [system node-id key value]
   (let [graph-id (gt/node-id->graph-id node-id)]
-    (assoc-in system [:user-data graph-id node-id key] value)))
+    (update system :user-data update graph-id update node-id assoc key value)))
 
 (defn update-user-data [system node-id key f & args]
   (let [graph-id (gt/node-id->graph-id node-id)]
@@ -440,15 +440,3 @@
    :user-data (:user-data system)
    :invalidate-counters (:invalidate-counters system)
    :last-graph (:last-graph system)})
-
-(defn system= [s1 s2]
-  (and (= (:graphs s1) (:graphs s2))
-       (= (:history s1) (:history s2))
-       (= (map (fn [[graph-id ^AtomicLong gen]] [graph-id (.longValue gen)]) (:id-generators s1))
-          (map (fn [[graph-id ^AtomicLong gen]] [graph-id (.longValue gen)]) (:id-generators s2)))
-       (= (.longValue ^AtomicLong (:override-id-generator s1))
-          (.longValue ^AtomicLong (:override-id-generator s2)))
-       (= (:cache s1) (:cache s2))
-       (= (:user-data s1) (:user-data s2))
-       (= (:invalidate-counters s1) (:invalidate-counters s2))
-       (= (:last-graph s1) (:last-graph s2))))

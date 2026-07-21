@@ -33,6 +33,7 @@
           <entry key="dynamo.graph/with-system" value="-1" />
           <entry key="editor.analytics-test/with-config!" value="-1" />
           <entry key="editor.code.resource/register-code-resource-type" value="-1" />
+          <entry key="editor.data/register-data-resource-type" value="-1" />
           <entry key="editor.defold-project/read-nodes" value="-1" />
           <entry key="editor.defold-project/with-transpiler-txs-fn" value="-1" />
           <entry key="editor.editor-extensions.runtime/lua-fn" value="-1" />
@@ -88,6 +89,8 @@
           <entry key="editor.yaml/with-error-translation" value="-1" />
           <entry key="integration.build-test/with-build-results" value="-1" />
           <entry key="integration.gui-test/with-visible-layout!" value="-1" />
+          <entry key="integration.lsp-test/await-lsp" value="-1" />
+          <entry key="integration.lsp-test/with-scratch-project" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines!" value="-1" />
           <entry key="integration.test-util/with-changes-reverted" value="-1" />

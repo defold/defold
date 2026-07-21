@@ -31,8 +31,7 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [util.coll :refer [flipped-pair pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
-           [javax.vecmath Matrix4d]))
+  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -151,11 +150,6 @@
   ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
   (pose/make position rotation scale))
 
-(defn- any-component-desc->transform-matrix
-  ^Matrix4d [any-component-desc]
-  ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
-  (pose/matrix (any-component-desc->pose any-component-desc)))
-
 (defn prototype-desc->referenced-component-proj-paths [prototype-desc]
   (eduction
     (keep (comp not-empty :component))
@@ -265,12 +259,12 @@
   {:pre [(ifn? any-component-desc->source-scene)]}
   (fn any-component-desc->component-scene [any-component-desc node-id]
     (let [node-outline-key (:id any-component-desc)
-          transform-matrix (any-component-desc->transform-matrix any-component-desc)
+          component-pose (any-component-desc->pose any-component-desc)
           source-scene (any-component-desc->source-scene any-component-desc)]
       ;; TODO: Currently we return an empty scene for components that do not
       ;; have a scene output. Can we exclude these or is it necessary for
       ;; selection to work, or something like that?
-      (game-object-common/component-scene node-id node-outline-key transform-matrix source-scene))))
+      (game-object-common/component-scene node-id node-outline-key component-pose source-scene))))
 
 (defn make-prototype-desc->scene [embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes]
   (let [any-component-desc->source-scene
@@ -386,7 +380,7 @@
       :ddf-type GameObject$PrototypeDesc
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
       :sanitize-fn (partial sanitize-non-editable-game-object workspace)
-      :string-encode-fn (partial string-encode-non-editable-game-object workspace)
+      :pb-encode-fn (partial string-encode-non-editable-game-object workspace)
       :load-fn load-non-editable-game-object
       :allow-unloaded-use true
       :icon game-object-common/game-object-icon

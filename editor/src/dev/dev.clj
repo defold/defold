@@ -32,11 +32,11 @@
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.game-object :as game-object]
-            [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.node-util :as node-util]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -101,7 +101,7 @@
   0)
 
 (defn project []
-  (ffirst (g/targets-of (workspace) :resource-map)))
+  (ffirst (g/targets-of (workspace) :resource-list)))
 
 (defn app-view []
   (ffirst (g/targets-of (project) :selected-node-ids-by-resource-node)))
@@ -150,7 +150,7 @@
          original-node-id (g/override-original basis node-id)
          override-node-ids (g/overrides basis node-id)]
      (cond-> (into (array-map :node-id node-id)
-                   (gu/node-debug-info node-id evaluation-context))
+                   (node-util/node-debug-info node-id evaluation-context))
 
              (some? original-node-id)
              (assoc :original-node-id original-node-id)
@@ -1005,8 +1005,6 @@
    (clear-caches! :project :scene :system))
   ([& cache-kws]
    (let [clear-cache? (set cache-kws)]
-     (when (clear-cache? :library)
-       (test-util/clear-cached-libraries!))
      (when (clear-cache? :project)
        (test-util/clear-cached-projects!))
      (when (clear-cache? :scene)
@@ -1289,7 +1287,7 @@
 (defn build-output-infos [project proj-path]
   (let [resource-node (project/get-resource-node project proj-path)]
     (assert (some? resource-node) (format "Resource node not found for: '%s'" proj-path))
-    (test-util/build-node! resource-node)
+    (test-util/build-node! resource-node nil)
     (let [build-resource (test-util/node-build-resource resource-node)
           build-output-path (resource/proj-path build-resource)
           workspace (resource/workspace build-resource)]
@@ -1641,7 +1639,6 @@
 (defn clear-enable-all! []
   (g/forget-logged-evaluation-context-scope-violations!)
   (clear-caches!)
-  (handler/enable-disabled-handlers!)
-  (ui/enable-stopped-timers!)
+  (ui/enable-disabled-functionality!)
   (println "Re-enabled all disabled handlers and timers")
   nil)

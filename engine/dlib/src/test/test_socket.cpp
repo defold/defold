@@ -15,19 +15,28 @@
 #include <stdint.h>
 #include <stdlib.h> // free
 #include <string.h>
+#if defined(_WIN32)
+#include <winsock2.h> // inet_addr
+#elif defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
+#include <arpa/inet.h> // inet_addr
+#endif
+
 #include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/socket.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
-#include <arpa/inet.h> // inet_addr
-#endif
 
 #include <dlib/network_constants.h>
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+#if defined(DM_TEST_SKIP_NETWORK_DNS)
+#define SKIP_NETWORK_DNS_TEST() do { printf("[   INFO   ] Skipping network-dependent DNS test on this platform.\n"); SKIP(); } while (0)
+#else
+#define SKIP_NETWORK_DNS_TEST() do {} while (0)
+#endif
 
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSocket::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSocket::ResultToString(r));
@@ -649,6 +658,8 @@ TEST(Socket, GetHostByName_IPv6_Localhost)
 
 TEST(Socket, GetHostByName_IPv4_External)
 {
+    SKIP_NETWORK_DNS_TEST();
+
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = "build.defold.com";
@@ -662,6 +673,8 @@ TEST(Socket, GetHostByName_IPv4_External)
 TEST(Socket, GetHostByName_IPv6_External)
 {
 #if !defined(_WIN32)
+    SKIP_NETWORK_DNS_TEST();
+
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = "ipv6-test.com";
@@ -678,6 +691,8 @@ TEST(Socket, GetHostByName_IPv6_External)
 
 TYPED_TEST(SocketTyped, GetHostByName_Unavailable)
 {
+    SKIP_NETWORK_DNS_TEST();
+
     dmSocket::Address address;
     dmSocket::Result result = dmSocket::RESULT_OK;
     const char* hostname = "localhost.invalid";

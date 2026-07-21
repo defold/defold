@@ -126,13 +126,13 @@
                                      :style-class ["label" "call-stack-line"]
                                      :text (str line)}]}]}})
 
-(fxui/defc call-stack-pane
+(ui/defc call-stack-pane
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [call-stack-view localization-state]}]
   {:fx/type fxui/titled-pane
    :title (localization-state call-stack-pane-label)
    :content {:fx/type ext-with-list-view-props
-             :desc {:fx/type fxui/ext-value
+             :desc {:fx/type ui/ext-value
                     :value call-stack-view}
              :props {:cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                     :describe describe-call-stack-cell}}}})
@@ -146,13 +146,13 @@
 (def ^:private ext-with-tree-view-props
   (fx/make-ext-with-props fx.tree-view/props))
 
-(fxui/defc variables-pane
+(ui/defc variables-pane
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [variables-view localization-state]}]
   {:fx/type fxui/titled-pane
    :title (localization-state variables-pane-label)
    :content {:fx/type ext-with-tree-view-props
-             :desc {:fx/type fxui/ext-value
+             :desc {:fx/type ui/ext-value
                     :value variables-view}
              :props {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
                                     :describe describe-variables-cell}}}})
@@ -394,7 +394,9 @@
 
 (defn- file-or-module->resource
   [workspace file]
-  (some (partial workspace/find-resource workspace) [file (lua/lua-module->path file)]))
+  (let [basis (g/now)]
+    (or (workspace/find-resource basis workspace file)
+        (workspace/find-resource basis workspace (lua/lua-module->path file)))))
 
 (defn- make-open-resource-fn
   [project open-resource-fn]

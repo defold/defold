@@ -50,6 +50,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ public abstract class LuaBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
-    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb, Platform.WasmPthreadWeb));
+    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.WasmWeb, Platform.WasmPthreadWeb));
     private static boolean useLua51;
     private static String luaJITExePath;
 
@@ -79,6 +80,10 @@ public abstract class LuaBuilder extends Builder {
     private static List<ILuaObfuscator> luaObfuscators = null;
 
     private LuaScanner.Result luaScannerResult;
+
+    protected boolean allowGoProperties() {
+        return false;
+    }
 
     /**
      * Get a LuaScanner instance for a resource
@@ -113,6 +118,9 @@ public abstract class LuaBuilder extends Builder {
             }
 
             luaScannerResult = LuaScanner.parse(script, Bob.VARIANT_DEBUG.equals(variant));
+            if (!allowGoProperties() && !luaScannerResult.properties().isEmpty()) {
+                throw new CompileExceptionError(resource, luaScannerResult.properties().getFirst().startLine() + 1, "go.property cannot be used in this file type");
+            }
             for (LuaScanner.ParseError error : luaScannerResult.errors()) {
                 throw new CompileExceptionError(resource, error.startLine() + 1, error.message());
             }
@@ -286,8 +294,8 @@ public abstract class LuaBuilder extends Builder {
 
     /* We currently prefer source code over plain lua byte code due to the smaller size
     public byte[] constructLuaBytecode(Task task, String luacExe, String source) throws IOException, CompileExceptionError {
-        File outputFile = File.createTempFile("script", ".raw");
-        File inputFile = File.createTempFile("script", ".lua");
+        File outputFile = project.createTempFile("script", ".raw");
+        File inputFile = project.createTempFile("script", ".lua");
 
         List<String> options = new ArrayList<String>();
         options.add(Bob.getExe(Platform.getHostPlatform(), luacExe));
@@ -342,8 +350,8 @@ public abstract class LuaBuilder extends Builder {
 
     public byte[] constructLuaJITBytecode(Task task, String source, boolean gen32bit) throws IOException, CompileExceptionError {
 
-        File outputFile = File.createTempFile("script", ".raw");
-        File inputFile = File.createTempFile("script", ".lua");
+        File outputFile = project.createTempFile("script", ".raw");
+        File inputFile = project.createTempFile("script", ".lua");
 
         // -b = generate bytecode
         // 
@@ -608,6 +616,13 @@ public abstract class LuaBuilder extends Builder {
                         builder.addStringValues((String)property.value());
                         builder.addUrlEntries(entryBuilder);
                         break;
+                    case PROPERTY_TYPE_TEXT:
+                        String text = (String)property.value();
+                        entryBuilder.setIndex(builder.getStringValuesCount());
+                        entryBuilder.setValueLength(text.getBytes(StandardCharsets.UTF_8).length);
+                        builder.addStringValues(text);
+                        builder.addTextEntries(entryBuilder);
+                        break;
                     case PROPERTY_TYPE_VECTOR3:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
                         entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".x"));
@@ -652,9 +667,9 @@ public abstract class LuaBuilder extends Builder {
                         break;
                     }
                 } else if (property.status() == Status.INVALID_ARGS) {
-                    throw new CompileExceptionError(resource, property.startLine() + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, or resource.*.");
+                    throw new CompileExceptionError(resource, property.startLine() + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, string, msg.url, vmath.vector3, vmath.vector4, vmath.quat, or resource.*.");
                 } else if (property.status() == Status.INVALID_VALUE) {
-                    throw new CompileExceptionError(resource, property.startLine() + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, resource.*");
+                    throw new CompileExceptionError(resource, property.startLine() + 1, "Only these types are available: number, hash, string, msg.url, vmath.vector3, vmath.vector4, vmath.quat, resource.*");
                 } else if (property.status() == Status.INVALID_LOCATION) {
                     throw new CompileExceptionError(resource, property.startLine() + 1, "go.property should be a top-level statement");
                 }

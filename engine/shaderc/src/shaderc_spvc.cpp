@@ -14,10 +14,10 @@
 
 #include <stdlib.h>
 #include <string.h>
-
 #include <spirv/spirv_cross_c.h>
 
 #include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/dstrings.h>
 
 #include "shaderc_private.h"
 
@@ -240,6 +240,13 @@ namespace dmShaderc
             resource.m_Binding          = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationBinding);
             resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
             resource.m_StageFlags       = (int) stage;
+
+            resource.m_Type.m_ArraySize = 1;
+            unsigned num_array_dimensions = spvc_type_get_num_array_dimensions(type);
+            if (num_array_dimensions > 0)
+            {
+                resource.m_Type.m_ArraySize = spvc_type_get_array_dimension(type, 0);
+            }
 
             if (base_type == SPVC_BASETYPE_STRUCT)
             {
@@ -514,6 +521,135 @@ namespace dmShaderc
     }
     #undef MAX_BINDINGS
 
+    void GenerateMSLResourceMappings(HShaderContext context, ShaderCompilerSPVC* compiler, ShaderCompileResult* result)
+    {
+        // We only care about these resource mappings
+        uint32_t resource_count = context->m_Reflection.m_UniformBuffers.Size() +
+            context->m_Reflection.m_StorageBuffers.Size() +
+            context->m_Reflection.m_Textures.Size();
+
+        result->m_MSLResourceMappings.SetCapacity(resource_count);
+
+        for (int i = 0; i < context->m_Reflection.m_UniformBuffers.Size(); ++i)
+        {
+            MSLResourceMapping mapping      = {};
+            mapping.m_Name                  = context->m_Reflection.m_UniformBuffers[i].m_Name;
+            mapping.m_NameHash              = context->m_Reflection.m_UniformBuffers[i].m_NameHash;
+            mapping.m_MetalResourceIndex    = spvc_compiler_msl_get_automatic_resource_binding(compiler->m_SPVCCompiler, context->m_Reflection.m_UniformBuffers[i].m_Id);
+            mapping.m_ShaderResourceSet     = context->m_Reflection.m_UniformBuffers[i].m_Set;
+            mapping.m_ShaderResourceBinding = context->m_Reflection.m_UniformBuffers[i].m_Binding;
+            result->m_MSLResourceMappings.Push(mapping);
+        }
+
+        for (int i = 0; i < context->m_Reflection.m_StorageBuffers.Size(); ++i)
+        {
+            MSLResourceMapping mapping      = {};
+            mapping.m_Name                  = context->m_Reflection.m_StorageBuffers[i].m_Name;
+            mapping.m_NameHash              = context->m_Reflection.m_StorageBuffers[i].m_NameHash;
+            mapping.m_MetalResourceIndex    = spvc_compiler_msl_get_automatic_resource_binding(compiler->m_SPVCCompiler, context->m_Reflection.m_StorageBuffers[i].m_Id);
+            mapping.m_ShaderResourceSet     = context->m_Reflection.m_StorageBuffers[i].m_Set;
+            mapping.m_ShaderResourceBinding = context->m_Reflection.m_StorageBuffers[i].m_Binding;
+            result->m_MSLResourceMappings.Push(mapping);
+        }
+
+        for (int i = 0; i < context->m_Reflection.m_Textures.Size(); ++i)
+        {
+            MSLResourceMapping mapping      = {};
+            mapping.m_Name                  = context->m_Reflection.m_Textures[i].m_Name;
+            mapping.m_NameHash              = context->m_Reflection.m_Textures[i].m_NameHash;
+            mapping.m_MetalResourceIndex    = spvc_compiler_msl_get_automatic_resource_binding(compiler->m_SPVCCompiler, context->m_Reflection.m_Textures[i].m_Id);
+            mapping.m_ShaderResourceSet     = context->m_Reflection.m_Textures[i].m_Set;
+            mapping.m_ShaderResourceBinding = context->m_Reflection.m_Textures[i].m_Binding;
+            result->m_MSLResourceMappings.Push(mapping);
+        }
+    }
+
+    template <typename T>
+    static void EnsureSize(dmArray<T>& array, uint32_t size)
+    {
+        if (array.Capacity() < size) {
+            array.OffsetCapacity(size - array.Capacity());
+        }
+        array.SetSize(size);
+    }
+
+    static bool ReplaceString(const char *src, const char* search_str, const char *replacement, dmArray<char>* result_buf)
+    {
+        const char* found = strstr(src, search_str);
+        if (!found)
+        {
+            return false;
+        }
+
+        const char *line_end = found + strlen(search_str);
+        while (*line_end != '\n' && *line_end != '\0')
+        {
+            line_end++;
+        }
+
+        uint32_t prefix_len      = found - src;
+        uint32_t replacement_len = strlen(replacement);
+        uint32_t suffix_len      = strlen(line_end);
+        uint32_t total           = prefix_len + replacement_len + suffix_len + 1;
+
+        EnsureSize(*result_buf, total);
+
+        char* dst = result_buf->Begin();
+        memcpy(dst, src, prefix_len);
+        memcpy(dst + prefix_len, replacement, replacement_len);
+        memcpy(dst + prefix_len + replacement_len, line_end, suffix_len);
+        dst[total - 1] = '\0';
+
+        return true;
+    }
+
+    static bool ApplyHighpWorkaround(const char* src, dmArray<char>* result_buf, bool is_float_type)
+    {
+        const char* type_str = is_float_type ? "float" : "int";
+
+        char precision_buf[32] = {};
+        dmSnPrintf(precision_buf, sizeof(precision_buf), "precision highp %s;", type_str);
+
+        const char* replace_template =
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+            "    precision highp %s;\n"
+            "#else\n"
+            "    precision mediump %s;\n"
+            "#endif";
+
+        char replace_buf[256] = {};
+        dmSnPrintf(replace_buf, sizeof(replace_buf), replace_template, type_str, type_str);
+
+        return ReplaceString(src, precision_buf, replace_buf, result_buf);
+    }
+
+    static bool ApplyMediumpPrecisionOverride(const char* src, dmArray<char>* result_buf, bool is_float_type)
+    {
+        const char* type_str = is_float_type ? "float" : "int";
+
+        const char* highp_block_template =
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+            "    precision highp %s;\n"
+            "#else\n"
+            "    precision mediump %s;\n"
+            "#endif";
+
+        char highp_block_buf[256] = {};
+        dmSnPrintf(highp_block_buf, sizeof(highp_block_buf), highp_block_template, type_str, type_str);
+
+        char mediump_buf[32] = {};
+        dmSnPrintf(mediump_buf, sizeof(mediump_buf), "precision mediump %s;", type_str);
+
+        if (ReplaceString(src, highp_block_buf, mediump_buf, result_buf))
+        {
+            return true;
+        }
+
+        char highp_buf[32] = {};
+        dmSnPrintf(highp_buf, sizeof(highp_buf), "precision highp %s;", type_str);
+        return ReplaceString(src, highp_buf, mediump_buf, result_buf);
+    }
+
     ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options)
     {
         spvc_compiler_options spv_options = NULL;
@@ -522,19 +658,20 @@ namespace dmShaderc
         bool can_remove_unused_variables = true;
         uint8_t hlsl_num_workgroups_id_binding = 0xff;
 
+        uint32_t workgroup_size_x = 0;
+        uint32_t workgroup_size_y = 0;
+        uint32_t workgroup_size_z = 0;
+
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
         spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
 
         if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
         {
-            spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_GLSL_VERSION,                  options.m_Version);
-            spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES,                       options.m_GlslEs);
+            spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_GLSL_VERSION, options.m_Version);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ENABLE_420PACK_EXTENSION, !options.m_No420PackExtension);
-
-            // TODO:
-            // SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_FLOAT_PRECISION_HIGHP
-            // SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_INT_PRECISION_HIGHP
-
+            spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES, options.m_GlslEs);
+            spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_FLOAT_PRECISION_HIGHP, options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_HIGHP);
+            spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_INT_PRECISION_HIGHP, options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_HIGHP);
         }
         else if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_HLSL)
         {
@@ -591,10 +728,36 @@ namespace dmShaderc
                 default: dmLogWarning("MSL version %d not supported for crosscompiling, defaulting to 2.2", options.m_Version);
             }
 
+            uint32_t msl_platform = options.m_TargetPlatform == SHADER_COMPILER_PLATFORM_IOS ? SPVC_MSL_PLATFORM_IOS : SPVC_MSL_PLATFORM_MACOS;
             spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_MSL_VERSION, msl_version);
-            spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_MSL_PLATFORM, SPVC_MSL_PLATFORM_MACOS);
+            spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_MSL_PLATFORM, msl_platform);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, SPVC_TRUE);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_MSL_EMULATE_CUBEMAP_ARRAY, SPVC_FALSE);
+            spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_FLIP_VERTEX_Y, context->m_Stage == SHADER_STAGE_VERTEX ? SPVC_TRUE : SPVC_FALSE);
+
+            // We need to extract this for metal + compute, for vulkan it is embedded in the spirv binary
+            if (context->m_Stage == SHADER_STAGE_COMPUTE)
+            {
+                workgroup_size_x = 1;
+                workgroup_size_y = 1;
+                workgroup_size_z = 1;
+
+                const SpvExecutionMode* modes = NULL;
+                size_t num_modes = 0;
+
+                if (spvc_compiler_get_execution_modes(compiler->m_SPVCCompiler, &modes, &num_modes) == SPVC_SUCCESS)
+                {
+                    for (size_t i = 0; i < num_modes; i++)
+                    {
+                        if (modes[i] == SpvExecutionModeLocalSize)
+                        {
+                            workgroup_size_x = spvc_compiler_get_execution_mode_argument_by_index(compiler->m_SPVCCompiler, SpvExecutionModeLocalSize, 0);
+                            workgroup_size_y = spvc_compiler_get_execution_mode_argument_by_index(compiler->m_SPVCCompiler, SpvExecutionModeLocalSize, 1);
+                            workgroup_size_z = spvc_compiler_get_execution_mode_argument_by_index(compiler->m_SPVCCompiler, SpvExecutionModeLocalSize, 2);
+                        }
+                    }
+                }
+            }
         }
         else
         {
@@ -621,16 +784,62 @@ namespace dmShaderc
             compile_result_size = strlen(compile_result);
         }
 
+        const char* final_compile_result = compile_result;
+        uint32_t final_compile_result_size = compile_result_size;
+
+        dmArray<char> transform_buffer;
+
+        // highp qualifier might not be supported on ES2, so we need to apply a workaround.
+        if (compile_result && options.m_GlslEs && options.m_Version == 100 && context->m_Stage == SHADER_STAGE_FRAGMENT)
+        {
+            EnsureSize(transform_buffer, compile_result_size + 1);
+            memcpy(transform_buffer.Begin(), compile_result, compile_result_size);
+            transform_buffer.Begin()[compile_result_size] = '\0';
+
+            uint32_t transform_content_size = compile_result_size;
+            dmArray<char> tmp_buffer;
+
+            if (((options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_HIGHP &&
+                  ApplyHighpWorkaround(transform_buffer.Begin(), &tmp_buffer, true)) ||
+                 (options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_MEDIUMP &&
+                  ApplyMediumpPrecisionOverride(transform_buffer.Begin(), &tmp_buffer, true))))
+            {
+                EnsureSize(transform_buffer, tmp_buffer.Size());
+                memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
+                transform_content_size = tmp_buffer.Size() - 1;
+            }
+            if (((options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_HIGHP &&
+                  ApplyHighpWorkaround(transform_buffer.Begin(), &tmp_buffer, false)) ||
+                 (options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_MEDIUMP &&
+                  ApplyMediumpPrecisionOverride(transform_buffer.Begin(), &tmp_buffer, false))))
+            {
+                EnsureSize(transform_buffer, tmp_buffer.Size());
+                memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
+                transform_content_size = tmp_buffer.Size() - 1;
+            }
+
+            final_compile_result = transform_buffer.Begin();
+            final_compile_result_size = transform_content_size;
+        }
+
         ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
         memset(result, 0, sizeof(ShaderCompileResult));
-        result->m_Data.SetCapacity(compile_result_size);
-        result->m_Data.SetSize(compile_result_size);
+        result->m_Data.SetCapacity(final_compile_result_size);
+        result->m_Data.SetSize(final_compile_result_size);
         result->m_LastError = "";
         result->m_HLSLNumWorkGroupsId = hlsl_num_workgroups_id_binding;
+        result->m_WorkGroupSizeX = workgroup_size_x;
+        result->m_WorkGroupSizeY = workgroup_size_y;
+        result->m_WorkGroupSizeZ = workgroup_size_z;
 
-        if (compile_result)
+        if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_MSL)
         {
-            memcpy(result->m_Data.Begin(), compile_result, result->m_Data.Size());
+            GenerateMSLResourceMappings(context, compiler, result);
+        }
+
+        if (final_compile_result)
+        {
+            memcpy(result->m_Data.Begin(), final_compile_result, result->m_Data.Size());
         }
         else
         {

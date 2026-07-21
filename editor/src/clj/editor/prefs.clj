@@ -57,10 +57,10 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
-            [cognitect.transit :as transit]
             [editor.connection-properties :as connection-properties]
             [editor.fs :as fs]
             [editor.os :as os]
+            [editor.util :as util]
             [service.log :as log]
             [util.array :as array]
             [util.coll :as coll]
@@ -68,11 +68,9 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.path :as path])
-  (:import [java.io ByteArrayInputStream PushbackReader]
+  (:import [java.io PushbackReader]
            [java.nio.charset StandardCharsets]
-           [java.nio.file Path]
-           [java.util.concurrent Executors ScheduledExecutorService ThreadFactory TimeUnit]
-           [java.util.prefs Preferences]))
+           [java.util.concurrent Executors ScheduledExecutorService ThreadFactory TimeUnit]))
 
 (set! *warn-on-reflection* true)
 
@@ -83,7 +81,8 @@
 (def default-schema
   {:type :object
    :properties
-   {:asset-browser {:type :object
+   {:opened-versions {:type :set :item {:type :string}}
+    :asset-browser {:type :object
                     :properties
                     {:track-active-tab {:type :boolean}}}
     :input {:type :object
@@ -186,7 +185,22 @@
                              :properties {;; custom shortcuts to add to keymap
                                           :add {:type :set :item {:type :string}}
                                           ;; built-in shortcuts to remove from keymap
-                                          :remove {:type :set :item {:type :string}}}}}}}
+                                          :remove {:type :set :item {:type :string}}}}}
+              :mouse-bindings {:type :object-of
+                               :key {:type :keyword} ;; context
+                               :val {:type :object-of
+                                     :key {:type :keyword} ;; command
+                                     :val {:type :object
+                                           :properties {:bindings {:type :array
+                                                                   :item {:type :object
+                                                                          :properties
+                                                                          {:button {:type :enum
+                                                                                    :values [:primary :middle :secondary]}
+                                                                           :modifiers {:type :set
+                                                                                       :item {:type :enum
+                                                                                              :values [:shift :alt :control]}}}}}
+                                                        :modifier {:type :enum
+                                                                   :values [:shift :alt :control]}}}}}}}
     :workflow {:type :object
                :properties
                {:load-external-changes-on-app-focus {:type :boolean
@@ -227,7 +241,8 @@
                                             {:type :object
                                              :properties {:width {:type :integer}
                                                           :height {:type :integer}
-                                                          :custom {:type :boolean}}}]}
+                                                          :custom {:type :boolean}}}]
+                                  :scope :project}
            :engine-arguments {:type :string
                               :scope :project
                               :ui {:multiline true}}}}
@@ -246,7 +261,14 @@
                                  :opacity {:type :number :default 0.25}
                                  :color {:type :tuple
                                          :items [{:type :number} {:type :number} {:type :number} {:type :number}]
-                                         :default [0.5 0.5 0.5 1.0]}}}}}
+                                         :default [0.5 0.5 0.5 1.0]}}}
+             :perspective-camera {:type :object
+                                  :scope :project
+                                  :properties {:speed {:type :number :default 1.0}
+                                               :look-sensitivity {:type :number :default 0.145}
+                                               :invert-y {:type :boolean :default false}
+                                               :fov {:type :number :default 37.8}
+                                               :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object
           :properties
           {:custom-engine {:type :one-of
@@ -276,27 +298,27 @@
     :one-of (coll/any? #(valid? % value) (:schemas schema))
     :array (and (vector? value)
                 (let [item-schema (:item schema)]
-                  (every? #(valid? item-schema %) value)))
+                  (coll/every? #(valid? item-schema %) value)))
     :set (and (clojure.core/set? value)
               (let [item-schema (:item schema)]
-                (every? #(valid? item-schema %) value)))
+                (coll/every? #(valid? item-schema %) value)))
     :object (and (map? value)
-                 (every? (fn [[k s]]
+                 (coll/every? (fn [[k s]]
                            (let [v (value k ::not-found)]
                              (or (identical? v ::not-found)
                                  (valid? s v))))
                          (:properties schema)))
     :object-of (and (map? value)
                     (let [{:keys [key val]} schema]
-                      (every? (fn [[k v]]
+                      (coll/every? (fn [[k v]]
                                 (and (valid? key k) (valid? val v)))
                               value)))
-    :enum (boolean (some #(= value %) (:values schema)))
+    :enum (coll/any? #(= value %) (:values schema))
     :tuple (and (vector? value)
                 (let [items (:items schema)
                       n (count items)]
                   (and (= (count value) n)
-                       (every? #(valid? (items %) (value %)) (range n)))))))
+                       (coll/every? #(valid? (items %) (value %)) (range n)))))))
 
 (defn default-value [schema]
   (let [explicit-default (:default schema ::not-found)]
@@ -317,7 +339,6 @@
         :enum ((:values schema) 0)
         :tuple (mapv default-value (:items schema)))
       explicit-default)))
-
 
 ;; endregion
 
@@ -469,9 +490,21 @@
                    (when events
                      (reduce-kv
                        (fn [acc file-path path->val]
-                         (let [config (reduce-kv safe-assoc-in (read-config! file-path) path->val)]
-                           (write-config! file-path config)
-                           (assoc acc file-path config)))
+                         (let [existing (read-config! file-path)
+                               base (if (identical? ::not-found existing) {} existing)
+                               config (reduce-kv
+                                        (fn [cfg path val]
+                                          (cond
+                                            (and (identical? ::not-found val) (coll/empty? path)) ::not-found
+                                            (identical? ::not-found val) (if (map? cfg) (util/dissoc-in cfg path) cfg)
+                                            :else (safe-assoc-in cfg path val)))
+                                        base
+                                        path->val)]
+                           (if (identical? ::not-found config)
+                             (do (fs/delete-file! (io/file file-path) {:fail :silently})
+                                 (dissoc acc file-path))
+                             (do (write-config! file-path config)
+                                 (assoc acc file-path config)))))
                        storage
                        events))))]
       (swap! global-state incorporate-updated-storage updated-storage)))
@@ -554,10 +587,9 @@
 
 (defn- value-at-path-set? [scopes storage schema path]
   (if (= :object (:type schema))
-    (boolean
-      (coll/some
-        #(value-at-path-set? scopes storage (val %) (conj path (key %)))
-        (:properties schema)))
+    (coll/any?
+      #(value-at-path-set? scopes storage (val %) (conj path (key %)))
+      (:properties schema))
     (let [storage-value (-> schema :scope scopes storage (get-in path ::not-found))]
       (and (not (identical? storage-value ::not-found))
            (storage-value-valid? schema storage-value)))))
@@ -764,6 +796,49 @@
                             (set-value-at-path m scopes schema path (apply f value args)))))
     nil))
 
+(defn- reset-value-events
+  "Walk schema, emitting [file-path config-path ::not-found] for every leaf."
+  [scopes schema path]
+  (if (= :object (:type schema))
+    (e/mapcat
+      #(reset-value-events scopes (val %) (conj path (key %)))
+      (:properties schema))
+    [[(-> schema :scope scopes) path ::not-found]]))
+
+(defn reset-path!
+  "Remove stored values at the specified path, reverting to the default.
+
+  Walks the schema to collect every leaf path (across all scopes for nested
+  object schemas) and emits ::not-found events. Later sets! on the same path
+  will clobber these events via map-key semantics, preserving ordering.
+
+  Using [] as a path allows resetting the whole preference state."
+  [prefs path]
+  {:pre [(vector? path)]}
+  (let [{:keys [scopes]} prefs]
+    (swap! global-state
+           (fn [{:keys [registry storage] :as m}]
+             (let [schema (combined-schema-at-path registry prefs path)
+                   events (->> (reset-value-events scopes schema path)
+                               (e/filter (fn [[file-path config-path _]]
+                                           (let [file-storage (clojure.core/get storage file-path ::not-found)]
+                                             (if (coll/empty? config-path)
+                                               (not (identical? ::not-found file-storage))
+                                               (and (map? file-storage)
+                                                    (not (identical? ::not-found
+                                                                     (get-in file-storage config-path ::not-found)))))))))]
+               (reduce
+                 (fn [acc [file-path config-path _]]
+                   (-> acc
+                       (update :storage (fn [s]
+                                          (if (coll/empty? config-path)
+                                            (assoc s file-path ::not-found)
+                                            (update s file-path util/dissoc-in config-path))))
+                       (assoc-in [:events file-path config-path] ::not-found)))
+                 m
+                 events))))
+    nil))
+
 (defn schema
   "Get a preference schema at a specified get-in path"
   ([prefs path]
@@ -794,8 +869,8 @@
    (global (path/of
              (case (os/os)
                :macos (fs/evaluate-path "~/Library/Preferences")
-               :linux (some fs/evaluate-path ["$XDG_CONFIG_HOME" "~/.config"])
-               :win32 (some fs/evaluate-path ["$APPDATA" "~/AppData/Roaming"]))
+               :linux (coll/some fs/evaluate-path ["$XDG_CONFIG_HOME" "~/.config"])
+               :win32 (coll/some fs/evaluate-path ["$APPDATA" "~/AppData/Roaming"]))
              "Defold"
              "prefs.editor_settings")))
   ([prefs-path]
@@ -829,123 +904,6 @@
 
 ;; endregion
 
-;; TODO: remove migration from legacy prefs after sufficient time has passed (e.g. after 2025-10-15)
-
-;; region migration
-
-(defn- migrate! [prefs legacy-key->path]
-  (let [legacy-prefs (.node (Preferences/userRoot) "defold")
-        not-found "editor.prefs/not-found"
-        {:keys [scopes schemas]} prefs
-        {:keys [registry storage]} @global-state]
-    (->> legacy-key->path
-         (e/keep (fn [[legacy-key path]]
-                   (let [transit-str (.get legacy-prefs legacy-key not-found)]
-                     (when (and (not (identical? not-found transit-str))
-                                ;; is fresh file?
-                                (->> schemas
-                                     (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
-                                     (e/map #(-> % :scope scopes storage))
-                                     (coll/some #(identical? ::not-found %))
-                                     boolean))
-                       (when-some [v (-> transit-str
-                                         (.getBytes StandardCharsets/UTF_8)
-                                         ByteArrayInputStream.
-                                         (transit/reader :json)
-                                         transit/read)]
-                         (coll/pair path v))))))
-         (reduce #(assoc-in %1 (key %2) (val %2)) {})
-         ;; since `set!` is a special form, we need to use a fully-qualified reference
-         (editor.prefs/set! prefs []))))
-
-(defn migrate-global-prefs!
-  "Migrate global prefs from the old prefs storage
-
-  Only performs migration if global prefs file didn't exist before. This means
-  you should perform migration before modifying the prefs"
-  [global-prefs]
-  (migrate!
-    global-prefs
-    {"adb-path" [:tools :adb-path]
-     "ios-deploy-path" [:tools :ios-deploy-path]
-     "external-changes-load-on-app-focus" [:workflow :load-external-changes-on-app-focus]
-     "open-bundle-target-folder" [:bundle :open-output-directory]
-     "asset-browser-track-active-tab?" [:asset-browser :track-active-tab]
-     "general-quit-on-esc" [:run :quit-on-escape]
-     "custom-keymap-path" [:input :keymap-path]
-     "code-custom-editor" [:code :custom-editor]
-     "code-open-file" [:code :open-file]
-     "code-open-file-at-line" [:code :open-file-at-line]
-     "code-editor-font-name" [:code :font :name]
-     "code-editor-font-size" [:code :font :size]
-     "code-editor-visible-indentation-guides" [:code :visibility :indentation-guides]
-     "code-editor-visible-minimap" [:code :visibility :minimap]
-     "code-editor-visible-whitespace" [:code :visibility :whitespace]
-     "extensions-server" [:extensions :build-server]
-     "extensions-server-headers" [:extensions :build-server-headers]
-     "window-dimensions" [:window :dimensions]
-     "hidden-panes" [:window :hidden-panes]
-     "console-filters" [:console :filters]
-     "selected-target-id" [:run :selected-target-id]
-     "manual-target-ip+port" [:run :manual-target-ip+port]
-     "scene-move-whole-pixels?" [:scene :move-whole-pixels]
-     "dev-custom-engine" [:dev :custom-engine]
-     "open-project-directory" [:welcome :last-opened-project-directory]
-     "recent-project-entries" [:welcome :recent-projects]}))
-
-(defn migrate-project-prefs!
-  "Migrate project prefs from the old prefs storage
-
-  Only performs migration if project prefs file didn't exist before. This means
-  you should perform migration before modifying the prefs"
-  [project-prefs]
-  (let [suffix (str "-" (hash (str (.getParent ^Path (:project (:scopes project-prefs))))))]
-    (migrate! project-prefs (e/concat
-                              ;; move from global to project scope
-                              {"search-in-files-term" [:search-in-files :term]
-                               "search-in-files-exts" [:search-in-files :exts]
-                               "search-in-files-include-libraries" [:search-in-files :include-libraries]
-                               "open-assets-term" [:open-assets :term]
-                               "code-editor-find-term" [:code :find :term]
-                               "code-editor-find-replacement" [:code :find :replacement]
-                               "code-editor-find-whole-word" [:code :find :whole-word]
-                               "code-editor-find-case-sensitive" [:code :find :case-sensitive]
-                               "code-editor-find-wrap" [:code :find :wrap]
-                               "general-enable-texture-compression" [:build :texture-compression]
-                               "general-lint-on-build" [:build :lint-code]
-                               "bundle-variant" [:bundle :variant]
-                               "bundle-texture-compression" [:bundle :texture-compression]
-                               "bundle-generate-debug-symbols?" [:bundle :debug-symbols]
-                               "bundle-generate-build-report?" [:bundle :build-report]
-                               "bundle-publish-live-update-content?" [:bundle :liveupdate]
-                               "bundle-contentless?" [:bundle :contentless]
-                               "bundle-android-keystore" [:bundle :android :keystore]
-                               "bundle-android-keystore-pass" [:bundle :android :keystore-pass]
-                               "bundle-android-key-pass" [:bundle :android :key-pass]
-                               "bundle-android-architecture-32bit?" [:bundle :android :architecture :armv7-android]
-                               "bundle-android-architecture-64bit?" [:bundle :android :architecture :arm64-android]
-                               "bundle-android-bundle-format" [:bundle :android :format]
-                               "bundle-android-install-app?" [:bundle :android :install]
-                               "bundle-android-launch-app?" [:bundle :android :launch]
-                               "bundle-macos-architecture-x86_64?" [:bundle :macos :architecture :x86_64-macos]
-                               "bundle-macos-architecture-arm64?" [:bundle :macos :architecture :arm64-macos]
-                               "bundle-ios-sign-app?" [:bundle :ios :sign]
-                               "bundle-ios-code-signing-identity" [:bundle :ios :code-signing-identity]
-                               "bundle-ios-provisioning-profile" [:bundle :ios :provisioning-profile]
-                               "bundle-ios-architecture-64bit?" [:bundle :ios :architecture :arm64-ios]
-                               "bundle-ios-architecture-simulator?" [:bundle :ios :architecture :x86_64-ios]
-                               "bundle-ios-install-app?" [:bundle :ios :install]
-                               "bundle-ios-launch-app?" [:bundle :ios :launch]
-                               "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :js-web]
-                               "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
-                               "bundle-html5-architecture-wasm_pthread-web?" [:bundle :html5 :architecture :wasm_pthread-web]
-                               "bundle-windows-platform" [:bundle :windows :platform]}
-                              ;; these prefs already used project scope
-                              (e/map #(coll/pair (str (key %) suffix) (val %))
-                                     {"bundle-output-directory" [:bundle :output-directory]
-                                      "recent-files-by-workspace-root" [:workflow :recent-files]
-                                      "instance-count" [:run :instance-count]
-                                      "simulate-rotated-device" [:run :simulate-rotated-device]
-                                      "simulated-resolution" [:run :simulated-resolution]})))))
-
-;; end region
+(comment
+  (swap! global-state assoc-in [:registry :default] (resolve-schema default-schema))
+  :-)

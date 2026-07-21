@@ -62,7 +62,7 @@ end
 
 local function update_clear_color(state, color)
     if color then
-        state.clear_buffers[render.BUFFER_COLOR_BIT] = color
+        state.clear_buffers[graphics.BUFFER_TYPE_COLOR0_BIT] = color
     end
 end
 
@@ -127,9 +127,9 @@ local function create_state()
     color.z = sys.get_config_number("render.clear_color_blue", 0)
     color.w = sys.get_config_number("render.clear_color_alpha", 0)
     state.clear_buffers = {
-        [render.BUFFER_COLOR_BIT] = color,
-        [render.BUFFER_DEPTH_BIT] = 1,
-        [render.BUFFER_STENCIL_BIT] = 0
+        [graphics.BUFFER_TYPE_COLOR0_BIT] = color,
+        [graphics.BUFFER_TYPE_DEPTH_BIT] = 1,
+        [graphics.BUFFER_TYPE_STENCIL_BIT] = 0
     }
     state.cameras = {}
     return state
@@ -177,22 +177,22 @@ function update(self)
     render.set_projection(camera_world.proj)
 
     -- set states used for all the world predicates
-    render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
-    render.enable_state(render.STATE_DEPTH_TEST)
+    render.set_blend_func(graphics.BLEND_FACTOR_SRC_ALPHA, graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+    render.enable_state(graphics.STATE_DEPTH_TEST)
 
     -- render `model` predicate for default 3D material
     --
-    render.enable_state(render.STATE_CULL_FACE)
+    render.enable_state(graphics.STATE_CULL_FACE)
     render.draw(predicates.model, camera_world.frustum)
     render.set_depth_mask(false)
-    render.disable_state(render.STATE_CULL_FACE)
+    render.disable_state(graphics.STATE_CULL_FACE)
 
     -- render the other components: sprites, tilemaps, particles etc
     --
-    render.enable_state(render.STATE_BLEND)
+    render.enable_state(graphics.STATE_BLEND)
     render.draw(predicates.tile, camera_world.frustum)
     render.draw(predicates.particle, camera_world.frustum)
-    render.disable_state(render.STATE_DEPTH_TEST)
+    render.disable_state(graphics.STATE_DEPTH_TEST)
 
     render.draw_debug3d()
 
@@ -202,11 +202,11 @@ function update(self)
     render.set_view(camera_gui.view)
     render.set_projection(camera_gui.proj)
 
-    render.enable_state(render.STATE_STENCIL_TEST)
+    render.enable_state(graphics.STATE_STENCIL_TEST)
     render.draw(predicates.gui, camera_gui.frustum)
     render.draw(predicates.debug_text, camera_gui.frustum)
-    render.disable_state(render.STATE_STENCIL_TEST)
-    render.disable_state(render.STATE_BLEND)
+    render.disable_state(graphics.STATE_STENCIL_TEST)
+    render.disable_state(graphics.STATE_BLEND)
 end
 
 function on_message(self, message_id, message)

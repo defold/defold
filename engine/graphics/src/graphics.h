@@ -26,7 +26,7 @@
 #include <ddf/ddf.h>
 #include <graphics/graphics_ddf.h>
 
-#include <platform/window.h>
+#include <dmsdk/platform/window.h>
 
 namespace dmGraphics
 {
@@ -62,10 +62,9 @@ namespace dmGraphics
     // Decorated asset handle with 21 bits meta | 32 bits opaque handle
     // Note: that we can only use a total of 53 bits out of the 64 due to how we expose the handles
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
-    typedef uint64_t       HAssetHandle;
-
-    // Defined in graphics_private.h
-    typedef struct UniformBuffer* HUniformBuffer;
+    typedef uint64_t                HAssetHandle;
+    typedef struct UniformBuffer*   HUniformBuffer; // Defined in graphics_private.h
+    typedef struct GraphicsAdapter* HGraphicsAdapter;
 
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
@@ -74,8 +73,6 @@ namespace dmGraphics
     const static uint8_t DM_GRAPHICS_STATE_WRITE_G   = 0x2;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_B   = 0x4;
     const static uint8_t DM_GRAPHICS_STATE_WRITE_A   = 0x8;
-
-
 
     enum AdapterFamilyPriority
     {
@@ -86,6 +83,7 @@ namespace dmGraphics
         ADAPTER_FAMILY_PRIORITY_VENDOR   = 0,
         ADAPTER_FAMILY_PRIORITY_WEBGPU   = 0,
         ADAPTER_FAMILY_PRIORITY_DIRECTX  = 0,
+        ADAPTER_FAMILY_PRIORITY_METAL    = 0,
     };
 
     enum AssetType
@@ -107,6 +105,18 @@ namespace dmGraphics
         // ASTC for 2D array textures (paged atlases). Some WebGL/GLES drivers
         // fail array texture ASTC uploads while 2D ASTC works.
         CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
+        // GL_MIN/GL_MAX blend equations require GLES3+ or EXT_blend_minmax.
+        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
+        MAX_CONTEXT_FEATURE_COUNT              = 9,
+    };
+
+    // Binding family for shader resources in a program.
+    enum ShaderResourceBindingFamily
+    {
+        BINDING_FAMILY_GENERIC        = 0,
+        BINDING_FAMILY_UNIFORM_BUFFER = 1,
+        BINDING_FAMILY_STORAGE_BUFFER = 2,
+        BINDING_FAMILY_TEXTURE        = 3,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -116,7 +126,36 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
+    struct GraphicsContextLimits
+    {
+        // Buffer limits — max bindable range, not the underlying buffer object size.
+        uint64_t    m_MaxUniformBufferRange;
+        uint64_t    m_MaxStorageBufferRange;
 
+        // Texture limits (max dimension in texels — APIs report a dim, not a count)
+        uint32_t    m_MaxTextureSize2D;
+        uint32_t    m_MaxTextureSize3D;
+        uint32_t    m_MaxTextureSizeCube;
+        uint32_t    m_MaxTextureArrayLayers;
+
+        // Framebuffer limits
+        uint32_t    m_MaxFramebufferWidth;
+        uint32_t    m_MaxFramebufferHeight;
+        uint32_t    m_MaxColorAttachments;
+
+        // Per-stage binding limits
+        uint32_t    m_MaxSamplersPerStage;
+        uint32_t    m_MaxTexturesPerStage;
+        uint32_t    m_MaxVertexAttributes;
+        uint32_t    m_MaxVertexBuffers;
+
+        // Compute limits
+        uint32_t    m_MaxComputeWorkgroupSizeX;
+        uint32_t    m_MaxComputeWorkgroupSizeY;
+        uint32_t    m_MaxComputeWorkgroupSizeZ;
+        uint32_t    m_MaxComputeWorkgroupInvocations;
+        uint32_t    m_MaxComputeSharedMemorySize;
+    };
 
     // A more compact version of the dmGraphics::VertexAttribute (i.e the DDF type).
     // Should be used over the protobuf type when possible.
@@ -161,6 +200,7 @@ namespace dmGraphics
         uint32_t m_HasAttributeNormalMatrix       : 1;
         uint32_t m_HasAttributeNone               : 1;
         uint32_t m_HasAttributeTextureTransform2D : 1;
+        uint32_t m_HasAttributeMorphTargetWeights : 1;
     };
 
     struct WriteAttributeStreamDesc
@@ -191,6 +231,7 @@ namespace dmGraphics
         WriteAttributeStreamDesc    m_TexCoords;
         WriteAttributeStreamDesc    m_PageIndices;
         WriteAttributeStreamDesc    m_TextureTransform2D;
+        WriteAttributeStreamDesc    m_MorphTargetWeights;
         VertexStepFunction          m_StepFunction;
     };
 
@@ -225,14 +266,10 @@ namespace dmGraphics
     };
 
     // The uniform buffer layout is used to validate a uniform buffer
-    // with a shader resource binding by comparing the hash of
-    // the layout of the resource binding (i.e a ProgramResourceBinding) with the buffer layout.
+    // with a shader resource binding by comparing the layout hash of
+    // the resource binding (i.e a ProgramResourceBinding) with the buffer layout.
     // If the buffer layout differs from the binding, it cannot be used.
-    struct UniformBufferLayout
-    {
-        uint32_t m_Size;
-        uint32_t m_Hash;
-    };
+    typedef uint32_t UniformBufferLayout;
 
     struct ShaderResourceType
     {
@@ -261,17 +298,8 @@ namespace dmGraphics
         uint32_t              m_MemberCount;
     };
 
-    // Binding family for shader resources in a program.
-    enum ShaderResourceBindingFamily
-    {
-        BINDING_FAMILY_GENERIC        = 0,
-        BINDING_FAMILY_UNIFORM_BUFFER = 1,
-        BINDING_FAMILY_STORAGE_BUFFER = 2,
-        BINDING_FAMILY_TEXTURE        = 3,
-    };
-
     // Callback invoked for each resource binding in a program that matches the specified family.
-    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* root_type, void* user_data);
+    typedef void (*IterateProgramResourceBindingsCallback)(uint16_t set, uint16_t binding, const ShaderResourceTypeInfo* types, uint32_t num_types, uint32_t root_type_index, UniformBufferLayout* layout, void* user_data);
 
     // Iterate over all resource bindings for the given program that belong to the specified
     // binding family and invoke the supplied callback for each binding.
@@ -281,6 +309,34 @@ namespace dmGraphics
      * Starts the app that needs to control the update loop (iOS only)
      */
     void AppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn);
+
+    /**
+     * Get the number of registered graphics adapters. An adapter gets automatically registered when it is linked with an executable.
+     * This however does not mean that it will be selected as the primary adapter, it just means that it is available for use by the engine.
+     * @return The number of registered graphics adapters.
+     */
+    uint32_t GetRegisteredAdaptersCount();
+
+    /**
+     * Get the number of linked graphics adapters.
+     * @return The number of linked graphics adapters.
+     */
+    uint32_t GetLinkedGraphicsAdapterCount();
+
+    /**
+     * Gets a graphics adapter at a specific index.
+     * The list of adapters is sorted by priority, getting the adapter at index 0 will return the adapter with the highest priority.
+     * @param index The graphics adapter to get.
+     * @return The graphics adapter handle at the supplied index. NULL if not found.
+     */
+    const HGraphicsAdapter GetRegisteredAdapter(uint32_t index);
+
+    /**
+     * Gets the adapter family for a registered graphics adapter.
+     * @param adapter The graphics adapter handle to inspect.
+     * @return The adapter family for the supplied adapter, or ADAPTER_FAMILY_NONE if the handle is NULL.
+     */
+    AdapterFamily GetAdapterFamily(HGraphicsAdapter adapter);
 
     /**
      * Get the window refresh rate
@@ -301,6 +357,21 @@ namespace dmGraphics
      * @param context Graphics context handle
      */
     void IconifyWindow(HContext context);
+
+    /**
+     * Get the graphics context limits from a graphics context handle.
+     * @param context Graphics context handle
+     * @param limits  Output. Will be populated with the current context's limits.
+     */
+    void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits);
+
+    /**
+     * Get the installed graphics adapter's API version.
+     * @param context Graphics context handle
+     * @param major   Output. Major version number.
+     * @param minor   Output. Minor version number.
+     */
+    void GetAdapterVersion(HContext context, uint16_t& major, uint16_t& minor);
 
     /**
      * Retrieve current state of the opened window, if any.
@@ -355,19 +426,6 @@ namespace dmGraphics
      */
     void SetSwapInterval(HContext context, uint32_t swap_interval);
 
-    /**
-     * Clear render target
-     * @param context Graphics context
-     * @param flags
-     * @param red
-     * @param green
-     * @param blue
-     * @param alpha
-     * @param depth
-     * @param stencil
-     */
-
-
     bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
     void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
@@ -378,8 +436,6 @@ namespace dmGraphics
 
     void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
     void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
-
-
 
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
@@ -403,8 +459,10 @@ namespace dmGraphics
 
     // Uniform buffers
     void                UpdateShaderTypesOffsets(ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
-    void                GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types, UniformBufferLayout* layout_desc);
-    HUniformBuffer      NewUniformBuffer(HContext context, const UniformBufferLayout& layout);
+    UniformBufferLayout GetUniformBufferLayout(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types);
+    uint32_t            GetUniformBufferTypeSize(uint32_t root_type_index, const ShaderResourceTypeInfo* types, uint32_t num_types);
+    bool                IsUniformBufferLayoutCompatible(UniformBufferLayout bound_layout, uint32_t bound_size, UniformBufferLayout program_layout, uint32_t program_size);
+    HUniformBuffer      NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size);
     void                DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer);
     void                SetUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
     void                EnableUniformBuffer(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
@@ -531,6 +589,9 @@ namespace dmGraphics
             break;
         case VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D:
             metadata.m_HasAttributeTextureTransform2D = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS:
+            metadata.m_HasAttributeMorphTargetWeights = true;
             break;
         default:
             break;

@@ -19,7 +19,7 @@ void dmProfilerExt::SampleCpuUsage() {
     // nop
 }
 
-uint64_t dmProfilerExt::GetMemoryUsage()
+uint64_t dmProfilerExt::GetDetailedMemoryUsage()
 {
     struct task_basic_info t_info;
     mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
@@ -29,6 +29,11 @@ uint64_t dmProfilerExt::GetMemoryUsage()
         return 0;
     }
     return t_info.resident_size;
+}
+
+uint64_t dmProfilerExt::GetMemoryUsage()
+{
+    return GetDetailedMemoryUsage();
 }
 
 double dmProfilerExt::GetCpuUsage()

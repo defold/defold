@@ -65,9 +65,11 @@
 ;; anim data
 
 (defn- ->anim-frame
-  [page-index quad-tex-coords tex-dim frame-geometry]
+  [page-index quad-tex-coords quad-tex-coords-raw tex-dim frame-geometry]
   {:page-index page-index
    :tex-coords quad-tex-coords
+   :tex-coords-raw quad-tex-coords-raw
+   :atlas-rotated (true? (:rotated frame-geometry))
    :width (:width tex-dim)
    :height (:height tex-dim)
    :pivot [(or (:pivot-x frame-geometry) 0.0) (or (:pivot-y frame-geometry) 0.0)]})
@@ -85,7 +87,7 @@
            (range 0 (count double-vector) 2)))))
 
 (defn- ->anim-frame-from-geometry
-  [page-index quad-tex-coords frame-geometry scale-factors reverse]
+  [page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse]
   (let [^double scale-x (scale-factors 0)
         ^double scale-y (scale-factors 1)
         ^double pivot-x (or (:pivot-x frame-geometry) 0.0)
@@ -94,6 +96,8 @@
         vertex-tex-coords (double-vector->2d-points (:uvs frame-geometry) reverse)]
     {:page-index page-index
      :tex-coords quad-tex-coords
+     :tex-coords-raw quad-tex-coords-raw
+     :atlas-rotated (true? (:rotated frame-geometry))
      :vertex-coords vertex-coords
      :pivot [pivot-x pivot-y]
      :vertex-tex-coords vertex-tex-coords
@@ -112,16 +116,18 @@
         tex-coord-order (flip-strategy->tex-coord-order flip-strategy)
         scale-factors (flip-strategy->scale-factors flip-strategy)
         reverse (not (zero? (bit-xor flip-horizontal flip-vertical)))
+        tex-coord-order-unflipped (flip-strategy->tex-coord-order 0)
         frames (mapv (fn [i]
                        (let [frame-index (frame-indices i)
                              page-index (page-indices frame-index)
                              frame-geometry (geometries frame-index)
-                             quad-tex-coords (->quad-tex-coords frame-index tex-coords tex-coord-order)]
+                             quad-tex-coords (->quad-tex-coords frame-index tex-coords tex-coord-order)
+                             quad-tex-coords-raw (->quad-tex-coords frame-index tex-coords tex-coord-order-unflipped)]
                          (if (and use-geometries
                                   (not= :sprite-trim-mode-off
                                         (:trim-mode frame-geometry)))
-                           (->anim-frame-from-geometry page-index quad-tex-coords frame-geometry scale-factors reverse)
-                           (->anim-frame page-index quad-tex-coords (->tex-dim frame-index tex-dims) frame-geometry))))
+                           (->anim-frame-from-geometry page-index quad-tex-coords quad-tex-coords-raw frame-geometry scale-factors reverse)
+                           (->anim-frame page-index quad-tex-coords quad-tex-coords-raw (->tex-dim frame-index tex-dims) frame-geometry))))
                      (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
@@ -191,18 +197,33 @@
             (assoc vtx 0 x 1 y)))
         vertices))
 
-;; Construct a complete 2D affine matrix from unit square to atlas quad.
-(defn- tex-coords->texture-transform-2d [[tl tr _br bl]]
-  (let [u0 (double (nth tl 0))
-        v0 (double (nth tl 1))
-        u1 (double (nth tr 0))
-        v1 (double (nth tr 1))
-        u3 (double (nth bl 0))
-        v3 (double (nth bl 1))]
-    (vector-of :double
-      (- u1 u0) (- v1 v0) 0.0
-      (- u3 u0) (- v3 v0) 0.0
-      u0 v0 1.0)))
+;; Affine from unit square (s,t) to atlas UV — same packing as engine ResolveAnimationData (mat3 column-major).
+;; quad-unflipped must match Bob's tex_coord order for the quad: unrotated BL,TL,TR,BR; rotated TL,TR,BR,BL.
+;; Animation flip is applied only to vertex UVs at runtime, not to this transform.
+(defn- tex-coords->texture-transform-2d [quad-unflipped atlas-rotated]
+  (if atlas-rotated
+    (let [[tl tr br bl] quad-unflipped
+          u-bl (double (nth bl 0))
+          v-bl (double (nth bl 1))
+          u-br (double (nth br 0))
+          v-br (double (nth br 1))
+          u-tl (double (nth tl 0))
+          v-tl (double (nth tl 1))]
+      (vector-of :double
+                 (- u-br u-bl) (- v-br v-bl) 0.0
+                 (- u-tl u-bl) (- v-tl v-bl) 0.0
+                 u-bl v-bl 1.0))
+    (let [[bl tl tr br] quad-unflipped
+          u-bl (double (nth bl 0))
+          v-bl (double (nth bl 1))
+          u-br (double (nth br 0))
+          v-br (double (nth br 1))
+          u-tl (double (nth tl 0))
+          v-tl (double (nth tl 1))]
+      (vector-of :double
+                 (- u-br u-bl) (- v-br v-bl) 0.0
+                 (- u-tl u-bl) (- v-tl v-bl) 0.0
+                 u-bl v-bl 1.0))))
 
 (def ^:private texture-transform-identity
   (vector-of :double 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0))
@@ -235,8 +256,10 @@
           (let [[uvnw uvsw uvse uvne] tex-coords]
             [uvnw uvne uvsw uvne uvse uvsw]))
 
+        ;; Prefer :tex-coords-raw (Bob order) so the transform matches runtime; legacy frames may only have :tex-coords.
         texture-transform
-        (tex-coords->texture-transform-2d tex-coords)]
+        (let [raw (or (:tex-coords-raw animation-frame) (:tex-coords animation-frame))]
+          (tex-coords->texture-transform-2d raw (true? (:atlas-rotated animation-frame))))]
 
     {:position-data position-data
      :uv-data uv-data
@@ -268,9 +291,11 @@
                   (and (= :size-mode-manual size-mode)
                        (slice9/sliced? slice9))
                   (-> (slice9/vertex-data animation-frame size slice9 pivot)
-                      (assoc :texture-transform (if-some [tex-coords (:tex-coords animation-frame)]
-                                                  (tex-coords->texture-transform-2d tex-coords)
-                                                  texture-transform-identity)))
+                      (assoc :texture-transform
+                             (if-some [raw (or (:tex-coords-raw animation-frame)
+                                               (:tex-coords animation-frame))]
+                               (tex-coords->texture-transform-2d raw (true? (:atlas-rotated animation-frame)))
+                               texture-transform-identity)))
 
                   :else
                   (frame-vertex-data animation-frame size pivot))
@@ -333,6 +358,24 @@
 
 (def ^:const animation-preview-offset 40.0)
 
+(defn animation-preview-size
+  [camera viewport ^double image-width ^double image-height]
+  (let [[sx sy _] (camera/scale-factor camera viewport)
+        sx (double sx)
+        sy (double sy)
+        scaled-width (/ image-width sx)
+        scaled-height (/ image-height sy)
+        max-width (max 0.0 (- (double (:right viewport))
+                              (double (:left viewport))
+                              (* 2.0 animation-preview-offset)))
+        max-height (max 0.0 (- (double (:bottom viewport))
+                               (double (:top viewport))
+                               (* 2.0 animation-preview-offset)))
+        scale (min 1.0
+                   (/ max-width scaled-width)
+                   (/ max-height scaled-height))]
+    [(* scaled-width scale) (* scaled-height scale)]))
+
 (defn- animation-frame->vertex-floats
   [animation-frame world-transform]
   (let [size [(:width animation-frame)
@@ -354,7 +397,7 @@
         animation-vertices (animation-frame->vertex-floats animation-data world-transform)
         vertex-description (shaders/vertex-description animation-overlay-shader)
         ^VertexBuffer vbuf (vtx/make-vertex-buffer vertex-description :stream (count animation-vertices))
-        ^ByteBuffer buf (.buf vbuf)]
+        buf (.buf vbuf)]
     (doseq [vertex animation-vertices]
       (vtx/buf-push-floats! buf vertex))
     (vtx/flip! vbuf)))
@@ -369,13 +412,6 @@
 (defn render-animation-overlay
   [^GL2 gl render-args renderables]
   (let [{:keys [camera viewport]} render-args
-        [^double sx ^double sy ^double sz] (camera/scale-factor camera viewport)
-        scale-m (doto (Matrix4d.)
-                  (.setIdentity)
-                  (.setM00 (/ 1.0 sx))
-                  (.setM11 (- (/ 1.0 sy))) ; flip
-                  (.setM22 (/ 1.0 sz))
-                  (.setM33 1.0))
         world-pos (Vector3d. animation-preview-offset (- (double (:bottom viewport)) animation-preview-offset) 0.0)]
     (doseq [renderable renderables]
       (let [state (-> renderable :updatable :state)]
@@ -384,10 +420,17 @@
                 anim-data (:anim-data user-data)
                 image-width (double (:width anim-data))
                 image-height (double (:height anim-data))
+                [scaled-width scaled-height] (animation-preview-size camera viewport image-width image-height)
+                scaled-width (double scaled-width)
+                scaled-height (double scaled-height)
+                scale-m (doto (Matrix4d.)
+                          (.setIdentity)
+                          (.setM00 (/ scaled-width image-width))
+                          (.setM11 (- (/ scaled-height image-height)))) ; flip
                 world-transform (doto (Matrix4d.)
                                   (.setIdentity)
-                                  (.setTranslation (Vector3d. (+ (.x world-pos) (* 0.5 (/ 1.0 sx) image-width))
-                                                              (- (.y world-pos) (* 0.5 (/ 1.0 sy) image-height))
+                                  (.setTranslation (Vector3d. (+ (.x world-pos) (* 0.5 scaled-width))
+                                                              (- (.y world-pos) (* 0.5 scaled-height))
                                                               0.0))
                                   (.mul scale-m))
                 vertex-count (anim-data->vertex-count anim-data frame)
@@ -397,8 +440,8 @@
                     gpu-texture (:gpu-texture user-data)
                     x0 (.x world-pos)
                     y0 (.y world-pos)
-                    x1 (+ x0 (* (/ 1.0 sx) image-width))
-                    y1 (- y0 (* (/ 1.0 sy) image-height))
+                    x1 (+ x0 scaled-width)
+                    y1 (- y0 scaled-height)
                     [cr cg cb ca] colors/outline-color
                     [xr xg xb xa] colors/scene-background]
                 (.glColor4d gl xr xg xb xa)

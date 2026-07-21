@@ -14,6 +14,7 @@
 
 (ns editor.html-view
   (:require [dynamo.graph :as g]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
             [editor.markdown :as markdown]
@@ -26,13 +27,14 @@
 
 (g/defnk produce-desc [html project parent resource]
   {:fx/type fxui/ext-with-anchor-pane-props
-   :desc {:fx/type fxui/ext-value :value parent}
+   :desc {:fx/type ui/ext-value :value parent}
    :props {:children [{:fx/type markdown/html-view
-                       :root-props {:style-class "md-page-root"}
                        :anchor-pane/top 0
                        :anchor-pane/right 0
                        :anchor-pane/bottom 0
                        :anchor-pane/left 0
+                       :root-props {:style-class "md-page-root"}
+                       :style-class "md-page-scroll-pane"
                        :html html
                        :project project
                        :base-resource resource}]}})
@@ -45,8 +47,10 @@
   (input project g/NodeID)
   (output desc g/Any :cached produce-desc))
 
+(node-types/register-node-type-name! HtmlViewNode "html")
+
 (defn- repaint! [view-node]
-  (fxui/advance-graph-user-data-component! view-node :view (g/node-value view-node :desc)))
+  (ui/advance-graph-user-data-component! view-node :view (g/node-value view-node :desc)))
 
 (defn- make-view [graph ^Parent parent html-node {:keys [project ^Tab tab]}]
   (let [view-node (first
@@ -63,7 +67,7 @@
     (repaint! view-node)
     (ui/on-closed! tab (fn [_]
                          (ui/timer-stop! repainter)
-                         (fxui/advance-graph-user-data-component! view-node :view nil)))
+                         (ui/advance-graph-user-data-component! view-node :view nil)))
     view-node))
 
 (defn register-view-types [workspace]

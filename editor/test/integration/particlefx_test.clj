@@ -97,6 +97,14 @@
         (test-util/with-prop [emitter :animation v]
           (is (g/error? (test-util/prop-error emitter :animation))))))))
 
+(deftest delete-last-emitter
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
+          emitter (:node-id (test-util/outline node-id [0]))]
+      (g/delete-node! emitter)
+      (let [outline (g/node-value node-id :node-outline)]
+        (is (= [] (:children outline)))))))
+
 (deftest particle-scene
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/particlefx/default.particlefx")

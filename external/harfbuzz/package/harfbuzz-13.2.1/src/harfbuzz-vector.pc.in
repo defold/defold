@@ -1,0 +1,14 @@
+prefix=%prefix%
+exec_prefix=%exec_prefix%
+libdir=%libdir%
+includedir=%includedir%
+
+Name: harfbuzz vector
+Description: HarfBuzz vector converter
+Version: %VERSION%
+
+Requires: harfbuzz = %VERSION%
+Requires.private: %requires_private_extra%
+Libs: -L${libdir} -lharfbuzz-vector
+Libs.private: -lm %libs_private_extra%
+Cflags: -I${includedir}/harfbuzz

@@ -18,11 +18,13 @@
 #include <dlib/align.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "../gameobject_script.h"
-#include "../proto/gameobject/gameobject_ddf.h"
+#include <gameobject/gameobject_ddf.h>
 #include "../gameobject_props.h"
 #include "../gameobject_props_lua.h"
 
@@ -72,7 +74,8 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/src/gameobject/test/props";
-        m_Factory = dmResource::NewFactory(&params, m_Path);
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), m_Path));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
@@ -744,6 +747,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     dmhash_t hashFirst = dmHashString64("hash_first");
     const char urlStringFirst[] = "url_string_first";
     const char urlStringSecond[] = "url_string_second";
+    const char textFirst[] = "hello text";
     const char urlFirst[32] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
@@ -759,6 +763,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     params.m_NumberCount = 2;
     params.m_HashCount = 1;
     params.m_URLStringCount = 2;
+    params.m_TextCount = 1;
     params.m_URLCount = 1;
     params.m_Vector3Count = 2;
     params.m_Vector4Count = 1;
@@ -766,6 +771,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     params.m_BoolCount = 2;
     params.m_URLStringSize += strlen("url_string_first") + 1;
     params.m_URLStringSize += strlen("url_string_second") + 1;
+    params.m_TextSize += strlen(textFirst) + 1;
     dmGameObject::HPropertyContainerBuilder builder = dmGameObject::PropertyContainerCreateBuilder(params);
     ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
     dmGameObject::PropertyContainerPushFloat(builder, dmHashString64("NumberFirst"), numberFirst);
@@ -773,6 +779,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     dmGameObject::PropertyContainerPushHash(builder, dmHashString64("HashFirst"), hashFirst);
     dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringFirst"), urlStringFirst);
     dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringSecond"), urlStringSecond);
+    dmGameObject::PropertyContainerPushText(builder, dmHashString64("TextFirst"), textFirst, (uint32_t) strlen(textFirst));
     dmGameObject::PropertyContainerPushURL(builder, dmHashString64("URLFirst"), urlFirst);
     dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3First"), vector3First);
     dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3Second"), vector3Second);
@@ -825,6 +832,9 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("BoolSecond"), var));
     ASSERT_EQ(dmGameObject::PROPERTY_TYPE_BOOLEAN, var.m_Type);
     ASSERT_EQ(boolSecond, var.m_Bool);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("TextFirst"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_TEXT, var.m_Type);
+    ASSERT_STREQ(textFirst, var.m_Text);
     dmGameObject::PropertyContainerDestroy(c);
 }
 

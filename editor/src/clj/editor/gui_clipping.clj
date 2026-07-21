@@ -472,7 +472,7 @@
   (-> scene
       (update-in [:renderable :user-data] dissoc :clipping) ; don't want to treat this node as a clipper
       (assoc-in [:renderable :user-data :visible-clipper-scene?] true) ; tag it
-      (dissoc :children :transform :aabb)))
+      (dissoc :aabb :children :pose :transform)))
 
 (defn- visible-clipper-scene? [scene]
   (get-in scene [:renderable :user-data :visible-clipper-scene?]))

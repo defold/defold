@@ -87,7 +87,7 @@ namespace dmGameSystem
     /*# [type:number] sound speed
      *
      * The speed on the sound-component where 1.0 is normal speed, 0.5 is half
-     * speed and 2.0 is double speed.
+     * speed and 2.0 is double speed. Valid range is 0.0 to 50.0.
      *
      * @name speed
      * @property
@@ -439,7 +439,7 @@ namespace dmGameSystem
      * : [type:number] sound pan between -1 and 1, default is 0. The final pan of the sound will be an addition of this pan and the sound pan.
      *
      * `speed`
-     * : [type:number] sound speed where 1.0 is normal speed, 0.5 is half speed and 2.0 is double speed. The final speed of the sound will be a multiplication of this speed and the sound speed.
+     * : [type:number] sound speed where 1.0 is normal speed, 0.5 is half speed and 2.0 is double speed. Valid range is 0.0 to 50.0. The final speed of the sound will be a multiplication of this speed and the sound speed.
 
      * `start_time`
      * : [type:number] start playback offset (seconds). Optional, mutually exclusive with `start_frame`.

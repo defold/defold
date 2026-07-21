@@ -14,6 +14,8 @@
 
 #include "gui.h"
 
+#include <string.h>
+
 #include "gui_private.h"
 #include "gui_script.h"
 #include <rig/rig.h>
@@ -169,6 +171,11 @@ namespace dmGui
     }
 
     Result AddTexture(HScene scene, dmhash_t texture_name_hash, dmGui::HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    {
+        return RESULT_OK;
+    }
+
+    Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, dmGui::HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         return RESULT_OK;
     }
@@ -497,6 +504,21 @@ namespace dmGui
     {
     }
 
+    Result SetNodeCustomProperties(HScene scene, HNode node, const CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        return RESULT_OK;
+    }
+
+    Result GetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, CustomProperty* prop)
+    {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
+    Result SetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, const CustomProperty* prop)
+    {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+
     void SetNodeResetPoint(HScene scene, HNode node)
     {
     }
@@ -698,6 +720,15 @@ namespace dmGui
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         return RESULT_OK;
+    }
+
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
+    {
+        memset(out_text_layout, 0, sizeof(*out_text_layout));
+    }
+
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout)
+    {
     }
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node)

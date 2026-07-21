@@ -1,0 +1,80 @@
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: CBMC
+permissions:
+  contents: read
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  cbmc_44:
+    name: CBMC (ML-DSA-44)
+    if: ${{ github.repository_owner == 'pq-code-package' && !github.event.pull_request.head.repo.fork }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+      pull-requests: 'write'
+    uses: ./.github/workflows/ci_ec2_reusable.yml
+    with:
+      name: CBMC (ML-DSA-44)
+      ec2_instance_type: c7g.4xlarge
+      ec2_ami: ubuntu-latest (aarch64)
+      ec2_volume_size: 20
+      compile_mode: native
+      opt: no_opt
+      lint: false
+      verbose: true
+      functest: true
+      kattest: false
+      acvptest: false
+      cbmc: true
+      cbmc_mldsa_parameter_set: 44
+    secrets: inherit
+  cbmc_65:
+    name: CBMC (ML-DSA-65)
+    if: ${{ github.repository_owner == 'pq-code-package' && !github.event.pull_request.head.repo.fork }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+      pull-requests: 'write'
+    uses: ./.github/workflows/ci_ec2_reusable.yml
+    with:
+      name: CBMC (ML-DSA-65)
+      ec2_instance_type: c7g.4xlarge
+      ec2_ami: ubuntu-latest (aarch64)
+      ec2_volume_size: 20
+      compile_mode: native
+      opt: no_opt
+      lint: false
+      verbose: true
+      functest: true
+      kattest: false
+      acvptest: false
+      cbmc: true
+      cbmc_mldsa_parameter_set: 65
+    secrets: inherit
+  cbmc_87:
+    name: CBMC (ML-DSA-87)
+    if: ${{ github.repository_owner == 'pq-code-package' && !github.event.pull_request.head.repo.fork }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+      pull-requests: 'write'
+    uses: ./.github/workflows/ci_ec2_reusable.yml
+    with:
+      name: CBMC (ML-DSA-87)
+      ec2_instance_type: c7g.4xlarge
+      ec2_ami: ubuntu-latest (aarch64)
+      ec2_volume_size: 20
+      compile_mode: native
+      opt: no_opt
+      lint: false
+      verbose: true
+      functest: true
+      kattest: false
+      acvptest: false
+      cbmc: true
+      cbmc_mldsa_parameter_set: 87
+    secrets: inherit

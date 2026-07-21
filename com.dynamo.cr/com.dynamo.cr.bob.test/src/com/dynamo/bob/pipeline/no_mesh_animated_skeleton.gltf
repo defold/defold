@@ -1,0 +1,162 @@
+{
+  "asset" : {
+    "version" : "2.0",
+    "generator" : "Defold GLTF test fixture generator"
+  },
+  "scene" : 0,
+  "scenes" : [
+    {
+      "nodes" : [
+        0
+      ]
+    }
+  ],
+  "nodes" : [
+    {
+      "children" : [
+        1
+      ],
+      "name" : "ScaledRoot",
+      "scale" : [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "name" : "AnimatedChild",
+      "translation" : [
+        0.0,
+        2.0,
+        0.0
+      ]
+    }
+  ],
+  "skins" : [
+    {
+      "name" : "NoMeshSkin",
+      "skeleton" : 0,
+      "joints" : [
+        0,
+        1
+      ],
+      "inverseBindMatrices" : 4
+    }
+  ],
+  "animations" : [
+    {
+      "name" : "NoMeshTransformAnimation",
+      "samplers" : [
+        {
+          "input" : 0,
+          "output" : 1,
+          "interpolation" : "LINEAR"
+        },
+        {
+          "input" : 0,
+          "output" : 2,
+          "interpolation" : "LINEAR"
+        },
+        {
+          "input" : 0,
+          "output" : 3,
+          "interpolation" : "LINEAR"
+        }
+      ],
+      "channels" : [
+        {
+          "sampler" : 0,
+          "target" : {
+            "node" : 0,
+            "path" : "rotation"
+          }
+        },
+        {
+          "sampler" : 1,
+          "target" : {
+            "node" : 1,
+            "path" : "translation"
+          }
+        },
+        {
+          "sampler" : 2,
+          "target" : {
+            "node" : 1,
+            "path" : "scale"
+          }
+        }
+      ]
+    }
+  ],
+  "buffers" : [
+    {
+      "byteLength" : 260,
+      "uri" : "data:application/octet-stream;base64,AAAAAAAAAD8AAIA/AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAFe/DPl6DbD8AAAAAAAAAAPMENT/zBDU/AAAAAAAAAEAAAAAAAAAAAAAAQEAAAAAAAAAAAAAAgEAAAAAAAACAPwAAgD8AAIA/AACAPwAAAEAAAIA/AACAPwAAQEAAAIA/AACAPwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAAAAAACAPwAAgD8AAAAAAAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAADAAAAAAAAAgD8="
+    }
+  ],
+  "bufferViews" : [
+    {
+      "buffer" : 0,
+      "byteOffset" : 0,
+      "byteLength" : 12
+    },
+    {
+      "buffer" : 0,
+      "byteOffset" : 12,
+      "byteLength" : 48
+    },
+    {
+      "buffer" : 0,
+      "byteOffset" : 60,
+      "byteLength" : 36
+    },
+    {
+      "buffer" : 0,
+      "byteOffset" : 96,
+      "byteLength" : 36
+    },
+    {
+      "buffer" : 0,
+      "byteOffset" : 132,
+      "byteLength" : 128
+    }
+  ],
+  "accessors" : [
+    {
+      "bufferView" : 0,
+      "componentType" : 5126,
+      "count" : 3,
+      "type" : "SCALAR",
+      "min" : [
+        0.0
+      ],
+      "max" : [
+        1.0
+      ]
+    },
+    {
+      "bufferView" : 1,
+      "componentType" : 5126,
+      "count" : 3,
+      "type" : "VEC4"
+    },
+    {
+      "bufferView" : 2,
+      "componentType" : 5126,
+      "count" : 3,
+      "type" : "VEC3"
+    },
+    {
+      "bufferView" : 3,
+      "componentType" : 5126,
+      "count" : 3,
+      "type" : "VEC3"
+    },
+    {
+      "bufferView" : 4,
+      "componentType" : 5126,
+      "count" : 2,
+      "type" : "MAT4"
+    }
+  ]
+}

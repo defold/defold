@@ -1,0 +1,84 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Test liboqs integration
+permissions:
+  contents: read
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  oqs_basic_build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # x86
+          - system: ubuntu-latest
+            name: Haswell
+            # ubuntu-latest has AVX512 instructions that are not supported by valgrind
+            # We need to explicitly compile for an older uarch to workaround the valgrind failures
+            # TODO: switch this back to auto once valgrind supports AVX512 well
+            flags: -DOQS_DIST_BUILD=OFF -DOQS_OPT_TARGET=haswell -DCMAKE_BUILD_TYPE=Debug -DOQS_ENABLE_TEST_CONSTANT_TIME=ON
+          - system: ubuntu-latest
+            name: C
+            flags: -DOQS_DIST_BUILD=OFF -DOQS_OPT_TARGET=generic -DCMAKE_BUILD_TYPE=Debug -DOQS_ENABLE_TEST_CONSTANT_TIME=ON
+          # AArch64
+          - system: ubuntu-24.04-arm
+            name: Auto
+            flags: -DOQS_DIST_BUILD=OFF -DOQS_OPT_TARGET=auto -DCMAKE_BUILD_TYPE=Debug -DOQS_ENABLE_TEST_CONSTANT_TIME=ON
+          - system: ubuntu-24.04-arm
+            name: C
+            flags: -DOQS_DIST_BUILD=OFF -DOQS_OPT_TARGET=generic -DCMAKE_BUILD_TYPE=Debug -DOQS_ENABLE_TEST_CONSTANT_TIME=ON
+    name: Build (${{ matrix.name }}, ${{ matrix.system }})
+    runs-on: ${{ matrix.system }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/setup-os
+        with:
+          packages: 'cmake python3-jinja2 python3-tabulate python3-git python3-pytest valgrind'
+      - uses: ./.github/actions/setup-oqs
+        with:
+          # TODO: change to upstream once mldsa-native got merged
+          commit: 'e66470560d396ce32ec8ab0f2c953a7624fd70a8'
+          repository: 'mkannwischer/liboqs'
+      - name: Apply patch
+        run: |
+          cd $LIBOQS_DIR
+          # Adjust commit in importer script
+          sed -i "/name: mldsa-native/,/preserve_folder_structure/s%git_url: .*%git_url: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY%" scripts/copy_from_upstream/copy_from_upstream.yml
+          sed -i "/name: mldsa-native/,/preserve_folder_structure/s/git_branch: .*/git_branch: $GITHUB_SHA/" scripts/copy_from_upstream/copy_from_upstream.yml
+          sed -i "/name: mldsa-native/,/preserve_folder_structure/s/git_commit: .*/git_commit: $GITHUB_SHA/" scripts/copy_from_upstream/copy_from_upstream.yml
+          
+          # TODO: Remove one it has been removed upstream
+          # Remove CT test suppressions
+          echo "" > tests/constant_time/sig/passes/ml_dsa
+          echo "" > tests/constant_time/sig/passes/ml_dsa-avx2
+          
+          # Temporarily remove oldpqclean because of build failures in its SHA3 assembly
+          yq e -i 'del(.kems[] | select(.name == "kyber"))' scripts/copy_from_upstream/copy_from_upstream.yml
+          yq e -i 'del(.sigs[] | select(.name == "dilithium"))' scripts/copy_from_upstream/copy_from_upstream.yml
+          git diff >> $GITHUB_STEP_SUMMARY;
+      - name: Configure
+        run: |
+          cd $LIBOQS_DIR
+          git config --global user.name "pqcp_ci"
+          git config --global user.email "ci@pqcp.org"
+          git config --global --add safe.directory "$LIBOQS_DIR"
+      - name: Import mldsa-native
+        run: |
+          cd $LIBOQS_DIR/scripts/copy_from_upstream
+          ./copy_from_upstream.py copy
+      - name: Build libOQS
+        run: |
+          cd $LIBOQS_DIR
+          mkdir build
+          cd build
+          cmake ${{ matrix.flags }} ..
+          make -j$(nproc)
+      - name: Run ML-DSA test
+        run: |
+          cd $LIBOQS_DIR
+          python3 -m pytest -k ML-DSA

@@ -163,6 +163,10 @@ namespace dmPlatform
 
     static WindowResult OpenWindowOpenGL(dmWindow* wnd, const WindowCreateParams& params)
     {
+#if defined(DM_PLATFORM_IOS)
+        glfwSetViewType(GLFW_OPENGL_API);
+#endif
+
         if (params.m_HighDPI)
         {
             glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
@@ -251,6 +255,10 @@ namespace dmPlatform
 
     static WindowResult OpenWindowNoAPI(dmWindow* wnd, const WindowCreateParams& params)
     {
+#if defined(DM_PLATFORM_IOS)
+        glfwSetViewType(GLFW_NO_API);
+#endif
+
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);
 
@@ -287,6 +295,7 @@ namespace dmPlatform
                 break;
             case WINDOW_GRAPHICS_API_WEBGPU:
             case WINDOW_GRAPHICS_API_VULKAN:
+            case WINDOW_GRAPHICS_API_METAL:
                 res = OpenWindowNoAPI(window, params);
                 break;
             default: assert(0);
@@ -630,6 +639,18 @@ namespace dmPlatform
         char* device_name;
         glfwGetJoystickDeviceId(joystick_index, &device_name);
         return (const char*) device_name;
+    }
+
+    const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
+    {
+#if defined(__EMSCRIPTEN__) || defined(ANDROID)
+        char* device_guid = 0;
+        if (glfwGetJoystickDeviceGuid(joystick_index, &device_guid)) // Defold addition
+        {
+            return (const char*) device_guid;
+        }
+#endif
+        return 0; // unsupported
     }
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)

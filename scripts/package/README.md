@@ -105,6 +105,8 @@ Run the script
 
 	./scripts/package/package_win32_sdk.sh
 
+The script uses the system-installed `vswhere.exe` from the Visual Studio Installer to locate the active MSVC toolchain and Windows 10 SDK.
+
 ## HTML5
 
 The installation of the HTML5 compiler is done by calling the build function `install_ems`:

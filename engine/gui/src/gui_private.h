@@ -133,12 +133,14 @@ namespace dmGui
         void*                   m_Material;
         void*                   m_RenderConstants;
         void*                   m_CustomData;
+        CustomPropertyDesc*     m_CustomProperties;
         void*                   m_ParticlefxPrototype;
         dmParticle::HInstance   m_ParticleInstance;
         dmVMath::Vector4*       m_ResetPointProperties;
         uint32_t                m_ResetPointState;
         uint32_t                m_RenderConstantsHash;
         uint32_t                m_CustomType; // Only valid if m_NodeType == NODE_TYPE_CUSTOM
+        uint8_t                 m_CustomPropertyCount;
 
         uint32_t                m_PerimeterVertices : 31;
         uint32_t                m_HasResetPoint : 1;
@@ -170,6 +172,7 @@ namespace dmGui
         };
 
         const char*             m_Text;
+        TextLayout              m_TextLayout;
         void**                  m_NodeDescTable;
         TextureSetAnimDesc      m_TextureSetAnimDesc;
         float                   m_FlipbookAnimPosition;
@@ -233,7 +236,7 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
+        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height, uint32_t image_type)
         : m_TextureSource(texture_source)
         , m_TextureSourceType(texture_source_type)
         , m_ImageType(image_type)
@@ -243,7 +246,7 @@ namespace dmGui
 
         HTextureSource  m_TextureSource;
         NodeTextureType m_TextureSourceType;
-        dmImage::Type   m_ImageType;
+        uint32_t        m_ImageType;
         uint32_t        m_OriginalWidth : 16;
         uint32_t        m_OriginalHeight : 16;
     };

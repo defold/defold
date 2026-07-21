@@ -1,5 +1,6 @@
 /.metadata
 /tmp
+/.defold-platforms
 .DS_Store
 .lock-wscript
 .lock-waf*
@@ -76,9 +77,10 @@ editor/.lsp/sqlite.db
 #build bob
 /com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.interp
 /com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.tokens
-/com.dynamo.cr/com.dynamo.cr.bob/libexec/**/lipo*
+/com.dynamo.cr/com.dynamo.cr.bob/libexec/
 /com.dynamo.cr/com.dynamo.cr.bob/lib/**/OpenAL*
 /com.dynamo.cr/com.dynamo.cr.bob/lib/**/wrap_oal*
+/com.dynamo.cr/com.dynamo.cr.bob/lib/vkquality.jar
 /com.dynamo.cr/out/
 /com.dynamo.cr/com.dynamo.cr.bob.test/test/proj/build/
 /com.dynamo.cr/test_resources/

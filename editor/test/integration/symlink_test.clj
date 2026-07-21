@@ -40,14 +40,12 @@
                         :project-directory-path project-directory-path}))
        (str \/ relative-path)))))
 
-(defn path->resource
+(defn- path->resource
   ([workspace path]
-   (g/with-auto-evaluation-context evaluation-context
-     (path->resource workspace path evaluation-context)))
-  ([workspace path evaluation-context]
-   (let [basis (:basis evaluation-context)
-         proj-path (path->proj-path basis workspace path)]
-     (or (workspace/find-resource workspace proj-path evaluation-context)
+   (path->resource (g/now) workspace path))
+  ([basis workspace path]
+   (let [proj-path (path->proj-path basis workspace path)]
+     (or (workspace/find-resource basis workspace proj-path)
          (throw (ex-info "The path does not refer to a resource in the workspace."
                          {:path path}))))))
 

@@ -19,26 +19,37 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.matchers.JUnitMatchers.hasItem;
 
+import java.io.File;
 import java.io.IOException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
@@ -181,7 +192,7 @@ public class JBobTest {
     }
 
     List<TaskResult> build() throws IOException, CompileExceptionError, MultipleCompileException {
-        return project.build(new NullProgress(), "build");
+        return project.build(Progress.discarding(), "build");
     }
 
     @After
@@ -193,6 +204,41 @@ public class JBobTest {
     public void testFilePackageScan() throws Exception {
         Set<String> classes = new ClassLoaderScanner().scan("com.dynamo.bob.test");
         assertThat(classes, hasItem("com.dynamo.bob.test.JBobTest"));
+    }
+
+    @Test
+    public void testJarPackageScanSkipsMissingJars() throws Exception {
+        Path validJarPath = createJarWithClass("bob-valid-classpath", "com/example/plugin/Valid.class");
+        Path missingJarPath = Files.createTempFile("bob-missing-classpath", ".jar");
+        Files.delete(missingJarPath);
+        ClassLoader classLoader = new ClassLoader(this.getClass().getClassLoader()) {
+            @Override
+            public java.util.Enumeration<URL> getResources(String name) throws IOException {
+                return Collections.enumeration(Arrays.asList(
+                        new URL("jar:" + validJarPath.toUri().toURL() + "!/" + name),
+                        new URL("jar:" + missingJarPath.toUri().toURL() + "!/" + name)));
+            }
+        };
+
+        try {
+            Set<String> classes = ClassLoaderScanner.scanClassLoader(classLoader, "com.example.plugin");
+            assertThat(classes, hasItem("com.example.plugin.Valid"));
+        } finally {
+            Files.deleteIfExists(validJarPath);
+            Files.deleteIfExists(missingJarPath);
+        }
+    }
+
+    private static Path createJarWithClass(String prefix, String classPath) throws IOException {
+        Path jarPath = Files.createTempFile(prefix, ".jar");
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(jarPath))) {
+            zip.putNextEntry(new ZipEntry(classPath.substring(0, classPath.lastIndexOf('/') + 1)));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry(classPath));
+            zip.write(0);
+            zip.closeEntry();
+        }
+        return jarPath;
     }
 
     @Test
@@ -223,6 +269,81 @@ public class JBobTest {
         IResource testOut = fileSystem.get(ResourceUtil.minifyPath("/root/test.out")).output();
         assertThat(testOut.exists(), is(true));
         assertThat(new String(testOut.getContent()), is("test data"));
+    }
+
+    @Test
+    public void testExtractRejectsZipSlipEntries() throws Exception {
+        Path zipPath = Files.createTempFile("bob-extract-test", ".zip");
+        Path targetDir = Files.createTempDirectory("bob-extract-test");
+        Path outsideFile = targetDir.resolveSibling("escaped.txt");
+        try {
+            try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(zipPath))) {
+                zip.putNextEntry(new ZipEntry("../escaped.txt"));
+                zip.write("escaped".getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+
+            try {
+                Bob.extractToFolder(zipPath.toUri().toURL(), targetDir.toFile());
+                fail("Expected IOException");
+            } catch (IOException exception) {
+                assertTrue(exception.getMessage(), exception.getMessage().contains("resolves outside"));
+            }
+            assertFalse(Files.exists(outsideFile));
+        } finally {
+            Files.deleteIfExists(zipPath);
+            Files.deleteIfExists(outsideFile);
+            FileUtils.deleteDirectory(targetDir.toFile());
+        }
+    }
+
+    @Test
+    public void testAtomicExtractDirectoryExtractsCompleteDirectory() throws Exception {
+        Path zipPath = Files.createTempFile("bob-atomic-extract-test", ".zip");
+        Path targetDir = Files.createTempDirectory("bob-atomic-extract-test");
+        try {
+            try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(zipPath))) {
+                zip.putNextEntry(new ZipEntry("luajit/jit/bcsave.lua"));
+                zip.write("jit module".getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+
+            Bob.atomicExtractDirectory(zipPath.toUri().toURL(), targetDir.toFile(), "luajit");
+
+            assertTrue(Files.isRegularFile(targetDir.resolve("luajit/jit/bcsave.lua")));
+            File[] tmpFolders = targetDir.toFile().listFiles((dir, name) -> name.startsWith(".luajit_"));
+            assertTrue(tmpFolders == null || tmpFolders.length == 0);
+        } finally {
+            Files.deleteIfExists(zipPath);
+            FileUtils.deleteDirectory(targetDir.toFile());
+        }
+    }
+
+    @Test
+    public void testAtomicExtractDirectoryCleansTempFolderOnFailure() throws Exception {
+        Path zipPath = Files.createTempFile("bob-atomic-extract-test", ".zip");
+        Path targetDir = Files.createTempDirectory("bob-atomic-extract-test");
+        try {
+            try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(zipPath))) {
+                zip.putNextEntry(new ZipEntry("other/file.txt"));
+                zip.write("data".getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+
+            try {
+                Bob.atomicExtractDirectory(zipPath.toUri().toURL(), targetDir.toFile(), "luajit");
+                fail("Expected IOException");
+            } catch (IOException exception) {
+                assertTrue(exception.getMessage(), exception.getMessage().contains("did not contain directory"));
+            }
+
+            assertFalse(Files.exists(targetDir.resolve("luajit")));
+            File[] tmpFolders = targetDir.toFile().listFiles((dir, name) -> name.startsWith(".luajit_"));
+            assertTrue(tmpFolders == null || tmpFolders.length == 0);
+        } finally {
+            Files.deleteIfExists(zipPath);
+            FileUtils.deleteDirectory(targetDir.toFile());
+        }
     }
 
     @Test

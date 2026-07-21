@@ -1,11 +1,11 @@
 script: "/gui/valid.gui_script"
 fonts {
   name: "test_font"
-  font: "/font/valid_font.font"
+  font: "/gui/font_valid_font.font"
 }
 textures {
   name: "test_texture"
-  texture: "/texture/valid_png.png"
+  texture: "/gui/texture_valid_png.png"
 }
 nodes {
   position {
@@ -42,5 +42,11 @@ nodes {
   blend_mode: BLEND_MODE_ALPHA
   texture: "test_texture"
   font: "test_font"
+  id: "custom_props"
+  custom_properties {
+    id: "test_custom_string"
+    type: TYPE_STRING
+    string: "component"
+  }
 }
 material: "/gui/gui.material"

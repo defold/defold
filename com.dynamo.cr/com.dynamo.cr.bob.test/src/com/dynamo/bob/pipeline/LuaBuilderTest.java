@@ -62,6 +62,8 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("go.property(\"vec4\", vmath.vector4(4, 5, 6, 7))\n");
         src.append("go.property(\"quat\", vmath.quat(8, 9, 10, 11))\n");
         src.append("go.property(\"bool\", true)\n");
+        src.append("go.property(\"text\", \"hello\")\n");
+        src.append("go.property(\"long_text\", [[\nhello\nworld]])\n");
         src.append("go.property(\"material\", resource.material(\"/material.material\"))\n");
         src.append("\n");
         src.append("    go.property(  \"space_number\"  ,  1   )\n");
@@ -81,6 +83,8 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
         PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
         PropertiesTestUtil.assertBoolean(properties, true, 0);
+        PropertiesTestUtil.assertText(properties, "hello", 0);
+        PropertiesTestUtil.assertText(properties, "hello\nworld", 1);
         assertEquals(ResourceUtil.minifyPath("/material.materialc"), luaModule.getPropertyResources(0));
 
         // Verify that .x, .y, .z and .w exists as sub element ids for Vec3, Vec4 and Quat.
@@ -104,16 +108,36 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testPropUnsupportedType() throws Exception {
+    public void testPropString() throws Exception {
         StringBuilder src = new StringBuilder();
         src.append("\n");
         src.append("go.property(\"string\", \"\")\n");
-        try {
-            @SuppressWarnings("unused")
-            LuaModule luaModule = (LuaModule)build("/test.script", src.toString()).get(0);
-            assertTrue(false);
-        } catch (CompileExceptionError e) {
-            assertEquals(2, e.getLineNumber());
+
+        LuaModule luaModule = getMessage(build("/test.script", src.toString()), LuaModule.class);
+        PropertiesTestUtil.assertText(luaModule.getProperties(), "", 0);
+    }
+
+    @Test
+    public void testGoPropertyOnlyAllowedInScriptFiles() throws Exception {
+        String source = "go.property(\"number\", 1)";
+        String resourceSource = "go.property(\"material\", resource.material(\"/missing.material\"))";
+        String invalidArgsSource = "go.property()";
+        String invalidValueSource = "go.property(\"value\", \"string\")";
+        String invalidLocationSource = "function init() go.property(\"number\", 1) end";
+
+        LuaModule luaModule = getMessage(build("/test.script", source), LuaModule.class);
+        assertEquals(1, luaModule.getProperties().getNumberEntriesCount());
+
+        for (String path : new String[]{"/test.lua", "/test.gui_script", "/test.render_script"}) {
+            for (String invalidSource : new String[]{source, resourceSource, invalidArgsSource, invalidValueSource, invalidLocationSource}) {
+                try {
+                    build(path, invalidSource);
+                    fail("Expected go.property rejection for " + path);
+                } catch (CompileExceptionError e) {
+                    assertEquals("go.property cannot be used in this file type", e.getMessage());
+                    assertEquals(1, e.getLineNumber());
+                }
+            }
         }
     }
 
@@ -137,7 +161,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testCompressedLuaSourceForHTML5() throws Exception {
         Project p = getProject();
-        p.setOption("platform", "js-web");
+        p.setOption("platform", "wasm-web");
 
         final String path = "/test.script";
         final String scriptSource = "function foo() print('foo') end";
@@ -157,7 +181,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     // @Test
     // public void testVanillaLuaBytecode() throws Exception {
     //     Project p = GetProject();
-    //     p.setOption("platform", "js-web");
+    //     p.setOption("platform", "wasm-web");
 
     //     StringBuilder src = new StringBuilder();
     //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
@@ -171,7 +195,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
     // @Test
     // public void testVanillaLuaBytecodeChunkname() throws Exception {
     //     Project p = GetProject();
-    //     p.setOption("platform", "js-web");
+    //     p.setOption("platform", "wasm-web");
 
     //     StringBuilder src = new StringBuilder();
     //     LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);

@@ -1,27 +1,25 @@
 #! /usr/bin/env python
 
-import os
-from BuildUtility import create_build_utility
+import waflib.Options
+from cross_build import find_feature_files
 
 def options(opt):
-    pass
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    pass
+    conf.load('waf_dynamo')
 
 def build(bld):
-    build_util = create_build_utility(bld.env)
-
-    source_dirs = []
-
-    for platform in [build_util.get_target_os(), 'common']:
-        d = platform
-        if os.path.exists(os.path.join('src', platform)):
-            source_dirs.extend(['%s/*.cpp' % platform])
+    source_files = bld.path.ant_glob(['common/*.cpp'])
+    platform_source_files, _ = find_feature_files(bld, 'testmain', bld.env.PLATFORM, required = False)
+    source_files += platform_source_files
 
     b = bld.stlib(features     = 'c cxx',
-                  includes     = '. ..',
-                  source       = bld.path.ant_glob(source_dirs),
+                  includes     = ['.', '..'],
+                  source       = source_files,
                   target       = 'testmain')
 
     bld.install_files('${PREFIX}/include/testmain', 'common/testmain.h')
+
+    if not waflib.Options.options.skip_build_tests:
+        bld.recurse('test')

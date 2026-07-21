@@ -23,6 +23,11 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
 
+// Winuser.h defines MAX_TOUCH_COUNT to 256, which clashes with dmHID::MAX_TOUCH_COUNT.
+#ifdef MAX_TOUCH_COUNT
+#undef MAX_TOUCH_COUNT
+#endif
+
 /*# Game object functions
  *
  * API for manipulating game objects
@@ -32,6 +37,13 @@
  * @namespace dmGameObject
  * @language C++
  */
+
+/*# Game object extension context name
+ * Name used when registering the game object context with the engine context registry.
+ * @constant
+ * @name GAMEOBJECT_CONTEXT_NAME
+ */
+#define GAMEOBJECT_CONTEXT_NAME "register"
 
 namespace dmMessage
 {
@@ -210,6 +222,8 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_TYPE_VECTOR4
      * @member dmGameObject::PROPERTY_TYPE_QUAT
      * @member dmGameObject::PROPERTY_TYPE_BOOLEAN
+     * @member dmGameObject::PROPERTY_TYPE_MATRIX4
+     * @member dmGameObject::PROPERTY_TYPE_TEXT
      * @member dmGameObject::PROPERTY_TYPE_COUNT
      */
     enum PropertyType
@@ -223,6 +237,7 @@ namespace dmGameObject
         PROPERTY_TYPE_QUAT = 5,
         PROPERTY_TYPE_BOOLEAN = 6,
         PROPERTY_TYPE_MATRIX4 = 7,
+        PROPERTY_TYPE_TEXT = 8,
         PROPERTY_TYPE_COUNT
     };
 
@@ -338,6 +353,7 @@ namespace dmGameObject
      * @member m_Url [type:const uin8_t*] An URL value (union)
      * @member m_V4 [type:float] A vector4 value (union)
      * @member m_Bool [type:bool] A boolean value (union)
+     * @member m_Text [type:const char*] A borrowed text value (union). The caller owns the pointed-to memory.
      */
     struct PropertyVar
     {
@@ -351,6 +367,7 @@ namespace dmGameObject
         PropertyVar(dmVMath::Quat v);
         PropertyVar(dmVMath::Matrix4 v);
         PropertyVar(bool v);
+        PropertyVar(const char* v);
 
         PropertyType m_Type;
         union
@@ -362,6 +379,7 @@ namespace dmGameObject
             float m_V4[4];
             float m_M4[16];
             bool m_Bool;
+            const char* m_Text;
         };
     };
 
@@ -433,6 +451,13 @@ namespace dmGameObject
     {
         InputAction();
 
+        union {
+            dmHID::Touch         m_Touch[dmHID::MAX_TOUCH_COUNT];
+            char                 m_Text[dmHID::MAX_CHAR_COUNT];  /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
+            dmHID::GamepadPacket m_GamepadPacket;
+        };
+        dmHID::GamepadGuid   m_GamepadGuid; // Valid when m_GamepadConnected == 1
+
         /// Action id, hashed action name
         dmhash_t m_ActionId;
         /// Value of the input [0,1]
@@ -459,36 +484,32 @@ namespace dmGameObject
         float m_AccY;
         /// Accelerometer z value (if present)
         float m_AccZ;
-        /// Touch data
-        dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
-        /// Number of m_Touch
-        int32_t  m_TouchCount;
-        /// Contains text input if m_HasText, and gamepad name if m_GamepadConnected
-        char     m_Text[dmHID::MAX_CHAR_COUNT];
-        uint32_t m_TextCount;
-        uint32_t m_GamepadIndex;
-        uint32_t m_UserID;
-        dmHID::GamepadPacket m_GamepadPacket;
 
-        uint8_t  m_IsGamepad : 1;
-        uint8_t  m_GamepadUnknown : 1;
-        uint8_t  m_GamepadDisconnected : 1;
-        uint8_t  m_GamepadConnected : 1;
-        uint8_t  m_HasGamepadPacket : 1;
+        /// Text or touch count
+        int16_t m_Count;
+        uint16_t m_GamepadIndex;
+        uint16_t m_UserID;
+
+        uint16_t  m_IsGamepad : 1;
+        uint16_t  m_GamepadUnknown : 1;
+        uint16_t  m_GamepadDisconnected : 1;
+        uint16_t  m_GamepadConnected : 1;
+        uint16_t  m_HasGamepadPacket : 1;
         /// If input has a text payload (can be true even if text count is 0)
-        uint8_t  m_HasText : 1;
+        uint16_t  m_HasText : 1;
         /// If the input was 0 last update
-        uint8_t  m_Pressed : 1;
+        uint16_t  m_Pressed : 1;
         /// If the input turned from above 0 to 0 this update
-        uint8_t  m_Released : 1;
+        uint16_t  m_Released : 1;
         /// If the input was held enough for the value to be repeated this update
-        uint8_t  m_Repeated : 1;
+        uint16_t  m_Repeated : 1;
         /// If the position fields (m_X, m_Y, m_DX, m_DY) were set and valid to read
-        uint8_t  m_PositionSet : 1;
+        uint16_t  m_PositionSet : 1;
         /// If the accelerometer fields (m_AccX, m_AccY, m_AccZ) were set and valid to read
-        uint8_t  m_AccelerationSet : 1;
+        uint16_t  m_AccelerationSet : 1;
         /// If the input action was consumed in an event dispatch
-        uint8_t  m_Consumed : 1;
+        uint16_t  m_Consumed : 1;
+        uint16_t  : 4;
     };
 
     /*#
@@ -598,6 +619,15 @@ namespace dmGameObject
      */
     dmhash_t GetIdentifier(HInstance instance);
 
+    /*# Get instance generation
+     * Get instance generation counter.
+     * The generation changes whenever a new game object instance is allocated, even if it later reuses the same identifier.
+     * @name GetGeneration
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:uint32_t] Generation counter for the instance.
+     */
+    uint32_t GetGeneration(HInstance instance);
+
     /*#
      * Set instance identifier. Must be unique within the collection.
      * @name SetIdentifier
@@ -704,8 +734,8 @@ namespace dmGameObject
      * Set gameobject instance x and y scale
      * @name SetScaleXY
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @param scale_x New x scale
-     * @param scale_y New y scale
+     * @param scale_x [type: float] New x scale
+     * @param scale_y [type: float] New y scale
      */
     void SetScaleXY(HInstance instance, float scale_x, float scale_y);
 
@@ -985,7 +1015,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a hash property on a component.
      * @name SetPropertyFromHash
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmhash_t] Value of the property
@@ -996,7 +1026,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a float property on a component.
      * @name SetPropertyFromHash
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:float] Value of the property
@@ -1007,7 +1037,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a vector3 property on a component.
      * @name SetPropertyFromVector3
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::vector3] Value of the property
@@ -1018,7 +1048,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a vector4 property on a component.
      * @name SetPropertyFromVector4
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::Vector4] Value of the property
@@ -1029,7 +1059,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a quaternion property on a component.
      * @name SetPropertyFromQuat
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::Quat] Value of the property
@@ -1040,7 +1070,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a boolean property on a component.
      * @name SetPropertyFromBool
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:bool] Value of the property
@@ -1051,7 +1081,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a URL property on a component.
      * @name SetPropertyFromURL
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmMessage::URL] Value of the property
@@ -1062,7 +1092,7 @@ namespace dmGameObject
     /*#
      * Sets the value of a matrix4 property on a component.
      * @name SetPropertyFromMatrix4
-     * @param instance Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::Matrix4] Value of the property

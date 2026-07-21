@@ -26,6 +26,7 @@
             [editor.gl.vertex :as vtx]
             [editor.grid :as grid]
             [editor.handler :as handler]
+            [editor.mouse-binding :as mouse-binding]
             [editor.properties :as properties]
             [editor.rulers :as rulers]
             [editor.scene :as scene]
@@ -51,6 +52,19 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
+
+(mouse-binding/register!
+  ::curve-view-camera
+  "Curve Editor"
+  [{:command :scene.camera.pan
+    :action ["Pan"]}
+   {:command :scene.camera.zoom
+    :action ["Zoom"]}
+   {:command :curve-view.add-control-point
+    :action ["Add Control Point"]}
+   {:command :curve-view.delete-control-point
+    :action ["Delete Control Point"]}]
+  {:inherited-context :editor.camera/scene-camera-orthographic})
 
 ; Line shader
 
@@ -258,26 +272,44 @@
       (g/set-property controller :handle nil)
       (g/set-property controller :initial-evaluation-context nil))))
 
-(defn handle-input [self action _user-data]
+(defn handle-input [self _input-state action _user-data]
   (let [^Point3d start (g/node-value self :start)
         op-seq (g/node-value self :op-seq)
         handle (g/node-value self :handle)
         sub-selection (g/node-value self :sub-selection)
+        mouse-binding-command (when (= :mouse-pressed (:type action))
+                                (mouse-binding/command-for-action ::curve-view-camera
+                                                                  (assoc action :type :press)))
         ^Point3d cursor-pos (:world-pos action)]
     (case (:type action)
       :mouse-pressed (let [handled? (when-let [[handle data] (g/node-value self :curve-handle)]
-                                      (if (and (= 2 (:click-count action))
-                                               (or (= handle :control-point) (= handle :curve)))
+                                      (if-let [edit-command (cond
+                                                              (and (= handle :control-point)
+                                                                   (= mouse-binding-command :curve-view.delete-control-point))
+                                                              :curve-view.delete-control-point
+
+                                                              (and (= handle :curve)
+                                                                   (= mouse-binding-command :curve-view.add-control-point))
+                                                              :curve-view.add-control-point
+
+                                                              (and (= 2 (:click-count action))
+                                                                   (= handle :control-point))
+                                                              :curve-view.delete-control-point
+
+                                                              (and (= 2 (:click-count action))
+                                                                   (= handle :curve))
+                                                              :curve-view.add-control-point)]
                                         (do
                                           (g/transact
                                             (concat
                                               (g/operation-sequence op-seq)
-                                              (case handle
-                                                :control-point
+                                              (case edit-command
+                                                :curve-view.delete-control-point
                                                 (let [[nid property id] data]
-                                                  (g/update-property nid property types/geom-delete [id]))
+                                                  [(g/update-property nid property types/geom-delete [id])
+                                                   (g/set-property self :handle :curve-click)])
 
-                                                :curve
+                                                :curve-view.add-control-point
                                                 (let [[nid property ^Point3d p] data
                                                       p [(.x p) (.y p) (.z p)]
                                                       new-curve (-> (g/node-value nid property)
@@ -285,12 +317,12 @@
                                                       id (iv/iv-added-id (:points new-curve))
                                                       select-fn (g/node-value self :select-fn)]
                                                   (select-fn [[nid property id]] op-seq)
-                                                  (g/set-property nid property new-curve)))))
-                                          (reset-controller! self op-seq)
+                                                  [(g/set-property nid property new-curve)
+                                                   (g/set-property self :handle :curve-click)]))))
                                           true)
                                         (when (or (= handle :control-point) (= handle :tangent))
                                           (let [op-seq (gensym)
-                                                sel-mods? (some #(get action %) selection/toggle-modifiers)]
+                                                sel-mods? (some (:modifiers action) selection/toggle-modifiers)]
                                             (when (not sel-mods?)
                                               (when (and (= handle :control-point)
                                                          (not (contains? (set sub-selection) data)))
@@ -353,6 +385,9 @@
                      action)
       action)))
 
+(defn- handle-input-fnk [a b c d]
+  (handle-input a b c d))
+
 (g/defnode CurveController
   (property handle g/Keyword)
   (property handle-data g/Any)
@@ -364,6 +399,7 @@
   (input sub-selection g/Any)
   (input curve-handle g/Any)
   (output input-handler Runnable :cached (g/constantly handle-input))
+  (output preview-overrides g/Any (g/constantly nil))
   (output info-text g/Str (g/constantly nil)))
 
 (defn- pick-control-points [visible-curves picking-rect camera viewport]
@@ -404,25 +440,26 @@
           visible-curves)))
 
 (defn- pick-closest-curve [visible-curves ^Rect picking-rect camera viewport]
-  (let [p (let [p (camera/camera-unproject camera viewport (.x picking-rect) (.y picking-rect) 0.0)]
+  (let [picking-rect-point ^Point3d (types/Rect->Point3d picking-rect)
+        p (let [p (camera/camera-unproject camera viewport picking-rect-point)]
             (Point3d. (.x p) (.y p) 0.0))
         min-distance Double/MAX_VALUE
         curve (second
-                (reduce (fn [[min-dist closest-curve] {:keys [node-id property curve]}]
+                (reduce (fn [[^double min-dist closest-curve] {:keys [node-id property curve]}]
                           (let [s (-> (mapv second curve)
                                       (properties/->spline))
                                 cp (properties/spline-cp s (.x p))
                                 [x y] cp
                                 closest (Point3d. x y 0.0)
-                                dist (.distanceSquared p closest)]
+                                dist ^double (.distanceSquared p closest)]
                             (if (< dist min-dist)
                               [dist [node-id property closest]]
                               [min-dist closest-curve])))
                         [min-distance nil] visible-curves))
         [_ _ ^Point3d closest] curve
-        screen-p (and closest (camera/camera-project camera viewport closest))]
-    (when (and screen-p (< (.distanceSquared screen-p (Point3d. (.x picking-rect) (.y picking-rect) 0.0))
-                           (* selection/min-pick-size selection/min-pick-size)))
+        screen-p ^Point3d (and closest (camera/camera-project camera viewport closest))]
+    (when (and screen-p (< (.distanceSquared screen-p picking-rect-point)
+                           (* ^long selection/min-pick-size ^long selection/min-pick-size)))
       curve)))
 
 (g/defnk produce-picking-selection [visible-curves picking-rect camera viewport]
@@ -480,7 +517,7 @@
   (inherits scene/SceneRenderer)
 
   (property image-view ImageView)
-  (property viewport Region (default (types/->Region 0 0 0 0)))
+  (property viewport Region (default (Region. 0 0 0 0)))
   (property play-mode g/Keyword)
   (property drawable GLAutoDrawable)
   (property picking-drawable GLAutoDrawable)
@@ -489,13 +526,14 @@
   (property tool-picking-rect Rect)
   (property list ListView)
   (property hidden-curves g/Any)
-  (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
 
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
   (input background-id g/NodeID :cascade-delete)
   (input input-handlers Runnable :array)
+  ;; NOTE: Part of an interface SceneView calls during update-image-view!
+  (input update-tick-handlers Runnable :array)
   (input selected-node-properties g/Any)
   (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array)
@@ -514,6 +552,7 @@
   (output cp-renderables g/Any :cached produce-cp-renderables)
   (output picking-selection g/Any :cached produce-picking-selection)
   (output selected-tool-renderables g/Any :cached (g/fnk [] {}))
+  (output mouse-binding-context g/Keyword (g/constantly ::curve-view-camera))
   (output sub-selection-map g/Any :cached (g/fnk [sub-selection]
                                             (sub-selection->map sub-selection)))
   (output aabb AABB :cached produce-aabb)
@@ -569,7 +608,7 @@
             viewport (g/node-value view :viewport)
             local-cam (g/node-value camera :local-camera)
             end-camera (camera/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
-        (scene/set-camera! camera local-cam end-camera animate?)))))
+        (camera/set-camera! camera local-cam end-camera animate?)))))
 
 (defn- camera-filter-fn [camera]
   (let [^Point3d p (:position camera)
@@ -633,16 +672,18 @@
                                                       controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       background background/Background
-                                                      camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))]
+                                                      camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))
+                                                                                      :movements-enabled #{:dolly :track}]
                                                       grid CurveGrid
                                                       rulers [rulers/Rulers]]
-                                   (g/update-property camera :movements-enabled disj :tumble) ; TODO - pass in to constructor
 
                                    (g/connect camera :_node-id view-id :camera-id)
                                    (g/connect grid :_node-id view-id :grid-id)
+                                   (g/connect camera :local-camera view-id :local-camera)
                                    (g/connect camera :camera view-id :camera)
                                    (g/connect camera :camera grid :camera)
                                    (g/connect camera :input-handler view-id :input-handlers)
+                                   (g/connect camera :update-tick-handler view-id :update-tick-handlers)
                                    (g/connect view-id :viewport camera :viewport)
                                    (g/connect grid :renderable view-id :aux-renderables)
                                    (g/connect background :_node-id view-id :background-id)
@@ -678,7 +719,7 @@
                               (localization (properties/label (:property %)))
                               ""))
                selected-callback (reify Callback
-                                   (call ^ObservableValue [this item]
+                                   (call [this item]
                                      (let [hidden-curves (g/node-value node-id :hidden-curves)]
                                        (doto (SimpleBooleanProperty. (not (contains? hidden-curves (:keyword item))))
                                          (ui/observe (fn [observable old new]
@@ -698,7 +739,7 @@
                    (let [this ^CheckBoxListCell this]
                      (proxy-super updateItem item empty)
                      (when (and item (not empty))
-                       (let [[r g b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
+                       (let [[^double r ^double g ^double b] (colors/hsl->rgb (:hue item) (:saturation item) 0.75)]
                          (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b))))))))))))))
      node-id)))
 

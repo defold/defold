@@ -95,6 +95,7 @@ static const char* getenv(const char*) {
 static const int g_MaxListeners = 32;
 static FLogListener g_Listeners[g_MaxListeners];
 static int32_atomic_t g_ListenersCount;
+static int32_atomic_t g_PendingLogCount;
 
 static inline bool IsServerInitialized()
 {
@@ -295,34 +296,42 @@ static android_LogPriority ToAndroidPriority(LogSeverity severity)
 }
 #endif
 
-static void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
+#if !defined(_WIN32) && !defined(_GAMING_XBOX)
+void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
 {
 #ifdef ANDROID
-        __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
+    __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
 
 // iOS
 #elif TARGET_OS_IOS==1
-        dmLog::__ios_log_print(severity, output);
+    dmLog::__ios_log_print(severity, output);
 #endif
 
 #ifdef __EMSCRIPTEN__
 
-        //Emscripten maps stderr to console.error and stdout to console.log.
-        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
-            EM_ASM_({
-                Module.printErr(UTF8ToString($0));
-            }, output);
-        } else {
-            EM_ASM_({
-                Module.print(UTF8ToString($0));
-            }, output);
-        }
-#elif defined(_GAMING_XBOX)
-    OutputDebugStringA(output);
+    //Emscripten maps stderr to console.error and stdout to console.log.
+    if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
+    {
+        EM_ASM_({
+            Module.printErr(UTF8ToString($0));
+        }, output);
+    } else {
+        EM_ASM_({
+            Module.print(UTF8ToString($0));
+        }, output);
+    }
 #elif !defined(ANDROID)
+    if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
+    {
         fwrite(output, 1, output_len, stderr);
+    }
+    else
+    {
+        fwrite(output, 1, output_len, stdout);
+    }
 #endif
 }
+#endif
 
 // Here we put logging that needs to be thread safe
 // We either push it on the logger thread, or from the main thread if threads aren't supported (e.g. html5)
@@ -359,7 +368,7 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
     {
         DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
         if (!dmLog::IsServerInitialized())
-            return; // The log system may have been shut down in between
+            goto done; // The log system may have been shut down in between
         n = (int) server->m_Connections.Size();
     }
 
@@ -370,7 +379,7 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
         {
             DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
             if (!dmLog::IsServerInitialized())
-                return; // The log system may have been shut down in between
+                goto done; // The log system may have been shut down in between
             c = &server->m_Connections[i];
             socket = c->m_Socket;
         }
@@ -397,7 +406,7 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
                 {
                     DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
                     if (!dmLog::IsServerInitialized())
-                        return; // The log system may have been shut down in between
+                        goto done; // The log system may have been shut down in between
                     c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                     server->m_Connections.EraseSwap(i);
                 }
@@ -408,6 +417,9 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
             }
         } while (total_sent < msg_len);
     }
+
+done:
+    dmAtomicSub32(&dmLog::g_PendingLogCount, 1);
 }
 
 static void dmLogThread(void* args)
@@ -477,6 +489,7 @@ void LogInitialize(const LogParams* params)
     dmAtomicStore32(&g_LogServerInitialized, 1);
 
     dmAtomicStore32(&g_ListenersCount, 0);
+    dmAtomicStore32(&g_PendingLogCount, 0);
     dmSpinlock::Create(&g_ListenerLock);
 
     /*
@@ -574,29 +587,12 @@ bool SetLogFile(const char* path)
     return true;
 }
 
-#if defined(_WIN32)
-
-bool HResultToString(HRESULT hr, char* buffer, size_t buffer_size)
+uint32_t GetPendingLogCount()
 {
-    buffer[0] = 0;
-    return 0 != FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
-                    NULL, hr,
-                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-                    (LPSTR) buffer, buffer_size,
-                    NULL);
+    int32_t count = dmAtomicGet32(&g_PendingLogCount);
+    assert(count >= 0);
+    return (uint32_t)count;
 }
-
-void LogHResult(LogSeverity severity, HRESULT result, const char* str_buf)
-{
-    char msg[256];
-    char buffer[1024];
-    dmLog::HResultToString(result, msg, sizeof(msg));
-    dmSnPrintf(buffer, sizeof(buffer), "%s (hr: 0x%08x code: %d : '%s')\n", str_buf, result, HRESULT_CODE(result), msg);
-    dmLogError(buffer);
-    OutputDebugStringA(buffer);
-}
-#endif
-
 
 } //namespace dmLog
 
@@ -650,6 +646,9 @@ namespace dmLog {
     void RegisterLogListener(FLogListener listener)     { dmLogRegisterListener(listener); }
     void UnregisterLogListener(FLogListener listener)   { dmLogUnregisterListener(listener); }
     void Setlevel(LogSeverity severity)                 { dmLogSetLevel(severity); }
+#if !defined(_WIN32) && !defined(_GAMING_XBOX)
+    void CloseConsoleWindow()                           {}
+#endif
 }
 
 
@@ -762,6 +761,11 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
         receiver.m_Socket = server->m_MessageSocket;
         receiver.m_Path = 0;
         receiver.m_Fragment = 0;
-        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLog::LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
+        dmAtomicAdd32(&dmLog::g_PendingLogCount, 1);
+        dmMessage::Result result = dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLog::LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
+        if (result != dmMessage::RESULT_OK)
+        {
+            dmAtomicSub32(&dmLog::g_PendingLogCount, 1);
+        }
     }
 }

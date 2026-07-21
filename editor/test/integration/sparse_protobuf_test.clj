@@ -27,9 +27,10 @@
             [internal.util :as util]
             [support.test-support :as test-support]
             [util.coll :as coll :refer [pair]])
-  (:import [clojure.lang IHashEq ILookup Util]
+  (:import [clojure.lang ExceptionInfo IHashEq ILookup Util]
+           [com.defold.editor.test TestDdf$MappedMessage TestDdf$JsonValue]
            [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
-           [com.dynamo.gamesys.proto GameSystem$FactoryDesc Gui$NodeDesc ModelProto$ModelDesc Physics$CollisionObjectDesc]
+           [com.dynamo.gamesys.proto DataProto$Data GameSystem$FactoryDesc Gui$NodeDesc ModelProto$ModelDesc Physics$CollisionObjectDesc]
            [java.io File Writer]))
 
 (set! *warn-on-reflection* true)
@@ -132,6 +133,21 @@
         is-required (required? pb-field-value)]
     (pair value is-required)))
 
+(defn- unwrap-required-root [value]
+  (if-not (required? value)
+    value
+    (.-value ^Required value)))
+
+(defn- pb-field-value-map [pb-field-value]
+  (let [value (unwrap-required-root pb-field-value)]
+    (when (map? value)
+      value)))
+
+(defn- pb-field-value-list [pb-field-value]
+  (let [value (unwrap-required-root pb-field-value)]
+    (when (sequential? value)
+      value)))
+
 (defrecord ^:private Exactly [value])
 
 (defmethod print-method Exactly [^Exactly exactly, ^Writer writer]
@@ -176,6 +192,11 @@
         {:name "attribute_name"
          :double-values (required {:v 0.0})}
 
+        light-color
+        {:list (exactly {:values [{:number 1.0}
+                                  {:number 1.0}
+                                  {:number 1.0}]})}
+
         embedded-component-data
         (protobuf/map->str
           GameSystem$FactoryDesc
@@ -191,7 +212,12 @@
                                   :type "factory"
                                   :data embedded-component-data}]})]
 
-    {"atlas"
+    {"ambient_light"
+     {:data {:struct {:fields
+                      {"intensity" {:number 1.0}
+                       "color" light-color}}}}
+
+     "atlas"
      {:images {:image image-proj-path}
       :animations {:id "animation_id"
                    :images {:image image-proj-path}}}
@@ -220,6 +246,11 @@
       :right image-proj-path
       :top image-proj-path}
 
+     "directional_light"
+     {:data {:struct {:fields
+                      {"intensity" {:number 1.0}
+                       "color" light-color}}}}
+
      "font"
      {:font "/builtins/fonts/vera_mo_bd.ttf"
       :material "/builtins/fonts/font.material"
@@ -234,10 +265,12 @@
                             :data embedded-component-data}}
 
      "gui"
-     {:nodes {:id (required "node_id")}
+     {:nodes {:id (required "node_id")
+              :custom-properties (exactly nil)}
       :layouts {:name "layout_name"
                 :nodes {:id (required "node_id")
                         :alpha (required 0.5)
+                        :custom-properties (exactly nil)
                         :overridden-fields (required Gui$NodeDesc/ALPHA_FIELD_NUMBER)}}
       :layers {:name "layer_name"}
       :fonts {:name "font_name"
@@ -267,10 +300,27 @@
                              :texture image-proj-path}
                   :attributes vertex-attribute}}
 
+     "oneof_nested_unspecified"
+     {:array {:elements [{}]}}
+
      "particlefx"
      {:emitters {:modifiers {:properties (required {:points {:y 0.0}})}
                  :attributes vertex-attribute}
       :modifiers {:properties (required {:points (required {:y 0.0})})}}
+
+     "point_light"
+     {:data {:struct {:fields
+                      {"intensity" {:number 1.0}
+                       "color" light-color
+                       "range" {:number 10.0}}}}}
+
+     "spot_light"
+     {:data {:struct {:fields
+                      {"intensity" {:number 1.0}
+                       "color" light-color
+                       "range" {:number 10.0}
+                       "inner_cone_angle" {:number 0.0}
+                       "outer_cone_angle" {:number 45.0}}}}}
 
      "sprite"
      {:attributes vertex-attribute
@@ -303,49 +353,129 @@
   (and (ifn? (:load-fn resource-type))
        (class? (resource-type->pb-class resource-type))))
 
-(defn- sparse-pb-map [^Class pb-class pb-path ^long depth-limit]
+(declare sparse-pb-map-impl)
+
+(defn- sparse-pb-message-value [field-info pb-path pb-field-value ^long depth-limit]
+  (sparse-pb-map-impl (:value-class field-info) pb-path pb-field-value (dec depth-limit)))
+
+(defn- sparse-pb-scalar-value [required-field-defaults field-key field-info specific-value]
+  (cond
+    (some? specific-value)
+    specific-value
+
+    (= :pb-field-kind/required (:field-kind field-info))
+    (required-field-defaults field-key)))
+
+(defn- sparse-pb-list-field-value [required-field-defaults field-key field-info pb-path pb-field-value specific-value is-required depth-limit]
+  (if-some [entry-pb-field-values (pb-field-value-list pb-field-value)]
+    (if (and (not is-required)
+             (< (long depth-limit) 2))
+      []
+      (coll/into-> entry-pb-field-values []
+        (keep-indexed
+          (fn [index entry-pb-field-value]
+            (let [[entry-specific-value _] (unwrap-pb-field-value entry-pb-field-value)
+                  entry-path (conj pb-path index)]
+              (if (not= :message (:value-type-kw field-info))
+                entry-specific-value
+                (sparse-pb-message-value field-info entry-path entry-pb-field-value depth-limit)))))))
+    (let [value (if (not= :message (:value-type-kw field-info))
+                  (sparse-pb-scalar-value required-field-defaults field-key field-info specific-value)
+                  (sparse-pb-message-value field-info pb-path pb-field-value depth-limit))]
+      (when (some? value)
+        [value]))))
+
+(defn- sparse-pb-map-field-value [field-info pb-path pb-field-value specific-value is-required depth-limit]
+  (if-some [entry-pb-field-values (pb-field-value-map pb-field-value)]
+    (if (and (not is-required)
+             (< (long depth-limit) 2))
+      {}
+      (coll/into-> entry-pb-field-values {}
+        (keep
+          (fn [[key entry-pb-field-value]]
+            (let [[entry-specific-value _] (unwrap-pb-field-value entry-pb-field-value)
+                  entry-path (conj pb-path key)
+                  entry-value (if (not= :message (:value-type-kw field-info))
+                                entry-specific-value
+                                (sparse-pb-message-value field-info entry-path entry-pb-field-value depth-limit))]
+              (when (some? entry-value)
+                (pair key entry-value)))))))
+    (let [key (protobuf/field-type-default (:key-type-kw field-info))
+          value (if (not= :message (:value-type-kw field-info))
+                  specific-value
+                  (sparse-pb-message-value field-info pb-path pb-field-value depth-limit))]
+      (when (some? value)
+        {key value}))))
+
+(defn- sparse-pb-map-impl [^Class pb-class pb-path pb-field-value ^long depth-limit]
   (let [required-field-defaults (protobuf/required-field-defaults pb-class)
-        field-infos (protobuf/field-infos pb-class)]
+        field-infos (protobuf/field-infos pb-class)
+        field-values (pb-field-value-map pb-field-value)
+
+        oneof-field-keys
+        (coll/into-> field-infos #{}
+          (keep
+            (fn [[field-key field-info]]
+              (when (:is-oneof-field field-info)
+                field-key))))
+
+        specific-oneof-field-keys
+        (coll/into-> field-values #{}
+          (keep
+            (fn [[field-key]]
+              (let [field-info (get field-infos field-key)]
+                (when (:is-oneof-field field-info)
+                  field-key)))))]
+
+    (when (and (not (coll/empty? oneof-field-keys))
+               (coll/empty? specific-oneof-field-keys))
+      (throw
+        (ex-info
+          (format "No oneof field type specified in pb-field-values for %s at %s."
+                  (.getName pb-class)
+                  (pr-str pb-path))
+          {:field-values field-values
+           :oneof-field-keys oneof-field-keys
+           :pb-class pb-class
+           :pb-path pb-path})))
+
     (coll/into-> field-infos {}
       (keep
         (fn [[field-key field-info]]
-          (let [pb-path (conj pb-path field-key)
-                field-kind (:field-kind field-info)
+          (when (or (not (:is-oneof-field field-info))
+                    (coll/empty? specific-oneof-field-keys)
+                    (contains? specific-oneof-field-keys field-key))
+            (let [pb-path (conj pb-path field-key)
+                  field-kind (:field-kind field-info)
+                  field-pb-value (get field-values field-key)
+                  [specific-value is-required] (unwrap-pb-field-value field-pb-value)
 
-                [specific-value is-required]
-                (unwrap-pb-field-value (get-in pb-field-values pb-path))
-
-                value
-                (cond
-                  (exactly? specific-value)
-                  (unwrap-exactly specific-value)
-
-                  (or is-required
-                      (= :pb-field-kind/required field-kind)
-                      (and (pos? depth-limit)
-                           (not (:runtime-only (:options field-info)))))
+                  value
                   (cond
-                    (= :message (:value-type-kw field-info))
-                    (sparse-pb-map (:value-class field-info) pb-path (dec depth-limit))
+                    (exactly? specific-value)
+                    (unwrap-exactly specific-value)
 
-                    (some? specific-value)
-                    specific-value
-
-                    (= :pb-field-kind/required field-kind)
-                    (required-field-defaults field-key)))]
-
-            (when (some? value)
-              (pair field-key
+                    (or is-required
+                        (= :pb-field-kind/required field-kind)
+                        (and (pos? depth-limit)
+                             (not (:runtime-only (:options field-info)))))
                     (case field-kind
-                      (:pb-field-kind/list)
-                      [value]
+                      :pb-field-kind/map
+                      (sparse-pb-map-field-value field-info pb-path field-pb-value specific-value is-required depth-limit)
 
-                      (:pb-field-kind/map)
-                      (let [key (protobuf/field-type-default (:key-type-kw field-info))]
-                        {key value})
+                      :pb-field-kind/list
+                      (sparse-pb-list-field-value required-field-defaults field-key field-info pb-path field-pb-value specific-value is-required depth-limit)
 
                       (:pb-field-kind/optional :pb-field-kind/required)
-                      value)))))))))
+                      (if (not= :message (:value-type-kw field-info))
+                        (sparse-pb-scalar-value required-field-defaults field-key field-info specific-value)
+                        (sparse-pb-message-value field-info pb-path field-pb-value depth-limit))))]
+
+              (when (some? value)
+                (pair field-key value)))))))))
+
+(defn- sparse-pb-map [^Class pb-class pb-path ^long depth-limit]
+  (sparse-pb-map-impl pb-class pb-path (get-in pb-field-values pb-path) depth-limit))
 
 (defn- sparse-protobuf-content-by-proj-path [workspace]
   (into (sorted-map)
@@ -392,6 +522,26 @@
     (test-support/spit-until-new-mtime absolute-file content)))
 
 (deftest sparse-pb-map-meta-test
+  (testing "map"
+    ;; Note: Map fields are modeled as repeated fields of key-value pairs. Just
+    ;; like list fields, the field will not be present unless there are entries.
+    (is (= {}
+           (sparse-pb-map TestDdf$MappedMessage ["map"] 0)))
+    (is (= {:string-to-message {"" {:uint-value 0}}}
+           (sparse-pb-map TestDdf$MappedMessage ["map"] 1))))
+
+  (testing "oneof_unspecified"
+    (is (thrown-with-msg?
+          ExceptionInfo
+          #"No oneof field type specified in pb-field-values.*\[\"oneof_unspecified\"\]"
+          (sparse-pb-map TestDdf$JsonValue ["oneof_unspecified"] 0))))
+
+  (testing "oneof_nested_unspecified"
+    (is (thrown-with-msg?
+          ExceptionInfo
+          #"No oneof field type specified in pb-field-values.*\[\"oneof_nested_unspecified\" :array :elements 0\]"
+          (sparse-pb-map TestDdf$JsonValue ["oneof_nested_unspecified"] 3))))
+
   (testing "go"
     (is (= {}
            (sparse-pb-map GameObject$PrototypeDesc ["go"] 0)))
@@ -479,14 +629,14 @@
             :mass 0.0
             :friction 0.0
             :restitution 0.0}
-           (sparse-pb-map Physics$CollisionObjectDesc ["collisionbobject"] 0)))
+           (sparse-pb-map Physics$CollisionObjectDesc ["collisionobject"] 0)))
     (is (= {:type :collision-object-type-dynamic
             :group ""
             :mass 0.0
             :friction 0.0
             :restitution 0.0
             :embedded-collision-shape {}}
-           (sparse-pb-map Physics$CollisionObjectDesc ["collisionbobject"] 1)))
+           (sparse-pb-map Physics$CollisionObjectDesc ["collisionobject"] 1)))
     (is (= {:type :collision-object-type-dynamic
             :group ""
             :mass 0.0
@@ -514,7 +664,25 @@
                                      :texture "/builtins/graphics/particle_blob.png"}]
                          :attributes [{:name "attribute_name"
                                        :double-values {:v [0.0]}}]}]}
-           (sparse-pb-map ModelProto$ModelDesc ["model"] 2)))))
+           (sparse-pb-map ModelProto$ModelDesc ["model"] 2))))
+
+  (testing "spot_light"
+    (is (= {}
+           (sparse-pb-map DataProto$Data ["spot_light"] 0)))
+    (is (= {:data {}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 1)))
+    (is (= {:data {:struct {}}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 2)))
+    (is (= {:data {:struct {:fields {}}}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 3)))
+    (is (= {:data {:struct {:fields {"intensity" {:number 1.0}
+                                     "range" {:number 10.0}
+                                     "inner_cone_angle" {:number 0.0}
+                                     "outer_cone_angle" {:number 45.0}
+                                     "color" {:list {:values [{:number 1.0}
+                                                              {:number 1.0}
+                                                              {:number 1.0}]}}}}}}
+           (sparse-pb-map DataProto$Data ["spot_light"] 4)))))
 
 (defn- write-save-value! [workspace ^String proj-path save-value]
   (let [resource (workspace/file-resource workspace proj-path)

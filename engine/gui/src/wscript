@@ -9,11 +9,13 @@ def build(bld):
     resource = bld.stlib(features = 'cxx ddf',
                          includes = '.',
                          source = 'gui.cpp gui_script.cpp',
+                         uselib = 'LUA',
                          target = 'gui')
 
     resource = bld.stlib(features = 'cxx ddf',
                          includes = '.',
                          source = 'gui_null.cpp',
+                         uselib = 'LUA',
                          target = 'gui_null')
 
     if not waflib.Options.options.skip_build_tests:

@@ -115,9 +115,6 @@ case $CONF_TARGET in
 		# If used, it will build via command line, although with the /GL flag which we don't support when using lld-link
 		#PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
 		;;
-	js-web)
-		CONFIGURE_WRAPPER="ARFLAGS=crs $EMSCRIPTEN/emconfigure"
-		;;
 esac
 
 download

@@ -77,10 +77,10 @@
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
 
-(g/defnk produce-build-targets [_node-id save-value resource shader-source-info compute-program]
+(g/defnk produce-build-targets [_node-id save-value resource shader-source-info compute-program glsl-es-default-precision-float glsl-es-default-precision-int]
   (or (g/flatten-errors
         (prop-resource-error _node-id :compute-program compute-program compute-program-message "cp"))
-      (let [compute-shader-build-target (shader-compilation/make-shader-build-target _node-id [shader-source-info] 0 true)
+      (let [compute-shader-build-target (shader-compilation/make-shader-build-target _node-id [shader-source-info] 0 true glsl-es-default-precision-float glsl-es-default-precision-int)
             dep-build-targets [compute-shader-build-target]
             compute-desc-with-build-resources (assoc save-value
                                                 :compute-program (:resource compute-shader-build-target)
@@ -110,6 +110,8 @@
 
   (input program-resource resource/Resource)
   (input shader-source-info g/Any)
+  (input glsl-es-default-precision-float g/Any)
+  (input glsl-es-default-precision-int g/Any)
 
   (output form-data g/Any :cached produce-form-data)
   (output save-value g/Any :cached produce-save-value)
@@ -120,13 +122,17 @@
   {:pre [(map? compute-desc)]} ; Compute$ComputeDesc in map format.
   (protobuf/sanitize-repeated compute-desc :constants render-program-utils/sanitize-constant))
 
-(defn load-compute [_project self resource compute-desc]
+(defn load-compute [project self resource compute-desc]
   {:pre [(map? compute-desc)]} ; Compute$ComputeDesc in map format.
-  (let [resolve-resource #(workspace/resolve-resource resource %)]
-    (gu/set-properties-from-pb-map self Compute$ComputeDesc compute-desc
-      compute-program (resolve-resource :compute-program)
-      constants (render-program-utils/constants->editable-constants :constants)
-      samplers (render-program-utils/samplers->editable-samplers :samplers))))
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)]
+    (concat
+      (g/connect project :glsl-es-default-precision-float self :glsl-es-default-precision-float)
+      (g/connect project :glsl-es-default-precision-int self :glsl-es-default-precision-int)
+      (gu/set-properties-from-pb-map self Compute$ComputeDesc compute-desc
+        compute-program (resolve-resource :compute-program)
+        constants (render-program-utils/constants->editable-constants :constants)
+        samplers (render-program-utils/samplers->editable-samplers :samplers)))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

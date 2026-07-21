@@ -6,3 +6,5 @@
 * Remove all but the `package/harfbuzz-<version>/src` folder
 
 * We maintain a `./config-override.h` file, in order to support SkriBidi text layout.
+
+    * `cp ./config-override.h package/harfbuzz-<version>`

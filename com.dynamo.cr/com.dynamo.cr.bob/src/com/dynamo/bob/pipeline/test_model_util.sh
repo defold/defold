@@ -24,9 +24,6 @@ set -e
 MODEL_PATH=$1
 
 CLASS_NAME=ModelUtil
-case $MODEL_PATH in *.dae|*.DAE)
-    CLASS_NAME=ColladaUtil;;
-esac
 
 DEFOLD_HOME=$DYNAMO_HOME/../..
 MODELC_BUILD_DIR=${DEFOLD_HOME}/engine/modelc/build/src

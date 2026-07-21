@@ -29,6 +29,13 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/align.h> // DM_ALIGNED
 
+/*# Resource factory extension context name
+ * Name used when registering the resource factory with the engine context registry.
+ * @constant
+ * @name RESOURCE_FACTORY_CONTEXT_NAME
+ */
+#define RESOURCE_FACTORY_CONTEXT_NAME "factory"
+
 /*#
 * Resource factory handle. Holds references to all currently loaded resources.
 * @name HResourceFactory
@@ -162,7 +169,7 @@ void ResourceUnregisterReloadedCallback(HResourceFactory factory, FResourceReloa
 /*#
  * Encrypts a resource in-place
  * @typedef
- * @name FResourceDecrypt
+ * @name FResourceDecryption
  * @param buffer [type: void*] The input/output buffer
  * @param buffer_len [type: uint32_t] The size of the buffer (in bytes)
  * @return RESULT_OK on success
@@ -248,7 +255,7 @@ ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void**
 
 /*#
  * Get resource descriptor from resource (name)
- * @name GetDescriptor
+ * @name ResourceGetDescriptor
  * @param factory [type: HResourceFactory] Factory handle
  * @param path [type: dmhash_t] Resource path
  * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor. Temporary, don't copy.
@@ -258,7 +265,7 @@ ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path,
 
 /*#
  * Get resource descriptor from resource (name)
- * @name GetDescriptorByHash
+ * @name ResourceGetDescriptorByHash
  * @param factory [type: HResourceFactory] Factory handle
  * @param path_hash [type: dmhash_t] Resource path hash
  * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor. Temporary, don't copy.

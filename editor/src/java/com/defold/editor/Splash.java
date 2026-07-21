@@ -136,7 +136,7 @@ public class Splash {
             hasVersion = false;
         }
         channelName = (channelName == null || channelName.isEmpty()) ? "No channel" : channelName;
-        channelName = channelName.equals("editor-alpha") ? "" : "   •   " + channelName;
+        channelName = "   •   " + channelName;
         sha1 = (sha1 == null || sha1.isEmpty()) ? "no sha1" : sha1;
         if (sha1.length() > 7) {
             sha1 = sha1.substring(0, 7);

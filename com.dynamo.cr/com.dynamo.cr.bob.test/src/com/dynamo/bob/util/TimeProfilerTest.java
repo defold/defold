@@ -15,7 +15,7 @@
 package com.dynamo.bob.util;
 
 import com.dynamo.bob.Bob;
-import com.dynamo.bob.ConsoleProgress;
+import com.dynamo.bob.Progress;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Test;
 
@@ -39,7 +39,7 @@ public class TimeProfilerTest {
         assertEquals(0, Files.size(jsonReport));
         assertEquals(0, Files.size(htmlReport));
 
-        var result = Bob.invoke(null, new ConsoleProgress(), null, new String[]{
+        var result = Bob.invoke(null, Progress.console(), null, new String[]{
                 "--root", cwd + "/test/time_profiler_project",
                 "--build-report-json", jsonReport.toString(),
                 "--build-report-html", htmlReport.toString(),
@@ -72,13 +72,13 @@ public class TimeProfilerTest {
         var jsonReport2 = Files.createTempFile("time-profiler-test", "report.json");
         assertEquals(0, Files.size(jsonReport1));
         assertEquals(0, Files.size(jsonReport2));
-        var result1 = Bob.invoke(null, new ConsoleProgress(), null, new String[]{
+        var result1 = Bob.invoke(null, Progress.console(), null, new String[]{
                 "--root", cwd + "/test/time_profiler_project",
                 "--build-report-json", jsonReport1.toString(),
                 "distclean", "resolve", "build"
         });
         assertTrue(result1.success);
-        var result2 = Bob.invoke(null, new ConsoleProgress(), null, new String[]{
+        var result2 = Bob.invoke(null, Progress.console(), null, new String[]{
                 "--root", cwd + "/test/time_profiler_project",
                 "--build-report-json", jsonReport2.toString(),
                 "distclean", "resolve", "build"

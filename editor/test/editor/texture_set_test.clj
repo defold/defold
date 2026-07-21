@@ -24,11 +24,11 @@
    0.0 1.0 0.0
    0.0 0.0 1.0])
 
-;; Expected transform for tex-coords tl=(0.1,0.2) tr=(0.5,0.2) bl=(0.1,0.8): maps unit square to that quad.
+;; Expected transform for atlas sub-rect with Bob order BL,TL,TR,BR matching those UVs (engine column-major mat3).
 (def ^:private expected-transform-for-atlas-sub-rect
   [0.4 0.0 0.0
-   0.0 0.6 0.0
-   0.1 0.2 1.0])
+   0.0 -0.6 0.0
+   0.1 0.8 1.0])
 
 (defn- vec= [a b]
   (and (= (count a) (count b))
@@ -41,11 +41,18 @@
 
 ;; Tex-coords for a sub-region of atlas (not unit square) -> non-identity transform.
 (deftest vertex-data-texture-transform-frame-test
-  (let [tex-coords [(vector-of :double 0.1 0.2)   ; tl
-                    (vector-of :double 0.5 0.2)   ; tr
-                    (vector-of :double 0.5 0.8)   ; br
-                    (vector-of :double 0.1 0.8)] ; bl
+  (let [;; Preview UV order: uvnw, uvsw, uvse, uvne (see frame-vertex-data)
+        tex-coords [(vector-of :double 0.1 0.2)
+                    (vector-of :double 0.1 0.8)
+                    (vector-of :double 0.5 0.8)
+                    (vector-of :double 0.5 0.2)]
+        tex-coords-raw [(vector-of :double 0.1 0.8)
+                        (vector-of :double 0.1 0.2)
+                        (vector-of :double 0.5 0.2)
+                        (vector-of :double 0.5 0.8)]
         animation-frame {:tex-coords tex-coords
+                         :tex-coords-raw tex-coords-raw
+                         :atlas-rotated false
                          :width 40.0
                          :height 60.0
                          :page-index 0}
@@ -53,15 +60,21 @@
     (is (:texture-transform out))
     (is (= 9 (count (:texture-transform out))))
     (is (vec= expected-transform-for-atlas-sub-rect (vec (:texture-transform out)))
-        "Frame texture transform must map unit square to atlas quad (tl,tr,bl).")))
+        "Frame texture transform matches engine (unflipped Bob corners).")))
 
 ;; Slice-9 path must use frame tex-coords for transform, not identity.
 (deftest vertex-data-texture-transform-slice9-test
-  (let [tex-coords [(vector-of :double 0.1 0.2)   ; tl
-                    (vector-of :double 0.5 0.2)   ; tr
-                    (vector-of :double 0.5 0.8)   ; br
-                    (vector-of :double 0.1 0.8)] ; bl
+  (let [tex-coords [(vector-of :double 0.1 0.2)
+                    (vector-of :double 0.1 0.8)
+                    (vector-of :double 0.5 0.8)
+                    (vector-of :double 0.5 0.2)]
+        tex-coords-raw [(vector-of :double 0.1 0.8)
+                        (vector-of :double 0.1 0.2)
+                        (vector-of :double 0.5 0.2)
+                        (vector-of :double 0.5 0.8)]
         animation-frame {:tex-coords tex-coords
+                         :tex-coords-raw tex-coords-raw
+                         :atlas-rotated false
                          :width 40.0
                          :height 60.0
                          :page-index 0}
@@ -75,20 +88,31 @@
 
 ;; Geometry path (trimmed/custom mesh): use-geometries frame still uses tex-coords for texture transform.
 (deftest vertex-data-texture-transform-geometry-test
-  (let [tex-coords [(vector-of :double 0.1 0.2)   ; tl
-                    (vector-of :double 0.5 0.2)   ; tr
-                    (vector-of :double 0.5 0.8)   ; br
-                    (vector-of :double 0.1 0.8)] ; bl
+  (let [tex-coords [(vector-of :double 0.1 0.2)
+                    (vector-of :double 0.1 0.8)
+                    (vector-of :double 0.5 0.8)
+                    (vector-of :double 0.5 0.2)]
+        tex-coords-raw [(vector-of :double 0.1 0.8)
+                        (vector-of :double 0.1 0.2)
+                        (vector-of :double 0.5 0.2)
+                        (vector-of :double 0.5 0.8)]
         ;; Quad as two triangles: normalized positions and matching UVs.
         vertex-coords [(vector-of :double 0.0 0.0)
                        (vector-of :double 1.0 0.0)
                        (vector-of :double 1.0 1.0)
                        (vector-of :double 0.0 1.0)]
+        ;; Per-vertex UVs in same order as vertex-coords (NW, NE, SE, SW)
+        vertex-tex-coords [(vector-of :double 0.1 0.2)
+                           (vector-of :double 0.5 0.2)
+                           (vector-of :double 0.5 0.8)
+                           (vector-of :double 0.1 0.8)]
         indices [0 1 2 0 2 3]
         animation-frame {:tex-coords tex-coords
+                         :tex-coords-raw tex-coords-raw
+                         :atlas-rotated false
                          :use-geometries true
                          :vertex-coords vertex-coords
-                         :vertex-tex-coords tex-coords
+                         :vertex-tex-coords vertex-tex-coords
                          :indices indices
                          :width 40.0
                          :height 60.0

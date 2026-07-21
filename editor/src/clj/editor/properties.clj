@@ -19,9 +19,9 @@
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.node-util :as node-util]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -35,8 +35,7 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.id-vec :as iv]
-            [util.murmur :as murmur]
-            [util.text-util :as text-util])
+            [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
@@ -305,7 +304,8 @@
                        :property-type-vector3 [:vector3-entries :float-values]
                        :property-type-vector4 [:vector4-entries :float-values]
                        :property-type-quat [:quat-entries :float-values]
-                       :property-type-boolean [:bool-entries :float-values]})
+                       :property-type-boolean [:bool-entries :float-values]
+                       :property-type-text [:text-entries :string-values]})
 
 (def ^:private go-prop-type? (partial contains? type->entry-keys))
 
@@ -327,7 +327,7 @@
 (defn go-props->decls [go-props include-element-ids?]
   (loop [go-props go-props
          decl (->decl [:number-entries :hash-entries :url-entries :vector3-entries
-                       :vector4-entries :quat-entries :bool-entries :float-values
+                       :vector4-entries :quat-entries :bool-entries :text-entries :float-values
                        :hash-values :string-values])]
     (if-some [{:keys [id type clj-value value] :as go-prop} (first go-props)]
       (let [_ (assert (go-prop? go-prop))
@@ -338,12 +338,16 @@
                      :property-type-vector3 clj-value
                      :property-type-vector4 clj-value
                      :property-type-quat (-> clj-value math/euler->quat math/vecmath->clj)
-                     :property-type-boolean [(if clj-value 1.0 0.0)])
+                     :property-type-boolean [(if clj-value 1.0 0.0)]
+                     :property-type-text [value])
             [entry-key values-key] (type->entry-keys type)
             entry {:key id
                    :id (murmur/hash64 id)
                    :index (count (get decl values-key))}
             entry (cond
+                    (= type :property-type-text)
+                    (assoc entry :value-length (alength (.getBytes ^String value java.nio.charset.StandardCharsets/UTF_8)))
+
                     (not include-element-ids?)
                     entry
 
@@ -1211,7 +1215,7 @@
                 (as-> property-transfer property-transfer
                       (merge (sorted-map
                                :source-node-type-kw (g/node-type-kw basis source-node-id)
-                               :source-node-path (gu/node-debug-label-path source-node-id evaluation-context))
+                               :source-node-path (node-util/node-debug-label-path source-node-id evaluation-context))
                              property-transfer)
                       (update property-transfer :targets
                               (fn [property-transfer-targets]
@@ -1221,9 +1225,9 @@
                                                 (g/node-id? target-prop-node-id)]}
                                          (merge (sorted-map
                                                   :target-node-type-kw (g/node-type-kw basis target-node-id)
-                                                  :target-node-path (gu/node-debug-label-path target-node-id evaluation-context)
+                                                  :target-node-path (node-util/node-debug-label-path target-node-id evaluation-context)
                                                   :target-prop-node-type-kw (g/node-type-kw basis target-prop-node-id)
-                                                  :target-prop-node-path (gu/node-debug-label-path target-prop-node-id evaluation-context))
+                                                  :target-prop-node-path (node-util/node-debug-label-path target-prop-node-id evaluation-context))
                                                 property-transfer-target))))))))))))))
 
 (defn transfer-overrides-status
@@ -1288,7 +1292,7 @@
           {"property_count" (count property-transfers)
            "property" (:source-prop-label (first property-transfers))
            "target_count" (count target-node-ids)
-           "target" (or (gu/node-qualifier-label (first target-node-ids) evaluation-context) "undefined")
+           "target" (or (node-util/node-qualifier-label (first target-node-ids) evaluation-context) "undefined")
            "aspect_count" target-aspect-count
            "aspect" (if (= 1 target-aspect-count)
                       (first (first target-aspects))

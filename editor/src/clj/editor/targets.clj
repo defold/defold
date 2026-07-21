@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.targets
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.xml :as xml]
             [editor.console :as console]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
@@ -26,40 +26,49 @@
             [editor.process :as process]
             [editor.ui :as ui]
             [editor.workspace :as workspace])
-  (:import [clojure.lang ExceptionInfo]
-           [com.dynamo.upnp DeviceInfo SSDP SSDP$Logger]
-           [java.io ByteArrayInputStream ByteArrayOutputStream IOException]
-           [java.net InetAddress MalformedURLException NetworkInterface SocketTimeoutException URL URLConnection]
+  (:import [com.dynamo.discovery MDNS MDNS$Logger MDNSServiceInfo]
+           [java.io ByteArrayOutputStream]
+           [java.net InetAddress NetworkInterface URL URLConnection]
            [java.util UUID]))
 
 (set! *warn-on-reflection* true)
 
 (defonce ^:private launched-targets (atom []))
-(defonce ^:private ssdp-targets (atom []))
+(defonce ^:private mdns-targets (atom []))
 ;; We cache the selected target in an atom to avoid garbage from parsing prefs.
-;; Must clear when launched-targets or ssdp-targets change.
+;; Must clear when launched-targets or mdns-targets change.
 (defonce ^:private selected-target-atom (atom ::undefined))
 (defonce ^:private manual-device (atom nil))
 (defonce ^:private last-search (atom 0))
 (defonce ^:private running (atom false))
 (defonce ^:private worker (atom nil))
 (defonce ^:private event-log (atom []))
-(defonce ^:private ssdp-service (atom nil))
-(defonce ^:private defold-upnp-attrs {:xmlns:defold "urn:schemas-defold-com:DEFOLD-1-0", :xmlns "urn:schemas-upnp-org:device-1-0"})
+(defonce ^:private mdns-service (atom nil))
 
 (def ^:const search-interval-disconnected (* 5 1000))
 (def ^:const search-interval-connected (* 30 1000))
 (def ^:const update-interval 1000)
 (def ^:const timeout 200)
+(def ^:const graceful-exit-timeout 500)
 (def ^:const max-log-entries 512)
 
 (defn- clear-selected-target-hint! []
   (reset! selected-target-atom ::undefined))
 
+(defn- destroy-launched-target-process! [^Process process]
+  (when (.isAlive process)
+    (.destroy process)))
+
 (defn kill-launched-target! [target]
   (let [^Process process (:process target)]
     (when (.isAlive process)
-      (.destroy process))))
+      (when-let [_ (:url target)]
+        (try
+          (engine/exit! target 0)
+          (.waitFor process graceful-exit-timeout java.util.concurrent.TimeUnit/MILLISECONDS)
+          (catch Exception _
+            (destroy-launched-target-process! process))))
+      (destroy-launched-target-process! process))))
 
 (defn kill-launched-targets! []
   (doseq [launched-target @launched-targets]
@@ -150,12 +159,8 @@
       (finally
         (.close input)))))
 
-(defn- tag->val [tag tags]
-  (->> tags
-       (filter #(= tag (:tag %)))
-       first
-       :content
-       first))
+(defn- http-get-json [^URL url]
+  (json/read-str (http-get url) :key-fn keyword))
 
 (defn- log [message]
   (swap! event-log (fn [xs]
@@ -168,122 +173,145 @@
   nil)
 
 (def ^:private update-targets-context
-  {:targets-atom ssdp-targets
+  {:targets-atom mdns-targets
    :log-fn log
-   :fetch-url-fn http-get
    :on-targets-changed-fn invalidate-target-menu!})
 
-(defn- device->target [{:keys [fetch-url-fn]} device]
-  ;; The reason we try/throw/catch is so that this function can run through pmap,
-  ;; yet return sensible error messages in case of failure for later logging
-  (try
-    (when-let [location (get-in device [:headers "LOCATION"])]
-      (let [url (try
-                  (URL. location)
-                  (catch MalformedURLException e
-                    (throw (ex-info (format "[%s] not a valid URL: %s" location (.getMessage e)) {} e))))
-            response (try
-                       (fetch-url-fn url)
-                       (catch SocketTimeoutException e
-                         (throw (ex-info (format "[%s] timed out getting XML description: %s" location (.getMessage e)) {} e)))
-                       (catch IOException e
-                         (throw (ex-info (format "[%s] error getting XML description: %s" location (.getMessage e)) {} e))))
-            desc (try
-                   (xml/parse (ByteArrayInputStream. (.getBytes ^String response)))
-                   (catch Exception e
-                     (throw (ex-info (format "[%s] error parsing XML description: %s" location (.getMessage e)) {} e))))]
-        (when (not= (:attrs desc) defold-upnp-attrs)
-          (throw (ex-info (format "[%s] invalid UPNP attributes: %s" location (:attrs desc)) {})))
-        (let [tags (->> desc :content (filter #(= :device (:tag %))) first :content)
-              address (:address device)
-              local-address (:local-address device)
-              name (tag->val :friendlyName tags)
-              url (tag->val :defold:url tags)
-              target {:name name
-                      :url url
-                      :id url
-                      :log-port (tag->val :defold:logPort tags)
-                      :address address
-                      :local-address local-address}]
-          (when (not-any? nil? (vals target))
-            target))))
-    (catch ExceptionInfo e
-      (.getMessage e))))
+(defn- device->target [device]
+  (let [address (:address device)
+        port (:port device)
+        local-address (or (:local-address device) address)
+        name (or (:name device) (:instance-name device) address)
+        port-str (some-> port str)
+        url (when (and (some? address) (some? port-str))
+              (format "http://%s:%s" address port-str))
+        id (or (:id device) (:service-name device) url)]
+    (when (and id name url address local-address)
+      (cond-> {:name name
+               :url url
+               :id id
+               :address address
+               :local-address local-address
+               :port port}
+        (:log-port device)
+        (assoc :log-port (:log-port device))))))
+
+(defn- manual-target-device [ip port local-address info]
+  (let [log-port (some-> (:log_port info) str)]
+    (cond-> {:id (format "manual-%s:%s" ip port)
+             :name (format "%s:%s" ip port)
+             :instance-name ip
+             :address ip
+             :local-address local-address
+             :port (Integer/parseInt port)}
+      log-port
+      (assoc :log-port log-port))))
+
+(defn- manual-target-id? [target]
+  (str/starts-with? (str (:id target)) "manual-"))
+
+(defn- manual-target-id->address-port [target-id]
+  (when-let [[_ address port] (re-matches #"manual-(.+):(\d+)" (str target-id))]
+    {:address address
+     :port (Long/parseLong port)}))
+
+(defn- merge-target [existing incoming]
+  (let [existing-manual? (manual-target-id? existing)
+        incoming-manual? (manual-target-id? incoming)
+        manual-target (cond
+                        existing-manual? existing
+                        incoming-manual? incoming
+                        :else nil)
+        discovered-target (cond
+                            (not existing-manual?) existing
+                            (not incoming-manual?) incoming
+                            :else nil)]
+    (cond-> (merge existing incoming)
+      manual-target
+      (assoc :id (:id manual-target))
+
+      discovered-target
+      (assoc :name (:name discovered-target)))))
+
+(defn- dedupe-targets-by-url [targets]
+  (vals
+    (reduce (fn [targets-by-url target]
+              (update targets-by-url (:url target)
+                      (fn [existing]
+                        (if existing
+                          (merge-target existing target)
+                          target))))
+            (array-map)
+            targets)))
 
 (defn- local-target? [target]
   (or (= (:address target) (:local-address target))
       (launched-target? target)))
 
-(defn update-targets! [{:keys [targets-atom log-fn on-targets-changed-fn] :as context} devices]
+(defn update-targets! [{:keys [targets-atom on-targets-changed-fn]} devices]
   (let [devices (if-let [manual-device @manual-device]
-                  (conj devices manual-device)
+                  (cons manual-device devices)
                   devices)
         old-targets @targets-atom
-        target-by-address (into {} (map (fn [t] [(:address t) t]) old-targets))
-        targets-result (pmap (fn [device] (device->target context device)) devices)
-        targets (->> targets-result
-                  (map (fn [device result]
-                         (if (string? result)
-                           (get target-by-address (:address device))
-                           result))
-                    devices)
-                  (filter some?))
-        errors (filter string? targets-result)
+        targets (->> devices
+                  (pmap device->target)
+                  (filter some?)
+                  (dedupe-targets-by-url))
         {external-targets false local-targets true} (group-by local-target? targets)
         targets (into [] (comp cat (distinct)) [(sort-by :url local-targets)
                                                 (sort-by :url external-targets)])]
-    (doseq [error errors]
-      (log-fn error))
     (reset! targets-atom targets)
     (when (not= targets old-targets)
       (clear-selected-target-hint!)
       (on-targets-changed-fn))))
 
-(defn- search-interval [^SSDP ssdp]
-  (if (.isConnected ssdp)
+(defn- search-interval [^MDNS mdns]
+  (if (.isConnected mdns)
     search-interval-connected
     search-interval-disconnected))
 
-(defn- device->map [^DeviceInfo device]
-  {:address (.address device)
+(defn- device->map [^MDNSServiceInfo device]
+  {:id (.id device)
+   :name (.instanceName device)
+   :service-name (.serviceName device)
+   :host (.host device)
+   :address (.address device)
    :local-address (.localAddress device)
-   :headers (.headers device)
+   :port (.port device)
+   :log-port (.logPort device)
+   :txt (.txt device)
    :expires (.expires device)})
 
-(defn- defold-service? [device]
-  (let [server (get (:headers device) "SERVER" "")]
-    (= server SSDP/SSDP_SERVER_IDENTIFIER)))
-
-(defn- devices [^SSDP ssdp]
-  (filter defold-service? (map device->map (.getDevices ssdp))))
+(defn- devices [^MDNS mdns]
+  (map device->map (.getDevices mdns)))
 
 (defn- targets-worker []
-  (let [ssdp-service' (SSDP. (reify SSDP$Logger
+  (let [mdns-service' (MDNS. (reify MDNS$Logger
                                (log [this msg] (log msg))))]
     (try
-      (if (.setup ssdp-service')
+      (if (.setup mdns-service')
         (do
-          (reset! ssdp-service ssdp-service')
+          (reset! mdns-service mdns-service')
           (while @running
             (Thread/sleep update-interval)
             (let [now      (System/currentTimeMillis)
-                  search?  (>= now (+ @last-search (search-interval ssdp-service')))
-                  changed? (.update ssdp-service' search?)]
+                  search?  (>= now (+ @last-search (search-interval mdns-service')))
+                  changed? (.update mdns-service' search?)]
               (when search?
                 (reset! last-search now))
               (when (or search? changed?)
-                (update-targets! update-targets-context (devices ssdp-service'))))))
+                (update-targets! update-targets-context (devices mdns-service'))))))
         (do
           (reset! running false)))
       (catch Exception e
         (prn e))
       (finally
-        (.dispose ssdp-service')
-        (reset! ssdp-service nil)))))
+        (.dispose mdns-service')
+        (reset! mdns-service nil)))))
 
 (defn- update! []
-  (when-let [^SSDP ss @ssdp-service]
-    (update-targets! update-targets-context (devices ss))))
+  (when-let [^MDNS mdns @mdns-service]
+    (update-targets! update-targets-context (devices mdns))))
 
 (defn start []
   (when (not @running)
@@ -306,15 +334,23 @@
   (start))
 
 (defn all-targets []
-  (concat [{:id :all-launched-targets}] @launched-targets @ssdp-targets))
+  (concat [{:id :all-launched-targets}] @launched-targets @mdns-targets))
 
 (defn selected-target [prefs]
   (swap! selected-target-atom
          (fn [selected-target]
            (if (not= ::undefined selected-target)
              selected-target
-             (let [target-id (prefs/get prefs [:run :selected-target-id])]
-               (find-by-id (all-targets) target-id))))))
+             (let [target-id (prefs/get prefs [:run :selected-target-id])
+                   targets (all-targets)]
+               (or (find-by-id targets target-id)
+                   (when-let [{:keys [address port]} (manual-target-id->address-port target-id)]
+                     (some (fn [target]
+                             (when (and (remote-target? target)
+                                        (= address (:address target))
+                                        (= port (:port target)))
+                               target))
+                           targets))))))))
 
 (defn controllable-target? [target]
   (some? (:url target)))
@@ -335,9 +371,7 @@
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
   (prefs/set! prefs [:run :selected-target-id] (:id target))
-  (let [log-stream (engine/get-log-service-stream target)]
-    (when log-stream
-      (console/set-log-service-stream log-stream)))
+  (console/set-log-service-stream (engine/get-log-service-stream target))
   target)
 
 (defn- url-message
@@ -397,7 +431,7 @@
   (options [user-data]
     (when-not user-data
       (let [launched-options (mapv target-option @launched-targets)
-            ssdp-options (mapv target-option @ssdp-targets)]
+            mdns-options (mapv target-option @mdns-targets)]
         (cond
           (seq launched-options)
           (if (> (count launched-options) 1)
@@ -407,8 +441,8 @@
                     :user-data {:id :all-launched-targets}}]
                   (concat launched-options
                           [separator]
-                          ssdp-options))
-            (into launched-options (concat [separator] ssdp-options)))
+                          mdns-options))
+            (into launched-options (concat [separator] mdns-options)))
 
           :else
           (into [{:label (localization/message "command.run.select-target.option.new-local-engine")
@@ -416,18 +450,18 @@
                   :command :run.select-target
                   :user-data :new-local-engine}
                  separator]
-                ssdp-options))))))
+                mdns-options))))))
 
 (defn- locate-device [ip port]
   (when (not-empty ip)
     (let [port (or port "8001")
           inet-addr (InetAddress/getByName ip)
-          n-ifs (SSDP/getMCastInterfaces)
-          device (when-let [^NetworkInterface n-if (first (filter (fn [^NetworkInterface n-if] (.isReachable inet-addr n-if SSDP/SSDP_MCAST_TTL timeout)) n-ifs))]
-                   (when-let [^InetAddress local-address (first (SSDP/getIPv4Addresses n-if))]
-                     {:address ip
-                      :local-address (.getHostAddress local-address)
-                      :headers {"LOCATION" (format "http://%s:%s/upnp" ip port)}}))]
+          n-ifs (MDNS/getMCastInterfaces)
+          device (when-let [^NetworkInterface n-if (first (filter (fn [^NetworkInterface n-if] (.isReachable inet-addr n-if MDNS/MDNS_MCAST_TTL timeout)) n-ifs))]
+                   (when-let [^InetAddress local-address (first (MDNS/getIPv4Addresses n-if))]
+                     (let [info-url (URL. (format "http://%s:%s/info" ip port))
+                           info (http-get-json info-url)]
+                       (manual-target-device ip port (.getHostAddress local-address) info))))]
       (if device
         device
         (throw (ex-info (format "'%s' could not be reached from this host" ip) {}))))))
@@ -443,7 +477,7 @@
                          (locate-device manual-ip port)
                          (catch Exception e (.getMessage e)))
                 target (when (not (string? device))
-                         (device->target update-targets-context device))
+                         (device->target device))
                 error-msg (or (and (string? target) target)
                               (and (string? device) device))]
             (if error-msg

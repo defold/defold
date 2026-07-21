@@ -175,7 +175,8 @@
 
 (defn- load-animation-set [_project self resource animation-set-desc]
   {:pre [(map? animation-set-desc)]} ; Rig$AnimationSetDesc in map format
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
         animation-instance-descs->animation-resources #(mapv (comp resolve-resource :animation) %)]
     (gu/set-properties-from-pb-map self Rig$AnimationSetDesc animation-set-desc
       animations (animation-instance-descs->animation-resources :animations))))

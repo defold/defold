@@ -40,6 +40,7 @@ namespace dmRender
     /*# auto-fit orthographic zoom mode
      * Computes zoom so the original display area (game.project width/height) fits inside the window
      * while preserving aspect ratio. Equivalent to using min(window_width/width, window_height/height).
+     * The result is multiplied by the user-controlled orthographic zoom.
      *
      * @name camera.ORTHO_MODE_AUTO_FIT
      * @constant
@@ -48,6 +49,7 @@ namespace dmRender
     /*# auto-cover orthographic zoom mode
      * Computes zoom so the original display area covers the entire window while preserving aspect ratio.
      * Equivalent to using max(window_width/width, window_height/height).
+     * The result is multiplied by the user-controlled orthographic zoom.
      *
      * @name camera.ORTHO_MODE_AUTO_COVER
      * @constant
@@ -392,12 +394,31 @@ namespace dmRender
     GET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_pushnumber);
 
     /*# get orthographic zoom
+    * Gets the positive user-controlled orthographic zoom multiplier. In auto-fit and auto-cover
+    * modes, this value is multiplied with camera.get_orthographic_auto_zoom(camera).
     *
     * @name camera.get_orthographic_zoom
     * @param camera [type:url|number|nil] camera id
-    * @return orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
+    * @return orthographic_zoom [type:number] the positive zoom multiplier when the camera uses orthographic projection.
     */
     GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_pushnumber);
+
+    /*# get orthographic auto zoom
+    * Gets the orthographic zoom calculated from the current window and project dimensions
+    * in auto-fit and auto-cover modes. Returns 1.0 in fixed mode.
+    *
+    * @name camera.get_orthographic_auto_zoom
+    * @param camera [type:url|number|nil] camera id
+    * @return orthographic_auto_zoom [type:number] the calculated orthographic auto zoom.
+    */
+    static int RenderScriptCamera_GetOrthographicAutoZoom(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        float auto_zoom = GetRenderCameraOrthographicAutoZoom(g_RenderScriptCameraModule.m_RenderContext, camera->m_Handle);
+        lua_pushnumber(L, auto_zoom);
+        return 1;
+    }
 
     /*# set aspect ratio
     * Sets the manual aspect ratio for the camera. This value is only used when
@@ -435,12 +456,26 @@ namespace dmRender
     SET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_tonumber);
 
     /*# set orthographic zoom
+    * Sets the positive user-controlled orthographic zoom multiplier. In auto-fit and auto-cover
+    * modes, this value is multiplied with camera.get_orthographic_auto_zoom(camera).
     *
     * @name camera.set_orthographic_zoom
     * @param camera [type:url|number|nil] camera id
-    * @param orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
+    * @param orthographic_zoom [type:number] the positive zoom multiplier when the camera uses orthographic projection.
     */
-    SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_tonumber);
+    static int RenderScriptCamera_SetOrthographicZoom(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        float orthographic_zoom = (float) luaL_checknumber(L, 2);
+        if (!(orthographic_zoom > 0.0f))
+        {
+            return luaL_error(L, "Orthographic zoom must be greater than 0.");
+        }
+        camera->m_Data.m_OrthographicZoom = orthographic_zoom;
+        camera->m_Dirty = 1;
+        return 0;
+    }
 
     /*# get orthographic zoom mode
     *
@@ -536,10 +571,11 @@ namespace dmRender
         {"set_far_z",               RenderScriptCamera_SetFarZ},
         {"get_orthographic_zoom",   RenderScriptCamera_GetOrthographicZoom},
         {"set_orthographic_zoom",   RenderScriptCamera_SetOrthographicZoom},
-        {"get_auto_aspect_ratio",   RenderScriptCamera_GetAutoAspectRatio},
-        {"set_auto_aspect_ratio",   RenderScriptCamera_SetAutoAspectRatio},
-        {"get_orthographic_mode",   RenderScriptCamera_GetOrthographicMode},
-        {"set_orthographic_mode",   RenderScriptCamera_SetOrthographicMode},
+        {"get_orthographic_auto_zoom", RenderScriptCamera_GetOrthographicAutoZoom},
+        {"get_auto_aspect_ratio",      RenderScriptCamera_GetAutoAspectRatio},
+        {"set_auto_aspect_ratio",      RenderScriptCamera_SetAutoAspectRatio},
+        {"get_orthographic_mode",      RenderScriptCamera_GetOrthographicMode},
+        {"set_orthographic_mode",      RenderScriptCamera_SetOrthographicMode},
         {0, 0}
     };
 

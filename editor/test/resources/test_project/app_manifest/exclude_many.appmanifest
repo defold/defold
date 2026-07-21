@@ -73,25 +73,17 @@ platforms:
             linkFlags: []
     x86-win32:
         context:
-            excludeLibs: [librecord, vpx, libsound, libtremolo, hid, libliveupdate, libgraphics_transcoder_basisu, libbasis_transcoder, libprofile, libprofilerext, libprofiler_remotery, libprofiler_js]
+            excludeLibs: [librecord, vpx, libsound, libtremolo, hid, libliveupdate, graphics_transcoder_basisu, basis_transcoder, profile, libprofilerext, libprofiler_remotery, libprofiler_js]
             excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [librecord_null.lib, libsound_null.lib, hid_null.lib, libliveupdate_null.lib, libgraphics_transcoder_null.lib, libprofile_null.lib, libprofilerext_null.lib]
+            libs: [librecord_null.lib, libsound_null.lib, hid_null.lib, libliveupdate_null.lib, graphics_transcoder_null.lib, profile_null.lib, libprofilerext_null.lib]
             linkFlags: []
     x86_64-win32:
         context:
-            excludeLibs: [librecord, vpx, libsound, libtremolo, hid, libliveupdate, libgraphics_transcoder_basisu, libbasis_transcoder, libprofile, libprofilerext, libprofiler_remotery, libprofiler_js]
+            excludeLibs: [librecord, vpx, libsound, libtremolo, hid, libliveupdate, graphics_transcoder_basisu, basis_transcoder, profile, libprofilerext, libprofiler_remotery, libprofiler_js]
             excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
             symbols: []
-            libs: [librecord_null.lib, libsound_null.lib, hid_null.lib, libliveupdate_null.lib, libgraphics_transcoder_null.lib, libprofile_null.lib, libprofilerext_null.lib]
-            linkFlags: []
-    js-web:
-        context:
-            excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
-            excludeJsLibs: []
-            excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]
-            symbols: []
-            libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
+            libs: [librecord_null.lib, libsound_null.lib, hid_null.lib, libliveupdate_null.lib, graphics_transcoder_null.lib, profile_null.lib, libprofilerext_null.lib]
             linkFlags: []
     wasm-web:
         context:

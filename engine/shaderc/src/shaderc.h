@@ -130,24 +130,54 @@ namespace dmShaderc
         IMAGE_ACCESS_QUALIFIER_READ_WRITE,
     };
 
+    enum ShaderPrecision
+    {
+        SHADER_PRECISION_MEDIUMP,
+        SHADER_PRECISION_HIGHP,
+    };
+
+    enum ShaderCompilerPlatform
+    {
+        SHADER_COMPILER_PLATFORM_DEFAULT,
+        SHADER_COMPILER_PLATFORM_MACOS,
+        SHADER_COMPILER_PLATFORM_IOS,
+        SHADER_COMPILER_PLATFORM_XBONE,
+    };
+
     struct ShaderCompilerOptions
     {
         ShaderCompilerOptions()
         : m_Version(330)
         , m_EntryPoint("main")
+        , m_GlslEsDefaultFloatPrecision(SHADER_PRECISION_MEDIUMP)
+        , m_GlslEsDefaultIntPrecision(SHADER_PRECISION_HIGHP)
+        , m_TargetPlatform(SHADER_COMPILER_PLATFORM_DEFAULT)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(true)
         , m_GlslEs(false)
+        , m_ExternalCompilerPath(0)
+        , m_ExternalCompilerArgs(0)
+        , m_RootSignatureOverride(0)
         {}
 
-        uint32_t    m_Version;
-        const char* m_EntryPoint;
+        uint32_t        m_Version;
+        const char*     m_EntryPoint;
+        ShaderPrecision m_GlslEsDefaultFloatPrecision;
+        ShaderPrecision m_GlslEsDefaultIntPrecision;
+        ShaderCompilerPlatform m_TargetPlatform;
+        uint8_t         m_RemoveUnusedVariables      : 1;
+        uint8_t         m_No420PackExtension         : 1;
+        uint8_t         m_GlslEmitUboAsPlainUniforms : 1;
+        uint8_t         m_GlslEs                     : 1;
 
-        uint8_t     m_RemoveUnusedVariables      : 1;
-        uint8_t     m_No420PackExtension         : 1;
-        uint8_t     m_GlslEmitUboAsPlainUniforms : 1;
-        uint8_t     m_GlslEs                     : 1;
+        // Optional external compiler invocation driven from Java.
+        // If both fields are set, shaderc will invoke this tool for final blob generation.
+        const char* m_ExternalCompilerPath;
+        const char* m_ExternalCompilerArgs;
+
+        // Optional HLSL [RootSignature("...")] override injected by shaderc.
+        const char* m_RootSignatureOverride;
     };
 
     struct ResourceType
@@ -216,10 +246,25 @@ namespace dmShaderc
         uint8_t     m_ShaderResourceBinding;
     };
 
+    struct MSLResourceMapping
+    {
+        const char* m_Name;
+        uint64_t    m_NameHash;
+
+        uint32_t    m_MetalResourceIndex;
+        uint8_t     m_ShaderResourceSet;
+        uint8_t     m_ShaderResourceBinding;
+    };
+
     struct ShaderCompileResult
     {
         dmArray<uint8_t> m_Data;
         const char*      m_LastError;
+
+        // SPIRV-Cross assigns Metal argument-buffer resource indices independently
+        // of the original shader set/binding pairs. The Metal backend needs this
+        // mapping to encode each reflected Defold resource at the correct MSL index.
+        dmArray<MSLResourceMapping> m_MSLResourceMappings;
 
         // In case of compiling HLSL, we generate a separate reflection structure
         // that embeds a list of resources (called root signature) and their HLSL bind points (registers)
@@ -232,7 +277,12 @@ namespace dmShaderc
         // When compiling compute shaders for HLSL, we need to store a reference to the
         // manufactured gl_NumWorkGroups constant buffer that was generated.
         // The value will be set to 0xFF otherwise.
-        uint8_t m_HLSLNumWorkGroupsId;
+        uint8_t                    m_HLSLNumWorkGroupsId;
+
+        // Currently used for MSL/Metal only
+        uint32_t                   m_WorkGroupSizeX;
+        uint32_t                   m_WorkGroupSizeY;
+        uint32_t                   m_WorkGroupSizeZ;
     };
 
     struct HLSLRootSignature

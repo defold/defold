@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <testmain/testmain.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
@@ -22,8 +23,11 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#define DM_SUPPORT_FILE_READ
+#define DM_SUPPORT_HTTP_READ
+
 #if (defined(GITHUB_CI) && defined(__MACH__)) || defined(_WIN32) || defined(DM_PLATFORM_VENDOR) || defined(__EMSCRIPTEN__)
-#define DM_DISABLE_HTTPCLIENT_TESTS
+    #undef DM_SUPPORT_HTTP_READ
 #endif
 
 const char* DEFAULT_ARGV[] = { "test_engine" };
@@ -126,10 +130,12 @@ TEST_P(Empty, Empty)
 }
 
 const TestParam params_empty[] = {
-    TestParam("src/test/data/empty.config"),
-    TestParam("src/test/data/empty.config",false),
-#ifndef DM_DISABLE_HTTPCLIENT_TESTS
-    TestParam("http://localhost:%d/src/test/data/test.config")
+#if defined(DM_SUPPORT_FILE_READ)
+    TestParam("src/test/data/empty.config", true),
+    TestParam("src/test/data/empty.config", false),
+#endif
+#if defined(DM_SUPPORT_HTTP_READ)
+    TestParam("http://localhost:%d/src/test/data/test.config", false)
 #endif
 };
 
@@ -143,9 +149,9 @@ TEST_P(MissingFile, MissingFile)
 }
 
 const TestParam params_missing_file[] = {
-    TestParam("does_not_exist"),
-#ifndef DM_DISABLE_HTTPCLIENT_TESTS
-    TestParam("http://localhost:%d/does_not_exist")
+    TestParam("does_not_exist", false),
+#if defined(DM_SUPPORT_HTTP_READ)
+    TestParam("http://localhost:%d/does_not_exist", false)
 #endif
 };
 
@@ -161,9 +167,11 @@ TEST_P(NoSection, NoSection)
 }
 
 const TestParam params_no_section[] = {
+#if defined(DM_SUPPORT_FILE_READ)
     TestParam("src/test/data/nosection.config"),
     TestParam("src/test/data/nosection.config", true),
-#ifndef DM_DISABLE_HTTPCLIENT_TESTS
+#endif
+#if defined(DM_SUPPORT_HTTP_READ)
     TestParam("http://localhost:%d/src/test/data/nosection.config")
 #endif
 };
@@ -177,9 +185,11 @@ TEST_P(SectionError, SectionError)
 }
 
 const TestParam params_section_error[] = {
+#if defined(DM_SUPPORT_FILE_READ)
     TestParam("src/test/data/section_error.config"),
     TestParam("src/test/data/section_error.config", true),
-#ifndef DM_DISABLE_HTTPCLIENT_TESTS
+#endif
+#if defined(DM_SUPPORT_HTTP_READ)
     TestParam("http://localhost:%d/src/test/data/section_error.config")
 #endif
 };
@@ -247,9 +257,11 @@ TEST_P(Test01, TestApiC)
 }
 
 const TestParam params_test01[] = {
+#if defined(DM_SUPPORT_FILE_READ)
     TestParam("src/test/data/test.config"),
     TestParam("src/test/data/test.config", true),
-#ifndef DM_DISABLE_HTTPCLIENT_TESTS
+#endif
+#if defined(DM_SUPPORT_HTTP_READ)
     TestParam("http://localhost:%d/src/test/data/test.config")
 #endif
 };
@@ -266,9 +278,11 @@ TEST_P(MissingTrailingNewline, MissingTrailingNewline)
 }
 
 const TestParam params_missing_trailing_nl[] = {
+#if defined(DM_SUPPORT_FILE_READ)
     TestParam("src/test/data/missing_trailing_nl.config"),
     TestParam("src/test/data/missing_trailing_nl.config", true),
-#ifndef DM_DISABLE_HTTPCLIENT_TESTS
+#endif
+#if defined(DM_SUPPORT_HTTP_READ)
     TestParam("http://localhost:%d/src/test/data/missing_trailing_nl.config")
 #endif
 };
@@ -304,9 +318,11 @@ const char* COMMAND_LINE_ARGV[] = { "an arg1", "--config=main.foo=1122", "an arg
 int COMMAND_LINE_ARGC = sizeof(COMMAND_LINE_ARGV) / sizeof(COMMAND_LINE_ARGV[0]);
 
 const TestParam params_command_line[] = {
+#if defined(DM_SUPPORT_FILE_READ)
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV),
     TestParam("src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV, true),
-#ifndef DM_DISABLE_HTTPCLIENT_TESTS
+#endif
+#if defined(DM_SUPPORT_HTTP_READ)
     TestParam("http://localhost:%d/src/test/data/test.config", COMMAND_LINE_ARGC, COMMAND_LINE_ARGV)
 #endif
 };
@@ -326,7 +342,12 @@ TEST_P(LongValue, LongValue)
 }
 
 const TestParam params_long_value[] = {
+#if defined(DM_SUPPORT_FILE_READ)
     TestParam("src/test/data/long_value.config"),
+#endif
+#if defined(DM_SUPPORT_HTTP_READ)
+    TestParam("http://localhost:%d/src/test/data/long_value.config")
+#endif
 };
 
 INSTANTIATE_TEST_CASE_P(LongValue, LongValue, jc_test_values_in(params_long_value));
@@ -418,13 +439,13 @@ TEST_P(ConfigfileExtension, ConfigfileExtension)
     ASSERT_EQ(4096.0f, dmConfigFile::GetFloat(config, "ext.virtual", 0));
 }
 
+#if defined(DM_SUPPORT_FILE_READ)
 const TestParam params_extension[] = {
     TestParam("src/test/data/test.config"),
 };
 
 INSTANTIATE_TEST_CASE_P(ConfigfileExtension, ConfigfileExtension, jc_test_values_in(params_extension));
-
-
+#endif
 
 static void Usage()
 {
@@ -435,6 +456,11 @@ static void Usage()
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
+
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
 #if !defined(DM_DISABLE_HTTPCLIENT_TESTS)
     if(argc > 1)
     {
@@ -454,10 +480,16 @@ int main(int argc, char **argv)
     else
     {
         Usage();
+        dmLog::LogFinalize();
         return 1;
     }
+#else
+    dmLogWarning("Found DM_DISABLE_HTTPCLIENT_TESTS. Skipping config initialization");
 #endif
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+
+    dmLog::LogFinalize();
+    return result;
 }

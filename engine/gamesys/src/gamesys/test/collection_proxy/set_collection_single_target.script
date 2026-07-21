@@ -1,0 +1,19 @@
+local function append_status(message)
+    print(message)
+    cp_status_log = cp_status_log or {}
+    table.insert(cp_status_log, message)
+end
+
+function init(self)
+    append_status("collectionproxy single target init")
+    cp_single_target_initialized = true
+end
+
+function update(self, dt)
+    cp_single_target_update_count = (cp_single_target_update_count or 0) + 1
+end
+
+function final(self)
+    append_status("collectionproxy single target final")
+    cp_single_target_finalized = true
+end

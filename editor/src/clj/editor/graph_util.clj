@@ -16,14 +16,10 @@
   (:require [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.core :as core]
-            [editor.outline :as outline]
             [editor.protobuf :as protobuf]
-            [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [internal.graph.types :as gt]
             [internal.node :as in]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -32,6 +28,30 @@
 
 (defmacro passthrough [field]
   `(g/fnk [~field] ~field))
+
+(defn- make-immutable-property-set-fn-raw [prop-kw]
+  {:pre [(keyword? prop-kw)]}
+  (fn immutable-property-set-fn [evaluation-context node-id old-value new-value]
+    (when (some? old-value)
+      (let [basis (:basis evaluation-context)
+            node-type-kw (g/node-type-kw basis node-id)]
+        (throw (ex-info (format "Unable to reassign immutable property %s on %s %d."
+                                prop-kw
+                                node-type-kw
+                                node-id)
+                        {:node-id node-id
+                         :node-type-kw node-type-kw
+                         :prop-kw prop-kw
+                         :old-value old-value
+                         :new-value new-value}))))))
+
+(def make-immutable-property-set-fn (fn/memoize make-immutable-property-set-fn-raw))
+
+(defmacro immutable-property-setter [prop-sym]
+  {:pre [(symbol? prop-sym)
+         (not (qualified-symbol? prop-sym))]}
+  (let [prop-kw (keyword prop-sym)]
+    `(make-immutable-property-set-fn ~prop-kw)))
 
 (defn array-subst-remove-errors [arr]
   (filterv (complement g/error?) arr))
@@ -50,91 +70,6 @@
     (for [[source-output-label target-output-label] connections
           :when (contains? existing-source-output-labels source-output-label)]
       (g/connect source-node-id source-output-label target-node-id target-output-label))))
-
-(defn node-qualifier-label
-  "Given a node-id, returns a string that identifies the node for the user.
-  Typically, this will be the URL that uniquely identifies the node inside its
-  owner resource, or the id that the user has specified for the node. Returns
-  nil if there is no suitable qualifier for the given node."
-  ([node-id]
-   (g/with-auto-evaluation-context evaluation-context
-     (node-qualifier-label node-id evaluation-context)))
-  ([node-id {:keys [basis] :as evaluation-context}]
-   (when-some [node (g/node-by-id-at basis node-id)]
-     (let [node-type (g/node-type node)]
-       (or (when (in/behavior node-type :url)
-             (let [value (in/node-value node :url evaluation-context)]
-               (when (and (string? value)
-                          (coll/not-empty value))
-                 ;; Convert urls to a more readable representation.
-                 ;;   "#book_script" -> "book_script"
-                 ;;   "/referenced_book#book_script" -> "referenced_book/book_script"
-                 (-> value
-                     (subs 1)
-                     (string/replace "#" "/")))))
-           (when (in/behavior node-type :id)
-             (let [value (in/node-value node :id evaluation-context)]
-               (when (string? value)
-                 (coll/not-empty value)))))))))
-
-(defn node-debug-label
-  ([node-id]
-   (g/with-auto-evaluation-context evaluation-context
-     (node-debug-label node-id evaluation-context)))
-  ([node-id {:keys [basis] :as evaluation-context}]
-   (let [node (g/node-by-id basis node-id)
-         node-type (g/node-type node)]
-     (or (when (in/inherits? node-type resource/ResourceNode)
-           (let [resource (resource-node/resource basis node-id)]
-             (cond
-               (resource/memory-resource? resource)
-               (str "embedded." (resource/ext resource))
-
-               (some? (gt/original node))
-               (let [proj-path (resource/proj-path resource)]
-                 (if-let [owner-resource (resource-node/owner-resource basis node-id)]
-                   (str proj-path " override in " (resource/proj-path owner-resource))
-                   (str proj-path " override")))
-
-               :else
-               (resource/proj-path resource))))
-         (node-qualifier-label node-id evaluation-context)
-         (when (in/inherits? node-type outline/OutlineNode)
-           (coll/not-empty (:label (g/maybe-node-value node-id :node-outline evaluation-context))))
-         (let [name (g/maybe-node-value node-id :name evaluation-context)]
-           (when (string? name)
-             (coll/not-empty name)))
-         (str (name (:k node-type)) \# node-id)))))
-
-(defn node-debug-label-path
-  ([node-id]
-   (g/with-auto-evaluation-context evaluation-context
-     (node-debug-label-path node-id evaluation-context)))
-  ([node-id {:keys [basis] :as evaluation-context}]
-   (let [graph-id (g/node-id->graph-id node-id)
-         project-node-id (g/graph-value basis graph-id :project-id)]
-     (->> node-id
-          (iterate #(core/owner-node-id basis %))
-          (take-while #(some-> % (not= project-node-id)))
-          (reverse)
-          (mapv #(node-debug-label % evaluation-context))))))
-
-(defn node-debug-info
-  ([node-id]
-   (g/with-auto-evaluation-context evaluation-context
-     (node-debug-info node-id evaluation-context)))
-  ([node-id {:keys [basis] :as evaluation-context}]
-   (let [node-type-kw (g/node-type-kw basis node-id)
-         node-debug-label-path (node-debug-label-path node-id evaluation-context)
-         owner-resource-node-id (try
-                                  (resource-node/owner-resource-node-id basis node-id)
-                                  (catch Exception _
-                                    nil))
-         owner-resource-node-type-kw (some->> owner-resource-node-id (g/node-type-kw basis))]
-     {:node-type-kw node-type-kw
-      :node-debug-label-path node-debug-label-path
-      :owner-resource-node-id owner-resource-node-id
-      :owner-resource-node-type-kw owner-resource-node-type-kw})))
 
 ;; -----------------------------------------------------------------------------
 ;; set-properties-from-pb-map macro

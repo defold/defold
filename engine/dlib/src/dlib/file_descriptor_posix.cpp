@@ -12,115 +12,69 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dmsdk/dlib/file_descriptor.h>
-#include <dmsdk/dlib/log.h>
-#include <stdint.h>
+#include "file_descriptor.h"
+
 #include <assert.h>
+#include <poll.h>
+#include <dmsdk/dlib/dalloca.h>
 
 namespace dmFileDescriptor
 {
-#if !defined(_WIN32)
-    static int PollEventToNative(PollEvent event)
+    static void ToNativePollFDs(Poller* poller, pollfd* native_pollfds, uint32_t count)
     {
-        switch (event)
+        for (uint32_t i = 0; i < count; ++i)
         {
-            case EVENT_READ: return POLLIN;
-            case EVENT_WRITE: return POLLOUT;
-            case EVENT_ERROR: return POLLPRI;
-            default: assert(false);
+            native_pollfds[i].fd = poller->m_Pollfds[i].m_Fd;
+            native_pollfds[i].events = (short)poller->m_Pollfds[i].m_Events;
+            native_pollfds[i].revents = 0;
         }
     }
-    static int PollReturnEventToNative(PollEvent event)
+
+    static void FromNativePollFDs(pollfd* native_pollfds, Poller* poller, uint32_t count)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            poller->m_Pollfds[i].m_REvents = native_pollfds[i].revents;
+        }
+    }
+
+    int PollEventToNative(PollEvent event)
     {
         switch (event)
         {
-            case EVENT_READ: return POLLIN;
-            case EVENT_WRITE: return POLLOUT;
-            case EVENT_ERROR: return POLLHUP | POLLERR | POLLNVAL;
-            default: assert(false);
+            case EVENT_READ:
+                return POLLIN;
+            case EVENT_WRITE:
+                return POLLOUT;
+            case EVENT_ERROR:
+                return POLLPRI;
+            default:
+                assert(false);
+        }
+    }
+
+    int PollReturnEventToNative(PollEvent event)
+    {
+        switch (event)
+        {
+            case EVENT_READ:
+                return POLLIN;
+            case EVENT_WRITE:
+                return POLLOUT;
+            case EVENT_ERROR:
+                return POLLHUP | POLLERR | POLLNVAL;
+            default:
+                assert(false);
         }
     }
 
     int Wait(Poller* poller, int timeout)
     {
-        int r = poll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
+        uint32_t count = poller->m_Pollfds.Size();
+        pollfd* native_pollfds = count ? (pollfd*)dmAlloca(sizeof(pollfd) * count) : 0;
+        ToNativePollFDs(poller, native_pollfds, count);
+        int r = poll(native_pollfds, (nfds_t)count, timeout);
+        FromNativePollFDs(native_pollfds, poller, count);
         return r;
     }
-#else
-    // from file_descriptor_win32.cpp
-    extern int PollEventToNative(PollEvent event);
-    extern int PollReturnEventToNative(PollEvent event);
-#endif
-
-    void PollerSetCapacity(Poller* poller, uint32_t capacity)
-    {
-        poller->m_Pollfds.SetCapacity(capacity);
-    }
-
-    void PollerClearEvent(Poller* poller, PollEvent event, int fd)
-    {
-        for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-        {
-            if (poller->m_Pollfds[i].fd == fd)
-            {
-                int e = PollEventToNative(event);
-                poller->m_Pollfds[i].events &= ~e;
-                return;
-            }
-        }
-    }
-
-    void PollerSetEvent(Poller* poller, PollEvent event, int fd)
-    {
-        int e = PollEventToNative(event);
-        for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-        {
-            if (poller->m_Pollfds[i].fd == fd)
-            {
-                poller->m_Pollfds[i].events |= e;
-                return;
-            }
-        }
-
-        if (poller->m_Pollfds.Full())
-        {
-            poller->m_Pollfds.OffsetCapacity(4);
-        }
-
-        PollFD pfd;
-        pfd.fd = fd;
-        pfd.events = e;
-        poller->m_Pollfds.Push(pfd);
-    }
-
-    bool PollerHasEvent(Poller* poller, PollEvent event, int fd)
-    {
-        for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-        {
-            if (poller->m_Pollfds[i].fd == fd)
-            {
-                int e = PollReturnEventToNative(event);
-                return poller->m_Pollfds[i].revents & e;
-            }
-        }
-        return false;
-    }
-
-    void PollerReset(Poller* poller)
-    {
-        while (!poller->m_Pollfds.Empty())
-        {
-            poller->m_Pollfds.Pop();
-        }
-    }
-
-    // for debugging purposes
-    void PollerDump(Poller* poller)
-    {
-        dmLogInfo("poller size = %d ", poller->m_Pollfds.Size());
-        for (uint32_t i = 0; i < poller->m_Pollfds.Size(); ++i)
-        {
-            dmLogInfo("poller i = %d fd = %d events = %d revents = %d", i, poller->m_Pollfds[i].fd, poller->m_Pollfds[i].events, poller->m_Pollfds[i].revents);
-        }
-    }
-}
+} // namespace dmFileDescriptor

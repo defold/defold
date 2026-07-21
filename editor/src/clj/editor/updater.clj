@@ -21,11 +21,14 @@
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
+            [editor.util :as util]
             [service.log :as log]
+            [util.coll :as coll]
+            [util.eduction :as e]
             [util.net :as net])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
-           [java.io File IOException]
+           [java.io ByteArrayOutputStream File IOException]
            [java.nio.file Files CopyOption StandardCopyOption]
            [java.nio.file.attribute FileAttribute]
            [java.util Timer TimerTask]
@@ -39,6 +42,132 @@
 
 (defn- update-url [archive-domain channel]
   (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
+
+(defn release-notes-markdown
+  ^String [release-notes]
+  (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
+        issue->closed-issues (fn [{:keys [closed_issues repository]}]
+                               (coll/join-to-string
+                                 ", "
+                                 (e/map (fn [issue-number]
+                                          (let [issue-text (if (= "defold" repository)
+                                                             (str "#" issue-number)
+                                                             (str repository "#" issue-number))
+                                                issue-url (format "https://github.com/defold/%s/issues/%s"
+                                                                  repository
+                                                                  issue-number)]
+                                            (format "<a href=\"%s\">%s</a>" issue-url issue-text)))
+                                        closed_issues)))
+        issue->summary (fn [{:keys [title type]}]
+                         ;; the summary wraps in the disclosure header; links and
+                         ;; author go in the body
+                         (format "<strong>%s</strong>: %s" type title))
+        issue->body (fn [{:keys [author body pr_number url] :as issue}]
+                      (let [closed (issue->closed-issues issue)
+                            meta (str (when (pos? (count closed)) (str "Closes " closed ". "))
+                                      (format "PR <a href=\"%s\">#%s</a> by %s." url pr_number author))]
+                        (str meta
+                             (when-not (string/blank? body) (str "\n\n" body)))))
+        issue->markdown (fn [issue]
+                          (str "<details>\n<summary>" (issue->summary issue) "</summary>\n\n"
+                               (issue->body issue) "\n\n"
+                               "</details>\n\n"))
+        section-markdown (fn [issues]
+                           (reduce (fn [markdown issue-type]
+                                     (reduce (fn [markdown issue]
+                                               (if (and (= issue-type (:type issue))
+                                                        (not (:duplicate issue)))
+                                                 (str markdown (issue->markdown issue))
+                                                 markdown))
+                                             markdown
+                                             issues))
+                                   ""
+                                   issue-types))
+        {:keys [version issues]} release-notes
+        {:keys [engine editor other]}
+        (reduce (fn [sections issue]
+                  (cond
+                    (not= "defold" (:repository issue))
+                    (update sections :other conj issue)
+
+                    (contains? (set (:labels issue)) "editor")
+                    (update sections :editor conj issue)
+
+                    :else
+                    (update sections :engine conj issue)))
+                {:engine []
+                 :editor []
+                 :other []}
+                issues)]
+    (reduce (fn [markdown [heading issues]]
+              (let [section (section-markdown issues)]
+                (if (pos? (count section))
+                  (str markdown "\n## " heading "\n" section)
+                  markdown)))
+            (str "# Defold " version "\n"
+                 "\nFor full release notes, please visit our forum at " (:external-link release-notes) "\n")
+            [["Engine" engine] ["Editor" editor] ["Other" other]])))
+
+(def ^:private release-notes-range-limit
+  "Most releases to show in the update dialog when someone is several versions
+  behind. Each one links to its full notes online, so nothing older is lost."
+  5)
+
+(defn- version-string? [s]
+  (boolean (and (string? s) (re-matches #"\d+(\.\d+)*" s))))
+
+(defn- newer-version? [^String a ^String b]
+  (pos? (.compare util/natural-order a b)))
+
+(def ^:private descending-version-order (.reversed util/natural-order))
+
+(defn- versions-to-fetch
+  "Picks which versions to show from the manifest: the ones newer than the
+  running editor, newest first, capped at `release-notes-range-limit`. Bad
+  version strings are skipped. If we don't know the current version (dev builds),
+  everything counts, so you get the most recent few."
+  [manifest-versions current-version]
+  (let [current (when (version-string? current-version) current-version)]
+    (into []
+          (take release-notes-range-limit)
+          (sort descending-version-order
+                (e/filter #(and (version-string? %)
+                                (or (nil? current) (newer-version? % current)))
+                          manifest-versions)))))
+
+(defn- fetch-json!
+  "GETs `url` and parses the body as JSON with keyword keys, or nil on failure."
+  [url]
+  (let [out (ByteArrayOutputStream.)]
+    (try
+      (net/download! url out :read-timeout 10000 :connect-timeout 5000)
+      (json/read-str (.toString out "UTF-8") :key-fn keyword)
+      (catch Exception e
+        (log/warn :message "Failed to fetch release notes resource" :url url :exception e)
+        nil))))
+
+(defn- fetch-manifest! [archive-domain channel]
+  (fetch-json! (format (get-in connection-properties [:updater :release-notes-manifest-url-template])
+                       archive-domain channel)))
+
+(defn- fetch-version-notes! [archive-domain channel version]
+  (fetch-json! (format (get-in connection-properties [:updater :release-notes-version-url-template])
+                       archive-domain channel version)))
+
+(defn fetch-release-notes!
+  "Downloads the notes to show for the available update. Reads the channel
+  manifest, works out which versions to show (newest first, capped at
+  `release-notes-range-limit`), and fetches each one's notes in parallel.
+  Returns a newest-first vector of {:version <string> :notes <map-or-nil>}, one
+  per version, where :notes is nil if that file didn't download. Returns nil if
+  even the manifest can't be fetched."
+  [archive-domain channel]
+  (when-some [manifest (fetch-manifest! archive-domain channel)]
+    (let [versions (versions-to-fetch (filter string? manifest) (system/defold-version))]
+      (coll/pmapv (fn [version]
+                    {:version version
+                     :notes (fetch-version-notes! archive-domain channel version)})
+                  versions))))
 
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
@@ -106,6 +235,24 @@
               (:sha1 current-download)
               downloaded-sha1
               editor-sha1))))
+
+(defn release-notes
+  "Returns {:markdown <string> :versions <newest-first version strings>}, or nil
+  if there's nothing to show for the current update."
+  [updater]
+  (let [state @(:state-atom updater)
+        slots (:release-notes state)]
+    (when (and (= (:release-notes-sha state) (:server-sha1 state))
+               (not (coll/empty? slots)))
+      {:markdown (coll/join-to-string
+                   "\n\n---\n\n"
+                   (e/map (fn [{:keys [version notes]}]
+                            (if notes
+                              (release-notes-markdown notes)
+                              (str "# Defold " version
+                                   "\n\n_Failed to download these release notes._")))
+                          slots))
+       :versions (mapv :version slots)})))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
@@ -304,11 +451,31 @@
       (log/info :message "Checking for updates" :url url)
       (with-open [reader (io/reader url)]
         (let [update (json/read reader :key-fn keyword)
-              update-sha1 (:sha1 update)]
-          (swap! state-atom assoc :server-sha1 update-sha1)
-          (if (can-download-update? updater)
-            (log/info :message "New version found" :sha1 update-sha1)
-            (log/info :message "No update found"))))
+              update-sha1 (:sha1 update)
+              state (swap! state-atom assoc :server-sha1 update-sha1)]
+          (cond
+            (not (can-download-update? updater))
+            (log/info :message "No update found")
+
+            ;; Complete notes for this update are already loaded, so don't
+            ;; re-download them on every hourly check.
+            (and (= update-sha1 (:release-notes-sha state))
+                 (:release-notes-complete? state))
+            (log/info :message "New version found; release notes already loaded" :sha1 update-sha1)
+
+            :else
+            (do
+              (log/info :message "New version found" :sha1 update-sha1)
+              (when-some [slots (fetch-release-notes! archive-domain channel)]
+                ;; Remember which update these notes are for, so a failed fetch
+                ;; for a newer one can't keep showing stale notes. "Complete"
+                ;; means we got notes for every version; an empty or partial
+                ;; result stays incomplete so the next check retries it.
+                (swap! state-atom assoc
+                       :release-notes slots
+                       :release-notes-sha update-sha1
+                       :release-notes-complete? (and (not (coll/empty? slots))
+                                                     (coll/every? :notes slots))))))))
       (catch IOException e
         ;; Disabled during tests to minimize log spam.
         (when-not (Boolean/getBoolean "defold.tests")

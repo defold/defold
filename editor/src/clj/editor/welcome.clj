@@ -80,6 +80,13 @@
 (def ^:private URLString
   (s/constrained s/Str #(try (URL. %) true (catch MalformedURLException _ false)) "URLString"))
 
+(defn- display-url
+  ^String [^String url]
+  (or (some->> url
+               (re-matches #"(https://github\.com/[^/]+/[^/]+)/archive/.+\.zip")
+               second)
+      url))
+
 (def ^:private TemplateProject
   {:name VisibleString
    :description VisibleString
@@ -183,7 +190,6 @@
           (let [file (io/as-file path)
                 instant (time/try-parse-instant timestamp)]
             (when (and (some? instant)
-                       (<= (.toDays (time/since instant)) 30)
                        (fs/existing-file? file))
               (when-some [title (try-read-project-title file)]
                 {:project-file file
@@ -460,7 +466,7 @@
                      (ui/add-child!
                        (localization/localize! (Text.) localization (localization/message description)))
                      (VBox/setVgrow Priority/ALWAYS))
-                   (doto (Hyperlink. zip-url)
+                   (doto (Hyperlink. (display-url zip-url))
                      (ui/on-action! (fn [_] (ui/open-url zip-url))))])))
 
 (defn- make-template-entry
@@ -581,7 +587,9 @@
                                (ui/visible! progress-bar (not (progress/done? progress)))
                                (ui/render-progress-bar! progress progress-bar))))
         install-and-restart! #(ui.updater/install-and-restart! stage updater localization)]
-    (ui.updater/init! stage update-link updater install-and-restart! render-progress! localization)))
+    ;; No project is open on the welcome screen; release-notes links are external
+    ;; (forum) urls that don't need one.
+    (ui.updater/init! stage update-link nil updater install-and-restart! render-progress! localization)))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog

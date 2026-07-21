@@ -466,7 +466,8 @@ These forms should be quoted, as if they came from a macro."
   [shader-type+source-pairs
    location+attribute-name-pairs
    array-sampler-name->uniform-names
-   strip-resource-binding-namespace-regex-str])
+   strip-resource-binding-namespace-regex-str
+   preview-light-capacity])
 
 (defonce/record ShaderLifecycle
   [request-id
@@ -597,18 +598,28 @@ These forms should be quoted, as if they came from a macro."
               (pos? (count attribute-name))))))
 
 (defn make-shader-request-data
-  ^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]
-  {:pre [(every? shader-type+source-pair? shader-type+source-pairs)
-         (every? location+attribute-name-pair? location+attribute-name-pairs)
-         (map? array-sampler-name->uniform-names)
-         (or (nil? strip-resource-binding-namespace-regex-str)
-             (and (string? strip-resource-binding-namespace-regex-str)
-                  (pos? (count strip-resource-binding-namespace-regex-str))))]}
-  (->ShaderRequestData
-    (vec shader-type+source-pairs)
-    (vec location+attribute-name-pairs)
-    array-sampler-name->uniform-names
-    strip-resource-binding-namespace-regex-str))
+  (^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]
+   (make-shader-request-data shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str 0))
+  (^ShaderRequestData [shader-type+source-pairs location+attribute-name-pairs array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str preview-light-capacity]
+   {:pre [(every? shader-type+source-pair? shader-type+source-pairs)
+          (every? location+attribute-name-pair? location+attribute-name-pairs)
+          (map? array-sampler-name->uniform-names)
+          (or (nil? strip-resource-binding-namespace-regex-str)
+              (and (string? strip-resource-binding-namespace-regex-str)
+                   (pos? (count strip-resource-binding-namespace-regex-str))))
+          (nat-int? preview-light-capacity)]}
+   (->ShaderRequestData
+     (vec shader-type+source-pairs)
+     (vec location+attribute-name-pairs)
+     array-sampler-name->uniform-names
+     strip-resource-binding-namespace-regex-str
+     preview-light-capacity)))
+
+(defn with-preview-light-capacity
+  ^ShaderRequestData [^ShaderRequestData request-data preview-light-capacity]
+  {:pre [(instance? ShaderRequestData request-data)
+         (nat-int? preview-light-capacity)]}
+  (assoc request-data :preview-light-capacity preview-light-capacity))
 
 (defn make-shader-lifecycle
   ^ShaderLifecycle [request-id request-data attribute-reflection-infos uniform-values-by-name]
@@ -682,12 +693,11 @@ These forms should be quoted, as if they came from a macro."
 
 (defn read-combined-shader-info [shader-paths opts shader-path->source]
   (let [max-page-count (long (or (:max-page-count opts) 0))
-
         augmented-shader-infos
         (coll/into-> shader-paths []
           (map (fn [^String shader-path]
                  (let [shader-source (shader-path->source shader-path)]
-                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count)))))]
+                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count "mediump" "highp")))))]
 
     (shader-gen/combined-shader-info augmented-shader-infos)))
 
@@ -709,15 +719,17 @@ These forms should be quoted, as if they came from a macro."
                 attribute-reflection-infos
                 location+attribute-name-pairs
                 shader-type+source-pairs
+                preview-light-capacity
                 strip-resource-binding-namespace-regex-str]}
         (read-combined-shader-info shader-paths opts shader-path->source)
 
         shader-request-data
-        (make-shader-request-data
-          shader-type+source-pairs
-          location+attribute-name-pairs
-          array-sampler-name->slice-sampler-names
-          strip-resource-binding-namespace-regex-str)
+        (-> (make-shader-request-data
+              shader-type+source-pairs
+              location+attribute-name-pairs
+              array-sampler-name->slice-sampler-names
+              strip-resource-binding-namespace-regex-str)
+            (with-preview-light-capacity preview-light-capacity))
 
         attribute-reflection-infos
         (mapv #(editor.graphics.types/assign-attribute-transform % coordinate-space)
@@ -743,6 +755,15 @@ These forms should be quoted, as if they came from a macro."
         array-sampler-name->uniform-names (.-array-sampler-name->uniform-names request-data)]
     (pos? (count array-sampler-name->uniform-names))))
 
+(defn uses-preview-light-buffer? [^ShaderLifecycle shader-lifecycle]
+  (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)]
+    (pos? (long (.-preview-light-capacity request-data)))))
+
+(defn preview-light-capacity
+  ^long [^ShaderLifecycle shader-lifecycle]
+  (let [^ShaderRequestData request-data (.-request-data shader-lifecycle)]
+    (long (.-preview-light-capacity request-data))))
+
 (defn- first-shader-source-of-type
   ^String [shader-type ^ShaderLifecycle shader-lifecycle]
   (some (fn [shader-type+source-pair]
@@ -755,7 +776,7 @@ These forms should be quoted, as if they came from a macro."
 (def vertex-shader-source (partial first-shader-source-of-type :shader-type-vertex))
 (def fragment-shader-source (partial first-shader-source-of-type :shader-type-fragment))
 
-(defn page-count-mismatch-error-message-raw [is-paged-material texture-page-count material-max-page-count image-property-message]
+(defn page-count-mismatch-error-message-raw [is-paged-material texture-page-count material-max-page-count exclude-gles-sm100 image-property-message]
   (when (and (some? texture-page-count)
              (some? material-max-page-count))
     (let [texture-page-count (int texture-page-count)
@@ -769,7 +790,8 @@ These forms should be quoted, as if they came from a macro."
              (pos? texture-page-count))
         (localization/message "error.material-does-not-support-paged-atlases" {"property" image-property-message})
 
-        (< material-max-page-count texture-page-count)
+        (and (< material-max-page-count texture-page-count)
+             (not exclude-gles-sm100))
         (localization/message "error.material-max-page-count-insufficient" {"property" image-property-message})))))
 
 (def page-count-mismatch-error-message (memoize page-count-mismatch-error-message-raw))

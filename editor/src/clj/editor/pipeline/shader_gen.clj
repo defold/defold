@@ -19,7 +19,7 @@
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.bob CompileExceptionError]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ShaderResource Shaderc$ShaderStage]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceType Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
            [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]))
 
@@ -34,6 +34,7 @@
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
     :language-glsl-sm330 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330
+    :language-msl-22 Graphics$ShaderDesc$Language/LANGUAGE_MSL_22
     :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
 
 ;; A resource namespace is the first literal up until the first dot in a
@@ -135,17 +136,47 @@
     ::shader-transpile-error true
     false))
 
+(defn- precision-string->enum
+  "Maps game.project precision string to Shaderc.ShaderPrecision."
+  ^Shaderc$ShaderPrecision [s]
+  (case s
+    "highp" Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP
+    "mediump" Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP
+    (throw (IllegalArgumentException.
+             (format "Invalid shader precision '%s'. Expected \"highp\" or \"mediump\"."
+                     (str s))))))
+
 (defonce ^{:private true :tag 'byte} vertex-shader-stage-flag (byte (.getValue Shaderc$ShaderStage/SHADER_STAGE_VERTEX)))
 
 (defn- vertex-shader-resource? [^Shaderc$ShaderResource shader-resource]
   (pos? (bit-and (.-stageFlags shader-resource)
                  vertex-shader-stage-flag)))
 
+(def ^:private preview-light-type-name "Light")
+
+(defn- preview-light-capacity
+  "Returns the array size of the Light UBO as reported by the SPIR-V reflector.
+  The Light UBO is identified by having a type named \"Light\" in the types list
+  and a matching UBO resource.  Returns 0 when the shader does not declare a
+  preview-light buffer."
+  ^long [^SPIRVReflector spirv-reflector]
+  (if-let [_ (some (fn [^Shaderc$ResourceTypeInfo t]
+                     (and t (= preview-light-type-name (.-name t))))
+                   (.getTypes spirv-reflector))]
+    (long
+      (or (some (fn [^Shaderc$ShaderResource ubo]
+                  (when (= preview-light-type-name (.-name ubo))
+                    (.-arraySize ^Shaderc$ResourceType (.-type ubo))))
+                (.getUBOs spirv-reflector))
+          0))
+    0))
+
 (defn transpile-shader-source
-  "Compiles a single shader source file, for example, a .vp or a .fp file into a
+  "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
-  reflection info."
-  [^String shader-path ^String shader-source ^long max-page-count]
+  reflection info. The precision strings should be either \"highp\" or \"mediump\";
+  when nil, mediump float and highp int are used."
+  [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str]
   {:pre [(string? shader-path)
          (pos? (count shader-path))
          (string? shader-source)
@@ -155,23 +186,24 @@
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language max-page-count)
+          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
           (catch CompileExceptionError cause
             (let [error-line-number (.getLineNumber cause)
                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))
                                       shader-path)]
               (throw (decorate-transpile-error
-                       cause shader-type shader-path shader-source max-page-count
+                       cause shader-type shader-path shader-source ^long max-page-count
                        :error-line-number error-line-number
                        :error-proj-path error-proj-path))))
           (catch Exception cause
             (throw (decorate-transpile-error
-                     cause shader-type shader-path shader-source max-page-count))))
+                     cause shader-type shader-path shader-source ^long max-page-count))))
 
         transpiled-shader-source (.source glsl-compile-result)
         array-sampler-names (vec (.arraySamplers glsl-compile-result))
         spirv-reflector (.reflector glsl-compile-result)
         resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
+        preview-light-capacity (preview-light-capacity spirv-reflector)
 
         attribute-reflection-infos
         (coll/into-> (.getInputs spirv-reflector) []
@@ -179,9 +211,10 @@
           (map make-attribute-reflection-info))]
 
     {:shader-type shader-type
-     :max-page-count max-page-count
+     :max-page-count ^long max-page-count
      :transpiled-shader-source transpiled-shader-source
      :resource-binding-namespaces resource-binding-namespaces
+     :preview-light-capacity preview-light-capacity
      :array-sampler-names array-sampler-names
      :attribute-reflection-infos attribute-reflection-infos}))
 
@@ -247,11 +280,15 @@
 
         location+attribute-name-pairs
         (mapv (coll/pair-fn :location :name)
-              attribute-reflection-infos)]
+              attribute-reflection-infos)
+
+        preview-light-capacity
+        (reduce max 0 (map :preview-light-capacity augmented-shader-infos))]
 
     {:array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
      :attribute-reflection-infos attribute-reflection-infos
      :location+attribute-name-pairs location+attribute-name-pairs
      :max-page-count max-page-count
      :shader-type+source-pairs shader-type+source-pairs
+     :preview-light-capacity preview-light-capacity
      :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str}))

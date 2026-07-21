@@ -134,7 +134,7 @@
   (let [basis (:basis evaluation-context)
         workspace (g/node-value project :workspace evaluation-context)]
     (when-let [proj-path (workspace/as-proj-path basis workspace (.getPath (URI. uri)))]
-      (workspace/find-resource workspace proj-path evaluation-context))))
+      (workspace/find-resource basis workspace proj-path))))
 
 ;; diagnostics
 (s/def ::severity #{:error :warning :information :hint})
@@ -274,7 +274,8 @@
                   workspace (g/node-value project :workspace evaluation-context)
                   root (g/raw-property-value (:basis evaluation-context) workspace :root)]
               {:runtime {:version "Lua 5.1" :pathStrict true}
-               :completion {:workspaceWord false}
+               :completion {:workspaceWord false
+                            :callSnippet "Replace"}
                :diagnostics {:globals (-> lua/defined-globals
                                           (into (lua/extract-globals-from-completions completions))
                                           (into (lua/extract-globals-from-completions lua/editor-completions)))}

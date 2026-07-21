@@ -23,13 +23,14 @@
             [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.gui-test :as gui-test]
             [integration.test-util :as test-util]
+            local-extensions
             [support.test-support :as test-support]
-            [util.coll :refer [pair]]
-            [util.diff :as diff]))
+            [util.coll :as coll :refer [pair]]
+            [util.diff :as diff]
+            [util.murmur :as murmur]))
 
 (set! *warn-on-reflection* true)
 
@@ -37,7 +38,7 @@
 
 (def ^:private migration-project-path "test/resources/spine_migration_project")
 
-(def ^:private extension-spine-url (settings-core/inject-jvm-properties "{{defold.extension.spine.url}}"))
+(def ^:private extension-spine-url (local-extensions/inject-jvm-properties "{{defold.extension.spine.url}}"))
 
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
@@ -63,6 +64,15 @@
                   (when-not (empty? diff-lines)
                     (pair proj-path diff-lines)))))
         save-data-content-by-proj-path-after))
+
+(defn- custom-property [node-desc id value-key]
+  (when-let [property (coll/first-where #(= id (:id %)) (:custom-properties node-desc))]
+    (value-key property)))
+
+(defn- runtime-custom-property [node-desc id value-key]
+  (let [id-hash (murmur/hash64 id)]
+    (when-let [property (coll/first-where #(= id-hash (:id-hash %)) (:custom-properties node-desc))]
+      (value-key property))))
 
 (deftest registered-resource-types-test
   (test-util/with-loaded-project project-path
@@ -259,9 +269,6 @@
       (is (not (g/error? (g/node-value main-collection :node-outline)))))))
 
 (deftest legacy-spine-project-user-migration-test
-  ;; Clear custom gui scene loaders to ensure a clean test.
-  (gui/clear-custom-gui-scene-loaders-and-node-types-for-tests!)
-
   ;; Load the unmigrated project to check that the editor won't corrupt it. Then
   ;; add a dependency to the extension-spine library and reload the project.
   (let [migrated-game-project-content
@@ -392,7 +399,8 @@
                     (is (not (contains? spine-gui-node :size)))
                     (is (not (contains? spine-gui-node :color)))
                     (is (= :type-custom (:type spine-gui-node)))
-                    (is (= 405028931 (:custom-type spine-gui-node)))
+                    (is (= "Spine" (:custom-type-name spine-gui-node)))
+                    (is (not (contains? spine-gui-node :custom-type)))
                     (is (not (contains? spine-gui-node :blend-mode)))
                     (is (= "spine" (:id spine-gui-node)))
                     (is (not (contains? spine-gui-node :xanchor)))
@@ -407,8 +415,8 @@
                     (is (not (contains? spine-gui-node :alpha)))
                     (is (not (contains? spine-gui-node :template-node-child)))
                     (is (= :size-mode-auto (:size-mode spine-gui-node)))
-                    (is (= "spineboy" (:spine-scene spine-gui-node)))
-                    (is (= "walk" (:spine-default-animation spine-gui-node)))
+                    (is (= "spineboy" (custom-property spine-gui-node "spine_scene" :string)))
+                    (is (= "walk" (custom-property spine-gui-node "spine_default_animation" :string)))
                     (is (not (contains? spine-gui-node :spine-skin)))
                     (is (empty? (:overridden-fields spine-gui-node)))))
 
@@ -431,6 +439,69 @@
   (-> gui-scene-node-id
       (g/valid-node-value :build-targets)
       (get-in [0 :user-data :pb])))
+
+(defn- property-value-choices [node-id prop-kw]
+  (->> (g/node-value node-id :_properties)
+       :properties
+       prop-kw
+       :edit-type
+       :options
+       (mapv first)))
+
+(deftest new-spine-node-property-edit-test
+  (test-util/with-loaded-project project-path
+    (let [gui-scene (test-util/resource-node project "/main/spineboy.gui")
+          node-tree (g/node-value gui-scene :node-tree)
+          spine-node-type-info (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
+                                       [:gui-node-type-registry :custom-type-name->type-info "Spine"])
+          spine-node (gui/add-gui-node! project gui-scene node-tree spine-node-type-info nil)]
+      (is (= "spine" (test-util/prop spine-node :id)))
+      (test-util/prop! spine-node :spine-scene "spineboy")
+      (is (= "spineboy" (test-util/prop spine-node :spine-scene)))
+      (is (= ["spineboy"] (property-value-choices spine-node :spine-scene)))
+      (is (contains? (set (property-value-choices spine-node :spine-default-animation)) "walk"))
+      (test-util/prop! spine-node :spine-default-animation "missing")
+      (is (g/error? (test-util/prop-error spine-node :spine-default-animation)))
+      (is (= "spineboy" (:spine-scene (g/node-value spine-node :node-msg)))))))
+
+(deftest legacy-template-child-spine-scene-override-builds-test
+  (test-util/with-loaded-project project-path
+    (let [gui-scene (test-util/resource-node project "/main/spine_template_override.gui")
+          build-targets (g/node-value gui-scene :build-targets)]
+      (when (is (not (g/error? build-targets)))
+        (let [built-scene-desc (get-in build-targets [0 :user-data :pb])
+              built-spine-node (coll/first-where #(= "template/spine" (:id %))
+                                                 (:nodes built-scene-desc))]
+          (is (= "flag" (runtime-custom-property built-spine-node "spine_scene" :string)))
+          (is (= #{{:name "spineboy"
+                    :path "/assets/spineboy/spineboy.spinescene"}
+                   {:name "flag"
+                    :path "/assets/spineboy/spineboy.spinescene"}}
+                 (set (:resources built-scene-desc)))))))))
+
+(deftest legacy-template-child-spine-scene-layout-override-builds-test
+  (test-util/with-loaded-project project-path
+    (let [gui-scene (test-util/resource-node project "/main/spine_template_layout_override.gui")
+          spine-node (get (g/node-value gui-scene :node-ids) "template/spine")]
+      (gui-test/add-layout! project app-view gui-scene "Portrait")
+      (gui-test/with-visible-layout! gui-scene "Portrait"
+        (test-util/prop! spine-node :spine-scene "flag"))
+      (let [build-targets (g/node-value gui-scene :build-targets)]
+        (when (is (not (g/error? build-targets)))
+          (let [built-scene-desc (get-in build-targets [0 :user-data :pb])
+                built-spine-node (coll/first-where #(= "template/spine" (:id %))
+                                                   (:nodes built-scene-desc))
+                built-layout-desc (coll/first-where #(= "Portrait" (:name %))
+                                                    (:layouts built-scene-desc))
+                built-layout-spine-node (coll/first-where #(= "template/spine" (:id %))
+                                                          (:nodes built-layout-desc))]
+            (is (= "spineboy" (runtime-custom-property built-spine-node "spine_scene" :string)))
+            (is (= "flag" (runtime-custom-property built-layout-spine-node "spine_scene" :string)))
+            (is (= #{{:name "spineboy"
+                      :path "/assets/spineboy/spineboy.spinescene"}
+                     {:name "flag"
+                      :path "/assets/spineboy/spineboy.spinescene"}}
+                   (set (:resources built-scene-desc))))))))))
 
 (deftest layout-node-desc-includes-size-mode-test
   (test-util/with-loaded-project project-path
@@ -456,10 +527,26 @@
         (gui-test/with-visible-layout! gui-scene "Portrait"
           (test-util/prop! spine-node :spine-default-animation "jump")))
 
-      (testing "After overriding a property, the override NodeDesc includes all properties from the default layout."
+      (testing "After overriding a Spine property in a layout, the runtime override NodeDesc includes regular fields and effective custom properties."
         (let [built-scene-desc (built-scene-desc gui-scene)
-              built-node-desc (get-in built-scene-desc [:nodes 0])
               built-layout-desc (get-in built-scene-desc [:layouts 0])
               built-node-desc-for-layout (get-in built-layout-desc [:nodes 0])]
-          (is (= (assoc built-node-desc :spine-default-animation "jump")
+          (is (= {:type :type-custom
+                  :inherit-alpha true
+                  :size-mode :size-mode-auto
+                  :custom-properties [{:id-hash (murmur/hash64 "spine_create_bones")
+                                       :type :type-boolean
+                                       :boolean false}
+                                      {:id-hash (murmur/hash64 "spine_default_animation")
+                                       :type :type-string
+                                       :string "jump"}
+                                      {:id-hash (murmur/hash64 "spine_scene")
+                                       :type :type-string
+                                       :string "spineboy"}
+                                      {:id-hash (murmur/hash64 "spine_skin")
+                                       :type :type-string
+                                       :string ""}]
+                  :id "spineboy"
+                  :position [200.0 0.0 0.0 0.0]
+                  :custom-type 405028931}
                  built-node-desc-for-layout)))))))

@@ -242,14 +242,14 @@
     (let [workspace (test-util/setup-scratch-workspace! world)
           root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
-          resource-map (g/node-value workspace :resource-map)]
+          resource-map (g/raw-property-value (g/now) workspace :resource-map)]
       (testing "drag-moving game.project becomes copy"
         ;; moving /game.project and /car/car.script into the /collection directory
         (let [moved (asset-browser/drop-files! workspace [[(io/as-file (resource-map "/game.project")) (make-file "collection/game.project")]
                                                           [(io/as-file (resource-map "/car/car.script")) (make-file "collection/car.script")]]
                                                :move)]
           (workspace/resource-sync! workspace moved)
-          (let [resource-map (g/node-value workspace :resource-map)]
+          (let [resource-map (g/raw-property-value (g/now) workspace :resource-map)]
             (is (some? (resource-map "/game.project")))
             (is (some? (resource-map "/collection/game.project")))
             (is (not (some? (resource-map "/car/car.script"))))

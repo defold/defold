@@ -4,7 +4,7 @@ srcdir = '.'
 blddir = 'build'
 
 APPNAME='harfbuzz'
-VERSION='11.3.2'
+VERSION='13.2.1'
 
 PACKAGE_DIR='package/harfbuzz-main'
 

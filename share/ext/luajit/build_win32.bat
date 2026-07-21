@@ -127,6 +127,7 @@ pushd %TMP_TARGET%\package
     copy "%SOURCE_TARGET%\luajit.exe" bin\%TARGET_PLATFORM%\luajit-%BITDEPTH%.exe
 
     copy "%SOURCE_TARGET%\lua.h" include\luajit-2.1
+    copy "%SOURCE_TARGET%\lua_rename.h" include\luajit-2.1
     copy "%SOURCE_TARGET%\lua.hpp" include\luajit-2.1
     copy "%SOURCE_TARGET%\luaconf.h" include\luajit-2.1
     copy "%SOURCE_TARGET%\luajit.h" include\luajit-2.1

@@ -12,7 +12,27 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if defined(__linux__) && !defined(__ANDROID__) && !defined(_LARGEFILE64_SOURCE)
+#define _LARGEFILE64_SOURCE 1
+#endif
+
 #include <stdint.h>
+#include <stdio.h>
+#include <sys/types.h>
+#if defined(_WIN32)
+#include <io.h>
+#include <dlib/safe_windows.h>
+#ifndef _MSC_VER
+#include <windows.h>
+#endif
+#include <winioctl.h>
+#elif defined(__ANDROID__)
+#include <fcntl.h>
+#include <unistd.h>
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
+#endif
+#endif
 #include "../resource.h"
 #include "../resource_manifest.h"
 #include "../resource_manifest_private.h"
@@ -21,7 +41,7 @@
 #include "../resource_verify.h"
 #include "../providers/provider_archive_private.h"
 #include <dlib/dstrings.h>
-#include <dlib/endian.h>
+#include <dlib/endian.hpp>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
 #include <testmain/testmain.h>
@@ -86,13 +106,6 @@ static const char* content[]            = {
 
 static const uint64_t liveupdate_path_hash[2] = { 0x68b7e06402ee965c, 0xe7b921ca4d761083 };
 
-static const uint8_t sorted_first_hash[20] =
-    {  0U,   1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-static const uint8_t sorted_middle_hash[20] =
-    {  70U,  250U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-static const uint8_t sorted_last_hash[20] =
-    { 226U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-
 static const uint8_t content_hash[][20] = {
     { 127U, 144U,   0U,  37U, 122U,  73U,  24U, 215U,   7U,  38U,  85U, 234U,  70U, 133U,  64U, 205U, 203U, 212U,  46U,  12U },
     { 205U,  82U, 220U, 208U,  16U, 146U, 230U, 113U, 118U,  43U,   6U,  77U,  19U,  47U, 181U, 219U, 201U,  63U,  81U, 143U },
@@ -112,29 +125,151 @@ static const uint8_t compressed_content_hash[][20] = {
     {  90U,  15U,  50U,  67U, 184U,   5U, 147U, 194U, 160U, 203U,  45U, 150U,  20U, 194U,  55U, 123U, 189U, 218U, 105U, 103U }
 };
 
-static const uint32_t ENTRY_SIZE = sizeof(dmResourceArchive::EntryData) + dmResourceArchive::MAX_HASH;
-
-static void PopulateLiveUpdateResource(dmResourceArchive::LiveUpdateResource*& resource)
+static FILE* TestOpenLargeFileForWrite(const char* path)
 {
-    uint32_t count = strlen(content[0]);
-    resource->m_Data = (uint8_t*)content[0];
-    resource->m_Count = count;
-    resource->m_Header->m_Flags = 0;
-    resource->m_Header->m_Size = 0;
+#if defined(__ANDROID__)
+    int fd = open(path, O_CREAT | O_TRUNC | O_WRONLY | O_LARGEFILE, 0666);
+    if (fd < 0)
+    {
+        return 0;
+    }
+    FILE* file = fdopen(fd, "wb");
+    if (!file)
+    {
+        close(fd);
+        return 0;
+    }
+    setvbuf(file, 0, _IONBF, 0);
+    return file;
+#elif defined(__linux__)
+    return fopen64(path, "wb");
+#else
+    return fopen(path, "wb");
+#endif
 }
 
-// Call to this should be free'd with FreeMutableIndexData(...)
-static uint32_t GetMutableIndexData(void*& arci_data, uint32_t num_entries_to_be_added)
+static int TestSeekFile64(FILE* file, uint64_t offset)
 {
-    uint32_t index_alloc_size = RESOURCES_ARCI_SIZE + ENTRY_SIZE * num_entries_to_be_added;
-    arci_data = (void*)new uint8_t[index_alloc_size];
-    memcpy(arci_data, RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
-    return index_alloc_size;
+#if defined(_WIN32)
+    return _fseeki64(file, (int64_t)offset, SEEK_SET);
+#elif defined(__ANDROID__)
+    return lseek64(fileno(file), (off64_t)offset, SEEK_SET) < 0 ? -1 : 0;
+#elif defined(__linux__)
+    return fseeko64(file, (off64_t)offset, SEEK_SET);
+#else
+    return fseeko(file, (off_t)offset, SEEK_SET);
+#endif
 }
 
-static void FreeMutableIndexData(void*& arci_data)
+static bool TestMarkFileSparse(FILE* file)
 {
-    delete[] (uint8_t*)arci_data; // it is new[] uint8_t from the resource_archive.cpp
+#if defined(_WIN32)
+    HANDLE handle = (HANDLE)_get_osfhandle(_fileno(file));
+    if (handle == INVALID_HANDLE_VALUE)
+    {
+        return false;
+    }
+
+    DWORD bytes_returned = 0;
+    return DeviceIoControl(handle, FSCTL_SET_SPARSE, 0, 0, 0, 0, &bytes_returned, 0) != 0;
+#else
+    return true;
+#endif
+}
+
+static bool WriteArchiveHeaderWithVersion(const char* archive_path, uint32_t version)
+{
+    FILE* file = fopen(archive_path, "wb");
+    if (!file)
+    {
+        return false;
+    }
+
+    dmResourceArchive::ArchiveIndex header;
+    memset(&header, 0, sizeof(header));
+    header.m_Version = dmEndian::ToNetwork(version);
+
+    bool ok = fwrite(&header, 1, sizeof(header), file) == sizeof(header);
+    fclose(file);
+    return ok;
+}
+
+static bool WriteArchiveIndexV6(const char* archive_path, const uint8_t* hash, uint32_t hash_len, uint64_t resource_offset, uint32_t resource_size, uint32_t flags)
+{
+    FILE* file = fopen(archive_path, "wb");
+    if (!file)
+    {
+        return false;
+    }
+
+    dmResourceArchive::ArchiveIndex header;
+    memset(&header, 0, sizeof(header));
+    header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION_6);
+    header.m_EntryDataCount = dmEndian::ToNetwork(1U);
+    header.m_EntryDataOffset = dmEndian::ToNetwork((uint32_t)(sizeof(dmResourceArchive::ArchiveIndex) + dmResourceArchive::MAX_HASH));
+    header.m_HashOffset = dmEndian::ToNetwork((uint32_t)sizeof(dmResourceArchive::ArchiveIndex));
+    header.m_HashLength = dmEndian::ToNetwork(hash_len);
+
+    uint8_t hash_buffer[dmResourceArchive::MAX_HASH] = { 0 };
+    memcpy(hash_buffer, hash, hash_len);
+
+    bool ok = fwrite(&header, 1, sizeof(header), file) == sizeof(header);
+    ok = ok && fwrite(hash_buffer, 1, sizeof(hash_buffer), file) == sizeof(hash_buffer);
+
+    dmResourceArchive::EntryData entry;
+    entry.m_ResourceDataOffsetAndFlags = dmEndian::ToNetwork(dmResourceArchive::PackEntryDataOffsetAndFlags(resource_offset, flags));
+    entry.m_ResourceSize = dmEndian::ToNetwork(resource_size);
+    entry.m_ResourceCompressedSize = dmEndian::ToNetwork(0xFFFFFFFFU);
+    ok = ok && fwrite(&entry, 1, sizeof(entry), file) == sizeof(entry);
+
+    fclose(file);
+    return ok;
+}
+
+static bool WriteLargeOffsetArchiveData(const char* resource_path, uint64_t resource_offset, const uint8_t* payload, uint32_t payload_size)
+{
+    FILE* file = TestOpenLargeFileForWrite(resource_path);
+    if (!file)
+    {
+        return false;
+    }
+
+    bool ok = TestMarkFileSparse(file);
+    ok = ok && TestSeekFile64(file, resource_offset) == 0;
+    ok = ok && fwrite(payload, 1, payload_size, file) == payload_size;
+    fclose(file);
+    return ok;
+}
+
+static void WriteLargeOffsetArchiveV6(const char* archive_path, const char* resource_path, const uint8_t* hash, uint32_t hash_len, uint64_t resource_offset, const uint8_t* payload, uint32_t payload_size, uint32_t flags)
+{
+    remove(archive_path);
+    remove(resource_path);
+
+    ASSERT_TRUE(WriteArchiveIndexV6(archive_path, hash, hash_len, resource_offset, payload_size, flags));
+    ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, resource_offset, payload, payload_size));
+}
+
+static void AssertArchiveEntryReadable(dmResourceArchive::HArchiveIndexContainer archive, const uint8_t* hash, uint32_t hash_len, uint64_t resource_offset, uint32_t flags, const uint8_t* payload, uint32_t payload_size)
+{
+    dmResourceArchive::EntryData* entry = 0;
+    dmResourceArchive::Result result = dmResourceArchive::FindEntry(archive, hash, hash_len, &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(resource_offset, dmResourceArchive::GetEntryResourceDataOffset(entry));
+    ASSERT_EQ(flags, dmResourceArchive::GetEntryFlags(entry));
+
+    uint8_t buffer[16] = { 0 };
+    ASSERT_LE(payload_size, (uint32_t)sizeof(buffer));
+    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(payload, buffer, payload_size);
+
+    uint8_t partial_buffer[4] = { 0 };
+    uint32_t nread = 0;
+    result = dmResourceArchive::ReadEntryPartial(archive, entry, 2, sizeof(partial_buffer), partial_buffer, &nread);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ((uint32_t)sizeof(partial_buffer), nread);
+    ASSERT_ARRAY_EQ_LEN(payload + 2, partial_buffer, sizeof(partial_buffer));
 }
 
 bool IsLiveUpdateResource(dmhash_t lu_path_hash)
@@ -147,215 +282,6 @@ bool IsLiveUpdateResource(dmhash_t lu_path_hash)
         }
     }
     return false;
-}
-
-TEST(dmResourceArchive, ShiftInsertResource)
-{
-    const char* resource_filename = "test_resource_liveupdate.arcd";
-    char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
-
-    FILE* resource_file = fopen(path, "wb");
-    bool success = resource_file != 0x0;
-    ASSERT_EQ(success, true);
-
-    // Resource data to insert
-    dmResourceArchive::LiveUpdateResource* resource = (dmResourceArchive::LiveUpdateResource*)malloc(sizeof(dmResourceArchive::LiveUpdateResource));
-    resource->m_Header = (dmResourceArchive::LiveUpdateResourceHeader*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader));
-    PopulateLiveUpdateResource(resource);
-
-    // Use copy since we will shift/insert data
-    dmResourceArchive::HArchiveIndex arci_copy;
-    uint32_t arci_size = GetMutableIndexData((void*&)arci_copy, 1);
-
-    // Init archive container
-    dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) arci_copy, arci_size, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, false, &archive);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-
-    archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
-
-    // dmResourceArchive::SetDefaultReader(archive);
-
-    uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(5U, entry_count_before);
-
-    // Insertion
-    int index = -1;
-    dmResourceArchive::GetInsertionIndex(archive, sorted_middle_hash, &index);
-    ASSERT_TRUE(index >= 0);
-    dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, arci_copy, sorted_middle_hash, 20, index, resource, 0x0);
-    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
-    uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(6U, entry_count_after);
-
-    // Find inserted entry in archive after insertion
-    dmResourceArchive::EntryData* entry;
-    result = dmResourceArchive::FindEntry(archive, sorted_middle_hash, sizeof(sorted_middle_hash), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
-
-    int cmp = dmResource::VerifyArchiveIndex(archive);
-    ASSERT_EQ(0, cmp);
-
-    free(resource->m_Header);
-    free(resource);
-    dmResourceArchive::Delete(archive); // fclose on the FILE*
-    FreeMutableIndexData((void*&)arci_copy);
-    dmSys::Unlink(path);
-}
-
-
-TEST(dmResourceArchive, ShiftInsertResource_InsertIssue)
-{
-    const char* resource_filename = "test_resource_liveupdate.arcd";
-    char host_name[512];
-    const char* path = dmTestUtil::MakeHostPath(host_name, sizeof(host_name), resource_filename);
-
-    FILE* resource_file = fopen(path, "wb");
-    bool success = resource_file != 0x0;
-    ASSERT_EQ(success, true);
-
-    // Resource data to insert
-    dmResourceArchive::LiveUpdateResource* resource = (dmResourceArchive::LiveUpdateResource*)malloc(sizeof(dmResourceArchive::LiveUpdateResource));
-    resource->m_Header = (dmResourceArchive::LiveUpdateResourceHeader*)malloc(sizeof(dmResourceArchive::LiveUpdateResourceHeader));
-    PopulateLiveUpdateResource(resource);
-
-    dmResourceArchive::HArchiveIndexContainer archive = new dmResourceArchive::ArchiveIndexContainer;
-    archive->m_ArchiveIndex = new dmResourceArchive::ArchiveIndex;
-    archive->m_ArchiveIndex->m_HashLength = dmEndian::ToHost(20U);
-    archive->m_IsMemMapped = true;
-    archive->m_ArchiveFileIndex = new dmResourceArchive::ArchiveFileIndex;
-    archive->m_ArchiveFileIndex->m_ResourceSize = RESOURCES_ARCD_SIZE;
-    archive->m_ArchiveFileIndex->m_ResourceData = RESOURCES_ARCD;
-    archive->m_ArchiveFileIndex->m_FileResourceData = resource_file;
-    archive->m_ArchiveFileIndex->m_IsMemMapped = false;
-
-    // dmResourceArchive::SetDefaultReader(archive);
-
-    dmResourceArchive::ArchiveIndex* ai_temp = 0;
-    dmResourceArchive::NewArchiveIndexFromCopy(ai_temp, archive, 3);
-
-    delete archive->m_ArchiveIndex;
-    archive->m_ArchiveIndex = ai_temp;
-
-    uint32_t entry_count_before = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(0U, entry_count_before);
-
-    // we got:
-    // 0: '9170a12e266ec41f5575bb8f837d0f4bb6cab03f'
-    // 1: '07f1284d530deb401da0ed142da50d5724cb04cd'
-    // 2: '3be32cfd80b4016a9ebaf1c7249396ef608c95bd'
-    const uint8_t hash1[20] = {0x07, 0xf1, 0x28, 0x4d, 0x53, 0x0d, 0xeb, 0x40, 0x1d, 0xa0, 0xed, 0x14, 0x2d, 0xa5, 0x0d, 0x57, 0x24, 0xcb, 0x04, 0xcd};
-    const uint8_t hash2[20] = {0x91, 0x70, 0xa1, 0x2e, 0x26, 0x6e, 0xc4, 0x1f, 0x55, 0x75, 0xbb, 0x8f, 0x83, 0x7d, 0x0f, 0x4b, 0xb6, 0xca, 0xb0, 0x3f};
-    const uint8_t hash3[20] = {0x3b, 0xe3, 0x2c, 0xfd, 0x80, 0xb4, 0x01, 0x6a, 0x9e, 0xba, 0xf1, 0xc7, 0x24, 0x93, 0x96, 0xef, 0x60, 0x8c, 0x95, 0xbd};
-    // but we wanted:
-    // 0: '07f1284d530deb401da0ed142da50d5724cb04cd'
-    // 1: '3be32cfd80b4016a9ebaf1c7249396ef608c95bd'
-    // 2: '9170a12e266ec41f5575bb8f837d0f4bb6cab03f'
-
-    // Insertion
-    int index = -1;
-    dmResourceArchive::GetInsertionIndex(archive, hash1, &index);
-    ASSERT_EQ(0, index);
-
-    dmResourceArchive::Result insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash1, sizeof(hash1), index, resource, 0x0);
-    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
-
-    uint32_t entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(1U, entry_count_after);
-
-    dmResourceArchive::GetInsertionIndex(archive, hash2, &index);
-    ASSERT_EQ(1, index);
-
-    insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash2, sizeof(hash2), index, resource, 0x0);
-    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
-
-    entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(2U, entry_count_after);
-
-    dmResourceArchive::GetInsertionIndex(archive, hash3, &index);
-    ASSERT_EQ(1, index);
-
-    insert_result = dmResourceArchive::ShiftAndInsert(archive, ai_temp, hash3, sizeof(hash3), index, resource, 0x0);
-    ASSERT_EQ(insert_result, dmResourceArchive::RESULT_OK);
-
-    entry_count_after = dmResourceArchive::GetEntryCount(archive);
-    ASSERT_EQ(3U, entry_count_after);
-
-    int cmp = dmResource::VerifyArchiveIndex(archive);
-    ASSERT_EQ(0, cmp);
-
-    // Find inserted entry in archive after insertion
-    dmResourceArchive::Result result;
-    dmResourceArchive::EntryData* entry;
-    result = dmResourceArchive::FindEntry(archive, hash1, sizeof(hash1), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
-    result = dmResourceArchive::FindEntry(archive, hash2, sizeof(hash2), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
-    result = dmResourceArchive::FindEntry(archive, hash3, sizeof(hash3), &entry);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(resource->m_Count, dmEndian::ToNetwork(entry->m_ResourceSize));
-
-    free(resource->m_Header);
-    free(resource);
-    dmResourceArchive::Delete(archive); // fclose on the FILE*
-    FreeMutableIndexData((void*&)ai_temp);
-    dmSys::Unlink(path);
-}
-
-TEST(dmResourceArchive, NewArchiveIndexFromCopy)
-{
-    uint32_t single_entry_offset = dmResourceArchive::MAX_HASH;
-
-    dmResourceArchive::HArchiveIndexContainer archive_container = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive_container);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(368U, dmResourceArchive::GetEntryDataOffset(archive_container));
-
-    // No extra allocation
-    dmResourceArchive::HArchiveIndex dst_archive = 0;
-    dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 0);
-    ASSERT_EQ(368U, dmResourceArchive::GetEntryDataOffset(dst_archive));
-    dmResourceArchive::Delete(dst_archive);
-
-    // Allocate space for 3 extra entries
-    dst_archive = 0;
-    dmResourceArchive::NewArchiveIndexFromCopy(dst_archive, archive_container, 3);
-    ASSERT_EQ(368U + 3 * single_entry_offset, dmResourceArchive::GetEntryDataOffset(dst_archive));
-    dmResourceArchive::Delete(dst_archive);
-
-    dmResourceArchive::Delete(archive_container);
-}
-
-TEST(dmResourceArchive, GetInsertionIndex)
-{
-    dmResourceArchive::HArchiveIndexContainer archive = 0;
-    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer((void*) RESOURCES_ARCI, RESOURCES_ARCI_SIZE, true, RESOURCES_ARCD, RESOURCES_ARCD_SIZE, true, &archive);
-    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
-    ASSERT_EQ(5U, dmResourceArchive::GetEntryCount(archive));
-
-    // Saving it here in for debugging purposes
-    // printf("Archive:\n");
-    // dmResourceArchive::DebugArchiveIndex(archive);
-    // printf("sorted_first_hash: "); dmResource::PrintHash(sorted_first_hash, sizeof(sorted_first_hash)); printf("\n");
-    // printf("sorted_middle_hash: "); dmResource::PrintHash(sorted_middle_hash, sizeof(sorted_middle_hash)); printf("\n");
-    // printf("sorted_last_hash: "); dmResource::PrintHash(sorted_last_hash, sizeof(sorted_last_hash)); printf("\n");
-
-    int index = -1;
-
-    dmResourceArchive::GetInsertionIndex(archive, sorted_first_hash, &index);
-    ASSERT_EQ(0, index);
-
-    dmResourceArchive::GetInsertionIndex(archive, sorted_middle_hash, &index);
-    ASSERT_EQ(2, index);
-
-    dmResourceArchive::GetInsertionIndex(archive, sorted_last_hash, &index);
-    ASSERT_EQ(5, index);
-
-    dmResourceArchive::Delete(archive);
 }
 
 TEST(dmResourceArchive, ManifestHeader)
@@ -376,14 +302,14 @@ TEST(dmResourceArchive, ManifestHeader)
     dmResource::DeleteManifest(manifest);
 }
 
-TEST(dmResourceArchive, HasLiveupdateContent_True)
+TEST(dmResourceArchive, HasLiveupdateContent_MatchesArchiveManifestFlag)
 {
     dmResource::HManifest manifest = 0;
     dmResource::Result result = dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
     ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest->m_DDF->m_Version);
 
-    ASSERT_TRUE(dmResource::HasManifestExcludedEntries(manifest));
+    ASSERT_EQ(manifest->m_DDFData->m_HasExcludedResources, dmResource::HasManifestExcludedEntries(manifest));
 
     dmResource::DeleteManifest(manifest);
 }
@@ -400,194 +326,28 @@ TEST(dmResourceArchive, HasLiveupdateContent_False)
     dmResource::DeleteManifest(manifest);
 }
 
-static void PrintHash(const uint8_t* hash, uint32_t len)
+TEST(dmResourceArchive, HasLiveupdateContent_TrueFromManifestFlag)
 {
-    char* buf = new char[len*2+1];
-    buf[len] = '\0';
-    for (uint32_t i = 0; i < len; ++i)
-    {
-        dmSnPrintf(buf+i*2, 3, "%02X", hash[i]);
-    }
-    printf("HASH: %s\n", buf);
-    delete[] buf;
+    dmResource::Manifest manifest;
+    dmLiveUpdateDDF::ManifestData manifest_data;
+    manifest.m_DDFData = &manifest_data;
+    manifest_data.m_HasExcludedResources = true;
+
+    ASSERT_TRUE(dmResource::HasManifestExcludedEntries(&manifest));
 }
 
-static void PrintArray(uint8_t* a, uint32_t size)
+TEST(dmResourceArchive, HasLiveupdateContent_FalseWithoutManifestFlag)
 {
-    uint32_t left = size;
-    uint32_t stride = 32;
-    while (left > 0) {
-        if (left > 8) {
-            for (int i = 0; i < 8; ++i, ++a) {
-                printf("%02X ", *a);
-            }
-            left -= 8;
-            printf(" ");
-        } else {
-            for (int i = 0; i < left; ++i, ++a) {
-                printf("%02X ", *a);
-            }
-            left  = 0;
-        }
-        stride -= 8;
-        if (stride == 0) {
-            printf("\n");
-            stride = 32;
-        }
-    }
-}
+    dmResource::Manifest manifest;
+    dmLiveUpdateDDF::ManifestData manifest_data;
+    dmLiveUpdateDDF::ResourceEntry entries[1];
+    manifest.m_DDFData = &manifest_data;
+    manifest_data.m_HasExcludedResources = false;
+    manifest_data.m_Resources.m_Count = 1;
+    manifest_data.m_Resources.m_Data = entries;
+    entries[0].m_Flags = dmLiveUpdateDDF::EXCLUDED;
 
-/*
-This test is failing intermittenly on Linux. Typical output from a failed test:
-
-2020-04-19T09:57:44.1778093Z ManifestSignatureVerification
-2020-04-19T09:57:44.1779593Z PUBLIC KEY (sz: 162):
-2020-04-19T09:57:44.1780587Z
-2020-04-19T09:57:44.1782352Z 30 81 9F 30 0D 06 09 2A  86 48 86 F7 0D 01 01 01  05 00 03 81 8D 00 30 81  89 02 81 81 00 A4 6F BC
-2020-04-19T09:57:44.1784180Z 37 EF BA F9 60 0D 98 02  AE 97 44 B2 52 C0 0F 0E  73 95 7B 97 B0 B7 08 6D  F2 D7 4E C3 37 92 7C BF
-2020-04-19T09:57:44.1785946Z 55 DD 3A BD 8D 4D 73 94  3F 1B 69 70 86 23 DE 07  6D FF 46 86 17 6E 64 5B  8C 1F 36 AA 16 65 87 91
-2020-04-19T09:57:44.1787741Z 53 F4 1C 9F AC C9 31 0C  93 BA E8 CB BB 5A AE F9  FD DC 2F C0 10 5B 6A 1B  0B DE 22 50 B3 E6 D9 AD
-2020-04-19T09:57:44.1789537Z A7 E2 1C 92 D1 69 CA 93  25 AC 98 28 02 EF 1F F6  BF 67 7F 59 FB 1B 54 B0  29 DC 24 91 8D 02 03 01
-2020-04-19T09:57:44.1790849Z 00 01
-2020-04-19T09:57:44.1791703Z
-2020-04-19T09:57:44.1792941Z MANIFEST SIGNATURE (sz: 128):
-2020-04-19T09:57:44.1793804Z
-2020-04-19T09:57:44.1795548Z 32 7B 7A DE B2 CE CB A1  A6 B1 34 1D EF F7 51 36  8D 7A A1 B1 90 49 5A 2E  A9 D7 FB 69 05 6A 5D B9
-2020-04-19T09:57:44.1797361Z DC 94 91 EC E9 15 00 4E  51 49 C8 99 60 A6 F0 5F  DC 2B 8C 27 FB C8 70 5A  4C A5 40 9C D7 7E DD 95
-2020-04-19T09:57:44.1799205Z 28 D1 8F 37 5E DA 60 16  52 84 12 BA E6 74 5D 09  ED 43 43 DD FA 47 91 D1  9A DC AA DB C7 CC DE B1
-2020-04-19T09:57:44.1802608Z DF 30 C9 BA 2A 0A A8 A4  F1 4F 9D 8C AB 68 80 98  D2 0E F9 AB 00 80 B2 9C  21 09 D2 36 37 25 16 AF
-2020-04-19T09:57:44.1805102Z
-2020-04-19T09:57:44.1807577Z
-2020-04-19T09:57:44.1810518Z ../src/test/test_resource_archive.cpp:392:
-2020-04-19T09:57:44.1814584Z Expected: (dmResource::RESULT_OK) == (dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len)), actual: OK vs INVALID_DATA
-*/
-#if !defined(__linux__)
-TEST(dmResourceArchive, ManifestSignatureVerification)
-{
-    dmResource::HManifest manifest = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
-
-    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-    uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
-
-    // We have an intermittent fail here, so let's output the info so we can start investigating it.
-    // We always print these so that we can compare the failed build with a successful one
-    {
-        // Print out the source data, so that we can perhaps reproduce locally
-        printf("\nRESOURCES_DMANIFEST (sz: %u):\n\n", RESOURCES_DMANIFEST_SIZE);
-        PrintArray(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE);
-        printf("\n");
-
-        printf("\nRESOURCES_ARCD (sz: %u):\n\n", RESOURCES_ARCD_SIZE);
-        PrintArray(RESOURCES_ARCD, RESOURCES_ARCD_SIZE);
-        printf("\n");
-
-        printf("\nRESOURCES_ARCI (sz: %u):\n\n", RESOURCES_ARCI_SIZE);
-        PrintArray(RESOURCES_ARCI, RESOURCES_ARCI_SIZE);
-        printf("\n");
-
-        //
-        printf("\nPUBLIC KEY (sz: %u):\n\n", RESOURCES_PUBLIC_SIZE);
-        PrintArray(RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
-        printf("\n");
-
-        uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-        uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
-        printf("\nMANIFEST SIGNATURE (sz: %u):\n\n", signature_len);
-        PrintArray(signature, signature_len);
-        printf("\n");
-
-        printf("Expected digest (%u bytes):\n", expected_digest_len);
-        PrintHash((const uint8_t*)expected_digest, expected_digest_len);
-    }
-    uint8_t* hex_digest = 0x0;
-    uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
-
-    // debug prints to determine cause of intermittent test fail on both Linux/macOS
-    printf("Actual digest (%u bytes):\n", hex_digest_len);
-    PrintHash((const uint8_t*)hex_digest, hex_digest_len);
-    // end debug
-
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::MemCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
-
-    free(hex_digest);
-    dmResource::DeleteManifest(manifest);
-}
-#endif
-
-/*
-This test is failing intermittenly on Linux. Typical output from a failed test:
-
-2020-04-24T11:09:51.7615960Z ManifestSignatureVerificationLengthFail
-2020-04-24T11:09:51.7616210Z ../src/test/test_resource_archive.cpp:445:
-2020-04-24T11:09:51.7616493Z Expected: (dmResource::RESULT_OK) == (dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len)), actual: OK vs INVALID_DATA
-2020-04-24T11:09:51.7616663Z
-*/
-#if !defined(__linux__)
-TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
-{
-    dmResource::HManifest manifest = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
-
-    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-    uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
-
-    uint8_t* hex_digest = 0x0;
-    uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
-    hex_digest_len *= 0.5f; // make the supplied hash shorter than expected
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
-
-    free(hex_digest);
-    dmResource::DeleteManifest(manifest);
-}
-#endif
-
-/*
-This test is failing intermittenly on Linux. Typical output from a failed test:
-
-2020-04-28T05:00:04.1089407Z ManifestSignatureVerificationHashFail
-2020-04-28T05:00:04.1089610Z ../src/test/test_resource_archive.cpp:475:
-2020-04-28T05:00:04.1089868Z Expected: (dmResource::RESULT_OK) == (dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len)), actual: OK vs INVALID_DATA
-*/
-#if !defined(__linux__)
-TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
-{
-    dmResource::HManifest manifest = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
-
-    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
-    uint8_t* expected_digest = (uint8_t*)RESOURCES_MANIFEST_HASH;
-
-    uint8_t* hex_digest = 0x0;
-    uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
-    memset(hex_digest, 0x0, hex_digest_len / 2); // NULL out the first half of hash
-    ASSERT_EQ(dmResource::RESULT_SIGNATURE_MISMATCH, dmResource::MemCompare(hex_digest, hex_digest_len, expected_digest, expected_digest_len));
-
-    free(hex_digest);
-    dmResource::DeleteManifest(manifest);
-}
-#endif
-
-TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
-{
-    dmResource::HManifest manifest = 0;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::LoadManifestFromBuffer(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, &manifest));
-
-    unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
-    memcpy(resources_public_wrong, &RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
-    resources_public_wrong[0] = RESOURCES_PUBLIC[0] + 1; // make the key invalid
-    uint8_t* hex_digest = 0x0;
-    uint32_t hex_digest_len;
-    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, &hex_digest, &hex_digest_len));
-
-    free(hex_digest);
-    free(resources_public_wrong);
-    dmDDF::FreeMessage(manifest->m_DDFData);
-    dmDDF::FreeMessage(manifest->m_DDF);
-    delete manifest;
+    ASSERT_FALSE(dmResource::HasManifestExcludedEntries(&manifest));
 }
 
 TEST(dmResourceArchive, ResourceEntries)
@@ -782,6 +542,210 @@ TEST(dmResourceArchive, LoadFromDisk_Compressed)
     uint8_t invalid_hash[] = { 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U, 10U };
     result = dmResourceArchive::FindEntry(archive, invalid_hash, sizeof(invalid_hash), &entry);
     ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
+
+    dmResourceArchive::Delete(archive);
+}
+
+// New builds no longer need v5 archive compatibility. This minimal v5 index
+// verifies the engine rejects the archive version before attempting to load
+// hashes or entries using the old layout.
+TEST(dmResourceArchive, LoadFromDisk_RejectsVersion5Archive)
+{
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/version5_unsupported.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/version5_unsupported.arcd");
+
+    remove(archive_path);
+    remove(resource_path);
+
+    ASSERT_TRUE(WriteArchiveHeaderWithVersion(archive_path, 5));
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_VERSION_MISMATCH, result);
+    ASSERT_EQ((dmResourceArchive::HArchiveIndexContainer)0, archive);
+
+    remove(archive_path);
+    remove(resource_path);
+}
+
+// V6 exists to let .arcd data grow past the uint32 offset limit while keeping resource
+// sizes uint32. The entry packs the currently unused fourth flag bit with an offset
+// above 4 GiB, writes a tiny payload there in a sparse .arcd, and verifies the decoded
+// flags plus full and partial file-backed reads.
+TEST(dmResourceArchive, LoadFromDisk_ResourceOffsetAbove4GiB)
+{
+    const uint64_t resource_offset = 0x100000010ULL;
+    const uint32_t flags = 1 << 3;
+    const uint8_t hash[20] = {
+        0x43, 0xe9, 0xa1, 0x2b, 0x5c, 0x6d, 0x7e, 0x8f, 0x90, 0xab,
+        0xbc, 0xcd, 0xde, 0xef, 0x10, 0x21, 0x32, 0x43, 0x54, 0x65
+    };
+    const uint8_t payload[] = { 0x41, 0x52, 0x43, 0x36, 0xde, 0xad, 0xbe, 0xef };
+
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/large_offset_v6_sparse.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/large_offset_v6_sparse.arcd");
+
+    WriteLargeOffsetArchiveV6(archive_path, resource_path, hash, sizeof(hash), resource_offset, payload, sizeof(payload), flags);
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    AssertArchiveEntryReadable(archive, hash, sizeof(hash), resource_offset, flags, payload, sizeof(payload));
+
+    dmResourceArchive::Delete(archive);
+    remove(archive_path);
+    remove(resource_path);
+}
+
+// Platform mount code may choose mmap instead of the file-backed archive reader. This
+// verifies that mounting a local v6 archive with data above 4 GiB still allows full and
+// partial reads through the mounted archive handle.
+TEST(dmResourceArchive, MountArchiveInternal_ResourceOffsetAbove4GiB)
+{
+    const uint64_t resource_offset = 0x100000010ULL;
+    const uint32_t flags = 1 << 3;
+    const uint8_t hash[20] = {
+        0x63, 0xd9, 0xa1, 0x2b, 0x5c, 0x6d, 0x7e, 0x8f, 0x90, 0xab,
+        0xbc, 0xcd, 0xde, 0xef, 0x10, 0x21, 0x32, 0x43, 0x54, 0x66
+    };
+    const uint8_t payload[] = { 0x4d, 0x4e, 0x54, 0x36, 0xde, 0xad, 0xbe, 0xef };
+
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/mount_large_offset_v6_sparse.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/mount_large_offset_v6_sparse.arcd");
+
+    WriteLargeOffsetArchiveV6(archive_path, resource_path, hash, sizeof(hash), resource_offset, payload, sizeof(payload), flags);
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    void* mount_info = 0;
+    dmResource::Result mount_result = dmResource::MountArchiveInternal(archive_path, resource_path, &archive, &mount_info);
+    ASSERT_EQ(dmResource::RESULT_OK, mount_result);
+
+    AssertArchiveEntryReadable(archive, hash, sizeof(hash), resource_offset, flags, payload, sizeof(payload));
+
+    dmResource::UnmountArchiveInternal(archive, mount_info);
+    remove(archive_path);
+    remove(resource_path);
+}
+
+// File-backed archives keep hash/entry arrays beside the loaded index. Replacing the
+// active index must discard those arrays, otherwise lookups continue using the old index.
+TEST(dmResourceArchive, SetNewArchiveIndex_ClearsFileBackedLookupArrays)
+{
+    const uint8_t old_hash[20] = {
+        0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78, 0x89, 0x9a,
+        0xab, 0xbc, 0xcd, 0xde, 0xef, 0xf0, 0x10, 0x20, 0x30, 0x40
+    };
+    const uint8_t new_hash[20] = {
+        0x02, 0x13, 0x24, 0x35, 0x46, 0x57, 0x68, 0x79, 0x8a, 0x9b,
+        0xac, 0xbd, 0xce, 0xdf, 0xe0, 0xf1, 0x11, 0x21, 0x31, 0x41
+    };
+    const uint8_t payload[] = { 'r', 'e', 'p', 'l', 'a', 'c', 'e', 0 };
+
+    char archive_path[512];
+    char resource_path[512];
+    dmTestUtil::MakeHostPath(archive_path, sizeof(archive_path), "build/src/test/replace_index_v6.arci");
+    dmTestUtil::MakeHostPath(resource_path, sizeof(resource_path), "build/src/test/replace_index_v6.arcd");
+
+    remove(archive_path);
+    remove(resource_path);
+
+    ASSERT_TRUE(WriteArchiveIndexV6(archive_path, old_hash, sizeof(old_hash), 0, sizeof(payload), 0));
+    ASSERT_TRUE(WriteLargeOffsetArchiveData(resource_path, 0, payload, sizeof(payload)));
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::LoadArchiveFromFile(archive_path, resource_path, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    struct ArchiveIndexV6Buffer
+    {
+        dmResourceArchive::ArchiveIndex m_Header;
+        uint8_t m_Hash[dmResourceArchive::MAX_HASH];
+        dmResourceArchive::EntryData m_Entry;
+    };
+
+    ArchiveIndexV6Buffer replacement;
+    memset(&replacement, 0, sizeof(replacement));
+    replacement.m_Header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION_6);
+    replacement.m_Header.m_EntryDataCount = dmEndian::ToNetwork(1U);
+    replacement.m_Header.m_EntryDataOffset = dmEndian::ToNetwork((uint32_t)((uintptr_t)&replacement.m_Entry - (uintptr_t)&replacement));
+    replacement.m_Header.m_HashOffset = dmEndian::ToNetwork((uint32_t)((uintptr_t)&replacement.m_Hash - (uintptr_t)&replacement));
+    replacement.m_Header.m_HashLength = dmEndian::ToNetwork((uint32_t)sizeof(new_hash));
+    memcpy(replacement.m_Hash, new_hash, sizeof(new_hash));
+    replacement.m_Entry.m_ResourceDataOffsetAndFlags = dmEndian::ToNetwork(dmResourceArchive::PackEntryDataOffsetAndFlags(0, 0));
+    replacement.m_Entry.m_ResourceSize = dmEndian::ToNetwork((uint32_t)sizeof(payload));
+    replacement.m_Entry.m_ResourceCompressedSize = dmEndian::ToNetwork(0xFFFFFFFFU);
+
+    dmResourceArchive::SetNewArchiveIndex(archive, &replacement.m_Header, true);
+
+    dmResourceArchive::EntryData* entry = 0;
+    result = dmResourceArchive::FindEntry(archive, old_hash, sizeof(old_hash), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_NOT_FOUND, result);
+
+    result = dmResourceArchive::FindEntry(archive, new_hash, sizeof(new_hash), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    uint8_t buffer[sizeof(payload)] = { 0 };
+    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(payload, buffer, sizeof(payload));
+
+    dmResourceArchive::Delete(archive);
+    remove(archive_path);
+    remove(resource_path);
+}
+
+// Bundled and mapped archives do not go through the file-load normalization path, so v6
+// lookup must work directly from the 16-byte packed entry layout. This in-memory v6 index
+// contains one mapped entry with the currently unused fourth flag bit and verifies
+// FindEntry plus ReadEntry against mapped payload bytes.
+TEST(dmResourceArchive, Wrap_Version6)
+{
+    const uint32_t flags = 1 << 3;
+    const uint8_t hash[20] = {
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa,
+        0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x10, 0x20, 0x30, 0x40
+    };
+    const uint8_t payload[] = { 'v', '6', '_', 'w', 'r', 'a', 'p', 0 };
+
+    struct ArchiveIndexV6Buffer
+    {
+        dmResourceArchive::ArchiveIndex m_Header;
+        uint8_t m_Hash[dmResourceArchive::MAX_HASH];
+        dmResourceArchive::EntryData m_Entry;
+    };
+
+    ArchiveIndexV6Buffer index_buffer;
+    memset(&index_buffer, 0, sizeof(index_buffer));
+    index_buffer.m_Header.m_Version = dmEndian::ToNetwork(dmResourceArchive::VERSION_6);
+    index_buffer.m_Header.m_EntryDataCount = dmEndian::ToNetwork(1U);
+    index_buffer.m_Header.m_EntryDataOffset = dmEndian::ToNetwork((uint32_t)((uintptr_t)&index_buffer.m_Entry - (uintptr_t)&index_buffer));
+    index_buffer.m_Header.m_HashOffset = dmEndian::ToNetwork((uint32_t)((uintptr_t)&index_buffer.m_Hash - (uintptr_t)&index_buffer));
+    index_buffer.m_Header.m_HashLength = dmEndian::ToNetwork((uint32_t)sizeof(hash));
+    memcpy(index_buffer.m_Hash, hash, sizeof(hash));
+    index_buffer.m_Entry.m_ResourceDataOffsetAndFlags = dmEndian::ToNetwork(dmResourceArchive::PackEntryDataOffsetAndFlags(0, flags));
+    index_buffer.m_Entry.m_ResourceSize = dmEndian::ToNetwork((uint32_t)sizeof(payload));
+    index_buffer.m_Entry.m_ResourceCompressedSize = dmEndian::ToNetwork(0xFFFFFFFFU);
+
+    dmResourceArchive::HArchiveIndexContainer archive = 0;
+    dmResourceArchive::Result result = dmResourceArchive::WrapArchiveBuffer(&index_buffer, sizeof(index_buffer), true, payload, sizeof(payload), true, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+
+    dmResourceArchive::EntryData* entry = 0;
+    result = dmResourceArchive::FindEntry(archive, hash, sizeof(hash), &entry);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_EQ(flags, dmResourceArchive::GetEntryFlags(entry));
+
+    uint8_t buffer[sizeof(payload)] = { 0 };
+    result = dmResourceArchive::ReadEntry(archive, entry, buffer);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(payload, buffer, sizeof(payload));
 
     dmResourceArchive::Delete(archive);
 }

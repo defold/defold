@@ -306,7 +306,8 @@ namespace dmGameSystem
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory,
         dmRender::HRenderContext render_context,
         dmInput::HContext input_context,
-        PhysicsContext* physics_context);
+        PhysicsContext* physics_context,
+        ModelContext* model_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
                                                   dmGameObject::HRegister regist,

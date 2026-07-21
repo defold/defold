@@ -14,18 +14,32 @@
 
 (ns editor.command-requests
   (:require [cljfx.api :as fx]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
             [editor.disk :as disk]
             [editor.future :as future]
+            [editor.library :as library]
             [editor.lsp.server :as lsp.server]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [service.log :as log]
             [util.coll :as coll]
-            [util.http-server :as http-server]))
+            [util.http-server :as http-server])
+  (:import [com.dynamo.bob.util Library$Result]))
 
 (set! *warn-on-reflection* true)
+
+(defn- run-request-user-data [request]
+  (case (coll/some (fn [query-part]
+                     (let [[name value] (string/split query-part #"=" 2)]
+                       (when (= "focus" name)
+                         (or value ""))))
+                   (string/split (:query request "") #"&"))
+    nil {}
+    "true" {:focus true}
+    "false" {:focus false}
+    (throw (http-server/error (http-server/response 400 "Invalid focus value; expected true or false\n")))))
 
 (defn- build-response [result localization-state]
   (future/then
@@ -46,6 +60,25 @@
                                       cursor-range (assoc :range (lsp.server/editor-cursor-range->lsp-range cursor-range)))))))]
         (http-server/json-response {:success (not error) :issues issues} (if error 422 200))))))
 
+(defn- fetch-libraries-response [result localization-state]
+  (future/then
+    result
+    (fn [[lib-results reload-succeeded]]
+      (let [success (and reload-succeeded (coll/not-any? Library$Result/.problem lib-results))]
+        (http-server/json-response
+          {:success success
+           :libraries (coll/into-> lib-results []
+                        (map (fn [^Library$Result result]
+                               (let [problem (.problem result)]
+                                 (cond-> {:uri (str (.uri result))
+                                          :success (not problem)}
+                                   problem
+                                   (assoc :message (localization-state (library/result-message result))))))))}
+          (cond
+            (not reload-succeeded) 500
+            success 200
+            :else 422))))))
+
 (def ^:private supported-commands
   ;; Notable exclusions:
   ;; :save-all, :quit, anything that would open a modal dialog.
@@ -55,7 +88,14 @@
 
    :build
    {:ui-handler :project.build
-    :help "Build and run the project."
+    ;; Deprecated compatibility alias. Remove after 2027-07-15.
+    :deprecated true
+    :resource-sync true
+    :response-fn build-response}
+
+   :compile
+   {:ui-handler :project.compile
+    :help "Compile the project without running it."
     :resource-sync true
     :response-fn build-response}
 
@@ -120,7 +160,8 @@
    :fetch-libraries
    {:ui-handler :project.fetch-libraries
     :help "Download the latest version of the project library dependencies."
-    :resource-sync true}
+    :resource-sync true
+    :response-fn fetch-libraries-response}
 
    :hot-reload
    {:ui-handler :run.hot-reload
@@ -131,10 +172,12 @@
    {:ui-handler :help.open-issues
     :help "Open the Defold Issue Tracker in a web browser."}
 
-   :rebuild
+   :clean-build
    {:ui-handler :project.clean-build
-    :help "Rebuild and run the project."
-    :resource-sync true}
+    :user-data {:skip-confirmation true}
+    :help "Clears build caches and rebuilds. Use only if builds fail oddly or miss changes."
+    :resource-sync true
+    :response-fn build-response}
 
    :rebundle
    {:ui-handler :project.rebundle
@@ -157,6 +200,13 @@
    :report-suggestion
    {:ui-handler :help.report-suggestion
     :help "Open the Report Suggestion page in a web browser."}
+
+   :run
+   {:ui-handler :project.build
+    :help "Compile and run the project."
+    :request->user-data run-request-user-data
+    :resource-sync true
+    :response-fn build-response}
 
    :show-build-errors
    {:ui-handler :window.show-build-errors
@@ -188,8 +238,9 @@
 
 (defn- command-openapi []
   (let [command->help (coll/into-> supported-commands (sorted-map)
-                       (map (fn [[command {:keys [help]}]]
-                              (coll/pair (name command) help))))]
+                       (keep (fn [[command {:keys [deprecated help]}]]
+                               (when-not deprecated
+                                 (coll/pair (name command) help)))))]
     {:summary "Execute an editor command"
      :description (str "Available commands:\n"
                        (coll/join-to-string
@@ -206,7 +257,12 @@
                                     (reduce-kv (fn [acc command _]
                                                  (conj! acc command))
                                                (transient [])
-                                               command->help))}}]
+                                               command->help))}}
+                  {:name "focus"
+                   :in "query"
+                   :description "Whether the launched game takes focus; only applies to `run`"
+                   :schema {:type "boolean"
+                            :default true}}]
      :responses {"200" {:description "Command completed and returned a response body"}
                  "202" {:description "Accepted"}
                  "403" {:description "Forbidden"}
@@ -227,8 +283,12 @@
    {"POST" (with-meta
              (bound-fn [request]
                (let [command (-> request :path-params :command keyword)]
-                 (if-let [{:keys [ui-handler resource-sync response-fn]} (supported-commands command)]
-                   (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler {})]
+                 (if-let [{:keys [ui-handler user-data request->user-data resource-sync response-fn]} (supported-commands command)]
+                   (let [ui-handler-ctx (resolve-ui-handler-ctx
+                                          ui-node
+                                          ui-handler
+                                          (cond-> (or user-data {})
+                                                  request->user-data (merge (request->user-data request))))]
                      (case ui-handler-ctx
                        (::ui/not-active ::ui/not-enabled) http-server/forbidden
                        (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))
@@ -278,7 +338,7 @@
   (-> @(util.http-client/request
          (str "http://localhost:"
               (slurp (str (g/node-value (dev/workspace) :root) "/.internal/editor.port"))
-              "/command/build")
+              "/command/run")
          :method "POST"
          :as :string)
       :body

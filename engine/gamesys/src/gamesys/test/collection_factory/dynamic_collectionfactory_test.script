@@ -20,23 +20,35 @@ local function state_prev(self)
     return self.states[self.state_prev]
 end
 
+local ROOT_ID = hash("/go")
+
 local function next_state(self)
     self.state_prev = self.state
     self.state = self.state + 1
 end
 
-local function delete_gameobjects(self)
-    for _, id in ipairs(self.ids) do
-        go.delete(id, true)
-    end
-    self.ids = {}
+local function is_root_instance()
+    return go.get_id() == ROOT_ID
 end
 
-local function create_gameobjects(self, url)
+local function should_cleanup_recursive_instance()
+    return recursive_cleanup_in_script ~= false
+end
+
+local function delete_gameobjects(ids)
+    for _, id in ipairs(ids) do
+        go.delete(id, true)
+    end
+    for i = #ids, 1, -1 do
+        ids[i] = nil
+    end
+end
+
+local function create_gameobjects(ids, url)
     local ids1 = collectionfactory.create(url)
     local ids2 = collectionfactory.create(url)
-    for _, id in pairs(ids1) do table.insert(self.ids, id) end
-    for _, id in pairs(ids2) do table.insert(self.ids, id) end
+    for _, id in pairs(ids1) do table.insert(ids, id) end
+    for _, id in pairs(ids2) do table.insert(ids, id) end
 end
 
 local function handle_state(self)
@@ -61,34 +73,72 @@ local function handle_state(self)
         collectionfactory.set_prototype("/go#collectionfactory", nil)
         next_state(self)
     elseif state == "delete" then
-        delete_gameobjects(self)
+        delete_gameobjects(self.ids)
         next_state(self)
     elseif state == "create" then
-        create_gameobjects(self, self.url)
+        create_gameobjects(self.ids, self.url)
+        next_state(self)
+    elseif state == "load_recursive_prototype" then
+        assert(recursive_prototype_path ~= nil)
+        collectionfactory.set_prototype("/go#collectionfactory", recursive_prototype_path)
+        self.loading = true
+        collectionfactory.load("/go#collectionfactory", load_complete)
+    elseif state == "unload_recursive_prototype" then
+        collectionfactory.unload("/go#collectionfactory")
+        collectionfactory.set_prototype("/go#collectionfactory", nil)
+        next_state(self)
+    elseif state == "delete_recursive_gameobjects" then
+        if should_cleanup_recursive_instance() then
+            delete_gameobjects(self.recursive_ids)
+        end
         next_state(self)
     end
 end
 
 function init(self)
+    global_recursive_created = nil
+    recursive_instance = nil
+
     self.url = "/go#collectionfactory"
     self.ids = {}
+    self.recursive_ids = {}
     self.loading = false
     self.state_prev = 0
     self.state = 1
     self.states = { "load", "unload", "delete", "load", "unload",
-                    "unload", "delete", "create", "delete"}
+                    "unload", "delete", "create", "delete" }
 
     if prototype_path ~= nil then
         table.insert(self.states, "load_prototype")
         table.insert(self.states, "unload_prototype")
         table.insert(self.states, "delete")
     end
+
+    if recursive_prototype_path ~= nil then
+        if is_root_instance() then
+            table.insert(self.states, "load_recursive_prototype")
+            table.insert(self.states, "unload_recursive_prototype")
+            if should_cleanup_recursive_instance() then
+                table.insert(self.states, "delete_recursive_gameobjects")
+            end
+        else
+            self.states = {}
+        end
+    end
 end
 
 function load_complete(self, url, result)
     assert(result == true)
     self.loading = false
-    create_gameobjects(self, url)
+    if state(self) == "load_recursive_prototype" then
+        self.recursive_ids = {}
+        local ids = collectionfactory.create(url)
+        for _, id in pairs(ids) do table.insert(self.recursive_ids, id) end
+        recursive_instance = self.recursive_ids[1]
+        global_recursive_created = true
+    else
+        create_gameobjects(self.ids, url)
+    end
     next_state(self)
 end
 
@@ -101,4 +151,7 @@ function update(self, dt)
 end
 
 function final(self)
+    if should_cleanup_recursive_instance() then
+        delete_gameobjects(self.recursive_ids)
+    end
 end

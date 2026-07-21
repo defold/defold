@@ -20,7 +20,6 @@
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
-            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -33,7 +32,7 @@
             [util.fn :as fn]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress IProgress$Task TaskResult]
+  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType Progress Progress$Reporter TaskResult]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
            [java.nio.charset StandardCharsets]
@@ -42,50 +41,20 @@
 
 (set! *warn-on-reflection* true)
 
-
 (defn ->progress
   ([render-progress!]
    (->progress render-progress! fn/constantly-false))
   ([render-progress! task-cancelled?]
-   (->progress render-progress! task-cancelled? (atom [])))
-  ([render-progress! task-cancelled? msg-stack-atom]
    (assert (ifn? render-progress!))
    (assert (ifn? task-cancelled?))
-   (assert (vector? @msg-stack-atom))
-   (reify IProgress
-     (isCanceled [_this]
-       (task-cancelled?))
-     (setCanceled [_this _canceled])
-     (subProgress [_this _work-claimed-from-this]
-       (->progress render-progress! task-cancelled? msg-stack-atom))
-     (beginTask [_this task _steps]
-       (error-reporting/catch-all!
-         (let [message (condp identical? task
-                         IProgress$Task/BUNDLING (localization/message "progress.bundling")
-                         IProgress$Task/BUILDING_ENGINE (localization/message "progress.building-engine")
-                         IProgress$Task/CLEANING_ENGINE (localization/message "progress.cleaning-engine")
-                         IProgress$Task/DOWNLOADING_SYMBOLS (localization/message "progress.downloading-symbols")
-                         IProgress$Task/TRANSPILING_TO_LUA (localization/message "progress.transpiling-to-lua")
-                         IProgress$Task/READING_TASKS (localization/message "progress.reading-tasks")
-                         IProgress$Task/BUILDING (localization/message "progress.building")
-                         IProgress$Task/CLEANING (localization/message "progress.cleaning")
-                         IProgress$Task/GENERATING_REPORT (localization/message "progress.generating-report")
-                         IProgress$Task/WORKING (localization/message "progress.working")
-                         IProgress$Task/READING_CLASSES (localization/message "progress.reading-classes")
-                         IProgress$Task/DOWNLOADING_ARCHIVES (localization/message "progress.downloading-archives")
-                         localization/empty-message)]
-           (swap! msg-stack-atom conj message)
-           (render-progress! (progress/make-cancellable-indeterminate message)))))
-     (worked [_this _amount]
-       ;; Bob reports misleading progress amounts.
-       ;; We report only "busy" and the name of the task.
-       nil)
-     (done [_this]
-       (error-reporting/catch-all!
-         (let [msg (peek (swap! msg-stack-atom pop))]
-           (render-progress! (if (some? msg)
-                               (progress/make-cancellable-indeterminate msg)
-                               progress/done))))))))
+   (Progress.
+     (reify Progress$Reporter
+       (isCanceled [_]
+         (task-cancelled?))
+       (report [_ message fraction]
+         (error-reporting/catch-all! (render-progress! (progress/bob message fraction true))))
+       (close [_]
+         (error-reporting/catch-all! (render-progress! progress/done)))))))
 
 (defn- project-title [project]
   (let [proj-settings (project/settings project)]
@@ -267,7 +236,7 @@
   (let [output-path (build-html5-output-path project)
         build-server-url (native-extensions/get-build-server-url prefs project)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
-    {"platform" "js-web"
+    {"platform" "wasm-web"
      "architectures" "wasm-web"
      "variant" "debug"
      "archive" true

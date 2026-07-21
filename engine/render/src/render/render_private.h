@@ -18,6 +18,7 @@
 #include <string.h> // For memset
 
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/font/text_layout.h>
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
@@ -42,19 +43,18 @@ namespace dmRender
     typedef FontRenderBackend* HFontRenderBackend;
 
 #define DEBUG_3D_NAME "_debug3d"
-#define DEBUG_2D_NAME "_debug2d"
 
     struct Sampler
     {
-        dmhash_t                  m_NameHash;
-        dmGraphics::TextureType   m_Type;
-        dmGraphics::TextureFilter m_MinFilter;
-        dmGraphics::TextureFilter m_MagFilter;
-        dmGraphics::TextureWrap   m_UWrap;
-        dmGraphics::TextureWrap   m_VWrap;
+        dmhash_t                     m_NameHash;
+        dmGraphics::TextureType      m_Type;
+        dmGraphics::TextureFilter    m_MinFilter;
+        dmGraphics::TextureFilter    m_MagFilter;
+        dmGraphics::TextureWrap      m_UWrap;
+        dmGraphics::TextureWrap      m_VWrap;
         dmGraphics::HUniformLocation m_Location;
-        float                     m_MaxAnisotropy;
-        uint8_t                   m_UnitValueCount;
+        float                        m_MaxAnisotropy;
+        uint8_t                      m_UnitValueCount;
 
         Sampler()
             : m_NameHash(0)
@@ -101,12 +101,15 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
         uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
-        uint8_t                                     m_LightBufferSet;
-        uint8_t                                     m_LightBufferBinding;
+        uint16_t                                    m_LightBufferSet;
+        uint16_t                                    m_LightBufferBinding;
+        uint16_t                                    m_LightBufferCapacity;
         uint8_t                                     m_HasLightBuffer : 1;
         uint8_t                                     m_InstancingSupported : 1;
         uint8_t                                     m_HasSkinnedAttributes : 1;
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
+        uint8_t                                     m_HasMorphTargetsSampler : 1;
+        uint8_t                                     m_HasMorphTargetWeightsAttribute : 1;
     };
 
     struct ComputeProgram
@@ -116,6 +119,10 @@ namespace dmRender
         dmArray<RenderConstant>                     m_Constants;
         dmArray<Sampler>                            m_Samplers;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        uint16_t                                    m_LightBufferSet;
+        uint16_t                                    m_LightBufferBinding;
+        uint16_t                                    m_LightBufferCapacity;
+        uint8_t                                     m_HasLightBuffer : 1;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered
@@ -123,8 +130,6 @@ namespace dmRender
     {
         DEBUG_RENDER_TYPE_FACE_3D,
         DEBUG_RENDER_TYPE_LINE_3D,
-        DEBUG_RENDER_TYPE_FACE_2D,
-        DEBUG_RENDER_TYPE_LINE_2D,
         MAX_DEBUG_RENDER_TYPE_COUNT
     };
 
@@ -138,7 +143,6 @@ namespace dmRender
     {
         DebugRenderTypeData             m_TypeData[MAX_DEBUG_RENDER_TYPE_COUNT];
         Predicate                       m_3dPredicate;
-        Predicate                       m_2dPredicate;
         dmRender::HRenderContext        m_RenderContext;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
@@ -155,6 +159,7 @@ namespace dmRender
         HConstant           m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
         HFontMap            m_FontMap;
         HMaterial           m_Material;
+        HTextLayout         m_TextLayout;
         dmGraphics::BlendFactor m_SourceBlendFactor;
         dmGraphics::BlendFactor m_DestinationBlendFactor;
         uint64_t            m_BatchKey;
@@ -162,7 +167,7 @@ namespace dmRender
         uint32_t            m_StringOffset;
         uint32_t            m_OutlineColor;
         uint32_t            m_ShadowColor;
-        uint16_t            m_RenderOrder;
+        uint32_t            m_RenderOrder;
         uint8_t             m_NumRenderConstants;
         bool                m_LineBreak;
         float               m_Width;
@@ -265,6 +270,7 @@ namespace dmRender
         // based on the new parameters
         dmVMath::Point3  m_LastPosition;
         dmVMath::Quat    m_LastRotation;
+        float            m_OrthographicAutoZoom;
 
         RenderCameraData m_Data;
         uint8_t          m_UseFrustum : 1;
@@ -275,7 +281,6 @@ namespace dmRender
     struct LightPrototype
     {
         dmVMath::Vector4 m_Color;
-        dmVMath::Vector3 m_Direction;
         LightType        m_Type;
         float            m_Intensity;
         float            m_Range;
@@ -285,11 +290,12 @@ namespace dmRender
 
     struct LightInstance
     {
-        dmVMath::Point3       m_Position;
-        dmVMath::Vector3      m_Direction;
-        const LightPrototype* m_LightPrototype;
-        uint16_t              m_LightBufferIndex;
+        HLightPrototype m_LightPrototype;
+        uint16_t        m_LightBufferIndex;
+        uint16_t        m_Version;
     };
+
+    const LightPrototype* GetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
 
     // CPU-mapped representation of a light in STD140 layout
     struct LightSTD140
@@ -317,24 +323,28 @@ namespace dmRender
         dmArray<uint32_t>           m_RenderListSortIndices;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
-        dmhash_t                    m_FrustumHash;
+        //dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
         HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
-        dmOpaqueHandleContainer<LightInstance> m_RenderLights;
+        dmOpaqueHandleContainer<LightPrototype> m_LightPrototypes;
+        dmArray<LightInstance>                  m_RenderLights;
         dmIndexPool16                          m_RenderLightsIndices;
 
         dmArray<LightSTD140>                   m_LightBufferScratch;
-        dmGraphics::UniformBufferLayout        m_LightBufferLayout;
+        dmArray<LightSTD140>                   m_LightBufferUploadScratch;
         dmGraphics::HUniformBuffer             m_LightUniformBuffer;
+        dmVMath::Vector3                       m_AmbientLight;
 
         HFontMap                    m_SystemFontMap;
         Matrix4                     m_View;
         Matrix4                     m_Projection;
         Matrix4                     m_ViewProj;
+        Matrix4                     m_ProjectionAdjustedNDC;
+        Matrix4                     m_ViewProjAdjustedNDC;
         float                       m_Time;
         float                       m_Dt;
         dmGraphics::HContext        m_GraphicsContext;
@@ -344,13 +354,14 @@ namespace dmRender
 
         uint32_t                    m_LightBufferDirtyStart;
         uint32_t                    m_LightBufferDirtyEnd;
+        uint32_t                    m_LightBufferInfoWriteStart;
         uint32_t                    m_LightBufferDataWriteStart;
-        uint32_t                    m_LightBufferLastWrittenCount;
         uint16_t                    m_MaxLightCount;
-        uint16_t                    m_LightBufferDirtyCount         : 1;
+        uint16_t                    m_LightBufferDirtyInfo          : 1;
         uint16_t                    m_OutOfResources                : 1;
         uint16_t                    m_StencilBufferCleared          : 1;
         uint16_t                    m_MultiBufferingRequired        : 1;
+        uint16_t                    m_UseAdjustedNDC               : 1;
         uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
         uint16_t                    m_IsRenderPaused                : 1;
     };
@@ -370,9 +381,11 @@ namespace dmRender
 
     Result GenerateKey(HRenderContext render_context, const Matrix4& view_matrix);
 
+    const Matrix4& GetProjectionMatrixForProgram(HRenderContext render_context);
+    const Matrix4& GetViewProjectionMatrixForProgram(HRenderContext render_context);
     void     GetProgramUniformCount(dmGraphics::HProgram program, uint32_t total_constants_count, uint32_t* constant_count_out, uint32_t* samplers_count_out);
     void     SetProgramConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers);
-    void     SetProgramConstant(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& texture_matrix, dmGraphics::ShaderDesc::Language program_language, dmRenderDDF::MaterialDesc::ConstantType type, dmGraphics::HProgram program, dmGraphics::HUniformLocation location, HConstant constant);
+    void     SetProgramConstant(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& texture_matrix, dmRenderDDF::MaterialDesc::ConstantType type, dmGraphics::HUniformLocation location, HConstant constant);
     void     SetProgramRenderConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, const dmVMath::Vector4* values, uint32_t count);
     void     SetProgramConstantType(const dmArray<RenderConstant>& constants, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool     GetProgramConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, HConstant& out_value);
@@ -405,9 +418,10 @@ namespace dmRender
     RenderCamera* CheckRenderCamera(lua_State* L, int index, HRenderContext render_context);
 
     // Lights
-    void InitializeLightData(HRenderContext render_context, uint32_t max_light_count);
     void FinalizeLightData(HRenderContext render_context);
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding, uint16_t* out_capacity);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
+    void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program);
 
     // Exposed here for unit testing
     struct RenderListEntrySorter
@@ -507,4 +521,3 @@ namespace dmRender
 }
 
 #endif
-

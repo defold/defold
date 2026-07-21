@@ -1,0 +1,16 @@
+name: "set_collection_chain_level1"
+instances {
+  id: "go"
+  prototype: "/collection_proxy/set_collection_chain_level1.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}

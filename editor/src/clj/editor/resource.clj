@@ -104,6 +104,10 @@
     (or (resource-types ext)
         (resource-types placeholder-resource-type-ext))))
 
+(defn- proj-path-exists? [basis workspace proj-path]
+  (let [resources-by-proj-path (g/raw-property-value basis workspace :resource-map)]
+    (contains? resources-by-proj-path proj-path)))
+
 (defn overridable-resource-type?
   "Returns whether the supplied value is a resource-type that hosts properties
   that may be overridden."
@@ -168,11 +172,11 @@
     (subs proj-path 0 last-slash)))
 
 (defn project-directory? [^File value]
-  ;; The project directory must exist on disk and exactly match the real casing.
+  ;; The project directory must be a real and existing path on disk.
   (and (instance? File value)
        (.isDirectory value)
        (= (.getPath value)
-          (str (path/actual-cased value)))))
+          (str (path/real value)))))
 
 (defn proj-path-patterns-file? [^File value]
   ;; These files may or may not exist in the project, but it is important for
@@ -441,22 +445,10 @@
   (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [this] source-type)
   (exists? [this]
-    (try
-      ;; The path must match the casing of the file on disk exactly. We treat
-      ;; this as an error to make the user manually fix mismatches. We could fix
-      ;; such references automatically by using the canonical path to create the
-      ;; FileResource. However, some ids used by the engine are derived from the
-      ;; file names, most notably AtlasImage ids. Since these can be referenced
-      ;; from scripts, we make the user aware of the bad reference so she can
-      ;; fix it manually and hopefully remember to update the scripts too.
-      (let [file (io/file this)]
-        (and (.exists file)
-             (not (ignored-project-path? (io/file root) project-path))
-             (string/ends-with? (->unix-seps (str (path/actual-cased file))) project-path)))
-      (catch IOException _
-        false)
-      (catch SecurityException _
-        false)))
+    (and (proj-path-exists? (g/unsafe-basis) workspace project-path)
+         (if (path/symlink? this)
+           (.exists (io/file this))
+           true)))
   (read-only? [this]
     (try
       (not (.canWrite (io/file this)))
@@ -468,7 +460,7 @@
   (proj-path [this] project-path)
   (resource-name [this] name)
   (workspace [this] workspace)
-  (resource-hash [this] (hash (proj-path this)))
+  (resource-hash [this] (hash project-path))
   (openable? [this]
     (and (= :file source-type)
          (if (:editor-openable (resource-type this))

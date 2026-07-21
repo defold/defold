@@ -22,7 +22,7 @@ import com.dynamo.bob.util.BobNLS;
 
 public class BuilderUtil {
 
-    // Returns "dae" from "path/to.dae"
+    // Returns "gltf" from "path/to.gltf"
     public static String getSuffix(String path) {
         return path.substring(path.lastIndexOf(".") + 1);
     }
@@ -47,6 +47,20 @@ public class BuilderUtil {
             throw new CompileExceptionError(owner, 0, message);
         }
         return resource;
+    }
+
+    /**
+     * Converts a build output resource path to the runtime resource path stored in compiled resources.
+     * For example, "build/default/main/generated.texturec" becomes "/main/generated.texturec".
+     */
+    public static String getRelativePath(Project project, IResource outputResource) {
+        String path = outputResource.getPath();
+        String buildDirectory = project.getBuildDirectory();
+        String buildDirectoryPrefix = buildDirectory + "/";
+        if (!path.startsWith(buildDirectoryPrefix)) {
+            throw new IllegalArgumentException(String.format("Expected output resource path '%s' to start with build directory '%s'", path, buildDirectoryPrefix));
+        }
+        return path.substring(buildDirectory.length());
     }
 
 }

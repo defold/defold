@@ -45,10 +45,16 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         SETUP_CLASS(ShaderCompilerOptionsJNI, "ShaderCompilerOptions");
         GET_FLD_TYPESTR(version, "I");
         GET_FLD_TYPESTR(entryPoint, "Ljava/lang/String;");
+        GET_FLD(glslEsDefaultFloatPrecision, "ShaderPrecision");
+        GET_FLD(glslEsDefaultIntPrecision, "ShaderPrecision");
+        GET_FLD(targetPlatform, "ShaderCompilerPlatform");
         GET_FLD_TYPESTR(removeUnusedVariables, "B");
         GET_FLD_TYPESTR(no420PackExtension, "B");
         GET_FLD_TYPESTR(glslEmitUboAsPlainUniforms, "B");
         GET_FLD_TYPESTR(glslEs, "B");
+        GET_FLD_TYPESTR(externalCompilerPath, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(externalCompilerArgs, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(rootSignatureOverride, "Ljava/lang/String;");
     }
     {
         SETUP_CLASS(ResourceTypeJNI, "ResourceType");
@@ -109,12 +115,24 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(shaderResourceBinding, "B");
     }
     {
+        SETUP_CLASS(MSLResourceMappingJNI, "MSLResourceMapping");
+        GET_FLD_TYPESTR(name, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(nameHash, "J");
+        GET_FLD_TYPESTR(metalResourceIndex, "I");
+        GET_FLD_TYPESTR(shaderResourceSet, "B");
+        GET_FLD_TYPESTR(shaderResourceBinding, "B");
+    }
+    {
         SETUP_CLASS(ShaderCompileResultJNI, "ShaderCompileResult");
         GET_FLD_TYPESTR(data, "[B");
         GET_FLD_TYPESTR(lastError, "Ljava/lang/String;");
+        GET_FLD_ARRAY(mSLResourceMappings, "MSLResourceMapping");
         GET_FLD_ARRAY(hLSLResourceMappings, "HLSLResourceMapping");
         GET_FLD_TYPESTR(hLSLRootSignature, "[B");
         GET_FLD_TYPESTR(hLSLNumWorkGroupsId, "B");
+        GET_FLD_TYPESTR(workGroupSizeX, "I");
+        GET_FLD_TYPESTR(workGroupSizeY, "I");
+        GET_FLD_TYPESTR(workGroupSizeZ, "I");
     }
     {
         SETUP_CLASS(HLSLRootSignatureJNI, "HLSLRootSignature");
@@ -134,6 +152,7 @@ void FinalizeJNITypes(JNIEnv* env, TypeInfos* infos) {
     env->DeleteLocalRef(infos->m_ShaderResourceJNI.cls);
     env->DeleteLocalRef(infos->m_ShaderReflectionJNI.cls);
     env->DeleteLocalRef(infos->m_HLSLResourceMappingJNI.cls);
+    env->DeleteLocalRef(infos->m_MSLResourceMappingJNI.cls);
     env->DeleteLocalRef(infos->m_ShaderCompileResultJNI.cls);
     env->DeleteLocalRef(infos->m_HLSLRootSignatureJNI.cls);
 }
@@ -147,10 +166,16 @@ jobject C2J_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, const Sha
     jobject obj = env->AllocObject(types->m_ShaderCompilerOptionsJNI.cls);
     dmJNI::SetUInt(env, obj, types->m_ShaderCompilerOptionsJNI.version, src->m_Version);
     dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.entryPoint, src->m_EntryPoint);
+    dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultFloatPrecision, src->m_GlslEsDefaultFloatPrecision);
+    dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultIntPrecision, src->m_GlslEsDefaultIntPrecision);
+    dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.targetPlatform, src->m_TargetPlatform);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.removeUnusedVariables, src->m_RemoveUnusedVariables);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension, src->m_No420PackExtension);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms, src->m_GlslEmitUboAsPlainUniforms);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEs, src->m_GlslEs);
+    dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerPath, src->m_ExternalCompilerPath);
+    dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerArgs, src->m_ExternalCompilerArgs);
+    dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.rootSignatureOverride, src->m_RootSignatureOverride);
     return obj;
 }
 
@@ -230,14 +255,29 @@ jobject C2J_CreateHLSLResourceMapping(JNIEnv* env, TypeInfos* types, const HLSLR
     return obj;
 }
 
+jobject C2J_CreateMSLResourceMapping(JNIEnv* env, TypeInfos* types, const MSLResourceMapping* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_MSLResourceMappingJNI.cls);
+    dmJNI::SetString(env, obj, types->m_MSLResourceMappingJNI.name, src->m_Name);
+    dmJNI::SetULong(env, obj, types->m_MSLResourceMappingJNI.nameHash, src->m_NameHash);
+    dmJNI::SetUInt(env, obj, types->m_MSLResourceMappingJNI.metalResourceIndex, src->m_MetalResourceIndex);
+    dmJNI::SetUByte(env, obj, types->m_MSLResourceMappingJNI.shaderResourceSet, src->m_ShaderResourceSet);
+    dmJNI::SetUByte(env, obj, types->m_MSLResourceMappingJNI.shaderResourceBinding, src->m_ShaderResourceBinding);
+    return obj;
+}
+
 jobject C2J_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, const ShaderCompileResult* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_ShaderCompileResultJNI.cls);
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data.Begin(), src->m_Data.Size()));
     dmJNI::SetString(env, obj, types->m_ShaderCompileResultJNI.lastError, src->m_LastError);
+    dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.mSLResourceMappings, C2J_CreateMSLResourceMappingArray(env, types, src->m_MSLResourceMappings.Begin(), src->m_MSLResourceMappings.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.hLSLResourceMappings, C2J_CreateHLSLResourceMappingArray(env, types, src->m_HLSLResourceMappings.Begin(), src->m_HLSLResourceMappings.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.hLSLRootSignature, dmJNI::C2J_CreateUByteArray(env, src->m_HLSLRootSignature.Begin(), src->m_HLSLRootSignature.Size()));
     dmJNI::SetUByte(env, obj, types->m_ShaderCompileResultJNI.hLSLNumWorkGroupsId, src->m_HLSLNumWorkGroupsId);
+    dmJNI::SetUInt(env, obj, types->m_ShaderCompileResultJNI.workGroupSizeX, src->m_WorkGroupSizeX);
+    dmJNI::SetUInt(env, obj, types->m_ShaderCompileResultJNI.workGroupSizeY, src->m_WorkGroupSizeY);
+    dmJNI::SetUInt(env, obj, types->m_ShaderCompileResultJNI.workGroupSizeZ, src->m_WorkGroupSizeZ);
     return obj;
 }
 
@@ -389,6 +429,26 @@ jobjectArray C2J_CreateHLSLResourceMappingPtrArray(JNIEnv* env, TypeInfos* types
     }
     return arr;
 }
+jobjectArray C2J_CreateMSLResourceMappingArray(JNIEnv* env, TypeInfos* types, const MSLResourceMapping* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_MSLResourceMappingJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateMSLResourceMapping(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateMSLResourceMappingPtrArray(JNIEnv* env, TypeInfos* types, const MSLResourceMapping* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_MSLResourceMappingJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateMSLResourceMapping(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
 jobjectArray C2J_CreateShaderCompileResultArray(JNIEnv* env, TypeInfos* types, const ShaderCompileResult* src, uint32_t src_count) {
     if (src == 0 || src_count == 0) return 0;
     jobjectArray arr = env->NewObjectArray(src_count, types->m_ShaderCompileResultJNI.cls, 0);
@@ -436,10 +496,16 @@ bool J2C_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, jobject obj,
     if (out == 0) return false;
     out->m_Version = dmJNI::GetUInt(env, obj, types->m_ShaderCompilerOptionsJNI.version);
     out->m_EntryPoint = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.entryPoint);
+    out->m_GlslEsDefaultFloatPrecision = (ShaderPrecision)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultFloatPrecision);
+    out->m_GlslEsDefaultIntPrecision = (ShaderPrecision)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultIntPrecision);
+    out->m_TargetPlatform = (ShaderCompilerPlatform)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.targetPlatform);
     out->m_RemoveUnusedVariables = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.removeUnusedVariables);
     out->m_No420PackExtension = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension);
     out->m_GlslEmitUboAsPlainUniforms = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms);
     out->m_GlslEs = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEs);
+    out->m_ExternalCompilerPath = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerPath);
+    out->m_ExternalCompilerArgs = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerArgs);
+    out->m_RootSignatureOverride = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.rootSignatureOverride);
     return true;
 }
 
@@ -581,6 +647,16 @@ bool J2C_CreateHLSLResourceMapping(JNIEnv* env, TypeInfos* types, jobject obj, H
     return true;
 }
 
+bool J2C_CreateMSLResourceMapping(JNIEnv* env, TypeInfos* types, jobject obj, MSLResourceMapping* out) {
+    if (out == 0) return false;
+    out->m_Name = dmJNI::GetString(env, obj, types->m_MSLResourceMappingJNI.name);
+    out->m_NameHash = dmJNI::GetULong(env, obj, types->m_MSLResourceMappingJNI.nameHash);
+    out->m_MetalResourceIndex = dmJNI::GetUInt(env, obj, types->m_MSLResourceMappingJNI.metalResourceIndex);
+    out->m_ShaderResourceSet = dmJNI::GetUByte(env, obj, types->m_MSLResourceMappingJNI.shaderResourceSet);
+    out->m_ShaderResourceBinding = dmJNI::GetUByte(env, obj, types->m_MSLResourceMappingJNI.shaderResourceBinding);
+    return true;
+}
+
 bool J2C_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, jobject obj, ShaderCompileResult* out) {
     if (out == 0) return false;
     {
@@ -593,6 +669,15 @@ bool J2C_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, jobject obj, S
         }
     }
     out->m_LastError = dmJNI::GetString(env, obj, types->m_ShaderCompileResultJNI.lastError);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_ShaderCompileResultJNI.mSLResourceMappings);
+        if (field_object) {
+            uint32_t tmp_count;
+            MSLResourceMapping* tmp = J2C_CreateMSLResourceMappingArray(env, types, (jobjectArray)field_object, &tmp_count);
+            out->m_MSLResourceMappings.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
     {
         jobject field_object = env->GetObjectField(obj, types->m_ShaderCompileResultJNI.hLSLResourceMappings);
         if (field_object) {
@@ -612,6 +697,9 @@ bool J2C_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, jobject obj, S
         }
     }
     out->m_HLSLNumWorkGroupsId = dmJNI::GetUByte(env, obj, types->m_ShaderCompileResultJNI.hLSLNumWorkGroupsId);
+    out->m_WorkGroupSizeX = dmJNI::GetUInt(env, obj, types->m_ShaderCompileResultJNI.workGroupSizeX);
+    out->m_WorkGroupSizeY = dmJNI::GetUInt(env, obj, types->m_ShaderCompileResultJNI.workGroupSizeY);
+    out->m_WorkGroupSizeZ = dmJNI::GetUInt(env, obj, types->m_ShaderCompileResultJNI.workGroupSizeZ);
     return true;
 }
 
@@ -914,6 +1002,47 @@ HLSLResourceMapping** J2C_CreateHLSLResourceMappingPtrArray(JNIEnv* env, TypeInf
     jsize len = env->GetArrayLength(arr);
     HLSLResourceMapping** out = new HLSLResourceMapping*[len];
     J2C_CreateHLSLResourceMappingPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateMSLResourceMappingArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, MSLResourceMapping* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateMSLResourceMapping(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+MSLResourceMapping* J2C_CreateMSLResourceMappingArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    MSLResourceMapping* out = new MSLResourceMapping[len];
+    J2C_CreateMSLResourceMappingArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateMSLResourceMappingPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, MSLResourceMapping** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new MSLResourceMapping();
+        J2C_CreateMSLResourceMapping(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+MSLResourceMapping** J2C_CreateMSLResourceMappingPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    MSLResourceMapping** out = new MSLResourceMapping*[len];
+    J2C_CreateMSLResourceMappingPtrArrayInPlace(env, types, arr, out, len);
     *out_count = (uint32_t)len;
     return out;
 }

@@ -29,6 +29,16 @@ namespace dmHID
 {
     static const uint8_t DRIVER_HANDLE_FREE = 0xff;
 
+    static uint32_t GetTouchData(HContext context, uint32_t index, WindowTouchData* touch_data, uint32_t touch_data_count)
+    {
+        if (index != 0)
+        {
+            return 0;
+        }
+
+        return dmPlatform::GetTouchData(context->m_Window, touch_data, touch_data_count);
+    }
+
     struct NativeContextUserData
     {
         dmArray<GamepadDriver*> m_GamepadDrivers;
@@ -44,6 +54,7 @@ namespace dmHID
         SetMarkedText((HContext) ctx, text);
     }
 
+#if !defined(__APPLE__)
     static void GLFWDeviceChangedCallback(void* ctx, int status)
     {
         HContext context = (HContext) ctx;
@@ -54,6 +65,7 @@ namespace dmHID
             user_data->m_GamepadDrivers[i]->m_DetectDevices(context, user_data->m_GamepadDrivers[i]);
         }
     }
+#endif
 
     static uint8_t DriverToHandle(NativeContextUserData* user_data, GamepadDriver* driver)
     {
@@ -112,7 +124,11 @@ namespace dmHID
             context->m_Gamepads[i].m_Driver = DRIVER_HANDLE_FREE;
         }
 
+#if defined(__APPLE__)
+        InstallGamepadDriver(context, CreateGamepadDriverApple(context), "Apple");
+#else
         InstallGamepadDriver(context, CreateGamepadDriverGLFW(context), "GLFW");
+#endif
     }
 
     // Called from gamepad drivers
@@ -122,7 +138,7 @@ namespace dmHID
 
         if (gamepad->m_Connected != connection_status)
         {
-            if (context->m_GamepadConnectivityCallback)
+            if (!context->m_Finalizing && context->m_GamepadConnectivityCallback)
             {
                 if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
                 {
@@ -131,7 +147,9 @@ namespace dmHID
                     dmLogWarning("The connection for '%s' was ignored by the callback function!", device_name);
                     return;
                 }
-            } else {
+            }
+            else if (!context->m_Finalizing)
+            {
                 dmLogWarning("There was no callback function set to handle the gamepad connection!");
             }
 
@@ -151,6 +169,8 @@ namespace dmHID
             {
                 context->m_Gamepads[i].m_Driver = DriverToHandle(user_data, driver);
                 assert(context->m_Gamepads[i].m_Driver != DRIVER_HANDLE_FREE);
+
+                context->m_Gamepads[i].m_LayoutLegacy = true; // TODO: For the next task of supporting SDL layouts
                 return &context->m_Gamepads[i];
             }
         }
@@ -180,9 +200,12 @@ namespace dmHID
             assert(context->m_Window && "No window has been set.");
             dmPlatform::SetKeyboardCharCallback(context->m_Window, GLFWAddKeyboardChar, (void*) context);
             dmPlatform::SetKeyboardMarkedTextCallback(context->m_Window, GLFWSetMarkedText, (void*) context);
+#if !defined(__APPLE__)
             dmPlatform::SetKeyboardDeviceChangedCallback(context->m_Window, GLFWDeviceChangedCallback, (void*) context);
+#endif
 
             assert(context->m_NativeContextUserData == 0);
+            context->m_Finalizing = 0;
             context->m_NativeContextUserData = new NativeContextUserData();
 
             InitializeGamepads(context);
@@ -196,6 +219,7 @@ namespace dmHID
     {
         if (context)
         {
+            context->m_Finalizing = 1;
             NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
             if (user_data)
             {
@@ -299,7 +323,7 @@ namespace dmHID
                 TouchDevicePacket* packet = &device->m_Packet;
 
                 WindowTouchData touch_data[dmHID::MAX_TOUCH_COUNT] = {};
-                packet->m_TouchCount = dmPlatform::GetTouchData(context->m_Window, touch_data, dmHID::MAX_TOUCH_COUNT);
+                packet->m_TouchCount = GetTouchData(context, t, touch_data, dmHID::MAX_TOUCH_COUNT);
 
                 if (packet->m_TouchCount > 0)
                 {
@@ -333,6 +357,13 @@ namespace dmHID
         return prev_state_hash != context->m_StateHash;
     }
 
+    static void GetGamepadDeviceNameRaw(HContext context, NativeContextUserData* user_data, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
+    {
+        assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
+        GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
+        driver->m_GetGamepadDeviceName(context, driver, gamepad, name);
+    }
+
     void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
         NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
@@ -343,9 +374,34 @@ namespace dmHID
             return;
         }
 
+        GetGamepadDeviceNameRaw(context, user_data, gamepad, name);
+        if (!gamepad->m_LayoutLegacy)
+        {
+            GamepadGuid guid = {};
+            if (GetGamepadDeviceGuid(context, gamepad, &guid))
+            {
+                GamepadIdentity identity = {};
+                identity.m_Vendor = guid.m_Vendor;
+                identity.m_Product = guid.m_Product;
+
+                const char* sdl_name = GetGamepadIdentityName(identity, name);
+                dmStrlCpy(name, sdl_name, MAX_GAMEPAD_NAME_LENGTH);
+            }
+        }
+    }
+
+    bool GetGamepadDeviceGuid(HContext context, HGamepad gamepad, GamepadGuid* guid)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+
+        if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
+        {
+            return false;
+        }
+
         assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
-        driver->m_GetGamepadDeviceName(context, driver, gamepad, name);
+        return driver->m_GetGamepadDeviceGuid(context, driver, gamepad, guid);
     }
 
     void ResetKeyboard(HContext context)

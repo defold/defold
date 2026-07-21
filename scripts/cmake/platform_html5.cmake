@@ -1,6 +1,6 @@
 defold_log("platform_html5.cmake:")
 
-if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
+if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   message(FATAL_ERROR "platform_html5.cmake included for non-web TARGET_PLATFORM: ${TARGET_PLATFORM}")
 endif()
 
@@ -13,6 +13,7 @@ target_compile_definitions(defold_sdk INTERFACE
   DM_NO_SYSTEM_FUNCTION
   JC_TEST_NO_DEATH_TEST
   PTHREADS_DEBUG
+  DM_HOSTFS=\"/node_vfs/\"
   DM_TEST_DLIB_HTTPCLIENT_NO_HOST_SERVER)
 
 # Common compile options
@@ -33,6 +34,13 @@ endif()
 if(_DEFOLD_WITH_PTHREAD)
   target_compile_options(defold_sdk INTERFACE -pthread)
 endif()
+
+target_compile_options(defold_sdk INTERFACE
+  "$<$<CONFIG:Debug>:-gseparate-dwarf>"
+  "$<$<CONFIG:Debug>:-gsource-map>")
+target_link_options(defold_sdk INTERFACE
+  "$<$<CONFIG:Debug>:-gseparate-dwarf>"
+  "$<$<CONFIG:Debug>:-gsource-map>")
 
 # Link options base
 set(_DEFOLD_INITIAL_MEMORY 33554432)
@@ -79,15 +87,11 @@ if(WITH_WEBGPU)
   # Note: ASYNCIFY_ADVISE etc. are opt-level dependent in waf; omitted here
 endif()
 
-# WASM vs asm.js
-if(TARGET_PLATFORM MATCHES "^wasm")
-  if(WITH_UBSAN)
-    list(APPEND _DEFOLD_EM_LINK_OPTS -sASSERTIONS=1)
-  endif()
-  list(APPEND _DEFOLD_EM_LINK_OPTS -sWASM=1 -sALLOW_MEMORY_GROWTH=1)
-else()
-  list(APPEND _DEFOLD_EM_LINK_OPTS -sWASM=0 -sLEGACY_VM_SUPPORT=1)
+# WASM output configuration
+if(WITH_UBSAN)
+  list(APPEND _DEFOLD_EM_LINK_OPTS -sASSERTIONS=1)
 endif()
+list(APPEND _DEFOLD_EM_LINK_OPTS -sWASM=1 -sALLOW_MEMORY_GROWTH=1)
 
 if(_DEFOLD_WITH_PTHREAD)
   list(APPEND _DEFOLD_EM_LINK_OPTS -pthread)

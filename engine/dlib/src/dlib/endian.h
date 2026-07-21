@@ -15,10 +15,6 @@
 #ifndef DM_ENDIAN_H
 #define DM_ENDIAN_H
 
-#if defined(DM_PLATFORM_VENDOR)
-    #include <dlib/endian_vendor.h>
-#else
-    #include <dlib/endian_posix.h>
-#endif
+#include <dmsdk/dlib/endian.h>
 
 #endif // DM_ENDIAN_H

@@ -19,9 +19,6 @@
 
 #include "dstrings.h"
 
-#if defined(_WIN32)
-#include <stdlib.h>
-#endif
 
 int dmSnPrintf(char *buffer, size_t count, const char *format, ...)
 {
@@ -333,3 +330,4 @@ void dmStrError(char* dst, size_t size, int err)
 #undef DM_STRERROR_USE_POSIX
 #undef DM_STRERROR_USE_UNSAFE
 #undef DM_STRERROR_FN
+

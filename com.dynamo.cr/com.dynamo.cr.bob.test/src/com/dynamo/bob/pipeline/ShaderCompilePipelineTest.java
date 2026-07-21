@@ -283,23 +283,27 @@ public class ShaderCompilePipelineTest {
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
 
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testCompareTypes");
-        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
 
-        SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
-        SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+            SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+            SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
 
-        assertTrue(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "equal"));
-        assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal"));
-        assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal_two"));
+            assertTrue(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "equal"));
+            assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal"));
+            assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal_two"));
 
-        // The "equal" ubos should be merged, which means that it will only be part of the VS reflection and not the FS
-        Shaderc.ShaderResource equalUboA = getShaderResource(reflectorVs, "equal");
-        Shaderc.ShaderResource equalUboB = getShaderResource(reflectorFs, "equal");
-        assert equalUboA != null;
-        assert equalUboB == null;
+            // The "equal" ubos should be merged, which means that it will only be part of the VS reflection and not the FS
+            Shaderc.ShaderResource equalUboA = getShaderResource(reflectorVs, "equal");
+            Shaderc.ShaderResource equalUboB = getShaderResource(reflectorFs, "equal");
+            assert equalUboA != null;
+            assert equalUboB == null;
 
-        int combinedShaderStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
-        assertEquals(combinedShaderStages, equalUboA.stageFlags);
+            int combinedShaderStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+            assertEquals(combinedShaderStages, equalUboA.stageFlags);
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
     }
 
     private Shaderc.ShaderResource getShaderResource(SPIRVReflector reflector, String name) {
@@ -362,7 +366,9 @@ public class ShaderCompilePipelineTest {
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
 
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testRemapping");
-        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.remapVertexFragmentIOForHLSL = true;
+        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, options);
 
         SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
         SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
@@ -547,6 +553,51 @@ public class ShaderCompilePipelineTest {
         assertEquals(1, ubos.size());
         assertEquals("_DMENGINE_GENERATED_UB_FS_0", ubos.get(0).name);
         assertEquals("tint", types.get(0).members[0].name);
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
+    }
+
+    @Test
+    public void testLegacyPipelineGlesSm100HighpPrecisionWorkaround() throws Exception {
+        String fsShaderLegacy =
+                """
+                varying vec4 frag_color;
+                void main() {
+                    gl_FragColor = frag_color;
+                }
+                """;
+
+        ShaderCompilePipeline.ShaderModuleDesc fsDescLegacy = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDescLegacy.source = fsShaderLegacy;
+        fsDescLegacy.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        options.glslEsDefaultIntPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+
+        ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testLegacyPrecisionWorkaround");
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, options);
+
+        Shaderc.ShaderCompileResult compileResult = pipelineFragmentLegacy.crossCompile(
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        String src = new String(compileResult.data);
+
+        String expectedFloatHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp float;\n" +
+                "#else\n" +
+                "    precision mediump float;\n" +
+                "#endif";
+        String expectedIntHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp int;\n" +
+                "#else\n" +
+                "    precision mediump int;\n" +
+                "#endif";
+
+        assertTrue(src.contains(expectedFloatHighpPrecision));
+        assertTrue(src.contains(expectedIntHighpPrecision));
 
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
     }
