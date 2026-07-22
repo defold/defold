@@ -354,6 +354,10 @@ dialog.fetch-libraries.host-unreachable.title = Fetch Failed
 dialog.fetch-libraries.host-unreachable.header = Fetch was aborted because a host could not be reached
 dialog.fetch-libraries.host-unreachable.content = Unreachable host: {host}\n\nPlease verify your internet connection and try again.
 
+# Notification view
+
+notification.more = + {count} more
+
 # Fetch libraries notification
 
 notification.fetch-libraries.changed = Project dependencies have changed. Do you want to fetch the libraries now?
