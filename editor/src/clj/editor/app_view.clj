@@ -144,6 +144,36 @@
                    :pane-id "changed-files-pane"
                    :split-id "assets-split"}})
 
+(def ^:private scene-default-camera-projection-by-ext
+    {"model" :perspective
+     "mesh" :perspective
+     "cubemap" :perspective
+     "gltf" :perspective
+     "glb" :perspective
+     "directional_light" :perspective
+     "point_light" :perspective
+     "spot_light" :perspective
+     "ambient_light" :perspective
+
+     ;; Unless we find a better way to determine whether these can start in perspective
+     ;; just open them as orthographic
+     "go" :orthographic
+     "collection" :orthographic
+     "particlefx" :orthographic
+
+     "jpg" :orthographic
+     "jpeg" :orthographic
+     "png" :orthographic
+     "atlas" :orthographic
+     "tilesource" :orthographic
+     "tileset" :orthographic
+     "tilemap" :orthographic
+     "tilegrid" :orthographic
+     "gui" :orthographic
+     "font" :orthographic
+     "sprite" :orthographic
+     "label" :orthographic})
+
 (defn- pane-visible? [^Scene main-scene pane-kw]
   (let [{:keys [pane-id split-id]} (split-info-by-pane-kw pane-kw)]
     (some? (.lookup main-scene (str "#" split-id " #" pane-id)))))
@@ -2191,12 +2221,17 @@
     (refresh-scene-view! view-id dt))
   (scene-cache/prune-context! nil))
 
-(defn- dispose-scene-views! [app-view]
-  (doseq [view-id (g/node-value app-view :scene-view-ids)]
-    (try
-      (scene/dispose-scene-view! view-id)
-      (catch Throwable error
-        (error-reporting/report-exception! error))))
+(declare save-scene-camera-prefs!)
+
+(defn- dispose-scene-views! [app-view prefs]
+  (let [open-views (g/node-value app-view :open-views)]
+    (doseq [view-id (g/node-value app-view :scene-view-ids)]
+      (when-let [resource (:resource (get open-views view-id))]
+        (save-scene-camera-prefs! prefs view-id resource))
+      (try
+        (scene/dispose-scene-view! view-id)
+        (catch Throwable error
+          (error-reporting/report-exception! error)))))
   (scene-cache/drop-context! nil))
 
 (let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
@@ -2290,7 +2325,7 @@
                     (handle-focus-owner-change! app-view prefs new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
-      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
+      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view prefs)))
 
       (error-reporting/init-disabled-functionality-notifier!
         (fn notify-disabled-functionality! []
@@ -2351,6 +2386,17 @@
 
 (declare open-resource!)
 
+(defn- default-camera-projection [project resource]
+  (let [ext (some-> resource resource/resource-type :ext)]
+    (case ext
+      "collisionobject"
+      (let [game-project (project/get-resource-node project "/game.project")]
+        (if (= "2D" (game-project/get-setting game-project ["physics" "type"]))
+          :orthographic
+          :perspective))
+
+      (get scene-default-camera-projection-by-ext ext :orthographic))))
+
 (defn- camera-prefs [camera]
   {:2d-mode (camera/mode-2d? camera)
    :projection (:type camera)
@@ -2359,6 +2405,15 @@
    :fov-x (:fov-x camera)
    :fov-y (:fov-y camera)
    :focus-point (math/vecmath->clj (:focus-point camera))})
+
+(defn- save-scene-camera-prefs! [prefs view resource]
+  (g/let-ec [camera (some-> (:basis evaluation-context)
+                            (scene/view->camera view)
+                            (g/node-value :local-camera evaluation-context))
+             path-key (resource/resource->proj-path resource)]
+    (when (and camera path-key)
+      (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
+                                (camera-prefs camera)))))
 
 (defn- try-load-camera-from-prefs [prefs path-key]
   (when-let [{:keys [projection position rotation fov-x fov-y focus-point]}
@@ -2393,6 +2448,10 @@
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn (partial select app-view)
         open-resource-fn (partial open-resource! app-view prefs localization project)
+        stored-camera (try-load-camera-from-prefs prefs (resource/resource->proj-path resource))
+        camera-opts (if stored-camera
+                      {:camera stored-camera}
+                      {:default-camera-projection (default-camera-projection project resource)})
         opts (merge opts
                     (get (:view-opts resource-type) (:id view-type))
                     {:app-view app-view
@@ -2402,8 +2461,9 @@
                      :project project
                      :workspace workspace
                      :localization localization
-                     :camera (try-load-camera-from-prefs prefs (resource/resource->proj-path resource))
-                     :tab tab})
+                     :tab tab}
+                    (when (= :scene (:id view-type))
+                      camera-opts))
         make-view-fn (:make-view-fn view-type)
         view (make-view-fn view-graph parent resource-node opts)]
     (assert (g/node-instance? view/WorkbenchView view))
@@ -2427,13 +2487,7 @@
       (.setOnClosed tab (ui/event-handler event
                           (recent-files/add! prefs resource view-type)
                           (when (= :scene (:id view-type))
-                            (g/let-ec [camera (some-> (:basis evaluation-context)
-                                                      (scene/view->camera view)
-                                                      (g/node-value :local-camera evaluation-context))
-                                       path-key (resource/resource->proj-path resource)]
-                              (when (and camera path-key)
-                                (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
-                                                          (camera-prefs camera)))))
+                            (save-scene-camera-prefs! prefs view resource))
 
                           ;; The menu refresh can occur after the view graph is
                           ;; deleted but before the tab controls lose input
