@@ -78,11 +78,11 @@
 
 #_[:boolean :string :password :locale :keyword :integer :number :one-of :array :set :object :object-of :enum :tuple]
 
-(def ^:private vec3-schema
+(defn- vec3-schema [^double x ^double y ^double z]
   {:type :object
-   :properties {:x {:type :number :default 1.0}
-                :y {:type :number :default 1.0}
-                :z {:type :number :default 1.0}}})
+   :properties {:x {:type :number :default x}
+                :y {:type :number :default y}
+                :z {:type :number :default z}}})
 
 (def default-schema
   {:type :object
@@ -255,32 +255,32 @@
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}
-             :camera-resource-settings {:type :object-of
-                                        :scope :project
-                                        :key {:type :string}
-                                        :val {:type :object
-                                              :properties {:2d-mode {:type :boolean :default true}
-                                                           :projection {:type :enum
-                                                                        :values [:orthographic :perspective]
-                                                                        :default :orthographic}
-                                                           :position vec3-schema
-                                                           :rotation {:type :object
-                                                                      :properties {:x {:type :number :default 0.0}
-                                                                                   :y {:type :number :default 0.0}
-                                                                                   :z {:type :number :default 0.0}
-                                                                                   :w {:type :number :default 1.0}}}
-                                                           :fov-y {:type :number :default 1000.0}
-                                                           :focus-point vec3-schema}}}
-             :visibility-resource-settings {:type :object-of
-                                            :scope :project
-                                            :key {:type :string}
-                                            :val {:type :object
-                                                  :properties {:filters-enabled {:type :boolean :default true}
-                                                               :filtered-renderable-tags {:type :set :item {:type :keyword}}}}}
+             :resource-settings {:type :object-of
+                                 :scope :project
+                                 :key {:type :string}
+                                 :val {:type :object
+                                       :properties {:scene-visibility {:type :object
+                                                                       :properties {:filters-enabled {:type :boolean :default true}
+                                                                                    :filtered-renderable-tags {:type :set :item {:type :keyword}}}}
+                                                    :camera {:type :object
+                                                             :properties {:2d-mode {:type :boolean :default true}
+                                                                          :projection {:type :enum
+                                                                                       :values [:orthographic :perspective]
+                                                                                       :default :orthographic}
+                                                                          :position (vec3-schema 0.0 0.0 0.0)
+                                                                          :rotation {:type :object
+                                                                                     :properties {:x {:type :number :default 0.0}
+                                                                                                  :y {:type :number :default 0.0}
+                                                                                                  :z {:type :number :default 0.0}
+                                                                                                  :w {:type :number :default 1.0}}}
+                                                                          :fov-y {:type :number :default 1000.0}
+                                                                          :focus-point (vec3-schema 0.0 0.0 0.0)}}}}}
+             ;; NOTE: We also track whether the grid button is active or not, however, not here. Because the grid visibility
+             ;; is controlled by the SceneVisibilityNode, we ended up piggy-backing a per-resource grid button active setting
+             ;; through [:scene :resource-settings <resource-proj-path> :scene-visibility]
              :grid-2d {:type :object
                        :scope :project
-                       :properties {:visible {:type :boolean :default true}
-                                    :size vec3-schema
+                       :properties {:size (vec3-schema 1.0 1.0 1.0)
                                     :active-plane {:type :enum :values [:x :y :z] :default :z}
                                     :opacity {:type :number :default 0.25}
                                     :color {:type :tuple
@@ -288,8 +288,7 @@
                                             :default [0.5 0.5 0.5 1.0]}}}
              :grid-3d {:type :object
                        :scope :project
-                       :properties {:visible {:type :boolean :default true}
-                                    :size vec3-schema
+                       :properties {:size (vec3-schema 1.0 1.0 1.0)
                                     :active-plane {:type :enum :values [:x :y :z] :default :y}
                                     :opacity {:type :number :default 0.25}
                                     :color {:type :tuple

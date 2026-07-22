@@ -269,9 +269,8 @@
              path-key (resource/resource->proj-path (resource-node/resource basis resource-node))
              updated-settings (update-fn (settings scene-visibility evaluation-context))]
     (set-settings! scene-visibility updated-settings)
-    (prefs/update! prefs [:scene :visibility-resource-settings] assoc
-                   path-key
-                   updated-settings)
+    (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:scene-visibility]
+                              updated-settings)
     (sync-popup-state! scene-visibility)))
 
 (defn- toggle-tag-visibility-fn [scene-visibility tag]
@@ -298,6 +297,7 @@
              (tag-toggle :gui-particlefx "gui-particle-effects")
              (tag-toggle :gui-spine "gui-spine-scenes")
              (tag-toggle :gui-text "gui-text")
+             (tag-toggle :light "lights")
              (tag-toggle :model "models")
              (tag-toggle :particlefx "particle-effects")
              (tag-toggle :skeleton "skeletons")
@@ -329,8 +329,8 @@
   (let [{:keys [filters-enabled filtered-renderable-tags]} (settings scene-visibility evaluation-context)]
     (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active")
                               (boolean (and filters-enabled
-                                            (some #(not-every? never-appear-filtered-tags %)
-                                                  filtered-renderable-tags))))))
+                                            (not-every? never-appear-filtered-tags
+                                                        filtered-renderable-tags))))))
 
 (defn show-settings! [keymap localization ^Parent owner scene-visibility]
   (let [setting-descriptors (g/let-ec [current-settings (settings scene-visibility evaluation-context)]
@@ -360,8 +360,8 @@
 (defn load-settings!
   "Applies the stored visibility settings for a scene resource, or the defaults."
   [scene-visibility prefs proj-path]
-  (let [stored-settings (prefs/get-pref-entry prefs [:scene :visibility-resource-settings]
-                                              proj-path default-settings)]
+  (let [stored-settings (prefs/get-pref-entry-in prefs [:scene :resource-settings]
+                                                 proj-path [:scene-visibility] default-settings)]
     (set-settings! scene-visibility stored-settings)))
 
 (handler/defhandler :scene.visibility.toggle-filters :workbench
