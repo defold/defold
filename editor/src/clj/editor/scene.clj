@@ -1813,12 +1813,15 @@
             (ui/user-data! image-view ::last-frame-version frame-version)
             (scene-cache/prune-context! gl)
             (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
-    ;; call frame-selection if it's the very first aabb change for the scene
+    ;; Call frame-selection if it's the very first aabb change for the scene, unless
+    ;; we restored a camera from prefs and should preserve it through initial load.
     (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
+          preserve-initial-camera (ui/user-data image-view ::preserve-initial-camera)
           [scene-aabb reframing-info]
           (g/with-auto-evaluation-context evaluation-context
             (let [scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
-                  reframing-info (when (and prev-aabb
+                  reframing-info (when (and (not preserve-initial-camera)
+                                            prev-aabb
                                             (geom/predefined-aabb? prev-aabb)
                                             (not (geom/predefined-aabb? scene-aabb)))
                                    (aabb-framing-info view-id scene-aabb evaluation-context))]
@@ -1826,6 +1829,9 @@
                     reframing-info)))]
 
       (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
+      (when (and preserve-initial-camera
+                 (not (geom/predefined-aabb? scene-aabb)))
+        (ui/user-data! image-view ::preserve-initial-camera false))
       (when reframing-info
         (apply-framing-info! reframing-info true)))
     (let [new-image (scene-async/image @async-copy-state-atom)]
@@ -1999,17 +2005,20 @@
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
-                            (if camera-inset-drawable
-                              (g/set-properties! view-id
-                                                :drawable drawable
-                                                :picking-drawable picking-drawable
-                                                :camera-inset-drawable camera-inset-drawable
-                                                :async-copy-state (atom (scene-async/make-async-copy-state width height)))
-                              (g/set-properties! view-id
-                                                :drawable drawable
-                                                :picking-drawable picking-drawable
-                                                :async-copy-state (atom (scene-async/make-async-copy-state width height))))
-                             (frame-selection! view-id false)))))
+                             (when (:camera opts)
+                               (ui/user-data! image-view ::preserve-initial-camera true))
+                             (if camera-inset-drawable
+                               (g/set-properties! view-id
+                                                 :drawable drawable
+                                                 :picking-drawable picking-drawable
+                                                 :camera-inset-drawable camera-inset-drawable
+                                                 :async-copy-state (atom (scene-async/make-async-copy-state width height)))
+                               (g/set-properties! view-id
+                                                 :drawable drawable
+                                                 :picking-drawable picking-drawable
+                                                 :async-copy-state (atom (scene-async/make-async-copy-state width height))))
+                             (when-not (:camera opts)
+                               (frame-selection! view-id false))))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))
                    (proxy-super layoutChildren))))]
