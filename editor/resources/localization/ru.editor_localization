@@ -352,6 +352,7 @@ dialog.fetch-libraries.host-unreachable.content = Недоступный хос�
 
 # Notification view
 
+notification.more = + ещё {count}
 
 # Fetch libraries notification
 
