@@ -163,7 +163,7 @@ public class ArchiveBuilder {
         return includedEntries;
     }
 
-    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, List<String> excludedResources, ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd) throws IOException, CompileExceptionError {
+    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Set<String> excludedResources, ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd) throws IOException, CompileExceptionError {
         byte[] buffer = this.loadResourceData(entry.getFilename());
 
         int resourceEntryFlags = 0;
@@ -335,7 +335,7 @@ public class ArchiveBuilder {
     //                                            ↓
     //                    → Final in-memory resource ready for use
     //
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
@@ -480,7 +480,7 @@ public class ArchiveBuilder {
 
             ResourceNode rootNode = resourceGraph.getRootNode();
 
-            List<String> excludedResources = new ArrayList<String>();
+            Set<String> excludedResources = new HashSet<String>();
 
             // set up publisher - has to be done before creating the ArchiveBuilder
             PublisherSettings settings = new PublisherSettings();

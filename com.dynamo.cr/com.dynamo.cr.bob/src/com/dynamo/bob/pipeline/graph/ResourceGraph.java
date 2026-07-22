@@ -19,8 +19,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.List;
-import java.util.LinkedList;
 import java.util.Collection;
 
 import java.io.Writer;
@@ -217,15 +215,15 @@ public class ResourceGraph implements IResourceVisitor {
     }
 
     /**
-     * Create a list of all excluded resources. A resource is considered to be
+     * Create a set of all excluded resources. A resource is considered to be
      * excluded if it is only referenced from excluded collection proxies. If a
      * resource is referenced both from an excluded collection proxy and from
      * a non-excluded collection it will not be considered an excluded resource.
-     * @return List of excluded resources
+     * @return Set of excluded resources
      */
-    public List<String> createExcludedResourcesList() {
+    public Set<String> createExcludedResourcesList() {
         findAllResourcesReferencedFromMainCollection();
-        List<String> excludedResources = new LinkedList<>();
+        Set<String> excludedResources = new HashSet<>();
         for (ResourceNode node : resourceNodes) {
             if (node.isInMainBundle()) {
                 continue;
