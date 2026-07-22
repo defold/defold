@@ -21,8 +21,7 @@
 
 (deftest callback-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          calls (atom [])]
+    (let [calls (atom [])]
       (testing "Transact."
         (g/transact
           (g/callback
