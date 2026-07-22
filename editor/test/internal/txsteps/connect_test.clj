@@ -19,8 +19,11 @@
             [internal.graph.types :as gt]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support]
+            [util.array :as array]
             [util.coll :as coll])
-  (:import [internal.transaction ReplaceArcTXC]))
+  (:import [clojure.lang PkidVector]
+           [internal.graph.types Arc]
+           [internal.transaction ReplaceArcTXC]))
 
 (set! *warn-on-reflection* true)
 
@@ -1584,3 +1587,90 @@
       (is (= :replacement-value (g/node-value target-node-id :regular-output)))
       (is (= 1 (ig/arc-table-next-pkid
                  (get-in basis [:graphs target-graph-id :tarcs target-node-id :regular-input])))))))
+
+(deftest arc-table-representation-transitions-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [first-source-node-id
+           second-source-node-id
+           target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [_first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                 _second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                 _target-node-id helpers/ConnectionTargetNode])))
+
+          source-arc-table
+          (fn source-arc-table [basis source-node-id]
+            (get-in basis [:graphs graph-id :sarcs source-node-id :property-output]))
+
+          target-arc-table
+          (fn target-arc-table [basis]
+            (get-in basis [:graphs graph-id :tarcs target-node-id :array-input]))]
+
+      (g/transact
+        (g/connect first-source-node-id :property-output target-node-id :array-input))
+
+      (testing "Canonical singleton tables are represented by their Arc."
+        (let [basis (g/now)
+              source-arc-table (source-arc-table basis first-source-node-id)
+              target-arc-table (target-arc-table basis)
+              target-arcs (ig/arc-table-arcs target-arc-table)]
+          (is (instance? Arc source-arc-table))
+          (is (instance? Arc target-arc-table))
+          (is (array/array? target-arcs))
+          (is (= [target-arc-table] (vec target-arcs)))
+          (is (= 1
+                 (ig/arc-table-next-pkid source-arc-table)
+                 (ig/arc-table-next-pkid target-arc-table)))))
+
+      (g/transact
+        (g/disconnect first-source-node-id :property-output target-node-id :array-input))
+
+      (testing "Empty tables retain their stable PKID history."
+        (let [basis (g/now)
+              source-arc-table (source-arc-table basis first-source-node-id)
+              target-arc-table (target-arc-table basis)]
+          (is (instance? PkidVector source-arc-table))
+          (is (instance? PkidVector target-arc-table))
+          (is (coll/empty? (ig/arc-table-arcs source-arc-table)))
+          (is (coll/empty? (ig/arc-table-arcs target-arc-table)))
+          (is (= 1
+                 (ig/arc-table-next-pkid source-arc-table)
+                 (ig/arc-table-next-pkid target-arc-table)))))
+
+      (g/undo! :undo/global)
+
+      (testing "Restoring the canonical singleton compacts it back to an Arc."
+        (let [basis (g/now)]
+          (is (instance? Arc (source-arc-table basis first-source-node-id)))
+          (is (instance? Arc (target-arc-table basis)))))
+
+      (g/transact
+        (g/connect second-source-node-id :property-output target-node-id :array-input))
+
+      (testing "Introducing another connection expands the table to a PkidVector."
+        (let [basis (g/now)
+              target-arc-table (target-arc-table basis)]
+          (is (instance? Arc (source-arc-table basis second-source-node-id)))
+          (is (instance? PkidVector target-arc-table))
+          (is (= 2
+                 (count (ig/arc-table-arcs target-arc-table))
+                 (ig/arc-table-next-pkid target-arc-table)))))
+
+      (g/transact
+        (g/disconnect second-source-node-id :property-output target-node-id :array-input))
+
+      (testing "A non-canonical historical singleton remains a PkidVector."
+        (let [basis (g/now)
+              source-arc-table (source-arc-table basis second-source-node-id)
+              target-arc-table (target-arc-table basis)]
+          (is (instance? PkidVector source-arc-table))
+          (is (instance? PkidVector target-arc-table))
+          (is (coll/empty? (ig/arc-table-arcs source-arc-table)))
+          (is (= [[first-source-node-id :property-output]]
+                 (g/sources basis target-node-id :array-input)))
+          (is (= 2 (ig/arc-table-next-pkid target-arc-table))))))))

@@ -18,7 +18,10 @@
             [internal.graph :as ig]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support]
-            [util.coll :as coll]))
+            [util.array :as array]
+            [util.coll :as coll])
+  (:import [clojure.lang PkidVector]
+           [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
 
@@ -890,4 +893,83 @@
 
       (testing "Redo."
         (g/redo! ::disconnect)
+        (ensure-after!)))))
+
+(deftest arc-table-representation-transitions-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+
+          [first-source-node-id
+           second-source-node-id
+           target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes graph-id
+                [first-source-node-id [helpers/ConnectionSourceNode :property :first-value]
+                 second-source-node-id [helpers/ConnectionSourceNode :property :second-value]
+                 target-node-id helpers/ConnectionTargetNode]
+                (g/connect first-source-node-id :property-output target-node-id :array-input)
+                (g/connect second-source-node-id :property-output target-node-id :array-input))))
+
+          source-arc-table
+          (fn source-arc-table [basis source-node-id]
+            (get-in basis [:graphs graph-id :sarcs source-node-id :property-output]))
+
+          target-arc-table
+          (fn target-arc-table [basis]
+            (get-in basis [:graphs graph-id :tarcs target-node-id :array-input]))
+
+          ensure-before!
+          (fn ensure-before! []
+            (let [basis (g/now)
+                  first-source-arc-table (source-arc-table basis first-source-node-id)
+                  second-source-arc-table (source-arc-table basis second-source-node-id)
+                  target-arc-table (target-arc-table basis)]
+              (testing "Canonical source singletons are represented by their Arc."
+                (is (instance? Arc first-source-arc-table))
+                (is (instance? Arc second-source-arc-table))
+                (is (array/array? (ig/arc-table-arcs second-source-arc-table))))
+
+              (testing "The multi-entry target table is represented by a PkidVector."
+                (is (instance? PkidVector target-arc-table))
+                (is (= 2
+                       (count (ig/arc-table-arcs target-arc-table))
+                       (ig/arc-table-next-pkid target-arc-table))))))
+
+          ensure-after!
+          (fn ensure-after! []
+            (let [basis (g/now)
+                  first-source-arc-table (source-arc-table basis first-source-node-id)
+                  second-source-arc-table (source-arc-table basis second-source-node-id)
+                  target-arc-table (target-arc-table basis)]
+              (testing "The untouched source remains a canonical singleton."
+                (is (instance? Arc first-source-arc-table)))
+
+              (testing "The disconnected source table retains its stable PKID history."
+                (is (instance? PkidVector second-source-arc-table))
+                (is (coll/empty? (ig/arc-table-arcs second-source-arc-table)))
+                (is (= 1 (ig/arc-table-next-pkid second-source-arc-table))))
+
+              (testing "The target remains a non-canonical historical singleton."
+                (is (instance? PkidVector target-arc-table))
+                (is (= [[first-source-node-id :property-output]]
+                       (g/sources basis target-node-id :array-input)))
+                (is (= 1 (count (ig/arc-table-arcs target-arc-table))))
+                (is (= 2 (ig/arc-table-next-pkid target-arc-table))))))]
+
+      (testing "Before transact."
+        (ensure-before!))
+
+      (testing "Transact."
+        (g/transact
+          (g/disconnect second-source-node-id :property-output target-node-id :array-input))
+        (ensure-after!))
+
+      (testing "Undo."
+        (g/undo! :undo/global)
+        (ensure-before!))
+
+      (testing "Redo."
+        (g/redo! :undo/global)
         (ensure-after!)))))

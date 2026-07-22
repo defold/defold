@@ -24,7 +24,7 @@
             [util.pkid-vector :as pkid-vector])
   (:import [clojure.lang IPersistentSet Indexed]
            [com.github.benmanes.caffeine.cache Cache Caffeine]
-           [internal.graph.types Endpoint]
+           [internal.graph.types Arc Endpoint]
            [java.util ArrayList]
            [java.util.concurrent ConcurrentHashMap ForkJoinPool TimeUnit]))
 
@@ -366,32 +366,56 @@
 
 (def ^:private empty-arc-table (pkid-vector/pkid-vector))
 
+(defn- arc-table->pkid-vector [arc-table]
+  (if (instance? Arc arc-table)
+    (conj empty-arc-table arc-table)
+    (or arc-table empty-arc-table)))
+
+(defn- pkid-vector->arc-table [arc-table]
+  ;; A bare Arc represents the canonical singleton state: one live arc at
+  ;; pkid zero, with one as the next pkid. Keep non-canonical singleton tables
+  ;; as PkidVectors so their stable pkid history is preserved.
+  (if (and (= 1 (count arc-table))
+           (= 1 (pkid-vector/next-pkid arc-table)))
+    (nth arc-table 0)
+    arc-table))
+
 (defn arc-table-next-pkid
   ^long [arc-table]
-  (if-not arc-table
-    0
-    (pkid-vector/next-pkid arc-table)))
+  (cond
+    (nil? arc-table) 0
+    (instance? Arc arc-table) 1
+    :else (pkid-vector/next-pkid arc-table)))
 
 (defn arc-table-arcs [arc-table]
-  (when arc-table
-    (coll/not-empty arc-table)))
+  (cond
+    (nil? arc-table) nil
+    (instance? Arc arc-table) (array/of arc-table)
+    :else (coll/not-empty arc-table)))
 
 (defn- arc-table-assoc-pkids [arc-table arc-pkids arc]
-  (pkid-vector/assoc-pkids (or arc-table empty-arc-table)
-                          arc-pkids
-                          arc))
+  (-> (arc-table->pkid-vector arc-table)
+      (pkid-vector/assoc-pkids arc-pkids arc)
+      (pkid-vector->arc-table)))
 
 (defn- arc-table-dissoc-pkids [arc-table arc-pkids]
   (when arc-table
-    (pkid-vector/dissoc-pkids arc-table arc-pkids)))
+    (-> (arc-table->pkid-vector arc-table)
+        (pkid-vector/dissoc-pkids arc-pkids)
+        (pkid-vector->arc-table))))
 
 (defn- arc-table-append [arc-table arc]
-  (conj (or arc-table empty-arc-table) arc))
+  (cond
+    (nil? arc-table) arc
+    (instance? Arc arc-table) (conj (conj empty-arc-table arc-table) arc)
+    :else (-> (conj arc-table arc)
+              (pkid-vector->arc-table))))
 
 (defn- arc-table-find-arc-pkids [arc-table arc]
-  (if-not arc-table
-    []
-    (pkid-vector/find-pkids arc-table arc)))
+  (cond
+    (nil? arc-table) []
+    (instance? Arc arc-table) (if (= arc-table arc) [0] [])
+    :else (pkid-vector/find-pkids arc-table arc)))
 
 (defn- graphs-source-arc-table [graphs arc]
   (let [source-id (gt/source-id arc)
@@ -503,7 +527,7 @@
             [:tarcs target-id target-label]
             (if-not arc
               empty-arc-table
-              (conj empty-arc-table arc))))
+              arc)))
 
 (defn basis-perform-connect-arc-pkids [basis arc source+target-arc-pkids]
   (let [source-id (gt/source-id arc)
@@ -1462,7 +1486,7 @@
             (if (and (= source-id (some-> old-arc gt/source-id))
                      (= source-label (some-> old-arc gt/source-label))
                      (coll/not-empty old-source-arc-pkids))
-              (first old-source-arc-pkids)
+              (nth old-source-arc-pkids 0)
               (arc-table-next-pkid (graphs-source-arc-table graphs new-arc)))]
         ;; See the corresponding comment in basis-plan-connect-arc.
         (assert (<= (:_volatility source-graph 0)
