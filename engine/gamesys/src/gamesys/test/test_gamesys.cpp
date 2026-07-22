@@ -916,6 +916,34 @@ TEST_F(ResourceFolderTest, TestCreateTextureFromScript)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+// Verify that resource.create_texture_async() keeps its callback and upload buffer alive after
+// the coroutine that created the request has finished and has been garbage collected.
+TEST_F(ResourceFolderTest, TestCreateTextureAsyncFromCoroutine)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobContext      = m_JobContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_UseAsyncTextureLoad   = 1;
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture_async_from_coroutine.goc", dmHashString64("/create_texture_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done"));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 TEST_F(ResourceFolderTest, TestCreateSoundDataFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -2600,6 +2628,26 @@ TEST_F(ParticleFxTest, PlayAnim)
 {
     // Spawn one go with a script that will initiate animations on the above sprites
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool tests_done = false;
+    WaitForTestsDone(100, true, &tests_done);
+
+    if (!tests_done)
+    {
+        dmLogError("The playback didn't finish");
+    }
+    ASSERT_TRUE(tests_done);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verify that particlefx.play() can capture and invoke an emitter callback when called from a coroutine.
+// The callback must be read from the coroutine's Lua stack; reading it from the main thread's stack
+// causes coroutine.resume() to fail with an unrelated value as its error object.
+TEST_F(ParticleFxTest, PlayAnimFromCoroutine)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play_from_coroutine.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     bool tests_done = false;
@@ -9255,6 +9303,20 @@ TEST_F(SysTest, LoadBufferASync)
 
     // Test 5
     ASSERT_TRUE(RunTestLoadBufferASync(5, m_Scriptlibcontext, m_Collection, &m_UpdateContext, true));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verify that sys.load_buffer_async() keeps its callback alive after the coroutine that created
+// the request has finished and has been garbage collected.
+TEST_F(SysTest, LoadBufferAsyncFromCoroutine)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async_from_coroutine.goc", dmHashString64("/load_buffer_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done", 3));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
