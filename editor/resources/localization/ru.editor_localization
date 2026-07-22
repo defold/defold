@@ -347,6 +347,10 @@ dialog.fetch-libraries.host-unreachable.title = Ошибка обновлени�
 dialog.fetch-libraries.host-unreachable.header = Загрузка остановлена\: хост недоступен
 dialog.fetch-libraries.host-unreachable.content = Недоступный хост\: {host}\n\nПроверьте подключение к интернету и попробуйте ещё раз.
 
+# Notification view
+
+notification.more = + ещё {count}
+
 # Fetch libraries notification
 
 notification.fetch-libraries.changed = Зависимости проекта изменились. Обновить библиотеки сейчас?
