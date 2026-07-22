@@ -2614,6 +2614,26 @@ TEST_F(ParticleFxTest, PlayAnim)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verify that particlefx.play() can capture and invoke an emitter callback when called from a coroutine.
+// The callback must be read from the coroutine's Lua stack; reading it from the main thread's stack
+// causes coroutine.resume() to fail with an unrelated value as its error object.
+TEST_F(ParticleFxTest, PlayAnimFromCoroutine)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play_from_coroutine.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool tests_done = false;
+    WaitForTestsDone(100, true, &tests_done);
+
+    if (!tests_done)
+    {
+        dmLogError("The playback didn't finish");
+    }
+    ASSERT_TRUE(tests_done);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ParticleFxTest, GetSetProperties)
 {
     dmGameSystem::MaterialResource *material;
