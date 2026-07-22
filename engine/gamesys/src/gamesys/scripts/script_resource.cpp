@@ -1118,7 +1118,7 @@ static int CreateTextureAsync(lua_State* L)
     // The callback is optional, we don't have to do anything with the result if we don't need to.
     // I.e the upload can be fire-and-forget. There is no way an upload can fail in the graphics system,
     // we should catch any incorrectness here if that's the case.
-    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 4);
+    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(L, 4);
 
     // Create an initial blank texture that can be used while we upload the texture data externally
     CreateTextureResourceParams create_texture_resource_params = create_params;
@@ -1162,7 +1162,7 @@ static int CreateTextureAsync(lua_State* L)
 
     SetTextureAsyncRequest* request = new SetTextureAsyncRequest();
     HOpaqueHandle request_handle = g_ResourceModule.m_LoadRequests.Put(request);
-    request->m_LuaState          = L;
+    request->m_LuaState          = dmScript::GetMainThread(L);
     request->m_TextureResource   = (TextureResource*) resource;
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
