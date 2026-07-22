@@ -272,6 +272,9 @@ dialog.quit-defold.header = Есть несохранённые изменени
 dialog.quit-defold.button.cancel = Отменить и продолжить работу
 dialog.quit-defold.button.quit = Выйти без сохранения
 
+# Project directory unavailable dialog
+
+
 # Restart Defold dialog
 
 dialog.restart-defold.title = Перезапустить Defold?
@@ -349,7 +352,6 @@ dialog.fetch-libraries.host-unreachable.content = Недоступный хос�
 
 # Notification view
 
-notification.more = + ещё {count}
 
 # Fetch libraries notification
 
