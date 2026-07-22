@@ -518,13 +518,7 @@
 
     ;; Update scene-visibility settings
     (when should-load-scene-visibility
-      (if-let [settings (prefs/get-pref-entry prefs [:scene :visibility-resource-settings] path-key)]
-        (scene-visibility/update-settings scene-visibility settings)
-        (scene-visibility/update-settings scene-visibility
-                                          ;; TODO JOE: This doesn't belong here
-                                          {:filters-enabled true :filtered-renderable-tags (cond-> #{}
-                                                                                             (system/defold-dev?)
-                                                                                             (conj :dev-visibility-bounds))})))
+      (scene-visibility/load-settings! scene-visibility prefs path-key))
 
     (g/let-ec [active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
       (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]
@@ -544,11 +538,13 @@
 
 (handler/defhandler :scene.visibility.show-settings :workbench
   (run [app-view localization scene-visibility]
-    (when-let [btn (scene-visibility/toggle-button app-view)]
-      (scene-visibility/show-settings! (g/node-value app-view :keymap) localization btn scene-visibility)))
+    (g/let-ec [btn (scene-visibility/toggle-button app-view evaluation-context)
+               keymap (g/node-value app-view :keymap evaluation-context)]
+      (when btn
+        (scene-visibility/show-settings! keymap localization btn scene-visibility))))
   (state [app-view scene-visibility evaluation-context]
-    (when-let [btn (scene-visibility/toggle-button app-view)]
-      (scene-visibility/sync-filter-button-style! app-view scene-visibility evaluation-context)
+    (when-let [btn (scene-visibility/toggle-button app-view evaluation-context)]
+      (scene-visibility/sync-filter-button-style! btn scene-visibility evaluation-context)
       (settings-popup/settings-visible? btn))))
 
 (defn- get-settings-button [^Tab tab button-id]

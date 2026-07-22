@@ -893,8 +893,7 @@
   (update! prefs pref-path assoc-in (into [entry-key] entry-path) value))
 
 (defn update-pref-entry-in! [prefs pref-path entry-key entry-path f & args]
-  (update! prefs pref-path
-                 #(apply update-in % (into [entry-key] entry-path) f args)))
+  (update! prefs pref-path #(apply update-in % (into [entry-key] entry-path) f args)))
 
 (defn schema
   "Get a preference schema at a specified get-in path"
