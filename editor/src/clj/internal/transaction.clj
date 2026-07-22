@@ -46,8 +46,6 @@
 ;; Internal state
 ;; ---------------------------------------------------------------------------
 
-(defonce ^:private not-overridden-sentinel (Object.))
-
 (def ^:dynamic *tx-debug* nil)
 
 (def ^:private ^AtomicInteger next-txid (AtomicInteger. 1))
@@ -373,17 +371,6 @@
            (ig/basis-plan-add-override (:basis ctx) override-id root-node-id traverse-fn init-props-fn)]
     (perform-and-conj-change ctx undoable-changes (->AddOverrideTXC override-id override))
     (pair ctx undoable-changes)))
-
-(defonce/type AddOverrideTXS [override-id root-id traverse-fn init-props-fn]
-  TransactionStep
-  (step-type [_this]
-    :tx-step/add-override)
-
-  (metrics-key [_this]
-    root-id)
-
-  (realize [_this ctx undoable-changes]
-    (realize-add-override ctx undoable-changes override-id root-id traverse-fn init-props-fn)))
 
 (defn- realize-override
   [ctx undoable-changes root-id traverse-fn init-props-fn init-fn properties-by-node-id]
@@ -800,9 +787,9 @@
             (perform-and-conj-change ctx undoable-changes change)
             (let [evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
                   old-value (in/node-property-value node property-label evaluation-context)
-                  [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)]
-              (let [setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value nil)]
-                (realize-tx ctx undoable-changes setter-actions)))))
+                  [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)
+                  setter-actions (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value nil)]
+              (realize-tx ctx undoable-changes setter-actions))))
         (pair ctx undoable-changes)))))
 
 (defn- realize-defaults
@@ -1039,10 +1026,10 @@
 
 (defonce/type AddNodesTXS [added-nodes]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/add-nodes)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     (if (= 1 (count added-nodes))
       (gt/node-id (nth added-nodes 0))
       (mapv gt/node-id added-nodes)))
@@ -1103,10 +1090,10 @@
 
 (defonce/type DeleteNodesTXS [node-ids]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/delete-node)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     (if (= 1 (count node-ids))
       (nth node-ids 0)
       node-ids))
@@ -1129,10 +1116,10 @@
 
 (defonce/type OverrideTXS [root-id traverse-fn init-props-fn init-fn properties-by-node-id]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/override)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     root-id)
 
   (realize [_this ctx undoable-changes]
@@ -1145,10 +1132,10 @@
 
 (defonce/type TransferOverridesTXS [from-id->to-id]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/transfer-overrides)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     ;; When metrics are enabled, this is called for one override node at a time.
     ;; This is potentially less efficient, but we get valuable context about
     ;; which specific nodes are costly to transfer overrides for.
@@ -1163,10 +1150,10 @@
 
 (defonce/type SetPropertyTXS [node-id property-label new-value]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/set-property)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     (pair node-id property-label))
 
   (realize [_this ctx undoable-changes]
@@ -1181,10 +1168,10 @@
 
 (defonce/type UpdatePropertyTXS [node-id property-label fn args opts]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/update-property)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     (pair node-id property-label))
 
   (realize [_this ctx undoable-changes]
@@ -1206,10 +1193,10 @@
 
 (defonce/type ClearPropertyTXS [node-id property-label]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/clear-property)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     (pair node-id property-label))
 
   (realize [_this ctx undoable-changes]
@@ -1242,10 +1229,10 @@
 
 (defonce/type UpdateGraphValueTXS [graph-id graph-value-key update-fn args]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/update-graph-value)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     graph-id)
 
   (realize [_this ctx undoable-changes]
@@ -1261,10 +1248,10 @@
 
 (defonce/type CallbackTXS [callback-fn args opts]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/callback)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     nil)
 
   (realize [_this ctx undoable-changes]
@@ -1452,10 +1439,10 @@
 
 (defonce/type ConnectTXS [arc]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/connect)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     arc)
 
   (realize [_this ctx undoable-changes]
@@ -1480,10 +1467,10 @@
 
 (defonce/type ExpandTXS [tx-steps-fn args opts]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/expand)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     nil)
 
   (realize [_this ctx undoable-changes]
@@ -1500,10 +1487,10 @@
 
 (defonce/type DisconnectTXS [arc]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/disconnect)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     arc)
 
   (realize [_this ctx undoable-changes]
@@ -1522,10 +1509,10 @@
 
 (defonce/type LabelTXS [label]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/label)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     nil)
 
   (realize [_this ctx undoable-changes]
@@ -1538,10 +1525,10 @@
 
 (defonce/type SequenceLabelTXS [sequence-label]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/sequence-label)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     nil)
 
   (realize [_this ctx undoable-changes]
@@ -1566,10 +1553,10 @@
 
 (defonce/type InvalidateTXS [node-id]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/invalidate)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     node-id)
 
   (realize [_this ctx undoable-changes]
@@ -1593,10 +1580,10 @@
 
 (defonce/type InvalidateOutputTXS [node-id output-label]
   TransactionStep
-  (step-type [_this]
+  (step_type [_this]
     :tx-step/invalidate-output)
 
-  (metrics-key [_this]
+  (metrics_key [_this]
     (pair node-id output-label))
 
   (realize [_this ctx undoable-changes]
@@ -1614,7 +1601,9 @@
   [value]
   (instance? TransactionStep value))
 
-(def tx-step-type TransactionStep/.step_type)
+(defn tx-step-type
+  [^TransactionStep tx-step]
+  (.step_type tx-step))
 
 (defn tx-step-added-nodes
   [^AddNodesTXS tx-step]

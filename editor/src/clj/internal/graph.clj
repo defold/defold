@@ -742,7 +742,7 @@
   [basis source-override-chain source-override-node-chain conflicting-source-overrides-chain arc]
   (let [target (gt/target-id arc)
         target-label (gt/target-label arc)]
-    (if (empty? source-override-chain)
+    (if (coll/empty? source-override-chain)
       [arc]
       (let [^IPersistentSet disallowed-override-ids (first conflicting-source-overrides-chain)
             target-graph (node-id->graph basis target)
@@ -802,7 +802,9 @@
                                                                   next-override))
                                                           (conj override-node-chain source)
                                                           override-chain)]
-                    (not-empty (into [] (mapcat (partial lift-source-arc basis override-chain override-node-chain conflicting-overrides-chain)) explicit-arcs)))))
+                    (coll/not-empty
+                      (coll/into-> explicit-arcs []
+                        (mapcat #(lift-source-arc basis override-chain override-node-chain conflicting-overrides-chain %)))))))
           cat)
         override-chains+explicit-arcs))
 
@@ -842,7 +844,7 @@
                                                                   (assoc target-arc :target-id (gt/node-id target-override-node))))))
                                                       (overrides target-graph target)))))
                                     arcs)]
-          (if (empty? propagated-arcs)
+          (if (coll/empty? propagated-arcs)
             result
             (recur propagated-arcs
                    (into result propagated-arcs))))))))
@@ -988,7 +990,7 @@
       (.build)))
 
 (defn- basis-dependencies [basis endpoints]
-  (assert (every? gt/endpoint? endpoints))
+  (assert (coll/every? gt/endpoint? endpoints))
   (if (coll/empty? endpoints)
     #{}
     (let [graph-id->node-successors
@@ -1157,7 +1159,7 @@
   (connected?
     [this source-id source-label target-id target-label]
     (let [targets (gt/targets this source-id source-label)]
-      (some #{[target-id target-label]} targets)))
+      (coll/any? #{[target-id target-label]} targets)))
 
   (dependencies
     [this endpoints]
