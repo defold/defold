@@ -267,14 +267,22 @@
                                                                           :projection {:type :enum
                                                                                        :values [:orthographic :perspective]
                                                                                        :default :orthographic}
-                                                                          :position (vec3-schema 0.0 0.0 0.0)
-                                                                          :rotation {:type :object
-                                                                                     :properties {:x {:type :number :default 0.0}
-                                                                                                  :y {:type :number :default 0.0}
-                                                                                                  :z {:type :number :default 0.0}
-                                                                                                  :w {:type :number :default 1.0}}}
+                                                                          :position {:type :tuple
+                                                                                     :items [{:type :number :default 0.0}
+                                                                                             {:type :number :default 0.0}
+                                                                                             {:type :number :default 0.0}]}
+                                                                          :rotation {:type :tuple
+                                                                                     :items [{:type :number :default 0.0}
+                                                                                             {:type :number :default 0.0}
+                                                                                             {:type :number :default 0.0}
+                                                                                             {:type :number :default 1.0}]}
+                                                                          :fov-x {:type :number :default 1000.0}
                                                                           :fov-y {:type :number :default 1000.0}
-                                                                          :focus-point (vec3-schema 0.0 0.0 0.0)}}}}}
+                                                                          :focus-point {:type :tuple
+                                                                                        :items [{:type :number :default 0.0}
+                                                                                                {:type :number :default 0.0}
+                                                                                                {:type :number :default 0.0}
+                                                                                                {:type :number :default 1.0}]}}}}}}
              ;; NOTE: We also track whether the grid button is active or not, however, not here. Because the grid visibility
              ;; is controlled by the SceneVisibilityNode, we ended up piggy-backing a per-resource grid button active setting
              ;; through [:scene :resource-settings <resource-proj-path> :scene-visibility]

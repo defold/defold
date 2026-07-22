@@ -61,6 +61,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.math :as math]
             [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
@@ -124,6 +125,7 @@
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
+           [javax.vecmath Point3d Quat4d Vector4d]
            [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
@@ -2349,6 +2351,29 @@
 
 (declare open-resource!)
 
+(defn- camera-prefs [camera]
+  {:2d-mode (camera/mode-2d? camera)
+   :projection (:type camera)
+   :position (math/vecmath->clj (:position camera))
+   :rotation (math/vecmath->clj (:rotation camera))
+   :fov-x (:fov-x camera)
+   :fov-y (:fov-y camera)
+   :focus-point (math/vecmath->clj (:focus-point camera))})
+
+(defn- try-load-camera-from-prefs [prefs path-key]
+  (when-let [{:keys [projection position rotation fov-x fov-y focus-point]}
+             (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera])]
+    (let [[position-x position-y position-z] position
+          [rotation-x rotation-y rotation-z rotation-w] rotation
+          [focus-x focus-y focus-z focus-w] focus-point]
+      (assoc (camera/make-camera (or projection :orthographic)
+                                 identity
+                                 {:fov-x (or fov-x 1000.0)
+                                  :fov-y (or fov-y 1000.0)})
+        :position (Point3d. (double position-x) (double position-y) (double position-z))
+        :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
+        :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) (double focus-w))))))
+
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
         project (project/get-project basis resource-node)
@@ -2377,6 +2402,7 @@
                      :project project
                      :workspace workspace
                      :localization localization
+                     :camera (try-load-camera-from-prefs prefs (resource/resource->proj-path resource))
                      :tab tab})
         make-view-fn (:make-view-fn view-type)
         view (make-view-fn view-graph parent resource-node opts)]
@@ -2400,6 +2426,15 @@
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler event
                           (recent-files/add! prefs resource view-type)
+                          (when (= :scene (:id view-type))
+                            (g/let-ec [camera (some-> (:basis evaluation-context)
+                                                      (scene/view->camera view)
+                                                      (g/node-value :local-camera evaluation-context))
+                                       path-key (resource/resource->proj-path resource)]
+                              (when (and camera path-key)
+                                (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
+                                                          (camera-prefs camera)))))
+
                           ;; The menu refresh can occur after the view graph is
                           ;; deleted but before the tab controls lose input
                           ;; focus, causing handlers to evaluate against deleted
