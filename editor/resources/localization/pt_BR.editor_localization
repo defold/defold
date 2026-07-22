@@ -125,6 +125,8 @@ updater.dialog.button.download = Baixar Atualização
 updater.dialog.button.install-and-restart = Instalar e Reiniciar
 updater.dialog.button.download-newer-version = Baixar Versão Mais Recente
 
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+
 # Time
 time.vague.unknown = Desconhecido
 time.vague.just-now = Agora
