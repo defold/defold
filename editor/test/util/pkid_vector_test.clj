@@ -20,13 +20,14 @@
             [clojure.test.check.properties :as prop]
             [util.coll :as coll]
             [util.pkid-vector :as pkid-vector])
-  (:import [clojure.lang IReduceInit PkidVector]))
+  (:import [clojure.lang IReduceInit PkidVector]
+           [java.util ArrayList Collection Iterator]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- missing-pkids [^PkidVector vector]
-  (let [^java.util.Iterator iterator (.missingPkidIterator vector)]
+  (let [^Iterator iterator (.missingPkidIterator vector)]
     (loop [result (transient [])]
       (if (.hasNext iterator)
         (recur (conj! result (.next iterator)))
@@ -48,11 +49,11 @@
     vector))
 
 (deftest pkid-vector-test
-  (let [table (pkid-vector/pkid-vector)]
-    (check-state! table [] [] 0)
-    (is (identical? PkidVector/EMPTY table))
-    (is (= 0 (pkid-vector/next-pkid table)))
-    (is (= [] (pkid-vector/find-pkids table :not-found)))))
+  (let [pkid-vector (pkid-vector/pkid-vector)]
+    (check-state! pkid-vector [] [] 0)
+    (is (identical? PkidVector/EMPTY pkid-vector))
+    (is (= 0 (pkid-vector/next-pkid pkid-vector)))
+    (is (= [] (pkid-vector/find-pkids pkid-vector :not-found)))))
 
 (deftest vector-behavior-test
   (let [initial-vector (-> (pkid-vector/pkid-vector)
@@ -135,7 +136,7 @@
   (testing "Batched transient finalization preserves metadata."
     (let [metadata {:test true}
           initial-vector (with-meta (reduce conj (pkid-vector/pkid-vector) (range 65))
-                            metadata)
+                                    metadata)
           associated-vector (pkid-vector/assoc-pkids initial-vector [0 32 64] :x)
           dissociated-vector (pkid-vector/dissoc-pkids associated-vector [1 33])]
       (is (= metadata (meta associated-vector)))
@@ -154,8 +155,8 @@
 
 (deftest java-method-api-test
   (let [^PkidVector initial-vector (-> (pkid-vector/pkid-vector)
-                                      (conj :a)
-                                      (conj 1))]
+                                       (conj :a)
+                                       (conj 1))]
     (testing "Direct Java methods match the Clojure wrappers."
       (let [direct-vector (.assocPkids initial-vector [5 1 3] :x)
             wrapped-vector (pkid-vector/assoc-pkids initial-vector [5 1 3] :x)]
@@ -179,23 +180,23 @@
         (is (= [1] matching-pkids))
         (is (vector? matching-pkids))))
 
-  (testing "Reducible-only pkid batches are traversed once."
-    (let [visit-count (atom 0)
-          pkids (reify IReduceInit
-                  (reduce [_ reducing-fn init]
-                    (clojure.core/reduce
-                      (fn [result pkid]
-                        (swap! visit-count inc)
-                        (reducing-fn result pkid))
-                      init
-                      [3 1 3 0])))
-          vector (.assocPkids (pkid-vector/pkid-vector) pkids :x)]
-      (is (= 4 @visit-count))
-      (check-state! vector [:x :x :x] [2] 4)))
+    (testing "Reducible-only pkid batches are traversed once."
+      (let [visit-count (atom 0)
+            pkids (reify IReduceInit
+                    (reduce [_ reducing-fn init]
+                      (clojure.core/reduce
+                        (fn [result pkid]
+                          (swap! visit-count inc)
+                          (reducing-fn result pkid))
+                        init
+                        [3 1 3 0])))
+            vector (.assocPkids (pkid-vector/pkid-vector) pkids :x)]
+        (is (= 4 @visit-count))
+        (check-state! vector [:x :x :x] [2] 4)))
 
-  (testing "The empty singleton is canonical."
-    (is (identical? PkidVector/EMPTY (pkid-vector/pkid-vector)))
-    (is (identical? PkidVector/EMPTY (empty (conj PkidVector/EMPTY :a)))))))
+    (testing "The empty singleton is canonical."
+      (is (identical? PkidVector/EMPTY (pkid-vector/pkid-vector)))
+      (is (identical? PkidVector/EMPTY (empty (conj PkidVector/EMPTY :a)))))))
 
 (deftest missing-pkid-persistence-test
   (let [initial-vector (reduce conj PkidVector/EMPTY [:a :b :c :d])
@@ -224,171 +225,171 @@
       (is (= [1 129] (pkid-vector/find-pkids restored-branch :restored))))))
 
 (deftest conj-test
-  (let [empty-table (pkid-vector/pkid-vector)
-        first-table (conj empty-table :a)
-        second-table (conj first-table nil)
-        third-table (conj second-table false)]
+  (let [empty-pkid-vector (pkid-vector/pkid-vector)
+        first-pkid-vector (conj empty-pkid-vector :a)
+        second-pkid-vector (conj first-pkid-vector nil)
+        third-pkid-vector (conj second-pkid-vector false)]
     (testing "Conjoins values at consecutive pkids."
-      (check-state! first-table [:a] [] 1)
-      (check-state! second-table [:a nil] [] 2)
-      (check-state! third-table [:a nil false] [] 3))
+      (check-state! first-pkid-vector [:a] [] 1)
+      (check-state! second-pkid-vector [:a nil] [] 2)
+      (check-state! third-pkid-vector [:a nil false] [] 3))
 
-    (testing "Earlier tables remain unchanged."
-      (check-state! empty-table [] [] 0)
-      (check-state! first-table [:a] [] 1)
-      (check-state! second-table [:a nil] [] 2)))
+    (testing "Earlier pkid-vectors remain unchanged."
+      (check-state! empty-pkid-vector [] [] 0)
+      (check-state! first-pkid-vector [:a] [] 1)
+      (check-state! second-pkid-vector [:a nil] [] 2)))
 
   (testing "Conj does not reuse deleted pkids."
-    (let [table (-> (pkid-vector/pkid-vector)
-                    (conj :a)
-                    (conj :b)
-                    (pkid-vector/dissoc-pkids [0 1])
-                    (conj :c))]
-      (check-state! table [:c] [0 1] 3)
-      (is (= [2] (pkid-vector/find-pkids table :c))))))
+    (let [pkid-vector (-> (pkid-vector/pkid-vector)
+                          (conj :a)
+                          (conj :b)
+                          (pkid-vector/dissoc-pkids [0 1])
+                          (conj :c))]
+      (check-state! pkid-vector [:c] [0 1] 3)
+      (is (= [2] (pkid-vector/find-pkids pkid-vector :c))))))
 
 (deftest assoc-pkids-test
-  (testing "Empty pkids leave the table unchanged."
-    (let [table (pkid-vector/pkid-vector)]
-      (is (identical? table (pkid-vector/assoc-pkids table [] :a)))
-      (is (identical? table (pkid-vector/assoc-pkids table nil :a)))))
+  (testing "Empty pkids leave the pkid-vector unchanged."
+    (let [pkid-vector (pkid-vector/pkid-vector)]
+      (is (identical? pkid-vector (pkid-vector/assoc-pkids pkid-vector [] :a)))
+      (is (identical? pkid-vector (pkid-vector/assoc-pkids pkid-vector nil :a)))))
 
   (testing "Associating at the next pkid is equivalent to appending."
     (doseq [^long size [0 1 31 32 33 1023 1024 1025]]
       (let [metadata {:size size}
-            initial-table (with-meta (reduce conj (pkid-vector/pkid-vector) (range size))
-                            metadata)
-            table (pkid-vector/assoc-pkids initial-table [size] :appended)]
-        (check-state! table (conj (vec (range size)) :appended) [] (inc size))
-        (is (= metadata (meta table))))))
+            initial-pkid-vector (with-meta (reduce conj (pkid-vector/pkid-vector) (range size))
+                                           metadata)
+            pkid-vector (pkid-vector/assoc-pkids initial-pkid-vector [size] :appended)]
+        (check-state! pkid-vector (conj (vec (range size)) :appended) [] (inc size))
+        (is (= metadata (meta pkid-vector))))))
 
   (testing "Associating at the next pkid preserves earlier holes."
-    (let [table (-> (pkid-vector/pkid-vector)
-                    (conj :a :b)
-                    (pkid-vector/dissoc-pkids [0])
-                    (pkid-vector/assoc-pkids [2] :c))]
-      (check-state! table [:b :c] [0] 3)))
+    (let [pkid-vector (-> (pkid-vector/pkid-vector)
+                          (conj :a :b)
+                          (pkid-vector/dissoc-pkids [0])
+                          (pkid-vector/assoc-pkids [2] :c))]
+      (check-state! pkid-vector [:b :c] [0] 3)))
 
   (testing "Associating beyond the next pkid records the intervening holes."
-    (let [table (-> (pkid-vector/pkid-vector)
-                    (pkid-vector/assoc-pkids [3] :d)
-                    (check-state! [:d] [0 1 2] 4)
-                    (pkid-vector/assoc-pkids [1] :b)
-                    (check-state! [:b :d] [0 2] 4)
-                    (pkid-vector/assoc-pkids [3] :D)
-                    (check-state! [:b :D] [0 2] 4)
-                    (pkid-vector/assoc-pkids [7] :h))]
-      (check-state! table [:b :D :h] [0 2 4 5 6] 8)))
+    (let [pkid-vector (-> (pkid-vector/pkid-vector)
+                          (pkid-vector/assoc-pkids [3] :d)
+                          (check-state! [:d] [0 1 2] 4)
+                          (pkid-vector/assoc-pkids [1] :b)
+                          (check-state! [:b :d] [0 2] 4)
+                          (pkid-vector/assoc-pkids [3] :D)
+                          (check-state! [:b :D] [0 2] 4)
+                          (pkid-vector/assoc-pkids [7] :h))]
+      (check-state! pkid-vector [:b :D :h] [0 2 4 5 6] 8)))
 
   (testing "Missing pkids can be restored out of order."
-    (let [table (-> (pkid-vector/pkid-vector)
-                    (pkid-vector/assoc-pkids [5] :f)
-                    (pkid-vector/assoc-pkids [4] :e)
-                    (pkid-vector/assoc-pkids [2] :c)
-                    (pkid-vector/assoc-pkids [0] :a)
-                    (pkid-vector/assoc-pkids [3] :d)
-                    (pkid-vector/assoc-pkids [1] :b))]
-      (check-state! table [:a :b :c :d :e :f] [] 6)))
+    (let [pkid-vector (-> (pkid-vector/pkid-vector)
+                          (pkid-vector/assoc-pkids [5] :f)
+                          (pkid-vector/assoc-pkids [4] :e)
+                          (pkid-vector/assoc-pkids [2] :c)
+                          (pkid-vector/assoc-pkids [0] :a)
+                          (pkid-vector/assoc-pkids [3] :d)
+                          (pkid-vector/assoc-pkids [1] :b))]
+      (check-state! pkid-vector [:a :b :c :d :e :f] [] 6)))
 
   (testing "A batch may replace, restore, append, and create gaps."
-    (let [table (-> (pkid-vector/pkid-vector)
-                    (conj :a)
-                    (conj :b)
-                    (conj :c)
-                    (pkid-vector/dissoc-pkids [1])
-                    (pkid-vector/assoc-pkids #{5 1 2 3} :x))]
-      (check-state! table [:a :x :x :x :x] [4] 6)
-      (is (= [1 2 3 5]
-             (pkid-vector/find-pkids table :x)))))
-
-  (testing "Duplicate pkids and falsey values are supported."
-    (let [nil-table (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [2 2] nil)
-          false-table (pkid-vector/assoc-pkids nil-table [0 1] false)]
-      (check-state! false-table [false false nil] [] 3))))
-
-(deftest dissoc-pkids-test
-  (let [initial-table (-> (pkid-vector/pkid-vector)
+    (let [pkid-vector (-> (pkid-vector/pkid-vector)
                           (conj :a)
                           (conj :b)
                           (conj :c)
-                          (conj :d))]
+                          (pkid-vector/dissoc-pkids [1])
+                          (pkid-vector/assoc-pkids #{5 1 2 3} :x))]
+      (check-state! pkid-vector [:a :x :x :x :x] [4] 6)
+      (is (= [1 2 3 5]
+             (pkid-vector/find-pkids pkid-vector :x)))))
+
+  (testing "Duplicate pkids and falsey values are supported."
+    (let [nil-pkid-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [2 2] nil)
+          false-pkid-vector (pkid-vector/assoc-pkids nil-pkid-vector [0 1] false)]
+      (check-state! false-pkid-vector [false false nil] [] 3))))
+
+(deftest dissoc-pkids-test
+  (let [initial-pkid-vector (-> (pkid-vector/pkid-vector)
+                                (conj :a)
+                                (conj :b)
+                                (conj :c)
+                                (conj :d))]
     (testing "Values can be removed from the beginning, middle, and end."
-      (let [table (-> initial-table
-                      (pkid-vector/dissoc-pkids [0])
-                      (check-state! [:b :c :d] [0] 4)
-                      (pkid-vector/dissoc-pkids [2])
-                      (check-state! [:b :d] [0 2] 4)
-                      (pkid-vector/dissoc-pkids [3]))]
-        (check-state! table [:b] [0 2 3] 4)))
+      (let [pkid-vector (-> initial-pkid-vector
+                            (pkid-vector/dissoc-pkids [0])
+                            (check-state! [:b :c :d] [0] 4)
+                            (pkid-vector/dissoc-pkids [2])
+                            (check-state! [:b :d] [0 2] 4)
+                            (pkid-vector/dissoc-pkids [3]))]
+        (check-state! pkid-vector [:b] [0 2 3] 4)))
 
     (testing "Unordered and duplicate pkids are supported."
-      (let [table (pkid-vector/dissoc-pkids initial-table [2 0 2 1])]
-        (check-state! table [:d] [0 1 2] 4)))
+      (let [pkid-vector (pkid-vector/dissoc-pkids initial-pkid-vector [2 0 2 1])]
+        (check-state! pkid-vector [:d] [0 1 2] 4)))
 
-    (testing "Missing and out-of-range pkids leave the table unchanged."
-      (let [table (pkid-vector/dissoc-pkids initial-table [1])]
-        (is (identical? table (pkid-vector/dissoc-pkids table [1 4 100])))
-        (is (identical? table (pkid-vector/dissoc-pkids table nil)))))
+    (testing "Missing and out-of-range pkids leave the pkid-vector unchanged."
+      (let [pkid-vector (pkid-vector/dissoc-pkids initial-pkid-vector [1])]
+        (is (identical? pkid-vector (pkid-vector/dissoc-pkids pkid-vector [1 4 100])))
+        (is (identical? pkid-vector (pkid-vector/dissoc-pkids pkid-vector nil)))))
 
     (testing "Deleting all values preserves the next pkid."
-      (let [table (pkid-vector/dissoc-pkids initial-table [0 1 2 3])]
-        (check-state! table [] [0 1 2 3] 4)
-        (is (= [] (pkid-vector/find-pkids table :a)))))
+      (let [pkid-vector (pkid-vector/dissoc-pkids initial-pkid-vector [0 1 2 3])]
+        (check-state! pkid-vector [] [0 1 2 3] 4)
+        (is (= [] (pkid-vector/find-pkids pkid-vector :a)))))
 
-    (testing "The original table remains unchanged."
-      (check-state! initial-table [:a :b :c :d] [] 4)))
+    (testing "The original pkid-vector remains unchanged."
+      (check-state! initial-pkid-vector [:a :b :c :d] [] 4)))
 
   (testing "Invalid pkids are rejected."
-    (let [table (pkid-vector/pkid-vector)]
+    (let [pkid-vector (pkid-vector/pkid-vector)]
       (is (thrown-with-msg? IllegalArgumentException
                             #"pkid must not be negative: -1"
-                            (pkid-vector/dissoc-pkids table [-1])))
+                            (pkid-vector/dissoc-pkids pkid-vector [-1])))
       (is (thrown-with-msg? IllegalArgumentException
                             #"pkid must not be negative: -1"
-                            (pkid-vector/assoc-pkids table [-1] :a)))
-      (is (thrown? NullPointerException (pkid-vector/dissoc-pkids table [nil])))
-      (is (thrown? ClassCastException (pkid-vector/dissoc-pkids table [(int 1)])))
-      (is (thrown? ClassCastException (pkid-vector/dissoc-pkids table [1.0])))
-      (is (thrown? ClassCastException (pkid-vector/assoc-pkids table [:invalid] :a))))))
+                            (pkid-vector/assoc-pkids pkid-vector [-1] :a)))
+      (is (thrown? NullPointerException (pkid-vector/dissoc-pkids pkid-vector [nil])))
+      (is (thrown? ClassCastException (pkid-vector/dissoc-pkids pkid-vector [(int 1)])))
+      (is (thrown? ClassCastException (pkid-vector/dissoc-pkids pkid-vector [1.0])))
+      (is (thrown? ClassCastException (pkid-vector/assoc-pkids pkid-vector [:invalid] :a))))))
 
 (deftest batched-updates-test
   (testing "A mixed batch is normalized before it is applied."
-    (let [initial-table (-> (reduce conj
-                                    (pkid-vector/pkid-vector)
-                                    [:v0 :v1 :v2 :v3 :v4 :v5 :v6 :v7])
-                            (pkid-vector/dissoc-pkids [1 3 6]))
+    (let [initial-pkid-vector (-> (reduce conj
+                                          (pkid-vector/pkid-vector)
+                                          [:v0 :v1 :v2 :v3 :v4 :v5 :v6 :v7])
+                                  (pkid-vector/dissoc-pkids [1 3 6]))
           unique-pkids [0 1 3 8 10 12]
           input-variants [[12 3 8 1 10 3 0 12]
                           unique-pkids
                           (int-map/dense-int-set unique-pkids)]
-          updated-tables (mapv #(pkid-vector/assoc-pkids initial-table % :x)
-                               input-variants)]
-      (doseq [updated-table updated-tables]
-        (check-state! updated-table
+          updated-pkid-vectors (mapv #(pkid-vector/assoc-pkids initial-pkid-vector % :x)
+                                     input-variants)]
+      (doseq [updated-pkid-vector updated-pkid-vectors]
+        (check-state! updated-pkid-vector
                       [:x :x :v2 :x :v4 :v5 :v7 :x :x :x]
                       [6 9 11]
                       13))
 
-      (is (apply = updated-tables))
-      (check-state! initial-table [:v0 :v2 :v4 :v5 :v7] [1 3 6] 8)))
+      (is (apply = updated-pkid-vectors))
+      (check-state! initial-pkid-vector [:v0 :v2 :v4 :v5 :v7] [1 3 6] 8)))
 
   (testing "A single batch can restore every missing pkid."
-    (let [initial-table (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [6] :last)
-          restored-table (pkid-vector/assoc-pkids initial-table
-                                                 [5 4 3 2 1 0 5 0]
-                                                 :restored)]
-      (check-state! restored-table
+    (let [initial-pkid-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [6] :last)
+          restored-pkid-vector (pkid-vector/assoc-pkids initial-pkid-vector
+                                                        [5 4 3 2 1 0 5 0]
+                                                        :restored)]
+      (check-state! restored-pkid-vector
                     [:restored :restored :restored :restored :restored :restored :last]
                     []
                     7)))
 
   (testing "Replacement-only batches account for unrelated missing pkids."
-    (let [table (-> (reduce conj
-                            (pkid-vector/pkid-vector)
-                            [:a :b :c :d :e])
-                    (pkid-vector/dissoc-pkids [1 3])
-                    (pkid-vector/assoc-pkids [4 2 0 2] :x))]
-      (check-state! table [:x :x :x] [1 3] 5)))
+    (let [pkid-vector (-> (reduce conj
+                                  (pkid-vector/pkid-vector)
+                                  [:a :b :c :d :e])
+                          (pkid-vector/dissoc-pkids [1 3])
+                          (pkid-vector/assoc-pkids [4 2 0 2] :x))]
+      (check-state! pkid-vector [:x :x :x] [1 3] 5)))
 
   (testing "Each supplied batch is traversed once."
     (let [visit-count (atom 0)
@@ -396,178 +397,247 @@
                                  (swap! visit-count inc)
                                  pkid))
                           [3 1 3 0])
-          table (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) pkids :x)]
+          pkid-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) pkids :x)]
       (is (= 4 @visit-count))
-      (check-state! table [:x :x :x] [2] 4))
+      (check-state! pkid-vector [:x :x :x] [2] 4))
 
     (let [visit-count (atom 0)
-          initial-table (reduce conj
-                                (pkid-vector/pkid-vector)
-                                [:a :b :c :d :e])
+          initial-pkid-vector (reduce conj
+                                      (pkid-vector/pkid-vector)
+                                      [:a :b :c :d :e])
           pkids (eduction (map (fn [pkid]
                                  (swap! visit-count inc)
                                  pkid))
                           [3 1 3 10])
-          table (pkid-vector/dissoc-pkids initial-table pkids)]
+          pkid-vector (pkid-vector/dissoc-pkids initial-pkid-vector pkids)]
       (is (= 4 @visit-count))
-      (check-state! table [:a :c :e] [1 3] 5)))
+      (check-state! pkid-vector [:a :c :e] [1 3] 5)))
 
   (testing "A large restoration batch preserves stable order."
-    (let [initial-table (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [2048] :last)
+    (let [initial-pkid-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [2048] :last)
           restored-pkids (vec (range 0 2048 2))
           descending-pkids (into [] (rseq restored-pkids))
-          table (pkid-vector/assoc-pkids initial-table descending-pkids :restored)]
+          pkid-vector (pkid-vector/assoc-pkids initial-pkid-vector descending-pkids :restored)]
       (is (= restored-pkids
-             (pkid-vector/find-pkids table :restored)))
-      (is (= [2048] (pkid-vector/find-pkids table :last)))
+             (pkid-vector/find-pkids pkid-vector :restored)))
+      (is (= [2048] (pkid-vector/find-pkids pkid-vector :last)))
       (is (= (vec (range 1 2048 2))
-             (missing-pkids table)))
-      (check-state! initial-table [:last] (vec (range 2048)) 2049)))
+             (missing-pkids pkid-vector)))
+      (check-state! initial-pkid-vector [:last] (vec (range 2048)) 2049)))
 
   (testing "A large deletion batch rebuilds the values once."
-    (let [initial-table (pkid-vector/assoc-pkids (pkid-vector/pkid-vector)
-                                                (range 2049)
-                                                :x)
+    (let [initial-pkid-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector)
+                                                       (range 2049)
+                                                       :x)
           deleted-pkids (vec (range 0 2049 2))
           descending-pkids (into [] (rseq deleted-pkids))
-          table (pkid-vector/dissoc-pkids initial-table descending-pkids)]
-      (is (= 1024 (count table)))
-      (is (coll/every? #{:x} table))
-      (is (= deleted-pkids (missing-pkids table)))
+          pkid-vector (pkid-vector/dissoc-pkids initial-pkid-vector descending-pkids)]
+      (is (= 1024 (count pkid-vector)))
+      (is (coll/every? #{:x} pkid-vector))
+      (is (= deleted-pkids (missing-pkids pkid-vector)))
       (is (= (vec (range 1 2049 2))
-             (pkid-vector/find-pkids table :x)))
-      (check-state! initial-table (vec (repeat 2049 :x)) [] 2049))))
+             (pkid-vector/find-pkids pkid-vector :x)))
+      (check-state! initial-pkid-vector (vec (repeat 2049 :x)) [] 2049))))
 
 (deftest find-pkids-test
   (let [equal-but-not-identical-a (String. "same")
         equal-but-not-identical-b (String. "same")
-        table (-> (pkid-vector/pkid-vector)
-                  (conj :a)
-                  (conj nil)
-                  (conj equal-but-not-identical-a)
-                  (conj :a)
-                  (conj nil)
-                  (conj equal-but-not-identical-b)
-                  (pkid-vector/dissoc-pkids [0 4]))]
-    (is (= [] (pkid-vector/find-pkids table :not-found)))
-    (is (= [3] (pkid-vector/find-pkids table :a)))
-    (is (= [1] (pkid-vector/find-pkids table nil)))
-    (is (= [2 5] (pkid-vector/find-pkids table "same"))))
+        pkid-vector (-> (pkid-vector/pkid-vector)
+                        (conj :a)
+                        (conj nil)
+                        (conj equal-but-not-identical-a)
+                        (conj :a)
+                        (conj nil)
+                        (conj equal-but-not-identical-b)
+                        (pkid-vector/dissoc-pkids [0 4]))]
+    (is (= [] (pkid-vector/find-pkids pkid-vector :not-found)))
+    (is (= [3] (pkid-vector/find-pkids pkid-vector :a)))
+    (is (= [1] (pkid-vector/find-pkids pkid-vector nil)))
+    (is (= [2 5] (pkid-vector/find-pkids pkid-vector "same"))))
 
   (testing "Stable pkids survive deletion, conj, and restoration."
-    (let [table (-> (pkid-vector/pkid-vector)
-                    (conj :a)
-                    (conj :x)
-                    (conj :b)
-                    (conj :x)
-                    (pkid-vector/dissoc-pkids [1 3])
-                    (conj :c)
-                    (pkid-vector/assoc-pkids [3 1] :x))]
-      (check-state! table [:a :x :b :x :c] [] 5)
-      (is (= [1 3] (pkid-vector/find-pkids table :x)))))
+    (let [pkid-vector (-> (pkid-vector/pkid-vector)
+                          (conj :a)
+                          (conj :x)
+                          (conj :b)
+                          (conj :x)
+                          (pkid-vector/dissoc-pkids [1 3])
+                          (conj :c)
+                          (pkid-vector/assoc-pkids [3 1] :x))]
+      (check-state! pkid-vector [:a :x :b :x :c] [] 5)
+      (is (= [1 3] (pkid-vector/find-pkids pkid-vector :x)))))
 
   (testing "Many matching values are mapped through holes as a batch."
     (let [matching-pkids (vec (range 64 1024 2))
-          table (-> (pkid-vector/assoc-pkids (pkid-vector/pkid-vector)
-                                            matching-pkids
-                                            :match)
-                    (conj :trailing)
-                    (pkid-vector/dissoc-pkids [1023]))]
+          pkid-vector (-> (pkid-vector/assoc-pkids (pkid-vector/pkid-vector)
+                                                   matching-pkids
+                                                   :match)
+                          (conj :trailing)
+                          (pkid-vector/dissoc-pkids [1023]))]
       (is (= matching-pkids
-             (pkid-vector/find-pkids table :match))))))
+             (pkid-vector/find-pkids pkid-vector :match))))))
 
 (deftest int-set-leaf-boundary-test
-  (let [table (-> (pkid-vector/pkid-vector)
-                  (pkid-vector/assoc-pkids [128] :last)
-                  (pkid-vector/assoc-pkids [127] :before-last)
-                  (pkid-vector/dissoc-pkids [128])
-                  (conj :after-last)
-                  (pkid-vector/assoc-pkids [0] :first))]
+  (let [pkid-vector (-> (pkid-vector/pkid-vector)
+                        (pkid-vector/assoc-pkids [128] :last)
+                        (pkid-vector/assoc-pkids [127] :before-last)
+                        (pkid-vector/dissoc-pkids [128])
+                        (conj :after-last)
+                        (pkid-vector/assoc-pkids [0] :first))]
     (is (= [:first :before-last :after-last]
-           table))
-    (is (= 130 (pkid-vector/next-pkid table)))
-    (is (= [0] (pkid-vector/find-pkids table :first)))
-    (is (= [127] (pkid-vector/find-pkids table :before-last)))
-    (is (= [129] (pkid-vector/find-pkids table :after-last)))
+           pkid-vector))
+    (is (= 130 (pkid-vector/next-pkid pkid-vector)))
+    (is (= [0] (pkid-vector/find-pkids pkid-vector :first)))
+    (is (= [127] (pkid-vector/find-pkids pkid-vector :before-last)))
+    (is (= [129] (pkid-vector/find-pkids pkid-vector :after-last)))
     (is (= 130
-           (+ (count table)
-              (count (missing-pkids table)))))))
+           (+ (count pkid-vector)
+              (count (missing-pkids pkid-vector)))))))
 
 (deftest emptied-int-set-leaf-test
-  (let [initial-table (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [130] :anchor)
-        partially-restored-table (pkid-vector/assoc-pkids initial-table (range 128) :restored)
-        fully-restored-table (pkid-vector/assoc-pkids partially-restored-table [128 129] :filled)]
+  (let [initial-pkid-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [130] :anchor)
+        partially-restored-pkid-vector (pkid-vector/assoc-pkids initial-pkid-vector (range 128) :restored)
+        fully-restored-pkid-vector (pkid-vector/assoc-pkids partially-restored-pkid-vector [128 129] :filled)]
     (testing "Iteration skips an emptied int-set leaf."
-      (is (= [128 129] (missing-pkids partially-restored-table)))
-      (is (= (vec (range 128)) (pkid-vector/find-pkids partially-restored-table :restored)))
-      (is (= [130] (pkid-vector/find-pkids partially-restored-table :anchor))))
+      (is (= [128 129] (missing-pkids partially-restored-pkid-vector)))
+      (is (= (vec (range 128)) (pkid-vector/find-pkids partially-restored-pkid-vector :restored)))
+      (is (= [130] (pkid-vector/find-pkids partially-restored-pkid-vector :anchor))))
 
     (testing "Restoring every missing pkid canonicalizes the empty set."
-      (is (= [] (missing-pkids fully-restored-table)))
-      (is (= [128 129] (pkid-vector/find-pkids fully-restored-table :filled)))
-      (is (= 131 (count fully-restored-table) (pkid-vector/next-pkid fully-restored-table))))))
+      (is (= [] (missing-pkids fully-restored-pkid-vector)))
+      (is (= [128 129] (pkid-vector/find-pkids fully-restored-pkid-vector :filled)))
+      (is (= 131 (count fully-restored-pkid-vector) (pkid-vector/next-pkid fully-restored-pkid-vector))))))
 
 (deftest batched-int-set-leaf-boundary-test
   (let [boundary-pkids [127 128 129 255 256 257]
-        initial-table (pkid-vector/assoc-pkids (pkid-vector/pkid-vector)
-                                              [126 130 254 258]
-                                              :anchor)
-        restored-table (pkid-vector/assoc-pkids initial-table
-                                               [257 129 127 255 128 256 129]
-                                               :boundary)
+        initial-pkid-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector)
+                                                     [126 130 254 258]
+                                                     :anchor)
+        restored-pkid-vector (pkid-vector/assoc-pkids initial-pkid-vector
+                                                      [257 129 127 255 128 256 129]
+                                                      :boundary)
         deletion-pkids (int-map/int-set boundary-pkids)
-        deleted-table (pkid-vector/dissoc-pkids restored-table deletion-pkids)]
+        deleted-pkid-vector (pkid-vector/dissoc-pkids restored-pkid-vector deletion-pkids)]
     (is (= boundary-pkids
-           (pkid-vector/find-pkids restored-table :boundary)))
+           (pkid-vector/find-pkids restored-pkid-vector :boundary)))
     (is (= [126 130 254 258]
-           (pkid-vector/find-pkids restored-table :anchor)))
+           (pkid-vector/find-pkids restored-pkid-vector :anchor)))
     (is (= 259
-           (+ (count restored-table)
-              (count (missing-pkids restored-table)))))
+           (+ (count restored-pkid-vector)
+              (count (missing-pkids restored-pkid-vector)))))
     (is (= [126 130 254 258]
-           (pkid-vector/find-pkids deleted-table :anchor)))
-    (is (= [] (pkid-vector/find-pkids deleted-table :boundary)))
+           (pkid-vector/find-pkids deleted-pkid-vector :anchor)))
+    (is (= [] (pkid-vector/find-pkids deleted-pkid-vector :boundary)))
     (is (= boundary-pkids (vec deletion-pkids)))))
 
 (def ^:private test-values
   [nil false :a :b])
 
+(def ^:private test-metadata
+  [nil {:branch :first} {:branch :second}])
+
+(def ^:private pkid-batch-representations
+  [:nil :vector :list :set :int-set :reducible :iterable])
+
+(def ^:private pkid-gen
+  (gen/frequency
+    [[8 (gen/choose 0 75)]
+     [2 (gen/elements [127 128 129 255 256 257 1023 1024 1025])]]))
+
+(def ^:private pkid-batch-gen
+  (gen/vector pkid-gen 0 15))
+
 (def ^:private operation-gen
   (gen/one-of
     [(gen/tuple (gen/return :conj)
                 (gen/elements test-values))
+     (gen/tuple (gen/return :assoc-index)
+                gen/nat
+                (gen/elements test-values))
      (gen/tuple (gen/return :assoc-pkids)
-                (gen/vector (gen/choose 0 50) 0 15)
+                pkid-batch-gen
+                (gen/elements pkid-batch-representations)
                 (gen/elements test-values))
      (gen/tuple (gen/return :dissoc-pkids)
-                (gen/vector (gen/choose 0 50) 0 15))]))
+                pkid-batch-gen
+                (gen/elements pkid-batch-representations))
+     (gen/tuple (gen/return :pop))
+     (gen/tuple (gen/return :empty))
+     (gen/tuple (gen/return :with-meta)
+                (gen/elements test-metadata))]))
 
-(defn- apply-model-operation [{:keys [entries next-pkid]} [operation arg value]]
+(defn- represented-pkids [pkids representation]
+  (case representation
+    :nil nil
+    :vector pkids
+    :list (apply list pkids)
+    :set (set pkids)
+    :int-set (int-map/int-set pkids)
+    :reducible (eduction (map identity) pkids)
+    :iterable (ArrayList. ^Collection pkids)))
+
+(defn- effective-pkids [[_ pkids representation]]
+  (if (= :nil representation)
+    []
+    pkids))
+
+(defn- apply-model-operation [{:keys [entries next-pkid] :as model} [operation arg representation value :as operation-form]]
   (let [next-pkid (long next-pkid)]
     (case operation
       :conj
       {:entries (assoc entries next-pkid arg)
-       :next-pkid (inc next-pkid)}
+       :next-pkid (inc next-pkid)
+       :meta (:meta model)}
+
+      :assoc-index
+      (let [index (mod (long arg) (inc (count entries)))]
+        (if (= index (count entries))
+          {:entries (assoc entries next-pkid representation)
+           :next-pkid (inc next-pkid)
+           :meta (:meta model)}
+          (let [pkid (key (nth (vec entries) index))]
+            (assoc model :entries (assoc entries pkid representation)))))
 
       :assoc-pkids
-      {:entries (reduce (fn [entries pkid]
-                          (assoc entries pkid value))
-                        entries
-                        arg)
-       :next-pkid (reduce (fn [^long next-pkid pkid]
-                            (max next-pkid (inc (long pkid))))
-                          next-pkid
-                          arg)}
+      (let [pkids (effective-pkids operation-form)]
+        {:entries (reduce (fn [entries pkid]
+                            (assoc entries pkid value))
+                          entries
+                          pkids)
+         :next-pkid (reduce (fn [^long next-pkid pkid]
+                              (max next-pkid (inc (long pkid))))
+                            next-pkid
+                            pkids)
+         :meta (:meta model)})
 
       :dissoc-pkids
-      {:entries (reduce dissoc entries arg)
-       :next-pkid next-pkid})))
+      (assoc model :entries (reduce dissoc entries (effective-pkids operation-form)))
 
-(defn- apply-table-operation [table [operation arg value]]
+      :pop
+      (if (coll/empty? entries)
+        model
+        (assoc model :entries (dissoc entries (key (first (rseq entries))))))
+
+      :empty
+      {:entries (sorted-map)
+       :next-pkid 0
+       :meta (:meta model)}
+
+      :with-meta
+      (assoc model :meta arg))))
+
+(defn- apply-pkid-vector-operation [pkid-vector [operation arg representation value]]
   (case operation
-    :conj (conj table arg)
-    :assoc-pkids (pkid-vector/assoc-pkids table arg value)
-    :dissoc-pkids (pkid-vector/dissoc-pkids table arg)))
+    :conj (conj pkid-vector arg)
+    :assoc-index (assoc pkid-vector (mod (long arg) (inc (count pkid-vector))) representation)
+    :assoc-pkids (pkid-vector/assoc-pkids pkid-vector
+                                          (represented-pkids arg representation)
+                                          value)
+    :dissoc-pkids (pkid-vector/dissoc-pkids pkid-vector
+                                            (represented-pkids arg representation))
+    :pop (if (coll/empty? pkid-vector) pkid-vector (pop pkid-vector))
+    :empty (empty pkid-vector)
+    :with-meta (with-meta pkid-vector arg)))
 
 (defn- model-pkids [entries value]
   (into (int-map/int-set)
@@ -576,29 +646,193 @@
                   pkid)))
         entries))
 
-(defn- table-matches-model? [{:keys [entries next-pkid]} table]
-  (and (= (vec (clojure.core/vals entries))
-          table)
+(defn- model-missing-pkids [{:keys [entries next-pkid]}]
+  (into []
+        (remove #(contains? entries %))
+        (range next-pkid)))
+
+(defn- pkid-vector-matches-model? [{:keys [entries next-pkid] :as model} pkid-vector]
+  (and (instance? PkidVector pkid-vector)
+       (= (into [] (map val) entries)
+          pkid-vector)
+       (= (:meta model) (meta pkid-vector))
        (= next-pkid
-          (pkid-vector/next-pkid table)
-          (+ (count table)
-             (count (missing-pkids table))))
+          (pkid-vector/next-pkid pkid-vector)
+          (+ (count pkid-vector)
+             (count (missing-pkids pkid-vector))))
+       (= (model-missing-pkids model)
+          (missing-pkids pkid-vector))
        (coll/every? (fn [value]
                       (= (vec (model-pkids entries value))
-                         (pkid-vector/find-pkids table value)))
-                    test-values)))
+                         (pkid-vector/find-pkids pkid-vector value)))
+                    (conj test-values :not-found))))
+
+(defn- operation-requires-identical-result? [{:keys [entries meta]} [operation arg :as operation-form]]
+  (case operation
+    :assoc-pkids (coll/empty? (effective-pkids operation-form))
+    :dissoc-pkids (coll/every? #(not (contains? entries %))
+                               (effective-pkids operation-form))
+    :pop (coll/empty? entries)
+    :with-meta (identical? meta arg)
+    false))
+
+(defn- throws? [exception-class f]
+  (try
+    (f)
+    false
+    (catch Throwable error
+      (instance? exception-class error))))
+
+(defn- vector-contract-matches-model? [{:keys [entries] :as model} pkid-vector]
+  (let [values (into [] (map val) entries)
+        value-count (count values)
+        middle-index (quot value-count 2)
+        subvector-start (quot value-count 4)
+        subvector-end (- value-count subvector-start)
+        subvector (subvec pkid-vector subvector-start subvector-end)
+        expected-subvector (subvec values subvector-start subvector-end)]
+    (and (vector? pkid-vector)
+         (= pkid-vector values)
+         (= values pkid-vector)
+         (= (hash values) (hash pkid-vector))
+         (= (peek values) (peek pkid-vector))
+         (= (vec (rseq values)) (vec (rseq pkid-vector)))
+         (= expected-subvector subvector)
+         (= (:meta model) (meta pkid-vector))
+         (identical? PkidVector/EMPTY (empty (with-meta pkid-vector nil)))
+         (throws? UnsupportedOperationException #(transient pkid-vector))
+         (throws? UnsupportedOperationException #(into pkid-vector [:appended]))
+         (if (zero? value-count)
+           (throws? IllegalStateException #(pop pkid-vector))
+           (and (= (values middle-index)
+                   (pkid-vector middle-index)
+                   (get pkid-vector middle-index)
+                   (nth pkid-vector middle-index))
+                (= (assoc expected-subvector 0 :subvector-value)
+                   (assoc subvector 0 :subvector-value)))))))
+
+(defn- apply-operations [initial-model initial-pkid-vector operations]
+  (reduce (fn [[model pkid-vector] operation]
+            [(apply-model-operation model operation)
+             (apply-pkid-vector-operation pkid-vector operation)])
+          [initial-model initial-pkid-vector]
+          operations))
 
 (defspec operations-match-sorted-map-model 500
   (prop/for-all [operations (gen/vector operation-gen 0 100)]
     (loop [operation-index 0
            model {:entries (sorted-map)
-                  :next-pkid 0}
-           table (pkid-vector/pkid-vector)]
+                  :next-pkid 0
+                  :meta nil}
+           pkid-vector (pkid-vector/pkid-vector)]
       (if (= operation-index (count operations))
-        true
+        (and (pkid-vector-matches-model? model pkid-vector)
+             (vector-contract-matches-model? model pkid-vector))
         (let [operation (operations operation-index)
-              model (apply-model-operation model operation)
-              table (apply-table-operation table operation)]
-          (if (table-matches-model? model table)
-            (recur (inc operation-index) model table)
+              new-model (apply-model-operation model operation)
+              new-pkid-vector (apply-pkid-vector-operation pkid-vector operation)]
+          (if (and (pkid-vector-matches-model? model pkid-vector)
+                   (pkid-vector-matches-model? new-model new-pkid-vector)
+                   (or (not (operation-requires-identical-result? model operation))
+                       (identical? pkid-vector new-pkid-vector)))
+            (recur (inc operation-index) new-model new-pkid-vector)
             false))))))
+
+(defspec sibling-branches-remain-persistent 200
+  (prop/for-all [prefix-operations (gen/vector operation-gen 0 50)
+                 first-branch-operations (gen/vector operation-gen 0 25)
+                 second-branch-operations (gen/vector operation-gen 0 25)]
+    (let [initial-model {:entries (sorted-map)
+                         :next-pkid 0
+                         :meta nil}
+          [base-model base-pkid-vector] (apply-operations initial-model
+                                                          (pkid-vector/pkid-vector)
+                                                          prefix-operations)
+          [first-branch-model first-branch-pkid-vector] (apply-operations base-model
+                                                                          base-pkid-vector
+                                                                          first-branch-operations)
+          [second-branch-model second-branch-pkid-vector] (apply-operations base-model
+                                                                            base-pkid-vector
+                                                                            second-branch-operations)]
+      (and (pkid-vector-matches-model? base-model base-pkid-vector)
+           (pkid-vector-matches-model? first-branch-model first-branch-pkid-vector)
+           (pkid-vector-matches-model? second-branch-model second-branch-pkid-vector)))))
+
+(defspec reducible-batches-are-traversed-once 200
+  (prop/for-all [pkids pkid-batch-gen
+                 value (gen/elements test-values)]
+    (let [assoc-visit-count (atom 0)
+          assoc-pkids (eduction (map (fn [pkid]
+                                       (swap! assoc-visit-count inc)
+                                       pkid))
+                                pkids)
+          associated-pkid-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector)
+                                                          assoc-pkids
+                                                          value)
+          dissoc-visit-count (atom 0)
+          dissoc-pkids (eduction (map (fn [pkid]
+                                        (swap! dissoc-visit-count inc)
+                                        pkid))
+                                 pkids)
+          dissociated-pkid-vector (pkid-vector/dissoc-pkids associated-pkid-vector dissoc-pkids)]
+      (and (= (count pkids) @assoc-visit-count @dissoc-visit-count)
+           (= [] dissociated-pkid-vector)
+           (= (reduce (fn [^long next-pkid pkid]
+                        (max next-pkid (inc (long pkid))))
+                      0
+                      pkids)
+              (pkid-vector/next-pkid dissociated-pkid-vector))))))
+
+(defspec invalid-pkids-are-rejected 200
+  (prop/for-all [negative-pkid (gen/choose -100000 -1)
+                 invalid-pkid (gen/elements [nil :invalid (int 1) 1.0])]
+    (let [pkid-vector (pkid-vector/pkid-vector)
+          invalid-pkid-exception-class (if (nil? invalid-pkid)
+                                         NullPointerException
+                                         ClassCastException)]
+      (and (throws? IllegalArgumentException
+                    #(pkid-vector/assoc-pkids pkid-vector [negative-pkid] :value))
+           (throws? IllegalArgumentException
+                    #(pkid-vector/dissoc-pkids pkid-vector [negative-pkid]))
+           (throws? invalid-pkid-exception-class
+                    #(pkid-vector/assoc-pkids pkid-vector [invalid-pkid] :value))
+           (throws? invalid-pkid-exception-class
+                    #(pkid-vector/dissoc-pkids pkid-vector [invalid-pkid]))))))
+
+(defspec emptied-int-set-leaves-remain-readable 50
+  (prop/for-all [leaf-index (gen/choose 1 8)
+                 value (gen/elements test-values)]
+    (let [leaf-index (long leaf-index)
+          anchor-pkid (inc (* 128 leaf-index))
+          restored-pkid (dec anchor-pkid)
+          pkid-vector (-> (pkid-vector/pkid-vector)
+                          (pkid-vector/assoc-pkids (int-map/int-set [anchor-pkid]) :anchor)
+                          (pkid-vector/assoc-pkids (int-map/int-set [restored-pkid]) value))
+          model {:entries (sorted-map restored-pkid value anchor-pkid :anchor)
+                 :next-pkid (inc anchor-pkid)
+                 :meta nil}]
+      (pkid-vector-matches-model? model pkid-vector))))
+
+(defspec persistent-vector-boundaries-preserve-pkid-state 50
+  (prop/for-all [size (gen/elements [0 1 31 32 33 1023 1024 1025 32767 32768 32769])
+                 raw-index gen/nat
+                 metadata (gen/elements test-metadata)]
+    (let [size (long size)
+          values (vec (range size))
+          initial-pkid-vector (with-meta (reduce conj (pkid-vector/pkid-vector) values)
+                                         metadata)
+          index (mod (long raw-index) (inc size))
+          associated-pkid-vector (assoc initial-pkid-vector index :associated)
+          expected-associated-values (assoc values index :associated)
+          appended-pkid-vector (conj associated-pkid-vector :appended)
+          popped-pkid-vector (pop appended-pkid-vector)]
+      (and (= expected-associated-values associated-pkid-vector popped-pkid-vector)
+           (= (conj expected-associated-values :appended) appended-pkid-vector)
+           (= metadata (meta initial-pkid-vector) (meta associated-pkid-vector) (meta appended-pkid-vector) (meta popped-pkid-vector))
+           (= (if (= index size) (inc size) size)
+              (pkid-vector/next-pkid associated-pkid-vector))
+           (= (inc (pkid-vector/next-pkid associated-pkid-vector))
+              (pkid-vector/next-pkid appended-pkid-vector)
+              (pkid-vector/next-pkid popped-pkid-vector))
+           (= [(pkid-vector/next-pkid associated-pkid-vector)]
+              (missing-pkids popped-pkid-vector))))))

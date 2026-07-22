@@ -271,26 +271,32 @@ public final class PkidVector extends PersistentVector {
                 final Object container = entry.val();
                 leafBase = leafIndex * MISSING_PKID_LEAF_SIZE;
 
-                if (container instanceof SingleContainer) {
-                    value = leafBase + ((SingleContainer) container).val;
-                    hasValue = true;
-                    return;
-                }
-
-                if (container instanceof BitSetContainer) {
-                    bitSet = ((BitSetContainer) container).bitSet;
-                    bitIndex = bitSet.nextSetBit(0);
-                    if (bitIndex >= 0) {
-                        value = leafBase + bitIndex;
+                switch (container) {
+                    case null -> {
+                        continue;
+                    }
+                    case SingleContainer singleContainer -> {
+                        value = leafBase + singleContainer.val;
                         hasValue = true;
                         return;
                     }
+                    case BitSetContainer bitSetContainer -> {
+                        bitSet = bitSetContainer.bitSet;
+                        bitIndex = bitSet.nextSetBit(0);
+                        if (bitIndex >= 0) {
+                            value = leafBase + bitIndex;
+                            hasValue = true;
+                            return;
+                        }
 
-                    bitSet = null;
-                    continue;
+                        bitSet = null;
+                        continue;
+                    }
+                    default -> {
+                    }
                 }
 
-                final String containerClass = container == null ? "null" : container.getClass().getName();
+                final String containerClass = container.getClass().getName();
                 throw new IllegalStateException("Unsupported IntSet container: " + containerClass);
             }
 
