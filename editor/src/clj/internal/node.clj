@@ -807,12 +807,17 @@
     (assert (empty? collisions) (str "inputs and properties can not be overloaded (problematic fields: " (str/join "," (map #(str "'" (name %) "'") collisions)) ")")))
   description)
 
-(defn verify-property-defaults
+(defn verify-property-defaults-impl
   [description]
   (doseq [[property-label prop-info] (:property description)]
     (when-some [property-default-value (prop-info-default prop-info)]
       (validate-property-value-impl description nil property-label property-default-value)))
   description)
+
+(defmacro verify-property-defaults
+  [description]
+  `(when-check-schemas
+     (verify-property-defaults-impl ~description)))
 
 (defn- invert-map
   [m]
