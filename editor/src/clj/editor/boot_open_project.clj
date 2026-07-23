@@ -110,7 +110,7 @@
   (let [moved (reduce (fn [settings [old new]]
                         (let [old-path-key (:project-path old)
                               new-path-key (:project-path new)]
-                          (if-let [entry (get settings old-path-key)]
+                          (if-let [entry (get-in settings [:settings old-path-key])]
                             (-> settings
                                 (update :settings dissoc old-path-key)
                                 (update :settings assoc new-path-key entry)

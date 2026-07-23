@@ -18,6 +18,7 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.boot-open-project :as boot-open-project]
             [editor.camera :as camera]
             [editor.fs :as fs]
             [editor.grid :as grid]
@@ -34,6 +35,7 @@
 (def ^:private try-load-camera-from-prefs #'app-view/try-load-camera-from-prefs)
 (def ^:private set-visibility-settings! #'scene-visibility/set-visibility-settings!)
 (def ^:private grid-mode #'grid/grid-mode)
+(def ^:private clean-up-resource-prefs #'boot-open-project/clean-up-resource-prefs)
 
 (def ^:private resource-settings-path [:scene :resource-settings])
 
@@ -223,3 +225,83 @@
       (testing "2D mode uses the configured plane rather than forcing :z"
         (prefs/set! prefs [:scene :grid-2d :active-plane] :x)
         (is (= :x (:active-plane (merged-options))))))))
+
+;; -----------------------------------------------------------------------------
+;; Resource sync cleanup
+;; -----------------------------------------------------------------------------
+
+(def ^:private an-entry
+  {:scene-visibility {:filters-enabled false :filtered-renderable-tags #{:sprite}}})
+
+(defn- resource-change
+  "clean-up-resource-prefs only reads :project-path off these; the resource maps
+  handle-changes really receives carry a dozen more keys."
+  [proj-path]
+  {:project-path proj-path :source-type :file})
+
+(defn- changes [& {:as overrides}]
+  (merge {:added [] :removed [] :changed [] :moved ()} overrides))
+
+(defn- seed-settings! [prefs settings]
+  ;; prefs/set! validates the whole :object-of map and resets it to {} if an
+  ;; entry violates the schema, which would make every assertion below pass
+  ;; against an empty map. Fail loudly here instead.
+  (prefs/set! prefs resource-settings-path settings)
+  (is (= settings (prefs/get prefs resource-settings-path))
+      "the seeded settings should survive schema validation"))
+
+(defn- settings-of [prefs]
+  (prefs/get prefs resource-settings-path))
+
+(deftest deleting-a-resource-drops-only-its-entry
+  (let [prefs (make-isolated-prefs)]
+    (seed-settings! prefs {"/a.collection" an-entry "/b.go" an-entry})
+    (clean-up-resource-prefs prefs (changes :removed [(resource-change "/a.collection")]))
+    (is (= {"/b.go" an-entry} (settings-of prefs)))))
+
+(deftest renaming-a-resource-carries-its-entry-to-the-new-path
+  ;; A rename arrives with the old path in *both* :moved and :removed, and the
+  ;; new path in :added. The :removed handling must not undo the move.
+  (let [prefs (make-isolated-prefs)
+        old (resource-change "/game/asdf.sprite")
+        new (resource-change "/game/rename_sprite.sprite")]
+    (seed-settings! prefs {"/game/asdf.sprite" an-entry "/game/other.go" an-entry})
+    (clean-up-resource-prefs prefs (changes :added [new] :removed [old] :moved [[old new]]))
+    (is (= {"/game/rename_sprite.sprite" an-entry "/game/other.go" an-entry}
+           (settings-of prefs)))))
+
+(deftest renaming-a-folder-carries-every-entry-under-it
+  ;; One sync can move many resources at once; each move is independent.
+  (let [prefs (make-isolated-prefs)
+        moves (mapv (fn [[from to]] [(resource-change from) (resource-change to)])
+                    [["/old/a.collection" "/new/a.collection"]
+                     ["/old/b.go" "/new/b.go"]])]
+    (seed-settings! prefs {"/old/a.collection" an-entry
+                           "/old/b.go" an-entry
+                           "/elsewhere/c.go" an-entry})
+    (clean-up-resource-prefs prefs (changes :added (mapv second moves)
+                                            :removed (mapv first moves)
+                                            :moved moves))
+    (is (= {"/new/a.collection" an-entry
+            "/new/b.go" an-entry
+            "/elsewhere/c.go" an-entry}
+           (settings-of prefs)))))
+
+(deftest cleanup-leaves-untracked-resources-alone
+  (let [prefs (make-isolated-prefs)
+        old (resource-change "/never-opened.sprite")
+        new (resource-change "/renamed.sprite")]
+    (seed-settings! prefs {"/a.collection" an-entry})
+
+    (testing "renaming a resource that was never opened invents no entry"
+      (clean-up-resource-prefs prefs (changes :added [new] :removed [old] :moved [[old new]]))
+      (is (= {"/a.collection" an-entry} (settings-of prefs))))
+
+    (testing "deleting a resource that was never opened is a no-op"
+      (clean-up-resource-prefs prefs (changes :removed [(resource-change "/gone.go")]))
+      (is (= {"/a.collection" an-entry} (settings-of prefs))))
+
+    (testing "added and changed resources are not our concern"
+      (clean-up-resource-prefs prefs (changes :added [(resource-change "/fresh.go")]
+                                              :changed [(resource-change "/a.collection")]))
+      (is (= {"/a.collection" an-entry} (settings-of prefs))))))
