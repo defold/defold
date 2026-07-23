@@ -972,16 +972,14 @@
           props
           (if-let [style-class (padding->style-class padding)]
             (-> props (dissoc :padding) (add-style-classes style-class))
-            (if (number? padding)
-              props
-              (throw (AssertionError. (str "Invalid padding: " padding))))))))))
+            props))))))
 
 (defn grid
   "Grid pane
 
   Supports all :grid-pane props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -995,7 +993,7 @@
 
   Supports all :h-box props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -1009,7 +1007,7 @@
 
   Supports all :v-box props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props

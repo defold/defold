@@ -125,6 +125,8 @@ updater.dialog.button.download = Baixar Atualização
 updater.dialog.button.install-and-restart = Instalar e Reiniciar
 updater.dialog.button.download-newer-version = Baixar Versão Mais Recente
 
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+
 # Time
 time.vague.unknown = Desconhecido
 time.vague.just-now = Agora
@@ -270,6 +272,9 @@ dialog.quit-defold.header = Existem alterações não salvas, tem certeza que de
 dialog.quit-defold.button.cancel = Cancelar e Continuar Trabalhando
 dialog.quit-defold.button.quit = Sair Sem Salvar
 
+# Project directory unavailable dialog
+
+
 # Restart Defold dialog
 
 dialog.restart-defold.title = Reiniciar Defold?
@@ -344,6 +349,9 @@ dialog.diff-view.binary.header = Não foi possível fazer diff de arquivos biná
 dialog.fetch-libraries.host-unreachable.title = Falha na Busca
 dialog.fetch-libraries.host-unreachable.header = A busca foi cancelada porque um servidor não pôde ser alcançado
 dialog.fetch-libraries.host-unreachable.content = Servidor inacessível\: {host}\n\nPor favor verifique sua conexão com a internet e tente novamente.
+
+# Notification view
+
 
 # Fetch libraries notification
 

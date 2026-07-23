@@ -250,7 +250,7 @@ namespace dmGameSystem
 
         if (top > 1 && !lua_isnil(L, 2))
         {
-            data.m_CallbackInfo = dmScript::CreateCallback(dmScript::GetMainThread(L), -1);
+            data.m_CallbackInfo = dmScript::CreateCallback(L, 2);
             if (data.m_CallbackInfo == 0x0)
             {
                 return DM_LUA_ERROR("particlefx.play failed to create callback");

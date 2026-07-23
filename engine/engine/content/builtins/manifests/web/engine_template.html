@@ -7,6 +7,45 @@
 	<meta name="apple-mobile-web-app-capable" content="yes">
 	<!-- The above 4 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 
+{{#DEFOLD_HAS_ARCHIVE_ORIGIN}}
+{{!
+	The game archive is hosted on another origin (html5.archive_location_prefix). Warm up the
+	connection to it while this page is being parsed, so that DNS, TCP and TLS setup is already
+	done when dmloader.js makes the first request. This benefits archive_files.json as well as
+	every game data piece downloaded after it.
+}}
+	<link rel="preconnect" href="{{DEFOLD_ARCHIVE_ORIGIN}}" crossorigin>
+
+{{/DEFOLD_HAS_ARCHIVE_ORIGIN}}
+{{!
+	Preload the archive manifest so the browser fetches it in parallel with dmloader.js
+	instead of waiting until dmloader.js has downloaded and executed. archive_files.json
+	is otherwise requested by JavaScript (an XHR in dmloader.js) and is invisible to the
+	preload scanner, yet it gates the wasm and game-data downloads. The href must match
+	the runtime archive_location_filter exactly (same DEFOLD_ARCHIVE_LOCATION_PREFIX/SUFFIX
+	used in dmloader.js), and as="fetch" + crossorigin must match the XHR so the preloaded
+	response is reused rather than fetched a second time. See issue #8716.
+}}
+	<link rel="preload" as="fetch" crossorigin href="{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}/archive_files.json{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}">
+{{#DEFOLD_HAS_WASM_ENGINE}}
+{{^DEFOLD_HAS_WASM_PTHREAD_ENGINE}}
+
+{{!
+	Preload the engine. dmloader.js does not start downloading it until archive_files.json has
+	been received and parsed (see EngineLoader.loadWasmAsync), which puts the two largest files
+	in the bundle several round trips deep in the critical path. These hints start the transfer
+	while this page is still being parsed instead.
+	Only emitted when the pthread engine is not bundled: with both engines bundled dmloader.js
+	picks between <exe>.wasm and <exe>_pthread.wasm at runtime depending on whether the page is
+	cross origin isolated, so a static hint could download megabytes that are never used.
+	as="fetch" + crossorigin matches how dmloader.js requests them, either with an
+	XMLHttpRequest or with fetch() when html5.wasm_streaming is enabled.
+}}
+	<link rel="preload" as="fetch" crossorigin href="{{exe-name}}_wasm.js">
+	<link rel="preload" as="fetch" crossorigin href="{{exe-name}}.wasm">
+{{/DEFOLD_HAS_WASM_PTHREAD_ENGINE}}
+{{/DEFOLD_HAS_WASM_ENGINE}}
+
 	<title>{{project.title}} {{project.version}}</title>
 	<style type='text/css'>
 	/* Disable user selection to avoid strange bug in Chrome on Windows:

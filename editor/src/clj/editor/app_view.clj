@@ -949,10 +949,28 @@
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
-  (let [render-reload-progress! (make-render-task-progress :resource-sync)]
-    (disk/async-reload! render-reload-progress! workspace moved-files changes-view
-                        (fn [_success]
-                          (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))
+  (if-not (.isDirectory (workspace/project-directory workspace))
+    (g/let-ec [^Stage stage (g/node-value app-view :stage evaluation-context)
+               localization (g/node-value app-view :localization evaluation-context)]
+      (dialogs/make-info-dialog
+        localization
+        {:title (localization/message "dialog.project-directory-unavailable.title")
+         :icon :icon/triangle-error
+         :header (localization/message "dialog.project-directory-unavailable.header")
+         :content {:wrap-text true
+                   :text (localization/message "dialog.project-directory-unavailable.content")}
+         :buttons [{:text (localization/message "dialog.button.quit")
+                    :cancel-button true
+                    :default-button true}]})
+      (.setOnCloseRequest stage nil)
+      (.close stage))
+    (disk/async-reload!
+      (make-render-task-progress :resource-sync)
+      workspace
+      moved-files
+      changes-view
+      (fn [_success]
+        (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))
 
 (defn handle-application-focused! [app-view changes-view workspace prefs]
   (when (and (disk-availability/available?)

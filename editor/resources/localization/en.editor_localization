@@ -279,6 +279,12 @@ dialog.quit-defold.header = Unsaved changes exist, are you sure you want to quit
 dialog.quit-defold.button.cancel = Cancel and Keep Working
 dialog.quit-defold.button.quit = Quit Without Saving
 
+# Project directory unavailable dialog
+
+dialog.project-directory-unavailable.title = Project Folder Unavailable
+dialog.project-directory-unavailable.header = The project folder can no longer be found
+dialog.project-directory-unavailable.content = The project folder was moved, renamed, or deleted outside Defold. Defold must quit. Any unsaved changes will be lost.
+
 # Restart Defold dialog
 
 dialog.restart-defold.title = Restart Defold?
@@ -353,6 +359,10 @@ dialog.diff-view.binary.header = Unable to diff binary files
 dialog.fetch-libraries.host-unreachable.title = Fetch Failed
 dialog.fetch-libraries.host-unreachable.header = Fetch was aborted because a host could not be reached
 dialog.fetch-libraries.host-unreachable.content = Unreachable host: {host}\n\nPlease verify your internet connection and try again.
+
+# Notification view
+
+notification.more = + {count} more
 
 # Fetch libraries notification
 

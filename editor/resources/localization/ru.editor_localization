@@ -125,6 +125,8 @@ updater.dialog.button.download = Загрузить Обновление
 updater.dialog.button.install-and-restart = Установить и Перезапустить
 updater.dialog.button.download-newer-version = Загрузить Более Новую Версию
 
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+
 # Time
 time.vague.unknown = Неизвестно
 time.vague.just-now = Только что
@@ -270,6 +272,9 @@ dialog.quit-defold.header = Есть несохранённые изменени
 dialog.quit-defold.button.cancel = Отменить и продолжить работу
 dialog.quit-defold.button.quit = Выйти без сохранения
 
+# Project directory unavailable dialog
+
+
 # Restart Defold dialog
 
 dialog.restart-defold.title = Перезапустить Defold?
@@ -344,6 +349,10 @@ dialog.diff-view.binary.header = Невозможно сравнить двои�
 dialog.fetch-libraries.host-unreachable.title = Ошибка обновления библиотек
 dialog.fetch-libraries.host-unreachable.header = Загрузка остановлена\: хост недоступен
 dialog.fetch-libraries.host-unreachable.content = Недоступный хост\: {host}\n\nПроверьте подключение к интернету и попробуйте ещё раз.
+
+# Notification view
+
+notification.more = + ещё {count}
 
 # Fetch libraries notification
 

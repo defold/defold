@@ -122,6 +122,8 @@ updater.dialog.button.download = 下载更新
 updater.dialog.button.install-and-restart = 安装并重启
 updater.dialog.button.download-newer-version = 下载新版本
 
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+
 # Time
 time.vague.unknown = 未知
 time.vague.just-now = 刚刚
@@ -266,6 +268,9 @@ dialog.quit-defold.header = 存在未保存的更改，您确定要退出吗？
 dialog.quit-defold.button.cancel = 取消并继续工作
 dialog.quit-defold.button.quit = 不保存退出
 
+# Project directory unavailable dialog
+
+
 # Restart Defold dialog
 
 
@@ -336,6 +341,9 @@ dialog.diff-view.binary.header = 无法比较二进制文件
 dialog.fetch-libraries.host-unreachable.title = 获取失败
 dialog.fetch-libraries.host-unreachable.header = 由于无法访问主机，获取已中止
 dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}\n\n请检查您的互联网连接并重试。
+
+# Notification view
+
 
 # Fetch libraries notification
 
