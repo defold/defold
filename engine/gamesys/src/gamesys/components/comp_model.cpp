@@ -857,6 +857,9 @@ namespace dmGameSystem
 
             GetRenderItemMorphWeights(render_item->m_Component, render_item, &weights, &weights_count);
 
+            // Apply at most this mesh's own morph-target count; extra weights are ignored (set_blend_weights docs).
+            weights_count = dmMath::Min(weights_count, render_item->m_Mesh->m_MorphTargetCount);
+
             dmArray<dmVMath::Vector4>& scratch = world->m_ScratchMorphWeightsConstants;
             if (scratch.Capacity() < vec4_slots)
             {
@@ -1450,6 +1453,9 @@ namespace dmGameSystem
         uint32_t weights_count = 0;
         const float* weights = 0;
         GetRenderItemMorphWeights(component, render_item, &weights, &weights_count);
+
+        // Apply at most this mesh's own morph-target count; extra weights are ignored (set_blend_weights docs).
+        weights_count = dmMath::Min(weights_count, mesh_morph_count);
 
         dmArray<dmVMath::Vector4>& scratch = world->m_ScratchMorphWeightsConstants;
         if (scratch.Capacity() < shader_vec4_slots)
