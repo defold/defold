@@ -680,6 +680,41 @@
         (g/redo! :undo/global)
         (ensure-after!)))))
 
+(deftest cross-graph-explicit-arc-shadows-propagated-arc-test
+  (test-support/with-clean-system
+    (let [initial-source-graph-id (g/make-graph!)
+          shadowing-source-graph-id (g/make-graph!)
+          target-graph-id (g/make-graph! :volatility 10)
+
+          [initial-source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-node initial-source-graph-id helpers/ConnectionSourceNode :property :initial-source-value)))
+
+          [shadowing-source-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-node shadowing-source-graph-id helpers/ConnectionSourceNode :property :shadowing-source-value)))
+
+          [original-target-node-id
+           override-target-node-id]
+          (g/tx-nodes-added
+            (g/transact
+              (g/make-nodes target-graph-id [original-target-node-id helpers/ConnectionTargetNode]
+                (g/connect initial-source-node-id :property-output original-target-node-id :regular-input)
+                (g/override original-target-node-id))))]
+
+      (g/transact
+        (g/connect shadowing-source-node-id :property-output override-target-node-id :regular-input))
+
+      (let [basis (g/now)]
+        (is (= [[original-target-node-id :regular-input]]
+               (g/targets basis initial-source-node-id :property-output)))
+        (is (= [[override-target-node-id :regular-input]]
+               (g/targets basis shadowing-source-node-id :property-output)))
+        (is (= [[shadowing-source-node-id :property-output]]
+               (g/sources basis override-target-node-id :regular-input)))))))
+
 (deftest replace-shadowing-connection-on-regular-input-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)

@@ -839,7 +839,7 @@
                                                                 (when (and (not (contains? source-overrides (gt/override-id target-override-node)))
                                                                            (coll/not-any?
                                                                              (fn [arc]
-                                                                               (contains? source-graph-nodes (gt/source-id arc)))
+                                                                               (gt/node-by-id-at basis (gt/source-id arc)))
                                                                              (graph-explicit-arcs-by-target target-graph (gt/node-id target-override-node) label)))
                                                                   (assoc target-arc :target-id (gt/node-id target-override-node))))))
                                                       (overrides target-graph target)))))
