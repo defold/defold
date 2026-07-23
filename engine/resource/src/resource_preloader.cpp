@@ -423,6 +423,26 @@ namespace dmResource
         preloader->m_PendingHints.Push(hint);
     }
 
+    // Discard overflow hints owned by a request that failed before its dependencies could be processed.
+    static void RemovePendingHints(HPreloader preloader, TRequestIndex parent)
+    {
+        PreloadRequest& parent_request = preloader->m_Request[parent];
+        for (uint32_t i = 0; i < preloader->m_PendingHints.Size();)
+        {
+            if (preloader->m_PendingHints[i].m_Parent == parent)
+            {
+                assert(parent_request.m_QueuedChildCount > 0);
+                parent_request.m_QueuedChildCount--;
+                preloader->m_PendingHints.EraseSwap(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
+        assert(parent_request.m_QueuedChildCount == 0);
+    }
+
     // A full request tree can normally make progress by completing a leaf and recycling its slot. If every leaf
     // instead has queued children, no leaf can complete and no queued hint can be admitted. Drop the hints for one
     // such leaf so its Create callback loads those dependencies synchronously and frees the blocked request chain.
@@ -458,20 +478,7 @@ namespace dmResource
         dmLogWarning("The preloader request tree is full while loading '%s'; queued dependencies will be loaded synchronously.",
                      parent_request.m_PathDescriptor.m_InternalizedName);
 
-        for (uint32_t i = 0; i < preloader->m_PendingHints.Size();)
-        {
-            if (preloader->m_PendingHints[i].m_Parent == blocked_parent)
-            {
-                assert(parent_request.m_QueuedChildCount > 0);
-                parent_request.m_QueuedChildCount--;
-                preloader->m_PendingHints.EraseSwap(i);
-            }
-            else
-            {
-                ++i;
-            }
-        }
-        assert(parent_request.m_QueuedChildCount == 0);
+        RemovePendingHints(preloader, blocked_parent);
         return true;
     }
 
@@ -926,10 +933,11 @@ namespace dmResource
             req->m_LoadResult = load_result.m_PreloadResult;
         }
 
-        // On error remove all children
+        // On error remove both admitted children and hints that are still waiting for admission.
         if (req->m_LoadResult != RESULT_PENDING)
         {
             RemoveChildren(preloader, req);
+            RemovePendingHints(preloader, index);
             RemoveFromParentPendingCount(preloader, req);
         }
 

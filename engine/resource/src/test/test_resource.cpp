@@ -331,6 +331,12 @@ dmResource::Result ResourceContainerPreload(const dmResource::ResourcePreloadPar
         dmResource::PreloadHint(params->m_HintInfo, resource_container_desc->m_Resources[i]);
     }
 
+    if (strcmp(params->m_Filename, "/fail_hints_child.cont") == 0)
+    {
+        dmDDF::FreeMessage(resource_container_desc);
+        return dmResource::RESULT_FORMAT_ERROR;
+    }
+
     *params->m_PreloadData = resource_container_desc;
     return dmResource::RESULT_OK;
 }
@@ -912,6 +918,27 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
     }
 
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, r);
+    dmResource::DeletePreloader(pr);
+}
+
+// A failed child preload must discard all of its queued hints and allow the parent
+// preloader to finish instead of remaining pending indefinitely.
+TEST_P(GetResourceTest, PreloadFailureAfterMultipleHints)
+{
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/fail_hints_root.cont");
+
+    dmResource::Result r = dmResource::RESULT_PENDING;
+    for (uint32_t i = 0; i < 33 && r == dmResource::RESULT_PENDING; ++i)
+    {
+        r = dmResource::UpdatePreloader(pr, 0, 0, 30 * 1000);
+        if (r == dmResource::RESULT_PENDING)
+        {
+            dmTime::Sleep(30 * 1000);
+        }
+    }
+
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, r);
+    ASSERT_EQ(0U, m_FooResourceCreateCallCount);
     dmResource::DeletePreloader(pr);
 }
 
