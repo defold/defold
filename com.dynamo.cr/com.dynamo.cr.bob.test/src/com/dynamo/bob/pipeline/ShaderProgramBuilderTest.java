@@ -183,6 +183,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         checkExpectedLanguages(shader, expectedLanguagesES3);
     }
 
+    /**
+     * Verifies that Bob stores the original project-relative vertex, fragment,
+     * and compute source paths in ShaderDesc. Runtime diagnostics need these
+     * fields to identify the source shader instead of reporting only the .spc.
+     */
     @Test
     public void testShaderSourcePathsAreStoredInShaderDesc() throws Exception {
         ShaderDesc graphicsShader = addAndBuildShaderDescs(
@@ -205,6 +210,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertFalse(computeShader.hasFragmentProgram());
     }
 
+    /**
+     * Verifies that converting a mixed legacy/new shader pipeline retains both
+     * original source paths. The legacy transformation creates replacement
+     * module descriptors and must not discard the diagnostic identity metadata.
+     */
     @Test
     public void testMixedLegacyShaderSourcePathsArePreserved() throws Exception {
         String newVertexShader =
@@ -225,6 +235,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("/materials/mixed_pipeline.fp", shader.getFragmentProgram());
     }
 
+    /**
+     * Verifies that ShaderDesc data created before source-path metadata was
+     * introduced still deserializes normally. The new optional fields must keep
+     * existing .spc resources backward compatible.
+     */
     @Test
     public void testShaderDescWithoutSourcePathsStillLoads() throws Exception {
         ShaderDesc original = ShaderDesc.newBuilder()
