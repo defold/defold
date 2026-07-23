@@ -404,6 +404,18 @@ namespace dmHID
         return driver->m_GetGamepadDeviceGuid(context, driver, gamepad, guid);
     }
 
+    void SetGamepadMapping(HContext context, HGamepad gamepad, const char* mapping)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+        if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
+            return;
+
+        assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
+        GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
+        if (driver->m_SetGamepadMapping)
+            driver->m_SetGamepadMapping(context, driver, gamepad, mapping);
+    }
+
     void ResetKeyboard(HContext context)
     {
         dmPlatform::SetDeviceState(context->m_Window, WINDOW_DEVICE_STATE_KEYBOARD_RESET, true);

@@ -14,6 +14,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -69,6 +70,10 @@ namespace dmInput
         if (context->m_HidContext)
         {
             dmHID::SetGamepadConnectivityCallback(context->m_HidContext, 0, 0);
+        }
+        for (uint32_t i = 0; i < context->m_GamepadConfigs.Size(); ++i)
+        {
+            free(context->m_GamepadConfigs[i].m_RawMapping);
         }
         delete context;
     }
@@ -148,6 +153,36 @@ namespace dmInput
         return dmHashBuffer32(guid, GAMEPAD_GUID_SIZE);
     }
 
+    static int HexCharToInt(char c)
+    {
+        if (c >= '0' && c <= '9')
+            return c - '0';
+        if (c >= 'a' && c <= 'f')
+            return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F')
+            return c - 'A' + 10;
+        return -1;
+    }
+
+    static bool ParseGamepadMappingGuid(const char* raw_mapping, dmHID::GamepadGuid* guid)
+    {
+        if (raw_mapping == 0 || strlen(raw_mapping) <= dmHID::MAX_GAMEPAD_GUID_LENGTH || raw_mapping[dmHID::MAX_GAMEPAD_GUID_LENGTH] != ',')
+            return false;
+
+        uint8_t guid_data[GAMEPAD_GUID_SIZE];
+        for (uint32_t i = 0; i < GAMEPAD_GUID_SIZE; ++i)
+        {
+            const int hi = HexCharToInt(raw_mapping[i * 2 + 0]);
+            const int lo = HexCharToInt(raw_mapping[i * 2 + 1]);
+            if (hi < 0 || lo < 0)
+                return false;
+            guid_data[i] = (uint8_t) ((hi << 4) | lo);
+        }
+
+        memcpy(guid, guid_data, sizeof(*guid));
+        return true;
+    }
+
     static void ClearGamepadGuidCRC(dmHID::GamepadGuid* guid)
     {
         guid->m_CRC16 = 0;
@@ -166,13 +201,6 @@ namespace dmInput
             return false;
 
         return guid.m_Vendor != 0 && guid.m_Product != 0;
-    }
-
-    static dmHID::GamepadGuid GamepadGuidBytesToHID(const uint8_t guid[GAMEPAD_GUID_SIZE])
-    {
-        dmHID::GamepadGuid hid_guid = {};
-        memcpy(&hid_guid, guid, GAMEPAD_GUID_SIZE);
-        return hid_guid;
     }
 
     static GamepadConfig* GetGamepadConfigFromIndex(HContext context, uint32_t config_index)
@@ -241,6 +269,24 @@ namespace dmInput
         }
 
         return 0x0;
+    }
+
+    static bool UseLegacyGamepadPacketLayout(const GamepadConfig* config)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        // macOS GameController devices synthesize the physical packet described
+        // by the SDL database so its aN/bN/hN.N indices remain authoritative.
+        (void) config;
+        return true;
+#else
+        return config->m_Legacy != 0;
+#endif
+    }
+
+    static void ConfigureGamepadPacketLayout(HBinding binding, dmHID::HGamepad gamepad, const GamepadConfig* config)
+    {
+        dmHID::SetGamepadLayoutLegacy(gamepad, UseLegacyGamepadPacketLayout(config));
+        dmHID::SetGamepadMapping(binding->m_Context->m_HidContext, gamepad, config->m_RawMapping);
     }
 
     static void GetGamepadGuidString(HBinding binding, dmHID::HGamepad gamepad, char guid_string[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1])
@@ -323,12 +369,8 @@ namespace dmInput
             GamepadConfig* config = GetGamepadConfigFromGuid(binding, guid);
             if (config)
             {
-                dmHID::SetGamepadLayoutLegacy(gamepad, false);
-                dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name_out);
-                if (device_name_out[0] == 0)
-                {
-                    dmStrlCpy(device_name_out, config->m_DeviceName, dmHID::MAX_GAMEPAD_NAME_LENGTH);
-                }
+                ConfigureGamepadPacketLayout(binding, gamepad, config);
+                dmStrlCpy(device_name_out, config->m_DeviceName, dmHID::MAX_GAMEPAD_NAME_LENGTH);
                 return config;
             }
         }
@@ -403,8 +445,7 @@ namespace dmInput
             gamepad_binding->m_DeviceId = selected_config->m_DeviceId;
             gamepad_binding->m_Connected = dmHID::IsGamepadConnected(gamepad);
 
-            bool is_legacy = selected_config->m_Legacy != 0;
-            dmHID::SetGamepadLayoutLegacy(gamepad, is_legacy);
+            ConfigureGamepadPacketLayout(binding, gamepad, selected_config);
 
             if (selected_config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
             {
@@ -733,7 +774,8 @@ namespace dmInput
         {
             const dmInputDDF::GamepadMapRuntime& gamepad_map = ddf->m_Mappings[i];
             GamepadConfig config = {};
-            const bool has_guid = gamepad_map.m_Guid.m_Count > 0;
+            dmHID::GamepadGuid mapping_guid = {};
+            const bool has_guid = ParseGamepadMappingGuid(gamepad_map.m_RawMapping, &mapping_guid);
             const bool use_runtime_dead_zone = has_guid && gamepad_map.m_DeadZone == 0.0f;
             config.m_DeadZone = use_runtime_dead_zone ? context->m_GamepadDeadZone : gamepad_map.m_DeadZone;
             dmStrlCpy(config.m_DeviceName, gamepad_map.m_Device, sizeof(config.m_DeviceName));
@@ -774,14 +816,14 @@ namespace dmInput
 
             GamepadConfig gamepad_config = config;
             const uint32_t device_id = has_guid
-                ? GamepadGuidHash32(gamepad_map.m_Guid.m_Data)
+                ? GamepadGuidHash32(&mapping_guid)
                 : dmHashString32(gamepad_map.m_Device);
             gamepad_config.m_Legacy = has_guid ? 0 : 1;
             gamepad_config.m_DeviceId = device_id;
 
             if (has_guid)
             {
-                gamepad_config.m_Guid = GamepadGuidBytesToHID(gamepad_map.m_Guid.m_Data);
+                gamepad_config.m_Guid = mapping_guid;
             }
 
             uint32_t* existing_config_index = context->m_GamepadMaps.Get(device_id);
@@ -790,6 +832,9 @@ namespace dmInput
                 dmLogWarning("Gamepad map for device '%s' already registered.", gamepad_map.m_Device);
                 continue;
             }
+
+            if (has_guid && gamepad_map.m_RawMapping && gamepad_map.m_RawMapping[0] != 0)
+                gamepad_config.m_RawMapping = strdup(gamepad_map.m_RawMapping);
 
             const uint32_t gamepad_config_index = context->m_GamepadConfigs.Size();
             context->m_GamepadConfigs.Push(gamepad_config);
@@ -1000,7 +1045,7 @@ namespace dmInput
                         if (selected_config)
                         {
                             gamepad_binding->m_DeviceId = selected_config->m_DeviceId;
-                            dmHID::SetGamepadLayoutLegacy(gamepad, selected_config->m_Legacy != 0);
+                            ConfigureGamepadPacketLayout(binding, gamepad, selected_config);
                             LogGamepadMapping(binding, gamepad_binding->m_Index, gamepad, selected_config, device_name_out);
                         }
                         gamepad_binding->m_Connected = 1;

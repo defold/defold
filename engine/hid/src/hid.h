@@ -153,6 +153,13 @@ namespace dmHID
     void SetGamepadLayoutLegacy(HGamepad gamepad, bool legacy);
 
     /**
+     * Supplies the SDL database row selected by the input system at runtime.
+     * Native drivers that expose semantic controls may use it to reproduce the
+     * physical packet layout described by the mapping.
+     */
+    void SetGamepadMapping(HContext context, HGamepad gamepad, const char* mapping);
+
+    /**
      * Retrieves the number of buttons on a given gamepad.
      *
      * @param gamepad gamepad handle

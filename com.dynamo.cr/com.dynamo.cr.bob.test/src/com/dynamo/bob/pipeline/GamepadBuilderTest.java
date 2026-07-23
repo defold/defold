@@ -34,9 +34,9 @@ public class GamepadBuilderTest {
         return new File(System.getProperty("user.dir"), path).getCanonicalFile();
     }
 
-    private static boolean hasMapping(GamepadMapsRuntime maps, String device, boolean hasGuid) {
+    private static boolean hasMapping(GamepadMapsRuntime maps, String device, boolean hasRawMapping) {
         for (GamepadMapRuntime mapping : maps.getMappingsList()) {
-            if (mapping.getDevice().equals(device) && mapping.hasGuid() == hasGuid) {
+            if (mapping.getDevice().equals(device) && mapping.hasRawMapping() == hasRawMapping) {
                 return true;
             }
         }
@@ -45,7 +45,7 @@ public class GamepadBuilderTest {
 
     private static boolean hasMappingGuid(GamepadMapsRuntime maps, String guid) {
         for (GamepadMapRuntime mapping : maps.getMappingsList()) {
-            if (mapping.hasGuid() && bytesToHex(mapping.getGuid().toByteArray()).equals(guid)) {
+            if (mapping.hasRawMapping() && mapping.getRawMapping().startsWith(guid + ",")) {
                 return true;
             }
         }
@@ -171,11 +171,4 @@ public class GamepadBuilderTest {
         }
     }
 
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b & 0xff));
-        }
-        return sb.toString();
-    }
 }

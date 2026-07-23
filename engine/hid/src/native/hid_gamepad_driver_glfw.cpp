@@ -488,6 +488,7 @@ namespace dmHID
         driver->m_DetectDevices        = GLFWGamepadDriverDetectDevices;
         driver->m_GetGamepadDeviceName = GLFWGamepadDriverGetGamepadDeviceName;
         driver->m_GetGamepadDeviceGuid = GLFWGamepadDriverGetGamepadDeviceGuid;
+        driver->m_SetGamepadMapping    = 0;
 
         assert(g_GLFWGamepadDriver == 0);
         g_GLFWGamepadDriver               = driver;

@@ -84,6 +84,13 @@ namespace dmHID
         return true;
     }
 
+    void SetGamepadMapping(HContext context, HGamepad gamepad, const char* mapping)
+    {
+        (void) context;
+        (void) gamepad;
+        (void) mapping;
+    }
+
     // platform implementations
     bool GetPlatformGamepadUserId(HContext context, HGamepad gamepad, uint32_t* out)
     {
