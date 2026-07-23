@@ -210,6 +210,13 @@
               0.0
               filter-fn))))
 
+(defn default-scene-camera
+  "The camera a scene view opens with when the resource has no stored camera."
+  ^Camera [prefs projection]
+  (if (= :perspective projection)
+    (make-camera :perspective identity {:fov-y (prefs/get prefs prefs-key-fov)})
+    (make-camera :orthographic identity {:fov-x 1000 :fov-y 1000})))
+
 (defn- set-extents
   ^Camera [^Camera camera fov-x fov-y z-near z-far]
   (assoc camera

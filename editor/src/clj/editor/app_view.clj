@@ -523,6 +523,7 @@
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
              new-view-node-id (some-> new-active-tab editor-tab/view-node-id)
              should-load-scene-visibility (and is-in-active-tab-pane
+                                               (not= old-active-tab new-active-tab)
                                                (= :scene (some-> new-active-tab editor-tab/view-type-id)))
              path-key (when should-load-scene-visibility
                         (resource/resource->proj-path
@@ -2227,9 +2228,9 @@
   (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
              scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
     (doseq [view-id scene-view-ids]
-      (when-let [resource (:resource (get open-views view-id))]
-        (save-scene-camera-prefs! prefs view-id resource))
       (try
+        (when-let [resource (:resource (get open-views view-id))]
+          (save-scene-camera-prefs! prefs view-id resource))
         (scene/dispose-scene-view! view-id)
         (catch Throwable error
           (error-reporting/report-exception! error)))))
@@ -2400,8 +2401,7 @@
       (get scene-default-camera-projection-by-ext ext :orthographic))))
 
 (defn- camera-prefs [camera]
-  {:2d-mode (camera/mode-2d? camera)
-   :projection (:type camera)
+  {:projection (:type camera)
    :position (math/vecmath->clj (:position camera))
    :rotation (math/vecmath->clj (:rotation camera))
    :fov-x (:fov-x camera)
@@ -2418,18 +2418,16 @@
                                 (camera-prefs camera)))))
 
 (defn- try-load-camera-from-prefs [prefs path-key]
-  (when-let [{:keys [projection position rotation fov-x fov-y focus-point]}
-             (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera] nil)]
-    (let [[position-x position-y position-z] position
-          [rotation-x rotation-y rotation-z rotation-w] rotation
-          [focus-x focus-y focus-z focus-w] focus-point]
-      (assoc (camera/make-camera (or projection :orthographic)
-                                 identity
-                                 {:fov-x (or fov-x 1000.0)
-                                  :fov-y (or fov-y 1000.0)})
-        :position (Point3d. (double position-x) (double position-y) (double position-z))
-        :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
-        :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) (double focus-w))))))
+  (let [{:keys [projection position rotation fov-x fov-y focus-point]}
+        (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera] nil)]
+    (when (and projection position rotation fov-x fov-y focus-point)
+      (let [[position-x position-y position-z] position
+            [rotation-x rotation-y rotation-z rotation-w] rotation
+            [focus-x focus-y focus-z focus-w] focus-point]
+        (assoc (camera/make-camera projection identity {:fov-x fov-x :fov-y fov-y})
+          :position (Point3d. (double position-x) (double position-y) (double position-z))
+          :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
+          :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) (double focus-w)))))))
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)

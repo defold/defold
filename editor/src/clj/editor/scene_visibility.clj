@@ -266,12 +266,13 @@
 (defn- set-visibility-settings! [scene-visibility update-fn]
   (g/let-ec [basis (:basis evaluation-context)
              prefs (g/node-value scene-visibility :prefs evaluation-context)
-             resource-node (first (g/node-value scene-visibility :active-resource-node+type evaluation-context))
-             path-key (resource/resource->proj-path (resource-node/resource basis resource-node))
+             resource-node (g/node-value scene-visibility :active-scene-resource-node evaluation-context)
+             path-key (some->> resource-node (resource-node/resource basis) resource/proj-path)
              updated-settings (update-fn (settings scene-visibility evaluation-context))]
     (set-settings! scene-visibility updated-settings)
-    (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:scene-visibility]
-                              updated-settings)
+    (when path-key
+      (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:scene-visibility]
+                                updated-settings))
     (sync-popup-state! scene-visibility)))
 
 (defn- toggle-tag-visibility-fn [scene-visibility tag]

@@ -263,8 +263,7 @@
                                                                        :properties {:filters-enabled {:type :boolean :default true}
                                                                                     :filtered-renderable-tags {:type :set :item {:type :keyword}}}}
                                                     :camera {:type :object
-                                                             :properties {:2d-mode {:type :boolean :default true}
-                                                                          :projection {:type :enum
+                                                             :properties {:projection {:type :enum
                                                                                        :values [:orthographic :perspective]
                                                                                        :default :orthographic}
                                                                           :position {:type :tuple

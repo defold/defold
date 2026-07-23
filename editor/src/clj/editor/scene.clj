@@ -44,7 +44,6 @@
             [editor.mouse-binding :as mouse-binding]
             [editor.os :as os]
             [editor.pose :as pose]
-            [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.render-util :as render-util]
@@ -2135,11 +2134,6 @@
 (defmethod attach-tool-controller :default
   [_ tool-node view-id resource-node])
 
-(defn- make-default-scene-camera [prefs projection]
-  (if (= projection :perspective)
-    (c/make-camera :perspective identity {:fov-y (prefs/get prefs [:scene :perspective-camera :fov])})
-    (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000})))
-
 (defn setup-view [view-id resource-node opts]
   (let [view-graph           (g/node-id->graph-id view-id)
         app-view-id          (:app-view opts)
@@ -2160,7 +2154,7 @@
                                                                                    (g/operation-label (localization/message "operation.select"))
                                                                                    (select-fn selection))))]
                    camera          [c/CameraController :local-camera (or (:camera opts)
-                                                                         (make-default-scene-camera prefs (:default-camera-projection opts)))
+                                                                         (c/default-scene-camera prefs (:default-camera-projection opts)))
                                                        :image-view (g/node-value view-id :image-view)
                                                        :prefs prefs]
                    grid            (grid-type :prefs prefs)
