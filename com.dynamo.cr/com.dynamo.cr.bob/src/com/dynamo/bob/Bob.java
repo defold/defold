@@ -507,7 +507,7 @@ public class Bob {
                 opt("d", "debug", ZERO, "DEPRECATED! Use --variant=debug instead"),
                 opt(null, "variant", ONE, "Specify debug, release or headless version of dmengine (when bundling)"),
                 opt(null, "strip-executable", ZERO, "Strip the dmengine of debug symbols (when bundling iOS or Android)"),
-                opt(null, "with-symbols", ZERO, "Generate the symbol file (if applicable)"),
+                opt(null, "with-symbols", ZERO, "Generate the symbol file (if applicable). For HTML5 bundles this also places the wasm debug info files (.wasm.debug.wasm, .wasm.map) next to the engine so it can be debugged as native code in browser devtools"),
 
                 opt("tp", "texture-profiles", ONE, "DEPRECATED! Use --texture-compression instead"),
                 opt("tc", "texture-compression", ZERO, "Use texture compression as specified in texture profiles"),

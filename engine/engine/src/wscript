@@ -186,6 +186,13 @@ def build(bld):
         install_path = platform_bin_install_path,
         jars = android_jar_paths)
 
+    if bld.env['PLATFORM'] in ('wasm-web', 'wasm_pthread-web') and int(waflib.Options.options.opt_level) >= 2:
+        # The debug-variant engine always ships wasm debug info sidecars
+        # (.wasm.debug.wasm + .wasm.map) for browser devtools, even in optimized builds
+        # (at opt_level < 2 the flags are already set globally). sourcesContent is
+        # embedded into the map post-link (see wasm_embed_sourcemap_sources in waf_dynamo.py)
+        obj.env.append_value('LINKFLAGS', ['-gseparate-dwarf', '-gsource-map'])
+
     if 'win32' in bld.env.PLATFORM:
         obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
         obj.env.append_value('LINKFLAGS', ['Psapi.lib'])

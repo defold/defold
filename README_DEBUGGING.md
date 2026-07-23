@@ -119,9 +119,75 @@ UUID:
 
 ### HTML5
 
+#### Native debugging in the browser (DWARF / source maps)
+
+HTML5 builds can be debugged as native C/C++ code directly in the browser.
+Bundle with the debug variant and symbols:
+
+	$ java -jar bob.jar --platform=wasm-web --architectures=wasm-web --variant=debug --with-symbols resolve build bundle
+
+With `--with-symbols` the bundle contains the wasm debug info next to the engine:
+
+* `<Project>.wasm.debug.wasm` — the DWARF debug info (used by Chrome)
+* `<Project>.wasm.map` — a wasm source map with inlined sources (used by Firefox)
+
+and `dmloader.js` switches to URL-preserving streaming instantiation of the wasm
+(browser devtools resolve the debug info relative to the URL of the wasm module,
+so a module instantiated from an ArrayBuffer cannot be debugged).
+
+The debug info comes from the engine link step:
+
+* Vanilla bundles use the sidecars published for the *debug* variant of the official
+  engines (release/headless variants are not published with wasm debug info).
+  Locally built engines produce them for both `--opt-level < 2` (full debug info)
+  and optimized builds (line tables only) — see `engine/engine/src/wscript`.
+* Extender (native extension) builds link with `-gseparate-dwarf -gsource-map`
+  when bob sends `withSymbols` (see `withSymbolsLinkFlags` in `share/extender/build_input.yml`),
+  so extension code is debuggable too. Note: the server does not embed sources
+  into the map, so in Firefox extender-built engines show the file tree without
+  content; Chrome + DWARF is unaffected.
+
+Serving requirements:
+
+* Serve `.wasm` with `Content-Type: application/wasm` (required for streaming
+  instantiation; `python3 -m http.server` works).
+* The sidecars must be served from the same directory as the `.wasm`.
+* The `_pthread` architecture additionally needs the COOP/COEP headers
+  (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`).
+* Do not deploy the sidecars to production — the DWARF file contains the full
+  debug info (and code/data sections) and can be 50-200 MB; the inline source
+  map contains the sources.
+
+Chrome:
+
+1. Install the [C/C++ DevTools Support (DWARF)](https://chromewebstore.google.com/detail/cc++-devtools-support-dwa/pdcpmagijalfljmkmjngeonclgbbannb) extension.
+2. Open DevTools before loading the page. The C/C++ sources appear in
+   Sources -> Page under the wasm module; breakpoints, stepping, and (at
+   `--opt-level=0/1`) local variable inspection work.
+3. For engine builds from CI the DWARF source paths are repo-relative
+   (e.g. `engine/dlib/src/dlib/hash.cpp`, comp dir `engine/<lib>` for waf builds,
+   SDK headers under `defoldsdk/`). Use the extension options -> path substitution
+   to map these prefixes to a local Defold checkout. Emscripten system libraries
+   appear under `/emsdk/emscripten`.
+4. Extension builds compile on the Extender server under the job directory;
+   pass `debugSourcePath` (top-level appmanifest context) to control the
+   compilation dir, and map `extensions/` -> your project in path substitutions.
+
+Firefox:
+
+* Firefox reads the wasm source map. Engine builds embed the sources into the
+  map (`sourcesContent`, via `build_tools/embed_wasm_sourcemap_sources.py`), so
+  files and line breakpoints/stepping work out of the box. Note that wasm source
+  maps carry no scope/type information — there is no variable inspection in
+  Firefox; use Chrome + DWARF for the full experience.
+* For Extender builds the engine libraries are prebuilt, so engine files may show
+  without content; extension sources are embedded.
+
+#### Symbolicating a callstack with the symbol map
+
 1. Download the engine:
 
-	$ wget http://d.defold.com/archive/<sha1>/engine/armv7-android/dmengine.js
+	$ wget http://d.defold.com/archive/<sha1>/engine/wasm-web/dmengine.js
 
 1. Download the symbols
 

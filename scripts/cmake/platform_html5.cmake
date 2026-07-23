@@ -35,9 +35,15 @@ if(_DEFOLD_WITH_PTHREAD)
   target_compile_options(defold_sdk INTERFACE -pthread)
 endif()
 
+# Debug builds carry full debug info; optimized builds keep line tables in the
+# objects so the static libs shipped in defoldsdk still carry file:line info
+# for wasm debugging. Plain -gsource-map only: -gsource-map=inline aborts the
+# link on any non-UTF-8 source (e.g. Bullet headers); sourcesContent is embedded
+# post-link instead (build_tools/embed_wasm_sourcemap_sources.py).
 target_compile_options(defold_sdk INTERFACE
   "$<$<CONFIG:Debug>:-gseparate-dwarf>"
-  "$<$<CONFIG:Debug>:-gsource-map>")
+  "$<$<CONFIG:Debug>:-gsource-map>"
+  "$<$<NOT:$<CONFIG:Debug>>:-gline-tables-only>")
 target_link_options(defold_sdk INTERFACE
   "$<$<CONFIG:Debug>:-gseparate-dwarf>"
   "$<$<CONFIG:Debug>:-gsource-map>")

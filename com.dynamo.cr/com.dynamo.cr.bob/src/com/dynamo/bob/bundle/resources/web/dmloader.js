@@ -273,6 +273,13 @@ var EngineLoader = {
 
     stream_wasm: "{{html5.wasm_streaming}}" === "true",
 
+    // true when the bundle contains wasm debug info next to the .wasm
+    // (.wasm.debug.wasm with DWARF for Chrome, .wasm.map source map for Firefox).
+    // The wasm is then instantiated from a plain streaming fetch: devtools resolve
+    // the debug info references relative to the URL of the wasm module, and a
+    // module instantiated from an ArrayBuffer or a synthesized Response has none.
+    wasm_debug_symbols: "{{DEFOLD_WASM_DEBUG_SYMBOLS}}" === "true",
+
     updateWasmInstantiateProgress: function(totalDownloadedSize) {
         EngineLoader.wasm_instantiate_progress = totalDownloadedSize * 0.1;
     },
@@ -357,7 +364,33 @@ var EngineLoader = {
     streamAndInstantiateWasmAsync: async function(src, imports, successCallback) {
         // https://stackoverflow.com/a/69179454
         var fetchFn = fetch;
-        if (typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough) {
+        if (EngineLoader.wasm_debug_symbols) {
+            // Wrapping the response (as fetchWithProgress below does) yields a synthesized
+            // Response whose url is "", which detaches the module from its URL and breaks
+            // the resolution of the wasm debug info in devtools. Track download progress
+            // on a clone of the response instead and hand the original, URL-attributed
+            // response to WebAssembly.instantiateStreaming.
+            async function fetchWithCloneProgress(path) {
+                const response = await fetch(path);
+                if (response.ok) {
+                    try {
+                        const reader = response.clone().body.getReader();
+                        (async () => {
+                            for (;;) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                ProgressUpdater.updateCurrent(value.byteLength);
+                            }
+                        })();
+                    } catch (e) {
+                        // progress reporting is cosmetic
+                    }
+                }
+                return response;
+            }
+            fetchFn = fetchWithCloneProgress;
+        }
+        else if (typeof TransformStream === "function" && ReadableStream.prototype.pipeThrough) {
             async function fetchWithProgress(path) {
                 const response = await fetch(path);
                 if (response.ok) {
@@ -382,6 +415,12 @@ var EngineLoader = {
             successCallback(output.instance, output.module);
         }).catch(function(e) {
             console.log('wasm streaming instantiation failed! ' + e);
+            if (EngineLoader.wasm_debug_symbols) {
+                console.warn("The wasm debug info will not work in devtools: the wasm module " +
+                    "could not be instantiated by streaming, so it has no URL to resolve '" +
+                    src + ".debug.wasm' / '" + src + ".map' against. Serve '" + src +
+                    "' from the same origin with 'Content-Type: application/wasm'.");
+            }
             console.log('Fallback to wasm loading');
             try {
                 EngineLoader.loadAndInstantiateWasmAsync(src, imports, successCallback);
@@ -403,7 +442,10 @@ var EngineLoader = {
                 var callback = CUSTOM_PARAMETERS["update_imports"];
                 callback(imports);
             }
-            if (EngineLoader.stream_wasm && (typeof WebAssembly.instantiateStreaming === "function")) {
+            // wasm_debug_symbols requires streaming instantiation regardless of the
+            // html5.wasm_streaming setting: it is the only way the module keeps its URL,
+            // which devtools need to resolve the wasm debug info
+            if ((EngineLoader.stream_wasm || EngineLoader.wasm_debug_symbols) && (typeof WebAssembly.instantiateStreaming === "function")) {
                 EngineLoader.streamAndInstantiateWasmAsync(EngineLoader.getWasmName(exeName), imports, successCallback);
             }
             else {

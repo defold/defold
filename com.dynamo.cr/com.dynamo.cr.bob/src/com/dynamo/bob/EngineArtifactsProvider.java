@@ -79,9 +79,7 @@ public final class EngineArtifactsProvider {
 
             for (String platformKey : platforms) {
                 Platform p = Platform.get(platformKey);
-                String symbolsFilename = getSymbolsFilenameForPlatform(p, variantSuffix);
-
-                if (symbolsFilename != null) {
+                for (String symbolsFilename : getSymbolsFilenamesForPlatform(p, variantSuffix)) {
                     try {
                         String fallbackKey = (p != null) ? p.getOs() : null;
                         File cached = getOrDownloadArtifact(platformKey, symbolsFilename, fallbackKey, false);
@@ -172,22 +170,27 @@ public final class EngineArtifactsProvider {
         return "dmengine" + getVariantSuffix(variant);
     }
 
-    private static String getSymbolsFilenameForPlatform(Platform platform, String variantSuffix) {
-        if (platform == null) return null;
+    private static List<String> getSymbolsFilenamesForPlatform(Platform platform, String variantSuffix) {
+        List<String> filenames = new ArrayList<String>();
+        if (platform == null) return filenames;
         OS os = platform.getOsID();
         if (os == OS.OS_ID_WINDOWS) {
-            return String.format("dmengine%s.pdb", variantSuffix);
+            filenames.add(String.format("dmengine%s.pdb", variantSuffix));
         }
-        if (os == OS.OS_ID_ANDROID) {
-            return String.format("libdmengine%s.so", variantSuffix);
+        else if (os == OS.OS_ID_ANDROID) {
+            filenames.add(String.format("libdmengine%s.so", variantSuffix));
         }
-        if (os == OS.OS_ID_OSX || os == OS.OS_ID_IOS) {
-            return String.format("dmengine%s.dSYM.zip", variantSuffix);
+        else if (os == OS.OS_ID_OSX || os == OS.OS_ID_IOS) {
+            filenames.add(String.format("dmengine%s.dSYM.zip", variantSuffix));
         }
-        if (os == OS.OS_ID_WEB) {
-            return String.format("dmengine%s.js.symbols", variantSuffix);
+        else if (os == OS.OS_ID_WEB) {
+            filenames.add(String.format("dmengine%s.js.symbols", variantSuffix));
+            // wasm debug info sidecars, bundled next to the .wasm by HTML5Bundler
+            // when bundling with --with-symbols (only published for the debug variant)
+            filenames.add(String.format("dmengine%s.wasm.debug.wasm", variantSuffix));
+            filenames.add(String.format("dmengine%s.wasm.map", variantSuffix));
         }
-        return null;
+        return filenames;
     }
 
     private static File getCacheFile(String platformKey, String filename) {

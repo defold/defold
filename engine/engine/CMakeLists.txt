@@ -490,6 +490,30 @@ defold_xcode_configure_ios_app(dmengine
   VERSION "${ENGINE_VERSION}")
 defold_codesign_target(dmengine darwin/entitlements-macos-debug.plist)
 
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  # The debug-variant engine always ships wasm debug info sidecars
+  # (.wasm.debug.wasm + .wasm.map) for browser devtools, even in optimized builds
+  # (Debug config already gets these flags from platform_html5.cmake)
+  target_link_options(dmengine PRIVATE
+    "$<$<NOT:$<CONFIG:Debug>>:-gseparate-dwarf>"
+    "$<$<NOT:$<CONFIG:Debug>>:-gsource-map>")
+  # Embed sourcesContent into the source map so browsers can show the sources
+  # without access to the build tree. Done post-link instead of linking with
+  # -gsource-map=inline, which aborts the link on any non-UTF-8 source
+  # (e.g. third-party headers with Windows-1252 comments).
+  if(DEFINED DEFOLD_PYTHON AND EXISTS "${DEFOLD_PYTHON}")
+    set(_dmengine_sourcemap_python "${DEFOLD_PYTHON}")
+  else()
+    find_program(_dmengine_sourcemap_python NAMES python3 python REQUIRED)
+  endif()
+  add_custom_command(TARGET dmengine POST_BUILD
+    COMMAND "${_dmengine_sourcemap_python}"
+            "${DEFOLD_HOME}/build_tools/embed_wasm_sourcemap_sources.py"
+            "$<TARGET_FILE_DIR:dmengine>/$<TARGET_FILE_BASE_NAME:dmengine>.wasm.map"
+            --search-dir "${DEFOLD_HOME}"
+    VERBATIM)
+endif()
+
 set(ENGINE_RELEASE_SYMBOLS
   ${ENGINE_EXPORTED_SYMBOLS}
   ProfilerExt

@@ -1882,6 +1882,9 @@ class Configuration(object):
                     engine_dwarf = join(bin_dir, engine_name + '.debug.wasm')
                     if os.path.exists(engine_dwarf):
                         self.upload_to_archive(engine_dwarf, '%s/%s.debug.wasm' % (full_archive_path, engine_name))
+                    engine_map = join(bin_dir, engine_name + '.map')
+                    if os.path.exists(engine_map):
+                        self.upload_to_archive(engine_map, '%s/%s.map' % (full_archive_path, engine_name))
                 elif 'macos' in self.target_platform or 'ios' in self.target_platform:
                     engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
                     if os.path.exists(engine_symbols):

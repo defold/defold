@@ -709,14 +709,22 @@ def default_flags(self):
                 emflags_link += ['ASSERTIONS=1']
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
             if int(opt_level) < 2:
+                # plain -gsource-map only: emscripten's -gsource-map=inline aborts the
+                # link on any non-UTF-8 source (e.g. Bullet headers); sourcesContent is
+                # embedded post-link instead (see wasm_embed_sourcemap_sources below)
                 flags += ['-gseparate-dwarf', '-gsource-map']
                 linkflags += ['-gseparate-dwarf', '-gsource-map']
+            else:
+                # Keep line tables in the objects so optimized engine builds (and the
+                # static libs shipped in defoldsdk) carry file:line info for wasm debugging
+                flags += ['-gline-tables-only']
             if Options.options.size_analyze:
                 # Keep source attribution outside the main wasm so size measurements
                 # still reflect the optimized binary while enabling deeper analysis.
-                flags += ['-gline-tables-only']
+                if '-gline-tables-only' not in flags:
+                    flags += ['-gline-tables-only']
                 for flag in ['-gsource-map', '-gseparate-dwarf']:
-                    if flag not in linkflags:
+                    if not any(f.startswith(flag) for f in linkflags):
                         linkflags += [flag]
         else:
             emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
@@ -1691,8 +1699,45 @@ def test_flags(self):
     # as the assumption when these are loaded is that the cwd will contain these items.
     if 'web' in self.env['PLATFORM']:
         for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
-            if '-gsource-map' in self.env[f]:
-                self.env[f].remove('-gsource-map')
+            for flag in [x for x in self.env[f] if x.startswith('-gsource-map')]:
+                self.env[f].remove(flag)
+
+def embed_wasm_sourcemap_sources(task):
+    map_path = task.map_node.abspath()
+    if not os.path.exists(map_path):
+        Logs.warn('embed_wasm_sourcemap_sources: no source map at %s, skipping' % map_path)
+        return 0
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'embed_wasm_sourcemap_sources.py')
+    defold_root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+    return task.exec_command([sys.executable, script, map_path, '--search-dir', defold_root])
+
+Task.task_factory('wasm_sourcemap_embed',
+                      func=embed_wasm_sourcemap_sources,
+                      color='YELLOW',
+                      after='link_task')
+
+@task_gen
+@after('apply_link')
+@feature('cprogram', 'cxxprogram')
+def wasm_embed_sourcemap_sources(self):
+    # Embed sourcesContent into the wasm source map produced by -gsource-map so
+    # browsers can show the sources without access to the build tree. Done here
+    # instead of linking with -gsource-map=inline, whose source collection reads
+    # every source as strict UTF-8 and aborts the link on the first non-UTF-8
+    # file (e.g. third-party headers with Windows-1252 comments).
+    if 'wasm' not in self.env['PLATFORM']:
+        return
+    if not hasattr(self, 'link_task'):
+        return
+    if Options.options.size_analyze:
+        return # size analysis only needs the address->source attribution
+    if not any(str(f).startswith('-gsource-map') for f in self.env['LINKFLAGS']):
+        return
+    map_node = self.link_task.outputs[0].change_ext('.wasm.map')
+    task = self.create_task('wasm_sourcemap_embed')
+    task.set_inputs(self.link_task.outputs)
+    task.set_outputs([map_node])
+    task.map_node = map_node
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')

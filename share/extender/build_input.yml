@@ -470,6 +470,11 @@ platforms:
         engineLibs: ["engine", "engine_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_js", "record_null", "gameobject", "ddf", "font", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d_defold", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "render_font_default", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound_nosimd", "decoder_wav", "decoder_ogg"]
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC", "-Wno-nontrivial-memcall"]
         linkFlags:  ["--emit-symbol-map", "-O{{optLevel}}"]
+        # appended to linkFlags by the server when the client requests symbols (bob --with-symbols);
+        # produces the dmengine.wasm.debug.wasm and dmengine.wasm.map sidecars returned via symbolsPattern.
+        # plain -gsource-map only: -gsource-map=inline reads every source as strict
+        # UTF-8 at link time and would fail the build on any non-UTF-8 user source
+        withSymbolsLinkFlags: ["-gseparate-dwarf", "-gsource-map"]
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
         emscriptenLinkFlags: ["INITIAL_MEMORY={{initialMemory}}", "DISABLE_EXCEPTION_CATCHING=1", "ALLOW_UNIMPLEMENTED_SYSCALLS=0", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\",\"stringToNewUTF8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE={{stackSize}}", "MIN_FIREFOX_VERSION={{minFirefoxVersion}}", "MIN_SAFARI_VERSION={{minSafariVersion}}", "MIN_CHROME_VERSION={{minChromeVersion}}"]
         libs:       ["idbfs.js"]
@@ -482,7 +487,7 @@ platforms:
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'dmengine.js'
     allowedLibs:    ["(\\w[\\w\\.+-]+)"]
-    allowedFlags:   ["--bind","--tracing","-gseparate-dwarf","-g([0-9]?)","--emit-module-names","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+","-x","c","-l\\w+.js","-l\\w+"]
+    allowedFlags:   ["--bind","--tracing","-gseparate-dwarf","-gsource-map(=inline)?","-g([0-9]?)","--emit-module-names","-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17|c\\+\\+20)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-f\\w[\\w-=]+","-x","c","-l\\w+.js","-l\\w+"]
     compileCmd:     '{{env.EMSCRIPTEN_BIN}}/em++ -c -O{{optLevel}} -g {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#emscriptenFlags}}-s {{{.}}} {{/emscriptenFlags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} {{#externalJsPorts}}--use-port={{dynamo_home}}/{{{.}}} {{/externalJsPorts}} -o {{tgt}}'
     libCmd:         '{{env.EMSCRIPTEN_BIN}}/emar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     manifestName:     'engine_template.html'
@@ -496,7 +501,7 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
         emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
 
-    symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm)'
+    symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm|wasm.map)'
     zipContentPattern: 'dmengine.(wasm|js)'
     allowedFlags:   ["--profiling", "-msimd128"]
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/wasm-web/js/library_{{{.}}}.js {{/externalJsLibs}} {{#externalJsPorts}}--use-port={{dynamo_home}}/{{{.}}} {{/externalJsPorts}}'
@@ -513,7 +518,7 @@ platforms:
         linkFlags: ["-pthread"]
         emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
 
-    symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm)'
+    symbolsPattern:  'dmengine.(js.symbols|wasm.debug.wasm|wasm.map)'
     zipContentPattern: 'dmengine.(wasm|js)'
     allowedFlags:   ["--profiling", "-msimd128"]
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/wasm_pthread-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/wasm_pthread-web/js/library_{{{.}}}.js {{/externalJsLibs}} {{#externalJsPorts}}--use-port={{dynamo_home}}/{{{.}}} {{/externalJsPorts}}'

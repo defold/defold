@@ -70,6 +70,11 @@ public class HTML5Bundler implements IBundler {
     private String WasmPthreadjsSHA1 = "";
     private long WasmPthreadjsSize = 250000;
 
+    // true when wasm debug info sidecars (.wasm.debug.wasm / .wasm.map) were bundled;
+    // makes the loader use URL-preserving wasm instantiation so browser devtools can
+    // resolve the debug info
+    private boolean hasWasmDebugSymbols = false;
+
     public static final String MANIFEST_NAME = "engine_template.html";
 
     @Override
@@ -179,6 +184,8 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_HAS_WASM_ENGINE", hasWasm);
 
         properties.put("DEFOLD_HAS_WASM_PTHREAD_ENGINE", architectures.contains(Platform.WasmPthreadWeb));
+
+        properties.put("DEFOLD_WASM_DEBUG_SYMBOLS", hasWasmDebugSymbols ? "true" : "false");
     }
 
     class SplitFile {
@@ -333,18 +340,6 @@ public class HTML5Bundler implements IBundler {
             logger.info("Using extender binary for WASM");
         }
         if(binsWasm != null) {
-            // Copy dwarf debug file if it is generated
-            String dwarfName = "dmengine.wasm.debug.wasm";
-            if (variant.equals(Bob.VARIANT_RELEASE)) {
-                dwarfName = "dmengine_release.wasm.debug.wasm";
-            }
-            String dwarfZipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
-            File bundleDwarf = new File(dwarfZipDir, dwarfName);
-            if (bundleDwarf.exists()) {
-                File dwarfOut = new File(appDir, enginePrefix + ".wasm.debug.wasm");
-                FileUtils.copyFile(bundleDwarf, dwarfOut);
-            }
-
             for (File bin : binsWasm) {
                 BundleHelper.throwIfCanceled(canceled);
                 String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
@@ -363,22 +358,64 @@ public class HTML5Bundler implements IBundler {
                             WasmPthreadjsSHA1 = HTML5Bundler.calculateSHA1(bin);
                     }
                 } else if (binExtension.equals("wasm")) {
-                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + suffix + ".wasm"));
+                    File wasmOut = new File(appDir, enginePrefix + suffix + ".wasm");
+                    copyWasmWithDebugSymbols(project, platform, bin, appDir, wasmOut);
 
                     if (platform == Platform.WasmWeb)
-                        WasmSize = bin.length();
+                        WasmSize = wasmOut.length();
                     else if (platform == Platform.WasmPthreadWeb)
-                        WasmPthreadSize = bin.length();
+                        WasmPthreadSize = wasmOut.length();
 
                     if (project.hasOption("with-sha1")) {
                         if (platform == Platform.WasmWeb)
-                            WasmSHA1 = HTML5Bundler.calculateSHA1(bin);
+                            WasmSHA1 = HTML5Bundler.calculateSHA1(wasmOut);
                         else if (platform == Platform.WasmPthreadWeb)
-                            WasmPthreadSHA1 = HTML5Bundler.calculateSHA1(bin);
+                            WasmPthreadSHA1 = HTML5Bundler.calculateSHA1(wasmOut);
                     }
                 } else {
                     throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
                 }
+            }
+        }
+    }
+
+    // Copies the engine wasm binary into the bundle. When bundling with --with-symbols,
+    // the debug info sidecars produced by -gseparate-dwarf and -gsource-map are placed
+    // next to the .wasm (browser devtools resolve them relative to the .wasm URL), and
+    // the references embedded in the binary are rewritten to the bundled file names.
+    private void copyWasmWithDebugSymbols(Project project, Platform platform, File bin, File appDir, File wasmOut) throws IOException {
+        String dwarfOutName = null;
+        String sourceMapOutName = null;
+        if (project.hasOption("with-symbols")) {
+            File pairDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+            File dwarf = new File(pairDir, bin.getName() + ".debug.wasm");
+            File sourceMap = new File(pairDir, bin.getName() + ".map");
+            if (dwarf.exists()) {
+                dwarfOutName = wasmOut.getName() + ".debug.wasm";
+                FileUtils.copyFile(dwarf, new File(appDir, dwarfOutName));
+            }
+            if (sourceMap.exists()) {
+                sourceMapOutName = wasmOut.getName() + ".map";
+                FileUtils.copyFile(sourceMap, new File(appDir, sourceMapOutName));
+            }
+            if (dwarfOutName == null && sourceMapOutName == null) {
+                logger.warning("No wasm debug info found for %s (%s.debug.wasm / %s.map in %s). The engine was likely built without debug info.",
+                        platform.getPair(), bin.getName(), bin.getName(), pairDir.getPath());
+            } else {
+                hasWasmDebugSymbols = true;
+                logger.info("Bundled wasm debug info for %s (%d MB). Do not deploy these files to production.",
+                        wasmOut.getName(), (dwarf.length() + sourceMap.length()) >> 20);
+            }
+        }
+        if (dwarfOutName != null || sourceMapOutName != null) {
+            WasmDebugSectionRewriter.rewrite(bin, wasmOut, dwarfOutName, sourceMapOutName);
+        } else {
+            // strip any references to debug info files that are not part of the bundle
+            try {
+                WasmDebugSectionRewriter.rewrite(bin, wasmOut, null, null);
+            } catch (IOException e) {
+                logger.warning("Failed to strip wasm debug info references from %s: %s", bin.getName(), e.getMessage());
+                FileUtils.copyFile(bin, wasmOut);
             }
         }
     }

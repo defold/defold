@@ -958,4 +958,78 @@ public class BundlerTest {
         }
         return null;
     }
+
+    @Test
+    public void testBundleHTML5WithWasmDebugSymbols()
+            throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform != Platform.WasmWeb && platform != Platform.WasmPthreadWeb) {
+            return;
+        }
+
+        createDefaultFiles(contentRoot);
+
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
+            setProjectProperties(project);
+            project.setOption("with-symbols", "true");
+
+            List<TaskResult> buildResult = project.build(Progress.discarding(), "clean", "build");
+            for (TaskResult taskResult : buildResult) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
+
+            // fake the wasm debug info sidecars next to the engine binaries
+            // (the default bundling variant is release)
+            File platformBinaryDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+            platformBinaryDir.mkdirs();
+            createFile(platformBinaryDir.getAbsolutePath(), "dmengine_release.wasm.debug.wasm", "mock_dwarf_content");
+            createFile(platformBinaryDir.getAbsolutePath(), "dmengine_release.wasm.map", "mock_source_map_content");
+
+            List<TaskResult> bundleResult = project.build(Progress.discarding(), "bundle");
+            for (TaskResult taskResult : bundleResult) {
+                assertTrue(taskResult.toString(), taskResult.isOk());
+            }
+
+            String exeName = BundleHelper.projectNameToBinaryName("unnamed");
+            String suffix = (platform == Platform.WasmPthreadWeb) ? "_pthread" : "";
+            File outputDirFile = getOutputDirFile(outputDir, "unnamed");
+
+            // the sidecars are served next to the wasm, named after it
+            checkFileExist(outputDirFile, new File(outputDirFile, exeName + suffix + ".wasm.debug.wasm"));
+            checkFileExist(outputDirFile, new File(outputDirFile, exeName + suffix + ".wasm.map"));
+
+            // the debug references embedded in the wasm are rewritten to the bundled names
+            String wasm = FileUtils.readFileToString(new File(outputDirFile, exeName + suffix + ".wasm"), StandardCharsets.ISO_8859_1);
+            assertTrue(wasm.contains(exeName + suffix + ".wasm.debug.wasm"));
+            assertTrue(wasm.contains(exeName + suffix + ".wasm.map"));
+
+            // the loader switches to URL-preserving wasm instantiation
+            String dmloader = FileUtils.readFileToString(new File(outputDirFile, "dmloader.js"), StandardCharsets.UTF_8);
+            assertTrue(dmloader.contains("wasm_debug_symbols: \"true\" === \"true\""));
+        }
+    }
+
+    @Test
+    public void testBundleHTML5WithoutWasmDebugSymbols()
+            throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform != Platform.WasmWeb && platform != Platform.WasmPthreadWeb) {
+            return;
+        }
+
+        createDefaultFiles(contentRoot);
+        build();
+
+        String exeName = BundleHelper.projectNameToBinaryName("unnamed");
+        String suffix = (platform == Platform.WasmPthreadWeb) ? "_pthread" : "";
+        File outputDirFile = getOutputDirFile(outputDir, "unnamed");
+
+        assertFalse(new File(outputDirFile, exeName + suffix + ".wasm.debug.wasm").exists());
+        assertFalse(new File(outputDirFile, exeName + suffix + ".wasm.map").exists());
+
+        String dmloader = FileUtils.readFileToString(new File(outputDirFile, "dmloader.js"), StandardCharsets.UTF_8);
+        assertTrue(dmloader.contains("wasm_debug_symbols: \"false\" === \"true\""));
+    }
 }
