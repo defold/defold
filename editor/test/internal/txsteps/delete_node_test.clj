@@ -654,15 +654,22 @@
                 (g/override original-node-id)))]
 
         (let [basis (g/now)]
-          (is (= #{later-override-node-id} (set (g/overrides basis original-node-id))))
+          (is (= [later-override-node-id] (g/overrides basis original-node-id)))
           (is (= nil (g/node-by-id basis deleted-override-node-id)))
           (is (= original-node-id (g/override-original basis later-override-node-id))))
 
         (g/undo! ::delete-override)
 
         (let [basis (g/now)]
-          (is (= #{deleted-override-node-id later-override-node-id} (set (g/overrides basis original-node-id))))
+          (is (= [deleted-override-node-id later-override-node-id] (g/overrides basis original-node-id)))
           (is (= original-node-id (g/override-original basis deleted-override-node-id)))
+          (is (= original-node-id (g/override-original basis later-override-node-id))))
+
+        (g/redo! ::delete-override)
+
+        (let [basis (g/now)]
+          (is (= [later-override-node-id] (g/overrides basis original-node-id)))
+          (is (= nil (g/node-by-id basis deleted-override-node-id)))
           (is (= original-node-id (g/override-original basis later-override-node-id))))))))
 
 (deftest undo-delete-sibling-override-nodes-restores-original-overrides-test
@@ -684,8 +691,8 @@
             (g/transact
               (g/override original-node-id)))]
 
-      (is (= #{first-override-node-id second-override-node-id}
-             (set (g/overrides (g/now) original-node-id))))
+      (is (= [first-override-node-id second-override-node-id]
+             (g/overrides (g/now) original-node-id)))
 
       (g/transact
         {:undo-key ::delete-sibling-overrides}
@@ -699,8 +706,8 @@
       (g/undo! ::delete-sibling-overrides)
 
       (let [basis (g/now)]
-        (is (= #{first-override-node-id second-override-node-id}
-               (set (g/overrides basis original-node-id))))
+        (is (= [first-override-node-id second-override-node-id]
+               (g/overrides basis original-node-id)))
         (is (= original-node-id (g/override-original basis first-override-node-id)))
         (is (= original-node-id (g/override-original basis second-override-node-id)))))))
 

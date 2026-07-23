@@ -365,20 +365,54 @@
 (defonce ^:private unassigned-sentinel (Object.))
 
 (def ^:private empty-arc-table (pkid-vector/pkid-vector))
+(def ^:private empty-override-node-id-table (pkid-vector/pkid-vector))
+
+(defn override-node-id-table-next-pkid
+  ^long [override-node-id-table]
+  (if override-node-id-table
+    (pkid-vector/next-pkid override-node-id-table)
+    0))
+
+(defn- override-node-id-table-include
+  [override-node-id-table pkid->override-node-id]
+  {:pre [(map? pkid->override-node-id)]}
+  (coll/reduce-kv-> pkid->override-node-id
+    (or override-node-id-table empty-override-node-id-table)
+    (fn [override-node-id-table pkid override-node-id]
+      (pkid-vector/assoc-pkids override-node-id-table [pkid] override-node-id))))
+
+(defn- override-node-id-table-exclude
+  [override-node-id-table pkid->override-node-id]
+  (when override-node-id-table
+    (pkid-vector/dissoc-pkids
+      override-node-id-table
+      (mapv key pkid->override-node-id))))
+
+(defn- override-node-id-table-locate
+  [override-node-id-table selected-override-node-ids]
+  (if (or (coll/empty? override-node-id-table)
+          (coll/empty? selected-override-node-ids))
+    {}
+    (coll/reduce-> selected-override-node-ids {}
+      (fn [pkid->override-node-id override-node-id]
+        (coll/reduce-> (pkid-vector/find-pkids override-node-id-table override-node-id)
+          pkid->override-node-id
+          (fn [pkid->override-node-id pkid]
+            (assoc pkid->override-node-id pkid override-node-id)))))))
 
 (defn- arc-table->pkid-vector [arc-table]
   (if (instance? Arc arc-table)
     (conj empty-arc-table arc-table)
     (or arc-table empty-arc-table)))
 
-(defn- pkid-vector->arc-table [arc-table]
+(defn- pkid-vector->arc-table [pkid-vector]
   ;; A bare Arc represents the canonical singleton state: one live arc at
   ;; pkid zero, with one as the next pkid. Keep non-canonical singleton tables
   ;; as PkidVectors so their stable pkid history is preserved.
-  (if (and (= 1 (count arc-table))
-           (= 1 (pkid-vector/next-pkid arc-table)))
-    (nth arc-table 0)
-    arc-table))
+  (if (and (= 1 (count pkid-vector))
+           (= 1 (pkid-vector/next-pkid pkid-vector)))
+    (nth pkid-vector 0)
+    pkid-vector))
 
 (defn arc-table-next-pkid
   ^long [arc-table]
@@ -475,7 +509,7 @@
   "Returns the node-ids of the override nodes in the graph that directly
   override the specified original-node-id."
   [graph original-node-id]
-  (get (:node->overrides graph) original-node-id))
+  (coll/not-empty (get (:node->overrides graph) original-node-id)))
 
 (defn- arcs-for-node [node-id->label->arc-table node-id]
   (let [label->arc-table (node-id->label->arc-table node-id)]
@@ -708,7 +742,7 @@
     (let [override-id (gt/override-id node)
           target-graph (node-id->graph basis node-id)]
       (loop [inputs (some-> node gt/node-type in/cascade-deletes)
-             result (vec (get-overrides basis node-id))]
+             result (coll/into-> (get-overrides basis node-id) [])]
         (if-some [input (first inputs)]
           (let [explicit (coll/into-> (graph-explicit-arcs-by-target target-graph node-id input) :eduction
                            (keep (fn [arc]
@@ -1246,22 +1280,28 @@
     (update-in basis [:graphs graph-id :overrides] dissoc override-id)))
 
 (defn basis-plan-add-nodes
-  [_basis added-nodes]
+  [basis added-nodes]
   (when (coll/not-empty added-nodes)
-    (let [node-ids (mapv gt/node-id added-nodes)]
+    (let [graphs (:graphs basis)
+          node-ids (mapv gt/node-id added-nodes)]
       (assert (coll/every? gt/node-id? node-ids))
       {:added-nodes added-nodes
-       :introduced-node->overrides
+       :introduced-node-id->pkid->override-node-id
        (coll/reduce-> added-nodes {}
-         (fn [introduced-node->overrides node]
+         (fn [introduced-node-id->pkid->override-node-id node]
            (if-let [original-node-id (gt/original node)]
-             (let [node-id (gt/node-id node)]
+             (let [node-id (gt/node-id node)
+                   graph-id (gt/node-id->graph-id original-node-id)
+                   override-node-ids (get-in graphs [graph-id :node->overrides original-node-id])
+                   introduced-pkid->override-node-id (introduced-node-id->pkid->override-node-id original-node-id)
+                   pkid (+ (override-node-id-table-next-pkid override-node-ids)
+                           (count introduced-pkid->override-node-id))]
                (ensure-original-node-in-same-graph-as-override-node! original-node-id node-id)
-               (update introduced-node->overrides original-node-id coll/conj-vector node-id))
-             introduced-node->overrides)))})))
+               (update introduced-node-id->pkid->override-node-id original-node-id assoc pkid node-id))
+             introduced-node-id->pkid->override-node-id)))})))
 
 (defn basis-perform-add-nodes
-  [basis added-nodes introduced-node->overrides]
+  [basis added-nodes introduced-node-id->pkid->override-node-id]
   (update
     basis :graphs
     (fn [graphs]
@@ -1271,15 +1311,15 @@
               (let [node-id (gt/node-id node)
                     graph-id (gt/node-id->graph-id node-id)]
                 (assoc-in graphs [graph-id :nodes node-id] node))))
-          (coll/reduce-kv=> introduced-node->overrides
-            (fn [graphs node-id override-node-ids]
+          (coll/reduce-kv=> introduced-node-id->pkid->override-node-id
+            (fn [graphs node-id pkid->override-node-id]
               (let [graph-id (gt/node-id->graph-id node-id)]
                 (update-in
                   graphs [graph-id :node->overrides node-id]
-                  coll/into-vector override-node-ids))))))))
+                  override-node-id-table-include pkid->override-node-id))))))))
 
 (defn basis-revert-add-nodes
-  [basis added-nodes introduced-node->overrides]
+  [basis added-nodes introduced-node-id->pkid->override-node-id]
   (update
     basis :graphs
     (fn [graphs]
@@ -1289,41 +1329,45 @@
             (fn [graphs node-id]
               (let [graph-id (gt/node-id->graph-id node-id)]
                 (update-in graphs [graph-id :nodes] dissoc node-id))))
-          (coll/reduce-kv=> introduced-node->overrides
-            (fn [graphs node-id override-node-ids]
+          (coll/reduce-kv=> introduced-node-id->pkid->override-node-id
+            (fn [graphs node-id pkid->override-node-id]
               (let [graph-id (gt/node-id->graph-id node-id)]
-                (coll/removing-update-in
+                (update-in
                   graphs [graph-id :node->overrides node-id]
-                  coll/transform-non-empty-> (remove (set override-node-ids))))))))))
+                  override-node-id-table-exclude pkid->override-node-id))))))))
 
 (defn basis-plan-clear-override-nodes
-  [_basis original-node-id override-node-ids]
-  (when-not (coll/empty? override-node-ids)
-    {:original-node-id original-node-id
-     :override-node-ids override-node-ids}))
+  [basis original-node-id cleared-override-node-ids]
+  (when-not (coll/empty? cleared-override-node-ids)
+    (let [graph-id (gt/node-id->graph-id original-node-id)
+          override-node-ids (get-in basis [:graphs graph-id :node->overrides original-node-id])
+          removed-pkid->override-node-id (override-node-id-table-locate override-node-ids cleared-override-node-ids)]
+      (when (coll/not-empty removed-pkid->override-node-id)
+        {:original-node-id original-node-id
+         :removed-pkid->override-node-id removed-pkid->override-node-id}))))
 
 (defn basis-perform-clear-override-nodes
-  [basis original-node-id override-node-ids]
+  [basis original-node-id removed-pkid->override-node-id]
   (let [graph-id (gt/node-id->graph-id original-node-id)]
-    (coll/removing-update-in
+    (update-in
       basis [:graphs graph-id :node->overrides original-node-id]
-      coll/transform-non-empty-> (remove (set override-node-ids)))))
+      override-node-id-table-exclude removed-pkid->override-node-id)))
 
 (defn basis-revert-clear-override-nodes
-  [basis original-node-id override-node-ids]
-  (let [override-node-ids
-        (coll/into-> override-node-ids []
+  [basis original-node-id removed-pkid->override-node-id]
+  (let [restored-pkid->override-node-id
+        (coll/into-> removed-pkid->override-node-id {}
           (filter
-            (fn [override-node-id]
+            (fn [[_pkid override-node-id]]
               (= original-node-id
                  (some-> (gt/node-by-id-at basis override-node-id)
                          gt/original)))))]
-    (if (coll/empty? override-node-ids)
+    (if (coll/empty? restored-pkid->override-node-id)
       basis
       (let [graph-id (gt/node-id->graph-id original-node-id)]
         (update-in
           basis [:graphs graph-id :node->overrides original-node-id]
-          coll/into-vector override-node-ids)))))
+          override-node-id-table-include restored-pkid->override-node-id)))))
 
 (defn basis-plan-replace-override
   [basis override-id new-override]
@@ -1359,12 +1403,15 @@
   [basis override-node-id new-original-node-id]
   (ensure-original-node-in-same-graph-as-override-node! new-original-node-id override-node-id)
   (when-let [override-node (gt/node-by-id-at basis override-node-id)]
-    {:override-node-id override-node-id
-     :old-original-node-id (gt/original override-node)
-     :new-original-node-id new-original-node-id}))
+    (let [graph-id (gt/node-id->graph-id override-node-id)
+          override-node-ids (get-in basis [:graphs graph-id :node->overrides new-original-node-id])]
+      {:override-node-id override-node-id
+       :old-original-node-id (gt/original override-node)
+       :new-original-node-id new-original-node-id
+       :new-original-pkid (override-node-id-table-next-pkid override-node-ids)})))
 
 (defn basis-perform-repoint-override-node
-  [basis override-node-id new-original-node-id]
+  [basis override-node-id new-original-node-id new-original-pkid]
   (if-not (gt/node-by-id-at basis override-node-id)
     basis
     (let [graph-id (gt/node-id->graph-id override-node-id)]
@@ -1372,18 +1419,18 @@
           (basis-set-override-node-original override-node-id new-original-node-id)
           (update-in
             [:graphs graph-id :node->overrides new-original-node-id]
-            coll/conj-vector override-node-id)))))
+            override-node-id-table-include {new-original-pkid override-node-id})))))
 
 (defn basis-revert-repoint-override-node
-  [basis override-node-id old-original-node-id new-original-node-id]
+  [basis override-node-id old-original-node-id new-original-node-id new-original-pkid]
   (if-not (gt/node-by-id-at basis override-node-id)
     basis
     (let [graph-id (gt/node-id->graph-id new-original-node-id)]
       (-> basis
           (basis-set-override-node-original override-node-id old-original-node-id)
-          (coll/removing-update-in
+          (update-in
             [:graphs graph-id :node->overrides new-original-node-id]
-            coll/transform-non-empty-> (remove #{override-node-id}))))))
+            override-node-id-table-exclude {new-original-pkid override-node-id})))))
 
 (defn- basis-set-raw-property-state
   [basis node property-label raw-value]
@@ -1634,36 +1681,46 @@
               removed-arc->source+target-pkids
               (find-connected-arc-pkids basis deleted-node-ids)
 
-              removed-node->overrides-for-deleted-node-ids
+              removed-node-id->override-node-ids-for-deleted-node-ids
               (coll/into-> deleted-node-ids {}
                 (keep (fn [deleted-node-id]
                         (let [graph-id (gt/node-id->graph-id deleted-node-id)]
                           (when-let [override-node-ids (coll/not-empty (get-in graphs [graph-id :node->overrides deleted-node-id]))]
                             (pair deleted-node-id override-node-ids))))))
 
-              removed-node->overrides-for-originals-of-deleted-node-ids
+              removed-node-id->override-node-ids-for-originals-of-deleted-node-ids
               (coll/reduce-> deleted-nodes {}
-                (fn [removed-node->overrides deleted-node]
+                (fn [removed-node-id->override-node-ids deleted-node]
                   (let [deleted-node-id (gt/node-id deleted-node)
                         original-node-id (gt/original deleted-node)]
                     (if (or (not original-node-id)
-                            (contains? deleted-nodes-by-id original-node-id)) ; Already covered by removed-node->overrides-for-deleted-node-ids.
-                      removed-node->overrides
-                      (update removed-node->overrides original-node-id coll/conj-vector deleted-node-id)))))
+                            (contains? deleted-nodes-by-id original-node-id)) ; Already covered by removed-node-id->override-node-ids-for-deleted-node-ids.
+                      removed-node-id->override-node-ids
+                      (update removed-node-id->override-node-ids original-node-id coll/conj-vector deleted-node-id)))))
 
-              removed-node->overrides
+              removed-node-id->override-node-ids
               (coll/merge-with
                 coll/into-vector
-                removed-node->overrides-for-deleted-node-ids
-                removed-node->overrides-for-originals-of-deleted-node-ids)]
+                removed-node-id->override-node-ids-for-deleted-node-ids
+                removed-node-id->override-node-ids-for-originals-of-deleted-node-ids)
+
+              removed-node-id->pkid->override-node-id
+              (coll/reduce-kv-> removed-node-id->override-node-ids {}
+                (fn [removed-node-id->pkid->override-node-id original-node-id removed-override-node-ids]
+                  (let [graph-id (gt/node-id->graph-id original-node-id)
+                        override-node-ids (get-in graphs [graph-id :node->overrides original-node-id])]
+                    (assoc
+                      removed-node-id->pkid->override-node-id
+                      original-node-id
+                      (override-node-id-table-locate override-node-ids removed-override-node-ids)))))]
 
           {:deleted-nodes deleted-nodes
            :removed-arc->source+target-pkids removed-arc->source+target-pkids
            :removed-overrides-by-id removed-overrides-by-id
-           :removed-node->overrides removed-node->overrides})))))
+           :removed-node-id->pkid->override-node-id removed-node-id->pkid->override-node-id})))))
 
 (defn basis-perform-delete-nodes
-  [basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node->overrides]
+  [basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id]
   (-> basis
       (basis-perform-disconnect-arcs removed-arc->source+target-pkids)
       (update
@@ -1679,15 +1736,15 @@
                 (fn [graphs override-id _override]
                   (let [graph-id (gt/override-id->graph-id override-id)]
                     (update-in graphs [graph-id :overrides] dissoc override-id))))
-              (coll/reduce-kv=> removed-node->overrides
-                (fn [graphs node-id override-node-ids]
+              (coll/reduce-kv=> removed-node-id->pkid->override-node-id
+                (fn [graphs node-id pkid->override-node-id]
                   (let [graph-id (gt/node-id->graph-id node-id)]
-                    (coll/removing-update-in
+                    (update-in
                       graphs [graph-id :node->overrides node-id]
-                      coll/transform-non-empty-> (remove (set override-node-ids)))))))))))
+                      override-node-id-table-exclude pkid->override-node-id)))))))))
 
 (defn basis-revert-delete-nodes
-  [basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node->overrides]
+  [basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id]
   (-> basis
       (update
         :graphs
@@ -1702,10 +1759,10 @@
                 (fn [graphs override-id override]
                   (let [graph-id (gt/override-id->graph-id override-id)]
                     (update-in graphs [graph-id :overrides] assoc override-id override))))
-              (coll/reduce-kv=> removed-node->overrides
-                (fn [graphs node-id override-node-ids]
+              (coll/reduce-kv=> removed-node-id->pkid->override-node-id
+                (fn [graphs node-id pkid->override-node-id]
                   (let [graph-id (gt/node-id->graph-id node-id)]
                     (update-in
                       graphs [graph-id :node->overrides node-id]
-                      coll/into-vector override-node-ids)))))))
+                      override-node-id-table-include pkid->override-node-id)))))))
       (basis-revert-disconnect-arcs removed-arc->source+target-pkids)))

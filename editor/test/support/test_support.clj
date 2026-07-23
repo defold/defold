@@ -114,11 +114,11 @@
 
         {:keys [deleted-nodes
                 removed-arc->source+target-pkids
-                removed-node->overrides
+                removed-node-id->pkid->override-node-id
                 removed-overrides-by-id]}
         (ig/basis-plan-delete-nodes basis [node-id])
 
-        basis (ig/basis-perform-delete-nodes basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node->overrides)]
+        basis (ig/basis-perform-delete-nodes basis deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)]
 
     (first (:graphs basis))))
 
