@@ -187,7 +187,7 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -331,12 +331,12 @@ public class GameProjectBuilder extends Builder {
                 logger.info("Creation of the excluded resources list.");
                 tstart = System.currentTimeMillis();
                 boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
-                List<String> excludedResources;
+                Set<String> excludedResources;
                 if (shouldPublishLU) {
                     excludedResources = resourceGraph.createExcludedResourcesList();
                 }
                 else {
-                    excludedResources = new ArrayList<String>();
+                    excludedResources = new HashSet<String>();
                 }
                 tend = System.currentTimeMillis();
                 logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);
