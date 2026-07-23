@@ -26,8 +26,9 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -143,7 +144,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, new HashSet<String>());
         outFileIndex.close();
         outFileData.close();
 
@@ -249,7 +250,7 @@ public class ArchiveTest {
             index.setLength(0);
             data.setLength(0);
             data.seek(resourceOffset);
-            ab.write(index, data, new ArrayList<String>());
+            ab.write(index, data, new HashSet<String>());
         }
 
         try (RandomAccessFile index = new RandomAccessFile(outputIndex, "r")) {
@@ -283,7 +284,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, new HashSet<String>());
         outFileIndex.close();
         outFileData.close();
 
@@ -322,7 +323,7 @@ public class ArchiveTest {
             RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
             archiveIndex.setLength(0);
             archiveData.setLength(0);
-            instance.write(archiveIndex, archiveData, new ArrayList<String>());
+            instance.write(archiveIndex, archiveData, new HashSet<String>());
             archiveIndex.close();
             archiveData.close();
 
@@ -398,7 +399,7 @@ public class ArchiveTest {
         ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", "beta", instance, collection1);
         ResourceNode gameobject1 = addEntry("main.goc", "delta", instance, collectionproxy1);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -426,7 +427,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -456,7 +457,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("shared.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("shared.goc", "gamma", instance, collectionproxy2);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -486,7 +487,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -515,7 +516,7 @@ public class ArchiveTest {
         ResourceNode gameobject11 = addEntry("level1.goc", "gamma", instance, collectionproxy1); // should be bundled
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -547,7 +548,7 @@ public class ArchiveTest {
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
         ResourceNode gameobject3 = addEntry("level3.goc", "eta", instance, collectionproxy2); // should be excluded
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -577,7 +578,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
