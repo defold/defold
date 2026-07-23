@@ -137,7 +137,10 @@ if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output spirv)
 endif()
-if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+# App manifests can relink web engines to WebGPU even when the default
+# CMake graphics symbols only include the WebGL adapter.
+if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output wgsl)
 endif()
 if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
