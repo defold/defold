@@ -843,6 +843,41 @@ TEST_P(GetResourceTest, PreloadGetList)
     dmResource::Release(m_Factory, resource);
 }
 
+// Initial resources must be identified independently of their recycled request slots.
+// With three roots, a dependency of the first root can occupy slot two and must not be
+// retained by the preloader as though it were the third requested root.
+TEST_P(GetResourceTest, PreloadGetListPersistsRequestedResources)
+{
+    const char* resource_names_list[] = { "/test.cont", "/test_ref.cont", "/test01.foo" };
+    dmArray<const char*> resource_names(resource_names_list, 3, 3);
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_names);
+
+    dmResource::Result r = dmResource::RESULT_PENDING;
+    for (uint32_t i = 0; i < 33 && r == dmResource::RESULT_PENDING; ++i)
+    {
+        r = dmResource::UpdatePreloader(pr, 0, 0, 30 * 1000);
+        if (r == dmResource::RESULT_PENDING)
+        {
+            dmTime::Sleep(30 * 1000);
+        }
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, r);
+
+    HResourceDescriptor descriptor;
+    dmResource::Result e = dmResource::GetDescriptor(m_Factory, "/test01.foo", &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(3U, descriptor->m_ReferenceCount);
+
+    e = dmResource::GetDescriptor(m_Factory, "/test02.foo", &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(1U, descriptor->m_ReferenceCount);
+
+    dmResource::DeletePreloader(pr);
+
+    ASSERT_EQ(dmResource::RESULT_NOT_LOADED, dmResource::GetDescriptor(m_Factory, "/test01.foo", &descriptor));
+    ASSERT_EQ(dmResource::RESULT_NOT_LOADED, dmResource::GetDescriptor(m_Factory, "/test02.foo", &descriptor));
+}
+
 
 TEST_P(GetResourceTest, PreloadGetParallell)
 {

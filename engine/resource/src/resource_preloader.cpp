@@ -114,6 +114,7 @@ struct PendingHint
 {
     PathDescriptor m_PathDescriptor;
     TRequestIndex m_Parent;
+    bool m_Persist;
 };
 
 // Holds a completed child's factory reference after its request slot has been recycled. The reference is
@@ -151,6 +152,9 @@ struct PreloadRequest
     // Set once load has completed
     dmResource::Result m_LoadResult;
     void* m_Resource;
+
+    // Initial resources requested through NewPreloader are retained until the preloader is deleted.
+    bool m_Persist;
 };
 
 // Owns the complete state of one asynchronous preload operation, including active requests and overflow hints.
@@ -203,9 +207,6 @@ struct ResourcePreloader
     bool m_CreateComplete;
     uint32_t m_PostCreateCallbackIndex;
     dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
-
-    // How many of the initial resources where requested - they should not be release until preloader destruction
-    TRequestIndex m_PersistResourceCount;
 
     dmArray<void*> m_PersistedResources;
 
@@ -352,7 +353,7 @@ namespace dmResource
     }
 
     // Allocate and link an active request after the scheduler has made a request slot available.
-    static Result PreloadPathDescriptor(HPreloader preloader, TRequestIndex parent, const PathDescriptor& path_descriptor)
+    static Result PreloadPathDescriptor(HPreloader preloader, TRequestIndex parent, const PathDescriptor& path_descriptor, bool persist)
     {
         // Quick deduplication, check if the child is already listed under the current parent
         TRequestIndex child = preloader->m_Request[parent].m_FirstChild;
@@ -377,6 +378,7 @@ namespace dmResource
         req->m_PathDescriptor    = path_descriptor;
         req->m_FirstChild        = -1;
         req->m_LoadResult        = RESULT_PENDING;
+        req->m_Persist           = persist;
 
         PreloaderTreeInsert(preloader, new_req, parent);
 
@@ -502,7 +504,7 @@ namespace dmResource
         preloader->m_PendingHints.Pop();
         assert(preloader->m_Request[hint.m_Parent].m_QueuedChildCount > 0);
         preloader->m_Request[hint.m_Parent].m_QueuedChildCount--;
-        return PreloadPathDescriptor(preloader, hint.m_Parent, hint.m_PathDescriptor) == RESULT_OK;
+        return PreloadPathDescriptor(preloader, hint.m_Parent, hint.m_PathDescriptor, hint.m_Persist) == RESULT_OK;
     }
 
     // Transfer hints produced by preload callbacks into the update-thread stack, then admit one if possible.
@@ -538,7 +540,7 @@ namespace dmResource
         {
             return res;
         }
-        PendingHint hint = { path_descriptor, parent };
+        PendingHint hint = { path_descriptor, parent, true };
         if (IsPendingHintDuplicate(preloader, hint))
         {
             return RESULT_ALREADY_REGISTERED;
@@ -567,7 +569,7 @@ namespace dmResource
 
         if (me->m_Resource)
         {
-            if (index < preloader->m_PersistResourceCount)
+            if (me->m_Persist)
             {
                 if (preloader->m_PersistedResources.Full())
                 {
@@ -599,7 +601,7 @@ namespace dmResource
         {
             // Keep the factory reference alive until the parent acquires the resource during Create.
             // The request node can then be recycled without causing a later synchronous reload.
-            if (index < preloader->m_PersistResourceCount)
+            if (req->m_Persist)
             {
                 if (preloader->m_PersistedResources.Full())
                 {
@@ -665,7 +667,6 @@ namespace dmResource
         preloader->m_LoadQueue       = dmLoadQueue::CreateQueue(factory);
         dmSpinlock::Create(&preloader->m_SyncedDataSpinlock);
 
-        preloader->m_PersistResourceCount = 0;
         preloader->m_PersistedResources.SetCapacity(names.Size());
 
         // Insert root.
@@ -676,7 +677,7 @@ namespace dmResource
         root->m_Parent            = -1;
         root->m_FirstChild        = -1;
         root->m_NextSibling       = -1;
-        preloader->m_PersistResourceCount++;
+        root->m_Persist           = true;
 
         // Post create setup
         preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS / 8);
@@ -696,11 +697,7 @@ namespace dmResource
         // and are released when they can be (internally pruning and sharing the request tree).
         for (uint32_t i = 1; i < names.Size(); ++i)
         {
-            Result res = PreloadHintInternal(preloader, 0, names[i]);
-            if (res == RESULT_OK)
-            {
-                preloader->m_PersistResourceCount++;
-            }
+            PreloadHintInternal(preloader, 0, names[i]);
         }
         AdmitPendingHint(preloader);
 
@@ -1345,6 +1342,7 @@ namespace dmResource
         PendingHint& hint     = preloader->m_SyncedData.m_NewHints.Back();
         hint.m_PathDescriptor = path_descriptor;
         hint.m_Parent         = info->m_Parent;
+        hint.m_Persist        = false;
 
         return true;
     }
