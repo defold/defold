@@ -846,15 +846,21 @@
 (defn- mark-override-nodes-affected [ctx target-id undoable]
   (let [override-nodes-affected-undoability (:override-nodes-affected-undoability ctx)
         previous-mark-undoability (get override-nodes-affected-undoability target-id ::not-found)]
-    (if (= ::not-found previous-mark-undoability)
+    (cond
+      (= ::not-found previous-mark-undoability)
       (let [override-nodes-affected-ordered (:override-nodes-affected-ordered ctx)]
         (assoc ctx
           :override-nodes-affected-undoability (assoc override-nodes-affected-undoability target-id undoable)
           :override-nodes-affected-ordered (conj override-nodes-affected-ordered target-id)))
-      (do
-        (assert (= previous-mark-undoability undoable)
-                "Cannot mix undoable and non-undoable changes to an override node in the same transaction.")
-        ctx))))
+
+      (not= previous-mark-undoability undoable)
+      (throw
+        (ex-info
+          "Cannot mix undoable and non-undoable changes to an override node in the same transaction."
+          {:target-id target-id}))
+
+      :else
+      ctx)))
 
 (defmacro ^:private assert-schema-type-compatible
   [source-id source-label output-nodetype output-valtype target-id target-label input-nodetype input-valtype]
