@@ -57,10 +57,11 @@ def build(bld):
             glfw_lib = []
 
         if len(extra_symbols) > 0:
+            extra_symbols += ['ResourceProviderFile']
             bld.program(features = 'cxx cprogram test skip_test',
-                        includes = ['.', '../../src', '../../proto'],
+                        includes = ['.', '../../src', '../../proto', '../../../gamesys/src'],
                         exported_symbols = extra_symbols,
-                        source = 'test_app_graphics.cpp',
-                        use = 'TESTMAIN APP DDF DLIB PROFILE_NULL'.split() + graphics_libs + platform_lib + glfw_lib + extra_libs,
+                        source = ['test_app_graphics.cpp', '../../../gamesys/src/gamesys/resources/res_shader_program.cpp'],
+                        use = 'TESTMAIN APP DDF DLIB PROFILE_NULL RESOURCE'.split() + graphics_libs + platform_lib + glfw_lib + extra_libs,
                         web_libs = ['library_sys.js', glfw_js],
                         target = 'test_app_graphics')

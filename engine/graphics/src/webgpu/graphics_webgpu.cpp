@@ -2985,7 +2985,7 @@ static void WebGPUDisableProgram(HContext _context)
     context->m_CurrentProgram = NULL;
 }
 
-static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
+static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
 {
     TRACE_CALL;
 

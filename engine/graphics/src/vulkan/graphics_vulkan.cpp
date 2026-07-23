@@ -3666,7 +3666,7 @@ bail:
         return (HProgram) program;
     }
 
-    static bool VulkanReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
+    static bool VulkanReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderDesc::Shader* ddf_vp = 0x0;
         ShaderDesc::Shader* ddf_fp = 0x0;

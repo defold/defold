@@ -183,6 +183,64 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         checkExpectedLanguages(shader, expectedLanguagesES3);
     }
 
+    @Test
+    public void testShaderSourcePathsAreStoredInShaderDesc() throws Exception {
+        ShaderDesc graphicsShader = addAndBuildShaderDescs(
+            new String[] {"/materials/source_paths.vp", "/materials/source_paths.fp"},
+            new String[] {vp, fp},
+            "/materials/source_paths.shbundle");
+
+        assertEquals("/materials/source_paths.vp", graphicsShader.getVertexProgram());
+        assertEquals("/materials/source_paths.fp", graphicsShader.getFragmentProgram());
+        assertFalse(graphicsShader.hasComputeProgram());
+
+        String computeSource =
+            "layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;\n" +
+            "void main() {}";
+        ShaderDesc computeShader = addAndBuildShaderDesc(
+            "/materials/source_paths.cp", computeSource, "/materials/source_paths_compute.shbundle");
+
+        assertEquals("/materials/source_paths.cp", computeShader.getComputeProgram());
+        assertFalse(computeShader.hasVertexProgram());
+        assertFalse(computeShader.hasFragmentProgram());
+    }
+
+    @Test
+    public void testMixedLegacyShaderSourcePathsArePreserved() throws Exception {
+        String newVertexShader =
+            "#version 140\n" +
+            "in vec4 position;\n" +
+            "out vec4 fragColor;\n" +
+            "void main() {\n" +
+            "    fragColor = vec4(1.0);\n" +
+            "    gl_Position = position;\n" +
+            "}\n";
+
+        ShaderDesc shader = addAndBuildShaderDescs(
+            new String[] {"/materials/mixed_pipeline.vp", "/materials/mixed_pipeline.fp"},
+            new String[] {newVertexShader, fp},
+            "/materials/mixed_pipeline.shbundle");
+
+        assertEquals("/materials/mixed_pipeline.vp", shader.getVertexProgram());
+        assertEquals("/materials/mixed_pipeline.fp", shader.getFragmentProgram());
+    }
+
+    @Test
+    public void testShaderDescWithoutSourcePathsStillLoads() throws Exception {
+        ShaderDesc original = ShaderDesc.newBuilder()
+            .addShaders(ShaderDesc.Shader.newBuilder()
+                .setShaderType(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT)
+                .setLanguage(ShaderDesc.Language.LANGUAGE_GLSL_SM330)
+                .setSource(com.google.protobuf.ByteString.copyFromUtf8(fp)))
+            .build();
+
+        ShaderDesc loaded = ShaderDesc.parseFrom(original.toByteArray());
+        assertEquals(1, loaded.getShadersCount());
+        assertFalse(loaded.hasVertexProgram());
+        assertFalse(loaded.hasFragmentProgram());
+        assertFalse(loaded.hasComputeProgram());
+    }
+
     private static void debugPrintResourceList(String label, List<ShaderDesc.ResourceBinding> lst) {
         System.out.println(label);
 
