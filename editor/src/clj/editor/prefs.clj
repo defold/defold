@@ -78,7 +78,7 @@
 
 #_[:boolean :string :password :locale :keyword :integer :number :one-of :array :set :object :object-of :enum :tuple]
 
-(defn- vec3-schema [^double x ^double y ^double z]
+(defn- vec3-schema [x y z]
   {:type :object
    :properties {:x {:type :number :default x}
                 :y {:type :number :default y}
@@ -879,28 +879,13 @@
                  events))))
     nil))
 
-(defn get-pref-entry
-  ([prefs pref-path entry-key]
-   (get-pref-entry prefs pref-path entry-key nil))
-  ([prefs pref-path entry-key default]
-   (clojure.core/get (get prefs pref-path) entry-key default)))
-
-(defn get-pref-entry-in
-  ([prefs pref-path entry-key entry-path]
-   (get-pref-entry-in prefs pref-path entry-key entry-path nil))
-  ([prefs pref-path entry-key entry-path default]
-   (get-in (get prefs pref-path)
-           (into [entry-key] entry-path)
-           default)))
-
-(defn set-pref-entry! [prefs pref-path entry-key value]
-  (update! prefs pref-path assoc entry-key value))
+(defn get-pref-entry-in [prefs pref-path entry-key entry-path default]
+  (get-in (get prefs pref-path)
+          (into [entry-key] entry-path)
+          default))
 
 (defn set-pref-entry-in! [prefs pref-path entry-key entry-path value]
   (update! prefs pref-path assoc-in (into [entry-key] entry-path) value))
-
-(defn update-pref-entry-in! [prefs pref-path entry-key entry-path f & args]
-  (update! prefs pref-path #(apply update-in % (into [entry-key] entry-path) f args)))
 
 (defn schema
   "Get a preference schema at a specified get-in path"

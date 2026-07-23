@@ -273,38 +273,41 @@
   (output renderable pass/RenderData :cached produce-renderable))
 
 (defn- invalidate-grids! [app-view]
-  (let [scene-view-id (g/node-value app-view :active-view)
-        grid-id (g/node-value scene-view-id :grid)]
+  (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
+             grid-id (g/node-value scene-view-id :grid evaluation-context)]
     (g/transact [(g/invalidate-output grid-id :grids)])))
 
 (defn show-settings! [^Parent owner app-view prefs keymap localization]
-  (let [scene-view-id (g/node-value app-view :active-view)
-        grid (g/node-value scene-view-id :grid)
-        camera (g/node-value grid :camera)
-        ignored-keys (set (keys (g/node-value grid :options)))
-        value-changed-fn (fn [k v]
-                           (set-grid-pref! prefs camera [k] v)
-                           (invalidate-grids! app-view))
-        all-descriptors
-        [{:type :reset-all
-          :on-reset (fn [swap-state]
-                      (prefs/reset-path! prefs [:scene (grid-mode camera)])
-                      (swap-state merge (get-grid-pref prefs camera []))
-                      (invalidate-grids! app-view))}
-         {:key :size :type :vec3-floats
-          :value (get-grid-pref prefs camera [:size])
-          :on-value-changed (partial value-changed-fn :size)}
-         {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"
-          :value (get-grid-pref prefs camera [:active-plane])
-          :on-value-changed (partial value-changed-fn :active-plane)}
-         {:key :color :type :color :label "scene-popup.grid.color"
-          :value (get-grid-pref prefs camera [:color])
-          :on-value-changed (partial value-changed-fn :color)}
-         {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
-          :value (get-grid-pref prefs camera [:opacity])
-          :on-value-changed (partial value-changed-fn :opacity)
-          :slider-value->string (fn [^double v]
-                                  (str (Math/round (* v 100)) "%"))}]
-        descriptors (filterv #(not (contains? ignored-keys (:key %))) all-descriptors)
-        initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
-    (settings-popup/show! owner keymap localization initial-state 240 descriptors)))
+  (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
+             grid (g/node-value scene-view-id :grid evaluation-context)
+             camera (g/node-value grid :camera evaluation-context)
+             ignored-keys (set (keys (g/node-value grid :options evaluation-context)))]
+    (let [value-changed-fn (fn [k v]
+                             (set-grid-pref! prefs camera [k] v)
+                             (invalidate-grids! app-view))
+
+          all-descriptors
+          [{:type :reset-all
+            :on-reset (fn [swap-state]
+                        (prefs/reset-path! prefs [:scene (grid-mode camera)])
+                        (swap-state merge (get-grid-pref prefs camera []))
+                        (invalidate-grids! app-view))}
+           {:key :size :type :vec3-floats
+            :value (get-grid-pref prefs camera [:size])
+            :on-value-changed (partial value-changed-fn :size)}
+           {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"
+            :value (get-grid-pref prefs camera [:active-plane])
+            :on-value-changed (partial value-changed-fn :active-plane)}
+           {:key :color :type :color :label "scene-popup.grid.color"
+            :value (get-grid-pref prefs camera [:color])
+            :on-value-changed (partial value-changed-fn :color)}
+           {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
+            :value (get-grid-pref prefs camera [:opacity])
+            :on-value-changed (partial value-changed-fn :opacity)
+            :slider-value->string (fn [^double v]
+                                    (str (Math/round (* v 100)) "%"))}]
+
+          descriptors (filterv #(not (contains? ignored-keys (:key %))) all-descriptors)
+
+          initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
+      (settings-popup/show! owner keymap localization initial-state 240 descriptors))))

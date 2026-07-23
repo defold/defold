@@ -24,7 +24,8 @@
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
             [internal.util :as iutil]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.coll :as coll])
   (:import [javafx.css PseudoClass]
            [javafx.scene Node Parent]
            [javafx.scene.control Tab ToggleButton]))
@@ -329,8 +330,8 @@
   (let [{:keys [filters-enabled filtered-renderable-tags]} (settings scene-visibility evaluation-context)]
     (.pseudoClassStateChanged btn (PseudoClass/getPseudoClass "filters-active")
                               (boolean (and filters-enabled
-                                            (not-every? never-appear-filtered-tags
-                                                        filtered-renderable-tags))))))
+                                            (coll/not-every? never-appear-filtered-tags
+                                                             filtered-renderable-tags))))))
 
 (defn show-settings! [keymap localization ^Parent owner scene-visibility]
   (let [setting-descriptors (g/let-ec [current-settings (settings scene-visibility evaluation-context)]

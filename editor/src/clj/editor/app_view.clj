@@ -61,8 +61,8 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
-            [editor.math :as math]
             [editor.markdown :as markdown]
+            [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -145,34 +145,34 @@
                    :split-id "assets-split"}})
 
 (def ^:private scene-default-camera-projection-by-ext
-    {"model" :perspective
-     "mesh" :perspective
-     "cubemap" :perspective
-     "gltf" :perspective
-     "glb" :perspective
-     "directional_light" :perspective
-     "point_light" :perspective
-     "spot_light" :perspective
-     "ambient_light" :perspective
+  {"model" :perspective
+   "mesh" :perspective
+   "cubemap" :perspective
+   "gltf" :perspective
+   "glb" :perspective
+   "directional_light" :perspective
+   "point_light" :perspective
+   "spot_light" :perspective
+   "ambient_light" :perspective
 
-     ;; Unless we find a better way to determine whether these can start in perspective
-     ;; just open them as orthographic
-     "go" :orthographic
-     "collection" :orthographic
-     "particlefx" :orthographic
+   ;; Unless we find a better way to determine whether these can start in perspective
+   ;; just open them as orthographic
+   "go" :orthographic
+   "collection" :orthographic
+   "particlefx" :orthographic
 
-     "jpg" :orthographic
-     "jpeg" :orthographic
-     "png" :orthographic
-     "atlas" :orthographic
-     "tilesource" :orthographic
-     "tileset" :orthographic
-     "tilemap" :orthographic
-     "tilegrid" :orthographic
-     "gui" :orthographic
-     "font" :orthographic
-     "sprite" :orthographic
-     "label" :orthographic})
+   "jpg" :orthographic
+   "jpeg" :orthographic
+   "png" :orthographic
+   "atlas" :orthographic
+   "tilesource" :orthographic
+   "tileset" :orthographic
+   "tilemap" :orthographic
+   "tilegrid" :orthographic
+   "gui" :orthographic
+   "font" :orthographic
+   "sprite" :orthographic
+   "label" :orthographic})
 
 (defn- pane-visible? [^Scene main-scene pane-kw]
   (let [{:keys [pane-id split-id]} (split-info-by-pane-kw pane-kw)]
@@ -2224,8 +2224,9 @@
 (declare save-scene-camera-prefs!)
 
 (defn- dispose-scene-views! [app-view prefs]
-  (let [open-views (g/node-value app-view :open-views)]
-    (doseq [view-id (g/node-value app-view :scene-view-ids)]
+  (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
+             scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
+    (doseq [view-id scene-view-ids]
       (when-let [resource (:resource (get open-views view-id))]
         (save-scene-camera-prefs! prefs view-id resource))
       (try
@@ -2390,8 +2391,9 @@
   (let [ext (some-> resource resource/resource-type :ext)]
     (case ext
       "collisionobject"
-      (let [game-project (project/get-resource-node project "/game.project")]
-        (if (= "2D" (game-project/get-setting game-project ["physics" "type"]))
+      (g/let-ec [game-project (project/get-resource-node project "/game.project" evaluation-context)
+                 physics-type (game-project/get-setting game-project ["physics" "type"] evaluation-context)]
+        (if (= "2D" physics-type)
           :orthographic
           :perspective))
 
@@ -2417,7 +2419,7 @@
 
 (defn- try-load-camera-from-prefs [prefs path-key]
   (when-let [{:keys [projection position rotation fov-x fov-y focus-point]}
-             (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera])]
+             (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera] nil)]
     (let [[position-x position-y position-z] position
           [rotation-x rotation-y rotation-z rotation-w] rotation
           [focus-x focus-y focus-z focus-w] focus-point]
