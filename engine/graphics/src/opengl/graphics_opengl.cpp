@@ -3125,43 +3125,54 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void SetShaderCreateError(GLenum type, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
+    const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language);
+
+    static const char* GetShaderVariantName(const ShaderDesc::Shader* shader)
+    {
+        return shader->m_VariantTextureArray ? "texture-array fallback" : "base";
+    }
+
+    static void SetShaderCreateError(GLenum type, const ShaderDesc::Shader* shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
         if (!error_buffer || error_buffer_size == 0)
             return;
 
         const char* stage = GetShaderStageName(type);
+        const char* language = GetShaderProgramLanguageLiteral(shader->m_Language);
+        const char* variant = GetShaderVariantName(shader);
         if (source_path && source_path[0])
-            dmSnPrintf(error_buffer, error_buffer_size, "Unable to create %s shader '%s'.", stage, source_path);
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to create %s shader '%s'.\nVariant: %s (%s).", stage, source_path, language, variant);
         else
-            dmSnPrintf(error_buffer, error_buffer_size, "Unable to create %s shader.", stage);
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to create %s shader.\nVariant: %s (%s).", stage, language, variant);
     }
 
-    static void SetShaderCompileError(GLenum type, const char* source_path, const char* driver_log, char* error_buffer, uint32_t error_buffer_size)
+    static void SetShaderCompileError(GLenum type, const ShaderDesc::Shader* shader, const char* source_path, const char* driver_log, char* error_buffer, uint32_t error_buffer_size)
     {
         if (!error_buffer || error_buffer_size == 0)
             return;
 
         const char* stage = GetShaderStageName(type);
         const char* log = driver_log && driver_log[0] ? driver_log : "No compiler log was provided by the graphics driver.";
+        const char* language = GetShaderProgramLanguageLiteral(shader->m_Language);
+        const char* variant = GetShaderVariantName(shader);
         if (source_path && source_path[0])
-            dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader '%s'.\nError: %s", stage, source_path, log);
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader '%s'.\nVariant: %s (%s).\nError: %s", stage, source_path, language, variant, log);
         else
-            dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader.\nError: %s", stage, log);
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader.\nVariant: %s (%s).\nError: %s", stage, language, variant, log);
     }
 
-    static GLuint DoCreateShader(HContext _context, GLenum type, const void* program, uint32_t program_size, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
+    static GLuint DoCreateShader(HContext _context, GLenum type, ShaderDesc::Shader* ddf_shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
         GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
         if (shader_id == 0)
         {
-            SetShaderCreateError(type, source_path, error_buffer, error_buffer_size);
+            SetShaderCreateError(type, ddf_shader, source_path, error_buffer, error_buffer_size);
             return 0;
         }
 
-        GLint size = program_size;
-        glShaderSource(shader_id, 1, (const GLchar**) &program, &size);
+        GLint size = ddf_shader->m_Source.m_Count;
+        glShaderSource(shader_id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, &size);
         CHECK_GL_ERROR;
         glCompileShader(shader_id);
         CHECK_GL_ERROR;
@@ -3181,7 +3192,7 @@ static void LogFrameBufferError(GLenum status)
                 glGetShaderInfoLog(shader_id, log_length, &written, log);
                 log[written] = 0;
             }
-            SetShaderCompileError(type, source_path, log, error_buffer, error_buffer_size);
+            SetShaderCompileError(type, ddf_shader, source_path, log, error_buffer, error_buffer_size);
             free(log);
             glDeleteShader(shader_id);
             return 0;
@@ -3193,7 +3204,7 @@ static void LogFrameBufferError(GLenum status)
     static OpenGLShader* CreateShader(HContext _context, GLenum type, ShaderDesc::Shader* ddf_shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        GLuint shader_id = DoCreateShader(_context, type, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, source_path, error_buffer, error_buffer_size);
+        GLuint shader_id = DoCreateShader(_context, type, ddf_shader, source_path, error_buffer, error_buffer_size);
         if (!shader_id)
         {
             return 0;
@@ -3665,21 +3676,45 @@ static void LogFrameBufferError(GLenum status)
         context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
     }
 
-    static void SetProgramLinkError(const char* vertex_program, const char* fragment_program, const char* compute_program, const char* driver_log, char* error_buffer, uint32_t error_buffer_size)
+    static void SetProgramLinkError(HContext context, ShaderDesc* ddf, const char* driver_log, char* error_buffer, uint32_t error_buffer_size)
     {
         if (!error_buffer || error_buffer_size == 0)
             return;
 
         const char* log = driver_log && driver_log[0] ? driver_log : "No linker log was provided by the graphics driver.";
-        if (compute_program && compute_program[0])
-            dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program (compute '%s').\nError: %s", compute_program, log);
-        else if (vertex_program && vertex_program[0] && fragment_program && fragment_program[0])
-            dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program (vertex '%s', fragment '%s').\nError: %s", vertex_program, fragment_program, log);
+        ShaderDesc::Shader* vertex_shader = 0;
+        ShaderDesc::Shader* fragment_shader = 0;
+        ShaderDesc::Shader* compute_shader = 0;
+        GetShaderProgram(context, ddf, &vertex_shader, &fragment_shader, &compute_shader);
+        if (compute_shader)
+        {
+            const char* language = GetShaderProgramLanguageLiteral(compute_shader->m_Language);
+            const char* variant = GetShaderVariantName(compute_shader);
+            if (ddf->m_ComputeProgram && ddf->m_ComputeProgram[0])
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program (compute '%s').\nVariant: %s (%s).\nError: %s", ddf->m_ComputeProgram, language, variant, log);
+            else
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link compute shader program.\nVariant: %s (%s).\nError: %s", language, variant, log);
+        }
+        else if (vertex_shader && fragment_shader)
+        {
+            const char* vertex_language = GetShaderProgramLanguageLiteral(vertex_shader->m_Language);
+            const char* fragment_language = GetShaderProgramLanguageLiteral(fragment_shader->m_Language);
+            const char* vertex_variant = GetShaderVariantName(vertex_shader);
+            const char* fragment_variant = GetShaderVariantName(fragment_shader);
+            if (ddf->m_VertexProgram && ddf->m_VertexProgram[0] && ddf->m_FragmentProgram && ddf->m_FragmentProgram[0])
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program (vertex '%s', fragment '%s').\nVariants: vertex %s (%s), fragment %s (%s).\nError: %s",
+                    ddf->m_VertexProgram, ddf->m_FragmentProgram, vertex_language, vertex_variant, fragment_language, fragment_variant, log);
+            else
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program.\nVariants: vertex %s (%s), fragment %s (%s).\nError: %s",
+                    vertex_language, vertex_variant, fragment_language, fragment_variant, log);
+        }
         else
+        {
             dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program.\nError: %s", log);
+        }
     }
 
-    static bool LinkProgram(GLuint program, const char* vertex_program, const char* fragment_program, const char* compute_program, char* error_buffer, uint32_t error_buffer_size)
+    static bool LinkProgram(HContext context, GLuint program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         glLinkProgram(program);
 
@@ -3698,7 +3733,7 @@ static void LogFrameBufferError(GLenum status)
                 glGetProgramInfoLog(program, log_length, &written, log);
                 log[written] = 0;
             }
-            SetProgramLinkError(vertex_program, fragment_program, compute_program, log, error_buffer, error_buffer_size);
+            SetProgramLinkError(context, ddf, log, error_buffer, error_buffer_size);
             free(log);
             return false;
         }
@@ -3716,7 +3751,8 @@ static void LogFrameBufferError(GLenum status)
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
     }
 
-    static bool SetupGraphicsProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader, const char* vertex_program, const char* fragment_program, char* error_buffer, uint32_t error_buffer_size)
+    static bool SetupGraphicsProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader,
+        ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         if (!program || !vertex_shader || !fragment_shader)
         {
@@ -3756,7 +3792,7 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
-        if (!LinkProgram(p, vertex_program, fragment_program, 0, error_buffer, error_buffer_size))
+        if (!LinkProgram((HContext) context, p, ddf, error_buffer, error_buffer_size))
         {
             glDeleteProgram(p);
             CHECK_GL_ERROR;
@@ -3777,7 +3813,8 @@ static void LogFrameBufferError(GLenum status)
     }
 
 #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
-    static bool SetupComputeProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* shader, const char* compute_program, char* error_buffer, uint32_t error_buffer_size)
+    static bool SetupComputeProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* shader,
+        ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         if (!program || !shader)
         {
@@ -3802,7 +3839,7 @@ static void LogFrameBufferError(GLenum status)
         glAttachShader(p, compute_shader_id);
         CHECK_GL_ERROR;
 
-        if (!LinkProgram(p, 0, 0, compute_program, error_buffer, error_buffer_size))
+        if (!LinkProgram((HContext) context, p, ddf, error_buffer, error_buffer_size))
         {
             glDeleteProgram(p);
             CHECK_GL_ERROR;
@@ -3862,7 +3899,7 @@ static void LogFrameBufferError(GLenum status)
                 DeleteIncompleteProgram(context, program, 0, 0, 0);
                 return 0;
             }
-            if (!SetupComputeProgram(context, program, compute_shader, ddf->m_ComputeProgram, error_buffer, error_buffer_size))
+            if (!SetupComputeProgram(context, program, compute_shader, ddf, error_buffer, error_buffer_size))
             {
                 DeleteIncompleteProgram(context, program, 0, 0, compute_shader);
                 return 0;
@@ -3891,7 +3928,7 @@ static void LogFrameBufferError(GLenum status)
                 return 0;
             }
 
-            if (!SetupGraphicsProgram(context, program, vertex_shader, fragment_shader, ddf->m_VertexProgram, ddf->m_FragmentProgram, error_buffer, error_buffer_size))
+            if (!SetupGraphicsProgram(context, program, vertex_shader, fragment_shader, ddf, error_buffer, error_buffer_size))
             {
                 DeleteIncompleteProgram(context, program, vertex_shader, fragment_shader, 0);
                 return 0;
@@ -3903,15 +3940,16 @@ static void LogFrameBufferError(GLenum status)
         return (HProgram) program;
     }
 
-    static bool TryCompileShader(GLuint shader, GLenum type, const void* source, GLint size, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
+    static bool TryCompileShader(GLuint shader, GLenum type, ShaderDesc::Shader* ddf_shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
         if (shader == 0)
         {
-            SetShaderCreateError(type, source_path, error_buffer, error_buffer_size);
+            SetShaderCreateError(type, ddf_shader, source_path, error_buffer, error_buffer_size);
             return false;
         }
 
-        glShaderSource(shader, 1, (const GLchar**) &source, &size);
+        GLint size = ddf_shader->m_Source.m_Count;
+        glShaderSource(shader, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, &size);
         CHECK_GL_ERROR;
         glCompileShader(shader);
         CHECK_GL_ERROR;
@@ -3930,7 +3968,7 @@ static void LogFrameBufferError(GLenum status)
                 glGetShaderInfoLog(shader, log_length, &written, log);
                 log[written] = 0;
             }
-            SetShaderCompileError(type, source_path, log, error_buffer, error_buffer_size);
+            SetShaderCompileError(type, ddf_shader, source_path, log, error_buffer, error_buffer_size);
             free(log);
             CHECK_GL_ERROR;
             return false;
@@ -3939,7 +3977,7 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
-    static bool TryLinkProgram(GLuint* ids, int num_ids, const char* vertex_program, const char* fragment_program, const char* compute_program, char* error_buffer, uint32_t error_buffer_size)
+    static bool TryLinkProgram(HContext context, GLuint* ids, int num_ids, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         GLuint tmp_program = glCreateProgram();
         CHECK_GL_ERROR;
@@ -3956,7 +3994,7 @@ static void LogFrameBufferError(GLenum status)
             CHECK_GL_ERROR;
         }
 
-        bool success = LinkProgram(tmp_program, vertex_program, fragment_program, compute_program, error_buffer, error_buffer_size);
+        bool success = LinkProgram(context, tmp_program, ddf, error_buffer, error_buffer_size);
         glDeleteProgram(tmp_program);
 
         return success;
@@ -3972,7 +4010,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
         GLuint tmp_shader = glCreateShader(type);
-        bool success = TryCompileShader(tmp_shader, type, ddf->m_Source.m_Data, ddf->m_Source.m_Count, source_path, error_buffer, error_buffer_size);
+        bool success = TryCompileShader(tmp_shader, type, ddf, source_path, error_buffer, error_buffer_size);
         if (tmp_shader)
             glDeleteShader(tmp_shader);
         CHECK_GL_ERROR;
@@ -4011,7 +4049,7 @@ static void LogFrameBufferError(GLenum status)
 
             GLuint id = GetGLHandle(context, program->m_ComputeShader->m_Id);
 
-            if (!TryLinkProgram(&id, 1, 0, 0, ddf->m_ComputeProgram, error_buffer, error_buffer_size))
+            if (!TryLinkProgram(_context, &id, 1, ddf, error_buffer, error_buffer_size))
             {
                 return false;
             }
@@ -4035,7 +4073,7 @@ static void LogFrameBufferError(GLenum status)
                 GetGLHandle(context, program->m_FragmentShader->m_Id)
             };
 
-            if (!TryLinkProgram(ids, 2, ddf->m_VertexProgram, ddf->m_FragmentProgram, 0, error_buffer, error_buffer_size))
+            if (!TryLinkProgram(_context, ids, 2, ddf, error_buffer, error_buffer_size))
             {
                 return false;
             }

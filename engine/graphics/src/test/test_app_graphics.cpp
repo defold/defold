@@ -393,6 +393,8 @@ struct ShaderFailureDiagnosticsTest : ITest
         if (log.Contains(resource_path) &&
             log.Contains(source_path) &&
             log.Contains(operation) &&
+            log.Contains("Variant: LANGUAGE_") &&
+            log.Contains("(base)") &&
             log.Contains("Error:") &&
             !log.Contains("Error: Unknown"))
         {
