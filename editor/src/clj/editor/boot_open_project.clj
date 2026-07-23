@@ -106,6 +106,29 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
+(defn- clean-up-resource-prefs [prefs changes]
+  (let [moved (reduce (fn [settings [old new]]
+                        (let [old-path-key (:project-path old)
+                              new-path-key (:project-path new)]
+                          (if-let [entry (get settings old-path-key)]
+                            (-> settings
+                                (update :settings dissoc old-path-key)
+                                (update :settings assoc new-path-key entry)
+                                (update :moved conj old-path-key))
+                            settings)))
+                      {:settings (prefs/get prefs [:scene :resource-settings])
+                       :moved #{}}
+                      (:moved changes))
+        updated-settings (reduce (fn [settings entry]
+                                   (let [path-key (:project-path entry)]
+                                     (if (and (contains? settings path-key)
+                                              (not (contains? (:moved moved) path-key)))
+                                       (dissoc settings path-key)
+                                       settings)))
+                                 (:settings moved)
+                                 (:removed changes))]
+    (prefs/set! prefs [:scene :resource-settings] updated-settings)))
+
 (defn- handle-resource-changes! [app-scene tab-panes open-views changes-view]
   (ui/user-data! app-scene ::ui/refresh-requested? true)
   (app-view/remove-invalid-tabs! tab-panes open-views)
@@ -278,10 +301,11 @@
 
       (workspace/add-resource-listener! workspace 0
                                         (reify resource/ResourceListener
-                                          (handle-changes [_ _ _]
+                                          (handle-changes [_ changes _]
                                             (let [open-views (g/node-value app-view :open-views)
                                                   panes (.getItems ^SplitPane editor-tabs-split)]
-                                              (handle-resource-changes! scene panes open-views changes-view)))))
+                                              (handle-resource-changes! scene panes open-views changes-view)
+                                              (clean-up-resource-prefs prefs changes)))))
 
       (.addEventFilter scene
                        InputEvent/ANY
