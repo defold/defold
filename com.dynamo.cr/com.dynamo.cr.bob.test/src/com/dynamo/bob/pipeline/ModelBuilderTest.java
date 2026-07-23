@@ -101,4 +101,34 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(ResourceUtil.minifyPath("/test_skeleton.skeletonc"), rigScene.getSkeleton());
         assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
     }
+
+    @Test
+    public void testModelTextureWithMixedCaseExtension() throws Exception {
+        addFile("/test_meshset.gltf", GLTF);
+        addImage("/test.png", 16, 16);
+        addFile("/Textures/Test.PnG", getFile("/test.png"));
+
+        String shaderSource = "void main() {}\n";
+        addFile("/testModelTexture.vp", shaderSource);
+        addFile("/testModelTexture.fp", shaderSource);
+        addFile("/test.material",
+                "name: \"test_material\"\n" +
+                "vertex_program: \"/testModelTexture.vp\"\n" +
+                "fragment_program: \"/testModelTexture.fp\"\n");
+
+        String modelSource =
+                "mesh: \"/test_meshset.gltf\"\n" +
+                "materials {\n" +
+                "  name: \"default\"\n" +
+                "  material: \"/test.material\"\n" +
+                "  textures {\n" +
+                "    sampler: \"texture_sampler\"\n" +
+                "    texture: \"/Textures/Test.PnG\"\n" +
+                "  }\n" +
+                "}\n";
+
+        Model model = getMessage(build("/test.model", modelSource), Model.class);
+        assertEquals("/Textures/Test.texturec",
+                model.getMaterials(0).getTextures(0).getTexture());
+    }
 }

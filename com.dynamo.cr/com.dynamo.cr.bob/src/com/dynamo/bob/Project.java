@@ -428,7 +428,7 @@ public class Project implements AutoCloseable {
                 BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
                 if (builderParams != null) {
                     for (String inExt : builderParams.inExts()) {
-                        extToBuilder.put(inExt, (Class<? extends Builder>) klass);
+                        extToBuilder.put(StringUtil.toLowerCase(inExt), (Class<? extends Builder>) klass);
                         ResourceUtil.registerMapping(inExt, builderParams.outExt());
                     }
                     Builder.addParamsDigest(klass, this.getOptions(), builderParams);
@@ -499,7 +499,7 @@ public class Project implements AutoCloseable {
     }
 
     private Class<? extends Builder> getBuilderFromExtension(String input) {
-        String ext = "." + FilenameUtils.getExtension(input);
+        String ext = "." + StringUtil.toLowerCase(FilenameUtils.getExtension(input));
         Class<? extends Builder> builderClass = extToBuilder.get(ext);
         return builderClass;
     }
