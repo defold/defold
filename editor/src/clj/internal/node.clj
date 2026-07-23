@@ -630,7 +630,7 @@
   `(when-check-schemas
      (validate-property-value-impl (deref ~node-type-ref) ~node-id ~property-label ~property-value)))
 
-(defn- validate-property-values-impl [node-type-deref node-id property-values]
+(defn validate-property-labels-impl [node-type-deref property-values]
   (let [unknown-property-labels
         (set/difference
           (util/key-set property-values)
@@ -640,15 +640,29 @@
             (str "You have given values for properties "
                  unknown-property-labels
                  ", but those don't exist on nodes of type "
-                 (:name node-type-deref))))
+                 (:name node-type-deref)))))
 
+(defn validate-property-values-impl [node-type-deref node-id property-values]
   (coll/reduce-kv-> property-values nil
     (fn [_ property-label property-value]
       (validate-property-value-impl node-type-deref node-id property-label property-value))))
 
 (defmacro validate-property-values [node-type-ref node-id property-values]
-  `(when-check-schemas
-     (validate-property-values-impl (deref ~node-type-ref) ~node-id ~property-values)))
+  (when (or *assert* *check-schemas*)
+    (let [node-type-deref-sym (gensym 'node-type-deref)
+          node-id-sym (gensym 'node-id)
+          property-values-sym (gensym 'property-values)]
+      `(let [~node-type-deref-sym (deref ~node-type-ref)
+             ~node-id-sym ~node-id
+             ~property-values-sym ~property-values]
+         ~@(filter
+             some?
+             [(when *assert*
+                `(when *assert*
+                   (validate-property-labels-impl ~node-type-deref-sym ~property-values-sym)))
+              (when *check-schemas*
+                `(when *check-schemas*
+                   (validate-property-values-impl ~node-type-deref-sym ~node-id-sym ~property-values-sym)))])))))
 
 ;;; ----------------------------------------
 ;;; Construction
