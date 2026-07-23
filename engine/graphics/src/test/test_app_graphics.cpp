@@ -291,6 +291,102 @@ struct MslArgumentBuffersTest : ITest
     }
 };
 
+struct MslMatrixVertexInputTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_PositionVertexDeclaration;
+    dmGraphics::HVertexDeclaration m_MatrixVertexDeclaration;
+    dmGraphics::HVertexBuffer      m_PositionVertexBuffer;
+    dmGraphics::HVertexBuffer      m_MatrixVertexBuffer;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        assert(dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL);
+
+        static const char vs_source[] =
+            "#include <metal_stdlib>\n"
+            "using namespace metal;\n"
+            "struct main0_out { float4 gl_Position [[position]]; };\n"
+            "struct main0_in {\n"
+            "    float4 position [[attribute(0)]];\n"
+            "    float4 mtx_world [[attribute(1)]];\n"
+            "    float4 mtx_world_1 [[attribute(2)]];\n"
+            "    float4 mtx_world_2 [[attribute(3)]];\n"
+            "    float4 mtx_world_3 [[attribute(4)]];\n"
+            "};\n"
+            "vertex main0_out main0(main0_in in [[stage_in]]) {\n"
+            "    main0_out out;\n"
+            "    float4x4 world = float4x4(in.mtx_world, in.mtx_world_1, in.mtx_world_2, in.mtx_world_3);\n"
+            "    out.gl_Position = world * in.position;\n"
+            "    return out;\n"
+            "}\n";
+
+        static const char fs_source[] =
+            "#include <metal_stdlib>\n"
+            "using namespace metal;\n"
+            "struct main0_out { float4 color [[color(0)]]; };\n"
+            "fragment main0_out main0() {\n"
+            "    main0_out out;\n"
+            "    out.color = float4(0.0, 1.0, 0.0, 1.0);\n"
+            "    return out;\n"
+            "}\n";
+
+        dmGraphics::ShaderDesc shader_desc = {};
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, (uint8_t*) vs_source, sizeof(vs_source));
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, (uint8_t*) fs_source, sizeof(fs_source));
+        AddShaderResource(&shader_desc, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader_desc, "mtx_world", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_MAT4, 1, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+
+        char error_buffer[1024] = {};
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&shader_desc);
+
+        if (!m_Program)
+        {
+            dmLogError("Failed to create MSL matrix vertex input test program: %s", error_buffer);
+            engine->m_Failed = true;
+            return;
+        }
+
+        const float position_data[] = {
+            -0.5f, -0.5f, 0.0f, 1.0f,
+             0.5f, -0.5f, 0.0f, 1.0f,
+            -0.5f,  0.5f, 0.0f, 1.0f,
+             0.5f, -0.5f, 0.0f, 1.0f,
+             0.5f,  0.5f, 0.0f, 1.0f,
+            -0.5f,  0.5f, 0.0f, 1.0f,
+        };
+        const float matrix_data[] = {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f,
+        };
+
+        m_PositionVertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(position_data), (void*) position_data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        m_MatrixVertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(matrix_data), (void*) matrix_data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        dmGraphics::HVertexStreamDeclaration position_stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+        dmGraphics::AddVertexStream(position_stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
+        m_PositionVertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, position_stream_declaration);
+
+        dmGraphics::HVertexStreamDeclaration matrix_stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        dmGraphics::AddVertexStream(matrix_stream_declaration, "mtx_world", 16, dmGraphics::TYPE_FLOAT, false);
+        m_MatrixVertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, matrix_stream_declaration);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0);
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_PositionVertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_PositionVertexDeclaration, 0, 0, m_Program);
+        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_MatrixVertexBuffer, 1);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_MatrixVertexDeclaration, 1, 0, m_Program);
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
+    }
+};
+
 struct DrawTriangleTest : ITest
 {
     dmGraphics::HProgram           m_Program;
@@ -957,8 +1053,16 @@ static void* EngineCreate(int argc, char** argv)
     //engine->m_Test = new ReadPixelsTest();
     //engine->m_Test = new AsyncTextureUploadTest();
     //engine->m_Test = new ClearBackbufferTest();
-    dmLogInfo("test_app_graphics: running ClearBackbufferTest");
-    engine->m_Test = new ClearBackbufferTest();
+    if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL)
+    {
+        dmLogInfo("test_app_graphics: running MslMatrixVertexInputTest");
+        engine->m_Test = new MslMatrixVertexInputTest();
+    }
+    else
+    {
+        dmLogInfo("test_app_graphics: running ClearBackbufferTest");
+        engine->m_Test = new ClearBackbufferTest();
+    }
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
