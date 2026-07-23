@@ -46,9 +46,9 @@
             (let [basis (g/now)
                   graph (get-in basis [:graphs graph-id])]
               (testing "Nodes."
-                (is (empty? (g/overrides basis owner-node-id)))
-                (is (empty? (g/overrides basis directly-owned-node-id)))
-                (is (empty? (g/overrides basis indirectly-owned-node-id)))
+                (is (coll/empty? (g/overrides basis owner-node-id)))
+                (is (coll/empty? (g/overrides basis directly-owned-node-id)))
+                (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
                 (is (= #{owner-node-id
                          directly-owned-node-id
                          indirectly-owned-node-id}
@@ -316,9 +316,9 @@
                 (is (= :indirectly-owned-property-value
                        (g/raw-property-value basis indirectly-owned-node-id :property)
                        (g/node-value indirectly-owned-node-id :property-output evaluation-context)))
-                (is (empty? (g/overrides basis owner-node-id)))
-                (is (empty? (g/overrides basis directly-owned-node-id)))
-                (is (empty? (g/overrides basis indirectly-owned-node-id))))))
+                (is (coll/empty? (g/overrides basis owner-node-id)))
+                (is (coll/empty? (g/overrides basis directly-owned-node-id)))
+                (is (coll/empty? (g/overrides basis indirectly-owned-node-id))))))
 
           ensure-after!
           (fn ensure-after! []
@@ -405,9 +405,9 @@
                 (is (= :indirectly-owned-property-value
                        (g/raw-property-value basis indirectly-owned-node-id :property)
                        (g/node-value indirectly-owned-node-id :property-output evaluation-context)))
-                (is (empty? (g/overrides basis owner-node-id)))
-                (is (empty? (g/overrides basis directly-owned-node-id)))
-                (is (empty? (g/overrides basis indirectly-owned-node-id))))))
+                (is (coll/empty? (g/overrides basis owner-node-id)))
+                (is (coll/empty? (g/overrides basis directly-owned-node-id)))
+                (is (coll/empty? (g/overrides basis indirectly-owned-node-id))))))
 
           ensure-after!
           (fn ensure-after! []
@@ -502,9 +502,9 @@
                 (is (= :indirectly-owned-property-value
                        (g/raw-property-value basis indirectly-owned-node-id :property)
                        (g/node-value indirectly-owned-node-id :property-output evaluation-context)))
-                (is (empty? (g/overrides basis owner-node-id)))
-                (is (empty? (g/overrides basis directly-owned-node-id)))
-                (is (empty? (g/overrides basis indirectly-owned-node-id))))))
+                (is (coll/empty? (g/overrides basis owner-node-id)))
+                (is (coll/empty? (g/overrides basis directly-owned-node-id)))
+                (is (coll/empty? (g/overrides basis indirectly-owned-node-id))))))
 
           ensure-after!
           (fn ensure-after! []

@@ -700,8 +700,8 @@
           (fn ensure-after! []
             (let [basis (g/now)
                   graph (get-in basis [:graphs graph-id])]
-              (is (empty? (g/overrides basis directly-owned-node-id)))
-              (is (empty? (g/overrides basis indirectly-owned-node-id)))
+              (is (coll/empty? (g/overrides basis directly-owned-node-id)))
+              (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
                      (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
                      (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
@@ -807,7 +807,7 @@
           ensure-disconnected!
           (fn ensure-disconnected! []
             (is (= [override-target-node-id] (g/overrides target-node-id)))
-            (is (empty? (g/overrides source-node-id)))
+            (is (coll/empty? (g/overrides source-node-id)))
             (is (= target-node-id (g/override-original override-target-node-id)))
             (is (= nil (g/node-by-id override-source-node-id)))
             (is (= [] (g/sources-of target-node-id :regular-cascade-delete-input)))

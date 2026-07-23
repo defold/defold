@@ -48,7 +48,7 @@
   (and
     (= (class a) (class b))
     (= (count a) (count b))
-    (every? true? (map = a b))))
+    (coll/every? true? (map = a b))))
 
 (defn yield
   "Give up the thread just long enough for a context switch"
@@ -88,7 +88,8 @@
 (defn write-until-new-mtime [f content]
   (do-until-new-mtime (fn [f] (fs/create-file! f content)) f))
 
-(defn library-directory ^File [project-directory]
+(defn library-directory
+  ^File [project-directory]
   (.toFile (library/directory project-directory)))
 
 (defn library-files [project-directory]
@@ -139,8 +140,8 @@
 
 (defmacro with-cleared-system-properties! [property-names & body-exprs]
   {:pre [(vector? property-names)
-         (every? string? property-names)
-         (every? not-empty property-names)]}
+         (coll/every? string? property-names)
+         (coll/every? not-empty property-names)]}
   (let [sym+property-name-pairs
         (into []
               (map (fn [^String property-name]

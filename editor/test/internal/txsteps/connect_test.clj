@@ -1152,8 +1152,8 @@
           (fn ensure-before! []
             (let [basis (g/now)
                   graph (get-in basis [:graphs graph-id])]
-              (is (empty? (g/overrides basis directly-owned-node-id)))
-              (is (empty? (g/overrides basis indirectly-owned-node-id)))
+              (is (coll/empty? (g/overrides basis directly-owned-node-id)))
+              (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
                      (helpers/source-arc-table-tuples basis graph-id indirectly-owned-node-id :property-output)
                      (helpers/target-arc-table-tuples basis graph-id directly-owned-node-id :regular-cascade-delete-input)))
@@ -1261,8 +1261,8 @@
           (fn ensure-before! []
             (let [basis (g/now)
                   graph (get-in basis [:graphs graph-id])]
-              (is (empty? (g/overrides basis directly-owned-node-id)))
-              (is (empty? (g/overrides basis indirectly-owned-node-id)))
+              (is (coll/empty? (g/overrides basis directly-owned-node-id)))
+              (is (coll/empty? (g/overrides basis indirectly-owned-node-id)))
               (is (= #{indirectly-owned-node-id
                        directly-owned-node-id
                        owner-node-id
@@ -1304,7 +1304,7 @@
           (is (= directly-owned-node-id (g/override-original first-order-override-directly-owned-node-id)))
           (is (= first-order-override-directly-owned-node-id (g/override-original second-order-override-directly-owned-node-id)))
           (is (= [first-order-override-directly-owned-node-id] (g/overrides directly-owned-node-id)))
-          (is (empty? (g/overrides indirectly-owned-node-id)))
+          (is (coll/empty? (g/overrides indirectly-owned-node-id)))
           (is (= [second-order-override-directly-owned-node-id] (g/overrides first-order-override-directly-owned-node-id))))
         (ensure-after!))
 
@@ -1380,8 +1380,8 @@
                 (assert-property-value! basis evaluation-context indirectly-owned-node-id :indirectly-owned-property-value)
                 (assert-property-value! basis evaluation-context first-order-override-owner-node-id :first-order-override-owner-property-value)
                 (assert-property-value! basis evaluation-context second-order-override-owner-node-id :second-order-override-owner-property-value)
-                (is (empty? (g/overrides basis directly-owned-node-id)))
-                (is (empty? (g/overrides basis indirectly-owned-node-id))))))
+                (is (coll/empty? (g/overrides basis directly-owned-node-id)))
+                (is (coll/empty? (g/overrides basis indirectly-owned-node-id))))))
 
           ensure-after!
           (fn ensure-after! []
@@ -1436,7 +1436,7 @@
               {:undoable false}
               (g/make-nodes graph-id
                 [target-node-id helpers/ConnectionTargetNode
-                 source-node-id [helpers/ConnectionSourceNode :property :before]]
+                 _source-node-id [helpers/ConnectionSourceNode :property :before]]
                 (g/override target-node-id))))
 
           ensure-connected!
@@ -1452,7 +1452,7 @@
           ensure-disconnected!
           (fn ensure-disconnected! []
             (is (= [override-target-node-id] (g/overrides target-node-id)))
-            (is (empty? (g/overrides source-node-id)))
+            (is (coll/empty? (g/overrides source-node-id)))
             (is (= target-node-id (g/override-original override-target-node-id)))
             (is (= [] (g/sources-of target-node-id :regular-cascade-delete-input)))
             (is (= [] (g/sources-of override-target-node-id :regular-cascade-delete-input))))]
@@ -1497,8 +1497,8 @@
             (g/transact
               {:undoable false}
               (g/make-nodes graph-id
-                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                 target-node-id helpers/ConnectionTargetNode])))
+                [_source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                 _target-node-id helpers/ConnectionTargetNode])))
 
           {:keys [basis] :as tx-result}
           (g/transact
@@ -1531,8 +1531,8 @@
             (g/transact
               {:undoable false}
               (g/make-nodes graph-id
-                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                 target-node-id helpers/ConnectionTargetNode])))
+                [_source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                 _target-node-id helpers/ConnectionTargetNode])))
 
           {:keys [basis] :as tx-result}
           (with-redefs [ig/basis-plan-replace-arc
@@ -1569,7 +1569,7 @@
               {:undoable false}
               (g/make-nodes source-graph-id
                 [initial-source-node-id [helpers/OverrideTestNode :property :initial-value]
-                 replacement-source-node-id [helpers/OverrideTestNode  :property :replacement-value]]
+                 _replacement-source-node-id [helpers/OverrideTestNode  :property :replacement-value]]
                 (g/make-nodes target-graph-id
                   [target-node-id helpers/ConnectionTargetNode]
                   (g/connect initial-source-node-id :property-output target-node-id :regular-input)))))

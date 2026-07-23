@@ -811,9 +811,7 @@
   [description]
   (doseq [[property-label prop-info] (:property description)]
     (when-some [property-default-value (prop-info-default prop-info)]
-      (let [node-type-name (:name description)
-            property-value-type (:value-type prop-info)]
-        (validate-property-value-impl description nil property-label property-default-value))))
+      (validate-property-value-impl description nil property-label property-default-value)))
   description)
 
 (defn- invert-map
