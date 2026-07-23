@@ -61,6 +61,31 @@ public final class EngineArtifactsProvider {
         }
     }
 
+    /**
+     * Returns a file bundled next to the engine binaries in bob's libexec folder, or null if
+     * it is not part of this bob. Used for optional engine artifacts such as the wasm debug
+     * info sidecars, which are packed for locally built engines but downloaded from the
+     * artifact server for official builds.
+     */
+    public static File getOptionalEngineFile(Platform platform, String filename) {
+        try {
+            Bob.init();
+            String path = platform.getPair() + "/" + filename;
+            File f = new File(Bob.getRootFolder(), path);
+            if (!f.exists()) {
+                URL url = Bob.class.getResource("/libexec/" + path);
+                if (url == null) {
+                    return null;
+                }
+                Bob.atomicCopy(url, f, false);
+            }
+            return f;
+        } catch (Exception e) {
+            logger.warning("Failed to unpack '%s' for platform '%s': %s", filename, platform.getPair(), e.getMessage());
+            return null;
+        }
+    }
+
     public static void downloadSymbols(Project project, IProgress progress) throws IOException, CompileExceptionError {
         try (progress) {
             String archs = project.option("architectures", null);

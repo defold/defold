@@ -41,6 +41,7 @@ import org.codehaus.jackson.JsonGenerator;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.EngineArtifactsProvider;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.logging.Logger;
@@ -379,6 +380,23 @@ public class HTML5Bundler implements IBundler {
         }
     }
 
+    // Locates a wasm debug info sidecar. It is delivered in one of three ways, depending on
+    // where the engine came from: next to the engine binary (locally built engine, unpacked
+    // from bob), in the platform build folder (extender build zip, or downloaded from the
+    // artifact server for official engines), or still packed inside bob.
+    private File findWasmDebugFile(Project project, Platform platform, File bin, String filename) {
+        File local = new File(bin.getParentFile(), filename);
+        if (local.exists()) {
+            return local;
+        }
+        File downloaded = new File(new File(project.getBinaryOutputDirectory(), platform.getExtenderPair()), filename);
+        if (downloaded.exists()) {
+            return downloaded;
+        }
+        File packed = EngineArtifactsProvider.getOptionalEngineFile(platform, filename);
+        return (packed != null && packed.exists()) ? packed : null;
+    }
+
     // Copies the engine wasm binary into the bundle. When bundling with --with-symbols,
     // the debug info sidecars produced by -gseparate-dwarf and -gsource-map are placed
     // next to the .wasm (browser devtools resolve them relative to the .wasm URL), and
@@ -387,24 +405,26 @@ public class HTML5Bundler implements IBundler {
         String dwarfOutName = null;
         String sourceMapOutName = null;
         if (project.hasOption("with-symbols")) {
-            File pairDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
-            File dwarf = new File(pairDir, bin.getName() + ".debug.wasm");
-            File sourceMap = new File(pairDir, bin.getName() + ".map");
-            if (dwarf.exists()) {
+            File dwarf = findWasmDebugFile(project, platform, bin, bin.getName() + ".debug.wasm");
+            File sourceMap = findWasmDebugFile(project, platform, bin, bin.getName() + ".map");
+            long bytes = 0;
+            if (dwarf != null) {
                 dwarfOutName = wasmOut.getName() + ".debug.wasm";
                 FileUtils.copyFile(dwarf, new File(appDir, dwarfOutName));
+                bytes += dwarf.length();
             }
-            if (sourceMap.exists()) {
+            if (sourceMap != null) {
                 sourceMapOutName = wasmOut.getName() + ".map";
                 FileUtils.copyFile(sourceMap, new File(appDir, sourceMapOutName));
+                bytes += sourceMap.length();
             }
             if (dwarfOutName == null && sourceMapOutName == null) {
-                logger.warning("No wasm debug info found for %s (%s.debug.wasm / %s.map in %s). The engine was likely built without debug info.",
-                        platform.getPair(), bin.getName(), bin.getName(), pairDir.getPath());
+                logger.warning("No wasm debug info found for %s (%s.debug.wasm / %s.map). The engine was likely built without debug info.",
+                        platform.getPair(), bin.getName(), bin.getName());
             } else {
                 hasWasmDebugSymbols = true;
                 logger.info("Bundled wasm debug info for %s (%d MB). Do not deploy these files to production.",
-                        wasmOut.getName(), (dwarf.length() + sourceMap.length()) >> 20);
+                        wasmOut.getName(), bytes >> 20);
             }
         }
         if (dwarfOutName != null || sourceMapOutName != null) {

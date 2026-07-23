@@ -2821,6 +2821,15 @@ class Configuration(object):
             for plf in plfs:
                 exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
                 artefacts[type].update(dict([['bin/%s/%s' % (plf[0], exe), 'libexec/%s/%s' % (plf[1], exe)] for exe in exes]))
+                # The wasm debug info sidecars are only produced for the debug variant and
+                # only exist for locally built engines (official builds publish them to the
+                # artifact server, where bob downloads them from). Optional: don't report
+                # them as missing when the engine was built without debug info.
+                for exe in [x for x in exes if x.endswith('.wasm')]:
+                    for sidecar in ['%s.debug.wasm' % exe, '%s.map' % exe]:
+                        src = 'bin/%s/%s' % (plf[0], sidecar)
+                        if os.path.exists(join(self.dynamo_home, src)):
+                            artefacts[type][src] = 'libexec/%s/%s' % (plf[1], sidecar)
         # Perform the actual copy, or list which files are missing
         for type, files in artefacts.items():
             m = []
