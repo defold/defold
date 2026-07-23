@@ -177,11 +177,41 @@ Firefox:
 
 * Firefox reads the wasm source map. Engine builds embed the sources into the
   map (`sourcesContent`, via `build_tools/embed_wasm_sourcemap_sources.py`), so
-  files and line breakpoints/stepping work out of the box. Note that wasm source
-  maps carry no scope/type information — there is no variable inspection in
-  Firefox; use Chrome + DWARF for the full experience.
+  files and line breakpoints/stepping work. Note that wasm source maps carry no
+  scope/type information — there is no variable inspection in Firefox; use
+  Chrome + DWARF for the full experience.
+* The sources usually appear only after a second reload with devtools open, and
+  a breakpoint set on a C/C++ line is often not armed until the debugger has
+  paused once: hit pause and resume, and the breakpoints start hitting. Firefox
+  installs source mapped wasm breakpoints lazily; this is a devtools quirk, not
+  a problem with the debug info (Chrome does not need it).
 * For Extender builds the engine libraries are prebuilt, so engine files may show
   without content; extension sources are embedded.
+* Firefox always logs one `Source map error: Error: URL constructor: is not a
+  valid URL` for a module named `wasm:<page>/dmloader.js line NNN >
+  WebAssembly.Module`. That is not the engine: it is the eight byte module
+  `EngineLoader.isWASMSupported` compiles from a byte array to detect wasm
+  support (a URL-less module devtools cannot map). The engine module appears
+  separately as `wasm:<page>/<Title>.wasm` and is the one to look for.
+
+Safari:
+
+* Native C/C++ debugging is not available, and no Web Inspector setting enables
+  it. JavaScriptCore does parse the `sourceMappingURL` section of the wasm
+  module, but Web Inspector never requests the map: its source map downloads are
+  driven by scripts and by stylesheet/script network resources, not by wasm.
+  Verified — Safari does not fetch the `.wasm.map` from the custom section, nor
+  when the `.wasm` is served with an explicit `SourceMap:` response header.
+  There is no DWARF support either (the Chrome C/C++ extension is a Chrome
+  DevTools extension with no Safari counterpart). You get the wasm
+  disassembly, the console, and JS level stacks. Use Chrome to debug engine
+  code, and Safari only to reproduce Safari specific issues — the
+  `.js.symbols` map still symbolicates callstacks there.
+
+Browsers identify the engine module by the URL it was fetched from, so if
+the module shows up as `wasm://wasm/...` or named after `dmloader.js`, the
+streaming instantiation was not used and no debug info will be attached — check
+that the `.wasm` is served with `Content-Type: application/wasm`.
 
 #### Symbolicating a callstack with the symbol map
 
