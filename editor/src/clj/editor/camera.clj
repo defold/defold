@@ -210,13 +210,6 @@
               0.0
               filter-fn))))
 
-(defn default-scene-camera
-  "The camera a scene view opens with when the resource has no stored camera."
-  ^Camera [prefs projection]
-  (if (= :perspective projection)
-    (make-camera :perspective identity {:fov-y (prefs/get prefs prefs-key-fov)})
-    (make-camera :orthographic identity {:fov-x 1000 :fov-y 1000})))
-
 (defn- set-extents
   ^Camera [^Camera camera fov-x fov-y z-near z-far]
   (assoc camera
@@ -528,6 +521,18 @@
     (assoc camera
            :position (Point3d. (.x delta) (.y delta) (.z delta))
            :rotation r)))
+
+(def ^:private default-3d-tumble
+  "The tumble realign-camera applies when toggling out of 2D mode."
+  [200.0 -100.0])
+
+(defn default-scene-camera
+  ^Camera [prefs projection]
+  (if (= :perspective projection)
+    (let [[dx dy] default-3d-tumble]
+      (tumble (make-camera :perspective identity {:fov-y (prefs/get prefs prefs-key-fov)})
+              dx dy))
+    (make-camera :orthographic identity {:fov-x 1000 :fov-y 1000})))
 
 (def ^:private camera-command->movement
   {:scene.camera.free-look :look
@@ -891,7 +896,8 @@
      (if (mode-2d? local-cam)
        (let [viewport (g/node-value camera-node :viewport evaluation-context)
              camera-3d (or (g/node-value camera-node :cached-3d-camera evaluation-context)
-                           (tumble local-cam 200.0 -100.0))
+                           (let [[dx dy] default-3d-tumble]
+                             (tumble local-cam dx dy)))
              camera-3d (sync-camera-position camera-node camera-3d local-cam viewport)
              local-cam (cond-> local-cam
                          (= (:type camera-3d) :perspective)
