@@ -44,7 +44,7 @@ namespace dmPhysics
      * Apply CREATE_BODY operation to world.
      * Creates body with properties and shapes from operation data.
      */
-    static void ApplyCreateBodyOp(b2WorldId world_id, const PendingPhysicsOp::OpData::CreateBody& data,
+    b2BodyId ApplyCreateBodyOp(b2WorldId world_id, const PendingPhysicsOp::OpData::CreateBody& data,
                                    float scale)
     {
         // Create body definition from operation data
@@ -162,6 +162,8 @@ namespace dmPhysics
                 b2Body_SetMassData(body_id, mass_data);
             }
         }
+
+        return body_id;
     }
 
     /**

@@ -16,6 +16,7 @@
 
 #include "../physics.h"
 #include "../box2d/box2d_physics.h"
+#include "../box2d/box2d_async_physics.h"
 
 using namespace dmPhysics;
 
@@ -87,6 +88,91 @@ TEST(AsyncWorld, DeleteDestroysBothWorlds)
     ASSERT_FALSE(b2World_IsValid(game_id));
     ASSERT_FALSE(b2World_IsValid(physics_id));
 
+    DeleteContext2D(context);
+}
+
+// Creating a collision object in a double-buffered world queues a physics-world twin; draining the
+// queue creates it and maps its id onto the owning Body. Destroying mirrors the removal.
+TEST(AsyncBodyMapping, CreateDrainDestroy)
+{
+    HContext2D context = NewTestContext();
+
+    NewWorldParams wp;
+    wp.m_UseDoubleBufferedWorlds = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+
+    CollisionObjectData data;
+    data.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+
+    const int N = 3;
+    Body* bodies[N];
+    for (int i = 0; i < N; ++i)
+    {
+        bodies[i] = (Body*)NewCollisionObject2D(world, data, &shape, 1);
+        // Game body exists immediately; physics twin is pending (not drained).
+        ASSERT_TRUE(b2Body_IsValid(bodies[i]->m_BodyId));
+        ASSERT_FALSE(b2Body_IsValid(bodies[i]->m_PhysicsBodyId));
+    }
+
+    DrainPendingOps(world);
+    ASSERT_EQ(N, b2World_GetCounters(world->m_PhysicsWorldId).bodyCount);
+
+    for (int i = 0; i < N; ++i)
+    {
+        ASSERT_TRUE(b2Body_IsValid(bodies[i]->m_BodyId));
+        ASSERT_TRUE(b2Body_IsValid(bodies[i]->m_PhysicsBodyId));
+        // The twin lives in a different Box2D world, so the ids are not interchangeable.
+        ASSERT_NE(bodies[i]->m_BodyId.world0, bodies[i]->m_PhysicsBodyId.world0);
+    }
+
+    // Destroy the middle body; capture its twin id first since DeleteCollisionObject2D frees the Body.
+    b2BodyId destroyed_twin = bodies[1]->m_PhysicsBodyId;
+    DeleteCollisionObject2D(world, bodies[1]);
+    DrainPendingOps(world);
+    ASSERT_FALSE(b2Body_IsValid(destroyed_twin));
+
+    // Surviving twins remain valid.
+    ASSERT_TRUE(b2Body_IsValid(bodies[0]->m_PhysicsBodyId));
+    ASSERT_TRUE(b2Body_IsValid(bodies[2]->m_PhysicsBodyId));
+
+    DeleteCollisionObject2D(world, bodies[0]);
+    DeleteCollisionObject2D(world, bodies[2]);
+    DrainPendingOps(world);
+
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+// Creating then destroying a body before any drain cancels the pending create: no twin is left in
+// the physics world.
+TEST(AsyncBodyMapping, CreateDestroyBeforeDrain)
+{
+    HContext2D context = NewTestContext();
+
+    NewWorldParams wp;
+    wp.m_UseDoubleBufferedWorlds = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData data;
+    data.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+
+    Body* body = (Body*)NewCollisionObject2D(world, data, &shape, 1);
+    ASSERT_FALSE(b2Body_IsValid(body->m_PhysicsBodyId));
+
+    // Destroy before draining: the create op is cancelled, so the drain creates nothing.
+    DeleteCollisionObject2D(world, body);
+    DrainPendingOps(world);
+
+    ASSERT_EQ(0, b2World_GetCounters(world->m_PhysicsWorldId).bodyCount);
+
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
     DeleteContext2D(context);
 }
 

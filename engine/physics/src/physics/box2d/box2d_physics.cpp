@@ -26,6 +26,7 @@
 #include <box2d/src/world.h>
 
 #include "box2d_physics.h"
+#include "box2d_async_physics.h"
 
 namespace dmPhysics
 {
@@ -1579,10 +1580,11 @@ namespace dmPhysics
         def.isEnabled       = data.m_Enabled;
         b2BodyId bodyId     = b2CreateBody(world->m_WorldId, &def);
 
-        Body* body         = new Body();
-        body->m_BodyId     = bodyId;
-        body->m_Shapes     = (ShapeData**) malloc(shape_count * sizeof(ShapeData*));
-        body->m_ShapeCount = shape_count;
+        Body* body            = new Body();
+        body->m_BodyId        = bodyId;
+        body->m_PhysicsBodyId = b2_nullBodyId;
+        body->m_Shapes        = (ShapeData**) malloc(shape_count * sizeof(ShapeData*));
+        body->m_ShapeCount    = shape_count;
 
         Vector3 zero_vec3 = Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i)
@@ -1650,12 +1652,22 @@ namespace dmPhysics
 
         UpdateMass2D(world, body, data.m_Mass);
 
+        if (world->m_UseDoubleBufferedWorlds)
+        {
+            EnqueueCreateBody(world, def, data, body);
+        }
+
         return body;
     }
 
     void DeleteCollisionObject2D(HWorld2D world, HCollisionObject2D collision_object)
     {
         Body* body = (Body*) collision_object;
+
+        if (world->m_UseDoubleBufferedWorlds)
+        {
+            EnqueueDestroyBody(world, body);
+        }
 
         OverlapCacheRemove(&world->m_TriggerOverlaps, ToOpaqueHandle(body->m_BodyId));
 

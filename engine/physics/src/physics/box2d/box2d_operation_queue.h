@@ -86,6 +86,8 @@ namespace dmPhysics
         struct OpData {
             // OP_CREATE_BODY
             struct CreateBody {
+                void* m_Owner;           // Owning game-world Body*, written back with the twin id at drain.
+                                         // POD tag only: ApplyOperation never dereferences it.
                 b2BodyId body_id;        // Body ID created in the game world
                 float position_x, position_y;
                 float rotation_angle;
@@ -135,6 +137,18 @@ namespace dmPhysics
             } set_gravity;
         } m_Data;
     };
+
+    /**
+     * Apply a CREATE_BODY operation to a world and return the created Box2D body id.
+     * Pure b2-only: reads only the POD operation data (never dereferences m_Owner).
+     * The async drain uses the returned id to populate the owning Body's physics-world twin.
+     *
+     * @param world_id The Box2D world to create the body in
+     * @param data The create-body operation data
+     * @param scale Physics scale factor
+     * @return The created body id
+     */
+    b2BodyId ApplyCreateBodyOp(b2WorldId world_id, const PendingPhysicsOp::OpData::CreateBody& data, float scale);
 
     /**
      * Apply a single pending physics operation to the specified world.

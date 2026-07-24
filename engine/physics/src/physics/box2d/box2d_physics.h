@@ -106,6 +106,10 @@ namespace dmPhysics
     struct Body
     {
         b2BodyId    m_BodyId;
+        // Twin body in World2D::m_PhysicsWorldId for the double-buffered async path. A body id
+        // carries its owning world index, so this is a separate id from m_BodyId, not a copy of it.
+        // b2_nullBodyId when double-buffering is off or before the twin is created.
+        b2BodyId    m_PhysicsBodyId;
         // Grids represent each layer as a separate body
         ShapeData** m_Shapes;
         uint8_t     m_ShapeCount;
