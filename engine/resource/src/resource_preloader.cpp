@@ -892,18 +892,43 @@ namespace dmResource
         {
             return false;
         }
+        if (req->m_LoadResult == RESULT_RESOURCE_LOOP_ERROR)
+        {
+            // A recursive child makes the parent fail regardless of its remaining overflow hints.
+            // Drop those hints so the parent's Create callback can run and release its preload data.
+            RemovePendingHints(preloader, parent);
+        }
         if (parent_req->m_QueuedChildCount > 0)
         {
             // Some dependencies have not entered the bounded request tree yet.
             return false;
         }
+        Result child_result = req->m_LoadResult;
+        if (child_result == RESULT_RESOURCE_LOOP_ERROR)
+        {
+            // Make synchronous Gets from Create observe the loop already found by the preloader.
+            PushResourceToGetStack(preloader->m_Factory, req->m_PathDescriptor.m_InternalizedName);
+        }
         CreateResource(preloader, parent_req, 0, 0, 0);
+        if (child_result == RESULT_RESOURCE_LOOP_ERROR)
+        {
+            PopResourceFromGetStack(preloader->m_Factory);
+        }
+        if (child_result == RESULT_RESOURCE_LOOP_ERROR)
+        {
+            // Preserve the detected loop while unwinding the request chain. Depending on the provider
+            // and request-tree state, the synchronous Get in Create may otherwise report a secondary
+            // error after trying to load the same chain again.
+            assert(parent_req->m_LoadResult != RESULT_OK);
+            parent_req->m_LoadResult = child_result;
+        }
         UnmarkPathInProgress(preloader, &parent_req->m_PathDescriptor);
 
-        // The newly created parent can itself be a leaf whose parent still has queued or active
-        // children. Retain and recycle it as well, otherwise wide trees fill m_Request with
-        // completed intermediate nodes and pending hints can never acquire a slot.
-        if (!PreloaderTryPruneParent(preloader, parent_req) && parent != 0)
+        // Creating parent_req removes its completed children, making parent_req a leaf. If its own
+        // parent is not ready, retain and recycle this completed leaf; otherwise wide trees fill
+        // m_Request with completed intermediate nodes and pending hints can never acquire a slot.
+        bool pruned_parent = PreloaderTryPruneParent(preloader, parent_req);
+        if (!pruned_parent && parent != 0)
         {
             RetainAndRemoveLeaf(preloader, parent);
         }

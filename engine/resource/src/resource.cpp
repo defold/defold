@@ -1003,6 +1003,33 @@ Result Get(HFactory factory, const char* path, void** resource)
     return GetWithExt(factory, path, 0, resource);
 }
 
+void PushResourceToGetStack(HFactory factory, const char* path)
+{
+    dmMutex::Lock(factory->m_LoadMutex);
+
+    dmArray<const char*>& stack = factory->m_GetResourceStack;
+    if (factory->m_RecursionDepth == 0)
+    {
+        stack.SetSize(0);
+    }
+    if (stack.Full())
+    {
+        stack.SetCapacity(stack.Capacity() + 16);
+    }
+    stack.Push(path);
+    ++factory->m_RecursionDepth;
+}
+
+void PopResourceFromGetStack(HFactory factory)
+{
+    assert(factory->m_RecursionDepth > 0);
+    assert(!factory->m_GetResourceStack.Empty());
+
+    factory->m_GetResourceStack.Pop();
+    --factory->m_RecursionDepth;
+    dmMutex::Unlock(factory->m_LoadMutex);
+}
+
 ResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash)
 {
     return factory->m_Resources->Get(canonical_path_hash);
