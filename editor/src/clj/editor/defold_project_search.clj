@@ -197,16 +197,19 @@
     (prepare-search-data! initial-searched-exts initial-search-libraries)
     {:start-search! (fn [search-string searched-exts include-libraries?]
                       (try
-                        (let [search-data-future (when (seq search-string)
-                                                   (prepare-search-data! searched-exts include-libraries?))]
-                          (swap! pending-search-atom start-search! search-data-future search-string))
+                        (let [search-data-future (prepare-search-data! searched-exts include-libraries?)]
+                          (swap! pending-search-atom start-search!
+                                 (when (coll/not-empty search-string) search-data-future)
+                                 search-string))
                         (catch Throwable error
                           (report-error! error)))
                       nil)
      :abort-search! (fn []
                       (try
                         (swap! pending-search-atom abort-search!)
-                        (some-> @search-data-atom :future future-cancel)
+                        (let [current @search-data-atom]
+                          (reset! search-data-atom nil)
+                          (some-> current :future future-cancel))
                         (catch Throwable error
                           (report-error! error)))
                       nil)}))

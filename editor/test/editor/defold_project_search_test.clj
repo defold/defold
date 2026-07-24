@@ -251,4 +251,57 @@
                    (perform-search! "socket" "lua" true)))
             (abort-search!)
             (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
+            (is (= [] (fn/call-logger-calls report-error!)))))
+
+        (testing "Preparation only builds search data for filter-matching resources"
+          (let [report-error! (fn/make-call-logger)
+                all-data (deref (project-search/make-search-data-future report-error! project (constantly true)))
+                script-data (deref (project-search/make-search-data-future
+                                     report-error! project
+                                     (fn [resource] (= "script" (resource/type-ext resource)))))]
+            (is (pos? (count script-data)))
+            (is (< (count script-data) (count all-data)))
+            (is (= #{"script"}
+                   (into #{} (map (comp resource/type-ext :resource)) script-data)))
+            (is (= [] (fn/call-logger-calls report-error!)))))
+
+        (testing "Preparation is cached per filter and rebuilt only when the filter changes"
+          (let [report-error! (fn/make-call-logger)
+                consumer (make-consumer report-error!)
+                start-consumer! (partial consumer-start! consumer)
+                stop-consumer! consumer-stop!
+                builds (atom 0)
+                real-make-future project-search/make-search-data-future]
+            (with-redefs [project-search/make-search-data-future
+                          (fn [& args]
+                            (swap! builds inc)
+                            (apply real-make-future args))]
+              (let [{:keys [start-search! abort-search!]}
+                    (project-search/make-file-searcher workspace project nil true start-consumer! stop-consumer! report-error!)]
+                (is (= 1 @builds))
+                (start-search! "return" "script" true)
+                (is (= 2 @builds))
+                (start-search! "smith" "script" true)
+                (is (= 2 @builds))
+                (start-search! "return" "lua" true)
+                (is (= 3 @builds))
+                (abort-search!)
+                (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
+                (is (= [] (fn/call-logger-calls report-error!)))))))
+
+        (testing "A search runs correctly after a prior search with the same filter was aborted"
+          (let [report-error! (fn/make-call-logger)
+                consumer (make-consumer report-error!)
+                start-consumer! (partial consumer-start! consumer)
+                stop-consumer! consumer-stop!
+                {:keys [start-search! abort-search!]}
+                (project-search/make-file-searcher workspace project nil true start-consumer! stop-consumer! report-error!)]
+            (start-search! "255" nil true)
+            (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
+            (abort-search!)
+            (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
+            (start-search! "255" nil true)
+            (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
+            (is (seq (consumer-consumed consumer)))
+            (abort-search!)
             (is (= [] (fn/call-logger-calls report-error!)))))))))
