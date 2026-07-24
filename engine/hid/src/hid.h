@@ -153,6 +153,51 @@ namespace dmHID
     void SetGamepadLayoutLegacy(HGamepad gamepad, bool legacy);
 
     /**
+     * Stable SDL-style packet indices used by drivers that provide automatic
+     * semantic gamepad mappings.
+     */
+    enum GamepadMappedAxis
+    {
+        GAMEPAD_MAPPED_AXIS_LEFT_X = 0,
+        GAMEPAD_MAPPED_AXIS_LEFT_Y,
+        GAMEPAD_MAPPED_AXIS_RIGHT_X,
+        GAMEPAD_MAPPED_AXIS_RIGHT_Y,
+        GAMEPAD_MAPPED_AXIS_LEFT_TRIGGER,
+        GAMEPAD_MAPPED_AXIS_RIGHT_TRIGGER,
+        GAMEPAD_MAPPED_AXIS_COUNT,
+    };
+
+    enum GamepadMappedButton
+    {
+        GAMEPAD_MAPPED_BUTTON_A = 0,
+        GAMEPAD_MAPPED_BUTTON_B,
+        GAMEPAD_MAPPED_BUTTON_X,
+        GAMEPAD_MAPPED_BUTTON_Y,
+        GAMEPAD_MAPPED_BUTTON_BACK,
+        GAMEPAD_MAPPED_BUTTON_START,
+        GAMEPAD_MAPPED_BUTTON_LEFT_THUMB,
+        GAMEPAD_MAPPED_BUTTON_RIGHT_THUMB,
+        GAMEPAD_MAPPED_BUTTON_LEFT_SHOULDER,
+        GAMEPAD_MAPPED_BUTTON_RIGHT_SHOULDER,
+        GAMEPAD_MAPPED_BUTTON_GUIDE,
+        GAMEPAD_MAPPED_BUTTON_CAPTURE,
+        GAMEPAD_MAPPED_BUTTON_COUNT,
+    };
+
+    enum GamepadMappingSupport
+    {
+        GAMEPAD_MAPPING_SUPPORT_NONE = 0,
+        GAMEPAD_MAPPING_SUPPORT_AUTOMATIC = 1 << 0,
+        GAMEPAD_MAPPING_SUPPORT_PHYSICAL_DATABASE = 1 << 1,
+    };
+
+    /**
+     * Returns the semantic mapping capabilities supplied by the owning native
+     * driver for this gamepad.
+     */
+    uint32_t GetGamepadMappingSupport(HContext context, HGamepad gamepad);
+
+    /**
      * Supplies the SDL database row selected by the input system at runtime.
      * Native drivers that expose semantic controls may use it to reproduce the
      * physical packet layout described by the mapping.

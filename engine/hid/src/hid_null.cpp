@@ -84,6 +84,13 @@ namespace dmHID
         return true;
     }
 
+    uint32_t GetGamepadMappingSupport(HContext context, HGamepad gamepad)
+    {
+        (void) context;
+        (void) gamepad;
+        return GAMEPAD_MAPPING_SUPPORT_NONE;
+    }
+
     void SetGamepadMapping(HContext context, HGamepad gamepad, const char* mapping)
     {
         (void) context;

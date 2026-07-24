@@ -404,6 +404,20 @@ namespace dmHID
         return driver->m_GetGamepadDeviceGuid(context, driver, gamepad, guid);
     }
 
+    uint32_t GetGamepadMappingSupport(HContext context, HGamepad gamepad)
+    {
+        NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+        if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
+            return GAMEPAD_MAPPING_SUPPORT_NONE;
+
+        assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
+        GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
+        if (driver->m_GetGamepadMappingSupport)
+            return driver->m_GetGamepadMappingSupport(context, driver, gamepad);
+
+        return GAMEPAD_MAPPING_SUPPORT_NONE;
+    }
+
     void SetGamepadMapping(HContext context, HGamepad gamepad, const char* mapping)
     {
         NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;

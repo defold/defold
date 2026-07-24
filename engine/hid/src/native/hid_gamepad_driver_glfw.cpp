@@ -482,13 +482,14 @@ namespace dmHID
     {
         GLFWGamepadDriver* driver = new GLFWGamepadDriver();
 
-        driver->m_Initialize           = GLFWGamepadDriverInitialize;
-        driver->m_Destroy              = GLFWGamepadDriverDestroy;
-        driver->m_Update               = GLFWGamepadDriverUpdate;
-        driver->m_DetectDevices        = GLFWGamepadDriverDetectDevices;
-        driver->m_GetGamepadDeviceName = GLFWGamepadDriverGetGamepadDeviceName;
-        driver->m_GetGamepadDeviceGuid = GLFWGamepadDriverGetGamepadDeviceGuid;
-        driver->m_SetGamepadMapping    = 0;
+        driver->m_Initialize                   = GLFWGamepadDriverInitialize;
+        driver->m_Destroy                      = GLFWGamepadDriverDestroy;
+        driver->m_Update                       = GLFWGamepadDriverUpdate;
+        driver->m_DetectDevices                = GLFWGamepadDriverDetectDevices;
+        driver->m_GetGamepadDeviceName         = GLFWGamepadDriverGetGamepadDeviceName;
+        driver->m_GetGamepadDeviceGuid         = GLFWGamepadDriverGetGamepadDeviceGuid;
+        driver->m_GetGamepadMappingSupport     = 0;
+        driver->m_SetGamepadMapping            = 0;
 
         assert(g_GLFWGamepadDriver == 0);
         g_GLFWGamepadDriver               = driver;

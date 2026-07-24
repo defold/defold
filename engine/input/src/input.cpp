@@ -29,6 +29,7 @@
 namespace dmInput
 {
     const uint32_t UNKNOWN_GAMEPAD_CONFIG_ID = dmHashString32("UNKNOWN_GAMEPAD_CONFIG_ID");
+    static const uint32_t AUTOMATIC_GAMEPAD_CONFIG_ID = dmHashString32("AUTOMATIC_GAMEPAD_CONFIG_ID");
     static const uint16_t INVALID_INDEX = 0xFFFF;
     static const uint32_t GAMEPAD_GUID_SIZE = sizeof(dmHID::GamepadGuid);
 
@@ -271,21 +272,20 @@ namespace dmInput
         return 0x0;
     }
 
-    static bool UseLegacyGamepadPacketLayout(const GamepadConfig* config)
+    static bool UseLegacyGamepadPacketLayout(HBinding binding, dmHID::HGamepad gamepad, const GamepadConfig* config)
     {
-#if defined(DM_PLATFORM_MACOS)
-        // macOS GameController devices synthesize the physical packet described
-        // by the SDL database so its aN/bN/hN.N indices remain authoritative.
-        (void) config;
-        return true;
-#else
+        // Semantic drivers reproduce a database row's physical packet when a
+        // row exists, and use their stable automatic packet otherwise.
+        const uint32_t mapping_support = dmHID::GetGamepadMappingSupport(binding->m_Context->m_HidContext, gamepad);
+        if (config->m_RawMapping && (mapping_support & dmHID::GAMEPAD_MAPPING_SUPPORT_PHYSICAL_DATABASE) != 0)
+            return true;
+
         return config->m_Legacy != 0;
-#endif
     }
 
     static void ConfigureGamepadPacketLayout(HBinding binding, dmHID::HGamepad gamepad, const GamepadConfig* config)
     {
-        dmHID::SetGamepadLayoutLegacy(gamepad, UseLegacyGamepadPacketLayout(config));
+        dmHID::SetGamepadLayoutLegacy(gamepad, UseLegacyGamepadPacketLayout(binding, gamepad, config));
         dmHID::SetGamepadMapping(binding->m_Context->m_HidContext, gamepad, config->m_RawMapping);
     }
 
@@ -316,7 +316,11 @@ namespace dmInput
             mapping_name = "<unnamed>";
         }
 
-        if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
+        if (config->m_DeviceId == AUTOMATIC_GAMEPAD_CONFIG_ID)
+        {
+            dmLogInfo("Gamepad %d '%s' guid=%s using automatic mapping.", gamepad_index, device_name, device_guid_string);
+        }
+        else if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
         {
             dmLogInfo("Gamepad %d '%s' guid=%s using raw fallback (legacy=%s).", gamepad_index, device_name, device_guid_string, is_legacy ? "true" : "false");
         }
@@ -371,6 +375,18 @@ namespace dmInput
             {
                 ConfigureGamepadPacketLayout(binding, gamepad, config);
                 dmStrlCpy(device_name_out, config->m_DeviceName, dmHID::MAX_GAMEPAD_NAME_LENGTH);
+                return config;
+            }
+        }
+
+        const uint32_t mapping_support = dmHID::GetGamepadMappingSupport(binding->m_Context->m_HidContext, gamepad);
+        if ((mapping_support & dmHID::GAMEPAD_MAPPING_SUPPORT_AUTOMATIC) != 0)
+        {
+            GamepadConfig* config = GetGamepadConfigFromId(binding, AUTOMATIC_GAMEPAD_CONFIG_ID);
+            if (config)
+            {
+                ConfigureGamepadPacketLayout(binding, gamepad, config);
+                dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name_out);
                 return config;
             }
         }
@@ -739,9 +755,77 @@ namespace dmInput
         }
     }
 
+    static void SetAutomaticGamepadAxis(GamepadConfig* config, dmInputDDF::Gamepad input, uint16_t index, bool negate, bool scale, bool clamp)
+    {
+        GamepadInput& gamepad_input = config->m_Inputs[input];
+        gamepad_input.m_Index  = index;
+        gamepad_input.m_Type   = dmInputDDF::GAMEPAD_TYPE_AXIS;
+        gamepad_input.m_Negate = negate ? 1 : 0;
+        gamepad_input.m_Scale  = scale ? 1 : 0;
+        gamepad_input.m_Clamp  = clamp ? 1 : 0;
+    }
+
+    static void SetAutomaticGamepadButton(GamepadConfig* config, dmInputDDF::Gamepad input, uint16_t index)
+    {
+        GamepadInput& gamepad_input = config->m_Inputs[input];
+        gamepad_input.m_Index = index;
+        gamepad_input.m_Type  = dmInputDDF::GAMEPAD_TYPE_BUTTON;
+    }
+
+    static void SetAutomaticGamepadHat(GamepadConfig* config, dmInputDDF::Gamepad input, uint16_t mask)
+    {
+        GamepadInput& gamepad_input = config->m_Inputs[input];
+        gamepad_input.m_Index   = 0;
+        gamepad_input.m_Type    = dmInputDDF::GAMEPAD_TYPE_HAT;
+        gamepad_input.m_HatMask = mask;
+    }
+
+    // Creates the engine mapping for a native driver's canonical SDL-style
+    // packet. This is used when the driver provides semantic gamepad controls
+    // but gamecontrollerdb.txt has no matching row for the device GUID.
+    static GamepadConfig CreateAutomaticGamepadConfig(float dead_zone)
+    {
+        GamepadConfig config = {};
+        config.m_DeadZone = dead_zone;
+        config.m_DeviceId = AUTOMATIC_GAMEPAD_CONFIG_ID;
+        dmStrlCpy(config.m_DeviceName, "<automatic>", sizeof(config.m_DeviceName));
+
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(config.m_Inputs); ++i)
+            config.m_Inputs[i].m_Index = INVALID_INDEX;
+
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_LSTICK_LEFT,  dmHID::GAMEPAD_MAPPED_AXIS_LEFT_X, true,  false, true);
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_LSTICK_RIGHT, dmHID::GAMEPAD_MAPPED_AXIS_LEFT_X, false, false, true);
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_LSTICK_DOWN,  dmHID::GAMEPAD_MAPPED_AXIS_LEFT_Y, false, false, true);
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_LSTICK_UP,    dmHID::GAMEPAD_MAPPED_AXIS_LEFT_Y, true,  false, true);
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_RSTICK_LEFT,  dmHID::GAMEPAD_MAPPED_AXIS_RIGHT_X, true,  false, true);
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_RSTICK_RIGHT, dmHID::GAMEPAD_MAPPED_AXIS_RIGHT_X, false, false, true);
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_RSTICK_DOWN,  dmHID::GAMEPAD_MAPPED_AXIS_RIGHT_Y, false, false, true);
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_RSTICK_UP,    dmHID::GAMEPAD_MAPPED_AXIS_RIGHT_Y, true,  false, true);
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_LTRIGGER,     dmHID::GAMEPAD_MAPPED_AXIS_LEFT_TRIGGER,  false, true, false);
+        SetAutomaticGamepadAxis(&config, dmInputDDF::GAMEPAD_RTRIGGER,     dmHID::GAMEPAD_MAPPED_AXIS_RIGHT_TRIGGER, false, true, false);
+
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_RPAD_DOWN,    dmHID::GAMEPAD_MAPPED_BUTTON_A);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_RPAD_RIGHT,   dmHID::GAMEPAD_MAPPED_BUTTON_B);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_RPAD_LEFT,    dmHID::GAMEPAD_MAPPED_BUTTON_X);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_RPAD_UP,      dmHID::GAMEPAD_MAPPED_BUTTON_Y);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_BACK,         dmHID::GAMEPAD_MAPPED_BUTTON_BACK);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_START,        dmHID::GAMEPAD_MAPPED_BUTTON_START);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_LSTICK_CLICK, dmHID::GAMEPAD_MAPPED_BUTTON_LEFT_THUMB);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_RSTICK_CLICK, dmHID::GAMEPAD_MAPPED_BUTTON_RIGHT_THUMB);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_LSHOULDER,    dmHID::GAMEPAD_MAPPED_BUTTON_LEFT_SHOULDER);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_RSHOULDER,    dmHID::GAMEPAD_MAPPED_BUTTON_RIGHT_SHOULDER);
+        SetAutomaticGamepadButton(&config, dmInputDDF::GAMEPAD_GUIDE,        dmHID::GAMEPAD_MAPPED_BUTTON_GUIDE);
+
+        SetAutomaticGamepadHat(&config, dmInputDDF::GAMEPAD_LPAD_UP,    0x1);
+        SetAutomaticGamepadHat(&config, dmInputDDF::GAMEPAD_LPAD_RIGHT, 0x2);
+        SetAutomaticGamepadHat(&config, dmInputDDF::GAMEPAD_LPAD_DOWN,  0x4);
+        SetAutomaticGamepadHat(&config, dmInputDDF::GAMEPAD_LPAD_LEFT,  0x8);
+        return config;
+    }
+
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMapsRuntime* ddf)
     {
-        const uint32_t config_count = ddf->m_Mappings.m_Count + 1;
+        const uint32_t config_count = ddf->m_Mappings.m_Count + 2;
         if (config_count > context->m_GamepadConfigs.Capacity())
         {
             context->m_GamepadConfigs.SetCapacity(config_count);
@@ -752,6 +836,10 @@ namespace dmInput
         {
             context->m_GamepadMaps.SetCapacity(lookup_count);
         }
+
+        const uint32_t automatic_gamepad_config_index = context->m_GamepadConfigs.Size();
+        context->m_GamepadConfigs.Push(CreateAutomaticGamepadConfig(context->m_GamepadDeadZone));
+        context->m_GamepadMaps.Put(AUTOMATIC_GAMEPAD_CONFIG_ID, automatic_gamepad_config_index);
 
         // Add a gamepad config that will be used when an unidentified gamepad
         // is connected. This will allow developers to at least read raw button,

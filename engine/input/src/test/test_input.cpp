@@ -169,8 +169,15 @@ TEST_F(InputTest, GuidGamepadMapsAreNotRegisteredAsLegacyNames)
 
     dmInput::RegisterGamepads(context, &gamepad_maps);
 
-    ASSERT_EQ(4U, context->m_GamepadConfigs.Size());
-    ASSERT_EQ(5U, context->m_GamepadMaps.Size());
+    ASSERT_EQ(5U, context->m_GamepadConfigs.Size());
+    ASSERT_EQ(6U, context->m_GamepadMaps.Size());
+    dmInput::GamepadConfig* automatic_config = GetGamepadConfigForLookup(context, dmHashString32("AUTOMATIC_GAMEPAD_CONFIG_ID"));
+    ASSERT_NE((void*)0x0, (void*)automatic_config);
+    ASSERT_EQ(dmHID::GAMEPAD_MAPPED_AXIS_LEFT_X, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_LSTICK_LEFT].m_Index);
+    ASSERT_EQ(1U, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_LSTICK_LEFT].m_Negate);
+    ASSERT_EQ(dmHID::GAMEPAD_MAPPED_BUTTON_A, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_RPAD_DOWN].m_Index);
+    ASSERT_EQ(dmInputDDF::GAMEPAD_TYPE_HAT, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_LPAD_UP].m_Type);
+    ASSERT_EQ(1U, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_LPAD_UP].m_HatMask);
     ASSERT_EQ((void*)0x0, (void*)context->m_GamepadMaps.Get(dmHashString32("duplicate_guid_device")));
     for (uint32_t i = 0; i < gamepad_maps.m_Mappings.m_Count; ++i)
     {
@@ -225,8 +232,8 @@ TEST_F(InputTest, GuidGamepadMapsRegisterSDLStyleFallbacks)
 
     dmInput::RegisterGamepads(context, &gamepad_maps);
 
-    ASSERT_EQ(3U, context->m_GamepadConfigs.Size());
-    ASSERT_EQ(5U, context->m_GamepadMaps.Size());
+    ASSERT_EQ(4U, context->m_GamepadConfigs.Size());
+    ASSERT_EQ(6U, context->m_GamepadMaps.Size());
 
     for (uint32_t i = 0; i < 2; ++i)
     {
