@@ -33,6 +33,9 @@ defold_add_executable(test_physics_box2d "${PHYSICS_TEST_ROOT}/test_physics.cpp"
 target_compile_definitions(test_physics_box2d PRIVATE PHYSICS_TEST_BOX2D)
 physics_configure_test(test_physics_box2d physics_2d ON)
 
+defold_add_executable(test_box2d_operation_queue "${PHYSICS_TEST_ROOT}/test_box2d_operation_queue.cpp")
+physics_configure_test(test_box2d_operation_queue physics_2d ON)
+
 defold_add_executable(test_physics_box2d_defold "${PHYSICS_TEST_ROOT}/test_physics.cpp")
 target_compile_definitions(test_physics_box2d_defold PRIVATE PHYSICS_TEST_BOX2D_DEFOLD)
 target_include_directories(test_physics_box2d_defold PRIVATE "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold")
