@@ -79,6 +79,84 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
 static const uint32_t MANY_VALID_REFS_COUNT = 1025;
 static const uint32_t DEEP_RESOURCE_CHAIN_LENGTH = 1025;
+static const uint32_t PRELOADER_LOOP_CHAIN_LENGTH = 1023;
+
+static void AppendVarint(std::vector<uint8_t>& output, uint32_t value)
+{
+    while (value > 0x7f)
+    {
+        output.push_back((uint8_t)((value & 0x7f) | 0x80));
+        value >>= 7;
+    }
+    output.push_back((uint8_t)value);
+}
+
+static void AppendStringField(std::vector<uint8_t>& output, uint32_t field_number, const char* value)
+{
+    uint32_t value_length = (uint32_t)strlen(value);
+    AppendVarint(output, (field_number << 3) | 2);
+    AppendVarint(output, value_length);
+    output.insert(output.end(), value, value + value_length);
+}
+
+static void GetPreloaderLoopFilePath(uint32_t index, char* path, uint32_t path_size)
+{
+    dmSnPrintf(path, path_size, "build/src/test/preloader_loop_%04u.cont", index);
+}
+
+static bool WritePreloaderLoopContainer(uint32_t index)
+{
+    char file_path[128];
+    GetPreloaderLoopFilePath(index, file_path, sizeof(file_path));
+
+    std::vector<uint8_t> container;
+    AppendStringField(container, 1, "Preloader Loop");
+    if (index + 1 < PRELOADER_LOOP_CHAIN_LENGTH)
+    {
+        char child_path[128];
+        dmSnPrintf(child_path, sizeof(child_path), "/preloader_loop_%04u.cont", index + 1);
+        AppendStringField(container, 2, child_path);
+    }
+    else
+    {
+        // The normal dependency is queued first. The recursive dependency is queued
+        // last and therefore admitted first by the preloader's LIFO scheduler.
+        AppendStringField(container, 2, "/test01.foo");
+        AppendStringField(container, 2, "/preloader_loop_0000.cont");
+    }
+
+    FILE* file = fopen(file_path, "wb");
+    if (!file)
+    {
+        return false;
+    }
+    size_t written = fwrite(container.data(), 1, container.size(), file);
+    fclose(file);
+    return written == container.size();
+}
+
+static void DeletePreloaderLoopContainers()
+{
+    for (uint32_t i = 0; i < PRELOADER_LOOP_CHAIN_LENGTH; ++i)
+    {
+        char file_path[128];
+        GetPreloaderLoopFilePath(i, file_path, sizeof(file_path));
+        dmSys::Unlink(file_path);
+    }
+}
+
+static bool WritePreloaderLoopContainers()
+{
+    for (uint32_t i = 0; i < PRELOADER_LOOP_CHAIN_LENGTH; ++i)
+    {
+        if (!WritePreloaderLoopContainer(i))
+        {
+            DeletePreloaderLoopContainers();
+            return false;
+        }
+    }
+    return true;
+}
 
 class ResourceTest : public jc_test_base_class
 {
@@ -1026,6 +1104,43 @@ TEST_P(GetResourceTest, PreloadGetDeepResourceChain)
     ASSERT_EQ(DEEP_RESOURCE_CHAIN_LENGTH - 1, m_ResourceContainerCreateCallCount);
     ASSERT_EQ(1U, m_FooResourceCreateCallCount);
     dmResource::DeletePreloader(pr);
+}
+
+TEST_P(GetResourceTest, PreloadLoopWithFullRequestTree)
+{
+    // Regression test for a scheduler deadlock caused by a recursive dependency
+    // when the preloader's request tree is full. A chain of containers consumes
+    // all available request-tree entries. The deepest container then hints both a
+    // normal resource and the root container. Since hints are processed in LIFO
+    // order, the recursive root hint is admitted into the final slot while the
+    // normal hint remains queued. The loop must propagate
+    // RESULT_RESOURCE_LOOP_ERROR instead of leaving the parent waiting forever
+    // for its queued hint and returning RESULT_PENDING indefinitely.
+    // Generate the resources at runtime so this test also works when built with Waf.
+    // The HTTP and archive providers cannot see these newly-created files.
+    if (strcmp(GetParam(), "build/src/test") != 0)
+        SKIP();
+
+    ASSERT_TRUE(WritePreloaderLoopContainers());
+
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/preloader_loop_0000.cont");
+    dmResource::Result r = dmResource::RESULT_PENDING;
+    uint64_t start = dmTime::GetMonotonicTime();
+    const uint64_t timeout = 10 * 1000 * 1000;
+    while (r == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() - start < timeout)
+    {
+        r = dmResource::UpdatePreloader(pr, 0, 0, 10 * 1000);
+    }
+
+    DeletePreloaderLoopContainers();
+
+    // Do not call DeletePreloader while reproducing the bug: it waits forever for
+    // a preloader that is deadlocked in RESULT_PENDING.
+    EXPECT_EQ(dmResource::RESULT_RESOURCE_LOOP_ERROR, r);
+    if (r != dmResource::RESULT_PENDING)
+    {
+        dmResource::DeletePreloader(pr);
+    }
 }
 
 
