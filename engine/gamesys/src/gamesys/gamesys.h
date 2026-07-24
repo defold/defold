@@ -48,6 +48,8 @@ namespace dmGameSystem
     extern const char* PHYSICS_USE_FIXED_TIMESTEP;
     /// Config key for using max updates during a single step
     extern const char* PHYSICS_MAX_FIXED_TIMESTEPS;
+    /// Config key to run 2D physics double-buffered (async): "physics.async"
+    extern const char* PHYSICS_ASYNC;
     /// Config key for Box2D 2.2 velocity iterations
     extern const char* BOX2D_VELOCITY_ITERATIONS;
     /// Config key for Box2D 2.2 position iterations
@@ -184,6 +186,8 @@ namespace dmGameSystem
         uint32_t          m_MaxContactPointCount;
         bool              m_Debug;
         bool              m_UseFixedTimestep;
+        // Run the 2D physics world double-buffered (game world + physics world). Default false.
+        bool              m_UseDoubleBufferedWorlds;
         uint32_t          m_MaxFixedTimesteps;
         uint32_t          m_Box2DVelocityIterations;
         uint32_t          m_Box2DPositionIterations;

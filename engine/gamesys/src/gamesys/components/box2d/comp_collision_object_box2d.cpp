@@ -181,6 +181,7 @@ namespace dmGameSystem
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
         world_params.m_MaxCollisionObjectsCount  = comp_count;
+        world_params.m_UseDoubleBufferedWorlds   = physics_context->m_BaseContext.m_UseDoubleBufferedWorlds;
 
         dmPhysics::HWorld2D physics_world = dmPhysics::NewWorld2D(physics_context->m_Context, world_params);
         if (physics_world == 0x0)

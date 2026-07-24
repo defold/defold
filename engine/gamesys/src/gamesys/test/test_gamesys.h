@@ -724,6 +724,7 @@ void GamesysTest<T>::SetUp()
         m_PhysicsContextBox2D.m_BaseContext.m_Box2DVelocityIterations = 10;
         m_PhysicsContextBox2D.m_BaseContext.m_Box2DPositionIterations = 10;
         m_PhysicsContextBox2D.m_BaseContext.m_Box2DSubStepCount = 4;
+        m_PhysicsContextBox2D.m_BaseContext.m_UseDoubleBufferedWorlds = false;
 
         dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
         context2DParams.m_Scale = this->m_projectOptions.m_Scale;

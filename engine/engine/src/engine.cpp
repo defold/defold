@@ -884,6 +884,7 @@ namespace dmEngine
         physics->m_MaxCollisionCount = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_COLLISIONS_KEY, 64);
         physics->m_MaxContactPointCount = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_CONTACTS_KEY, 128);
         physics->m_UseFixedTimestep = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_USE_FIXED_TIMESTEP, 1) ? 1 : 0;
+        physics->m_UseDoubleBufferedWorlds = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_ASYNC, 0) ? 1 : 0;
         physics->m_MaxFixedTimesteps = dmConfigFile::GetInt(config, dmGameSystem::PHYSICS_MAX_FIXED_TIMESTEPS, 2);
         physics->m_Box2DVelocityIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_VELOCITY_ITERATIONS, 10);
         physics->m_Box2DPositionIterations = dmConfigFile::GetInt(config, dmGameSystem::BOX2D_POSITION_ITERATIONS, 10);
