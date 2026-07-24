@@ -43,6 +43,7 @@ namespace dmPhysics
     , m_WorldMax(WORLD_EXTENT, WORLD_EXTENT, WORLD_EXTENT)
     , m_GetWorldTransformCallback(0x0)
     , m_SetWorldTransformCallback(0x0)
+    , m_UseDoubleBufferedWorlds(false)
     {
 
     }

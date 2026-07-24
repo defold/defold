@@ -22,6 +22,7 @@
 #include <dmsdk/dlib/vmath.h>
 
 #include "box2d_debug_draw.h"
+#include "box2d_operation_queue.h"
 #include "../physics.h"
 #include "../physics_private.h"
 
@@ -124,6 +125,13 @@ namespace dmPhysics
         OverlapCache                m_TriggerOverlaps;
         HContext2D                  m_Context;
         b2WorldId                   m_WorldId;
+        // Second Box2D world used only when double-buffering is on. The worker steps this
+        // world; results sync back to m_WorldId at the frame-start safe point. b2_nullWorldId
+        // when double-buffering is off.
+        b2WorldId                   m_PhysicsWorldId;
+        // Structural mutations (create/destroy/enable/scale/gravity) queued against the
+        // physics world, drained at the safe point. Empty when double-buffering is off.
+        dmArray<PendingPhysicsOp>   m_PendingOps;
         dmArray<RayCastRequest>     m_RayCastRequests;
         DebugDraw2D                 m_DebugDraw;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
@@ -138,7 +146,8 @@ namespace dmPhysics
         dmArray<b2ShapeId>          m_GetSensorOverlapsScratchBuffer;
 
         uint8_t                     m_AllowDynamicTransforms:1;
-        uint8_t                     :7;
+        uint8_t                     m_UseDoubleBufferedWorlds:1;
+        uint8_t                     :6;
     };
 
     struct Context2D

@@ -55,6 +55,7 @@ namespace dmPhysics
     , m_GetWorldTransformCallback(params.m_GetWorldTransformCallback)
     , m_SetWorldTransformCallback(params.m_SetWorldTransformCallback)
     , m_AllowDynamicTransforms(context->m_AllowDynamicTransforms)
+    , m_UseDoubleBufferedWorlds(params.m_UseDoubleBufferedWorlds)
     {
         m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
 
@@ -68,6 +69,18 @@ namespace dmPhysics
         worldDef.contactDampingRatio = 10.0f;
         worldDef.enableContinuous = true;
         m_WorldId = b2CreateWorld(&worldDef);
+
+        // Second world for the double-buffered async path, built from the same definition so the
+        // physics-world simulation matches the game world. Only structural ops mirrored through
+        // m_PendingOps and per-frame syncs cross between them.
+        if (m_UseDoubleBufferedWorlds)
+        {
+            m_PhysicsWorldId = b2CreateWorld(&worldDef);
+        }
+        else
+        {
+            m_PhysicsWorldId = b2_nullWorldId;
+        }
 
         m_Bodies.SetCapacity(32);
     }
@@ -203,6 +216,10 @@ namespace dmPhysics
         /// collision enabled to prevent fast moving objects from going through static objects. The performance gain from
         /// disabling continuous collision is minor.
         b2World_EnableContinuous(world->m_WorldId, true);
+        if (world->m_UseDoubleBufferedWorlds)
+        {
+            b2World_EnableContinuous(world->m_PhysicsWorldId, true);
+        }
 
         context->m_Worlds.Push(world);
         return world;
@@ -237,6 +254,11 @@ namespace dmPhysics
         if (b2World_IsValid(world->m_WorldId))
         {
             b2DestroyWorld(world->m_WorldId);
+        }
+
+        if (b2World_IsValid(world->m_PhysicsWorldId))
+        {
+            b2DestroyWorld(world->m_PhysicsWorldId);
         }
 
         delete world;

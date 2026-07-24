@@ -361,6 +361,8 @@ namespace dmPhysics
         SetWorldTransformCallback m_SetWorldTransformCallback;
         /// max number of collision objects
         uint32_t m_MaxCollisionObjectsCount;
+        /// Run the 2D physics world double-buffered (game world + physics world). Default false.
+        bool m_UseDoubleBufferedWorlds;
     };
 
     /**
