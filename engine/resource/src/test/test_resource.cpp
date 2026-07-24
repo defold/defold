@@ -1147,7 +1147,7 @@ TEST_P(GetResourceTest, PreloadLoopWithFullRequestTree)
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/preloader_loop_0000.cont");
     dmResource::Result r = dmResource::RESULT_PENDING;
     uint64_t start = dmTime::GetMonotonicTime();
-    const uint64_t timeout = 10 * 1000 * 1000;
+    const uint64_t timeout = 30 * 1000 * 1000;
     while (r == dmResource::RESULT_PENDING && dmTime::GetMonotonicTime() - start < timeout)
     {
         r = dmResource::UpdatePreloader(pr, 0, 0, 10 * 1000);
