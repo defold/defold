@@ -210,6 +210,56 @@ namespace dmPhysics
     };
     typedef void (*TriggerExitedCallback)(const TriggerExit& trigger_exit, void* user_data);
 
+    /**
+     * Contact point data for prepared collision events.
+     * Used to pass contact manifold data from physics to gamesys layer.
+     */
+    struct ContactManifoldPoint
+    {
+        /// Contact point position (world space)
+        dmVMath::Point3 m_Position;
+        /// Impulse applied at this contact point
+        float m_NormalImpulse;
+        /// Penetration depth (negative = overlap)
+        float m_Separation;
+    };
+
+    /**
+     * Prepared collision event containing all data needed for callbacks.
+     * Prepared asynchronously by the physics thread, delivered to Lua on the main thread.
+     * Uses Defold types (not Box2D types) to remain backend-agnostic.
+     */
+    struct PreparedCollisionEvent
+    {
+        /// User data for object A (CollisionComponent*)
+        void* m_BodyUserDataA;
+        /// User data for object B (CollisionComponent*)
+        void* m_BodyUserDataB;
+        /// Body ID keys for deleted object filtering
+        uint64_t m_BodyIdKeyA;
+        uint64_t m_BodyIdKeyB;
+        /// Collision group for A
+        uint16_t m_CategoryBitsA;
+        /// Collision group for B
+        uint16_t m_CategoryBitsB;
+        /// Velocity of A (world space)
+        dmVMath::Vector3 m_VelocityA;
+        /// Velocity of B (world space)
+        dmVMath::Vector3 m_VelocityB;
+        /// Contact normal (pointing A->B)
+        dmVMath::Vector3 m_Normal;
+        /// Mass of A
+        float m_MassA;
+        /// Mass of B
+        float m_MassB;
+        /// Maximum impulse from all contact points
+        float m_MaxImpulse;
+        /// Contact points (up to 4 per Box2D spec)
+        ContactManifoldPoint m_ContactPoints[4];
+        /// Actual number of contact points
+        uint8_t m_ContactPointCount;
+    };
+
     struct RayCastRequest;
     struct RayCastResponse;
 
@@ -384,6 +434,18 @@ namespace dmPhysics
         TriggerExitedCallback   m_TriggerExitedCallback;
         /// Trigger exited callback
         void*                   m_TriggerExitedUserData;
+
+        /// Fixed timestep tracking (for async physics)
+        /// Current fixed step index (0-based) within this frame
+        uint32_t                m_CurrentFixedStep;
+        /// Total number of fixed steps this frame
+        uint32_t                m_TotalFixedSteps;
+        /// Global frame number (increments each frame)
+        uint64_t                m_FrameNumber;
+        /// True if using batched callbacks (event listener), false if individual callbacks
+        bool                    m_CallbackInfoBatched;
+        /// True if collision pair deduplication is enabled
+        bool                    m_DeduplicateCallbacks;
     };
 
     /**
@@ -1190,6 +1252,60 @@ namespace dmPhysics
      * @note The result array may grow during the call
      */
     void RayCast2D(HWorld2D world, const RayCastRequest& request, dmArray<RayCastResponse>& results);
+
+    /**
+     * Get prepared collision events from async physics processing.
+     * Returns events from the read buffer (Frame N-1) after the async thread has prepared them.
+     * The gamesys layer calls this to filter deleted objects and deliver callbacks to Lua.
+     *
+     * @param world Physics world handle
+     * @param out_events Array to receive prepared collision events (cleared and populated)
+     * @param frame_number Frame number of the events being requested
+     */
+    void GetPreparedCollisionEvents2D(HWorld2D world, dmArray<PreparedCollisionEvent>& out_events, uint64_t frame_number);
+
+    /**
+     * Check if a collision object was deleted this frame.
+     * Used by async callback delivery to filter out stale component pointers.
+     *
+     * @param world Physics world handle
+     * @param body_id_key Body ID encoded as uint64_t
+     * @return true if the object was deleted this frame
+     */
+    bool IsObjectDeleted(HWorld2D world, uint64_t body_id_key);
+
+    /**
+     * Get the count of tracked deleted objects.
+     * @param world Physics world handle
+     * @return Number of tracked deleted objects
+     */
+    uint32_t GetDeletedObjectCount2D(HWorld2D world);
+
+    /**
+     * Get the frame number of the tracked deleted objects (0 if the buffer is empty).
+     * @param world Physics world handle
+     */
+    uint64_t GetDeletedObjectsFrame2D(HWorld2D world);
+
+    /**
+     * Set the frame number for the deleted objects tracking buffer.
+     * @param world Physics world handle
+     * @param frame_number Frame number to associate with deletions
+     */
+    void SetDeletedObjectsFrame2D(HWorld2D world, uint64_t frame_number);
+
+    /**
+     * Clear the deleted objects tracking table. Called after async callback delivery filters,
+     * before the next frame's deletions accumulate.
+     * @param world Physics world handle
+     */
+    void ClearDeletedObjects2D(HWorld2D world);
+
+    /**
+     * Get the frame number of the prepared collision events in the read buffer (0 if none).
+     * @param world Physics world handle
+     */
+    uint64_t GetPreparedCollisionEventsFrame2D(HWorld2D world);
 
     /**
      * Set the gravity for a 2D physics world.

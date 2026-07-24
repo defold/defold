@@ -1886,4 +1886,45 @@ namespace dmPhysics
         torque = joint->GetReactionTorque(inv_dt) * inv_scale;
         return true;
     }
+
+    // Async physics accessors: the box2d_defold (Box2D v2) backend does not implement async
+    // physics, so these are no-ops.
+    void GetPreparedCollisionEvents2D(HWorld2D world, dmArray<PreparedCollisionEvent>& out_events, uint64_t frame_number)
+    {
+        (void)world; (void)out_events; (void)frame_number;
+    }
+
+    bool IsObjectDeleted(HWorld2D world, uint64_t body_id_key)
+    {
+        (void)world; (void)body_id_key;
+        return false;
+    }
+
+    uint32_t GetDeletedObjectCount2D(HWorld2D world)
+    {
+        (void)world;
+        return 0;
+    }
+
+    uint64_t GetDeletedObjectsFrame2D(HWorld2D world)
+    {
+        (void)world;
+        return 0;
+    }
+
+    void SetDeletedObjectsFrame2D(HWorld2D world, uint64_t frame_number)
+    {
+        (void)world; (void)frame_number;
+    }
+
+    void ClearDeletedObjects2D(HWorld2D world)
+    {
+        (void)world;
+    }
+
+    uint64_t GetPreparedCollisionEventsFrame2D(HWorld2D world)
+    {
+        (void)world;
+        return 0;
+    }
 }
