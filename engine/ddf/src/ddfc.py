@@ -887,6 +887,11 @@ def compile_cxx(context, proto_file, file_to_generate, namespace, includes):
         if not 'ddf_extensions' in d:
             pp_cpp.p('#include "%s"', d.replace(".proto", ".h"))
     pp_cpp.p('#include "%s.h"' % base_name)
+    # EnsureStructAliasSize() asserts reference dmMath/dmVMath/dmTransform, declared in ddf_math.h.
+    # The alias table is global, so these asserts are emitted in every generated file, including
+    # ones that do not import ddf_math. Include ddf_math.h wherever the asserts are emitted.
+    if context.type_alias_messages and 'ddf_math' not in file_desc.name:
+        pp_cpp.p('#include "ddf/ddf_math.h"')
 
     if namespace:
         pp_cpp.begin("namespace %s",  namespace)
