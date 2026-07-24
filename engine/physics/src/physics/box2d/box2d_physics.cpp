@@ -878,9 +878,27 @@ namespace dmPhysics
         b2World_Draw(step_world, &world->m_DebugDraw.m_DebugDraw);
     }
 
+    // Double-buffered step. The physics world is stepped instead of the game world; state is copied
+    // in before the step and out after. This runs synchronously here (the worker thread lands in a
+    // later change), so callbacks fire inline exactly as in the single-world path.
+    static void StepWorld2DAsync(HWorld2D world, const StepWorldContext& step_context)
+    {
+        UpdateKinematicBodies2D(world);                                    // game world kinematic pull-in
+        SyncGameToPhysics(world);                                          // game state -> physics twins
+        DrainPendingOps(world);                                            // structural ops -> physics world
+        StepWorldCore2D(world, step_context, world->m_PhysicsWorldId, true); // step physics world
+        SyncPhysicsToGame(world);                                          // physics twins -> game world
+    }
+
     // Synchronous single-world step: pull kinematic transforms then run the step core on the game world.
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
+        if (world->m_UseDoubleBufferedWorlds)
+        {
+            StepWorld2DAsync(world, step_context);
+            return;
+        }
+
         UpdateKinematicBodies2D(world);
         StepWorldCore2D(world, step_context, world->m_WorldId, false);
     }

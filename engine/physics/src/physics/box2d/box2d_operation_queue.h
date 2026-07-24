@@ -54,6 +54,7 @@ namespace dmPhysics
                 float vertices_x[B2_MAX_POLYGON_VERTICES];
                 float vertices_y[B2_MAX_POLYGON_VERTICES];
                 float centroid_x, centroid_y;
+                float radius;
                 uint8_t vertex_count;
             } polygon;
 

@@ -58,6 +58,7 @@ namespace dmPhysics
                 out.polygon.vertex_count = (uint8_t)p->m_Polygon.count;
                 out.polygon.centroid_x   = p->m_Polygon.centroid.x;
                 out.polygon.centroid_y   = p->m_Polygon.centroid.y;
+                out.polygon.radius       = p->m_Polygon.radius;
                 out.centroid_original_x  = p->m_CentroidOriginal.x;
                 out.centroid_original_y  = p->m_CentroidOriginal.y;
                 for (int j = 0; j < p->m_Polygon.count; ++j)

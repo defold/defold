@@ -245,6 +245,127 @@ TEST(AsyncSync, GameToPhysicsAndBack)
     DeleteContext2D(context);
 }
 
+// --- Parity battery: the double-buffered path must produce the same simulation and callback
+// stream as the synchronous path when run synchronously (the worker thread lands later). ---
+
+static int g_collisions;
+static int g_contact_points;
+static int g_trigger_enters;
+static int g_trigger_exits;
+
+static bool ParityOnCollision(void*, uint16_t, void*, uint16_t, void*)      { g_collisions++;      return true; }
+static bool ParityOnContactPoint(const ContactPoint&, void*)               { g_contact_points++;  return true; }
+static void ParityOnTriggerEnter(const TriggerEnter&, void*)               { g_trigger_enters++;  }
+static void ParityOnTriggerExit(const TriggerExit&, void*)                 { g_trigger_exits++;   }
+
+struct PBodyInfo { float x, y; };
+
+static void ParityGetTransform(void* user_data, dmTransform::Transform& t)
+{
+    PBodyInfo* b = (PBodyInfo*) user_data;
+    t.SetTranslation(dmVMath::Vector3(b->x, b->y, 0.0f));
+    t.SetRotation(dmVMath::Quat::identity());
+    t.SetUniformScale(1.0f);
+}
+
+struct ParityResult
+{
+    b2Vec2 m_FinalPos;
+    int    m_Collisions;
+    int    m_ContactPoints;
+    int    m_TriggerEnters;
+    int    m_TriggerExits;
+};
+
+// Ball dropped through a static sensor onto a static floor: exercises collision callbacks, contact
+// points, and trigger enter/exit in one scene.
+static ParityResult RunParityScene(bool async)
+{
+    g_collisions = g_contact_points = g_trigger_enters = g_trigger_exits = 0;
+
+    HContext2D context = NewTestContext();
+
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = async;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo floor_info  = { 0.0f, -3.0f };
+    PBodyInfo sensor_info = { 0.0f, -0.5f };
+    PBodyInfo ball_info   = { 0.0f,  2.0f };
+
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData floor_data;
+    floor_data.m_Type     = COLLISION_OBJECT_TYPE_STATIC;
+    floor_data.m_Mass     = 0.0f;
+    floor_data.m_UserData = &floor_info;
+    Body* floor = (Body*)NewCollisionObject2D(world, floor_data, &floor_shape, 1);
+
+    HCollisionShape2D sensor_shape = NewBoxShape2D(context, dmVMath::Vector3(1.0f, 0.3f, 0.0f));
+    CollisionObjectData sensor_data;
+    sensor_data.m_Type     = COLLISION_OBJECT_TYPE_TRIGGER;
+    sensor_data.m_Mass     = 0.0f;
+    sensor_data.m_UserData = &sensor_info;
+    Body* sensor = (Body*)NewCollisionObject2D(world, sensor_data, &sensor_shape, 1);
+
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData ball_data;
+    ball_data.m_Type     = COLLISION_OBJECT_TYPE_DYNAMIC;
+    ball_data.m_Mass     = 1.0f;
+    ball_data.m_UserData = &ball_info;
+    Body* ball = (Body*)NewCollisionObject2D(world, ball_data, &ball_shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT                     = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount      = 4;
+    sc.m_CollisionCallback      = ParityOnCollision;
+    sc.m_ContactPointCallback   = ParityOnContactPoint;
+    sc.m_TriggerEnteredCallback = ParityOnTriggerEnter;
+    sc.m_TriggerExitedCallback  = ParityOnTriggerExit;
+
+    for (int i = 0; i < 150; ++i)
+    {
+        StepWorld2D(world, sc);
+    }
+
+    ParityResult r;
+    r.m_FinalPos      = b2Body_GetPosition(ball->m_BodyId);
+    r.m_Collisions    = g_collisions;
+    r.m_ContactPoints = g_contact_points;
+    r.m_TriggerEnters = g_trigger_enters;
+    r.m_TriggerExits  = g_trigger_exits;
+
+    DeleteCollisionObject2D(world, ball);
+    DeleteCollisionObject2D(world, sensor);
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(sensor_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+    return r;
+}
+
+TEST(AsyncParity, SyncVsAsyncScene)
+{
+    ParityResult s = RunParityScene(false);
+    ParityResult a = RunParityScene(true);
+
+    // The scene must actually exercise each callback path, or the parity check is vacuous.
+    ASSERT_GT(s.m_Collisions, 0);
+    ASSERT_GT(s.m_ContactPoints, 0);
+    ASSERT_GT(s.m_TriggerEnters, 0);
+    ASSERT_GT(s.m_TriggerExits, 0);
+
+    ASSERT_EQ(s.m_Collisions, a.m_Collisions);
+    ASSERT_EQ(s.m_ContactPoints, a.m_ContactPoints);
+    ASSERT_EQ(s.m_TriggerEnters, a.m_TriggerEnters);
+    ASSERT_EQ(s.m_TriggerExits, a.m_TriggerExits);
+
+    ASSERT_NEAR(s.m_FinalPos.x, a.m_FinalPos.x, 0.001f);
+    ASSERT_NEAR(s.m_FinalPos.y, a.m_FinalPos.y, 0.001f);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

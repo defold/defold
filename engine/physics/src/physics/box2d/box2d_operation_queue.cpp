@@ -132,7 +132,9 @@ namespace dmPhysics
                         b2Vec2 edge = b2Sub(polygon.vertices[j2], polygon.vertices[j1]);
                         polygon.normals[j] = b2Normalize(b2Vec2{edge.y, -edge.x});
                     }
-                    polygon.radius = b2_polygonRadius;
+                    // Match the source polygon's skin radius so the twin shape is geometrically
+                    // identical to the game-world shape (b2MakeBox produces radius 0).
+                    polygon.radius = shape_data.polygon.radius;
                     b2CreatePolygonShape(body_id, &shape_def, &polygon);
                     break;
                 }
