@@ -366,6 +366,189 @@ TEST(AsyncParity, SyncVsAsyncScene)
     ASSERT_NEAR(s.m_FinalPos.y, a.m_FinalPos.y, 0.001f);
 }
 
+// --- Structural mutator parity: enable/disable, gravity, scale must mirror to the twin. ---
+
+static b2Vec2 RunDisableScene(bool async, bool* out_game_enabled, bool* out_twin_enabled)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = async;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo info = { 0.0f, 5.0f };
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData d;
+    d.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC;
+    d.m_Mass = 1.0f;
+    d.m_UserData = &info;
+    Body* ball = (Body*)NewCollisionObject2D(world, d, &shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+
+    for (int i = 0; i < 10; ++i) StepWorld2D(world, sc);
+    SetEnabled2D(world, ball, false);
+    for (int i = 0; i < 40; ++i) StepWorld2D(world, sc);
+
+    b2Vec2 pos = b2Body_GetPosition(ball->m_BodyId);
+    *out_game_enabled = b2Body_IsEnabled(ball->m_BodyId);
+    *out_twin_enabled = async ? b2Body_IsEnabled(ball->m_PhysicsBodyId) : false;
+
+    DeleteCollisionObject2D(world, ball);
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+    return pos;
+}
+
+TEST(AsyncMutatorParity, Disable)
+{
+    bool s_game, s_twin, a_game, a_twin;
+    b2Vec2 s = RunDisableScene(false, &s_game, &s_twin);
+    b2Vec2 a = RunDisableScene(true,  &a_game, &a_twin);
+
+    ASSERT_FALSE(s_game);   // disabled in both paths
+    ASSERT_FALSE(a_game);
+    ASSERT_FALSE(a_twin);   // twin was disabled through the op queue
+    ASSERT_NEAR(s.x, a.x, 0.001f);
+    ASSERT_NEAR(s.y, a.y, 0.001f);
+}
+
+static b2Vec2 RunGravityScene(bool async)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = async;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo info = { 0.0f, 0.0f };
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData d;
+    d.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC;
+    d.m_Mass = 1.0f;
+    d.m_UserData = &info;
+    Body* ball = (Body*)NewCollisionObject2D(world, d, &shape, 1);
+
+    SetGravity2D(world, dmVMath::Vector3(10.0f, 0.0f, 0.0f)); // push right instead of down
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+    for (int i = 0; i < 60; ++i) StepWorld2D(world, sc);
+
+    b2Vec2 pos = b2Body_GetPosition(ball->m_BodyId);
+
+    DeleteCollisionObject2D(world, ball);
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+    return pos;
+}
+
+TEST(AsyncMutatorParity, Gravity)
+{
+    b2Vec2 s = RunGravityScene(false);
+    b2Vec2 a = RunGravityScene(true);
+
+    ASSERT_GT(s.x, 1.0f);   // moved right under the changed gravity
+    ASSERT_NEAR(s.x, a.x, 0.001f);
+    ASSERT_NEAR(s.y, a.y, 0.001f);
+}
+
+struct PScaleInfo { float x, y, scale; };
+
+static void ScaleGetTransform(void* user_data, dmTransform::Transform& t)
+{
+    PScaleInfo* s = (PScaleInfo*) user_data;
+    t.SetTranslation(dmVMath::Vector3(s->x, s->y, 0.0f));
+    t.SetRotation(dmVMath::Quat::identity());
+    t.SetUniformScale(s->scale);
+}
+
+// A scale change on a body (driven through the game-object transform) mirrors onto the twin's shape.
+TEST(AsyncMutator, ScaleMirrorsToTwin)
+{
+    NewContextParams cp;
+    cp.m_WorldCount             = 4;
+    cp.m_RayCastLimit2D         = 16;
+    cp.m_TriggerOverlapCapacity = 16;
+    cp.m_AllowDynamicTransforms = 1; // so dynamic bodies pull scale from the game object
+    HContext2D context = NewContext2D(cp);
+
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ScaleGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PScaleInfo info = { 0.0f, 0.0f, 1.0f };
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData d;
+    d.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC;
+    d.m_Mass = 1.0f;
+    d.m_UserData = &info;
+    Body* ball = (Body*)NewCollisionObject2D(world, d, &shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+
+    StepWorld2D(world, sc);   // twin created at scale 1
+    info.scale = 2.0f;        // grow the object
+    for (int i = 0; i < 3; ++i) StepWorld2D(world, sc);
+
+    CircleShapeData* game_circle = (CircleShapeData*) ball->m_Shapes[0];
+    float game_radius = game_circle->m_Circle.radius;
+
+    b2ShapeId twin_shapes[1];
+    int n = b2Body_GetShapes(ball->m_PhysicsBodyId, twin_shapes, 1);
+    ASSERT_EQ(1, n);
+    b2Circle twin_circle = b2Shape_GetCircle(twin_shapes[0]);
+
+    ASSERT_NEAR(1.0f, game_radius, 0.001f);            // 0.5 creation radius * 2.0 scale
+    ASSERT_NEAR(game_radius, twin_circle.radius, 0.001f); // twin matches game
+
+    DeleteCollisionObject2D(world, ball);
+    DrainPendingOps(world);
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+// A body created disabled and then enabled before the first drain must have its twin created
+// enabled: the enable is applied between create and drain, when the twin id does not exist, so
+// it has to fold into the pending create rather than be dropped.
+TEST(AsyncMutator, EnableBeforeDrainAppliesToTwin)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_UseDoubleBufferedWorlds = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData d;
+    d.m_Type    = COLLISION_OBJECT_TYPE_DYNAMIC;
+    d.m_Mass    = 1.0f;
+    d.m_Enabled = 0; // created disabled
+
+    Body* ball = (Body*)NewCollisionObject2D(world, d, &shape, 1);
+    ASSERT_FALSE(b2Body_IsValid(ball->m_PhysicsBodyId)); // twin not created
+
+    SetEnabled2D(world, ball, true); // enable before any drain
+    DrainPendingOps(world);
+
+    ASSERT_TRUE(b2Body_IsValid(ball->m_PhysicsBodyId));
+    ASSERT_TRUE(b2Body_IsEnabled(ball->m_PhysicsBodyId)); // twin came up enabled
+
+    DeleteCollisionObject2D(world, ball);
+    DrainPendingOps(world);
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

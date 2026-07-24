@@ -31,6 +31,15 @@ namespace dmPhysics
     // so no orphan body is left in the physics world.
     void EnqueueDestroyBody(World2D* world, Body* owner);
 
+    // Queue an enable/disable of a body's physics-world twin. No-op if the twin does not exist.
+    void EnqueueEnableBody(World2D* world, Body* owner, bool enable);
+
+    // Queue a uniform scale of a body's physics-world twin shapes. No-op if the twin does not exist.
+    void EnqueueScaleBody(World2D* world, Body* owner, float scale);
+
+    // Queue a gravity change on the physics world. Gravity is already physics-scaled.
+    void EnqueueSetGravity(World2D* world, float gravity_x, float gravity_y, float gravity_z);
+
     // Apply all queued operations to the physics world, writing each created twin id back onto its
     // owning Body, then clear the queue. Runs on the main thread at the frame-start safe point.
     void DrainPendingOps(World2D* world);

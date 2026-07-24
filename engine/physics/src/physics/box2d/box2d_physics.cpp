@@ -488,6 +488,12 @@ namespace dmPhysics
         if (!allow_sleep)
         {
             b2Body_SetAwake(body->m_BodyId, true);
+
+            // Mirror the scale change to the physics-world twin (drained before the next step).
+            if (world->m_UseDoubleBufferedWorlds && b2Body_IsValid(body->m_PhysicsBodyId))
+            {
+                EnqueueScaleBody(world, body, object_scale);
+            }
         }
     }
 
@@ -2003,6 +2009,12 @@ namespace dmPhysics
             // Reset state
             b2Body_SetAwake(body->m_BodyId, false);
         }
+
+        // Mirror the enable/disable to the physics-world twin (drained before the next step).
+        if (world->m_UseDoubleBufferedWorlds)
+        {
+            EnqueueEnableBody(world, body, enabled);
+        }
     }
 
     bool IsSleeping2D(HCollisionObject2D collision_object)
@@ -2329,6 +2341,12 @@ namespace dmPhysics
         b2Vec2 gravity_b;
         ToB2(gravity, gravity_b, world->m_Context->m_Scale);
         b2World_SetGravity(world->m_WorldId, gravity_b);
+
+        // Mirror the gravity change to the physics-world twin (drained before the next step).
+        if (world->m_UseDoubleBufferedWorlds)
+        {
+            EnqueueSetGravity(world, gravity_b.x, gravity_b.y, 0.0f);
+        }
     }
 
     Vector3 GetGravity2D(HWorld2D world)

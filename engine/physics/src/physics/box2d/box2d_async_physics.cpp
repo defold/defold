@@ -259,6 +259,65 @@ namespace dmPhysics
         }
     }
 
+    void EnqueueEnableBody(World2D* world, Body* owner, bool enable)
+    {
+        if (b2Body_IsValid(owner->m_PhysicsBodyId))
+        {
+            PendingPhysicsOp op;
+            memset(&op, 0, sizeof(PendingPhysicsOp));
+            op.m_Type = enable ? OP_ENABLE_BODY : OP_DISABLE_BODY;
+            if (enable)
+            {
+                op.m_Data.enable_body.body_id = owner->m_PhysicsBodyId;
+            }
+            else
+            {
+                op.m_Data.disable_body.body_id = owner->m_PhysicsBodyId;
+            }
+            PushOp(world, op);
+            return;
+        }
+
+        // Twin not created (enable/disable applied between create and the first drain): fold the
+        // state into the pending create so the twin is created enabled/disabled as intended.
+        // A standalone enable/disable op here would be dropped, since it needs a valid twin id.
+        dmArray<PendingPhysicsOp>& q = world->m_PendingOps;
+        for (uint32_t i = 0; i < q.Size(); ++i)
+        {
+            PendingPhysicsOp& op = q[i];
+            if (op.m_Type == OP_CREATE_BODY && op.m_Data.create_body.m_Owner == owner)
+            {
+                op.m_Data.create_body.enabled = enable ? 1 : 0;
+                return;
+            }
+        }
+    }
+
+    void EnqueueScaleBody(World2D* world, Body* owner, float scale)
+    {
+        if (!b2Body_IsValid(owner->m_PhysicsBodyId))
+        {
+            return;
+        }
+        PendingPhysicsOp op;
+        memset(&op, 0, sizeof(PendingPhysicsOp));
+        op.m_Type = OP_SCALE_BODY;
+        op.m_Data.scale_body.body_id = owner->m_PhysicsBodyId;
+        op.m_Data.scale_body.scale   = scale;
+        PushOp(world, op);
+    }
+
+    void EnqueueSetGravity(World2D* world, float gravity_x, float gravity_y, float gravity_z)
+    {
+        PendingPhysicsOp op;
+        memset(&op, 0, sizeof(PendingPhysicsOp));
+        op.m_Type = OP_SET_GRAVITY;
+        op.m_Data.set_gravity.gravity_x = gravity_x;
+        op.m_Data.set_gravity.gravity_y = gravity_y;
+        op.m_Data.set_gravity.gravity_z = gravity_z;
+        PushOp(world, op);
+    }
+
     void DrainPendingOps(World2D* world)
     {
         dmArray<PendingPhysicsOp>& q = world->m_PendingOps;
