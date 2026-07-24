@@ -176,6 +176,75 @@ TEST(AsyncBodyMapping, CreateDestroyBeforeDrain)
     DeleteContext2D(context);
 }
 
+struct SetTransformCapture
+{
+    dmVMath::Point3 m_Position;
+    int             m_Calls;
+};
+
+static void CaptureSetTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation)
+{
+    SetTransformCapture* c = (SetTransformCapture*) user_data;
+    c->m_Position = position;
+    c->m_Calls++;
+}
+
+// SyncGameToPhysics copies the game body's state onto its twin; stepping the physics world and then
+// SyncPhysicsToGame carries the result back onto the game body and fires the set-transform callback.
+TEST(AsyncSync, GameToPhysicsAndBack)
+{
+    SetTransformCapture capture = {};
+    capture.m_Position = dmVMath::Point3(0.0f, 0.0f, 0.0f);
+
+    HContext2D context = NewTestContext();
+
+    NewWorldParams wp;
+    wp.m_UseDoubleBufferedWorlds  = true;
+    wp.m_SetWorldTransformCallback = CaptureSetTransform;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData data;
+    data.m_Type     = COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass     = 1.0f;
+    data.m_UserData = &capture;
+
+    Body* body = (Body*)NewCollisionObject2D(world, data, &shape, 1);
+    DrainPendingOps(world);
+    ASSERT_TRUE(b2Body_IsValid(body->m_PhysicsBodyId));
+
+    // Set a known state on the game body, then push it onto the twin.
+    b2Body_SetTransform(body->m_BodyId, b2Vec2{3.0f, 5.0f}, b2Rot_identity);
+    b2Body_SetLinearVelocity(body->m_BodyId, b2Vec2{1.0f, -2.0f});
+    SyncGameToPhysics(world);
+
+    b2Vec2 twin_pos = b2Body_GetPosition(body->m_PhysicsBodyId);
+    b2Vec2 twin_vel = b2Body_GetLinearVelocity(body->m_PhysicsBodyId);
+    ASSERT_NEAR(3.0f, twin_pos.x, 0.0001f);
+    ASSERT_NEAR(5.0f, twin_pos.y, 0.0001f);
+    ASSERT_NEAR(1.0f, twin_vel.x, 0.0001f);
+    ASSERT_NEAR(-2.0f, twin_vel.y, 0.0001f);
+
+    // Step only the physics world; the game body is untouched until the sync back.
+    b2World_Step(world->m_PhysicsWorldId, 1.0f / 60.0f, 4);
+    b2Vec2 stepped = b2Body_GetPosition(body->m_PhysicsBodyId);
+
+    SyncPhysicsToGame(world);
+    b2Vec2 game_pos = b2Body_GetPosition(body->m_BodyId);
+    ASSERT_NEAR(stepped.x, game_pos.x, 0.0001f);
+    ASSERT_NEAR(stepped.y, game_pos.y, 0.0001f);
+
+    // The dynamic enabled body reported its stepped transform through the callback.
+    ASSERT_EQ(1, capture.m_Calls);
+    ASSERT_NEAR(stepped.x, capture.m_Position.getX(), 0.0001f);
+
+    DeleteCollisionObject2D(world, body);
+    DrainPendingOps(world);
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

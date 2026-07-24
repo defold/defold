@@ -12,6 +12,7 @@
 
 #include "box2d_async_physics.h"
 #include <string.h>
+#include <math.h>
 
 namespace dmPhysics
 {
@@ -135,6 +136,124 @@ namespace dmPhysics
             if (op.m_Type == OP_CREATE_BODY && op.m_Data.create_body.m_Owner == owner)
             {
                 op.m_Data.create_body.m_Owner = 0x0;
+            }
+        }
+    }
+
+    // Make the physics-world twin's collision shapes geometrically identical to the game-world
+    // shapes. The game shapes (body->m_Shapes) are the authoritative geometry the synchronous path
+    // simulates - kept correct by UpdateScale and by shape recreation or resize. Reconstructing the
+    // twin size from a stored creation-scale drifts from that (especially when a collision object is
+    // recreated at a new size), so mirror the game geometry directly. Only shapes that actually
+    // differ are updated, so a resting body's shapes are untouched and it can sleep.
+    static void MirrorShapesToTwin(Body* body)
+    {
+        b2BodyId twin = body->m_PhysicsBodyId;
+        int cap = b2Body_GetShapeCount(twin);
+        // b2Body_GetShapes enumeration order does not necessarily match body->m_Shapes creation
+        // order for multi-shape bodies, so index-based mirroring is only safe for single-shape
+        // bodies. Dynamic bodies are typically single-shape; multi-shape bodies are static and never
+        // change size, so skipping them is fine.
+        if (cap != 1 || body->m_ShapeCount != 1)
+        {
+            return;
+        }
+        b2ShapeId twin_shapes[MAX_OP_SHAPES];
+        int n = b2Body_GetShapes(twin, twin_shapes, cap);
+        for (int i = 0; i < n && i < (int) body->m_ShapeCount; ++i)
+        {
+            ShapeData* gs = body->m_Shapes[i];
+            b2ShapeType tt = b2Shape_GetType(twin_shapes[i]);
+            if (gs->m_Type == SHAPE_TYPE_CIRCLE)
+            {
+                if (tt != b2_circleShape)
+                {
+                    continue;
+                }
+                CircleShapeData* c = (CircleShapeData*) gs;
+                b2Circle tc = b2Shape_GetCircle(twin_shapes[i]);
+                if (fabsf(tc.radius   - c->m_Circle.radius)   > 1e-5f ||
+                    fabsf(tc.center.x - c->m_Circle.center.x) > 1e-5f ||
+                    fabsf(tc.center.y - c->m_Circle.center.y) > 1e-5f)
+                {
+                    tc.radius = c->m_Circle.radius;
+                    tc.center = c->m_Circle.center;
+                    b2Shape_SetCircle(twin_shapes[i], &tc);
+                }
+            }
+            else if (gs->m_Type == SHAPE_TYPE_POLYGON)
+            {
+                if (tt != b2_polygonShape)
+                {
+                    continue;
+                }
+                PolygonShapeData* p = (PolygonShapeData*) gs;
+                b2Polygon tp = b2Shape_GetPolygon(twin_shapes[i]);
+                bool differ = tp.count != p->m_Polygon.count || fabsf(tp.radius - p->m_Polygon.radius) > 1e-5f;
+                for (int j = 0; !differ && j < tp.count; ++j)
+                {
+                    if (fabsf(tp.vertices[j].x - p->m_Polygon.vertices[j].x) > 1e-5f ||
+                        fabsf(tp.vertices[j].y - p->m_Polygon.vertices[j].y) > 1e-5f)
+                    {
+                        differ = true;
+                    }
+                }
+                if (differ)
+                {
+                    b2Shape_SetPolygon(twin_shapes[i], &p->m_Polygon);
+                }
+            }
+            // Grid shapes are not yet implemented for the async path.
+        }
+    }
+
+    void SyncGameToPhysics(World2D* world)
+    {
+        for (uint32_t i = 0; i < world->m_Bodies.Size(); ++i)
+        {
+            Body* body = world->m_Bodies[i];
+            if (!b2Body_IsValid(body->m_PhysicsBodyId))
+            {
+                continue;
+            }
+
+            b2Vec2 position = b2Body_GetPosition(body->m_BodyId);
+            b2Rot  rotation = b2Body_GetRotation(body->m_BodyId);
+            b2Body_SetTransform(body->m_PhysicsBodyId, position, rotation);
+            b2Body_SetLinearVelocity(body->m_PhysicsBodyId, b2Body_GetLinearVelocity(body->m_BodyId));
+            b2Body_SetAngularVelocity(body->m_PhysicsBodyId, b2Body_GetAngularVelocity(body->m_BodyId));
+
+            // Keep the twin's collision geometry identical to the game shape (handles scale changes
+            // and shape recreation that the stored-scale mirror path misses).
+            MirrorShapesToTwin(body);
+        }
+    }
+
+    void SyncPhysicsToGame(World2D* world)
+    {
+        float inv_scale = world->m_Context->m_InvScale;
+        for (uint32_t i = 0; i < world->m_Bodies.Size(); ++i)
+        {
+            Body* body = world->m_Bodies[i];
+            if (!b2Body_IsValid(body->m_PhysicsBodyId))
+            {
+                continue;
+            }
+
+            b2Vec2 position = b2Body_GetPosition(body->m_PhysicsBodyId);
+            b2Rot  rotation = b2Body_GetRotation(body->m_PhysicsBodyId);
+            b2Body_SetTransform(body->m_BodyId, position, rotation);
+            b2Body_SetLinearVelocity(body->m_BodyId, b2Body_GetLinearVelocity(body->m_PhysicsBodyId));
+            b2Body_SetAngularVelocity(body->m_BodyId, b2Body_GetAngularVelocity(body->m_PhysicsBodyId));
+
+            if (world->m_SetWorldTransformCallback &&
+                b2Body_GetType(body->m_BodyId) == b2_dynamicBody &&
+                b2Body_IsEnabled(body->m_BodyId))
+            {
+                dmVMath::Point3 out_position;
+                FromB2(position, out_position, inv_scale);
+                dmVMath::Quat out_rotation = dmVMath::Quat::rotationZ(b2Rot_GetAngle(rotation));
+                (*world->m_SetWorldTransformCallback)(b2Body_GetUserData(body->m_BodyId), out_position, out_rotation);
             }
         }
     }

@@ -34,6 +34,16 @@ namespace dmPhysics
     // Apply all queued operations to the physics world, writing each created twin id back onto its
     // owning Body, then clear the queue. Runs on the main thread at the frame-start safe point.
     void DrainPendingOps(World2D* world);
+
+    // Copy each game body's transform and velocity onto its physics-world twin. Called before the
+    // physics world is stepped so property setters applied to the game body (velocity, forced
+    // transform) carry into the simulation. Both worlds share the same scale, so the Box2D values
+    // are copied directly.
+    void SyncGameToPhysics(World2D* world);
+
+    // Copy each physics twin's stepped transform and velocity back onto the game body, and invoke
+    // m_SetWorldTransformCallback for dynamic enabled bodies (as the synchronous StepWorld2D does).
+    void SyncPhysicsToGame(World2D* world);
 }
 
 #endif // DM_BOX2D_ASYNC_PHYSICS_H
