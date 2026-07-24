@@ -83,6 +83,7 @@ typedef int16_t TRequestIndex;
 
 typedef dmHashTable<dmhash_t, uint32_t> TPathHashTable;
 typedef dmHashTable<dmhash_t, bool> TPathInProgressTable;
+typedef dmHashTable<dmhash_t, bool> TPendingHintTable;
 
 
 static const uint32_t MAX_PRELOADER_REQUESTS         = 1024;
@@ -90,6 +91,8 @@ static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE    = MAX_PRELOADER_REQUESTS / 
 static const uint32_t PATH_IN_PROGRESS_CAPACITY      = MAX_PRELOADER_REQUESTS;
 static const uint32_t PATH_IN_PROGRESS_HASHDATA_SIZE = (PATH_IN_PROGRESS_TABLE_SIZE * sizeof(uint32_t)) + (PATH_IN_PROGRESS_CAPACITY * sizeof(TPathInProgressTable::Entry));
 static const uint32_t INITIAL_PATH_CAPACITY           = 1536;
+static const uint32_t INITIAL_PENDING_HINT_CAPACITY   = 128;
+static const uint32_t MAX_HINT_TRANSFERS_PER_UPDATE   = 64;
 
 // Identifies a resource path and type using preloader-owned strings that remain valid for the whole preload.
 struct PathDescriptor
@@ -163,6 +166,7 @@ struct ResourcePreloader
     ResourcePreloader()
         : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
     {
+        m_PendingHintLookup.SetCapacity(INITIAL_PENDING_HINT_CAPACITY);
     }
     // Holds data written by preload callbacks and protected by m_SyncedDataSpinlock.
     struct SyncedData
@@ -213,9 +217,16 @@ struct ResourcePreloader
     // keeps completed child references alive after recycling their request slots
     dmArray<RetainedResource> m_RetainedResources;
 
+    // Newly discovered hints are indexed and staged here before bounded transfer to m_PendingHints.
+    dmArray<PendingHint> m_StagedHints;
+
     // Overflow hints live here until a completed leaf returns a slot to m_Freelist.
-    // Hints are consumed LIFO, producing depth-first traversal
+    // Hints are consumed LIFO, producing depth-first traversal.
     dmArray<PendingHint> m_PendingHints;
+
+    // Set of hashed (parent request index, resource name hash) pairs for hints
+    // currently stored in m_StagedHints or m_PendingHints.
+    TPendingHintTable m_PendingHintLookup;
 };
 
 namespace dmResource
@@ -401,21 +412,37 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    // Check the overflow stack before queueing a hint that has not yet entered the active request tree.
-    static bool IsPendingHintDuplicate(HPreloader preloader, const PendingHint& hint)
+    static dmhash_t GetPendingHintKey(const PendingHint& hint)
     {
-        for (uint32_t i = 0; i < preloader->m_PendingHints.Size(); ++i)
-        {
-            const PendingHint& pending = preloader->m_PendingHints[i];
-            if (pending.m_Parent == hint.m_Parent && pending.m_PathDescriptor.m_NameHash == hint.m_PathDescriptor.m_NameHash)
-            {
-                return true;
-            }
-        }
-        return false;
+        uint64_t key_data[2] = { (uint64_t)(uint16_t)hint.m_Parent, hint.m_PathDescriptor.m_NameHash };
+        return dmHashBuffer64(key_data, sizeof(key_data));
     }
 
-    // Add a discovered hint to the growable stack where it waits for request-slot admission.
+    static bool RegisterPendingHint(HPreloader preloader, const PendingHint& hint)
+    {
+        dmhash_t key = GetPendingHintKey(hint);
+        if (preloader->m_PendingHintLookup.Get(key) != 0)
+        {
+            return false;
+        }
+        if (preloader->m_PendingHintLookup.Full())
+        {
+            preloader->m_PendingHintLookup.SetCapacity(preloader->m_PendingHintLookup.Capacity() * 2);
+        }
+        preloader->m_PendingHintLookup.Put(key, true);
+        return true;
+    }
+
+    static void PushStagedHint(HPreloader preloader, const PendingHint& hint)
+    {
+        if (preloader->m_StagedHints.Full())
+        {
+            preloader->m_StagedHints.OffsetCapacity(128);
+        }
+        preloader->m_StagedHints.Push(hint);
+    }
+
+    // Add a registered hint to the growable stack where it waits for request-slot admission.
     static void PushPendingHint(HPreloader preloader, const PendingHint& hint)
     {
         if (preloader->m_PendingHints.Full())
@@ -425,16 +452,30 @@ namespace dmResource
         preloader->m_PendingHints.Push(hint);
     }
 
-    // Discard overflow hints owned by a request that failed before its dependencies could be processed.
+    // Discard staged and overflow hints owned by a request that failed before its dependencies could be processed.
     static void RemovePendingHints(HPreloader preloader, TRequestIndex parent)
     {
         PreloadRequest& parent_request = preloader->m_Request[parent];
+        for (uint32_t i = 0; i < preloader->m_StagedHints.Size();)
+        {
+            if (preloader->m_StagedHints[i].m_Parent == parent)
+            {
+                parent_request.m_QueuedChildCount--;
+                preloader->m_PendingHintLookup.Erase(GetPendingHintKey(preloader->m_StagedHints[i]));
+                preloader->m_StagedHints.EraseSwap(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
         for (uint32_t i = 0; i < preloader->m_PendingHints.Size();)
         {
             if (preloader->m_PendingHints[i].m_Parent == parent)
             {
                 assert(parent_request.m_QueuedChildCount > 0);
                 parent_request.m_QueuedChildCount--;
+                preloader->m_PendingHintLookup.Erase(GetPendingHintKey(preloader->m_PendingHints[i]));
                 preloader->m_PendingHints.EraseSwap(i);
             }
             else
@@ -502,12 +543,14 @@ namespace dmResource
         // This preserves depth-first loading and avoids filling every slot with a wide tree level.
         PendingHint hint = preloader->m_PendingHints.Back();
         preloader->m_PendingHints.Pop();
+        preloader->m_PendingHintLookup.Erase(GetPendingHintKey(hint));
         assert(preloader->m_Request[hint.m_Parent].m_QueuedChildCount > 0);
         preloader->m_Request[hint.m_Parent].m_QueuedChildCount--;
         return PreloadPathDescriptor(preloader, hint.m_Parent, hint.m_PathDescriptor, hint.m_Persist) == RESULT_OK;
     }
 
-    // Transfer hints produced by preload callbacks into the update-thread stack, then admit one if possible.
+    // Index hints produced by preload callbacks, transfer a bounded number to the update-thread stack,
+    // then admit one if possible. Bounded transfer prevents a wide dependency list from monopolizing an update.
     static bool PopHints(HPreloader preloader)
     {
         dmArray<PendingHint> new_hints;
@@ -521,13 +564,23 @@ namespace dmResource
         for (uint32_t i = 0; i < hint_count; ++i)
         {
             const PendingHint& hint = hints[i];
-            if (IsPendingHintDuplicate(preloader, hint))
+            if (!RegisterPendingHint(preloader, hint))
             {
                 continue;
             }
-            PushPendingHint(preloader, hint);
+            PushStagedHint(preloader, hint);
             preloader->m_Request[hint.m_Parent].m_QueuedChildCount++;
         }
+
+        const uint32_t staged_count = preloader->m_StagedHints.Size();
+        const uint32_t transfer_count = staged_count < MAX_HINT_TRANSFERS_PER_UPDATE ? staged_count : MAX_HINT_TRANSFERS_PER_UPDATE;
+        const uint32_t transfer_start = staged_count - transfer_count;
+        for (uint32_t i = transfer_start; i < staged_count; ++i)
+        {
+            PushPendingHint(preloader, preloader->m_StagedHints[i]);
+        }
+        preloader->m_StagedHints.SetSize(transfer_start);
+
         return AdmitPendingHint(preloader);
     }
 
@@ -541,7 +594,7 @@ namespace dmResource
             return res;
         }
         PendingHint hint = { path_descriptor, parent, true };
-        if (IsPendingHintDuplicate(preloader, hint))
+        if (!RegisterPendingHint(preloader, hint))
         {
             return RESULT_ALREADY_REGISTERED;
         }

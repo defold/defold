@@ -1055,6 +1055,25 @@ TEST_P(GetResourceTest, PreloadFailureAfterMultipleHints)
     dmResource::DeletePreloader(pr);
 }
 
+TEST_P(GetResourceTest, PreloadDuplicateHints)
+{
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/duplicate_hints.cont");
+
+    dmResource::Result r = dmResource::RESULT_PENDING;
+    for (uint32_t i = 0; i < 100 && r == dmResource::RESULT_PENDING; ++i)
+    {
+        r = dmResource::UpdatePreloader(pr, 0, 0, 10 * 1000);
+        if (r == dmResource::RESULT_PENDING)
+        {
+            dmTime::Sleep(10 * 1000);
+        }
+    }
+
+    ASSERT_EQ(dmResource::RESULT_OK, r);
+    ASSERT_EQ(1U, m_FooResourceCreateCallCount);
+    dmResource::DeletePreloader(pr);
+}
+
 TEST_P(GetResourceTest, PreloadGetManyValidRefs)
 {
     // This stress-test data is intentionally not included in resources_pb. Passing
@@ -1064,7 +1083,9 @@ TEST_P(GetResourceTest, PreloadGetManyValidRefs)
 
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/many_valid_refs.cont");
 
-    uint32_t timeout = 100*1000;
+    // Use a small update budget so the wide hint batch is exercised across
+    // multiple scheduler iterations instead of relying on one long update.
+    uint32_t timeout = 10*1000;
     dmResource::Result r;
     for (uint32_t i=0;i<1000;i++)
     {
