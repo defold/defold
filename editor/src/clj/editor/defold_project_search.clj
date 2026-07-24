@@ -30,7 +30,10 @@
 (defn- search-data-sort-key [entry]
   (some-> entry :resource resource/proj-path))
 
-(defn make-search-data-future [report-error! project]
+(defn make-search-data-future
+  "Returns a future yielding search data for every project resource that passes
+  search-resource?, each with its :search-value built and ready to match against."
+  [report-error! project search-resource?]
   (let [evaluation-context (g/make-evaluation-context)]
     (future
       (try
@@ -38,9 +41,11 @@
               (->> (g/node-value project :node-id+resources evaluation-context)
                    (into []
                          (keep (fn [[node-id resource]]
+                                 (thread-util/throw-if-interrupted!)
                                  (when (and (resource/loaded? resource)
                                             (not (resource/internal? resource))
-                                            (= :file (resource/source-type resource)))
+                                            (= :file (resource/source-type resource))
+                                            (search-resource? resource))
                                    (let [resource-type (resource/resource-type resource)
                                          search-value-fn (when (:search-fn resource-type)
                                                            (:search-value-fn resource-type))]
@@ -56,6 +61,9 @@
             (project/update-system-cache-save-data! evaluation-context)
             (project/log-cache-info! (g/cache) "Cached searched save values in system cache."))
           search-data)
+        (catch InterruptedException _
+          ;; future-cancel was invoked because the filter changed; discard.
+          nil)
         (catch Throwable error
           (report-error! error)
           nil)))))
@@ -100,25 +108,24 @@
            (resource-matches-library-setting? resource search-libraries)
            (resource-matches-file-ext? resource file-ext-patterns)))))
 
-(defn- start-search-thread [report-error! search-data-future resource-type->matches-fn search-resource? produce-fn]
-  {:pre [(ifn? search-resource?)]}
+(defn- start-search-thread [report-error! search-data-future resource-type->matches-fn produce-fn]
   (future
     (try
-      (let [xform (keep (fn [search-data]
+      (let [xform (keep (fn [entry]
                           (thread-util/throw-if-interrupted!)
-                          (let [resource (:resource search-data)]
-                            (when (search-resource? resource)
-                              (let [resource-type (resource/resource-type resource)
-                                    matches-fn (resource-type->matches-fn resource-type)
-                                    matches (when matches-fn
-                                              (matches-fn (:search-value search-data)))]
-                                (when-not (coll/empty? matches)
-                                  {:resource resource
-                                   :matches matches}))))))]
+                          (let [resource (:resource entry)
+                                resource-type (resource/resource-type resource)
+                                matches-fn (resource-type->matches-fn resource-type)
+                                matches (when matches-fn
+                                          (matches-fn (:search-value entry)))]
+                            (when-not (coll/empty? matches)
+                              {:resource resource
+                               :matches matches}))))]
         (run! produce-fn (sequence xform (deref search-data-future)))
         (produce-fn ::done))
       (catch InterruptedException _
-        ;; future-cancel was invoked from another thread.
+        nil)
+      (catch java.util.concurrent.CancellationException _
         nil)
       (catch Throwable error
         (report-error! error)
@@ -126,10 +133,9 @@
 
 (defn make-file-searcher
   "Returns a map of two functions, start-search! and abort-search! that can be
-  used to perform asynchronous search queries against an ordered sequence of
-  search data. The search data is expected to be sorted in the order
-  it should appear in the search results list, and entries are expected to have
-  :resource (Resource) and :search-value (anything) fields.
+  used to perform asynchronous search queries. Search content is prepared per
+  ext/library filter and rebuilt only when that filter changes; search-pattern
+  keystrokes match against the pre-built content.
   When start-search! is called, it will cancel any pending search and start a
   new search using the provided search-string and searched-exts arguments. It
   will call stop-consumer! with the value returned from the last call to
@@ -147,15 +153,34 @@
   and if there was a previous consumer, stop-consumer! will be called with it.
   Since many operations happen on a background thread, report-error! will be
   called with the Throwable in the event of an error."
-  [workspace search-data-future start-consumer! stop-consumer! report-error!]
+  [workspace project initial-searched-exts initial-search-libraries start-consumer! stop-consumer! report-error!]
   (let [pending-search-atom (atom nil)
+
+        ;; Cached prep future, keyed by the ext/library filter. When the filter
+        ;; changes, the now-obsolete future is cancelled so its whole-project
+        ;; work does not keep running in the background. The future is created
+        ;; outside any swap so a retry cannot leave an orphan running.
+        search-data-atom (atom nil)
+        prepare-search-data!
+        (fn [searched-exts search-libraries]
+          (let [filter-key [searched-exts search-libraries]
+                current @search-data-atom]
+            (if (= (:key current) filter-key)
+              (:future current)
+              (let [new-future (make-search-data-future
+                                 report-error! project
+                                 (make-search-resource? searched-exts search-libraries))]
+                (reset! search-data-atom {:key filter-key :future new-future})
+                (some-> current :future future-cancel)
+                new-future))))
+
         abort-search! (fn [pending-search]
                         (some-> pending-search :thread future-cancel)
                         (some-> pending-search :consumer stop-consumer!)
                         nil)
-        start-search! (fn [pending-search search-string searched-exts search-libraries]
+        start-search! (fn [pending-search search-data-future search-string]
                         (abort-search! pending-search)
-                        (if (seq search-string)
+                        (if search-data-future
                           (let [queue (LinkedBlockingQueue. 1024)
                                 produce-fn #(do
                                               (.put queue %))
@@ -163,22 +188,25 @@
                                               (.drainTo queue results)
                                               (seq results))
                                 resource-type->matches-fn (make-resource-type->matches-fn workspace search-string)
-                                search-resource? (make-search-resource? searched-exts search-libraries)
-                                thread (start-search-thread report-error! search-data-future resource-type->matches-fn search-resource? produce-fn)
+                                thread (start-search-thread report-error! search-data-future resource-type->matches-fn produce-fn)
                                 consumer (start-consumer! consume-fn)]
                             {:thread thread
                              :consumer consumer})
                           (do (start-consumer! (constantly [::done]))
                               nil)))]
+    (prepare-search-data! initial-searched-exts initial-search-libraries)
     {:start-search! (fn [search-string searched-exts include-libraries?]
                       (try
-                        (swap! pending-search-atom start-search! search-string searched-exts include-libraries?)
+                        (let [search-data-future (when (seq search-string)
+                                                   (prepare-search-data! searched-exts include-libraries?))]
+                          (swap! pending-search-atom start-search! search-data-future search-string))
                         (catch Throwable error
                           (report-error! error)))
                       nil)
      :abort-search! (fn []
                       (try
                         (swap! pending-search-atom abort-search!)
+                        (some-> @search-data-atom :future future-cancel)
                         (catch Throwable error
                           (report-error! error)))
                       nil)}))
