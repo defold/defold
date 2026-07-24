@@ -2294,7 +2294,10 @@ static bool AppleGamepadDriverInitialize(HContext context, GamepadDriver* driver
     return true;
 }
 
-// Releases all device state, observers, and the macOS HID manager.
+// Releases all device state, observers, and the macOS HID manager. The device
+// references must be released before closing the manager, matching SDL's IOKit
+// shutdown order. Closing the manager first can race HID plug-in destruction
+// against the remaining GCController and IOHIDDevice references.
 static void AppleGamepadDriverDestroy(HContext context, GamepadDriver* _driver)
 {
     (void) context;
@@ -2309,26 +2312,6 @@ static void AppleGamepadDriverDestroy(HContext context, GamepadDriver* _driver)
     {
         IOHIDManagerRegisterDeviceMatchingCallback(driver->m_HidManager, 0, 0);
         IOHIDManagerRegisterDeviceRemovalCallback(driver->m_HidManager, 0, 0);
-
-        CFSetRef devices = IOHIDManagerCopyDevices(driver->m_HidManager);
-        const bool has_connected_hid_devices = devices != 0 && CFSetGetCount(devices) > 0;
-        if (devices)
-            CFRelease(devices);
-
-        IOHIDManagerUnscheduleFromRunLoop(driver->m_HidManager, driver->m_RunLoop, kCFRunLoopDefaultMode);
-        IOHIDManagerClose(driver->m_HidManager, kIOHIDOptionsTypeNone);
-
-        if (!has_connected_hid_devices)
-        {
-            CFRelease(driver->m_HidManager);
-        }
-        else
-        {
-            // Final IOHIDManager release asynchronously destroys the connected
-            // GameController HID plug-ins and can crash in _CFBundleDeallocatePlugIn.
-            // Keep the closed manager alive until process exit, when the OS reclaims it.
-        }
-        driver->m_HidManager = 0;
     }
 #endif
 
@@ -2336,6 +2319,16 @@ static void AppleGamepadDriverDestroy(HContext context, GamepadDriver* _driver)
     {
         RemoveGamepad(driver, driver->m_Devices[0].m_Id);
     }
+
+#if TARGET_OS_OSX
+    if (driver->m_HidManager)
+    {
+        IOHIDManagerUnscheduleFromRunLoop(driver->m_HidManager, driver->m_RunLoop, kCFRunLoopDefaultMode);
+        IOHIDManagerClose(driver->m_HidManager, kIOHIDOptionsTypeNone);
+        CFRelease(driver->m_HidManager);
+        driver->m_HidManager = 0;
+    }
+#endif
 
     delete driver;
 }
