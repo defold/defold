@@ -140,6 +140,10 @@ namespace dmPhysics
         uint16_t                  m_CollisionGroup;
         void*                     m_IgnoredUserData;
         uint8_t                   m_ReturnAllResults : 1;
+        // Resolve hit identity from the shape's body user data instead of the shape user data. Set
+        // when casting against the double-buffered physics world, whose twin shapes carry scaling
+        // data (not the game collision object) in their user data.
+        uint8_t                   m_ResolveUserDataFromBody : 1;
     };
 
     static float cast_ray_cb(b2ShapeId shape_id, b2Vec2 point, b2Vec2 normal, float fraction, void* context );
@@ -525,9 +529,16 @@ namespace dmPhysics
     }
     #endif
 
-    void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
+    // Pull kinematic (and dynamic-with-dynamic-transforms) bodies' transforms from the game objects
+    // into the game world. Operates on the game world (m_BodyId) in both the synchronous and
+    // double-buffered paths; the async path syncs the result onto the physics twins afterwards.
+    static void UpdateKinematicBodies2D(HWorld2D world)
     {
-        float dt = step_context.m_DT;
+        if (!world->m_GetWorldTransformCallback)
+        {
+            return;
+        }
+
         HContext2D context = world->m_Context;
         float scale = context->m_Scale;
         // Epsilon defining what transforms are considered noise and not
@@ -535,61 +546,102 @@ namespace dmPhysics
         const float POS_EPSILON = 0.00005f * scale;
         const float ROT_EPSILON = 0.00007f;
 
-        // Update transforms of kinematic bodies
-        if (world->m_GetWorldTransformCallback)
+        DM_PROFILE("UpdateKinematic");
+
+        for (int i=0; i < world->m_Bodies.Size(); ++i)
         {
-            DM_PROFILE("UpdateKinematic");
+            Body* body = world->m_Bodies[i];
+            b2BodyId body_id = body->m_BodyId;
+            b2BodyType body_type = b2Body_GetType(body_id);
 
-            for (int i=0; i < world->m_Bodies.Size(); ++i)
+            bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body_type != b2_staticBody;
+
+            // translate & rotation
+            if (retrieve_gameworld_transform || body_type == b2_kinematicBody)
             {
-                Body* body = world->m_Bodies[i];
-                b2BodyId body_id = body->m_BodyId;
-                b2BodyType body_type = b2Body_GetType(body_id);
+                void* body_user_data = b2Body_GetUserData(body_id);
 
-                bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body_type != b2_staticBody;
+                Point3 old_position = GetWorldPosition2D(context, &body_id);
+                dmTransform::Transform world_transform;
+                (*world->m_GetWorldTransformCallback)(body_user_data, world_transform);
+                Point3 position = Point3(world_transform.GetTranslation());
+                // Ignore z-component
+                position.setZ(0.0f);
+                Quat rotation = world_transform.GetRotation();
+                float dp = distSqr(old_position, position);
+                float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
 
-                // translate & rotation
-                if (retrieve_gameworld_transform || body_type == b2_kinematicBody)
+                b2Rot rot = b2Body_GetRotation(body_id);
+                float old_angle = b2Rot_GetAngle(rot);
+                float da = old_angle - angle;
+
+                if (dp > POS_EPSILON || fabsf(da) > ROT_EPSILON)
                 {
-                    void* body_user_data = b2Body_GetUserData(body_id);
+                    b2Vec2 b2_position;
+                    ToB2(position, b2_position, scale);
 
-                    Point3 old_position = GetWorldPosition2D(context, &body_id);
-                    dmTransform::Transform world_transform;
-                    (*world->m_GetWorldTransformCallback)(body_user_data, world_transform);
-                    Point3 position = Point3(world_transform.GetTranslation());
-                    // Ignore z-component
-                    position.setZ(0.0f);
-                    Quat rotation = world_transform.GetRotation();
-                    float dp = distSqr(old_position, position);
-                    float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
-
-                    b2Rot rot = b2Body_GetRotation(body_id);
-                    float old_angle = b2Rot_GetAngle(rot);
-                    float da = old_angle - angle;
-
-                    if (dp > POS_EPSILON || fabsf(da) > ROT_EPSILON)
-                    {
-                        b2Vec2 b2_position;
-                        ToB2(position, b2_position, scale);
-
-                        b2Rot b2_rot = b2MakeRot(angle);
-                        b2Body_SetTransform(body_id, b2_position, b2_rot);
-                        b2Body_SetAwake(body_id, true);
-                    }
-                }
-
-                // Scaling
-                if(retrieve_gameworld_transform)
-                {
-                    UpdateScale(world, body, false);
+                    b2Rot b2_rot = b2MakeRot(angle);
+                    b2Body_SetTransform(body_id, b2_position, b2_rot);
+                    b2Body_SetAwake(body_id, true);
                 }
             }
+
+            // Scaling
+            if(retrieve_gameworld_transform)
+            {
+                UpdateScale(world, body, false);
+            }
         }
+    }
+
+    // Resolve the collision-object identity (game user data) for a shape. The synchronous path reads
+    // the shape's own user data; the double-buffered path reads the twin body's user data, because
+    // twin shapes carry scaling data (not the game object) in their user data, while the twin body
+    // carries the game collision object.
+    static inline void* ResolveShapeUserData(b2ShapeId shape_id, bool async)
+    {
+        return async ? b2Body_GetUserData(b2Shape_GetBody(shape_id)) : b2Shape_GetUserData(shape_id);
+    }
+
+    // Fire the collision callback for every visitor overlapping a sensor shape.
+    static void EmitSensorOverlapCollisions(HWorld2D world, const StepWorldContext& step_context, b2ShapeId sensor_shape, bool async)
+    {
+        if (!b2Shape_IsValid(sensor_shape) || !b2Shape_IsSensor(sensor_shape))
+        {
+            return;
+        }
+
+        dmArray<b2ShapeId>& overlaps = GetSensorOverlapBuffer(world, sensor_shape);
+        for (int k = 0; k < overlaps.Size(); ++k)
+        {
+            b2ShapeId visitor = overlaps[k];
+            if (!b2Shape_IsValid(visitor))
+            {
+                continue;
+            }
+
+            step_context.m_CollisionCallback(
+                ResolveShapeUserData(sensor_shape, async), b2Shape_GetFilter(sensor_shape).categoryBits,
+                ResolveShapeUserData(visitor, async),      b2Shape_GetFilter(visitor).categoryBits,
+                step_context.m_CollisionUserData);
+        }
+    }
+
+    // Step one Box2D world (the game world for the synchronous path, the physics world for the
+    // double-buffered path) and run the post-step callback machinery. When async is set, body
+    // identity uses the physics-world twin ids and the dynamic-body transform writeback is skipped
+    // (SyncPhysicsToGame performs it against the game world instead).
+    static void StepWorldCore2D(HWorld2D world, const StepWorldContext& step_context, b2WorldId step_world, bool async)
+    {
+        float dt = step_context.m_DT;
+        HContext2D context = world->m_Context;
+        float scale = context->m_Scale;
+
         // Step simulation
         {
             DM_PROFILE("StepSimulation");
 
-            b2World_Step(world->m_WorldId, dt, step_context.m_Box2DSubStepCount);
+            b2World_Step(step_world, dt, step_context.m_Box2DSubStepCount);
 
             // Post-solve must happen after stepping
             if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
@@ -603,7 +655,7 @@ namespace dmPhysics
                 for (int i = 0; i < world->m_Bodies.Size(); ++i)
                 {
                     Body* body = world->m_Bodies[i];
-                    b2BodyId body_id = body->m_BodyId;
+                    b2BodyId body_id = async ? body->m_PhysicsBodyId : body->m_BodyId;
                     dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
                     int num_contacts = contacts.Size();
 
@@ -630,9 +682,9 @@ namespace dmPhysics
                         if (step_context.m_CollisionCallback)
                         {
                             step_context.m_CollisionCallback(
-                                b2Shape_GetUserData(contact.shapeIdA),
+                                ResolveShapeUserData(contact.shapeIdA, async),
                                 b2Shape_GetFilter(contact.shapeIdA).categoryBits,
-                                b2Shape_GetUserData(contact.shapeIdB),
+                                ResolveShapeUserData(contact.shapeIdB, async),
                                 b2Shape_GetFilter(contact.shapeIdB).categoryBits,
                                 step_context.m_CollisionUserData);
                         }
@@ -672,8 +724,9 @@ namespace dmPhysics
             }
 
             float inv_scale = world->m_Context->m_InvScale;
-            // Update transforms of dynamic bodies
-            if (world->m_SetWorldTransformCallback)
+            // Update transforms of dynamic bodies. Skipped in the double-buffered path: the game
+            // world is not stepped there, so SyncPhysicsToGame writes back the twins' transforms.
+            if (!async && world->m_SetWorldTransformCallback)
             {
                 for (int i=0; i < world->m_Bodies.Size(); ++i)
                 {
@@ -700,6 +753,7 @@ namespace dmPhysics
 
             RayCastContext ray_cast_context;
             ray_cast_context.m_Context = world->m_Context;
+            ray_cast_context.m_ResolveUserDataFromBody = async;
 
             b2QueryFilter filter = b2DefaultQueryFilter();
 
@@ -721,7 +775,7 @@ namespace dmPhysics
                 filter.maskBits = request.m_Mask;
                 filter.categoryBits = (uint64_t) -1; // This will search for all groups
 
-                b2World_CastRay(world->m_WorldId, from, translate, filter, cast_ray_cb, &ray_cast_context);
+                b2World_CastRay(step_world, from, translate, filter, cast_ray_cb, &ray_cast_context);
                 (*step_context.m_RayCastCallback)(ray_cast_context.m_Response, request, step_context.m_RayCastUserData);
             }
 
@@ -734,37 +788,36 @@ namespace dmPhysics
             for (int i=0; i < world->m_Bodies.Size(); ++i)
             {
                 Body* body = world->m_Bodies[i];
+                b2BodyId body_id = async ? body->m_PhysicsBodyId : body->m_BodyId;
 
-                if (!b2Body_IsEnabled(body->m_BodyId))
+                if (!b2Body_IsEnabled(body_id))
                 {
                     continue;
                 }
 
-                for (int j=0; j < body->m_ShapeCount; ++j)
+                if (!async)
                 {
-                    b2ShapeId shapeIdA = body->m_Shapes[j]->m_ShapeId;
-                    if (!b2Shape_IsValid(shapeIdA))
+                    // Game-world shapes are tracked on the Body.
+                    for (int j=0; j < body->m_ShapeCount; ++j)
                     {
-                        continue;
+                        EmitSensorOverlapCollisions(world, step_context, body->m_Shapes[j]->m_ShapeId, false);
                     }
-
-                    if (b2Shape_IsSensor(shapeIdA))
+                }
+                else
+                {
+                    // Twin shape ids live only in the physics world, so query them from Box2D.
+                    int cap = b2Body_GetShapeCount(body_id);
+                    if (cap > 0)
                     {
-                        dmArray<b2ShapeId>& overlaps = GetSensorOverlapBuffer(world, shapeIdA);
-
-                        // Trigger collision callbacks for overlapping sensors
-                        for (int k=0; k < overlaps.Size(); ++k)
+                        if (world->m_GetShapeScratchBuffer.Capacity() < (uint32_t)cap)
                         {
-                            b2ShapeId shapeIdB = overlaps[k];
-                            if (!b2Shape_IsValid(shapeIdB))
-                            {
-                                continue;
-                            }
-
-                            step_context.m_CollisionCallback(
-                                b2Shape_GetUserData(shapeIdA), b2Shape_GetFilter(shapeIdA).categoryBits,
-                                b2Shape_GetUserData(shapeIdB), b2Shape_GetFilter(shapeIdB).categoryBits,
-                                step_context.m_CollisionUserData);
+                            world->m_GetShapeScratchBuffer.SetCapacity(cap);
+                        }
+                        b2ShapeId* shape_ids = world->m_GetShapeScratchBuffer.Begin();
+                        int n = b2Body_GetShapes(body_id, shape_ids, cap);
+                        for (int j = 0; j < n; ++j)
+                        {
+                            EmitSensorOverlapCollisions(world, step_context, shape_ids[j], true);
                         }
                     }
                 }
@@ -775,7 +828,7 @@ namespace dmPhysics
         {
             DM_PROFILE("TriggerCallbacks");
 
-            b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
+            b2SensorEvents sensor_events = b2World_GetSensorEvents(step_world);
 
             OverlapCacheAddData add_data;
             add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
@@ -792,9 +845,9 @@ namespace dmPhysics
                 }
 
                 add_data.m_ObjectA   = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
-                add_data.m_UserDataA = b2Shape_GetUserData(shapeIdA);
+                add_data.m_UserDataA = ResolveShapeUserData(shapeIdA, async);
                 add_data.m_ObjectB   = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
-                add_data.m_UserDataB = b2Shape_GetUserData(shapeIdB);
+                add_data.m_UserDataB = ResolveShapeUserData(shapeIdB, async);
                 add_data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
                 add_data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
                 OverlapCacheAdd(&world->m_TriggerOverlaps, add_data);
@@ -822,7 +875,14 @@ namespace dmPhysics
             OverlapCachePrune(&world->m_TriggerOverlaps, prune_data);
         }
 
-        b2World_Draw(world->m_WorldId, &world->m_DebugDraw.m_DebugDraw);
+        b2World_Draw(step_world, &world->m_DebugDraw.m_DebugDraw);
+    }
+
+    // Synchronous single-world step: pull kinematic transforms then run the step core on the game world.
+    void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
+    {
+        UpdateKinematicBodies2D(world);
+        StepWorldCore2D(world, step_context, world->m_WorldId, false);
     }
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)
@@ -2162,7 +2222,9 @@ namespace dmPhysics
         {
             return -1.f;
         }
-        if (b2Shape_GetUserData(shape_id) == ctx->m_IgnoredUserData)
+        void* shape_user_data = ctx->m_ResolveUserDataFromBody ? b2Body_GetUserData(b2Shape_GetBody(shape_id))
+                                                               : b2Shape_GetUserData(shape_id);
+        if (shape_user_data == ctx->m_IgnoredUserData)
         {
             return -1.f;
         }
@@ -2171,7 +2233,7 @@ namespace dmPhysics
             ctx->m_Response.m_Hit = 1;
             ctx->m_Response.m_Fraction = fraction;
             ctx->m_Response.m_CollisionObjectGroup = shape_filter.categoryBits;
-            ctx->m_Response.m_CollisionObjectUserData = b2Shape_GetUserData(shape_id);
+            ctx->m_Response.m_CollisionObjectUserData = shape_user_data;
             FromB2(normal, ctx->m_Response.m_Normal, 1.0f); // Don't scale normal
             FromB2(point, ctx->m_Response.m_Position, ctx->m_Context->m_InvScale);
 
