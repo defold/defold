@@ -47,6 +47,7 @@ namespace dmGameObject
         ComponentAddToUpdate    m_AddToUpdateFunction;
         ComponentGet            m_GetFunction;
         ComponentsUpdate        m_FixedUpdateFunction;
+        ComponentsFixedUpdateAsync m_FixedUpdateFunctionAsync;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsUpdate        m_LateUpdateFunction;
         ComponentsRender        m_RenderFunction;

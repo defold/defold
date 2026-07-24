@@ -310,6 +310,19 @@ namespace dmGameObject
     typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
 
     /*#
+     * Callback for a component's asynchronous fixed update. Called once per frame, before the
+     * per-step fixed update loop, with the number of fixed steps to be taken this frame. A
+     * component can use this to queue all of its fixed steps up front (e.g. dispatch physics
+     * steps to a worker) rather than being driven one step at a time.
+     * @name ComponentsFixedUpdateAsync
+     * @param params [type: const dmGameObject::ComponentsUpdateParams&] Update parameters
+     * @param result [type: dmGameObject::ComponentsUpdateResult&] (out) Update result
+     * @param num_fixed_steps [type: uint32_t] number of fixed steps to run this frame
+     * @return result [type: UpdateResult] UPDATE_RESULT_OK on success
+     */
+    typedef UpdateResult (*ComponentsFixedUpdateAsync)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result, uint32_t num_fixed_steps);
+
+    /*#
      * Parameters to ComponentsRender callback.
      * @struct
      * @name ComponentsRenderParams
@@ -631,6 +644,15 @@ namespace dmGameObject
      * @param fn [type: ComponentsUpdate] callback
      */
     void ComponentTypeSetFixedUpdateFn(HComponentType type, ComponentsUpdate fn);
+
+    /*# set the component async fixed update callback
+     * Set the component async fixed update callback. Called once per frame, before the fixed
+     * update loop, with the number of fixed steps for the frame.
+     * @name ComponentTypeSetFixedUpdateAsyncFn
+     * @param type [type: HComponentType] the type
+     * @param fn [type: ComponentsFixedUpdateAsync] callback
+     */
+    void ComponentTypeSetFixedUpdateAsyncFn(HComponentType type, ComponentsFixedUpdateAsync fn);
 
 
     /*# set the component late update callback

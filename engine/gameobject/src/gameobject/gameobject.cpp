@@ -269,6 +269,7 @@ namespace dmGameObject
         m_DirtyTransforms = 1;
         m_Initialized = 0;
         m_FixedAccumTime = 0.0f;
+        m_FrameCounter = 0;
         m_FirstUpdate = 1;
 
         m_InstancesToDeleteHead = INVALID_INSTANCE_INDEX;
@@ -2798,6 +2799,8 @@ namespace dmGameObject
             {
                 fixed_update_context = dynamic_update_context;
                 fixed_update_context.m_DT = fixed_dt;
+                fixed_update_context.m_TotalFixedSteps = num_fixed_steps;
+                fixed_update_context.m_FrameNumber = ++collection->m_FrameCounter;
             }
         }
 
@@ -2841,6 +2844,35 @@ namespace dmGameObject
         // These priorities ensure the update order between components.
         // I.e. collectionproxy, script, animation, collision ...
 
+        // 0. give components that opt in a chance to queue all fixed steps up front, before the
+        //    per-step loop. A component providing an async fixed update (e.g. physics dispatching
+        //    steps to a worker) receives the whole frame's step count in one call.
+        if (num_fixed_steps != 0)
+        {
+            for (uint32_t i = 0; i < component_type_count; ++i)
+            {
+                uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
+                ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
+                if (!component_type->m_FixedUpdateFunctionAsync)
+                    continue;
+
+                if (component_type->m_ReadsTransforms && collection->m_DirtyTransforms)
+                    UpdateTransforms(collection);
+
+                DM_PROFILE_DYN(component_type->m_Name, 0);
+                fixed_update_params.m_World = collection->m_ComponentWorlds[update_index];
+                fixed_update_params.m_Context = component_type->m_Context;
+
+                ComponentsUpdateResult update_result;
+                update_result.m_TransformsUpdated = false;
+                UpdateResult res = component_type->m_FixedUpdateFunctionAsync(fixed_update_params, update_result, num_fixed_steps);
+                if (res != UPDATE_RESULT_OK)
+                    ret = false;
+                if (update_result.m_TransformsUpdated)
+                    collection->m_DirtyTransforms = 1;
+            }
+        }
+
         // 1. for each fixed step, call component's fixed update
         //      - Lua fixed_update() (comp_script.cpp)
         //      - CompCollisionObjectFixedUpdate() (comp_collision_object.cpp)
@@ -2848,6 +2880,7 @@ namespace dmGameObject
         // still renders the collection, and late update prepares component render data.
         for (uint32_t step = 0; step < num_fixed_steps; ++step)
         {
+            fixed_update_context.m_CurrentFixedStep = step;
             if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params))
                 ret = false;
         }

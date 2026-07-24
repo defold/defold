@@ -434,12 +434,18 @@ namespace dmGameObject
         float    m_DT;
         float    m_AccumFrameTime;          // Unscaled time. Amount of time left after last fixed update tick
         uint32_t m_FixedUpdateFrequency;    // Hz
+        uint32_t m_CurrentFixedStep;        // 0-based index of the current fixed step within this frame
+        uint32_t m_TotalFixedSteps;         // Number of fixed steps taken this frame
+        uint64_t m_FrameNumber;             // Monotonic frame counter (per collection)
 
         UpdateContext()
         : m_TimeScale(1.0f)
         , m_DT(0.0f)
         , m_AccumFrameTime(0.0f)
-        , m_FixedUpdateFrequency(0) {}
+        , m_FixedUpdateFrequency(0)
+        , m_CurrentFixedStep(0)
+        , m_TotalFixedSteps(0)
+        , m_FrameNumber(0) {}
     };
 
     /*#

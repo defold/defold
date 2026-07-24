@@ -284,6 +284,7 @@ namespace dmGameObject
         uint16_t                 m_InstancesToAddTail;
 
         float                    m_FixedAccumTime;  // Accumulated time between fixed updates. Scaled time.
+        uint64_t                 m_FrameCounter;    // Monotonic frame counter; drives UpdateContext::m_FrameNumber for async fixed update.
 
         // Set to 1 if in update-loop
         uint32_t                 m_InUpdate : 1;

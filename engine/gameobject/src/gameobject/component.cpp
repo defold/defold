@@ -120,6 +120,7 @@ void ComponentTypeSetRenderFn(HComponentType type, ComponentsRender fn)         
 void ComponentTypeSetUpdateFn(HComponentType type, ComponentsUpdate fn)                     { type->m_UpdateFunction = fn; }
 void ComponentTypeSetLateUpdateFn(HComponentType type, ComponentsUpdate fn)                 { type->m_LateUpdateFunction = fn; }
 void ComponentTypeSetFixedUpdateFn(HComponentType type, ComponentsUpdate fn)                { type->m_FixedUpdateFunction = fn; }
+void ComponentTypeSetFixedUpdateAsyncFn(HComponentType type, ComponentsFixedUpdateAsync fn) { type->m_FixedUpdateFunctionAsync = fn; }
 void ComponentTypeSetPostUpdateFn(HComponentType type, ComponentsPostUpdate fn)             { type->m_PostUpdateFunction = fn; }
 void ComponentTypeSetOnMessageFn(HComponentType type, ComponentOnMessage fn)                { type->m_OnMessageFunction = fn; }
 void ComponentTypeSetOnInputFn(HComponentType type, ComponentOnInput fn)                    { type->m_OnInputFunction = fn; }
