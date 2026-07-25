@@ -120,14 +120,6 @@ struct PendingHint
     bool m_Persist;
 };
 
-// Holds a completed child's factory reference after its request slot has been recycled. The reference is
-// released as soon as the parent has run Create and acquired any child references it needs.
-struct RetainedResource
-{
-    void* m_Resource;
-    TRequestIndex m_Parent;
-};
-
 // Represents one resident node in the bounded dependency tree and tracks its load/create state.
 struct PreloadRequest
 {
@@ -214,8 +206,9 @@ struct ResourcePreloader
 
     dmArray<void*> m_PersistedResources;
 
-    // keeps completed child references alive after recycling their request slots
-    dmArray<RetainedResource> m_RetainedResources;
+    // Keeps completed child references alive after recycling their request slots. Each bucket is indexed by
+    // the active parent request, so completing a parent only visits the references belonging to that parent.
+    dmArray<void*> m_RetainedResources[MAX_PRELOADER_REQUESTS];
 
     // Newly discovered hints are indexed and staged here before bounded transfer to m_PendingHints.
     dmArray<PendingHint> m_StagedHints;
@@ -664,12 +657,13 @@ namespace dmResource
             }
             else
             {
-                if (preloader->m_RetainedResources.Full())
+                dmArray<void*>& retained_resources = preloader->m_RetainedResources[req->m_Parent];
+                if (retained_resources.Full())
                 {
-                    preloader->m_RetainedResources.OffsetCapacity(128);
+                    const uint32_t capacity = retained_resources.Capacity();
+                    retained_resources.SetCapacity(capacity ? capacity * 2 : 8);
                 }
-                RetainedResource retained = { req->m_Resource, req->m_Parent };
-                preloader->m_RetainedResources.Push(retained);
+                retained_resources.Push(req->m_Resource);
             }
             req->m_Resource = 0;
         }
@@ -678,19 +672,12 @@ namespace dmResource
 
     static void ReleaseRetainedResources(HPreloader preloader, TRequestIndex parent)
     {
-        for (uint32_t i = 0; i < preloader->m_RetainedResources.Size();)
+        dmArray<void*>& retained_resources = preloader->m_RetainedResources[parent];
+        for (uint32_t i = 0; i < retained_resources.Size(); ++i)
         {
-            const RetainedResource& retained = preloader->m_RetainedResources[i];
-            if (retained.m_Parent == parent)
-            {
-                Release(preloader->m_Factory, retained.m_Resource);
-                preloader->m_RetainedResources.EraseSwap(i);
-            }
-            else
-            {
-                ++i;
-            }
+            Release(preloader->m_Factory, retained_resources[i]);
         }
+        retained_resources.SetSize(0);
     }
 
     static void RemoveChildren(ResourcePreloader* preloader, PreloadRequest* req)
@@ -1375,9 +1362,9 @@ namespace dmResource
             }
             Release(preloader->m_Factory, resource);
         }
-        for (uint32_t i = 0; i < preloader->m_RetainedResources.Size(); ++i)
+        for (uint32_t parent = 0; parent < MAX_PRELOADER_REQUESTS; ++parent)
         {
-            Release(preloader->m_Factory, preloader->m_RetainedResources[i].m_Resource);
+            ReleaseRetainedResources(preloader, parent);
         }
 
         assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS - 1));
