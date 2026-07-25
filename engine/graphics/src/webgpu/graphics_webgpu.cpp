@@ -1810,6 +1810,10 @@ static void WebGPUBeginFrame(HContext _context)
         WGPUTexture     currentColorTexture = surfaceColorTexture.texture;
         const uint32_t  currentWidth = wgpuTextureGetWidth(currentColorTexture),
                         currentHeight = wgpuTextureGetHeight(currentColorTexture);
+        // The browser controls the actual canvas surface size, which can differ
+        // from the requested window size after DPI scaling or a resize.
+        context->m_MainRenderTarget->m_Width  = currentWidth;
+        context->m_MainRenderTarget->m_Height = currentHeight;
         WGPUTextureView currentColorTextureView;
         {
 #if defined(DM_GRAPHICS_WEBGPU2)
