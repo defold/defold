@@ -39,6 +39,27 @@ physics_configure_test(test_box2d_operation_queue physics_2d ON)
 defold_add_executable(test_box2d_async "${PHYSICS_TEST_ROOT}/test_box2d_async.cpp")
 physics_configure_test(test_box2d_async physics_2d ON)
 
+# No-threads fallback: compile the async worker substrate with DM_BOX2D_ASYNC_NO_THREADS forced on
+# (the path a web build without pthreads takes). Built into the exe directly, not linked from
+# physics_2d, so its symbols do not clash with the threaded build.
+defold_add_executable(test_box2d_async_nothreads
+  "${PHYSICS_TEST_ROOT}/test_box2d_async_nothreads.cpp"
+  "${PHYSICS_TEST_ROOT}/../box2d/box2d_async_thread.cpp")
+target_compile_definitions(test_box2d_async_nothreads PRIVATE DM_BOX2D_ASYNC_NO_THREADS=1)
+target_include_directories(test_box2d_async_nothreads PRIVATE
+  "${PHYSICS_TEST_ROOT}"
+  "${PHYSICS_SRC_ROOT}")
+defold_target_link_libraries(test_box2d_async_nothreads "${TARGET_PLATFORM}"
+  testmain
+  dlib
+  profile_null)
+defold_target_link_socket(test_box2d_async_nothreads "${TARGET_PLATFORM}" PRIVATE)
+if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+  find_package(Threads REQUIRED)
+  target_link_libraries(test_box2d_async_nothreads PRIVATE Threads::Threads dl)
+endif()
+defold_register_test_target(test_box2d_async_nothreads ON "${PHYSICS_ROOT}")
+
 defold_add_executable(test_physics_box2d_defold "${PHYSICS_TEST_ROOT}/test_physics.cpp")
 target_compile_definitions(test_physics_box2d_defold PRIVATE PHYSICS_TEST_BOX2D_DEFOLD)
 target_include_directories(test_physics_box2d_defold PRIVATE "${DEFOLD_EXT_INCLUDE_DIR}/box2d_defold")

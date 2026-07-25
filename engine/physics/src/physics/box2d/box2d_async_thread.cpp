@@ -18,9 +18,13 @@
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
 
-// Threads are available everywhere except an Emscripten build without pthreads.
-#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
-    #define DM_BOX2D_ASYNC_NO_THREADS 1
+// Threads are available everywhere except an Emscripten build without pthreads. A build may also
+// force the no-threads path by defining DM_BOX2D_ASYNC_NO_THREADS on the command line (used to test
+// the fallback natively).
+#if !defined(DM_BOX2D_ASYNC_NO_THREADS)
+    #if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+        #define DM_BOX2D_ASYNC_NO_THREADS 1
+    #endif
 #endif
 
 namespace dmPhysics
