@@ -14,9 +14,12 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#include <dlib/time.h>
+
 #include "../physics.h"
 #include "../box2d/box2d_physics.h"
 #include "../box2d/box2d_async_physics.h"
+#include "../box2d/box2d_async_thread.h"
 
 using namespace dmPhysics;
 
@@ -547,6 +550,71 @@ TEST(AsyncMutator, EnableBeforeDrainAppliesToTwin)
     DeleteCollisionShape2D(shape);
     DeleteWorld2D(context, world);
     DeleteContext2D(context);
+}
+
+// --- box2d_async_thread substrate (no physics) ---------------------------------------------------
+
+struct WorkerTestCtx
+{
+    volatile int m_Value;
+    int          m_Add;
+};
+
+// A job that takes observable time (a real yield) before writing its result, so that if Wait did
+// not block until completion the assertion after Wait would read the pre-job value.
+static void AddJob(void* p)
+{
+    WorkerTestCtx* c = (WorkerTestCtx*)p;
+    dmTime::Sleep(1000); // 1 ms
+    c->m_Value += c->m_Add;
+}
+
+TEST(AsyncWorkerThread, IdleAfterCreate)
+{
+    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    ASSERT_TRUE(AsyncWorkerIsIdle(w));
+    DeleteAsyncWorker(w);
+}
+
+TEST(AsyncWorkerThread, SubmitWaitRunsJob)
+{
+    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    WorkerTestCtx ctx = { 0, 7 };
+    AsyncWorkerSubmit(w, AddJob, &ctx);
+    AsyncWorkerWait(w);
+    ASSERT_EQ(7, ctx.m_Value);          // Wait blocked until the job finished
+    ASSERT_TRUE(AsyncWorkerIsIdle(w));  // idle again after completion
+    DeleteAsyncWorker(w);
+}
+
+TEST(AsyncWorkerThread, ManySubmitWaitCycles)
+{
+    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    WorkerTestCtx ctx = { 0, 1 };
+    for (int i = 0; i < 64; ++i)
+    {
+        AsyncWorkerSubmit(w, AddJob, &ctx);
+        AsyncWorkerWait(w);
+    }
+    ASSERT_EQ(64, ctx.m_Value);
+    DeleteAsyncWorker(w);
+}
+
+TEST(AsyncWorkerThread, DestroyWhileIdleIsClean)
+{
+    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    ASSERT_TRUE(AsyncWorkerIsIdle(w));
+    DeleteAsyncWorker(w);
+    ASSERT_TRUE(true); // reached teardown without hang/crash
+}
+
+TEST(AsyncWorkerThread, DestroyAfterSubmitWaitsForJob)
+{
+    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    WorkerTestCtx ctx = { 0, 5 };
+    AsyncWorkerSubmit(w, AddJob, &ctx);
+    DeleteAsyncWorker(w);       // must drain the in-flight job before tearing down
+    ASSERT_EQ(5, ctx.m_Value);
 }
 
 int main(int argc, char **argv)
