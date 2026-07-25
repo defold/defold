@@ -28,6 +28,7 @@
 
 #include "box2d_physics.h"
 #include "box2d_async_physics.h"
+#include "box2d_async_thread.h"
 
 namespace dmPhysics
 {
@@ -88,9 +89,12 @@ namespace dmPhysics
 
         m_DeletedObjectsFrame = 0;
         m_PreparedEventsFrame = 0;
+        m_StepInFlight        = 0;
+        m_Worker              = 0;
         if (m_UseDoubleBufferedWorlds)
         {
             m_DeletedObjects.SetCapacity(64, 128);
+            m_Worker = NewAsyncWorker("physics_async");
         }
     }
 
@@ -263,6 +267,15 @@ namespace dmPhysics
         }
 
         ClearPendingRayCasts2D(world);
+
+        // Stop the worker before destroying the physics world it steps. Any in-flight step is waited
+        // out; its collected events are discarded (teardown does not deliver).
+        if (world->m_Worker)
+        {
+            DeleteAsyncWorker(world->m_Worker);
+            world->m_Worker = 0;
+            world->m_StepInFlight = 0;
+        }
 
         if (b2World_IsValid(world->m_WorldId))
         {
@@ -570,8 +583,15 @@ namespace dmPhysics
 
             bool retrieve_gameworld_transform = world->m_AllowDynamicTransforms && body_type != b2_staticBody;
 
+            // In the double-buffered path a dynamic body is driven by the physics twin, and its game
+            // object transform already reflects the twin (SetWorldTransform), so it is not pulled back
+            // into the body. Kinematic (script-driven) bodies are pulled. Scaling is handled separately
+            // below.
+            bool pull_transform = (body_type == b2_kinematicBody) ||
+                                  (retrieve_gameworld_transform && !world->m_UseDoubleBufferedWorlds);
+
             // translate & rotation
-            if (retrieve_gameworld_transform || body_type == b2_kinematicBody)
+            if (pull_transform)
             {
                 void* body_user_data = b2Body_GetUserData(body_id);
 
@@ -898,10 +918,9 @@ namespace dmPhysics
         // Post-solve contacts passing the impulse filter -> prepared events (collision + contact points)
         if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
         {
-            for (int i = 0; i < world->m_Bodies.Size(); ++i)
+            for (uint32_t i = 0; i < world->m_WorkerBodySnapshot.Size(); ++i)
             {
-                Body* body = world->m_Bodies[i];
-                b2BodyId body_id = body->m_PhysicsBodyId;
+                b2BodyId body_id = world->m_WorkerBodySnapshot[i];
                 if (!b2Body_IsValid(body_id) || !b2Body_IsEnabled(body_id))
                 {
                     continue;
@@ -967,10 +986,9 @@ namespace dmPhysics
         // Sensor overlaps -> prepared events (collision callback only, no contact points)
         if (step_context.m_CollisionCallback)
         {
-            for (int i = 0; i < world->m_Bodies.Size(); ++i)
+            for (uint32_t i = 0; i < world->m_WorkerBodySnapshot.Size(); ++i)
             {
-                Body* body = world->m_Bodies[i];
-                b2BodyId body_id = body->m_PhysicsBodyId;
+                b2BodyId body_id = world->m_WorkerBodySnapshot[i];
                 if (!b2Body_IsValid(body_id) || !b2Body_IsEnabled(body_id))
                 {
                     continue;
@@ -1072,10 +1090,10 @@ namespace dmPhysics
         }
     }
 
-    // Replay the collected event buffers through the callbacks on the main thread, then run the
-    // ray casts and debug draw against the physics world. Collision and contact-point callbacks
-    // fire in collect order; trigger enter/exit go through the OverlapCache (which fires the trigger
-    // callbacks). This is the phase that stays on the main thread once threading lands.
+    // Replay the collected event buffers through the callbacks on the main thread. Collision and
+    // contact-point callbacks fire in collect order; trigger enter/exit go through the OverlapCache
+    // (which fires the trigger callbacks). Ray casts and debug draw are not here: they run against
+    // the physics world in the pipeline's idle window (StepWorld2DAsync), while the worker is stopped.
     static void DeliverPreparedEvents2D(HWorld2D world, const StepWorldContext& step_context)
     {
         float inv_scale = world->m_Context->m_InvScale;
@@ -1124,10 +1142,6 @@ namespace dmPhysics
             }
         }
 
-        // Ray casts run against the physics world on the main thread (they call into Lua and read
-        // the world, so they cannot run on the worker).
-        RunRayCasts2D(world, step_context, world->m_PhysicsWorldId, true);
-
         // Trigger enter/exit: replay the captured sensor events into the OverlapCache, which fires
         // the enter callback on add and the exit callback on prune.
         {
@@ -1159,27 +1173,85 @@ namespace dmPhysics
             OverlapCachePrune(&world->m_TriggerOverlaps, prune_data);
         }
 
-        b2World_Draw(world->m_PhysicsWorldId, &world->m_DebugDraw.m_DebugDraw);
-
         // Deletions have been accounted for; the next frame's deletions accumulate fresh.
         ClearDeletedObjects2D(world);
     }
 
-    // Double-buffered step. The physics world is stepped instead of the game world; state is copied
-    // in before the step and out after. The post-step work is split into a collect phase (gather
-    // events, no callbacks) and a deliver phase (replay events through the callbacks). Both run on
-    // the main thread here; the worker thread lands in a later change and takes the step + collect.
+    // Block until the in-flight worker step (if any) finishes, so the caller can safely touch the
+    // physics world or twin state. The waited step's results are intentionally not delivered.
+    void WaitForWorker2D(World2D* world)
+    {
+        if (world->m_Worker && world->m_StepInFlight)
+        {
+            AsyncWorkerWait(world->m_Worker);
+            world->m_StepInFlight = 0;
+        }
+    }
+
+    // Worker job: step the physics world and collect its events. Runs on the worker thread and
+    // touches only the physics world and the collect buffers (no callbacks, no game world, no
+    // OverlapCache, no ray casts). The step context is the snapshot taken when the job was kicked.
+    static void AsyncStepJob(void* context)
+    {
+        World2D* world = (World2D*) context;
+        const StepWorldContext& sc = world->m_WorkerStepContext;
+        b2World_Step(world->m_PhysicsWorldId, sc.m_DT, sc.m_Box2DSubStepCount);
+        CollectCollisionEvents2D(world, sc);
+    }
+
+    // Double-buffered step with a one-frame (N-1) pipeline. The physics-world step and event
+    // collection run on the worker thread while the rest of the main-thread frame proceeds; the
+    // results are delivered at the start of the next step. Per invocation:
+    //   1. wait for the previous step's worker job,
+    //   2. deliver its results: sync the stepped transforms back onto the game bodies and replay the
+    //      collected collision / contact-point / trigger callbacks,
+    //   3. main-thread work that needs the physics world while the worker is idle: drain structural
+    //      ops, run queued ray casts, debug draw,
+    //   4. inject the current game state into the twins,
+    //   5. kick the worker (step + collect) and return; it runs during the rest of the frame.
+    // Because step 1 waits, the worker is idle for steps 2-4, so the single physics world and single
+    // event buffer need no locking. Game objects reflect the physics of the previous step (N-1).
     static void StepWorld2DAsync(HWorld2D world, const StepWorldContext& step_context)
     {
+        // 1 + 2: wait for and deliver the previous step's results.
+        if (world->m_StepInFlight)
+        {
+            AsyncWorkerWait(world->m_Worker);
+            world->m_StepInFlight = 0;
+
+            SyncPhysicsToGame(world);                     // physics twins (N-1) -> game bodies
+            DeliverPreparedEvents2D(world, step_context); // replay collected events -> callbacks
+        }
+
+        // 3: main-thread work against the physics world while the worker is idle.
+        DrainPendingOps(world);                                                // structural ops -> physics world
+        RunRayCasts2D(world, step_context, world->m_PhysicsWorldId, true);     // queued ray casts (N-1 geometry)
+        b2World_Draw(world->m_PhysicsWorldId, &world->m_DebugDraw.m_DebugDraw); // debug draw
+
+        // 4: inject the current game state into the twins for the upcoming step.
         UpdateKinematicBodies2D(world);   // game world kinematic pull-in
         SyncGameToPhysics(world);         // game state -> physics twins
-        DrainPendingOps(world);           // structural ops -> physics world
 
-        b2World_Step(world->m_PhysicsWorldId, step_context.m_DT, step_context.m_Box2DSubStepCount);
-        CollectCollisionEvents2D(world, step_context); // gather events (worker phase, no callbacks)
-        DeliverPreparedEvents2D(world, step_context);  // replay events -> callbacks (main-thread phase)
+        // 5: snapshot the twin ids for the worker to iterate (so game-side create/destroy during the
+        // in-flight step cannot race the worker's m_Bodies access), then kick the worker (step +
+        // collect); it runs during the rest of the main-thread frame.
+        world->m_WorkerBodySnapshot.SetSize(0);
+        for (uint32_t i = 0; i < world->m_Bodies.Size(); ++i)
+        {
+            b2BodyId twin = world->m_Bodies[i]->m_PhysicsBodyId;
+            if (b2Body_IsValid(twin))
+            {
+                if (world->m_WorkerBodySnapshot.Full())
+                {
+                    world->m_WorkerBodySnapshot.OffsetCapacity(32);
+                }
+                world->m_WorkerBodySnapshot.Push(twin);
+            }
+        }
 
-        SyncPhysicsToGame(world);         // physics twins -> game world
+        world->m_WorkerStepContext = step_context;
+        world->m_StepInFlight      = 1;
+        AsyncWorkerSubmit(world->m_Worker, AsyncStepJob, world);
     }
 
     // Synchronous single-world step: pull kinematic transforms then run the step core on the game world.

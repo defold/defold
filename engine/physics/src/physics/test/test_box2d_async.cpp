@@ -248,8 +248,9 @@ TEST(AsyncSync, GameToPhysicsAndBack)
     DeleteContext2D(context);
 }
 
-// --- Parity battery: the double-buffered path must produce the same simulation and callback
-// stream as the synchronous path when run synchronously (the worker thread lands later). ---
+// --- Parity battery: the double-buffered path (worker thread, N-1 delivery) must produce the same
+// simulation and callback stream as the synchronous path. Async runs one extra step to flush the
+// final delivery, so both paths deliver the same number of steps and results match. ---
 
 static int g_collisions;
 static int g_contact_points;
@@ -330,6 +331,12 @@ static ParityResult RunParityScene(bool async)
     {
         StepWorld2D(world, sc);
     }
+    if (async)
+    {
+        // N-1 pipeline: results are delivered on the following step, so one extra step flushes the
+        // 150th step's delivery. Both paths then reflect 150 delivered steps and line up exactly.
+        StepWorld2D(world, sc);
+    }
 
     ParityResult r;
     r.m_FinalPos      = b2Body_GetPosition(ball->m_BodyId);
@@ -369,63 +376,6 @@ TEST(AsyncParity, SyncVsAsyncScene)
     ASSERT_NEAR(s.m_FinalPos.y, a.m_FinalPos.y, 0.001f);
 }
 
-// The collect phase must actually populate the prepared-event buffer, or delivery would be replaying
-// an empty buffer and the parity check above would pass vacuously. Drop a ball onto a floor and
-// assert the buffer is non-empty on at least one frame.
-TEST(AsyncCollect, PreparedBufferPopulatedOnContact)
-{
-    HContext2D context = NewTestContext();
-
-    NewWorldParams wp;
-    wp.m_GetWorldTransformCallback = ParityGetTransform;
-    wp.m_UseDoubleBufferedWorlds   = true;
-    World2D* world = (World2D*)NewWorld2D(context, wp);
-
-    PBodyInfo floor_info = { 0.0f, -2.0f };
-    PBodyInfo ball_info  = { 0.0f,  1.0f };
-
-    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
-    CollisionObjectData floor_data;
-    floor_data.m_Type     = COLLISION_OBJECT_TYPE_STATIC;
-    floor_data.m_Mass     = 0.0f;
-    floor_data.m_UserData = &floor_info;
-    Body* floor = (Body*)NewCollisionObject2D(world, floor_data, &floor_shape, 1);
-
-    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
-    CollisionObjectData ball_data;
-    ball_data.m_Type     = COLLISION_OBJECT_TYPE_DYNAMIC;
-    ball_data.m_Mass     = 1.0f;
-    ball_data.m_UserData = &ball_info;
-    Body* ball = (Body*)NewCollisionObject2D(world, ball_data, &ball_shape, 1);
-
-    StepWorldContext sc;
-    sc.m_DT                   = 1.0f / 60.0f;
-    sc.m_Box2DSubStepCount    = 4;
-    sc.m_CollisionCallback    = ParityOnCollision;
-    sc.m_ContactPointCallback = ParityOnContactPoint;
-
-    // Buffer starts empty (no contacts before the ball lands).
-    ASSERT_EQ(0U, world->m_PreparedEvents.Size());
-
-    bool prepared_seen = false;
-    for (int i = 0; i < 150; ++i)
-    {
-        StepWorld2D(world, sc);
-        if (world->m_PreparedEvents.Size() > 0)
-        {
-            prepared_seen = true;
-        }
-    }
-    ASSERT_TRUE(prepared_seen);
-
-    DeleteCollisionObject2D(world, ball);
-    DeleteCollisionObject2D(world, floor);
-    DeleteCollisionShape2D(ball_shape);
-    DeleteCollisionShape2D(floor_shape);
-    DeleteWorld2D(context, world);
-    DeleteContext2D(context);
-}
-
 // --- Structural mutator parity: enable/disable, gravity, scale must mirror to the twin. ---
 
 static b2Vec2 RunDisableScene(bool async, bool* out_game_enabled, bool* out_twin_enabled)
@@ -451,6 +401,9 @@ static b2Vec2 RunDisableScene(bool async, bool* out_game_enabled, bool* out_twin
     for (int i = 0; i < 10; ++i) StepWorld2D(world, sc);
     SetEnabled2D(world, ball, false);
     for (int i = 0; i < 40; ++i) StepWorld2D(world, sc);
+    if (async) StepWorld2D(world, sc); // flush the final delivery (N-1)
+
+    if (async) WaitForWorker2D(world);  // quiesce the worker so the twin read below does not race
 
     b2Vec2 pos = b2Body_GetPosition(ball->m_BodyId);
     *out_game_enabled = b2Body_IsEnabled(ball->m_BodyId);
@@ -498,6 +451,7 @@ static b2Vec2 RunGravityScene(bool async)
     sc.m_DT = 1.0f / 60.0f;
     sc.m_Box2DSubStepCount = 4;
     for (int i = 0; i < 60; ++i) StepWorld2D(world, sc);
+    if (async) StepWorld2D(world, sc); // flush the final delivery (N-1)
 
     b2Vec2 pos = b2Body_GetPosition(ball->m_BodyId);
 
@@ -558,6 +512,7 @@ TEST(AsyncMutator, ScaleMirrorsToTwin)
     StepWorld2D(world, sc);   // twin created at scale 1
     info.scale = 2.0f;        // grow the object
     for (int i = 0; i < 3; ++i) StepWorld2D(world, sc);
+    WaitForWorker2D(world);   // quiesce the worker before reading the twin's shape
 
     CircleShapeData* game_circle = (CircleShapeData*) ball->m_Shapes[0];
     float game_radius = game_circle->m_Circle.radius;
@@ -609,7 +564,7 @@ TEST(AsyncMutator, EnableBeforeDrainAppliesToTwin)
     DeleteContext2D(context);
 }
 
-// --- Deleted-object filtering (synchronous) ------------------------------------------------------
+// --- Deleted-object filtering --------------------------------------------------------------------
 
 // The deleted-object set: DeleteCollisionObject2D records the object's user-data key; the public
 // accessors report membership, count, frame, and clear.
@@ -698,8 +653,8 @@ TEST(AsyncDeletedObjects, ClearedAfterDelivery)
 }
 
 // A prepared event that references an object, once the object is deleted, has both a live buffer
-// reference and a deleted-set hit: exactly the inputs DeliverPreparedEvents2D uses to skip it. (The
-// runtime skip during N-1 delivery is exercised by the threaded churn test once the worker lands.)
+// reference and a deleted-set hit: exactly the inputs DeliverPreparedEvents2D uses to skip it. The
+// end-to-end runtime skip is verified by AsyncDeletedObjects.NoCallbackAfterDelete below.
 TEST(AsyncDeletedObjects, StaleReferenceIsFlagged)
 {
     HContext2D context = NewTestContext();
@@ -726,6 +681,7 @@ TEST(AsyncDeletedObjects, StaleReferenceIsFlagged)
     sc.m_CollisionCallback = ParityOnCollision;
 
     for (int i = 0; i < 80; ++i) StepWorld2D(world, sc); // ball rests on floor, buffer holds the contact
+    WaitForWorker2D(world);                              // quiesce so the buffer read below does not race
 
     // The last step's buffer references the ball.
     bool ball_referenced = false;
@@ -744,6 +700,194 @@ TEST(AsyncDeletedObjects, StaleReferenceIsFlagged)
     DeleteCollisionObject2D(world, ball);
     ASSERT_TRUE(IsObjectDeleted(world, ball_key));
 
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+// Counts collision callbacks that reference a specific user-data pointer.
+static void* g_watch_userdata;
+static int   g_watch_hits;
+static bool  WatchCollision(void* a, uint16_t, void* b, uint16_t, void*)
+{
+    if (a == g_watch_userdata || b == g_watch_userdata) g_watch_hits++;
+    return true;
+}
+
+// End-to-end deleted-object skip: once an object is deleted, no further callback is delivered for it,
+// even though the step collected before the delete references it. That buffer is delivered on
+// the following step and must be filtered by the deleted-object set.
+TEST(AsyncDeletedObjects, NoCallbackAfterDelete)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo floor_info = { 0.0f, -2.0f };
+    PBodyInfo ball_info  = { 0.0f,  1.0f };
+
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_info;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_info;
+    Body* ball = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+
+    g_watch_userdata = &ball_info;
+    g_watch_hits     = 0;
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+    sc.m_CollisionCallback = WatchCollision;
+
+    for (int i = 0; i < 80; ++i) StepWorld2D(world, sc); // ball rests; its collisions are delivered
+    ASSERT_GT(g_watch_hits, 0);
+    int baseline = g_watch_hits;
+
+    DeleteCollisionObject2D(world, ball); // the in-flight step's buffer references the ball
+    for (int i = 0; i < 5; ++i) StepWorld2D(world, sc);
+
+    // That buffer was delivered but filtered: no new callback fired for the deleted ball.
+    ASSERT_EQ(baseline, g_watch_hits);
+
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+// --- Stability + churn --------------------------------------------------------------------------
+
+// A stack of balls dropped onto a floor, stepped to rest.
+static void RunStackScene(bool async, b2Vec2* out_positions, int ball_count)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = async;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo floor_info = { 0.0f, -3.0f };
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_info;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    static PBodyInfo ball_infos[8];
+    Body* balls[8];
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+    for (int i = 0; i < ball_count; ++i)
+    {
+        ball_infos[i].x = 0.0f;
+        ball_infos[i].y = 1.0f + i * 1.2f; // stacked above the floor
+        CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_infos[i];
+        balls[i] = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+    }
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+
+    for (int i = 0; i < 300; ++i) StepWorld2D(world, sc);
+    if (async) StepWorld2D(world, sc); // flush the final delivery (N-1)
+
+    for (int i = 0; i < ball_count; ++i)
+        out_positions[i] = b2Body_GetPosition(balls[i]->m_BodyId);
+
+    for (int i = 0; i < ball_count; ++i) DeleteCollisionObject2D(world, balls[i]);
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+// The threaded async path settles a multi-body stack to the same resting configuration as the
+// synchronous path (determinism + stability over a long run).
+TEST(AsyncStability, StackMatchesSync)
+{
+    const int N = 4;
+    b2Vec2 s[N], a[N];
+    RunStackScene(false, s, N);
+    RunStackScene(true,  a, N);
+
+    for (int i = 0; i < N; ++i)
+    {
+        ASSERT_TRUE(s[i].y == s[i].y); // not NaN
+        ASSERT_TRUE(a[i].y == a[i].y); // not NaN
+        ASSERT_NEAR(s[i].x, a[i].x, 0.001f);
+        ASSERT_NEAR(s[i].y, a[i].y, 0.001f);
+    }
+}
+
+// Create/destroy churn concurrent with the worker: bodies are spawned and deleted right after each
+// StepWorld2D returns, i.e. while that step's worker job is in flight. This stresses the body
+// snapshot (the worker iterates the snapshot, never the mutating m_Bodies) and the deleted-object
+// filter. The run must not crash, and after quiescing the twin count must match the live game bodies.
+TEST(AsyncChurn, SpawnDeleteWhileStepping)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo floor_info = { 0.0f, -3.0f };
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(6.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_info;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.4f);
+
+    static PBodyInfo infos[256];
+    Body* live[32];
+    int   live_count = 0;
+    int   next_info  = 0;
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+    sc.m_CollisionCallback = ParityOnCollision; // exercise collect/deliver under churn
+
+    g_collisions = 0;
+
+    for (int f = 0; f < 200; ++f)
+    {
+        StepWorld2D(world, sc); // kicks the worker; the mutations below run while it is in flight
+
+        if (live_count < 32 && next_info < 256)
+        {
+            infos[next_info].x = (float)((next_info % 7) - 3) * 0.5f;
+            infos[next_info].y = 3.0f;
+            CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &infos[next_info];
+            live[live_count++] = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+            next_info++;
+        }
+
+        if ((f % 3) == 0 && live_count > 0)
+        {
+            DeleteCollisionObject2D(world, live[0]);
+            for (int k = 1; k < live_count; ++k) live[k-1] = live[k];
+            live_count--;
+        }
+    }
+
+    // Quiesce, apply the pending structural ops, and check the twin count matches the live bodies.
+    WaitForWorker2D(world);
+    DrainPendingOps(world);
+
+    int expected_bodies = 1 + live_count; // floor + surviving balls
+    ASSERT_EQ(expected_bodies, (int)world->m_Bodies.Size());
+    ASSERT_EQ(expected_bodies, b2World_GetCounters(world->m_PhysicsWorldId).bodyCount);
+    ASSERT_GT(g_collisions, 0); // the churn actually produced collisions
+
+    for (int i = 0; i < live_count; ++i) DeleteCollisionObject2D(world, live[i]);
     DeleteCollisionObject2D(world, floor);
     DeleteCollisionShape2D(ball_shape);
     DeleteCollisionShape2D(floor_shape);
@@ -814,6 +958,62 @@ TEST(AsyncWorkerThread, DestroyAfterSubmitWaitsForJob)
     AsyncWorkerSubmit(w, AddJob, &ctx);
     DeleteAsyncWorker(w);       // must drain the in-flight job before tearing down
     ASSERT_EQ(5, ctx.m_Value);
+}
+
+// --- Kinematic-pull gating ---
+
+// A game object whose transform never tracks the physics body. In the engine, GetWorldTransform
+// returns the game-object transform (which SetWorldTransform updates from physics); when that
+// transform disagrees with the body, UpdateKinematicBodies2D pulls the body toward it. In the async
+// path that pull would re-inject the twin's own transform onto the (sleeping) twin, which does not
+// re-step it. This callback holds the transform fixed so the test can assert the body is driven by
+// physics, not by the game-object transform.
+static void FixedTransformGet(void* ud, dmTransform::Transform& t)
+{
+    (void)ud;
+    t.SetIdentity();
+    t.SetTranslation(dmVMath::Vector3(0.0f, 5.0f, 0.0f));
+}
+
+// A dynamic body in the async path must be driven by the physics simulation, not pulled back from
+// its game-object transform. With allow_dynamic_transforms on and the game-object transform held at
+// y=5, the ball must fall under gravity.
+TEST(AsyncKinematic, DynamicBodyIsPhysicsDrivenNotPulled)
+{
+    NewContextParams cp;
+    cp.m_WorldCount             = 4;
+    cp.m_RayCastLimit2D         = 16;
+    cp.m_TriggerOverlapCapacity = 16;
+    cp.m_AllowDynamicTransforms = 1;
+    HContext2D context = NewContext2D(cp);
+
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = FixedTransformGet;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData d;
+    d.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC;
+    d.m_Mass = 1.0f;
+    Body* ball = (Body*)NewCollisionObject2D(world, d, &shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+
+    for (int i = 0; i < 120; ++i) StepWorld2D(world, sc);
+    StepWorld2D(world, sc); // flush the N-1 delivery
+
+    // Physics-driven: the ball fell far below the fixed game-object y (5). If it were pulled back to
+    // the game-object transform each step it would be frozen near y=5.
+    b2Vec2 pos = b2Body_GetPosition(ball->m_BodyId);
+    ASSERT_LT(pos.y, 0.0f);
+
+    DeleteCollisionObject2D(world, ball);
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
 }
 
 int main(int argc, char **argv)

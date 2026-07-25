@@ -44,6 +44,12 @@ namespace dmPhysics
     // owning Body, then clear the queue. Runs on the main thread at the frame-start safe point.
     void DrainPendingOps(World2D* world);
 
+    // Block until any in-flight worker step has finished, leaving the worker idle. Lets a caller read
+    // physics-world / twin state or drain the operation queue without racing the worker. The waited
+    // step's results are not delivered, so call this only when the next action is inspection or
+    // teardown, not to continue simulating. No-op when double-buffering is off or no step is pending.
+    void WaitForWorker2D(World2D* world);
+
     // Copy each game body's transform and velocity onto its physics-world twin. Called before the
     // physics world is stepped so property setters applied to the game body (velocity, forced
     // transform) carry into the simulation. Both worlds share the same scale, so the Box2D values

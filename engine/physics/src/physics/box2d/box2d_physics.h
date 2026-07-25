@@ -143,6 +143,10 @@ namespace dmPhysics
         uint64_t m_ObjectB;
     };
 
+    // Single-worker job runner (box2d_async_thread.h) that runs the physics-world step off the main
+    // thread when double-buffering is on.
+    struct AsyncWorker;
+
     struct World2D
     {
         World2D(HContext2D context, const NewWorldParams& params);
@@ -181,6 +185,16 @@ namespace dmPhysics
         uint64_t                        m_DeletedObjectsFrame;
         uint64_t                        m_PreparedEventsFrame;
 
+        // Worker that runs b2World_Step + event collection off the main thread (double-buffering on).
+        // m_WorkerStepContext is the snapshot the worker reads (dt, substep count, and the callback
+        // pointers the collect phase checks for presence). Null/false when double-buffering is off.
+        AsyncWorker*                    m_Worker;
+        StepWorldContext                m_WorkerStepContext;
+        // Twin body ids the worker iterates during collect, snapshotted from m_Bodies at kick time
+        // (main thread, worker idle). The worker never reads m_Bodies, so game-side create/destroy
+        // (which mutate m_Bodies) may run concurrently with the in-flight step without racing.
+        dmArray<b2BodyId>               m_WorkerBodySnapshot;
+
         // TODO: I think we can merge these into a single buffer of bytes
         dmArray<b2ShapeId>          m_GetShapeScratchBuffer;
         dmArray<b2ContactData>      m_GetContactsScratchBuffer;
@@ -188,7 +202,10 @@ namespace dmPhysics
 
         uint8_t                     m_AllowDynamicTransforms:1;
         uint8_t                     m_UseDoubleBufferedWorlds:1;
-        uint8_t                     :6;
+        // A worker step has been kicked and not waited on. When set, the next StepWorld2DAsync
+        // waits for it and delivers its results before kicking the following step (the N-1 boundary).
+        uint8_t                     m_StepInFlight:1;
+        uint8_t                     :5;
     };
 
     struct Context2D
