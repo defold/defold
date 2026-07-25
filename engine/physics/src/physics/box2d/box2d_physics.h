@@ -173,6 +173,14 @@ namespace dmPhysics
         dmArray<PreparedSensorBegin>    m_SensorBeginEvents;
         dmArray<PreparedSensorEnd>      m_SensorEndEvents;
 
+        // Collision objects deleted since the last delivery, keyed by the object's user-data pointer.
+        // Delivery skips any prepared event referencing a deleted object, so a callback is never
+        // handed a freed component pointer for an event collected before the delete. Used only when
+        // double-buffering is on; cleared after each delivery.
+        dmHashTable64<uint8_t>          m_DeletedObjects;
+        uint64_t                        m_DeletedObjectsFrame;
+        uint64_t                        m_PreparedEventsFrame;
+
         // TODO: I think we can merge these into a single buffer of bytes
         dmArray<b2ShapeId>          m_GetShapeScratchBuffer;
         dmArray<b2ContactData>      m_GetContactsScratchBuffer;

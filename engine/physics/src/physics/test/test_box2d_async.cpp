@@ -609,6 +609,148 @@ TEST(AsyncMutator, EnableBeforeDrainAppliesToTwin)
     DeleteContext2D(context);
 }
 
+// --- Deleted-object filtering (synchronous) ------------------------------------------------------
+
+// The deleted-object set: DeleteCollisionObject2D records the object's user-data key; the public
+// accessors report membership, count, frame, and clear.
+TEST(AsyncDeletedObjects, SetMechanics)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_UseDoubleBufferedWorlds = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+
+    PBodyInfo info_a = { 0.0f, 0.0f };
+    PBodyInfo info_b = { 1.0f, 0.0f };
+    uint64_t key_a = (uint64_t)(uintptr_t) &info_a;
+    uint64_t key_b = (uint64_t)(uintptr_t) &info_b;
+
+    CollisionObjectData da; da.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; da.m_Mass = 1.0f; da.m_UserData = &info_a;
+    CollisionObjectData db; db.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; db.m_Mass = 1.0f; db.m_UserData = &info_b;
+    Body* a = (Body*)NewCollisionObject2D(world, da, &shape, 1);
+    Body* b = (Body*)NewCollisionObject2D(world, db, &shape, 1);
+    DrainPendingOps(world);
+
+    ASSERT_EQ(0U, GetDeletedObjectCount2D(world));
+    ASSERT_FALSE(IsObjectDeleted(world, key_a));
+
+    DeleteCollisionObject2D(world, a);
+    ASSERT_TRUE(IsObjectDeleted(world, key_a));
+    ASSERT_FALSE(IsObjectDeleted(world, key_b));
+    ASSERT_EQ(1U, GetDeletedObjectCount2D(world));
+
+    SetDeletedObjectsFrame2D(world, 42);
+    ASSERT_EQ(42U, GetDeletedObjectsFrame2D(world));
+
+    ClearDeletedObjects2D(world);
+    ASSERT_EQ(0U, GetDeletedObjectCount2D(world));
+    ASSERT_FALSE(IsObjectDeleted(world, key_a));
+    ASSERT_EQ(0U, GetDeletedObjectsFrame2D(world)); // frame reads 0 once the set is empty
+
+    DeleteCollisionObject2D(world, b);
+    DrainPendingOps(world);
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+// Delivery clears the deleted-object set: a delete recorded between frames is consumed by the next
+// StepWorld2D (which runs the deliver phase), leaving the set empty for the following frame.
+TEST(AsyncDeletedObjects, ClearedAfterDelivery)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo floor_info = { 0.0f, -2.0f };
+    PBodyInfo ball_info  = { 0.0f,  1.0f };
+
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_info;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_info;
+    Body* ball = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+    sc.m_CollisionCallback = ParityOnCollision;
+
+    for (int i = 0; i < 80; ++i) StepWorld2D(world, sc); // ball lands and rests on the floor
+
+    DeleteCollisionObject2D(world, ball);
+    ASSERT_EQ(1U, GetDeletedObjectCount2D(world));
+
+    StepWorld2D(world, sc);                       // deliver phase consumes and clears the set
+    ASSERT_EQ(0U, GetDeletedObjectCount2D(world));
+
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+// A prepared event that references an object, once the object is deleted, has both a live buffer
+// reference and a deleted-set hit: exactly the inputs DeliverPreparedEvents2D uses to skip it. (The
+// runtime skip during N-1 delivery is exercised by the threaded churn test once the worker lands.)
+TEST(AsyncDeletedObjects, StaleReferenceIsFlagged)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo floor_info = { 0.0f, -2.0f };
+    PBodyInfo ball_info  = { 0.0f,  1.0f };
+    uint64_t ball_key = (uint64_t)(uintptr_t) &ball_info;
+
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_info;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_info;
+    Body* ball = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+    sc.m_CollisionCallback = ParityOnCollision;
+
+    for (int i = 0; i < 80; ++i) StepWorld2D(world, sc); // ball rests on floor, buffer holds the contact
+
+    // The last step's buffer references the ball.
+    bool ball_referenced = false;
+    for (uint32_t i = 0; i < world->m_PreparedEvents.Size(); ++i)
+    {
+        PreparedCollisionEvent& ev = world->m_PreparedEvents[i];
+        if (ev.m_BodyIdKeyA == ball_key || ev.m_BodyIdKeyB == ball_key)
+        {
+            ball_referenced = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(ball_referenced);
+
+    // Deleting the ball flags exactly those buffered references for skipping.
+    DeleteCollisionObject2D(world, ball);
+    ASSERT_TRUE(IsObjectDeleted(world, ball_key));
+
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
 // --- box2d_async_thread substrate (no physics) ---------------------------------------------------
 
 struct WorkerTestCtx

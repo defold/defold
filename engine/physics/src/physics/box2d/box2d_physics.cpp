@@ -85,6 +85,13 @@ namespace dmPhysics
         }
 
         m_Bodies.SetCapacity(32);
+
+        m_DeletedObjectsFrame = 0;
+        m_PreparedEventsFrame = 0;
+        if (m_UseDoubleBufferedWorlds)
+        {
+            m_DeletedObjects.SetCapacity(64, 128);
+        }
     }
 
     struct HullSet
@@ -1077,6 +1084,13 @@ namespace dmPhysics
         {
             PreparedCollisionEvent& ev = world->m_PreparedEvents[i];
 
+            // Skip events for an object deleted since collection: its user data may be freed, and
+            // handing it to a callback would be a use-after-free.
+            if (IsObjectDeleted(world, ev.m_BodyIdKeyA) || IsObjectDeleted(world, ev.m_BodyIdKeyB))
+            {
+                continue;
+            }
+
             if (step_context.m_CollisionCallback)
             {
                 step_context.m_CollisionCallback(
@@ -1146,6 +1160,9 @@ namespace dmPhysics
         }
 
         b2World_Draw(world->m_PhysicsWorldId, &world->m_DebugDraw.m_DebugDraw);
+
+        // Deletions have been accounted for; the next frame's deletions accumulate fresh.
+        ClearDeletedObjects2D(world);
     }
 
     // Double-buffered step. The physics world is stepped instead of the game world; state is copied
@@ -2020,6 +2037,16 @@ namespace dmPhysics
         if (world->m_UseDoubleBufferedWorlds)
         {
             EnqueueDestroyBody(world, body);
+
+            // Record the object so async delivery filters out any prepared event that
+            // references it (collected before this delete). Keyed by the user-data pointer, which
+            // is what PreparedCollisionEvent carries as its body-id key.
+            uint64_t key = (uint64_t)(uintptr_t) b2Body_GetUserData(body->m_BodyId);
+            if (world->m_DeletedObjects.Full())
+            {
+                world->m_DeletedObjects.OffsetCapacity(64);
+            }
+            world->m_DeletedObjects.Put(key, (uint8_t)1);
         }
 
         OverlapCacheRemove(&world->m_TriggerOverlaps, ToOpaqueHandle(body->m_BodyId));
@@ -2042,6 +2069,54 @@ namespace dmPhysics
             }
         }
         delete body;
+    }
+
+    // Async collision-event accessors. The double-buffered path collects events into World2D during
+    // the step and delivers them through the callbacks; these expose the collected events and the
+    // deleted-object set that filters stale references at delivery.
+    void GetPreparedCollisionEvents2D(HWorld2D world, dmArray<PreparedCollisionEvent>& out_events, uint64_t frame_number)
+    {
+        (void) frame_number;
+        uint32_t n = world->m_PreparedEvents.Size();
+        out_events.SetSize(0);
+        if (out_events.Capacity() < n)
+        {
+            out_events.SetCapacity(n);
+        }
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            out_events.Push(world->m_PreparedEvents[i]);
+        }
+    }
+
+    bool IsObjectDeleted(HWorld2D world, uint64_t body_id_key)
+    {
+        return world->m_DeletedObjects.Get(body_id_key) != 0;
+    }
+
+    uint32_t GetDeletedObjectCount2D(HWorld2D world)
+    {
+        return world->m_DeletedObjects.Size();
+    }
+
+    uint64_t GetDeletedObjectsFrame2D(HWorld2D world)
+    {
+        return world->m_DeletedObjects.Empty() ? 0 : world->m_DeletedObjectsFrame;
+    }
+
+    void SetDeletedObjectsFrame2D(HWorld2D world, uint64_t frame_number)
+    {
+        world->m_DeletedObjectsFrame = frame_number;
+    }
+
+    void ClearDeletedObjects2D(HWorld2D world)
+    {
+        world->m_DeletedObjects.Clear();
+    }
+
+    uint64_t GetPreparedCollisionEventsFrame2D(HWorld2D world)
+    {
+        return world->m_PreparedEventsFrame;
     }
 
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
