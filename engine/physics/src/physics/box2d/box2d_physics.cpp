@@ -14,6 +14,7 @@
 
 
 #include <stdlib.h> // qsort
+#include <string.h> // memset
 
 #include "../physics.h"
 
@@ -600,17 +601,17 @@ namespace dmPhysics
         }
     }
 
-    // Resolve the collision-object identity (game user data) for a shape. The synchronous path reads
-    // the shape's own user data; the double-buffered path reads the twin body's user data, because
-    // twin shapes carry scaling data (not the game object) in their user data, while the twin body
-    // carries the game collision object.
-    static inline void* ResolveShapeUserData(b2ShapeId shape_id, bool async)
+    // Resolve the collision-object identity (game user data) for a physics-world twin shape. Twin
+    // shapes carry scaling data (not the game object) in their user data, while the twin body carries
+    // the game collision object, so identity is read from the owning body. Used by the double-buffered
+    // collect phase; the synchronous path reads shape user data directly.
+    static inline void* ResolveTwinShapeUserData(b2ShapeId shape_id)
     {
-        return async ? b2Body_GetUserData(b2Shape_GetBody(shape_id)) : b2Shape_GetUserData(shape_id);
+        return b2Body_GetUserData(b2Shape_GetBody(shape_id));
     }
 
-    // Fire the collision callback for every visitor overlapping a sensor shape.
-    static void EmitSensorOverlapCollisions(HWorld2D world, const StepWorldContext& step_context, b2ShapeId sensor_shape, bool async)
+    // Fire the collision callback for every visitor overlapping a sensor shape (synchronous path).
+    static void EmitSensorOverlapCollisions(HWorld2D world, const StepWorldContext& step_context, b2ShapeId sensor_shape)
     {
         if (!b2Shape_IsValid(sensor_shape) || !b2Shape_IsSensor(sensor_shape))
         {
@@ -627,27 +628,73 @@ namespace dmPhysics
             }
 
             step_context.m_CollisionCallback(
-                ResolveShapeUserData(sensor_shape, async), b2Shape_GetFilter(sensor_shape).categoryBits,
-                ResolveShapeUserData(visitor, async),      b2Shape_GetFilter(visitor).categoryBits,
+                b2Shape_GetUserData(sensor_shape), b2Shape_GetFilter(sensor_shape).categoryBits,
+                b2Shape_GetUserData(visitor),      b2Shape_GetFilter(visitor).categoryBits,
                 step_context.m_CollisionUserData);
         }
     }
 
-    // Step one Box2D world (the game world for the synchronous path, the physics world for the
-    // double-buffered path) and run the post-step callback machinery. When async is set, body
-    // identity uses the physics-world twin ids and the dynamic-body transform writeback is skipped
-    // (SyncPhysicsToGame performs it against the game world instead).
-    static void StepWorldCore2D(HWorld2D world, const StepWorldContext& step_context, b2WorldId step_world, bool async)
+    // Run the queued ray casts against step_world and deliver each response. resolve_from_body picks
+    // the shape's owning-body user data for identity (used by the double-buffered path, whose twin
+    // shapes carry scaling data rather than the game object); the synchronous path reads shape user
+    // data directly.
+    static void RunRayCasts2D(HWorld2D world, const StepWorldContext& step_context, b2WorldId step_world, bool resolve_from_body)
+    {
+        uint32_t size = world->m_RayCastRequests.Size();
+        if (size == 0)
+        {
+            return;
+        }
+
+        DM_PROFILE("RayCasts");
+
+        float scale = world->m_Context->m_Scale;
+
+        RayCastContext ray_cast_context;
+        ray_cast_context.m_Context = world->m_Context;
+        ray_cast_context.m_ResolveUserDataFromBody = resolve_from_body;
+
+        b2QueryFilter filter = b2DefaultQueryFilter();
+
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            RayCastRequest& request = world->m_RayCastRequests[i];
+            b2Vec2 from;
+            ToB2(request.m_From, from, scale);
+            b2Vec2 to;
+            ToB2(request.m_To, to, scale);
+
+            // Box2d V3 requires a translation vector, not a point
+            b2Vec2 translate = b2Sub(to, from);
+
+            ray_cast_context.m_IgnoredUserData = request.m_IgnoredUserData;
+            ray_cast_context.m_CollisionMask = request.m_Mask;
+            ray_cast_context.m_Response.m_Hit = 0;
+
+            filter.maskBits = request.m_Mask;
+            filter.categoryBits = (uint64_t) -1; // This will search for all groups
+
+            b2World_CastRay(step_world, from, translate, filter, cast_ray_cb, &ray_cast_context);
+            (*step_context.m_RayCastCallback)(ray_cast_context.m_Response, request, step_context.m_RayCastUserData);
+        }
+
+        world->m_RayCastRequests.SetSize(0);
+    }
+
+    // Step the game world and run the post-step callback machinery inline. This is the synchronous
+    // single-world path. The double-buffered path does not use this: it steps the physics world in
+    // StepWorld2DAsync and splits the post-step work into CollectCollisionEvents2D (gather) and
+    // DeliverPreparedEvents2D (replay).
+    static void StepWorldCore2D(HWorld2D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
         HContext2D context = world->m_Context;
-        float scale = context->m_Scale;
 
         // Step simulation
         {
             DM_PROFILE("StepSimulation");
 
-            b2World_Step(step_world, dt, step_context.m_Box2DSubStepCount);
+            b2World_Step(world->m_WorldId, dt, step_context.m_Box2DSubStepCount);
 
             // Post-solve must happen after stepping
             if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
@@ -661,7 +708,7 @@ namespace dmPhysics
                 for (int i = 0; i < world->m_Bodies.Size(); ++i)
                 {
                     Body* body = world->m_Bodies[i];
-                    b2BodyId body_id = async ? body->m_PhysicsBodyId : body->m_BodyId;
+                    b2BodyId body_id = body->m_BodyId;
                     dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
                     int num_contacts = contacts.Size();
 
@@ -688,9 +735,9 @@ namespace dmPhysics
                         if (step_context.m_CollisionCallback)
                         {
                             step_context.m_CollisionCallback(
-                                ResolveShapeUserData(contact.shapeIdA, async),
+                                b2Shape_GetUserData(contact.shapeIdA),
                                 b2Shape_GetFilter(contact.shapeIdA).categoryBits,
-                                ResolveShapeUserData(contact.shapeIdB, async),
+                                b2Shape_GetUserData(contact.shapeIdB),
                                 b2Shape_GetFilter(contact.shapeIdB).categoryBits,
                                 step_context.m_CollisionUserData);
                         }
@@ -730,9 +777,8 @@ namespace dmPhysics
             }
 
             float inv_scale = world->m_Context->m_InvScale;
-            // Update transforms of dynamic bodies. Skipped in the double-buffered path: the game
-            // world is not stepped there, so SyncPhysicsToGame writes back the twins' transforms.
-            if (!async && world->m_SetWorldTransformCallback)
+            // Update transforms of dynamic bodies from the stepped game world.
+            if (world->m_SetWorldTransformCallback)
             {
                 for (int i=0; i < world->m_Bodies.Size(); ++i)
                 {
@@ -752,41 +798,7 @@ namespace dmPhysics
             }
         }
         // Perform requested ray casts
-        uint32_t size = world->m_RayCastRequests.Size();
-        if (size > 0)
-        {
-            DM_PROFILE("RayCasts");
-
-            RayCastContext ray_cast_context;
-            ray_cast_context.m_Context = world->m_Context;
-            ray_cast_context.m_ResolveUserDataFromBody = async;
-
-            b2QueryFilter filter = b2DefaultQueryFilter();
-
-            for (uint32_t i = 0; i < size; ++i)
-            {
-                RayCastRequest& request = world->m_RayCastRequests[i];
-                b2Vec2 from;
-                ToB2(request.m_From, from, scale);
-                b2Vec2 to;
-                ToB2(request.m_To, to, scale);
-
-                // Box2d V3 requires a translation vector, not a point
-                b2Vec2 translate = b2Sub(to, from);
-
-                ray_cast_context.m_IgnoredUserData = request.m_IgnoredUserData;
-                ray_cast_context.m_CollisionMask = request.m_Mask;
-                ray_cast_context.m_Response.m_Hit = 0;
-
-                filter.maskBits = request.m_Mask;
-                filter.categoryBits = (uint64_t) -1; // This will search for all groups
-
-                b2World_CastRay(step_world, from, translate, filter, cast_ray_cb, &ray_cast_context);
-                (*step_context.m_RayCastCallback)(ray_cast_context.m_Response, request, step_context.m_RayCastUserData);
-            }
-
-            world->m_RayCastRequests.SetSize(0);
-        }
+        RunRayCasts2D(world, step_context, world->m_WorldId, false);
 
         if (step_context.m_CollisionCallback)
         {
@@ -794,38 +806,16 @@ namespace dmPhysics
             for (int i=0; i < world->m_Bodies.Size(); ++i)
             {
                 Body* body = world->m_Bodies[i];
-                b2BodyId body_id = async ? body->m_PhysicsBodyId : body->m_BodyId;
+                b2BodyId body_id = body->m_BodyId;
 
                 if (!b2Body_IsEnabled(body_id))
                 {
                     continue;
                 }
 
-                if (!async)
+                for (int j=0; j < body->m_ShapeCount; ++j)
                 {
-                    // Game-world shapes are tracked on the Body.
-                    for (int j=0; j < body->m_ShapeCount; ++j)
-                    {
-                        EmitSensorOverlapCollisions(world, step_context, body->m_Shapes[j]->m_ShapeId, false);
-                    }
-                }
-                else
-                {
-                    // Twin shape ids live only in the physics world, so query them from Box2D.
-                    int cap = b2Body_GetShapeCount(body_id);
-                    if (cap > 0)
-                    {
-                        if (world->m_GetShapeScratchBuffer.Capacity() < (uint32_t)cap)
-                        {
-                            world->m_GetShapeScratchBuffer.SetCapacity(cap);
-                        }
-                        b2ShapeId* shape_ids = world->m_GetShapeScratchBuffer.Begin();
-                        int n = b2Body_GetShapes(body_id, shape_ids, cap);
-                        for (int j = 0; j < n; ++j)
-                        {
-                            EmitSensorOverlapCollisions(world, step_context, shape_ids[j], true);
-                        }
-                    }
+                    EmitSensorOverlapCollisions(world, step_context, body->m_Shapes[j]->m_ShapeId);
                 }
             }
         }
@@ -834,7 +824,7 @@ namespace dmPhysics
         {
             DM_PROFILE("TriggerCallbacks");
 
-            b2SensorEvents sensor_events = b2World_GetSensorEvents(step_world);
+            b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
 
             OverlapCacheAddData add_data;
             add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
@@ -851,9 +841,9 @@ namespace dmPhysics
                 }
 
                 add_data.m_ObjectA   = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
-                add_data.m_UserDataA = ResolveShapeUserData(shapeIdA, async);
+                add_data.m_UserDataA = b2Shape_GetUserData(shapeIdA);
                 add_data.m_ObjectB   = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
-                add_data.m_UserDataB = ResolveShapeUserData(shapeIdB, async);
+                add_data.m_UserDataB = b2Shape_GetUserData(shapeIdB);
                 add_data.m_GroupA    = b2Shape_GetFilter(shapeIdA).categoryBits;
                 add_data.m_GroupB    = b2Shape_GetFilter(shapeIdB).categoryBits;
                 OverlapCacheAdd(&world->m_TriggerOverlaps, add_data);
@@ -881,19 +871,298 @@ namespace dmPhysics
             OverlapCachePrune(&world->m_TriggerOverlaps, prune_data);
         }
 
-        b2World_Draw(step_world, &world->m_DebugDraw.m_DebugDraw);
+        b2World_Draw(world->m_WorldId, &world->m_DebugDraw.m_DebugDraw);
+    }
+
+    // Gather collision, contact-point, and trigger events from the already-stepped physics world
+    // into POD buffers on the world. No callbacks fire and no OverlapCache mutation happens here:
+    // this is the phase that runs on the worker thread, so it must touch only
+    // the physics world and the collect buffers. DeliverPreparedEvents2D replays the buffers through
+    // the callbacks on the main thread. Event order matches the synchronous path: post-solve
+    // contacts first, then sensor overlaps.
+    static void CollectCollisionEvents2D(HWorld2D world, const StepWorldContext& step_context)
+    {
+        float inv_scale = world->m_Context->m_InvScale;
+
+        world->m_PreparedEvents.SetSize(0);
+        world->m_SensorBeginEvents.SetSize(0);
+        world->m_SensorEndEvents.SetSize(0);
+
+        // Post-solve contacts passing the impulse filter -> prepared events (collision + contact points)
+        if (step_context.m_CollisionCallback || step_context.m_ContactPointCallback)
+        {
+            for (int i = 0; i < world->m_Bodies.Size(); ++i)
+            {
+                Body* body = world->m_Bodies[i];
+                b2BodyId body_id = body->m_PhysicsBodyId;
+                if (!b2Body_IsValid(body_id) || !b2Body_IsEnabled(body_id))
+                {
+                    continue;
+                }
+
+                dmArray<b2ContactData>& contacts = GetContactsBuffer(world, body_id);
+                int num_contacts = contacts.Size();
+                for (int j = 0; j < num_contacts; ++j)
+                {
+                    b2ContactData& contact = contacts[j];
+
+                    float max_impulse = 0.0f;
+                    for (int k = 0; k < contact.manifold.pointCount; ++k)
+                    {
+                        max_impulse = dmMath::Max(max_impulse, contact.manifold.points[k].normalImpulse);
+                    }
+                    if (max_impulse < world->m_Context->m_ContactImpulseLimit)
+                    {
+                        continue;
+                    }
+
+                    b2BodyId bodyIdA = b2Shape_GetBody(contact.shapeIdA);
+                    b2BodyId bodyIdB = b2Shape_GetBody(contact.shapeIdB);
+
+                    PreparedCollisionEvent ev;
+                    memset(&ev, 0, sizeof(ev));
+                    ev.m_BodyUserDataA  = b2Body_GetUserData(bodyIdA);
+                    ev.m_BodyUserDataB  = b2Body_GetUserData(bodyIdB);
+                    ev.m_BodyIdKeyA     = (uint64_t)(uintptr_t) ev.m_BodyUserDataA;
+                    ev.m_BodyIdKeyB     = (uint64_t)(uintptr_t) ev.m_BodyUserDataB;
+                    ev.m_CategoryBitsA  = (uint16_t) b2Shape_GetFilter(contact.shapeIdA).categoryBits;
+                    ev.m_CategoryBitsB  = (uint16_t) b2Shape_GetFilter(contact.shapeIdB).categoryBits;
+                    FromB2(b2Body_GetLinearVelocity(bodyIdA), ev.m_VelocityA, inv_scale);
+                    FromB2(b2Body_GetLinearVelocity(bodyIdB), ev.m_VelocityB, inv_scale);
+                    FromB2(contact.manifold.normal, ev.m_Normal, 1.0f); // Don't scale normal
+                    ev.m_MassA      = b2Body_GetMass(bodyIdA);
+                    ev.m_MassB      = b2Body_GetMass(bodyIdB);
+                    ev.m_MaxImpulse = max_impulse;
+
+                    uint8_t point_count = (uint8_t) contact.manifold.pointCount;
+                    if (point_count > 4)
+                    {
+                        point_count = 4;
+                    }
+                    ev.m_ContactPointCount = point_count;
+                    for (uint8_t k = 0; k < point_count; ++k)
+                    {
+                        b2ManifoldPoint& mp = contact.manifold.points[k];
+                        FromB2(mp.point, ev.m_ContactPoints[k].m_Position, inv_scale);
+                        ev.m_ContactPoints[k].m_NormalImpulse = mp.normalImpulse;
+                        ev.m_ContactPoints[k].m_Separation    = mp.separation;
+                    }
+
+                    if (world->m_PreparedEvents.Full())
+                    {
+                        world->m_PreparedEvents.OffsetCapacity(64);
+                    }
+                    world->m_PreparedEvents.Push(ev);
+                }
+            }
+        }
+
+        // Sensor overlaps -> prepared events (collision callback only, no contact points)
+        if (step_context.m_CollisionCallback)
+        {
+            for (int i = 0; i < world->m_Bodies.Size(); ++i)
+            {
+                Body* body = world->m_Bodies[i];
+                b2BodyId body_id = body->m_PhysicsBodyId;
+                if (!b2Body_IsValid(body_id) || !b2Body_IsEnabled(body_id))
+                {
+                    continue;
+                }
+
+                int cap = b2Body_GetShapeCount(body_id);
+                if (cap <= 0)
+                {
+                    continue;
+                }
+                if (world->m_GetShapeScratchBuffer.Capacity() < (uint32_t)cap)
+                {
+                    world->m_GetShapeScratchBuffer.SetCapacity(cap);
+                }
+                b2ShapeId* shape_ids = world->m_GetShapeScratchBuffer.Begin();
+                int n = b2Body_GetShapes(body_id, shape_ids, cap);
+                for (int j = 0; j < n; ++j)
+                {
+                    b2ShapeId sensor_shape = shape_ids[j];
+                    if (!b2Shape_IsValid(sensor_shape) || !b2Shape_IsSensor(sensor_shape))
+                    {
+                        continue;
+                    }
+
+                    dmArray<b2ShapeId>& overlaps = GetSensorOverlapBuffer(world, sensor_shape);
+                    for (int m = 0; m < overlaps.Size(); ++m)
+                    {
+                        b2ShapeId visitor = overlaps[m];
+                        if (!b2Shape_IsValid(visitor))
+                        {
+                            continue;
+                        }
+
+                        PreparedCollisionEvent ev;
+                        memset(&ev, 0, sizeof(ev));
+                        ev.m_BodyUserDataA     = ResolveTwinShapeUserData(sensor_shape);
+                        ev.m_BodyUserDataB     = ResolveTwinShapeUserData(visitor);
+                        ev.m_BodyIdKeyA        = (uint64_t)(uintptr_t) ev.m_BodyUserDataA;
+                        ev.m_BodyIdKeyB        = (uint64_t)(uintptr_t) ev.m_BodyUserDataB;
+                        ev.m_CategoryBitsA     = (uint16_t) b2Shape_GetFilter(sensor_shape).categoryBits;
+                        ev.m_CategoryBitsB     = (uint16_t) b2Shape_GetFilter(visitor).categoryBits;
+                        ev.m_ContactPointCount = 0;
+
+                        if (world->m_PreparedEvents.Full())
+                        {
+                            world->m_PreparedEvents.OffsetCapacity(64);
+                        }
+                        world->m_PreparedEvents.Push(ev);
+                    }
+                }
+            }
+        }
+
+        // Trigger begin/end sensor events -> POD buffers (replayed into OverlapCache on the main thread)
+        b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_PhysicsWorldId);
+
+        for (int i = 0; i < sensor_events.beginCount; ++i)
+        {
+            b2ShapeId shapeIdA = sensor_events.beginEvents[i].sensorShapeId;
+            b2ShapeId shapeIdB = sensor_events.beginEvents[i].visitorShapeId;
+            if (!(b2Shape_IsValid(shapeIdA) && b2Shape_IsValid(shapeIdB)))
+            {
+                continue;
+            }
+
+            PreparedSensorBegin sb;
+            sb.m_ObjectA   = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
+            sb.m_UserDataA = ResolveTwinShapeUserData(shapeIdA);
+            sb.m_ObjectB   = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
+            sb.m_UserDataB = ResolveTwinShapeUserData(shapeIdB);
+            sb.m_GroupA    = (uint16_t) b2Shape_GetFilter(shapeIdA).categoryBits;
+            sb.m_GroupB    = (uint16_t) b2Shape_GetFilter(shapeIdB).categoryBits;
+
+            if (world->m_SensorBeginEvents.Full())
+            {
+                world->m_SensorBeginEvents.OffsetCapacity(32);
+            }
+            world->m_SensorBeginEvents.Push(sb);
+        }
+
+        for (int i = 0; i < sensor_events.endCount; ++i)
+        {
+            b2ShapeId shapeIdA = sensor_events.endEvents[i].sensorShapeId;
+            b2ShapeId shapeIdB = sensor_events.endEvents[i].visitorShapeId;
+            if (!(b2Shape_IsValid(shapeIdA) && b2Shape_IsValid(shapeIdB)))
+            {
+                continue;
+            }
+
+            PreparedSensorEnd se;
+            se.m_ObjectA = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
+            se.m_ObjectB = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
+
+            if (world->m_SensorEndEvents.Full())
+            {
+                world->m_SensorEndEvents.OffsetCapacity(32);
+            }
+            world->m_SensorEndEvents.Push(se);
+        }
+    }
+
+    // Replay the collected event buffers through the callbacks on the main thread, then run the
+    // ray casts and debug draw against the physics world. Collision and contact-point callbacks
+    // fire in collect order; trigger enter/exit go through the OverlapCache (which fires the trigger
+    // callbacks). This is the phase that stays on the main thread once threading lands.
+    static void DeliverPreparedEvents2D(HWorld2D world, const StepWorldContext& step_context)
+    {
+        float inv_scale = world->m_Context->m_InvScale;
+
+        for (uint32_t i = 0; i < world->m_PreparedEvents.Size(); ++i)
+        {
+            PreparedCollisionEvent& ev = world->m_PreparedEvents[i];
+
+            if (step_context.m_CollisionCallback)
+            {
+                step_context.m_CollisionCallback(
+                    ev.m_BodyUserDataA, ev.m_CategoryBitsA,
+                    ev.m_BodyUserDataB, ev.m_CategoryBitsB,
+                    step_context.m_CollisionUserData);
+            }
+
+            if (ev.m_ContactPointCount > 0 && step_context.m_ContactPointCallback)
+            {
+                Vector3 relative_velocity = ev.m_VelocityB - ev.m_VelocityA;
+                for (uint8_t k = 0; k < ev.m_ContactPointCount; ++k)
+                {
+                    ContactManifoldPoint& mp = ev.m_ContactPoints[k];
+
+                    ContactPoint cp;
+                    cp.m_PositionA        = mp.m_Position;
+                    cp.m_PositionB        = mp.m_Position;
+                    cp.m_UserDataA        = ev.m_BodyUserDataA;
+                    cp.m_UserDataB        = ev.m_BodyUserDataB;
+                    cp.m_Normal           = ev.m_Normal;
+                    cp.m_RelativeVelocity = relative_velocity;
+                    cp.m_Distance         = -mp.m_Separation * inv_scale;
+                    cp.m_AppliedImpulse   = mp.m_NormalImpulse * inv_scale;
+                    cp.m_MassA            = ev.m_MassA;
+                    cp.m_MassB            = ev.m_MassB;
+                    cp.m_GroupA           = ev.m_CategoryBitsA;
+                    cp.m_GroupB           = ev.m_CategoryBitsB;
+                    step_context.m_ContactPointCallback(cp, step_context.m_ContactPointUserData);
+                }
+            }
+        }
+
+        // Ray casts run against the physics world on the main thread (they call into Lua and read
+        // the world, so they cannot run on the worker).
+        RunRayCasts2D(world, step_context, world->m_PhysicsWorldId, true);
+
+        // Trigger enter/exit: replay the captured sensor events into the OverlapCache, which fires
+        // the enter callback on add and the exit callback on prune.
+        {
+            OverlapCacheAddData add_data;
+            add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
+            add_data.m_TriggerEnteredUserData = step_context.m_TriggerEnteredUserData;
+            for (uint32_t i = 0; i < world->m_SensorBeginEvents.Size(); ++i)
+            {
+                PreparedSensorBegin& sb = world->m_SensorBeginEvents[i];
+                add_data.m_ObjectA   = sb.m_ObjectA;
+                add_data.m_UserDataA = sb.m_UserDataA;
+                add_data.m_ObjectB   = sb.m_ObjectB;
+                add_data.m_UserDataB = sb.m_UserDataB;
+                add_data.m_GroupA    = sb.m_GroupA;
+                add_data.m_GroupB    = sb.m_GroupB;
+                OverlapCacheAdd(&world->m_TriggerOverlaps, add_data);
+            }
+
+            for (uint32_t i = 0; i < world->m_SensorEndEvents.Size(); ++i)
+            {
+                PreparedSensorEnd& se = world->m_SensorEndEvents[i];
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, se.m_ObjectA, se.m_ObjectB);
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, se.m_ObjectB, se.m_ObjectA);
+            }
+
+            OverlapCachePruneData prune_data;
+            prune_data.m_TriggerExitedCallback = step_context.m_TriggerExitedCallback;
+            prune_data.m_TriggerExitedUserData = step_context.m_TriggerExitedUserData;
+            OverlapCachePrune(&world->m_TriggerOverlaps, prune_data);
+        }
+
+        b2World_Draw(world->m_PhysicsWorldId, &world->m_DebugDraw.m_DebugDraw);
     }
 
     // Double-buffered step. The physics world is stepped instead of the game world; state is copied
-    // in before the step and out after. This runs synchronously here (the worker thread lands in a
-    // later change), so callbacks fire inline exactly as in the single-world path.
+    // in before the step and out after. The post-step work is split into a collect phase (gather
+    // events, no callbacks) and a deliver phase (replay events through the callbacks). Both run on
+    // the main thread here; the worker thread lands in a later change and takes the step + collect.
     static void StepWorld2DAsync(HWorld2D world, const StepWorldContext& step_context)
     {
-        UpdateKinematicBodies2D(world);                                    // game world kinematic pull-in
-        SyncGameToPhysics(world);                                          // game state -> physics twins
-        DrainPendingOps(world);                                            // structural ops -> physics world
-        StepWorldCore2D(world, step_context, world->m_PhysicsWorldId, true); // step physics world
-        SyncPhysicsToGame(world);                                          // physics twins -> game world
+        UpdateKinematicBodies2D(world);   // game world kinematic pull-in
+        SyncGameToPhysics(world);         // game state -> physics twins
+        DrainPendingOps(world);           // structural ops -> physics world
+
+        b2World_Step(world->m_PhysicsWorldId, step_context.m_DT, step_context.m_Box2DSubStepCount);
+        CollectCollisionEvents2D(world, step_context); // gather events (worker phase, no callbacks)
+        DeliverPreparedEvents2D(world, step_context);  // replay events -> callbacks (main-thread phase)
+
+        SyncPhysicsToGame(world);         // physics twins -> game world
     }
 
     // Synchronous single-world step: pull kinematic transforms then run the step core on the game world.
@@ -906,7 +1175,7 @@ namespace dmPhysics
         }
 
         UpdateKinematicBodies2D(world);
-        StepWorldCore2D(world, step_context, world->m_WorldId, false);
+        StepWorldCore2D(world, step_context);
     }
 
     void SetDrawDebug2D(HWorld2D world, bool draw_debug)

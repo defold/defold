@@ -122,6 +122,27 @@ namespace dmPhysics
         b2ContactData m_Data;
     };
 
+    // A sensor begin-overlap captured during the async collect phase, replayed into the trigger
+    // OverlapCache on the main thread during delivery. Handles/user data are resolved from the
+    // physics-world twin at collect time; delivery only feeds them to OverlapCacheAdd.
+    struct PreparedSensorBegin
+    {
+        uint64_t m_ObjectA;
+        uint64_t m_ObjectB;
+        void*    m_UserDataA;
+        void*    m_UserDataB;
+        uint16_t m_GroupA;
+        uint16_t m_GroupB;
+    };
+
+    // A sensor end-overlap captured during the async collect phase. Delivery feeds the two body
+    // handles to OverlapCacheDecreaseCount.
+    struct PreparedSensorEnd
+    {
+        uint64_t m_ObjectA;
+        uint64_t m_ObjectB;
+    };
+
     struct World2D
     {
         World2D(HContext2D context, const NewWorldParams& params);
@@ -143,6 +164,14 @@ namespace dmPhysics
 
         dmArray<Body*>              m_Bodies;
         dmArray<ContactPair>        m_ContactBuffer;
+
+        // Async collect/deliver buffers (used only when double-buffering is on). The collect phase
+        // (worker thread) appends into these from the stepped physics world
+        // with no callbacks; the deliver phase (main thread) replays them through the collision,
+        // contact-point, and trigger callbacks.
+        dmArray<PreparedCollisionEvent> m_PreparedEvents;
+        dmArray<PreparedSensorBegin>    m_SensorBeginEvents;
+        dmArray<PreparedSensorEnd>      m_SensorEndEvents;
 
         // TODO: I think we can merge these into a single buffer of bytes
         dmArray<b2ShapeId>          m_GetShapeScratchBuffer;

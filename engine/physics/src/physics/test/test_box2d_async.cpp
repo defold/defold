@@ -369,6 +369,63 @@ TEST(AsyncParity, SyncVsAsyncScene)
     ASSERT_NEAR(s.m_FinalPos.y, a.m_FinalPos.y, 0.001f);
 }
 
+// The collect phase must actually populate the prepared-event buffer, or delivery would be replaying
+// an empty buffer and the parity check above would pass vacuously. Drop a ball onto a floor and
+// assert the buffer is non-empty on at least one frame.
+TEST(AsyncCollect, PreparedBufferPopulatedOnContact)
+{
+    HContext2D context = NewTestContext();
+
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo floor_info = { 0.0f, -2.0f };
+    PBodyInfo ball_info  = { 0.0f,  1.0f };
+
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData floor_data;
+    floor_data.m_Type     = COLLISION_OBJECT_TYPE_STATIC;
+    floor_data.m_Mass     = 0.0f;
+    floor_data.m_UserData = &floor_info;
+    Body* floor = (Body*)NewCollisionObject2D(world, floor_data, &floor_shape, 1);
+
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData ball_data;
+    ball_data.m_Type     = COLLISION_OBJECT_TYPE_DYNAMIC;
+    ball_data.m_Mass     = 1.0f;
+    ball_data.m_UserData = &ball_info;
+    Body* ball = (Body*)NewCollisionObject2D(world, ball_data, &ball_shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT                   = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount    = 4;
+    sc.m_CollisionCallback    = ParityOnCollision;
+    sc.m_ContactPointCallback = ParityOnContactPoint;
+
+    // Buffer starts empty (no contacts before the ball lands).
+    ASSERT_EQ(0U, world->m_PreparedEvents.Size());
+
+    bool prepared_seen = false;
+    for (int i = 0; i < 150; ++i)
+    {
+        StepWorld2D(world, sc);
+        if (world->m_PreparedEvents.Size() > 0)
+        {
+            prepared_seen = true;
+        }
+    }
+    ASSERT_TRUE(prepared_seen);
+
+    DeleteCollisionObject2D(world, ball);
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
 // --- Structural mutator parity: enable/disable, gravity, scale must mirror to the twin. ---
 
 static b2Vec2 RunDisableScene(bool async, bool* out_game_enabled, bool* out_twin_enabled)
