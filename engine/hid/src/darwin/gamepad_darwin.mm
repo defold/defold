@@ -114,6 +114,8 @@ enum AppleGamepadLegacyElementType
 };
 
 static const uint8_t APPLE_GAMEPAD_REMAP_INVALID = 0xff;
+// A logical axis can map its positive and negative halves independently.
+static const uint8_t APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT = 2;
 
 struct AppleGamepadLegacyElement
 {
@@ -121,6 +123,8 @@ struct AppleGamepadLegacyElement
     uint8_t m_Index;
     int8_t  m_Minimum;
     int8_t  m_Maximum;
+    int8_t  m_OutputMinimum;
+    int8_t  m_OutputMaximum;
 };
 
 struct AppleGamepadDevice
@@ -133,7 +137,7 @@ struct AppleGamepadDevice
     uint8_t       m_ButtonRemap[MAX_GAMEPAD_BUTTON_COUNT];
     uint8_t       m_HatRemap[MAX_GAMEPAD_HAT_COUNT];
     AppleGamepadLegacyElement m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT];
-    AppleGamepadLegacyElement m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT];
+    AppleGamepadLegacyElement m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT][APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT];
     int           m_Id;
 #if TARGET_OS_OSX
     IOHIDDeviceRef    m_HidDevice;
@@ -148,15 +152,15 @@ struct AppleGamepadDevice
     uint8_t       m_LegacyButtonCount;
     uint8_t       m_LegacyHatCount;
     uint8_t       m_PacketLayout;
-    uint8_t       m_HasLeftThumbstickButton : 1;
-    uint8_t       m_HasRightThumbstickButton: 1;
-    uint8_t       m_HasBackButton           : 1;
-    uint8_t       m_HasStartButton          : 1;
-    uint8_t       m_HasGuideButton          : 1;
-    uint8_t       m_HasCaptureButton        : 1;
-    uint8_t       m_HasLegacyMapping        : 1;
-    uint8_t       m_IsRaw                   : 1;
-    uint8_t       m_HasNintendoButtons      : 1;
+    uint8_t       m_HasLeftThumbstickButton     : 1;
+    uint8_t       m_HasRightThumbstickButton    : 1;
+    uint8_t       m_HasBackButton               : 1;
+    uint8_t       m_HasStartButton              : 1;
+    uint8_t       m_HasGuideButton              : 1;
+    uint8_t       m_HasCaptureButton            : 1;
+    uint8_t       m_HasLegacyMapping            : 1;
+    uint8_t       m_IsRaw                       : 1;
+    uint8_t       m_UsesNintendoFaceButtonLayout: 1;
 };
 
 struct AppleGamepadDriver : GamepadDriver
@@ -869,17 +873,28 @@ static uint8_t GetLegacyHatBitValue(uint8_t index)
     }
 }
 
+// Converts a semantic axis value to its normalized position within the SDL
+// mapping's logical output range.
+static float GetLegacyAxisBindingAmount(const AppleGamepadLegacyElement& element, float semantic_value)
+{
+    const float minimum = (float) element.m_OutputMinimum;
+    const float maximum = (float) element.m_OutputMaximum;
+    const float scale = maximum - minimum;
+    if (scale == 0.0f)
+        return 0.0f;
+
+    return fminf(fmaxf((semantic_value - minimum) / scale, 0.0f), 1.0f);
+}
+
 // Converts a normalized semantic axis value back to the raw axis range expected
 // by a legacy mapping target.
 static float InverseMapLegacyAxis(const AppleGamepadLegacyElement& element, float semantic_value)
 {
+    const float amount = GetLegacyAxisBindingAmount(element, semantic_value);
     const float minimum = (float) element.m_Minimum;
     const float maximum = (float) element.m_Maximum;
-    const float scale = maximum - minimum;
-    if (scale == 0.0f)
-        return semantic_value;
 
-    const float raw_value = (semantic_value * scale + minimum + maximum) * 0.5f;
+    const float raw_value = minimum + amount * (maximum - minimum);
     return fminf(fmaxf(raw_value, -1.0f), 1.0f);
 }
 
@@ -929,7 +944,8 @@ static void SetMappedButtonValue(GamepadPacket& packet, float axis_values[MAX_GA
 
         case APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS:
         {
-            const float raw_value = pressed ? (element.m_Maximum > 0 ? 1.0f : -1.0f) : 0.0f;
+            const bool range_crosses_zero = (element.m_Minimum < 0 && element.m_Maximum > 0) || (element.m_Minimum > 0 && element.m_Maximum < 0);
+            const float raw_value = pressed ? (float) element.m_Maximum : (range_crosses_zero ? 0.0f : (float) element.m_Minimum);
             SetMappedAxisValue(axis_values, axis_written, element.m_Index, raw_value);
             break;
         }
@@ -949,11 +965,11 @@ static void SetMappedAxisSemanticValue(GamepadPacket& packet, float axis_values[
             break;
 
         case APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON:
-            SetButtonValue(packet, element.m_Index, semantic_value >= 0.0f);
+            SetButtonValue(packet, element.m_Index, GetLegacyAxisBindingAmount(element, semantic_value) > 0.5f);
             break;
 
         case APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT:
-            if (semantic_value >= 0.0f)
+            if (GetLegacyAxisBindingAmount(element, semantic_value) > 0.5f)
             {
                 const uint8_t hat_index = element.m_Index >> 4;
                 if (hat_index < MAX_GAMEPAD_HAT_COUNT)
@@ -973,6 +989,8 @@ static bool ParseLegacyMappingTarget(const char* target, AppleGamepadLegacyEleme
     AppleGamepadLegacyElement parsed = {};
     parsed.m_Minimum = -1;
     parsed.m_Maximum = 1;
+    parsed.m_OutputMinimum = -1;
+    parsed.m_OutputMaximum = 1;
 
     if (*target == '+')
     {
@@ -1018,6 +1036,17 @@ static bool ParseLegacyMappingTarget(const char* target, AppleGamepadLegacyEleme
         parsed.m_Index = (uint8_t) index;
     }
 
+    if (parsed.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS && *end == '~')
+    {
+        const int8_t minimum = parsed.m_Minimum;
+        parsed.m_Minimum = parsed.m_Maximum;
+        parsed.m_Maximum = minimum;
+        ++end;
+    }
+
+    if (*end != '\0')
+        return false;
+
     *element = parsed;
     return true;
 }
@@ -1032,33 +1061,34 @@ static bool ParseLegacyMappingLine(const char* mapping, AppleGamepadDevice* devi
     struct LegacyField
     {
         const char* m_Name;
-        AppleGamepadLegacyElement* m_Element;
+        AppleGamepadLegacyElement* m_Elements;
+        uint8_t m_ElementCount;
     };
 
     LegacyField fields[] =
     {
-        { "a",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_A] },
-        { "b",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_B] },
-        { "x",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_X] },
-        { "y",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_Y] },
-        { "back",          &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_BACK] },
-        { "start",         &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_START] },
-        { "guide",         &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_GUIDE] },
-        { "leftshoulder",  &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_SHOULDER] },
-        { "rightshoulder", &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_SHOULDER] },
-        { "leftstick",     &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_THUMB] },
-        { "rightstick",    &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_THUMB] },
-        { "dpup",          &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_UP] },
-        { "dpright",       &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_RIGHT] },
-        { "dpdown",        &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_DOWN] },
-        { "dpleft",        &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_LEFT] },
-        { "misc1",         &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_CAPTURE] },
-        { "lefttrigger",   &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_TRIGGER] },
-        { "righttrigger",  &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_TRIGGER] },
-        { "leftx",         &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_X] },
-        { "lefty",         &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_Y] },
-        { "rightx",        &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_X] },
-        { "righty",        &device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_Y] },
+        { "a",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_A],              1 },
+        { "b",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_B],              1 },
+        { "x",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_X],              1 },
+        { "y",             &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_Y],              1 },
+        { "back",          &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_BACK],           1 },
+        { "start",         &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_START],          1 },
+        { "guide",         &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_GUIDE],          1 },
+        { "leftshoulder",  &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_SHOULDER],  1 },
+        { "rightshoulder", &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_SHOULDER], 1 },
+        { "leftstick",     &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_LEFT_THUMB],     1 },
+        { "rightstick",    &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_RIGHT_THUMB],    1 },
+        { "dpup",          &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_UP],        1 },
+        { "dpright",       &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_RIGHT],     1 },
+        { "dpdown",        &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_DOWN],      1 },
+        { "dpleft",        &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_DPAD_LEFT],      1 },
+        { "misc1",         &device->m_LegacyButtonMap[APPLE_GAMEPAD_SEMANTIC_BUTTON_CAPTURE],        1 },
+        { "lefttrigger",   device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_TRIGGER],        APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT },
+        { "righttrigger",  device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_TRIGGER],       APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT },
+        { "leftx",         device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_X],               APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT },
+        { "lefty",         device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_LEFT_Y],               APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT },
+        { "rightx",        device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_X],              APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT },
+        { "righty",        device->m_LegacyAxisMap[APPLE_GAMEPAD_SEMANTIC_AXIS_RIGHT_Y],              APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT },
     };
 
     const char* cursor = strchr(mapping, ',');
@@ -1080,10 +1110,24 @@ static bool ParseLegacyMappingLine(const char* mapping, AppleGamepadDevice* devi
         const char* separator = (const char*) memchr(cursor, ':', token_end - cursor);
         if (separator != 0)
         {
-            for (uint32_t i = 0; i < sizeof(fields) / sizeof(fields[0]); ++i)
+            const char* key = cursor;
+            size_t key_length = (size_t) (separator - cursor);
+            int8_t output_minimum = -1;
+            int8_t output_maximum = 1;
+            bool has_output_modifier = false;
+            if (key_length > 0 && (*key == '+' || *key == '-'))
             {
-                const size_t key_length = strlen(fields[i].m_Name);
-                if ((size_t) (separator - cursor) == key_length && strncmp(cursor, fields[i].m_Name, key_length) == 0)
+                has_output_modifier = true;
+                output_minimum = 0;
+                output_maximum = *key == '+' ? 1 : -1;
+                ++key;
+                --key_length;
+            }
+
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(fields); ++i)
+            {
+                const size_t field_name_length = strlen(fields[i].m_Name);
+                if (key_length == field_name_length && strncmp(key, fields[i].m_Name, field_name_length) == 0 && (!has_output_modifier || fields[i].m_ElementCount > 1))
                 {
                     char target[32];
                     const size_t target_length = (size_t) (token_end - separator - 1);
@@ -1096,7 +1140,19 @@ static bool ParseLegacyMappingLine(const char* mapping, AppleGamepadDevice* devi
                     AppleGamepadLegacyElement element = {};
                     if (ParseLegacyMappingTarget(target, &element))
                     {
-                        *fields[i].m_Element = element;
+                        element.m_OutputMinimum = output_minimum;
+                        element.m_OutputMaximum = output_maximum;
+
+                        AppleGamepadLegacyElement* destination = &fields[i].m_Elements[fields[i].m_ElementCount - 1];
+                        for (uint32_t j = 0; j < fields[i].m_ElementCount; ++j)
+                        {
+                            if (fields[i].m_Elements[j].m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_NONE)
+                            {
+                                destination = &fields[i].m_Elements[j];
+                                break;
+                            }
+                        }
+                        *destination = element;
                         found_element = true;
                     }
                     break;
@@ -1116,13 +1172,16 @@ static bool ParseLegacyMappingLine(const char* mapping, AppleGamepadDevice* devi
 
     for (uint32_t i = 0; i < APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT; ++i)
     {
-        const AppleGamepadLegacyElement& element = device->m_LegacyAxisMap[i];
-        if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS)
-            axis_count = dmMath::Max(axis_count, (uint8_t) (element.m_Index + 1));
-        else if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON)
-            button_count = dmMath::Max(button_count, (uint8_t) (element.m_Index + 1));
-        else if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT)
-            hat_count = dmMath::Max(hat_count, (uint8_t) ((element.m_Index >> 4) + 1));
+        for (uint32_t j = 0; j < APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT; ++j)
+        {
+            const AppleGamepadLegacyElement& element = device->m_LegacyAxisMap[i][j];
+            if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_AXIS)
+                axis_count = dmMath::Max(axis_count, (uint8_t) (element.m_Index + 1));
+            else if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_BUTTON)
+                button_count = dmMath::Max(button_count, (uint8_t) (element.m_Index + 1));
+            else if (element.m_Type == APPLE_GAMEPAD_LEGACY_ELEMENT_TYPE_HATBIT)
+                hat_count = dmMath::Max(hat_count, (uint8_t) ((element.m_Index >> 4) + 1));
+        }
     }
 
     for (uint32_t i = 0; i < APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT; ++i)
@@ -1233,7 +1292,8 @@ static void GetSemanticFaceButtonState(AppleGamepadDevice* device, GCExtendedGam
 {
     // Keep this conversion aligned with SDL's IOS_JoystickGetGamepadMapping():
     // https://github.com/libsdl-org/SDL/blob/2a623fd2241334efe086936b89faf559e6a73324/src/joystick/apple/SDL_mfijoystick.m#L1632-L1703
-    if (device->m_HasNintendoButtons)
+    // Normalize Nintendo's B/A/Y/X labels to Defold's down/right/left/up positions.
+    if (device->m_UsesNintendoFaceButtonLayout)
     {
         semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_A] = gamepad.buttonB.isPressed;
         semantic_buttons[APPLE_GAMEPAD_SEMANTIC_BUTTON_B] = gamepad.buttonA.isPressed;
@@ -1367,7 +1427,10 @@ static void AppleGamepadDriverUpdateLegacyMapped(AppleGamepadDevice* apple_devic
     GetSemanticState(apple_device, controller, extended_gamepad, semantic_axis, semantic_buttons);
 
     for (uint32_t i = 0; i < APPLE_GAMEPAD_SEMANTIC_AXIS_COUNT; ++i)
-        SetMappedAxisSemanticValue(packet, axis_values, axis_written, apple_device->m_LegacyAxisMap[i], semantic_axis[i]);
+    {
+        for (uint32_t j = 0; j < APPLE_GAMEPAD_LEGACY_AXIS_BINDING_COUNT; ++j)
+            SetMappedAxisSemanticValue(packet, axis_values, axis_written, apple_device->m_LegacyAxisMap[i][j], semantic_axis[i]);
+    }
 
     for (uint32_t i = 0; i < APPLE_GAMEPAD_SEMANTIC_BUTTON_COUNT; ++i)
         SetMappedButtonValue(packet, axis_values, axis_written, apple_device->m_LegacyButtonMap[i], semantic_buttons[i]);
@@ -1420,7 +1483,7 @@ static bool SupportsController(GCController* controller, AppleGamepadDevice* dev
         device->m_ButtonCount += device->m_HasGuideButton ? 1 : 0;
         device->m_HasCaptureButton = GetCaptureButton(controller) != nil;
         device->m_ButtonCount += device->m_HasCaptureButton ? 1 : 0;
-        device->m_HasNintendoButtons = IsControllerSwitchPro(controller) || IsControllerSwitchJoyConPair(controller);
+        device->m_UsesNintendoFaceButtonLayout = IsControllerSwitchPro(controller) || IsControllerSwitchJoyConPair(controller);
         device->m_PacketLayout = APPLE_GAMEPAD_PACKET_LAYOUT_SDL;
         ResetLegacyMapping(device);
 

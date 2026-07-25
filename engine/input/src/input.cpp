@@ -379,18 +379,6 @@ namespace dmInput
             }
         }
 
-        const uint32_t mapping_support = dmHID::GetGamepadMappingSupport(binding->m_Context->m_HidContext, gamepad);
-        if ((mapping_support & dmHID::GAMEPAD_MAPPING_SUPPORT_AUTOMATIC) != 0)
-        {
-            GamepadConfig* config = GetGamepadConfigFromId(binding, AUTOMATIC_GAMEPAD_CONFIG_ID);
-            if (config)
-            {
-                ConfigureGamepadPacketLayout(binding, gamepad, config);
-                dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name_out);
-                return config;
-            }
-        }
-
         dmHID::SetGamepadLayoutLegacy(gamepad, true); // by setting legacy mode, we'll get a different device name
 
         char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
@@ -426,13 +414,23 @@ namespace dmInput
         if (best_config)
         {
             dmStrlCpy(device_name_out, device_names[best_config_name_index], dmHID::MAX_GAMEPAD_NAME_LENGTH);
+            return best_config;
         }
-        else
+
+        const uint32_t mapping_support = dmHID::GetGamepadMappingSupport(binding->m_Context->m_HidContext, gamepad);
+        if ((mapping_support & dmHID::GAMEPAD_MAPPING_SUPPORT_AUTOMATIC) != 0)
         {
-            best_config = GetGamepadConfigFromId(binding, UNKNOWN_GAMEPAD_CONFIG_ID);
-            dmStrlCpy(device_name_out, device_name, dmHID::MAX_GAMEPAD_NAME_LENGTH);
+            GamepadConfig* config = GetGamepadConfigFromId(binding, AUTOMATIC_GAMEPAD_CONFIG_ID);
+            if (config)
+            {
+                ConfigureGamepadPacketLayout(binding, gamepad, config);
+                dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name_out);
+                return config;
+            }
         }
-        return best_config;
+
+        dmStrlCpy(device_name_out, device_name, dmHID::MAX_GAMEPAD_NAME_LENGTH);
+        return GetGamepadConfigFromId(binding, UNKNOWN_GAMEPAD_CONFIG_ID);
     }
 
     static GamepadBinding* NewGamepadBinding(HBinding binding, uint32_t gamepad_index)
