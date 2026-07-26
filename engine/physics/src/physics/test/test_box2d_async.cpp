@@ -1016,6 +1016,338 @@ TEST(AsyncKinematic, DynamicBodyIsPhysicsDrivenNotPulled)
     DeleteContext2D(context);
 }
 
+// --- Engine-loop-faithful battery: model the game-object transform feedback -----------------------
+// The engine's GetWorldTransform returns the game-object transform that SetWorldTransform wrote, and
+// UpdateScale reads the object scale from it. These tests use that feedback (and allow_dynamic_transforms)
+// so the async path is exercised through the game-object transform feedback, not static callbacks.
+
+struct GObj
+{
+    dmVMath::Vector3 m_Pos;
+    dmVMath::Quat    m_Rot;
+    float            m_Scale;
+};
+
+static void GObjGet(void* ud, dmTransform::Transform& t)
+{
+    GObj* g = (GObj*)ud;
+    t.SetIdentity();
+    t.SetTranslation(g->m_Pos);
+    t.SetRotation(g->m_Rot);
+    t.SetUniformScale(g->m_Scale);
+}
+
+static void GObjSet(void* ud, const dmVMath::Point3& p, const dmVMath::Quat& r)
+{
+    GObj* g = (GObj*)ud;
+    g->m_Pos = dmVMath::Vector3(p.getX(), p.getY(), 0.0f);
+    g->m_Rot = r;
+}
+
+static HContext2D NewFeedbackContext()
+{
+    NewContextParams cp;
+    cp.m_WorldCount             = 4;
+    cp.m_RayCastLimit2D         = 16;
+    cp.m_TriggerOverlapCapacity = 16;
+    cp.m_AllowDynamicTransforms = 1; // enable the game-object transform/scale feedback path
+    return NewContext2D(cp);
+}
+
+// Drop a ball onto a floor through the game-object transform feedback; report rest position, whether the body slept,
+// and the residual jitter over 60 settled steps.
+static b2Vec2 RunFeedbackDrop(bool async, bool* out_asleep, float* out_jitter)
+{
+    HContext2D context = NewFeedbackContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = GObjGet;
+    wp.m_SetWorldTransformCallback = GObjSet;
+    wp.m_UseDoubleBufferedWorlds   = async;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    GObj floor_o = { dmVMath::Vector3(0.0f, -3.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_o;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    GObj ball_o = { dmVMath::Vector3(0.0f, 2.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_o;
+    Body* ball = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+
+    for (int i = 0; i < 250; ++i) StepWorld2D(world, sc); // settle
+
+    float jitter = 0.0f;
+    b2Vec2 prev = b2Body_GetPosition(ball->m_BodyId);
+    for (int i = 0; i < 60; ++i)
+    {
+        StepWorld2D(world, sc);
+        b2Vec2 p = b2Body_GetPosition(ball->m_BodyId);
+        jitter += b2Distance(p, prev);
+        prev = p;
+    }
+    if (async) { StepWorld2D(world, sc); WaitForWorker2D(world); } // flush + quiesce for the reads
+
+    *out_jitter = jitter;
+    *out_asleep = async ? !b2Body_IsAwake(ball->m_PhysicsBodyId) : !b2Body_IsAwake(ball->m_BodyId);
+    b2Vec2 rest = b2Body_GetPosition(ball->m_BodyId);
+
+    DeleteCollisionObject2D(world, ball);
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+    return rest;
+}
+
+// A settled body must sleep, hold still (no resting jitter), and rest where the synchronous path does.
+TEST(AsyncFeedback, SettledSleepsStableMatchesSync)
+{
+    bool s_asleep, a_asleep;
+    float s_jit, a_jit;
+    b2Vec2 s = RunFeedbackDrop(false, &s_asleep, &s_jit);
+    b2Vec2 a = RunFeedbackDrop(true,  &a_asleep, &a_jit);
+
+    ASSERT_TRUE(s_asleep);          // sync body sleeps once settled
+    ASSERT_TRUE(a_asleep);          // async twin sleeps once settled too
+    ASSERT_LT(s_jit, 0.001f);
+    ASSERT_LT(a_jit, 0.001f);       // no resting jitter
+    ASSERT_NEAR(s.x, a.x, 0.01f);
+    ASSERT_NEAR(s.y, a.y, 0.01f);
+}
+
+// Stepping in bursts (catch-up frames doing several fixed steps) must produce the same result as
+// stepping one at a time: the N-1 pipeline must not lose or double a step.
+TEST(AsyncCadence, BurstMatchesSingleSteps)
+{
+    // Helper lambda-free: run a drop delivering exactly `deliver` steps, grouping `burst` calls
+    // "per frame" (grouping is cosmetic here but exercises consecutive calls without interleaving).
+    b2Vec2 result[2];
+    int g_coll[2];
+    for (int variant = 0; variant < 2; ++variant)
+    {
+        int burst = variant == 0 ? 1 : 3;
+
+        HContext2D context = NewFeedbackContext();
+        NewWorldParams wp;
+        wp.m_GetWorldTransformCallback = GObjGet;
+        wp.m_SetWorldTransformCallback = GObjSet;
+        wp.m_UseDoubleBufferedWorlds   = true;
+        World2D* world = (World2D*)NewWorld2D(context, wp);
+
+        GObj floor_o = { dmVMath::Vector3(0.0f, -3.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+        HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+        CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_o;
+        Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+        GObj ball_o = { dmVMath::Vector3(0.3f, 2.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+        HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+        CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_o;
+        Body* ball = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+
+        g_collisions = 0;
+        StepWorldContext sc;
+        sc.m_DT = 1.0f / 60.0f;
+        sc.m_Box2DSubStepCount = 4;
+        sc.m_CollisionCallback = ParityOnCollision;
+
+        const int deliver = 240;
+        int delivered = 0;
+        while (delivered < deliver)
+        {
+            for (int b = 0; b < burst && delivered < deliver; ++b, ++delivered)
+                StepWorld2D(world, sc);
+        }
+        StepWorld2D(world, sc); // flush the final delivery
+
+        result[variant] = b2Body_GetPosition(ball->m_BodyId);
+        g_coll[variant] = g_collisions;
+
+        DeleteCollisionObject2D(world, ball);
+        DeleteCollisionObject2D(world, floor);
+        DeleteCollisionShape2D(ball_shape);
+        DeleteCollisionShape2D(floor_shape);
+        DeleteWorld2D(context, world);
+        DeleteContext2D(context);
+    }
+
+    ASSERT_NEAR(result[0].x, result[1].x, 0.001f);
+    ASSERT_NEAR(result[0].y, result[1].y, 0.001f);
+    ASSERT_EQ(g_coll[0], g_coll[1]); // same number of collision callbacks regardless of grouping
+}
+
+// A fast-moving body must land where the synchronous path lands.
+TEST(AsyncVelocity, HighVelocityRestMatchesSync)
+{
+    b2Vec2 out[2];
+    for (int variant = 0; variant < 2; ++variant)
+    {
+        bool async = variant == 1;
+        HContext2D context = NewFeedbackContext();
+        NewWorldParams wp;
+        wp.m_GetWorldTransformCallback = GObjGet;
+        wp.m_SetWorldTransformCallback = GObjSet;
+        wp.m_UseDoubleBufferedWorlds   = async;
+        World2D* world = (World2D*)NewWorld2D(context, wp);
+
+        GObj floor_o = { dmVMath::Vector3(0.0f, -3.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+        HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(6.0f, 0.3f, 0.0f));
+        CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_o;
+        Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+        GObj ball_o = { dmVMath::Vector3(-4.0f, 2.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+        HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+        CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_o;
+        Body* ball = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+        b2Body_SetLinearVelocity(ball->m_BodyId, b2Vec2{40.0f, 0.0f}); // fast to the right
+
+        StepWorldContext sc;
+        sc.m_DT = 1.0f / 60.0f;
+        sc.m_Box2DSubStepCount = 4;
+
+        for (int i = 0; i < 200; ++i) StepWorld2D(world, sc);
+        if (async) StepWorld2D(world, sc); // flush
+
+        out[variant] = b2Body_GetPosition(ball->m_BodyId);
+
+        DeleteCollisionObject2D(world, ball);
+        DeleteCollisionObject2D(world, floor);
+        DeleteCollisionShape2D(ball_shape);
+        DeleteCollisionShape2D(floor_shape);
+        DeleteWorld2D(context, world);
+        DeleteContext2D(context);
+    }
+    ASSERT_NEAR(out[0].x, out[1].x, 0.02f);
+    ASSERT_NEAR(out[0].y, out[1].y, 0.02f);
+}
+
+// Growing a body's game-object scale at runtime must resize the twin's collision shape to match.
+TEST(AsyncShape, RuntimeResizeMirrorsToTwin)
+{
+    HContext2D context = NewFeedbackContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = GObjGet;
+    wp.m_SetWorldTransformCallback = GObjSet;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    GObj ball_o = { dmVMath::Vector3(0.0f, 0.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_o;
+    Body* ball = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+
+    StepWorld2D(world, sc);
+    ball_o.m_Scale = 2.5f; // grow the object
+    for (int i = 0; i < 5; ++i) StepWorld2D(world, sc);
+    WaitForWorker2D(world);
+
+    CircleShapeData* game_circle = (CircleShapeData*) ball->m_Shapes[0];
+    b2ShapeId twin_shapes[1];
+    int n = b2Body_GetShapes(ball->m_PhysicsBodyId, twin_shapes, 1);
+    ASSERT_EQ(1, n);
+    float twin_r = b2Shape_GetCircle(twin_shapes[0]).radius;
+
+    ASSERT_NEAR(game_circle->m_Circle.radius, twin_r, 0.001f); // twin tracks the grown game shape
+
+    DeleteCollisionObject2D(world, ball);
+    DrainPendingOps(world);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+// A kinematic body IS script-driven: moving its game object must carry into the simulation (the pull
+// is gated only for dynamic bodies).
+TEST(AsyncKinematic, KinematicFollowsGameObject)
+{
+    HContext2D context = NewFeedbackContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = GObjGet;
+    wp.m_SetWorldTransformCallback = GObjSet;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    GObj obj = { dmVMath::Vector3(0.0f, 0.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData d; d.m_Type = COLLISION_OBJECT_TYPE_KINEMATIC; d.m_Mass = 0.0f; d.m_UserData = &obj;
+    Body* body = (Body*)NewCollisionObject2D(world, d, &shape, 1);
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+
+    // Drive the game object to the right each step.
+    for (int i = 0; i < 30; ++i)
+    {
+        obj.m_Pos.setX(obj.m_Pos.getX() + 0.1f);
+        StepWorld2D(world, sc);
+    }
+    StepWorld2D(world, sc); // flush
+    WaitForWorker2D(world);
+
+    b2Vec2 game_pos = b2Body_GetPosition(body->m_BodyId);
+    b2Vec2 twin_pos = b2Body_GetPosition(body->m_PhysicsBodyId);
+    // The kinematic body followed the script-driven game object (moved well to the right), and the
+    // twin matches the game body.
+    ASSERT_GT(game_pos.x, 2.0f);
+    ASSERT_NEAR(game_pos.x, twin_pos.x, 0.2f); // within one step of drive (N-1)
+
+    DeleteCollisionObject2D(world, body);
+    DrainPendingOps(world);
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+// A spinning body's final orientation and rest must match the synchronous path.
+TEST(AsyncAngular, SpinRestMatchesSync)
+{
+    float angle[2];
+    for (int variant = 0; variant < 2; ++variant)
+    {
+        bool async = variant == 1;
+        HContext2D context = NewFeedbackContext();
+        NewWorldParams wp;
+        wp.m_GetWorldTransformCallback = GObjGet;
+        wp.m_SetWorldTransformCallback = GObjSet;
+        wp.m_UseDoubleBufferedWorlds   = async;
+        World2D* world = (World2D*)NewWorld2D(context, wp);
+
+        // Box so angular velocity is meaningful.
+        GObj obj = { dmVMath::Vector3(0.0f, 0.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+        HCollisionShape2D shape = NewBoxShape2D(context, dmVMath::Vector3(0.5f, 0.2f, 0.0f));
+        CollisionObjectData d; d.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; d.m_Mass = 1.0f; d.m_UserData = &obj;
+        Body* body = (Body*)NewCollisionObject2D(world, d, &shape, 1);
+        b2Body_SetAngularVelocity(body->m_BodyId, 3.0f);
+        b2Body_SetLinearVelocity(body->m_BodyId, b2Vec2{0.0f, 0.0f});
+        b2Body_SetFixedRotation(body->m_BodyId, false);
+
+        StepWorldContext sc;
+        sc.m_DT = 1.0f / 60.0f;
+        sc.m_Box2DSubStepCount = 4;
+
+        for (int i = 0; i < 30; ++i) StepWorld2D(world, sc);
+        if (async) StepWorld2D(world, sc); // flush
+
+        angle[variant] = b2Rot_GetAngle(b2Body_GetRotation(body->m_BodyId));
+
+        DeleteCollisionObject2D(world, body);
+        DeleteCollisionShape2D(shape);
+        DeleteWorld2D(context, world);
+        DeleteContext2D(context);
+    }
+    ASSERT_NEAR(angle[0], angle[1], 0.01f);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
