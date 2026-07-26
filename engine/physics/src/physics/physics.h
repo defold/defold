@@ -363,6 +363,10 @@ namespace dmPhysics
         uint32_t m_MaxCollisionObjectsCount;
         /// Run the 2D physics world double-buffered (game world + physics world). Default false.
         bool m_UseDoubleBufferedWorlds;
+        /// Run the double-buffered physics step inline instead of on a worker thread. Same N-1
+        /// behaviour as the threaded path (used for the no-threads fallback and for deterministic
+        /// tests). Ignored when m_UseDoubleBufferedWorlds is false. Default false.
+        bool m_AsyncWorkerInline;
     };
 
     /**

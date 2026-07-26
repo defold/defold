@@ -94,7 +94,7 @@ namespace dmPhysics
         if (m_UseDoubleBufferedWorlds)
         {
             m_DeletedObjects.SetCapacity(64, 128);
-            m_Worker = NewAsyncWorker("physics_async");
+            m_Worker = NewAsyncWorker("physics_async", params.m_AsyncWorkerInline);
         }
     }
 

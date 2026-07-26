@@ -29,7 +29,7 @@ static void SetJob(void* p)
 // Submit runs the job inline (before returning); the worker is always idle and Wait is a no-op.
 TEST(AsyncWorkerNoThreads, SubmitRunsInline)
 {
-    AsyncWorker* w = NewAsyncWorker("nothreads");
+    AsyncWorker* w = NewAsyncWorker("nothreads", false);
     ASSERT_TRUE(AsyncWorkerIsIdle(w));
 
     int value = 0;
@@ -46,7 +46,7 @@ TEST(AsyncWorkerNoThreads, SubmitRunsInline)
 // Many inline submit/wait cycles accumulate correctly, and teardown is clean.
 TEST(AsyncWorkerNoThreads, ManyCycles)
 {
-    AsyncWorker* w = NewAsyncWorker("nothreads");
+    AsyncWorker* w = NewAsyncWorker("nothreads", false);
     int value = 0;
     for (int i = 0; i < 64; ++i)
     {

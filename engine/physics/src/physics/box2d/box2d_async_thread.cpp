@@ -39,9 +39,10 @@ namespace dmPhysics
         uint8_t m_Unused;
     };
 
-    AsyncWorker* NewAsyncWorker(const char* name)
+    AsyncWorker* NewAsyncWorker(const char* name, bool run_inline)
     {
         (void)name;
+        (void)run_inline; // this build has no threads: always inline
         return new AsyncWorker();
     }
 
@@ -79,6 +80,7 @@ namespace dmPhysics
         void*                                   m_Context;
         bool                                    m_HasJob;   // a job is submitted and not finished
         bool                                    m_Shutdown;
+        bool                                    m_Inline;   // run jobs inline instead of on the thread
     };
 
     static void AsyncWorkerThread(void* arg)
@@ -113,22 +115,37 @@ namespace dmPhysics
         }
     }
 
-    AsyncWorker* NewAsyncWorker(const char* name)
+    AsyncWorker* NewAsyncWorker(const char* name, bool run_inline)
     {
         AsyncWorker* worker = new AsyncWorker();
-        worker->m_Mutex     = dmMutex::New();
-        worker->m_WorkCond  = dmConditionVariable::New();
-        worker->m_DoneCond  = dmConditionVariable::New();
         worker->m_Job       = 0;
         worker->m_Context   = 0;
         worker->m_HasJob    = false;
         worker->m_Shutdown  = false;
+        worker->m_Inline    = run_inline;
+        if (run_inline)
+        {
+            // No thread: jobs run inline in Submit (same behaviour as the no-threads build).
+            worker->m_Thread   = 0;
+            worker->m_Mutex    = 0;
+            worker->m_WorkCond = 0;
+            worker->m_DoneCond = 0;
+            return worker;
+        }
+        worker->m_Mutex     = dmMutex::New();
+        worker->m_WorkCond  = dmConditionVariable::New();
+        worker->m_DoneCond  = dmConditionVariable::New();
         worker->m_Thread    = dmThread::New(AsyncWorkerThread, ASYNC_WORKER_STACK_SIZE, worker, name ? name : "physics_async");
         return worker;
     }
 
     void DeleteAsyncWorker(AsyncWorker* worker)
     {
+        if (worker->m_Inline)
+        {
+            delete worker;
+            return;
+        }
         AsyncWorkerWait(worker);
         {
             dmMutex::ScopedLock lk(worker->m_Mutex);
@@ -144,6 +161,11 @@ namespace dmPhysics
 
     void AsyncWorkerSubmit(AsyncWorker* worker, AsyncWorkerJob job, void* context)
     {
+        if (worker->m_Inline)
+        {
+            job(context);
+            return;
+        }
         dmMutex::ScopedLock lk(worker->m_Mutex);
         assert(!worker->m_HasJob); // one job in flight at a time; callers wait before submitting
         worker->m_Job     = job;
@@ -154,6 +176,10 @@ namespace dmPhysics
 
     void AsyncWorkerWait(AsyncWorker* worker)
     {
+        if (worker->m_Inline)
+        {
+            return;
+        }
         dmMutex::ScopedLock lk(worker->m_Mutex);
         while (worker->m_HasJob)
         {
@@ -163,6 +189,10 @@ namespace dmPhysics
 
     bool AsyncWorkerIsIdle(AsyncWorker* worker)
     {
+        if (worker->m_Inline)
+        {
+            return true;
+        }
         dmMutex::ScopedLock lk(worker->m_Mutex);
         return !worker->m_HasJob;
     }

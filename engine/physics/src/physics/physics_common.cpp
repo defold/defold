@@ -44,6 +44,7 @@ namespace dmPhysics
     , m_GetWorldTransformCallback(0x0)
     , m_SetWorldTransformCallback(0x0)
     , m_UseDoubleBufferedWorlds(false)
+    , m_AsyncWorkerInline(false)
     {
 
     }

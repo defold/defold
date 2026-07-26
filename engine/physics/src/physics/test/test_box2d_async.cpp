@@ -914,14 +914,14 @@ static void AddJob(void* p)
 
 TEST(AsyncWorkerThread, IdleAfterCreate)
 {
-    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    AsyncWorker* w = NewAsyncWorker("test_async_worker", false);
     ASSERT_TRUE(AsyncWorkerIsIdle(w));
     DeleteAsyncWorker(w);
 }
 
 TEST(AsyncWorkerThread, SubmitWaitRunsJob)
 {
-    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    AsyncWorker* w = NewAsyncWorker("test_async_worker", false);
     WorkerTestCtx ctx = { 0, 7 };
     AsyncWorkerSubmit(w, AddJob, &ctx);
     AsyncWorkerWait(w);
@@ -932,7 +932,7 @@ TEST(AsyncWorkerThread, SubmitWaitRunsJob)
 
 TEST(AsyncWorkerThread, ManySubmitWaitCycles)
 {
-    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    AsyncWorker* w = NewAsyncWorker("test_async_worker", false);
     WorkerTestCtx ctx = { 0, 1 };
     for (int i = 0; i < 64; ++i)
     {
@@ -945,7 +945,7 @@ TEST(AsyncWorkerThread, ManySubmitWaitCycles)
 
 TEST(AsyncWorkerThread, DestroyWhileIdleIsClean)
 {
-    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    AsyncWorker* w = NewAsyncWorker("test_async_worker", false);
     ASSERT_TRUE(AsyncWorkerIsIdle(w));
     DeleteAsyncWorker(w);
     ASSERT_TRUE(true); // reached teardown without hang/crash
@@ -953,7 +953,7 @@ TEST(AsyncWorkerThread, DestroyWhileIdleIsClean)
 
 TEST(AsyncWorkerThread, DestroyAfterSubmitWaitsForJob)
 {
-    AsyncWorker* w = NewAsyncWorker("test_async_worker");
+    AsyncWorker* w = NewAsyncWorker("test_async_worker", false);
     WorkerTestCtx ctx = { 0, 5 };
     AsyncWorkerSubmit(w, AddJob, &ctx);
     DeleteAsyncWorker(w);       // must drain the in-flight job before tearing down
@@ -1346,6 +1346,200 @@ TEST(AsyncAngular, SpinRestMatchesSync)
         DeleteContext2D(context);
     }
     ASSERT_NEAR(angle[0], angle[1], 0.01f);
+}
+
+// --- Mode parity: sync vs async-threaded vs async-inline -----------------------------------------
+// Every scenario runs in three modes and the results are compared. The two async modes (worker
+// thread vs inline) are the same N-1 pipeline and must match exactly; async must match sync (rest
+// state within tolerance, callback counts exactly, using the one-step flush).
+
+enum RunMode { RM_SYNC = 0, RM_ASYNC_THREADED = 1, RM_ASYNC_INLINE = 2 };
+
+static void ConfigureMode(NewWorldParams& wp, RunMode m)
+{
+    wp.m_UseDoubleBufferedWorlds = (m != RM_SYNC);
+    wp.m_AsyncWorkerInline       = (m == RM_ASYNC_INLINE);
+}
+
+struct SceneResult
+{
+    int    m_BallCount;
+    b2Vec2 m_BallPos[4];
+    int    m_Collisions;
+    int    m_ContactPoints;
+    int    m_TriggerEnters;
+    int    m_TriggerExits;
+};
+
+// Balls drop through a static sensor onto a floor: exercises collision, contact-point, and trigger
+// enter/exit callbacks plus resting behaviour, driven through the game-object transform feedback.
+static SceneResult RunRichScene(RunMode mode)
+{
+    g_collisions = g_contact_points = g_trigger_enters = g_trigger_exits = 0;
+
+    HContext2D context = NewFeedbackContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = GObjGet;
+    wp.m_SetWorldTransformCallback = GObjSet;
+    ConfigureMode(wp, mode);
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    GObj floor_o = { dmVMath::Vector3(0.0f, -3.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_o;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    GObj sensor_o = { dmVMath::Vector3(0.0f, -0.5f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+    HCollisionShape2D sensor_shape = NewBoxShape2D(context, dmVMath::Vector3(2.0f, 0.3f, 0.0f));
+    CollisionObjectData snd; snd.m_Type = COLLISION_OBJECT_TYPE_TRIGGER; snd.m_Mass = 0.0f; snd.m_UserData = &sensor_o;
+    Body* sensor = (Body*)NewCollisionObject2D(world, snd, &sensor_shape, 1);
+
+    const int N = 3;
+    GObj ball_o[N];
+    Body* balls[N];
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.5f);
+    for (int i = 0; i < N; ++i)
+    {
+        ball_o[i].m_Pos = dmVMath::Vector3((i - 1) * 0.2f, 2.0f + i * 1.3f, 0.0f);
+        ball_o[i].m_Rot = dmVMath::Quat::identity();
+        ball_o[i].m_Scale = 1.0f;
+        CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_o[i];
+        balls[i] = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+    }
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount      = 4;
+    sc.m_CollisionCallback      = ParityOnCollision;
+    sc.m_ContactPointCallback   = ParityOnContactPoint;
+    sc.m_TriggerEnteredCallback = ParityOnTriggerEnter;
+    sc.m_TriggerExitedCallback  = ParityOnTriggerExit;
+
+    for (int i = 0; i < 220; ++i) StepWorld2D(world, sc);
+    if (mode != RM_SYNC) StepWorld2D(world, sc); // flush the N-1 delivery
+
+    SceneResult r;
+    r.m_BallCount = N;
+    for (int i = 0; i < N; ++i) r.m_BallPos[i] = b2Body_GetPosition(balls[i]->m_BodyId);
+    r.m_Collisions    = g_collisions;
+    r.m_ContactPoints = g_contact_points;
+    r.m_TriggerEnters = g_trigger_enters;
+    r.m_TriggerExits  = g_trigger_exits;
+
+    for (int i = 0; i < N; ++i) DeleteCollisionObject2D(world, balls[i]);
+    DeleteCollisionObject2D(world, sensor);
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(sensor_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+    return r;
+}
+
+TEST(AsyncModeParity, RichSceneMatchesAcrossModes)
+{
+    SceneResult s = RunRichScene(RM_SYNC);
+    SceneResult t = RunRichScene(RM_ASYNC_THREADED);
+    SceneResult n = RunRichScene(RM_ASYNC_INLINE);
+
+    // Non-vacuous: the scene exercised every callback path.
+    ASSERT_GT(s.m_Collisions, 0);
+    ASSERT_GT(s.m_ContactPoints, 0);
+    ASSERT_GT(s.m_TriggerEnters, 0);
+    ASSERT_GT(s.m_TriggerExits, 0);
+
+    // Threaded vs inline async are the identical N-1 pipeline: results must match exactly.
+    ASSERT_EQ(t.m_Collisions,    n.m_Collisions);
+    ASSERT_EQ(t.m_ContactPoints, n.m_ContactPoints);
+    ASSERT_EQ(t.m_TriggerEnters, n.m_TriggerEnters);
+    ASSERT_EQ(t.m_TriggerExits,  n.m_TriggerExits);
+    for (int i = 0; i < s.m_BallCount; ++i)
+    {
+        ASSERT_NEAR(t.m_BallPos[i].x, n.m_BallPos[i].x, 1e-5f);
+        ASSERT_NEAR(t.m_BallPos[i].y, n.m_BallPos[i].y, 1e-5f);
+    }
+
+    // Async matches sync: same callback counts (flush aligns delivered steps), rest within tolerance.
+    ASSERT_EQ(s.m_Collisions,    t.m_Collisions);
+    ASSERT_EQ(s.m_ContactPoints, t.m_ContactPoints);
+    ASSERT_EQ(s.m_TriggerEnters, t.m_TriggerEnters);
+    ASSERT_EQ(s.m_TriggerExits,  t.m_TriggerExits);
+    for (int i = 0; i < s.m_BallCount; ++i)
+    {
+        ASSERT_NEAR(s.m_BallPos[i].x, t.m_BallPos[i].x, 0.01f);
+        ASSERT_NEAR(s.m_BallPos[i].y, t.m_BallPos[i].y, 0.01f);
+    }
+}
+
+// Create/destroy churn across a run, compared threaded vs inline: the two async modes must end with
+// the same body count and the same collision-callback total, and neither may crash.
+static void RunChurn(RunMode mode, int* out_bodies, int* out_collisions)
+{
+    HContext2D context = NewFeedbackContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = GObjGet;
+    wp.m_SetWorldTransformCallback = GObjSet;
+    ConfigureMode(wp, mode);
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    GObj floor_o = { dmVMath::Vector3(0.0f, -3.0f, 0.0f), dmVMath::Quat::identity(), 1.0f };
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(6.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_o;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    HCollisionShape2D ball_shape = NewCircleShape2D(context, 0.4f);
+    static GObj infos[256];
+    Body* live[32];
+    int live_count = 0, next = 0;
+
+    g_collisions = 0;
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+    sc.m_CollisionCallback = ParityOnCollision;
+
+    for (int f = 0; f < 200; ++f)
+    {
+        StepWorld2D(world, sc);
+        if (live_count < 20 && next < 256)
+        {
+            infos[next].m_Pos = dmVMath::Vector3((float)((next % 7) - 3) * 0.5f, 3.0f, 0.0f);
+            infos[next].m_Rot = dmVMath::Quat::identity();
+            infos[next].m_Scale = 1.0f;
+            CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &infos[next];
+            live[live_count++] = (Body*)NewCollisionObject2D(world, bd, &ball_shape, 1);
+            next++;
+        }
+        if ((f % 3) == 0 && live_count > 0)
+        {
+            DeleteCollisionObject2D(world, live[0]);
+            for (int k = 1; k < live_count; ++k) live[k-1] = live[k];
+            live_count--;
+        }
+    }
+
+    WaitForWorker2D(world);
+    DrainPendingOps(world);
+    *out_bodies     = (int)world->m_Bodies.Size();
+    *out_collisions = g_collisions;
+
+    for (int i = 0; i < live_count; ++i) DeleteCollisionObject2D(world, live[i]);
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(ball_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+}
+
+TEST(AsyncModeParity, ChurnThreadedMatchesInline)
+{
+    int tb, tc, nb, nc;
+    RunChurn(RM_ASYNC_THREADED, &tb, &tc);
+    RunChurn(RM_ASYNC_INLINE,   &nb, &nc);
+    ASSERT_GT(tc, 0);       // churn produced collisions
+    ASSERT_EQ(tb, nb);      // same surviving body count
+    ASSERT_EQ(tc, nc);      // same collision-callback total
 }
 
 int main(int argc, char **argv)

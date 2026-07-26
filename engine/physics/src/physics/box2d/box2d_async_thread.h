@@ -28,9 +28,12 @@ namespace dmPhysics
 
     struct AsyncWorker;
 
-    // Create a worker with a background thread (or the inline fallback where threads are absent).
+    // Create a worker. With run_inline false it uses a background thread (or the no-threads fallback
+    // where threads are absent); with run_inline true it always runs jobs inline on the calling
+    // thread, exactly like the no-threads fallback. run_inline lets a threaded build exercise the
+    // inline path (it must produce identical results, since the async pipeline is N-1 either way).
     // name labels the thread for debuggers/profilers.
-    AsyncWorker* NewAsyncWorker(const char* name);
+    AsyncWorker* NewAsyncWorker(const char* name, bool run_inline);
 
     // Wait for any in-flight job, stop the thread, and free the worker.
     void DeleteAsyncWorker(AsyncWorker* worker);
