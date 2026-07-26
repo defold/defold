@@ -15,7 +15,63 @@
 #include "internal.h"
 #include "ios/app/BaseView.h"
 
+#import <UIKit/UIKit.h>
+
 extern _GLFWwin g_Savewin;
+
+// Host-injected UIView for embed mode (survives _glfwWin memset / terminate).
+static UIView* g_ExternalView = nil;
+static int g_IosEmbedHost = 0;
+
+GLFWAPI void glfwIosSetExternalView(void* view)
+{
+    UIView* next = (UIView*)view;
+    if (g_ExternalView == next)
+        return;
+
+    if (next)
+    {
+        [next retain];
+        // Sticky until Terminate/_glfwIosClearEmbedHost — clearing the view
+        // before dmEngineDestroy must not flip this off (Metal teardown checks it).
+        g_IosEmbedHost = 1;
+    }
+
+    UIView* prev = g_ExternalView;
+    g_ExternalView = next;
+
+    // Keep _glfwWin.view in sync. PollEvents/SwapBuffers message _glfwWin.view
+    // directly; if the host remounts the UIView and we only update g_ExternalView,
+    // the old pointer becomes dangling and crashes on isKindOfClass:.
+    _glfwWin.view = next;
+
+    if (prev)
+        [prev release];
+
+    NSLog(@"glfwIosSetExternalView: %p embed=%d", (void*)next, g_IosEmbedHost);
+}
+
+GLFWAPI void* glfwIosGetExternalView(void)
+{
+    return (void*)g_ExternalView;
+}
+
+int _glfwIosIsEmbedHost(void)
+{
+    return g_IosEmbedHost;
+}
+
+void _glfwIosClearEmbedHost(void)
+{
+    g_IosEmbedHost = 0;
+}
+
+UIView* _glfwIosGetActiveView(void)
+{
+    if (g_ExternalView)
+        return g_ExternalView;
+    return (UIView*)_glfwWin.view;
+}
 
 // Additionally we postpone startup sequence until we have swapped gl-buffers twice in
 // order to avoid black screen between launch image and game content.
@@ -28,6 +84,7 @@ void _glfwPlatformCloseWindow( void )
 {
     // Save window as glfw clears the memory on close
     g_Savewin = _glfwWin;
+    // Do not release host external view here — embed host owns it.
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -81,8 +138,9 @@ void _glfwPlatformRestoreWindow( void )
 
 void _glfwPlatformSwapBuffers( void )
 {
-    BaseView* view = (BaseView*)_glfwWin.view;
-    [view swapBuffers];
+    id view = _glfwWin.view;
+    if ([view isKindOfClass:[BaseView class]])
+        [(BaseView*)view swapBuffers];
 }
 
 //========================================================================
@@ -91,8 +149,9 @@ void _glfwPlatformSwapBuffers( void )
 
 void _glfwPlatformSwapInterval( int interval )
 {
-    BaseView* view = (BaseView*)_glfwWin.view;
-    [view setSwapInterval: interval];
+    id view = _glfwWin.view;
+    if ([view isKindOfClass:[BaseView class]])
+        [(BaseView*)view setSwapInterval: interval];
 }
 
 //========================================================================
@@ -140,11 +199,14 @@ void _glfwPlatformSetMouseCursorPos( int x, int y )
 //========================================================================
 GLFWAPI id glfwGetiOSUIWindow(void)
 {
-    return _glfwWin.window;
+    if (_glfwWin.window)
+        return _glfwWin.window;
+    UIView* view = _glfwIosGetActiveView();
+    return view ? view.window : nil;
 };
 GLFWAPI id glfwGetiOSUIView(void)
 {
-    return _glfwWin.view;
+    return _glfwIosGetActiveView();
 };
 GLFWAPI id glfwGetiOSEAGLContext(void)
 {

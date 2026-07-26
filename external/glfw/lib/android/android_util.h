@@ -50,6 +50,9 @@ struct InputEvent
     int64_t m_EventTime;
 };
 
+/* Prefer host-injected external_window; fall back to NativeActivity window. */
+ANativeWindow* _glfwAndroidGetActiveNativeWindow(_GLFWwin_android* win);
+
 int init_gl(_GLFWwin_android* win);
 
 void final_gl(_GLFWwin_android* win);
@@ -79,6 +82,11 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
 // returns 1 if we the window/surface was ok
 // returns 0 if we the window/surface was bad
 int32_t _glfwAndroidVerifySurfaceError(EGLint error);
+
+/** Non-zero when host injected an external ANativeWindow (embed mode). */
+int _glfwAndroidIsEmbedHost(void);
+/** Clears embed-host flag after terminate. */
+void _glfwAndroidClearEmbedHost(void);
 
 // From spinlock.h (we really should keep a C interface there as well!)
 

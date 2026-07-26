@@ -49,7 +49,17 @@ namespace dmSys
 
         jclass    def_activity_class = env->GetObjectClass(thread.GetActivity()->clazz);
         jmethodID get_connectivity_method = env->GetMethodID(def_activity_class, "getConnectivity", "()I");
-        int       reti = (int)env->CallIntMethod(thread.GetActivity()->clazz, get_connectivity_method);
+        if (env->ExceptionCheck() || !get_connectivity_method)
+        {
+            env->ExceptionClear();
+            return NETWORK_CONNECTED;
+        }
+        int reti = (int)env->CallIntMethod(thread.GetActivity()->clazz, get_connectivity_method);
+        if (env->ExceptionCheck())
+        {
+            env->ExceptionClear();
+            return NETWORK_CONNECTED;
+        }
         return (NetworkConnectivity)reti;
     }
 
@@ -389,7 +399,11 @@ namespace dmSys
         AAssetManager* am = GetAndroidAssetManager();
         if (am)
         {
-            AAsset* asset = AAssetManager_open(am, path, AASSET_MODE_RANDOM);
+            // Must match LoadResource / ResourceSize — AAsset paths are relative
+            // (no leading '/'). Without this, file:// mounts of APK assets fail
+            // ResolveMountFileName for paths like "/main/main.collectionc".
+            const char* asset_path = FixAndroidResourcePath(path);
+            AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_RANDOM);
             if (asset)
             {
                 AAsset_close(asset);

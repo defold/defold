@@ -37,6 +37,11 @@
 
 #include "graphics_metal_private.h"
 
+#if defined(DM_PLATFORM_IOS)
+#include <glfw/glfw.h>
+extern "C" int _glfwIosIsEmbedHost(void);
+#endif
+
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
@@ -399,7 +404,15 @@ namespace dmGraphics
             {
                 MetalFrameResource& frame = context->m_FrameResources[i];
 
-                if (frame.m_CommandBuffer && frame.m_InFlight)
+#if defined(DM_PLATFORM_IOS)
+                // Embed Destroy can hang forever in waitUntilCompleted if the host
+                // already stopped CADisplayLink / is tearing down the CAMetalLayer.
+                // Standalone iOS games keep the historical GPU drain.
+                const bool skip_gpu_wait = _glfwIosIsEmbedHost() != 0;
+#else
+                const bool skip_gpu_wait = false;
+#endif
+                if (!skip_gpu_wait && frame.m_CommandBuffer && frame.m_InFlight)
                 {
                     frame.m_CommandBuffer->waitUntilCompleted();
                 }
@@ -516,6 +529,26 @@ namespace dmGraphics
                 context->m_BaseContext.m_AssetHandleContainer.Release(context->m_MainRenderTarget);
                 context->m_MainRenderTarget = 0;
             }
+
+            if (context->m_Layer)
+            {
+#if defined(DM_PLATFORM_IOS)
+                // Host-injected views: detach our CAMetalLayer so remount is clean.
+                // Standalone MetalView owns the layer lifecycle with the UIView.
+                if (_glfwIosIsEmbedHost())
+                {
+                    [context->m_Layer removeFromSuperlayer];
+                    context->m_Layer = nil;
+                }
+#else
+                [context->m_Layer removeFromSuperlayer];
+                context->m_Layer = nil;
+#endif
+            }
+#if defined(DM_PLATFORM_IOS)
+            if (_glfwIosIsEmbedHost())
+                context->m_View = nil;
+#endif
 
             context->m_Device->release();
             context->m_CommandQueue->release();
@@ -1756,17 +1789,53 @@ namespace dmGraphics
         }
     }
 
+    static void MetalBeginFrameSkip(MetalContext* context, MetalFrameResource& frame)
+    {
+        frame.m_InFlight = 0;
+        frame.m_Drawable = 0;
+        frame.m_CommandBuffer = 0;
+        frame.m_RenderCommandEncoder = 0;
+        context->m_FrameBegun = 0;
+        context->m_RenderTargetBound = 0;
+        context->m_MainRTBegunThisFrame = 0;
+        dispatch_semaphore_signal(context->m_FrameBoundarySemaphore);
+    }
+
     static void MetalBeginFrame(HContext _context)
     {
         MetalContext* context = (MetalContext*) _context;
         dispatch_semaphore_wait(context->m_FrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
 
         MetalFrameResource& frame = GetCurrentFrameResource(context);
-        assert(!frame.m_InFlight);
+        // Embed leave/re-enter can interrupt a frame before Flip/completion.
+        // Recover instead of aborting the host process.
+        if (frame.m_InFlight)
+        {
+            dmLogWarning("MetalBeginFrame: recovering stale in-flight frame");
+            if (frame.m_CommandBuffer)
+            {
+                frame.m_CommandBuffer->release();
+                frame.m_CommandBuffer = 0;
+            }
+            if (frame.m_Drawable)
+            {
+                frame.m_Drawable->release();
+                frame.m_Drawable = 0;
+            }
+            frame.m_RenderCommandEncoder = 0;
+            frame.m_InFlight = 0;
+        }
 
 #if defined(DM_PLATFORM_IOS)
         UIView* native_view = ResolveNativeView(context);
-        if (native_view)
+        if (!native_view || !context->m_Layer || !native_view.window)
+        {
+            // No host window yet (leave Main / mid-reattach). Skip safely.
+            MetalBeginFrameSkip(context, frame);
+            return;
+        }
+
+        @try
         {
             uint32_t drawable_width = 0;
             uint32_t drawable_height = 0;
@@ -1779,14 +1848,63 @@ namespace dmGraphics
                 [native_view.layer addSublayer:context->m_Layer];
             }
         }
+        @catch (NSException* exception)
+        {
+            dmLogError("MetalBeginFrame: CAMetalLayer reparent failed: %s",
+                       exception.reason ? [exception.reason UTF8String] : "(nil)");
+            MetalBeginFrameSkip(context, frame);
+            return;
+        }
 #endif
 
+        if (!context->m_Layer)
+        {
+            MetalBeginFrameSkip(context, frame);
+            return;
+        }
+
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        frame.m_Drawable = (__bridge CA::MetalDrawable*)[context->m_Layer nextDrawable];
+        id<CAMetalDrawable> objc_drawable = nil;
+#if defined(DM_PLATFORM_IOS)
+        @try
+        {
+            objc_drawable = [context->m_Layer nextDrawable];
+        }
+        @catch (NSException* exception)
+        {
+            dmLogError("MetalBeginFrame: nextDrawable failed: %s",
+                       exception.reason ? [exception.reason UTF8String] : "(nil)");
+            pool->release();
+            MetalBeginFrameSkip(context, frame);
+            return;
+        }
+#else
+        objc_drawable = [context->m_Layer nextDrawable];
+#endif
+        frame.m_Drawable = (__bridge CA::MetalDrawable*)objc_drawable;
         if (frame.m_Drawable)
         {
             frame.m_Drawable->retain();
         }
+        else
+        {
+            // Host embed re-attach / leave: layer may not be in a window yet.
+            pool->release();
+            MetalBeginFrameSkip(context, frame);
+            return;
+        }
+
+        CA::MetalDrawable* drawable = frame.m_Drawable;
+        MTL::Texture* drawable_tex = drawable ? drawable->texture() : 0;
+        if (!drawable_tex)
+        {
+            frame.m_Drawable->release();
+            frame.m_Drawable = 0;
+            pool->release();
+            MetalBeginFrameSkip(context, frame);
+            return;
+        }
+
         frame.m_InFlight = 1;
         context->m_FrameBegun = 1;
 
@@ -1809,13 +1927,13 @@ namespace dmGraphics
         MetalTexture* color_tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[0]);
         MetalTexture* ds_tex    = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
 
-        const uint32_t drawable_width = frame.m_Drawable->texture()->width();
-        const uint32_t drawable_height = frame.m_Drawable->texture()->height();
+        const uint32_t drawable_width = drawable_tex->width();
+        const uint32_t drawable_height = drawable_tex->height();
 #if defined(DM_PLATFORM_IOS)
         ResizeMainFramebufferResources(context, drawable_width, drawable_height);
 #endif
 
-        color_tex->m_Texture    = frame.m_Drawable->texture();
+        color_tex->m_Texture    = drawable_tex;
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
 
         rt->m_ColorTextureParams[0].m_Width  = drawable_width;
@@ -1851,7 +1969,11 @@ namespace dmGraphics
     static void MetalFlip(HContext _context)
     {
         MetalContext* context = (MetalContext*) _context;
-        assert(context->m_FrameBegun);
+        if (!context->m_FrameBegun)
+        {
+            // BeginFrame skipped (e.g. no drawable after host UIView reattach).
+            return;
+        }
 
         FlushPendingRenderTargetClear(context, context->m_CurrentRenderTarget);
 
@@ -1942,6 +2064,11 @@ namespace dmGraphics
         DM_PROFILE(__FUNCTION__);
 
         MetalContext* context = (MetalContext*) _context;
+        if (!context->m_FrameBegun)
+        {
+            // BeginFrame skipped (no drawable / no host window).
+            return;
+        }
         MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         assert(current_rt);
 
@@ -3244,7 +3371,10 @@ namespace dmGraphics
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
 
         MetalContext* context = (MetalContext*)_context;
-        assert(context->m_FrameBegun);
+        if (!context->m_FrameBegun)
+        {
+            return;
+        }
 
         DrawSetup(context);
 
@@ -3280,7 +3410,10 @@ namespace dmGraphics
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
 
         MetalContext* context = (MetalContext*)_context;
-        assert(context->m_FrameBegun);
+        if (!context->m_FrameBegun)
+        {
+            return;
+        }
 
         DrawSetup(context);
 

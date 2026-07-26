@@ -603,6 +603,11 @@ namespace dmEngine
             dmPhysics::DeleteContext3D(engine->m_PhysicsContextBullet3D.m_Context);
 
         {
+            // Embed Destroy tears down the engine instance. Treat AppFinalize as EXIT
+            // so profilers (Remotery / ProfilerExt) fully unregister. With exit code
+            // NONE they stay half-alive after Graphics DeleteContext, and the next
+            // Create hangs inside DM_PROFILE → Remotery _rmt_BeginCPUSample.
+            engine->m_RunResult.m_Action = dmEngine::RunResult::EXIT;
             ScopedExtensionAppParams app_params(engine);
             dmExtension::AppFinalize(app_params);
         }

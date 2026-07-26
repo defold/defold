@@ -1761,7 +1761,12 @@ namespace dmGraphics
     {
         if (g_adapter)
         {
-            return true;
+            // Same (or unspecified) family: keep the installed adapter.
+            if (family == ADAPTER_FAMILY_NONE || g_adapter->m_Family == family)
+                return true;
+            // Different family requested (embed host may Create with vulkan then
+            // later with opengles in the same process). Clear so Select can run.
+            g_adapter = 0;
         }
 
         bool result = SelectAdapterByFamily(family);

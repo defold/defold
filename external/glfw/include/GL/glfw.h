@@ -579,6 +579,7 @@ GLFWAPI int glfwGetMouseLocked();
 
 // Defold extensions (Android)
 #if defined(ANDROID)
+struct ANativeWindow;
 GLFWAPI void    glfwAndroidBeginFrame();
 GLFWAPI void    glfwAndroidHandleCommand(struct android_app* app, int32_t cmd);
 GLFWAPI int32_t glfwAndroidHandleInput(struct android_app* app, struct AInputEvent* event);
@@ -586,7 +587,24 @@ GLFWAPI int32_t glfwAndroidWindowOpened();
 GLFWAPI void    glfwAndroidPollEvents();
 GLFWAPI void    glfwAndroidFlushEvents();
 GLFWAPI int32_t glfwAndroidVerifySurface();
+/* Host-driven embed: attach an ANativeWindow (e.g. from SurfaceView).
+ * Pass NULL to clear. Acquires/releases the window reference. When set, used
+ * instead of NativeActivity's android_app->window for EGL surface creation.
+ */
+GLFWAPI void    glfwAndroidSetExternalWindow(struct ANativeWindow* window);
+GLFWAPI struct ANativeWindow* glfwAndroidGetExternalWindow(void);
+#endif
 
+/* Host-driven embed (iOS): attach a host UIView (e.g. from SwiftUI
+ * UIViewRepresentable). Pass NULL to clear. When set, OpenWindow uses this
+ * view instead of creating MetalView / UIWindow / CADisplayLink.
+ */
+#if defined(__APPLE__)
+GLFWAPI void    glfwIosSetExternalView(void* view); /* UIView* */
+GLFWAPI void*   glfwIosGetExternalView(void);
+#endif
+
+#if defined(ANDROID)
 // Activity control
 typedef void (*glfwactivityresultfun)(void *env, void* activity, int request_code, int result_code, void* result);
 GLFWAPI void glfwAndroidRegisterOnActivityResultListener(glfwactivityresultfun fun);

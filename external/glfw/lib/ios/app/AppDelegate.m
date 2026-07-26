@@ -18,6 +18,9 @@
 
 #include "internal.h"
 
+extern int _glfwIosIsEmbedHost(void);
+GLFWAPI void* glfwIosGetExternalView(void);
+
 int g_IsReboot = 0;
 
 @implementation AppDelegate
@@ -215,6 +218,13 @@ static void ShutdownEngine(bool call_exit)
 
 void glfwAppBootstrap(int argc, char** argv, void* init_ctx, EngineInit init_fn, EngineExit exit_fn, EngineCreate create_fn, EngineDestroy destroy_fn, EngineUpdate update_fn, EngineGetResult result_fn)
 {
+    // Host-driven embed never enters UIApplicationMain / AppDelegate.
+    if (_glfwIosIsEmbedHost() || glfwIosGetExternalView())
+    {
+        NSLog(@"glfwAppBootstrap: skipped (embed host owns UIApplication)");
+        return;
+    }
+
     g_EngineUserCtx = init_ctx;
     g_EngineInitFn = init_fn;
     g_EngineExitFn = exit_fn;

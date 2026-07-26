@@ -461,8 +461,14 @@ function(engine_configure_executable target variant engine_lib engine_service_li
 endfunction()
 
 set(ENGINE_MAIN_SOURCES "${ENGINE_SRC_DIR}/common/main.cpp")
+set(ENGINE_EMBED_BUS_SOURCES
+  "${ENGINE_SRC_DIR}/embed/defold_embed_bus.cpp"
+  "${ENGINE_SRC_DIR}/embed/defold_embed_host.cpp")
 if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android)$")
-  list(APPEND ENGINE_MAIN_SOURCES "${ENGINE_SRC_DIR}/common/android_main.cpp")
+  list(APPEND ENGINE_MAIN_SOURCES
+    "${ENGINE_SRC_DIR}/common/android_main.cpp"
+    "${ENGINE_SRC_DIR}/embed/defold_embed.cpp"
+    ${ENGINE_EMBED_BUS_SOURCES})
 endif()
 
 function(engine_add_binary target)
@@ -480,7 +486,9 @@ set(ENGINE_DMENGINE_SYMBOLS
   ${ENGINE_PROFILE_SYMBOLS}
   ${ENGINE_RESOURCE_SYMBOLS}
   ResourceProviderHttp
-  ${ENGINE_COMPONENT_SYMBOLS})
+  ${ENGINE_COMPONENT_SYMBOLS}
+  Defold_EmbedKeepAlive
+  DefoldEmbedHostExt)
 set(ENGINE_DMENGINE_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dmengine.cpp")
 defold_create_exported_symbols_file("${ENGINE_DMENGINE_EXPORTS}" "${ENGINE_DMENGINE_SYMBOLS}")
 engine_add_binary(dmengine ${ENGINE_MAIN_SOURCES} "${ENGINE_DMENGINE_EXPORTS}")
@@ -489,6 +497,28 @@ defold_xcode_configure_ios_app(dmengine
   BUNDLE_ID "${DEFOLD_IOS_BUNDLE_IDENTIFIER}"
   VERSION "${ENGINE_VERSION}")
 defold_codesign_target(dmengine darwin/entitlements-macos-debug.plist)
+
+# Host-driven embed static library for iOS SwiftUI / UIKit hosts (no UIApplicationMain).
+if(TARGET_PLATFORM MATCHES "^(arm64-ios|x86_64-ios)$")
+  defold_add_library(dmengine_embed STATIC
+    "${ENGINE_SRC_DIR}/embed/defold_embed_ios.mm"
+    ${ENGINE_EMBED_BUS_SOURCES}
+    "${ENGINE_DMENGINE_EXPORTS}")
+  engine_configure_executable(dmengine_embed debug engine engine_service graphics "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+  target_compile_definitions(dmengine_embed PRIVATE DM_ENGINE_EMBED=1)
+  target_include_directories(dmengine_embed PUBLIC "${ENGINE_SRC_DIR}/embed")
+  target_link_libraries(dmengine_embed PRIVATE
+    "-framework Metal"
+    "-framework MetalKit"
+    "-framework CoreMotion"
+    "-framework AudioToolbox"
+    "-framework AVFoundation")
+  defold_install_targets(TARGETS dmengine_embed
+    ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
+    LIBRARY DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${ENGINE_SRC_DIR}/embed/defold_embed.h"
+    DESTINATION include/embed)
+endif()
 
 set(ENGINE_RELEASE_SYMBOLS
   ${ENGINE_EXPORTED_SYMBOLS}

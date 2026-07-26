@@ -358,6 +358,10 @@ namespace dmPlatform
         delete window;
         g_Window = 0;
 
+        // glfwTerminate tears down process-wide GLFW state. Embed Destroy also
+        // calls glfwTerminate after dmEngineDestroy; the second call is a no-op
+        // once _glfwInitialized is cleared. Keep one terminate here so
+        // standalone apps still shut GLFW down when the window is deleted.
         glfwTerminate();
     }
 

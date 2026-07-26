@@ -20,21 +20,41 @@
 #include <pthread.h>
 #include <unistd.h>
 
+// Set when a host injects an ANativeWindow (embed). Terminate must not call
+// DetachCurrentThread on the ART UI thread or ANativeActivity_finish — the
+// host owns the Activity.
+static int g_AndroidEmbedHost = 0;
+
+int _glfwAndroidIsEmbedHost(void)
+{
+    return g_AndroidEmbedHost;
+}
+
+void _glfwAndroidClearEmbedHost(void)
+{
+    g_AndroidEmbedHost = 0;
+}
+
 
 static bool is_alpha_transparency_enabled()
 {
     bool result = false;
-    JNIEnv* env = JNIAttachCurrentThread();
+    int did_attach = 0;
+    JNIEnv* env = JNIBeginActivity(&did_attach);
     if (env)
     {
-        jobject native_activity = g_AndroidApp->activity->clazz;
-        jmethodID is_alpha_transparency_enabled_method = JNIGetMethodID(env, native_activity, "isAlphaTransparencyEnabled", "()Z");
-        if (is_alpha_transparency_enabled_method) {
-            jboolean jresult = (*env)->CallBooleanMethod(env, native_activity, is_alpha_transparency_enabled_method);
-            result = (JNI_TRUE == jresult);
+        jobject activity = g_AndroidApp->activity->clazz;
+        jmethodID mid = JNIGetMethodID(env, activity, "isAlphaTransparencyEnabled", "()Z");
+        if (mid)
+        {
+            jboolean jresult = (*env)->CallBooleanMethod(env, activity, mid);
+            if (!(*env)->ExceptionCheck(env))
+                result = (JNI_TRUE == jresult);
+            else
+                (*env)->ExceptionClear(env);
         }
-        JNIDetachCurrentThread();
     }
+    JNIDetachCurrentThreadIfNeeded(did_attach);
     return result;
 }
 
@@ -157,9 +177,49 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
     return result;
 }
 
+ANativeWindow* _glfwAndroidGetActiveNativeWindow(_GLFWwin_android* win)
+{
+    if (!win)
+        return 0;
+    if (win->external_window)
+        return win->external_window;
+    if (win->app)
+        return win->app->window;
+    return 0;
+}
+
 static int IsAppAndWindowReady(_GLFWwin_android* win)
 {
-    return win != 0 && win->app != 0 && win->app->window != 0;
+    return win != 0 && _glfwAndroidGetActiveNativeWindow(win) != 0;
+}
+
+// Default visibility: hosts dlsym these from libdmengine.so (-fvisibility=hidden).
+__attribute__((visibility("default")))
+GLFWAPI void glfwAndroidSetExternalWindow(ANativeWindow* window)
+{
+    ANativeWindow* prev = _glfwWinAndroid.external_window;
+    if (window == prev)
+        return;
+
+    if (window)
+    {
+        ANativeWindow_acquire(window);
+        g_AndroidEmbedHost = 1;
+    }
+
+    _glfwWinAndroid.external_window = window;
+
+    if (prev)
+        ANativeWindow_release(prev);
+
+    LOGV("glfwAndroidSetExternalWindow: %p (was %p) embed=%d",
+         (void*)window, (void*)prev, g_AndroidEmbedHost);
+}
+
+__attribute__((visibility("default")))
+GLFWAPI ANativeWindow* glfwAndroidGetExternalWindow(void)
+{
+    return _glfwWinAndroid.external_window;
 }
 
 static int WaitForAppAndWindow(_GLFWwin_android* win)
@@ -214,7 +274,11 @@ int init_gl(_GLFWwin_android* win)
 
     eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID, &format);
     CHECK_EGL_ERROR
-    ANativeWindow_setBuffersGeometry(win->app->window, 0, 0, format);
+    {
+        ANativeWindow* active = _glfwAndroidGetActiveNativeWindow(win);
+        if (active)
+            ANativeWindow_setBuffersGeometry(active, 0, 0, format);
+    }
 
     EGLint contextAttribs[] = {
         EGL_CONTEXT_MAJOR_VERSION, 3,
@@ -297,6 +361,7 @@ void final_gl(_GLFWwin_android* win)
         ANativeWindow_release(win->native_window);
         win->native_window = NULL;
     }
+    // external_window refcount is owned solely by glfwAndroidSetExternalWindow.
     JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
@@ -310,7 +375,7 @@ void create_gl_surface(_GLFWwin_android* win)
         EGLSurface surface = win->surface;
         if (surface == EGL_NO_SURFACE)
         {
-            ANativeWindow* window = win->app->window;
+            ANativeWindow* window = _glfwAndroidGetActiveNativeWindow(win);
             if (!window)
             {
                 LOGV("Window not ready, deferring surface creation.");

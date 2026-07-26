@@ -434,7 +434,9 @@ void computeIconifiedState()
     int has_renderable_window = 0;
     if (_glfwWin.clientAPI == GLFW_NO_API)
     {
-        has_renderable_window = _glfwWinAndroid.app != NULL && _glfwWinAndroid.app->window != NULL;
+        has_renderable_window =
+            _glfwWinAndroid.external_window != NULL ||
+            (_glfwWinAndroid.app != NULL && _glfwWinAndroid.app->window != NULL);
     }
     else
     {
@@ -1289,7 +1291,10 @@ int _glfwPlatformInit( void )
 
     _glfwWin.iconified = 1;
 
+    // Preserve host-injected window across reset (embed).
+    ANativeWindow* preserved_external = _glfwWinAndroid.external_window;
     memset(&_glfwWinAndroid, 0, sizeof(_glfwWinAndroid));
+    _glfwWinAndroid.external_window = preserved_external;
     _glfwWinAndroid.app = g_AndroidApp;
     _glfwWinAndroid.display = EGL_NO_DISPLAY;
     _glfwWinAndroid.context = EGL_NO_CONTEXT;
@@ -1304,21 +1309,37 @@ int _glfwPlatformInit( void )
         LOGF("Could not add file descriptor to looper: %d", result);
     }
 
-    ASensorManager* sensorManager = ASensorManager_getInstance();
-    if (!sensorManager) {
-        LOGF("Could not get sensor manager");
-    }
+    // Embed hosts create/destroy on the UI thread. Re-attaching a sensor event
+    // queue to the same ALooper after destroy can hang, and accelerometer is
+    // unused for SurfaceView hosts — skip sensors in embed mode.
+    if (!_glfwAndroidIsEmbedHost())
+    {
+        ASensorManager* sensorManager = ASensorManager_getInstance();
+        if (!sensorManager) {
+            LOGF("Could not get sensor manager");
+        }
 
-    g_sensorEventQueue = ASensorManager_createEventQueue(sensorManager, g_AndroidApp->looper, ALOOPER_POLL_CALLBACK, SensorCallback, &_glfwWin);
-    if (!g_sensorEventQueue) {
-        LOGF("Could not create event queue");
+        g_sensorEventQueue = ASensorManager_createEventQueue(sensorManager, g_AndroidApp->looper, ALOOPER_POLL_CALLBACK, SensorCallback, &_glfwWin);
+        if (!g_sensorEventQueue) {
+            LOGF("Could not create event queue");
+        }
+    }
+    else
+    {
+        g_sensorEventQueue = 0;
+        g_accelerometerEnabled = 0;
     }
 
     // Initialize thread package
     initThreads();
 
-    // Install atexit() routine
-    atexit( glfw_atexit );
+    // Install atexit once — re-registering on every embed Create is incorrect.
+    static int s_atexit_installed = 0;
+    if (!s_atexit_installed)
+    {
+        atexit( glfw_atexit );
+        s_atexit_installed = 1;
+    }
 
     // Start the timer
     _glfwInitTimer();
@@ -1359,14 +1380,37 @@ int _glfwPlatformTerminate( void )
     close(_glfwWinAndroid.m_Pipefd[0]);
 
     ASensorManager* sensorManager = ASensorManager_getInstance();
-    ASensorManager_destroyEventQueue(sensorManager, g_sensorEventQueue);
+    if (g_sensorEventQueue)
+    {
+        ASensorManager_destroyEventQueue(sensorManager, g_sensorEventQueue);
+        g_sensorEventQueue = 0;
+    }
+    g_accelerometerEnabled = 0;
+    // Keep g_accelerometer (sensor ref); re-enable on next glfwAccelerometerEnable.
 
-    // Close the other pipe on the java thread
-    JNIEnv* env = g_AndroidApp->activity->env;
-    JavaVM* vm = g_AndroidApp->activity->vm;
-    (*vm)->AttachCurrentThread(vm, &env, NULL);
-    close(_glfwWinAndroid.m_Pipefd[1]);
-    (*vm)->DetachCurrentThread(vm);
+    // Embed: tear down native resources only. Do not DetachCurrentThread on the
+    // ART UI thread, and do not finish() the host Activity.
+    if (_glfwAndroidIsEmbedHost())
+    {
+        close(_glfwWinAndroid.m_Pipefd[1]);
+        if (_glfwWinAndroid.external_window)
+        {
+            ANativeWindow_release(_glfwWinAndroid.external_window);
+            _glfwWinAndroid.external_window = 0;
+        }
+        _glfwAndroidClearEmbedHost();
+        terminateThreads();
+        LOGV("_glfwPlatformTerminate: embed host");
+        return GL_TRUE;
+    }
+
+    // NativeActivity: close the write end with a safe attach, then finish.
+    {
+        int did_attach = 0;
+        JNIAttachCurrentThreadIfNeeded(&did_attach);
+        close(_glfwWinAndroid.m_Pipefd[1]);
+        JNIDetachCurrentThreadIfNeeded(did_attach);
+    }
 
     // Call finish and let Android life cycle take care of the termination
     ANativeActivity_finish(g_AndroidApp->activity);
