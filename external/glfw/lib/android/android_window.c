@@ -184,6 +184,18 @@ void _glfwPlatformSetWindowPos( int x, int y )
 
 void _glfwPlatformIconifyWindow( void )
 {
+    // Embed hosts own the Activity; finishing it would tear down the whole app.
+    // Sticky user-iconify until Restore / EmbedResume (computeIconifiedState alone
+    // must not clear it while the surface is still alive).
+    if (_glfwAndroidIsEmbedHost())
+    {
+        _glfwAndroidSetEmbedUserIconified(1);
+        _glfwWin.iconified = GL_TRUE;
+        if (_glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(0);
+        return;
+    }
+
     // Call finish and let Android life cycle take care of the iconification
     ANativeActivity_finish(g_AndroidApp->activity);
 }
@@ -194,6 +206,13 @@ void _glfwPlatformIconifyWindow( void )
 
 void _glfwPlatformRestoreWindow( void )
 {
+    if (_glfwAndroidIsEmbedHost())
+    {
+        _glfwAndroidSetEmbedUserIconified(0);
+        computeIconifiedState();
+        if (!_glfwWin.iconified && _glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(1);
+    }
 }
 
 void _glfwPlatformSwapBuffers( void )

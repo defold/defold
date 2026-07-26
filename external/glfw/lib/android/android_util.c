@@ -24,6 +24,9 @@
 // DetachCurrentThread on the ART UI thread or ANativeActivity_finish — the
 // host owns the Activity.
 static int g_AndroidEmbedHost = 0;
+// hide_app / Iconify on embed: sticky until Restore or EmbedResume. Must not be
+// cleared by computeIconifiedState when the surface is still present.
+static int g_AndroidEmbedUserIconified = 0;
 
 int _glfwAndroidIsEmbedHost(void)
 {
@@ -33,6 +36,17 @@ int _glfwAndroidIsEmbedHost(void)
 void _glfwAndroidClearEmbedHost(void)
 {
     g_AndroidEmbedHost = 0;
+    g_AndroidEmbedUserIconified = 0;
+}
+
+void _glfwAndroidSetEmbedUserIconified(int iconified)
+{
+    g_AndroidEmbedUserIconified = iconified ? 1 : 0;
+}
+
+int _glfwAndroidIsEmbedUserIconified(void)
+{
+    return g_AndroidEmbedUserIconified;
 }
 
 

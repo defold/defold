@@ -446,11 +446,14 @@ void computeIconifiedState()
     // A good detailed overview over the recommended app flow is found here:
     // https://developer.download.nvidia.com/assets/mobile/docs/android_lifecycle_app_note.pdf
     _glfwWin.iconified = !(g_AppResumed && has_renderable_window);
+    if (_glfwAndroidIsEmbedUserIconified())
+        _glfwWin.iconified = GL_TRUE;
 
-    LOGV("iconified: %s    (resume: %s, window: %s)",
+    LOGV("iconified: %s    (resume: %s, window: %s, embed_user: %s)",
         _glfwWin.iconified?"YES":"no",
         g_AppResumed?"YES":"no",
-        has_renderable_window?"YES":"no");
+        has_renderable_window?"YES":"no",
+        _glfwAndroidIsEmbedUserIconified()?"YES":"no");
 }
 
 GLFWAPI int32_t glfwAndroidWindowOpened()

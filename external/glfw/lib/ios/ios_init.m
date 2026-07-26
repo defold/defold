@@ -93,7 +93,14 @@ int _glfwPlatformInit( void )
     else
         _glfwLibrary.AutoreleasePool = [[NSAutoreleasePool alloc] init];
 
-    atexit( glfw_atexit );
+    // Install atexit once — re-registering on every embed Create/Destroy cycle
+    // (or standalone reboot → glfwInit) would stack handlers.
+    static int s_atexit_installed = 0;
+    if (!s_atexit_installed)
+    {
+        atexit( glfw_atexit );
+        s_atexit_installed = 1;
+    }
 
     _glfwLibrary.OpenGLFramework =
         CFBundleGetBundleWithIdentifier( CFSTR( "com.apple.opengles" ) );
