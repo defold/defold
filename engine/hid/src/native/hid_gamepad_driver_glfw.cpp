@@ -29,6 +29,10 @@
 
 #include "hid_native_private.h"
 
+#if defined(_WIN32)
+#include <Windows.h>
+#endif
+
 namespace dmHID
 {
     static int GLFW_JOYSTICKS[MAX_GAMEPAD_COUNT] =
@@ -64,6 +68,11 @@ namespace dmHID
         int                  m_Id;
         Gamepad*             m_Gamepad;
         GamepadRemapStrategy m_RemapStrategy;
+#if defined(_WIN32)
+        GamepadGuid          m_AutomaticGuid;
+        char                 m_AutomaticName[MAX_GAMEPAD_NAME_LENGTH];
+        bool                 m_HasAutomaticIdentity;
+#endif
     };
 
 
@@ -76,8 +85,171 @@ namespace dmHID
     };
 
     static void GetGamepadDeviceNameInternal(HContext context, int glfw_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
+    static bool GetGamepadDeviceGuidInternal(HContext context, int glfw_id, GamepadGuid* guid);
 
     static GLFWGamepadDriver* g_GLFWGamepadDriver = 0;
+
+#if defined(_WIN32)
+    typedef BOOLEAN (WINAPI *HidDGetStringFn)(HANDLE device, PVOID buffer, ULONG buffer_length);
+
+    static HidDGetStringFn g_HidDGetManufacturerString = 0;
+    static HidDGetStringFn g_HidDGetProductString = 0;
+    static bool g_HidFunctionsResolved = false;
+
+    static uint16_t CRC16ForByte(uint8_t value)
+    {
+        uint16_t crc = value;
+        for (uint32_t i = 0; i < 8; ++i)
+            crc = (uint16_t) ((crc & 1) ? (crc >> 1) ^ 0xa001 : crc >> 1);
+        return crc;
+    }
+
+    static uint16_t UpdateCRC16(uint16_t crc, const char* string)
+    {
+        while (string && *string)
+            crc = (uint16_t) (CRC16ForByte((uint8_t) crc ^ (uint8_t) *string++) ^ (crc >> 8));
+        return crc;
+    }
+
+    static void CopyAutomaticGamepadName(const char* product_name, char name[MAX_GAMEPAD_NAME_LENGTH])
+    {
+        static const char* prefix = "Controller (";
+        const size_t prefix_length = strlen(prefix);
+        const size_t product_length = strlen(product_name);
+        if (product_length > prefix_length &&
+            strncmp(product_name, prefix, prefix_length) == 0 &&
+            product_name[product_length - 1] == ')')
+        {
+            dmSnPrintf(name, MAX_GAMEPAD_NAME_LENGTH, "%.*s",
+                       (int) (product_length - prefix_length - 1), product_name + prefix_length);
+            return;
+        }
+        dmStrlCpy(name, product_name, MAX_GAMEPAD_NAME_LENGTH);
+    }
+
+    static bool ConvertWideStringToUTF8(const wchar_t* source, char* destination, uint32_t destination_size)
+    {
+        if (!source || !source[0] || destination_size == 0)
+            return false;
+        return WideCharToMultiByte(CP_UTF8, 0, source, -1, destination, destination_size, 0, 0) > 0;
+    }
+
+    static void ResolveHidFunctions()
+    {
+        if (g_HidFunctionsResolved)
+            return;
+
+        g_HidFunctionsResolved = true;
+        HMODULE hid_module = LoadLibraryW(L"hid.dll");
+        if (!hid_module)
+            return;
+
+        g_HidDGetManufacturerString = (HidDGetStringFn) GetProcAddress(hid_module, "HidD_GetManufacturerString");
+        g_HidDGetProductString = (HidDGetStringFn) GetProcAddress(hid_module, "HidD_GetProductString");
+    }
+
+    static bool GetRawInputDeviceIdentity(uint16_t vendor, uint16_t product, uint16_t* version,
+                                          char manufacturer[128], char product_name[MAX_GAMEPAD_NAME_LENGTH])
+    {
+        ResolveHidFunctions();
+        if (!g_HidDGetManufacturerString || !g_HidDGetProductString)
+            return false;
+
+        UINT device_count = 0;
+        if (GetRawInputDeviceList(0, &device_count, sizeof(RAWINPUTDEVICELIST)) == (UINT) -1 || device_count == 0)
+            return false;
+
+        RAWINPUTDEVICELIST* devices = new RAWINPUTDEVICELIST[device_count];
+        if (GetRawInputDeviceList(devices, &device_count, sizeof(RAWINPUTDEVICELIST)) == (UINT) -1)
+        {
+            delete[] devices;
+            return false;
+        }
+
+        bool found = false;
+        for (UINT i = 0; i < device_count && !found; ++i)
+        {
+            if (devices[i].dwType != RIM_TYPEHID)
+                continue;
+
+            RID_DEVICE_INFO device_info = {};
+            device_info.cbSize = sizeof(device_info);
+            UINT info_size = sizeof(device_info);
+            if (GetRawInputDeviceInfoW(devices[i].hDevice, RIDI_DEVICEINFO, &device_info, &info_size) == (UINT) -1 ||
+                device_info.hid.dwVendorId != vendor || device_info.hid.dwProductId != product ||
+                device_info.hid.usUsagePage != 0x01 || device_info.hid.usUsage != 0x05)
+            {
+                continue;
+            }
+
+            wchar_t device_path[1024];
+            UINT path_size = sizeof(device_path) / sizeof(device_path[0]);
+            if (GetRawInputDeviceInfoW(devices[i].hDevice, RIDI_DEVICENAME, device_path, &path_size) == (UINT) -1 ||
+                wcsstr(device_path, L"IG_") == 0)
+            {
+                continue;
+            }
+
+            HANDLE device = CreateFileW(device_path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                        0, OPEN_EXISTING, 0, 0);
+            if (device == INVALID_HANDLE_VALUE)
+                continue;
+
+            wchar_t wide_string[128] = {};
+            if (g_HidDGetManufacturerString(device, wide_string, sizeof(wide_string)))
+                ConvertWideStringToUTF8(wide_string, manufacturer, 128);
+
+            wide_string[0] = 0;
+            if (g_HidDGetProductString(device, wide_string, sizeof(wide_string)))
+                ConvertWideStringToUTF8(wide_string, product_name, MAX_GAMEPAD_NAME_LENGTH);
+
+            CloseHandle(device);
+            *version = (uint16_t) device_info.hid.dwVersionNumber;
+            found = product_name[0] != 0;
+        }
+
+        delete[] devices;
+        return found;
+    }
+
+    // SDL's RawInput GUID is useful for diagnostics even though GLFW supplies
+    // the live XInput packet. Keep that compatibility detail local to this
+    // driver, together with the automatic packet-layout decision.
+    static bool EnsureAutomaticXInputIdentity(HContext context, GLFWGamepadDevice* device)
+    {
+        if (device->m_HasAutomaticIdentity)
+            return true;
+        if (device->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+            return false;
+
+        GamepadGuid guid = {};
+        if (!GetGamepadDeviceGuidInternal(context, device->m_Id, &guid) || guid.m_Vendor == 0 || guid.m_Product == 0)
+            return false;
+
+        char manufacturer[128] = {};
+        char product_name[MAX_GAMEPAD_NAME_LENGTH] = {};
+        uint16_t version = guid.m_Version;
+        if (!GetRawInputDeviceIdentity(guid.m_Vendor, guid.m_Product, &version, manufacturer, product_name))
+            return false;
+
+        uint16_t crc = 0;
+        if (manufacturer[0])
+        {
+            crc = UpdateCRC16(crc, manufacturer);
+            crc = UpdateCRC16(crc, " ");
+        }
+        crc = UpdateCRC16(crc, product_name);
+
+        device->m_AutomaticGuid = guid;
+        device->m_AutomaticGuid.m_CRC16 = crc;
+        device->m_AutomaticGuid.m_Version = version;
+        device->m_AutomaticGuid.m_DriverSignature = 'r';
+        device->m_AutomaticGuid.m_DriverData = 0;
+        CopyAutomaticGamepadName(product_name, device->m_AutomaticName);
+        device->m_HasAutomaticIdentity = true;
+        return true;
+    }
+#endif
 
     static Gamepad* GLFWGetGamepad(GLFWGamepadDriver* driver, int gamepad_id)
     {
@@ -273,6 +445,30 @@ namespace dmHID
     {
         if (!glfw_gamepad->m_Gamepad->m_LayoutLegacy)
         {
+#if defined(_WIN32)
+            if (glfw_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+            {
+                // GLFW exposes XInput buttons as A, B, X, Y, shoulders,
+                // back, start and stick clicks. The automatic mapping consumes
+                // the canonical SDL-style order declared by GamepadMappedButton.
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_A]              = buttons[0];
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_B]              = buttons[1];
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_X]              = buttons[2];
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_Y]              = buttons[3];
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_BACK]           = buttons[6];
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_START]          = buttons[7];
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_LEFT_THUMB]     = buttons[8];
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_RIGHT_THUMB]    = buttons[9];
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_LEFT_SHOULDER]  = buttons[4];
+                buttons_remapped[GAMEPAD_MAPPED_BUTTON_RIGHT_SHOULDER] = buttons[5];
+
+                // XInput through GLFW doesn't expose Guide or Capture. Keep
+                // those slots clear instead of reading GLFW's appended hat
+                // buttons as ordinary buttons.
+                glfw_gamepad->m_Gamepad->m_ButtonCount = GAMEPAD_MAPPED_BUTTON_COUNT;
+                return buttons_remapped;
+            }
+#endif
             return buttons;
         }
 
@@ -439,7 +635,15 @@ namespace dmHID
 
     static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, 0);
+        GLFWGamepadDevice* glfw_device = 0;
+        uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, &glfw_device);
+#if defined(_WIN32)
+        if (glfw_device && EnsureAutomaticXInputIdentity(context, glfw_device))
+        {
+            dmStrlCpy(name, glfw_device->m_AutomaticName, MAX_GAMEPAD_NAME_LENGTH);
+            return;
+        }
+#endif
         GetGamepadDeviceNameInternal(context, gamepad_index, name);
     }
 
@@ -455,8 +659,37 @@ namespace dmHID
 
     static bool GLFWGamepadDriverGetGamepadDeviceGuid(HContext context, GamepadDriver* driver, HGamepad gamepad, GamepadGuid* guid)
     {
-        uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, 0);
+        GLFWGamepadDevice* glfw_device = 0;
+        uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, &glfw_device);
+#if defined(_WIN32)
+        if (glfw_device && EnsureAutomaticXInputIdentity(context, glfw_device))
+        {
+            *guid = glfw_device->m_AutomaticGuid;
+            return true;
+        }
+#endif
         return GetGamepadDeviceGuidInternal(context, gamepad_index, guid);
+    }
+
+    static uint32_t GLFWGamepadDriverGetGamepadMappingSupport(HContext context, GamepadDriver* driver, HGamepad gamepad)
+    {
+        GLFWGamepadDevice* glfw_device = 0;
+        if (GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, &glfw_device) == -1)
+            return GAMEPAD_MAPPING_SUPPORT_NONE;
+
+#if defined(_WIN32)
+        // The Windows XInput backend exposes a stable semantic packet layout,
+        // so it can use the automatic mapping when no database row exists.
+        // DirectInput devices expose their physical layout and still require a
+        // database mapping (or the raw fallback).
+        if (glfw_device->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+        {
+            EnsureAutomaticXInputIdentity(context, glfw_device);
+            return GAMEPAD_MAPPING_SUPPORT_AUTOMATIC;
+        }
+#endif
+
+        return GAMEPAD_MAPPING_SUPPORT_NONE;
     }
 
     static bool GLFWGamepadDriverInitialize(HContext context, GamepadDriver* driver)
@@ -488,7 +721,7 @@ namespace dmHID
         driver->m_DetectDevices                = GLFWGamepadDriverDetectDevices;
         driver->m_GetGamepadDeviceName         = GLFWGamepadDriverGetGamepadDeviceName;
         driver->m_GetGamepadDeviceGuid         = GLFWGamepadDriverGetGamepadDeviceGuid;
-        driver->m_GetGamepadMappingSupport     = 0;
+        driver->m_GetGamepadMappingSupport     = GLFWGamepadDriverGetGamepadMappingSupport;
         driver->m_SetGamepadMapping            = 0;
 
         assert(g_GLFWGamepadDriver == 0);
