@@ -472,6 +472,58 @@ TEST(AsyncMutatorParity, Gravity)
     ASSERT_NEAR(s.y, a.y, 0.001f);
 }
 
+static b2Vec2 RunApplyForceScene(bool async)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = async;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo info = { 0.0f, 0.0f };
+    HCollisionShape2D shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData d;
+    d.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC;
+    d.m_Mass = 1.0f;
+    d.m_UserData = &info;
+    Body* ball = (Body*)NewCollisionObject2D(world, d, &shape, 1);
+
+    SetGravity2D(world, dmVMath::Vector3(0.0f, 0.0f, 0.0f)); // isolate the applied force
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+    for (int i = 0; i < 60; ++i)
+    {
+        // Push right through the body centre each frame (origin == centre of mass, so no torque).
+        ApplyForce2D(context, ball, dmVMath::Vector3(20.0f, 0.0f, 0.0f), GetWorldPosition2D(context, ball));
+        StepWorld2D(world, sc);
+    }
+    if (async) StepWorld2D(world, sc); // flush the final delivery (N-1)
+
+    b2Vec2 pos = b2Body_GetPosition(ball->m_BodyId);
+
+    DeleteCollisionObject2D(world, ball);
+    DeleteCollisionShape2D(shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+    return pos;
+}
+
+// physics.apply_force must drive the body in the double-buffered path. The game world is never stepped
+// there, so the force is accumulated on the game body and injected onto the twin before the worker
+// steps; the body must move (silent no-op regression guard) and land where the sync path does.
+TEST(AsyncForce, ApplyForceMovesBodyMatchesSync)
+{
+    b2Vec2 s = RunApplyForceScene(false);
+    b2Vec2 a = RunApplyForceScene(true);
+
+    ASSERT_GT(s.x, 1.0f);       // sync: force moved the body right
+    ASSERT_GT(a.x, 1.0f);       // async: force actually did something
+    ASSERT_NEAR(s.x, a.x, 0.01f);
+    ASSERT_NEAR(s.y, a.y, 0.01f);
+}
+
 struct PScaleInfo { float x, y, scale; };
 
 static void ScaleGetTransform(void* user_data, dmTransform::Transform& t)

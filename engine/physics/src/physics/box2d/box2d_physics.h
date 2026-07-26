@@ -103,6 +103,8 @@ namespace dmPhysics
         uint32_t   m_ColumnCount;
     };
 
+    struct World2D;
+
     struct Body
     {
         b2BodyId    m_BodyId;
@@ -110,9 +112,18 @@ namespace dmPhysics
         // carries its owning world index, so this is a separate id from m_BodyId, not a copy of it.
         // b2_nullBodyId when double-buffering is off or before the twin is created.
         b2BodyId    m_PhysicsBodyId;
+        // Owning world, so entry points that only receive a Body (e.g. ApplyForce2D) can tell whether
+        // the double-buffered path is active and reach per-world state.
+        World2D*    m_World;
         // Grids represent each layer as a separate body
         ShapeData** m_Shapes;
         uint8_t     m_ShapeCount;
+        // Force and torque applied to the game body this frame in the double-buffered path. The game
+        // world is never stepped there, so a force put on the game body would never integrate. Instead
+        // it is accumulated here and injected onto the physics twin just before the worker steps, then
+        // cleared. Unused (zero) in the synchronous path.
+        b2Vec2      m_PendingForce;
+        float       m_PendingTorque;
     };
 
     struct ContactPair

@@ -224,6 +224,17 @@ namespace dmPhysics
             b2Body_SetLinearVelocity(body->m_PhysicsBodyId, b2Body_GetLinearVelocity(body->m_BodyId));
             b2Body_SetAngularVelocity(body->m_PhysicsBodyId, b2Body_GetAngularVelocity(body->m_BodyId));
 
+            // Inject any force/torque accumulated on the game body this frame onto the twin, which is
+            // the body actually stepped, then clear it. The step consumes and clears the twin's own
+            // accumulator, so each frame starts fresh.
+            if (body->m_PendingForce.x != 0.0f || body->m_PendingForce.y != 0.0f || body->m_PendingTorque != 0.0f)
+            {
+                b2Body_ApplyForceToCenter(body->m_PhysicsBodyId, body->m_PendingForce, true);
+                b2Body_ApplyTorque(body->m_PhysicsBodyId, body->m_PendingTorque, true);
+                body->m_PendingForce  = b2Vec2_zero;
+                body->m_PendingTorque = 0.0f;
+            }
+
             // Keep the twin's collision geometry identical to the game shape (handles scale changes
             // and shape recreation that the stored-scale mirror path misses).
             MirrorShapesToTwin(body);

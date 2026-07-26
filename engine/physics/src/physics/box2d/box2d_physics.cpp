@@ -2025,8 +2025,11 @@ namespace dmPhysics
         Body* body            = new Body();
         body->m_BodyId        = bodyId;
         body->m_PhysicsBodyId = b2_nullBodyId;
+        body->m_World         = world;
         body->m_Shapes        = (ShapeData**) malloc(shape_count * sizeof(ShapeData*));
         body->m_ShapeCount    = shape_count;
+        body->m_PendingForce  = b2Vec2_zero;
+        body->m_PendingTorque = 0.0f;
 
         Vector3 zero_vec3 = Vector3(0);
         for (uint32_t i = 0; i < shape_count; ++i)
@@ -2308,13 +2311,25 @@ namespace dmPhysics
         ToB2(position, b2_position, scale);
 
         Body* body = (Body*) collision_object;
+        if (body->m_World->m_UseDoubleBufferedWorlds)
+        {
+            // The game world is never stepped in the double-buffered path, so a force on the game body
+            // would never integrate. Accumulate it (reducing an off-center force to a force through the
+            // center of mass plus a torque) and inject it onto the twin before the worker steps.
+            b2Vec2 com = b2Body_GetWorldCenterOfMass(body->m_BodyId);
+            body->m_PendingForce.x += b2_force.x;
+            body->m_PendingForce.y += b2_force.y;
+            body->m_PendingTorque  += (b2_position.x - com.x) * b2_force.y - (b2_position.y - com.y) * b2_force.x;
+            return;
+        }
         b2Body_ApplyForce(body->m_BodyId, b2_force, b2_position, true);
     }
 
     Vector3 GetTotalForce2D(HContext2D context, HCollisionObject2D collision_object)
     {
         Body* body = (Body*) collision_object;
-        b2Vec2 b2_force = b2Body_GetTotalForce(body->m_BodyId);
+        b2Vec2 b2_force = body->m_World->m_UseDoubleBufferedWorlds ?
+                          body->m_PendingForce : b2Body_GetTotalForce(body->m_BodyId);
         Vector3 force;
         FromB2(b2_force, force, context->m_InvScale);
         return force;
