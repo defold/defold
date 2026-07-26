@@ -17,6 +17,10 @@
 
 #include "mbedtls_rename.h"
 
+#if defined(DM_MBEDTLS_NO_FS_IO)
+#undef MBEDTLS_FS_IO
+#endif
+
 #if defined(DM_MBEDTLS_ERROR_STRERROR_DUMMY)
 #undef MBEDTLS_ERROR_C
 #if !defined(MBEDTLS_ERROR_STRERROR_DUMMY)

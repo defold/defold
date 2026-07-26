@@ -89,6 +89,10 @@ function(defold_target_link_socket target platform)
         # Other platforms do not require additional socket libs in waf
     endif()
 
+    if(DEFOLD_PLATFORM_SOCKET_LIBS)
+        list(APPEND _socket_libs ${DEFOLD_PLATFORM_SOCKET_LIBS})
+    endif()
+
     if(_socket_libs)
         target_link_libraries(${target} ${DPLS_SCOPE} ${_socket_libs})
     endif()

@@ -265,7 +265,7 @@ static int zip_mkpath(char *path, size_t pos) {
         *p = '/';
       }
 
-      if (lstat(npath, &st) < 0) {
+      if (MZ_FILE_STAT(npath, &st) < 0) {
         if (MZ_MKDIR(npath) == -1) {
           if (errno != EEXIST) {
             return ZIP_EMKDIR;

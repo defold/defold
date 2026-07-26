@@ -14,6 +14,8 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <sys/types.h>
 #include <sys/utsname.h>
 #import <Foundation/NSFileManager.h>
 #import <Foundation/Foundation.h>
@@ -34,9 +36,24 @@
 
 namespace dmSys
 {
+    FILE* FileOpen64(const char* path)
+    {
+        return fopen(path, "rb");
+    }
+
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return fseeko(file, (off_t)offset, SEEK_SET);
+    }
+
     char* GetEnv(const char* name)
     {
         return dmSysPosix::GetEnv(name);
+    }
+
+    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        return dmSysPosix::GetHostFileName(buffer, buffer_size, path);
     }
 
     Result Rename(const char* dst_filename, const char* src_filename)

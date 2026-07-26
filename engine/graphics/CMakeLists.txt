@@ -338,6 +338,37 @@ if(GRAPHICS_BUILD_METAL)
   list(APPEND GRAPHICS_INSTALL_TARGETS graphics_metal)
 endif()
 
+if(TARGET_PLATFORM MATCHES "^x86_64-ps[45]$")
+  if(TARGET_PLATFORM STREQUAL "x86_64-ps5")
+    set(GRAPHICS_PS_PLATFORM "ps5")
+    set(GRAPHICS_PS_DEFINE DM_GRAPHICS_PS5)
+  else()
+    set(GRAPHICS_PS_PLATFORM "ps4")
+    set(GRAPHICS_PS_DEFINE DM_GRAPHICS_PS4)
+  endif()
+
+  set(GRAPHICS_PS_SOURCE_DIR "${DEFOLD_PRIVATE_REPO_ROOT}/engine/graphics/src")
+  if(NOT EXISTS "${GRAPHICS_PS_SOURCE_DIR}/ps4/graphics_${GRAPHICS_PS_PLATFORM}.cpp")
+    message(FATAL_ERROR
+      "PlayStation graphics source not found: ${GRAPHICS_PS_SOURCE_DIR}/ps4/graphics_${GRAPHICS_PS_PLATFORM}.cpp")
+  endif()
+  set(GRAPHICS_PS_SOURCES
+    "${GRAPHICS_SRC_DIR}/graphics.cpp"
+    "${GRAPHICS_SRC_DIR}/graphics_vertices.cpp"
+    "${GRAPHICS_PS_SOURCE_DIR}/ps4/graphics_ps_shared.cpp"
+    "${GRAPHICS_PS_SOURCE_DIR}/ps4/graphics_${GRAPHICS_PS_PLATFORM}.cpp"
+    ${GRAPHICS_PROTO_OBJECTS})
+  defold_add_library(graphics_${GRAPHICS_PS_PLATFORM} STATIC ${GRAPHICS_PS_SOURCES})
+  graphics_common_setup(graphics_${GRAPHICS_PS_PLATFORM})
+  target_include_directories(graphics_${GRAPHICS_PS_PLATFORM} PUBLIC
+    "${GRAPHICS_SRC_DIR}"
+    "${GRAPHICS_PS_SOURCE_DIR}/ps4")
+  target_compile_definitions(graphics_${GRAPHICS_PS_PLATFORM} PUBLIC ${GRAPHICS_PS_DEFINE})
+  defold_target_link_libraries(graphics_${GRAPHICS_PS_PLATFORM} "${TARGET_PLATFORM}" SCOPE PUBLIC ${GRAPHICS_DEPENDENCIES})
+  set_target_properties(graphics_${GRAPHICS_PS_PLATFORM} PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_sdk_headers)
+  list(APPEND GRAPHICS_INSTALL_TARGETS graphics_${GRAPHICS_PS_PLATFORM})
+endif()
+
 defold_add_library(graphics_transcoder_null STATIC "${GRAPHICS_SRC_DIR}/transcoder/graphics_transcoder_null.cpp")
 target_include_directories(graphics_transcoder_null PUBLIC "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
 add_dependencies(graphics_transcoder_null graphics_proto_header)

@@ -61,7 +61,11 @@ static void mbedtls_debug(void* ctx, int level, const char* file, int line, cons
 
 struct CustomNetContext
 {
+#if defined(DM_MBEDTLS_CUSTOM_NET)
+    dmSocket::Socket    m_Socket;
+#else
     mbedtls_net_context m_Context;
+#endif
     uint64_t            m_Timeout;
 };
 
@@ -110,10 +114,60 @@ static int TimingGetDelayCallback(void* data)
     return TimingGetDelay((dmSSLSocket::SSLSocket*)data);
 }
 
+#if defined(DM_MBEDTLS_CUSTOM_NET)
+static int NetResult(dmSocket::Result result, int want_result, int failed_result)
+{
+    switch (result)
+    {
+        case dmSocket::RESULT_WOULDBLOCK:
+        case dmSocket::RESULT_TRY_AGAIN:
+        case dmSocket::RESULT_INPROGRESS:
+        case dmSocket::RESULT_INTR:
+            return want_result;
+        case dmSocket::RESULT_CONNRESET:
+        case dmSocket::RESULT_PIPE:
+        case dmSocket::RESULT_NOTCONN:
+            return MBEDTLS_ERR_NET_CONN_RESET;
+        default:
+            return failed_result;
+    }
+}
+
+static int NetRecv(void* _ctx, unsigned char* buf, size_t len)
+{
+    CustomNetContext* ctx = (CustomNetContext*)_ctx;
+    if (ctx->m_Socket == dmSocket::INVALID_SOCKET_HANDLE)
+        return MBEDTLS_ERR_NET_INVALID_CONTEXT;
+
+    int received = 0;
+    dmSocket::Result result = dmSocket::Receive(ctx->m_Socket, buf, (int)len, &received);
+    return result == dmSocket::RESULT_OK
+        ? received
+        : NetResult(result, MBEDTLS_ERR_SSL_WANT_READ, MBEDTLS_ERR_NET_RECV_FAILED);
+}
+
+static int NetSend(void* _ctx, const unsigned char* buf, size_t len)
+{
+    CustomNetContext* ctx = (CustomNetContext*)_ctx;
+    if (ctx->m_Socket == dmSocket::INVALID_SOCKET_HANDLE)
+        return MBEDTLS_ERR_NET_INVALID_CONTEXT;
+
+    int sent = 0;
+    dmSocket::Result result = dmSocket::Send(ctx->m_Socket, buf, (int)len, &sent);
+    return result == dmSocket::RESULT_OK
+        ? sent
+        : NetResult(result, MBEDTLS_ERR_SSL_WANT_WRITE, MBEDTLS_ERR_NET_SEND_FAILED);
+}
+#endif
+
 static int RecvTimeout(void* _ctx, unsigned char* buf, size_t len, uint32_t timeout)
 {
     CustomNetContext* ctx = (CustomNetContext*)_ctx;
+#if defined(DM_MBEDTLS_CUSTOM_NET)
+    int fd = dmSocket::GetFD(ctx->m_Socket);
+#else
     int fd = ctx->m_Context.fd;
+#endif
 
     if (fd < 0)
         return MBEDTLS_ERR_NET_INVALID_CONTEXT;
@@ -137,7 +191,11 @@ static int RecvTimeout(void* _ctx, unsigned char* buf, size_t len, uint32_t time
         return MBEDTLS_ERR_NET_RECV_FAILED;
     }
 
+#if defined(DM_MBEDTLS_CUSTOM_NET)
+    return NetRecv(ctx, buf, len);
+#else
     return mbedtls_net_recv(ctx, buf, len);
+#endif
 }
 
 namespace
@@ -272,8 +330,10 @@ Result Delete(Socket socket)
     if (socket)
     {
         mbedtls_ssl_close_notify(socket->m_SSLContext);
+#if !defined(DM_MBEDTLS_CUSTOM_NET)
         socket->m_SSLNetContext->m_Context.fd = -1;
         mbedtls_net_free((mbedtls_net_context*)socket->m_SSLNetContext);
+#endif
         mbedtls_ssl_free(socket->m_SSLContext);
         mbedtls_ssl_config_free(socket->m_MbedConf);
 
@@ -349,10 +409,18 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, Socket* 
         return RESULT_HANDSHAKE_FAILED;
     }
 
+#if defined(DM_MBEDTLS_CUSTOM_NET)
+    c->m_SSLNetContext->m_Socket = socket;
+#else
     mbedtls_net_init((mbedtls_net_context*)c->m_SSLNetContext);
     c->m_SSLNetContext->m_Context.fd = dmSocket::GetFD(socket);
+#endif
 
+#if defined(DM_MBEDTLS_CUSTOM_NET)
+    mbedtls_ssl_set_bio(c->m_SSLContext, c->m_SSLNetContext, NetSend, 0, RecvTimeout);
+#else
     mbedtls_ssl_set_bio(c->m_SSLContext, c->m_SSLNetContext, mbedtls_net_send, 0, RecvTimeout);
+#endif
     mbedtls_ssl_set_timer_cb(c->m_SSLContext, c, TimingSetDelayCallback, TimingGetDelayCallback);
 
     do

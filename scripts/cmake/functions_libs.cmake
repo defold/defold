@@ -183,7 +183,20 @@ function(defold_target_link_libraries target platform)
     set(_MAPPED_LIBS ${_LIBS})
   endif()
 
+  # Private platforms may require additional libraries for testmain consumers.
+  list(FIND _LIBS "testmain" _testmain_idx)
+  if(NOT _testmain_idx EQUAL -1 AND DEFOLD_PLATFORM_TESTMAIN_LIBS)
+    list(APPEND _MAPPED_LIBS ${DEFOLD_PLATFORM_TESTMAIN_LIBS})
+  endif()
+
+  # Private platforms may require additional libraries for HID consumers.
+  list(FIND _LIBS "hid" _hid_idx)
+  if(NOT _hid_idx EQUAL -1 AND DEFOLD_PLATFORM_HID_LIBS)
+    list(APPEND _MAPPED_LIBS ${DEFOLD_PLATFORM_HID_LIBS})
+  endif()
+
   if(_MAPPED_LIBS)
+    list(REMOVE_DUPLICATES _MAPPED_LIBS)
     target_link_libraries(${target} ${DLIB_SCOPE} ${_MAPPED_LIBS})
   endif()
 
@@ -463,6 +476,10 @@ function(defold_add_executable target)
 
   # Forward all remaining args directly to add_executable
   add_executable(${target} ${_sources})
+
+  if(DEFINED DEFOLD_PLATFORM_EXECUTABLE_SUFFIX)
+    set_target_properties(${target} PROPERTIES SUFFIX "${DEFOLD_PLATFORM_EXECUTABLE_SUFFIX}")
+  endif()
 
   if(TARGET defold_sdk)
     target_link_libraries(${target} PRIVATE defold_sdk)

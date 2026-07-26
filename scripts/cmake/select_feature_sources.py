@@ -50,9 +50,8 @@ def platform_file_tags(platform):
     if target == "nx64":
         add("switch")
         add("nintendo")
-    elif target in ("ps4", "ps5"):
-        add("playstation")
-        add("sony")
+    elif target == "ps5":
+        add("ps4")
     elif target == "xbone":
         add("xbox")
         add("microsoft")
@@ -77,9 +76,8 @@ def private_platform_file_tags(platform):
     if target == "nx64":
         add("switch")
         add("nintendo")
-    elif target in ("ps4", "ps5"):
-        add("playstation")
-        add("sony")
+    elif target == "ps5":
+        add("ps4")
     elif target == "xbone":
         add("xbox")
         add("microsoft")

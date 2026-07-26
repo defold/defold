@@ -39,11 +39,39 @@
 #define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
 #endif
 
+#if !defined(DM_HOSTFS)
+    #define DM_HOSTFS ""
+#endif
+
 namespace dmSysPosix
 {
     char* GetEnv(const char* name)
     {
         return getenv(name);
+    }
+
+    dmSys::Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        const char* hostfs = DM_HOSTFS;
+        size_t hostfs_len = strlen(hostfs);
+
+        if (hostfs_len == 0 || strncmp(path, hostfs, hostfs_len) == 0)
+        {
+            dmStrlCpy(buffer, path, buffer_size);
+        }
+        else
+        {
+            dmStrlCpy(buffer, hostfs, buffer_size);
+            size_t buffer_len = buffer_size > 0 ? strlen(buffer) : 0;
+            if (buffer_len > 0 && buffer[buffer_len - 1] != '/')
+            {
+                dmStrlCat(buffer, "/", buffer_size);
+            }
+            dmStrlCat(buffer, path, buffer_size);
+        }
+
+        dmPath::Normalize(buffer, buffer, buffer_size);
+        return dmSys::RESULT_OK;
     }
 
     dmSys::Result Rename(const char* dst_filename, const char* src_filename)
@@ -299,3 +327,20 @@ namespace dmSysPosix
     }
 
 } // namespace dmSysPosix
+
+// Some targets use sys_posix.cpp as their platform sys implementation. More
+// specific backends provide their own large-file wrappers.
+#if !defined(__ANDROID__) && !defined(__linux__) && !defined(__APPLE__) && !defined(__EMSCRIPTEN__)
+namespace dmSys
+{
+    FILE* FileOpen64(const char* path)
+    {
+        return fopen(path, "rb");
+    }
+
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return fseeko(file, (off_t)offset, SEEK_SET);
+    }
+}
+#endif

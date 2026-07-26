@@ -66,7 +66,9 @@ static int wsa_init_done = 0;
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <unistd.h>
+#if !defined(DM_MBEDTLS_NO_SIGNAL_H)
 #include <signal.h>
+#endif
 #include <fcntl.h>
 #include <netdb.h>
 #include <errno.h>
@@ -109,7 +111,7 @@ static int net_prepare(void)
         wsa_init_done = 1;
     }
 #else
-#if !defined(EFIX64) && !defined(EFI32)
+#if !defined(EFIX64) && !defined(EFI32) && !defined(DM_MBEDTLS_NO_SIGNAL_H)
     signal(SIGPIPE, SIG_IGN);
 #endif
 #endif

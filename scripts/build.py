@@ -111,6 +111,11 @@ class build_private(object):
         return cls._call(platform, 'get_install_target_packages', [], platform)
 
     @classmethod
+    def get_external_package_name(cls, platform, library, default_name):
+        return cls._call(platform, 'get_external_package_name', default_name,
+                         platform, library, default_name)
+
+    @classmethod
     def install_sdk(cls, configuration, platform): # Installs the sdk for the private platform
         return cls._call(platform, 'install_sdk', None, configuration, platform)
 
@@ -482,11 +487,18 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform font graphics particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_WAF_LIBS = "box2d box2d_v2 glfw bullet3d opus".split()
-EXTERNAL_CMAKE_LIBS = "vkquality".split()
+EXTERNAL_WAF_LIBS = "glfw opus".split()
+EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 bullet3d vkquality".split()
 EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
 EXTERNAL_PACKAGE_VERSIONS = {
+    "box2d": "3.1.0",
+    "box2d_v2": "2.2.1",
+    "bullet3d": "2.77",
     "vkquality": "1.1-2642a0d",
+}
+EXTERNAL_PACKAGE_NAMES = {
+    "box2d_v2": "box2d_defold",
+    "bullet3d": "bullet",
 }
 
 def get_host_platform():
@@ -2356,6 +2368,29 @@ class Configuration(object):
         if not os.path.exists(build_ninja):
             return True
 
+        # CMake's detected target system is immutable within an existing build
+        # tree. If a Windows build directory is later reused for a Generic
+        # console target, updating CMAKE_SYSTEM_NAME in the cache is not enough:
+        # generated link rules keep Windows image flags and system libraries.
+        # Force a clean configure when that generated platform metadata is stale.
+        if platform in ('x86_64-ps4', 'x86_64-ps5', 'arm64-nx64'):
+            cmake_files_dir = join(configure_state.get('builddir', ''), 'CMakeFiles')
+            system_files = []
+            if os.path.isdir(cmake_files_dir):
+                for entry in os.listdir(cmake_files_dir):
+                    system_file = join(cmake_files_dir, entry, 'CMakeSystem.cmake')
+                    if os.path.isfile(system_file):
+                        system_files.append(system_file)
+            for system_file in system_files:
+                try:
+                    with open(system_file, 'r') as f:
+                        system_content = f.read()
+                except OSError:
+                    continue
+                if 'set(CMAKE_SYSTEM_NAME "Generic")' not in system_content:
+                    self._log('CMake generated system mismatch for %s: expected Generic for %s' % (system_file, platform))
+                    return False
+
         try:
             with open(build_ninja, 'r') as f:
                 content = f.read().replace('\\', '/')
@@ -2680,7 +2715,10 @@ class Configuration(object):
 
     def _build_external_lib_cmake(self, lib, platform):
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
-        package_name = '%s-%s' % (lib, version)
+        package_base_name = EXTERNAL_PACKAGE_NAMES.get(lib, lib)
+        default_package_name = '%s-%s' % (package_base_name, version)
+        package_name = build_private.get_external_package_name(
+            platform, lib, default_package_name)
         source_dir = join(self.defold_root, 'external', lib)
         build_dir = join(source_dir, 'build', platform)
         install_dir = join(self.dynamo_home, package_name)
@@ -2724,7 +2762,9 @@ class Configuration(object):
             finally:
                 self.build_tracker.end_command('CMake build external %s' % lib)
 
-            package_command = ['tar', 'zcvf', os.path.normpath(package_path), 'include', 'lib', 'share']
+            package_dirs = [name for name in ('include', 'lib', 'share')
+                            if os.path.exists(join(install_dir, name))]
+            package_command = ['tar', 'zcvf', os.path.normpath(package_path)] + package_dirs
             self.build_tracker.start_command('Package external %s' % lib)
             try:
                 run.command(package_command, cwd=install_dir)
