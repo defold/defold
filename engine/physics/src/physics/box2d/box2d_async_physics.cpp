@@ -150,11 +150,31 @@ namespace dmPhysics
     static void MirrorShapesToTwin(Body* body)
     {
         b2BodyId twin = body->m_PhysicsBodyId;
+
+        // Mirror the collision filter so runtime group/mask changes (SetGroup2D / SetMaskBit2D) take
+        // effect in the twin, which is the body actually simulated. Those setters apply the same filter
+        // to every shape of the body, so the game filter can be copied onto every twin shape regardless
+        // of b2Body_GetShapes enumeration order. Being order-independent, this is safe for multi-shape
+        // bodies (unlike the index-based geometry mirroring below).
+        if (body->m_ShapeCount > 0 && body->m_Shapes[0]->m_Type != SHAPE_TYPE_GRID)
+        {
+            b2Filter gf = b2Shape_GetFilter(body->m_Shapes[0]->m_ShapeId);
+            b2ShapeId twin_all[MAX_OP_SHAPES];
+            int tn = b2Body_GetShapes(twin, twin_all, MAX_OP_SHAPES);
+            for (int i = 0; i < tn; ++i)
+            {
+                b2Filter tf = b2Shape_GetFilter(twin_all[i]);
+                if (gf.categoryBits != tf.categoryBits || gf.maskBits != tf.maskBits || gf.groupIndex != tf.groupIndex)
+                {
+                    b2Shape_SetFilter(twin_all[i], gf);
+                }
+            }
+        }
+
+        // Geometry mirror: index-based, so b2Body_GetShapes order must match body->m_Shapes, which is
+        // only guaranteed for single-shape bodies. Multi-shape geometry is not mirrored (a runtime size
+        // change on a multi-shape body is not yet implemented for the async path).
         int cap = b2Body_GetShapeCount(twin);
-        // b2Body_GetShapes enumeration order does not necessarily match body->m_Shapes creation
-        // order for multi-shape bodies, so index-based mirroring is only safe for single-shape
-        // bodies. Dynamic bodies are typically single-shape; multi-shape bodies are static and never
-        // change size, so skipping them is fine.
         if (cap != 1 || body->m_ShapeCount != 1)
         {
             return;
@@ -349,6 +369,12 @@ namespace dmPhysics
                     continue; // cancelled create (see EnqueueDestroyBody)
                 }
                 owner->m_PhysicsBodyId = ApplyCreateBodyOp(world->m_PhysicsWorldId, op.m_Data.create_body, scale);
+                // The create op snapshots the body's shapes when it is enqueued. Anything that changed
+                // the game body's shapes between enqueue and this drain (e.g. a filter/group change in
+                // the object's init, before its first step) is not in the snapshot, so align the twin to
+                // the game body's current shapes. This makes the twin born matching the game body,
+                // with no first-step window where a mismatched filter or geometry is simulated.
+                MirrorShapesToTwin(owner);
             }
             else
             {

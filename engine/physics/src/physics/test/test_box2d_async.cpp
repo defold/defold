@@ -524,6 +524,125 @@ TEST(AsyncForce, ApplyForceMovesBodyMatchesSync)
     ASSERT_NEAR(s.y, a.y, 0.01f);
 }
 
+// Drop a ball onto a stack; optionally clear its collision mask first. Returns the ball's settled y.
+static float RunFilterDrop(bool async, bool ghost)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = async;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo floor_i = { 0.0f, -3.0f };
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_i;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    PBodyInfo bot_i = { 0.0f, -2.0f };
+    HCollisionShape2D bot_shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &bot_i;
+    Body* bottom = (Body*)NewCollisionObject2D(world, bd, &bot_shape, 1);
+
+    PBodyInfo top_i = { 0.0f, 1.0f };
+    HCollisionShape2D top_shape = NewCircleShape2D(context, 0.5f);
+    CollisionObjectData td; td.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; td.m_Mass = 1.0f; td.m_UserData = &top_i;
+    Body* top = (Body*)NewCollisionObject2D(world, td, &top_shape, 1);
+
+    if (ghost)
+    {
+        SetMaskBit2D(world, top, 1, false); // drop the default group bit -> top collides with nothing
+    }
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+    for (int i = 0; i < 250; ++i) StepWorld2D(world, sc);
+    if (async) { StepWorld2D(world, sc); WaitForWorker2D(world); }
+
+    float top_y = b2Body_GetPosition(top->m_BodyId).y;
+
+    DeleteCollisionObject2D(world, top);
+    DeleteCollisionObject2D(world, bottom);
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(top_shape);
+    DeleteCollisionShape2D(bot_shape);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+    return top_y;
+}
+
+// A runtime collision-filter change (SetMaskBit2D) must reach the twin in the double-buffered path:
+// with its mask dropped, the ball falls through what it would otherwise rest on.
+TEST(AsyncFilter, MaskChangeReachesTwin)
+{
+    float s_normal = RunFilterDrop(false, false);
+    float a_normal = RunFilterDrop(true,  false);
+    float s_ghost  = RunFilterDrop(false, true);
+    float a_ghost  = RunFilterDrop(true,  true);
+
+    ASSERT_GT(s_normal, -3.0f);          // rests on the stack, above the floor
+    ASSERT_GT(a_normal, -3.0f);
+    ASSERT_LT(s_ghost, -8.0f);           // falls through everything
+    ASSERT_LT(a_ghost, -8.0f);           // async: the mask change reached the twin (regression guard)
+    ASSERT_NEAR(s_normal, a_normal, 0.05f);
+}
+
+// Drop a two-shape ball onto a floor, optionally with its collision mask cleared. Returns settled y.
+static float RunMultiShapeFilterDrop(bool ghost)
+{
+    HContext2D context = NewTestContext();
+    NewWorldParams wp;
+    wp.m_GetWorldTransformCallback = ParityGetTransform;
+    wp.m_UseDoubleBufferedWorlds   = true;
+    World2D* world = (World2D*)NewWorld2D(context, wp);
+
+    PBodyInfo floor_i = { 0.0f, -3.0f };
+    HCollisionShape2D floor_shape = NewBoxShape2D(context, dmVMath::Vector3(5.0f, 0.3f, 0.0f));
+    CollisionObjectData fd; fd.m_Type = COLLISION_OBJECT_TYPE_STATIC; fd.m_Mass = 0.0f; fd.m_UserData = &floor_i;
+    Body* floor = (Body*)NewCollisionObject2D(world, fd, &floor_shape, 1);
+
+    PBodyInfo ball_i = { 0.0f, 1.0f };
+    HCollisionShape2D s0 = NewCircleShape2D(context, 0.5f);
+    HCollisionShape2D s1 = NewCircleShape2D(context, 0.5f);
+    HCollisionShape2D shapes[2] = { s0, s1 };
+    CollisionObjectData bd; bd.m_Type = COLLISION_OBJECT_TYPE_DYNAMIC; bd.m_Mass = 1.0f; bd.m_UserData = &ball_i;
+    Body* ball = (Body*)NewCollisionObject2D(world, bd, shapes, 2);
+
+    if (ghost)
+    {
+        SetMaskBit2D(world, ball, 1, false); // clear the default bit -> collides with nothing
+    }
+
+    StepWorldContext sc;
+    sc.m_DT = 1.0f / 60.0f;
+    sc.m_Box2DSubStepCount = 4;
+    for (int i = 0; i < 250; ++i) StepWorld2D(world, sc);
+    StepWorld2D(world, sc); WaitForWorker2D(world);
+
+    float ball_y = b2Body_GetPosition(ball->m_BodyId).y;
+
+    DeleteCollisionObject2D(world, ball);
+    DeleteCollisionObject2D(world, floor);
+    DeleteCollisionShape2D(s0);
+    DeleteCollisionShape2D(s1);
+    DeleteCollisionShape2D(floor_shape);
+    DeleteWorld2D(context, world);
+    DeleteContext2D(context);
+    return ball_y;
+}
+
+// A runtime filter change on a MULTI-shape body must also reach the twin. Geometry mirroring skips
+// multi-shape bodies (enumeration order), but filter mirroring must not, since a body's shapes all
+// share one filter.
+TEST(AsyncFilter, MultiShapeMaskChangeReachesTwin)
+{
+    float normal = RunMultiShapeFilterDrop(false);
+    float ghost  = RunMultiShapeFilterDrop(true);
+    ASSERT_GT(normal, -3.0f);            // rests on the floor
+    ASSERT_LT(ghost,  -8.0f);            // mask change reached the multi-shape twin -> falls through
+}
+
 struct PScaleInfo { float x, y, scale; };
 
 static void ScaleGetTransform(void* user_data, dmTransform::Transform& t)
