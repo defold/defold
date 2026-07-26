@@ -227,7 +227,7 @@ message GamepadMapRuntime
     required string device = 1;         // The name of the mapping, found in the .gamepads or gamecontrollerdb.txt
     optional float dead_zone = 2;       // for the legacy mappings only
     repeated GamepadMapEntry map = 3;
-    optional bytes guid = 4;            // Single 16-byte SDL GUID. If set, it's an SDL mapping
+    optional string raw_mapping = 5;    // Canonical SDL database row, supplied to native drivers at runtime
 }
 
 message GamepadMaps
