@@ -71,6 +71,10 @@
                 (project/log-cache-info! (g/cache) "Cached searched save values in system cache."))
               search-data)
             (catch Throwable error
+              ;; Keep the save values we managed to build, so the next filter
+              ;; does not have to recompute them from scratch.
+              (ui/run-later
+                (project/update-system-cache-save-data! evaluation-context))
               (when-not @cancelled
                 (report-error! error))
               nil)
@@ -106,16 +110,20 @@
     (fn resource-type->matches-fn [resource-type]
       (some-> resource-type :search-fn search-fn->matches-fn))))
 
-(defn- make-search-resource? [searched-exts search-libraries]
+(defn- parse-searched-exts [searched-exts]
+  (let [searched-exts (some-> searched-exts
+                     (string/replace #" " "")
+                     (string/split #","))]
+    (coll/into-> searched-exts []
+                 (remove empty?)
+                 (map #(string/replace % #"\*?\." ""))
+                 (distinct))))
+
+(defn- make-search-resource? [searched-ext-strings search-libraries]
   {:pre [(boolean? search-libraries)]}
   (let [file-ext-patterns
-        (into []
-              (comp (remove empty?)
-                    (distinct)
-                    (map #(text-util/search-string->re-pattern (string/replace % #"\*?\." "") :case-insensitive)))
-              (some-> searched-exts
-                      (string/replace #" " "")
-                      (string/split #",")))]
+        (coll/into-> searched-ext-strings []
+                     (map #(text-util/search-string->re-pattern % :case-insensitive)))]
     (fn search-resource? [resource]
       (and (resource/loaded? resource)
            (resource-matches-library-setting? resource search-libraries)
@@ -176,14 +184,15 @@
         search-data-atom (atom nil)
         prepare-search-data!
         (fn [searched-exts search-libraries]
-          (let [filter-key [searched-exts search-libraries]
+          (let [searched-ext-strings (parse-searched-exts searched-exts)
+                filter-key [searched-ext-strings search-libraries]
                 current @search-data-atom]
             (if (= (:key current) filter-key)
               (:data-future current)
               (let [{:keys [data-future cancel!]}
                     (make-search-data-future
                       report-error! project
-                      (make-search-resource? searched-exts search-libraries))]
+                      (make-search-resource? searched-ext-strings search-libraries))]
                 (reset! search-data-atom {:key filter-key :data-future data-future :cancel! cancel!})
                 (when current
                   ((:cancel! current)))
