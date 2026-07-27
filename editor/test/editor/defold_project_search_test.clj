@@ -136,7 +136,7 @@
 
 (defn- try-make-search-data-future [project]
   (let [report-error! (fn/make-call-logger)
-        search-data-future (project-search/make-search-data-future report-error! project (constantly true))]
+        search-data-future (:data-future (project-search/make-search-data-future report-error! project (constantly true)))]
     (deref search-data-future)
     (when (is (= [] (fn/call-logger-calls report-error!)))
       search-data-future)))
@@ -255,10 +255,10 @@
 
         (testing "Preparation only builds search data for filter-matching resources"
           (let [report-error! (fn/make-call-logger)
-                all-data (deref (project-search/make-search-data-future report-error! project (constantly true)))
-                script-data (deref (project-search/make-search-data-future
-                                     report-error! project
-                                     (fn [resource] (= "script" (resource/type-ext resource)))))]
+                all-data (deref (:data-future (project-search/make-search-data-future report-error! project (constantly true))))
+                script-data (deref (:data-future (project-search/make-search-data-future
+                                                   report-error! project
+                                                   (fn [resource] (= "script" (resource/type-ext resource))))))]
             (is (pos? (count script-data)))
             (is (< (count script-data) (count all-data)))
             (is (= #{"script"}

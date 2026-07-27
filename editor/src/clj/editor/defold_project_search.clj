@@ -31,42 +31,55 @@
   (some-> entry :resource resource/proj-path))
 
 (defn make-search-data-future
-  "Returns a future yielding search data for every project resource that passes
-  search-resource?, each with its :search-value built and ready to match against."
+  "Returns a map of :data-future and :cancel!. Deref :data-future for search data
+  covering every project resource that passes search-resource?, each with its
+  :search-value built and ready to match against. Call :cancel! to abandon the
+  work without reporting an error."
   [report-error! project search-resource?]
-  (let [evaluation-context (g/make-evaluation-context)]
-    (future
-      (try
-        (let [search-data
-              (->> (g/node-value project :node-id+resources evaluation-context)
-                   (into []
-                         (keep (fn [[node-id resource]]
-                                 (thread-util/throw-if-interrupted!)
-                                 (when (and (resource/loaded? resource)
-                                            (not (resource/internal? resource))
-                                            (= :file (resource/source-type resource))
-                                            (search-resource? resource))
-                                   (let [resource-type (resource/resource-type resource)
-                                         search-value-fn (when (:search-fn resource-type)
-                                                           (:search-value-fn resource-type))]
-                                     (when (and search-value-fn
-                                                (resource/exists? resource)
-                                                (resource/textual? resource))
-                                       (let [search-value (search-value-fn node-id resource evaluation-context)]
-                                         (when-not (g/error? search-value)
-                                           {:resource resource
-                                            :search-value search-value}))))))))
-                   (sort-by search-data-sort-key))]
-          (ui/run-later
-            (project/update-system-cache-save-data! evaluation-context)
-            (project/log-cache-info! (g/cache) "Cached searched save values in system cache."))
-          search-data)
-        (catch InterruptedException _
-          ;; future-cancel was invoked because the filter changed; discard.
-          nil)
-        (catch Throwable error
-          (report-error! error)
-          nil)))))
+  (let [evaluation-context (g/make-evaluation-context)
+
+        ;; Interrupting the thread can surface as any exception, not just
+        ;; InterruptedException, so we record that we cancelled rather than
+        ;; guessing from the exception type.
+        cancelled (volatile! false)
+
+        data-future
+        (future
+          (try
+            (let [search-data
+                  (->> (g/node-value project :node-id+resources evaluation-context)
+                       (into []
+                             (keep (fn [[node-id resource]]
+                                     (thread-util/throw-if-interrupted!)
+                                     (when (and (resource/loaded? resource)
+                                                (not (resource/internal? resource))
+                                                (= :file (resource/source-type resource))
+                                                (search-resource? resource))
+                                       (let [resource-type (resource/resource-type resource)
+                                             search-value-fn (when (:search-fn resource-type)
+                                                               (:search-value-fn resource-type))]
+                                         (when (and search-value-fn
+                                                    (resource/exists? resource)
+                                                    (resource/textual? resource))
+                                           (let [search-value (search-value-fn node-id resource evaluation-context)]
+                                             (when-not (g/error? search-value)
+                                               {:resource resource
+                                                :search-value search-value}))))))))
+                       (sort-by search-data-sort-key))]
+              (ui/run-later
+                (project/update-system-cache-save-data! evaluation-context)
+                (project/log-cache-info! (g/cache) "Cached searched save values in system cache."))
+              search-data)
+            (catch Throwable error
+              (when-not @cancelled
+                (report-error! error))
+              nil)
+            (finally
+              (Thread/interrupted))))]
+    {:data-future data-future
+     :cancel! (fn cancel! []
+                (vreset! cancelled true)
+                (future-cancel data-future))}))
 
 (defn- resource-matches-library-setting? [resource include-libraries?]
   (or include-libraries?
@@ -166,13 +179,15 @@
           (let [filter-key [searched-exts search-libraries]
                 current @search-data-atom]
             (if (= (:key current) filter-key)
-              (:future current)
-              (let [new-future (make-search-data-future
-                                 report-error! project
-                                 (make-search-resource? searched-exts search-libraries))]
-                (reset! search-data-atom {:key filter-key :future new-future})
-                (some-> current :future future-cancel)
-                new-future))))
+              (:data-future current)
+              (let [{:keys [data-future cancel!]}
+                    (make-search-data-future
+                      report-error! project
+                      (make-search-resource? searched-exts search-libraries))]
+                (reset! search-data-atom {:key filter-key :data-future data-future :cancel! cancel!})
+                (when current
+                  ((:cancel! current)))
+                data-future))))
 
         abort-search! (fn [pending-search]
                         (some-> pending-search :thread future-cancel)
@@ -207,9 +222,9 @@
      :abort-search! (fn []
                       (try
                         (swap! pending-search-atom abort-search!)
-                        (let [current @search-data-atom]
+                        (when-let [current @search-data-atom]
                           (reset! search-data-atom nil)
-                          (some-> current :future future-cancel))
+                          ((:cancel! current)))
                         (catch Throwable error
                           (report-error! error)))
                       nil)}))
