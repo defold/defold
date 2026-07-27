@@ -1229,6 +1229,7 @@ namespace dmEngine
         window_params.m_Title                   = instance_index ? window_title : project_title;
         window_params.m_Fullscreen              = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
+        window_params.m_FocusOnShow             = (bool) dmConfigFile::GetInt(engine->m_Config, "display.focus_on_show", 1);
         window_params.m_BackgroundColor         = clear_color;
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 #if defined(__EMSCRIPTEN__)

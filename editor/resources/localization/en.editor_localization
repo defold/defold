@@ -124,6 +124,15 @@ updater.dialog.button.not-now = Not Now
 updater.dialog.button.download = Download Update
 updater.dialog.button.install-and-restart = Install and Restart
 updater.dialog.button.download-newer-version = Download Newer Version
+updater.release-notes-dialog.title = Update Available
+updater.release-notes-dialog.header = Defold Release Summary - What''s New{count, plural, =1{ in {version}} other{}}
+updater.release-notes-dialog.button.later = Maybe Later
+updater.release-notes-dialog.button.update-now = Update Now
+
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+release-notes-dialog.title = Release Notes
+release-notes-dialog.header = Defold Release Summary - What''s New in {version}
+release-notes-dialog.button.close = Close
 
 # Time
 time.vague.unknown = Unknown
@@ -270,6 +279,12 @@ dialog.quit-defold.header = Unsaved changes exist, are you sure you want to quit
 dialog.quit-defold.button.cancel = Cancel and Keep Working
 dialog.quit-defold.button.quit = Quit Without Saving
 
+# Project directory unavailable dialog
+
+dialog.project-directory-unavailable.title = Project Folder Unavailable
+dialog.project-directory-unavailable.header = The project folder can no longer be found
+dialog.project-directory-unavailable.content = The project folder was moved, renamed, or deleted outside Defold. Defold must quit. Any unsaved changes will be lost.
+
 # Restart Defold dialog
 
 dialog.restart-defold.title = Restart Defold?
@@ -344,6 +359,10 @@ dialog.diff-view.binary.header = Unable to diff binary files
 dialog.fetch-libraries.host-unreachable.title = Fetch Failed
 dialog.fetch-libraries.host-unreachable.header = Fetch was aborted because a host could not be reached
 dialog.fetch-libraries.host-unreachable.content = Unreachable host: {host}\n\nPlease verify your internet connection and try again.
+
+# Notification view
+
+notification.more = + {count} more
 
 # Fetch libraries notification
 
@@ -1035,6 +1054,7 @@ command.help.report-issue = Report Issue
 command.help.report-suggestion = Report Suggestion
 command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
+command.help.open-release-notes = Release Notes
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert

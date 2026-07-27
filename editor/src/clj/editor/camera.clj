@@ -1265,7 +1265,8 @@
   ::scene-camera-orthographic
   "Scene 2D Camera"
   [{:command :scene.camera.orbit
-    :action ["Orbit"]}
+    :action ["Orbit"]
+    :binding {:button :primary :modifiers #{:control}}}
    {:command :scene.camera.pan
     :action ["Pan"]
     :binding {:button :primary :modifiers #{:alt}}}

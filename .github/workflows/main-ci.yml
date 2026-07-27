@@ -43,7 +43,7 @@ jobs:
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
       { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
       {
         name: 'Setup dotnet',
@@ -97,7 +97,7 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -141,7 +141,7 @@ jobs:
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
       { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984, with: {version: '4.0.6'}}, # v16
       { name: 'Verify emsdk',
         run: 'emcc -v && export | grep EM'
@@ -177,7 +177,7 @@ jobs:
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
       {
         name: 'Set up Android SDK',
         uses: defold/github-actions-common/.github/actions/android@8f32dd1cabf08f349200dd0135d07afc233fc322, # untagged pinned SHA
@@ -214,7 +214,7 @@ jobs:
       { name: 'Cache lein installation and Maven dependencies for docs', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-\n${{ runner.os }}-lein-maven-docs-\n${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-docs-\n${{ runner.os }}-lein-docs-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -252,7 +252,7 @@ jobs:
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -281,7 +281,7 @@ jobs:
       { name: 'Cache Defold downloads', if: *should_build_switch, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', if: *should_build_switch, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', if: *should_build_switch, uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', if: *should_build_switch, uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.4
+      { name: 'Install CMake', if: *should_build_switch, uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
       { name: 'Install dependencies', if: *should_build_switch, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -312,7 +312,7 @@ jobs:
       { name: 'Cache Defold downloads', if: *should_build_ps, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', if: *should_build_ps, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', if: *should_build_ps, uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', if: *should_build_ps, uses: lukka/get-cmake@f5b8fbb4d77cec1acc5a5f9f0df4beffaf5d98d9 }, # v4.3.4
+      { name: 'Install CMake', if: *should_build_ps, uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
       { name: 'Install dependencies', if: *should_build_ps, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -475,8 +475,45 @@ jobs:
 
   # ---- BUILD EDITOR ------------------
 
+  gen-release-notes:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps: [
+      {
+        name: 'Checkout',
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd, # v6.0.2
+        with: {
+          ref: '${{env.BUILD_BRANCH}}'
+        }
+      },
+      { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
+      { name: 'Install Python dependencies', run: 'pip install requests' },
+      {
+        name: 'Generate release notes',
+        if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true)),
+        run: 'ci/ci.sh gen-release-notes'
+      },
+      { name: 'Read version', id: version, run: 'echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"' },
+      {
+        name: 'Upload release notes artifact',
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a, # v7.0.1
+        with: {
+          name: 'release-notes',
+          path: "releasenotes/${{ steps.version.outputs.version }}.md\nreleasenotes/${{ steps.version.outputs.version }}.json",
+          if-no-files-found: 'ignore'
+        }
+      },
+      {
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@c4847b8c84e3e8076fd3c42cc00517a10426ed65, # v3.0.0
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
+      }
+    ]
+
   build-editor-linux:
-    needs: [build-bob]
+    needs: [build-bob, gen-release-notes]
     runs-on: ubuntu-22.04
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
@@ -502,6 +539,15 @@ jobs:
         }
       },
       { name: 'Install dependencies', run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
+      {
+        name: 'Download release notes',
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
+        continue-on-error: true,
+        with: {
+          name: 'release-notes',
+          path: 'releasenotes'
+        }
+      },
       {
         name: 'Build editor',
         run: 'ci/ci.sh build-editor --platform=x86_64-linux --skip-tests'
@@ -562,7 +608,7 @@ jobs:
     ]
 
   build-editor-macos:
-    needs: [build-bob]
+    needs: [build-bob, gen-release-notes]
     runs-on: ${{ matrix.runner }}
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
@@ -599,6 +645,15 @@ jobs:
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
       },
       {
+        name: 'Download release notes',
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
+        continue-on-error: true,
+        with: {
+          name: 'release-notes',
+          path: 'releasenotes'
+        }
+      },
+      {
         name: 'Build editor',
         run: 'ci/ci.sh build-editor --skip-tests ${{ env.OPTION_CODESIGN }} --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
       },
@@ -617,7 +672,7 @@ jobs:
     ]
 
   build-editor-windows:
-    needs: [build-bob]
+    needs: [build-bob, gen-release-notes]
     runs-on: windows-2025-vs2026
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
@@ -650,6 +705,15 @@ jobs:
         name: 'Install dependencies',
         shell: bash,
         run: 'ci/ci.sh install'
+      },
+      {
+        name: 'Download release notes',
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
+        continue-on-error: true,
+        with: {
+          name: 'release-notes',
+          path: 'releasenotes'
+        }
       },
       {
         name: 'Build editor',
@@ -689,7 +753,7 @@ jobs:
       {
         name: 'Check release branch',
         id: release,
-        run: 'echo "should_release=$(python3 ci-check/ci/ci.py should-release)" >> "$GITHUB_OUTPUT"'
+        run: "echo \"should_release=$(python3 ci-check/ci/ci.py should-release)\" >> \"$GITHUB_OUTPUT\"\necho \"requires_release_notes=$(python3 ci-check/ci/ci.py requires-release-notes)\" >> \"$GITHUB_OUTPUT\""
       },
       {
         name: 'Checkout',
@@ -703,6 +767,16 @@ jobs:
       { name: 'Cache Defold downloads', if: *should_release, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', if: *should_release, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Setup git user', if: *should_release, run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
+      {
+        name: 'Download release notes',
+        if: steps.release.outputs.should_release == 'true' && steps.release.outputs.requires_release_notes == 'true',
+        continue-on-error: true,
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131, # v7.0.0
+        with: {
+          name: 'release-notes',
+          path: 'releasenotes'
+        }
+      },
       {
         name: 'Release',
         if: *should_release,

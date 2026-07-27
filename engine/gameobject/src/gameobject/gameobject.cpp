@@ -2844,16 +2844,21 @@ namespace dmGameObject
         // 1. for each fixed step, call component's fixed update
         //      - Lua fixed_update() (comp_script.cpp)
         //      - CompCollisionObjectFixedUpdate() (comp_collision_object.cpp)
+        // Keep running subsequent update phases after a component error. The engine
+        // still renders the collection, and late update prepares component render data.
         for (uint32_t step = 0; step < num_fixed_steps; ++step)
         {
-            ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params);
+            if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_FIXED_UPDATE, fixed_update_params))
+                ret = false;
         }
 
         // 2. call component's regular update
-        ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_UPDATE, update_params);
+        if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_UPDATE, update_params))
+            ret = false;
 
         // 3. call component's late update
-        ret = ret && UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_LATE_UPDATE, update_params);
+        if (!UpdateComponentFunction(collection, component_type_count, UPDATE_FUNCTION_TYPE_LATE_UPDATE, update_params))
+            ret = false;
 
         collection->m_InUpdate = 0;
         if (collection->m_DirtyTransforms)

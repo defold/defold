@@ -799,6 +799,8 @@
 (deftest build-game-project-properties
   (with-loaded-project "test/resources/game_project_properties"
                        (let [game-project (test-util/resource-node project "/game.project")]
+                         (game-project/set-setting! game-project ["display" "height"] 1234)
+                         (game-project/set-setting! game-project ["project" "dependencies"] [(URI/create "http://test.com/not-responding.zip")])
                          (let [br (project-build! project game-project)]
                            (is (not (contains? br :error)))
                            (with-open [r (io/reader (build-path workspace "game.projectc"))]
@@ -815,6 +817,9 @@
 
                                ;; Default number value
                                (check-project-setting built-properties ["display" "width"] "960")
+
+                               ;; In-memory setting change
+                               (check-project-setting built-properties ["display" "height"] "1234")
 
                                ;; Custom property
                                (check-project-setting built-properties ["custom" "love"] "defold")

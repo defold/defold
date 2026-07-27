@@ -14,6 +14,7 @@
 
 (ns editor.command-requests
   (:require [cljfx.api :as fx]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
             [editor.disk :as disk]
@@ -28,6 +29,17 @@
   (:import [com.dynamo.bob.util Library$Result]))
 
 (set! *warn-on-reflection* true)
+
+(defn- run-request-user-data [request]
+  (case (coll/some (fn [query-part]
+                     (let [[name value] (string/split query-part #"=" 2)]
+                       (when (= "focus" name)
+                         (or value ""))))
+                   (string/split (:query request "") #"&"))
+    nil {}
+    "true" {:focus true}
+    "false" {:focus false}
+    (throw (http-server/error (http-server/response 400 "Invalid focus value; expected true or false\n")))))
 
 (defn- build-response [result localization-state]
   (future/then
@@ -192,6 +204,7 @@
    :run
    {:ui-handler :project.build
     :help "Compile and run the project."
+    :request->user-data run-request-user-data
     :resource-sync true
     :response-fn build-response}
 
@@ -244,7 +257,12 @@
                                     (reduce-kv (fn [acc command _]
                                                  (conj! acc command))
                                                (transient [])
-                                               command->help))}}]
+                                               command->help))}}
+                  {:name "focus"
+                   :in "query"
+                   :description "Whether the launched game takes focus; only applies to `run`"
+                   :schema {:type "boolean"
+                            :default true}}]
      :responses {"200" {:description "Command completed and returned a response body"}
                  "202" {:description "Accepted"}
                  "403" {:description "Forbidden"}
@@ -265,8 +283,12 @@
    {"POST" (with-meta
              (bound-fn [request]
                (let [command (-> request :path-params :command keyword)]
-                 (if-let [{:keys [ui-handler user-data resource-sync response-fn]} (supported-commands command)]
-                   (let [ui-handler-ctx (resolve-ui-handler-ctx ui-node ui-handler (or user-data {}))]
+                 (if-let [{:keys [ui-handler user-data request->user-data resource-sync response-fn]} (supported-commands command)]
+                   (let [ui-handler-ctx (resolve-ui-handler-ctx
+                                          ui-node
+                                          ui-handler
+                                          (cond-> (or user-data {})
+                                                  request->user-data (merge (request->user-data request))))]
                      (case ui-handler-ctx
                        (::ui/not-active ::ui/not-enabled) http-server/forbidden
                        (let [{:keys [changes-view workspace]} (:env (second ui-handler-ctx))

@@ -2699,6 +2699,44 @@
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
 
+(defn install-external-drag-guard!
+  [^Scene scene]
+  ;; On macOS, JavaFX may dispatch MOUSE_DRAGGED while an external Finder drag
+  ;; is already targeting this Scene (JDK-8210797).
+  ;; The external gesture has no local MOUSE_PRESSED, so JavaFX uses default
+  ;; press coordinates and may synthesize DRAG_DETECTED over a local drag source.
+  ;; startDragAndDrop then reuses the target Dragboard as a source Dragboard.
+  ;; After the handler returns, QuantumToolkit tries to flush that Dragboard.
+  ;; Target clipboards cannot be flushed, so View throws
+  ;; UnsupportedOperationException with "Flush is forbidden from target!".
+  ;; Track the target Dragboard from Scene entry through exit or drop, and disable
+  ;; local drag detection while it is active. A local press clears stale state.
+  (let [external-dragboard (volatile! nil)]
+    (doto scene
+      (.addEventFilter DragEvent/DRAG_ENTERED_TARGET
+                       (fn [^DragEvent event]
+                         (when (and (identical? scene (.getTarget event))
+                                    (nil? (.getGestureSource event)))
+                           (vreset! external-dragboard (.getDragboard event)))))
+      (.addEventFilter DragEvent/DRAG_EXITED_TARGET
+                       (fn [^DragEvent event]
+                         (when (and (identical? scene (.getTarget event))
+                                    (nil? (.getGestureSource event))
+                                    (identical? @external-dragboard (.getDragboard event)))
+                           (vreset! external-dragboard nil))))
+      (.addEventFilter DragEvent/DRAG_DROPPED
+                       (fn [^DragEvent event]
+                         (when (and (nil? (.getGestureSource event))
+                                    (identical? @external-dragboard (.getDragboard event)))
+                           (vreset! external-dragboard nil))))
+      (.addEventFilter MouseEvent/MOUSE_PRESSED
+                       (fn [_]
+                         (vreset! external-dragboard nil)))
+      (.addEventFilter MouseEvent/MOUSE_DRAGGED
+                       (fn [^MouseEvent event]
+                         (when @external-dragboard
+                           (.setDragDetect event false)))))))
+
 (defn register-tab-toolbar [^Tab tab toolbar-css-selector menu-id]
   (let [scene (-> tab .getTabPane .getScene)
         context-node (.getContent tab)]

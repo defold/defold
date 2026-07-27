@@ -339,7 +339,7 @@ namespace dmGameSystem
     {
         int top          = lua_gettop(L);
         const char* path = luaL_checkstring(L, 1);
-        dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 2);
+        dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(L, 2);
 
         if (callback_info == 0x0)
         {

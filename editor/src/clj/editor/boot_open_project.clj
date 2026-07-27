@@ -53,6 +53,7 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
+            [editor.system :as system]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
@@ -128,7 +129,7 @@
                                      (ui.updater/install-and-restart! stage updater localization)
                                      (do (ui/enable-ui!)
                                          (changes-view/refresh! changes-view))))))]
-    (ui.updater/init! stage link updater install-and-restart! render-download-progress! localization)))
+    (ui.updater/init! stage link project updater install-and-restart! render-download-progress! localization)))
 
 (defn- show-tracked-internal-files-warning! [localization]
   (dialogs/make-info-dialog
@@ -152,7 +153,7 @@
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
-
+    (ui/install-external-drag-guard! scene)
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
@@ -412,6 +413,15 @@
             (when-some [readme-resource (workspace/find-resource (g/now) workspace "/README.md")]
               (open-resource readme-resource))
             (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project))
+
+          ;; The first time a given editor version is opened, surface its bundled
+          ;; release notes (once per version; the set tracks every opened version).
+          (let [version (system/defold-version)
+                opened (prefs/get prefs [:opened-versions])]
+            (when (and version (not (contains? opened version)))
+              (ui/run-later
+                (app-view/show-release-notes-dialog! localization project))
+              (prefs/set! prefs [:opened-versions] (conj opened version))))
 
           (breakpoints-view/restore-breakpoints! project prefs)
 

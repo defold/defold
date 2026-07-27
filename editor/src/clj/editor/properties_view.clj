@@ -525,6 +525,25 @@
                      (contains? valid-extensions resource-ext))
             resource))))))
 
+(defn parse-resource-path
+  ^String [^String s]
+  (let [length (.length s)]
+    (loop [index 0]
+      (if (= index length)
+        s
+        (let [c (.charAt s index)]
+          ;; Resource resolution normalizes path separators to forward slashes. The
+          ;; remaining characters must be usable on every supported platform. Windows
+          ;; reserves control characters and " < > : | ? *, while the Editor also
+          ;; excludes quote-like characters from file names. Keep the file-name
+          ;; restrictions in sync with editor.dialogs/sanitize-common.
+          (if (or (<= (int c) 0x1f)
+                  (case c
+                    (\" \' \« \» \< \> \: \| \? \*) true
+                    false))
+            nil
+            (recur (inc index))))))))
+
 (defmethod make-control-view resource/Resource [property {:keys [workspace project]} localization-state]
   (let [value (properties/unify-values (properties/values property))
         {:keys [ext dialog-accept-fn]} (:edit-type property)
@@ -566,6 +585,7 @@
        [{:fx/type fxui/value-field
          :h-box/hgrow :always
          :value (some-> value resource/proj-path)
+         :to-value parse-resource-path
          :on-value-changed #(set-values! property (repeat (workspace/resolve-workspace-resource workspace %)))
          :editable (not read-only)
          :style-class "ext-resource-picker-field"}

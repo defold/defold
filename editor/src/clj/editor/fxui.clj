@@ -409,6 +409,15 @@
     (mount-renderer-and-await-result! state-atom renderer)))
 
 (defn show-stateless-dialog-and-await-result!
+  "Creates a dialog, shows it and blocks the current thread until the dialog
+  delivers a result, then returns it
+
+  Args:
+    desc-fn    required, 1-argument fn that receives a `result-fn` and returns
+               an fx description of a dialog stage.
+
+  The dialog completes by calling `result-fn` with the result value, which
+  closes the stage and makes this fn return that value."
   [desc-fn]
   (let [event-loop-key (Object.)
         result-promise (promise)
@@ -963,16 +972,14 @@
           props
           (if-let [style-class (padding->style-class padding)]
             (-> props (dissoc :padding) (add-style-classes style-class))
-            (if (number? padding)
-              props
-              (throw (AssertionError. (str "Invalid padding: " padding))))))))))
+            props))))))
 
 (defn grid
   "Grid pane
 
   Supports all :grid-pane props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -986,7 +993,7 @@
 
   Supports all :h-box props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -1000,7 +1007,7 @@
 
   Supports all :v-box props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
