@@ -31,6 +31,10 @@ namespace dmGameSystem
 
     // Render constants
     void CopyRenderConstants(HComponentRenderConstants dst, HComponentRenderConstants src);
+
+    // The buffer handed to the render object by EnableRenderObjectConstants. Components can write
+    // constants straight to it that aren't part of the component's own render constants.
+    dmRender::HNamedConstantBuffer GetRenderConstantsNamedBuffer(HComponentRenderConstants constants);
 }
 
 #endif // DM_GAMESYS_COMP_PRIVATE_H

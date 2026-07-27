@@ -3096,6 +3096,16 @@ namespace dmGameSystem
         *local_instanced_batch_count = world->m_RenderBatchLocalVSInstancedCount;
     }
 
+    // The scratch buffers hold the morph weight uniforms written during the last frame, one per
+    // render object. The render objects themselves are stack allocated during the dispatch, so they
+    // can't be inspected once the render list has been drawn.
+    void GetModelWorldScratchConstantBuffers(void* model_world, dmGameSystem::HComponentRenderConstants** constant_buffers, uint32_t* count)
+    {
+        ModelWorld* world = (ModelWorld*) model_world;
+        *constant_buffers = world->m_ScratchConstantBuffers.Begin();
+        *count            = world->m_ScratchConstantBuffersCount;
+    }
+
     void GetModelComponentRenderConstants(void* model_component, int render_item_ix, dmGameSystem::HComponentRenderConstants* render_constants)
     {
         ModelComponent* component = (ModelComponent*) model_component;

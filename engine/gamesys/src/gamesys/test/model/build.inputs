@@ -4,6 +4,8 @@
 /model/invalid_material.model
 /model/morph_instanced_attr.go
 /model/morph_instanced_legacy.go
+/model/morph_mixed_targets_attr.go
+/model/morph_mixed_targets_legacy.go
 /model/one_mesh_two_materials.go
 /model/pbr_properties.go
 /model/script_model.go
