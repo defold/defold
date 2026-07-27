@@ -23,7 +23,7 @@
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [java.util ArrayList]
-           [java.util.concurrent LinkedBlockingQueue]))
+           [java.util.concurrent CancellationException LinkedBlockingQueue]))
 
 (set! *warn-on-reflection* true)
 
@@ -125,8 +125,7 @@
         (coll/into-> searched-ext-strings []
                      (map #(text-util/search-string->re-pattern % :case-insensitive)))]
     (fn search-resource? [resource]
-      (and (resource/loaded? resource)
-           (resource-matches-library-setting? resource search-libraries)
+      (and (resource-matches-library-setting? resource search-libraries)
            (resource-matches-file-ext? resource file-ext-patterns)))))
 
 (defn- start-search-thread [report-error! search-data-future resource-type->matches-fn produce-fn]
@@ -146,7 +145,7 @@
         (produce-fn ::done))
       (catch InterruptedException _
         nil)
-      (catch java.util.concurrent.CancellationException _
+      (catch CancellationException _
         nil)
       (catch Throwable error
         (report-error! error)
@@ -174,13 +173,14 @@
   and if there was a previous consumer, stop-consumer! will be called with it.
   Since many operations happen on a background thread, report-error! will be
   called with the Throwable in the event of an error."
-  [workspace project initial-searched-exts initial-search-libraries start-consumer! stop-consumer! report-error!]
+  [workspace project start-consumer! stop-consumer! report-error!]
   (let [pending-search-atom (atom nil)
 
         ;; Cached prep future, keyed by the ext/library filter. When the filter
         ;; changes, the now-obsolete future is cancelled so its whole-project
-        ;; work does not keep running in the background. The future is created
-        ;; outside any swap so a retry cannot leave an orphan running.
+        ;; work does not keep running in the background. Reading the atom and
+        ;; resetting it is not atomic, but every caller arrives on the UI
+        ;; thread, so there is no interleaving to guard against.
         search-data-atom (atom nil)
         prepare-search-data!
         (fn [searched-exts search-libraries]
@@ -204,7 +204,7 @@
                         nil)
         start-search! (fn [pending-search search-data-future search-string]
                         (abort-search! pending-search)
-                        (if search-data-future
+                        (if (coll/not-empty search-string)
                           (let [queue (LinkedBlockingQueue. 1024)
                                 produce-fn #(do
                                               (.put queue %))
@@ -218,13 +218,10 @@
                              :consumer consumer})
                           (do (start-consumer! (constantly [::done]))
                               nil)))]
-    (prepare-search-data! initial-searched-exts initial-search-libraries)
     {:start-search! (fn [search-string searched-exts include-libraries?]
                       (try
                         (let [search-data-future (prepare-search-data! searched-exts include-libraries?)]
-                          (swap! pending-search-atom start-search!
-                                 (when (coll/not-empty search-string) search-data-future)
-                                 search-string))
+                          (swap! pending-search-atom start-search! search-data-future search-string))
                         (catch Throwable error
                           (report-error! error)))
                       nil)

@@ -168,7 +168,7 @@
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project nil true start-consumer! stop-consumer! report-error!)
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)
                 perform-search! (fn [term exts]
                                   (start-search! term exts true)
                                   (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
@@ -199,7 +199,7 @@
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project nil true start-consumer! stop-consumer! report-error!)]
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)]
             (start-search! "*" nil true)
             (is (true? (consumer-started? consumer)))
             (abort-search!)
@@ -211,7 +211,7 @@
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project nil true start-consumer! stop-consumer! report-error!)
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)
                 search-string "peaNUTbutterjellytime"
                 perform-search! (fn [term exts]
                                   (start-search! term exts true)
@@ -240,7 +240,7 @@
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
-                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project nil true start-consumer! stop-consumer! report-error!)
+                {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)
                 perform-search! (fn [term exts include-libraries?]
                                   (start-search! term exts include-libraries?)
                                   (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
@@ -277,14 +277,14 @@
                             (swap! builds inc)
                             (apply real-make-future args))]
               (let [{:keys [start-search! abort-search!]}
-                    (project-search/make-file-searcher workspace project nil true start-consumer! stop-consumer! report-error!)]
-                (is (= 1 @builds))
+                    (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)]
+                (is (= 0 @builds))
                 (start-search! "return" "script" true)
-                (is (= 2 @builds))
+                (is (= 1 @builds))
                 (start-search! "smith" "script" true)
-                (is (= 2 @builds))
+                (is (= 1 @builds))
                 (start-search! "return" "lua" true)
-                (is (= 3 @builds))
+                (is (= 2 @builds))
                 (abort-search!)
                 (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
                 (is (= [] (fn/call-logger-calls report-error!)))))))
@@ -295,7 +295,7 @@
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
                 {:keys [start-search! abort-search!]}
-                (project-search/make-file-searcher workspace project nil true start-consumer! stop-consumer! report-error!)]
+                (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)]
             (start-search! "255" nil true)
             (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
             (abort-search!)

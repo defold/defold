@@ -292,10 +292,7 @@
             stop-consumer! ui/timer-stop!
             report-error! (fn [error] (ui/run-later (throw error)))
             workspace (project/workspace project)
-            {:keys [abort-search! start-search!]} (project-search/make-file-searcher workspace project
-                                                                                    (prefs/get prefs search-in-files-exts-prefs-key)
-                                                                                    (prefs/get prefs search-in-files-include-libraries-prefs-key)
-                                                                                    start-consumer! stop-consumer! report-error!)
+            {:keys [abort-search! start-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)
             on-input-changed! (fn [_ _ _]
                                 (let [term (.getText search)
                                       exts (.getText types)
@@ -314,12 +311,21 @@
                              (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection resources-tree))]
                                (open-fn resource opts))
                              (dismiss-and-abort-search!))]
+        (init-search-in-files-tree-view! resources-tree)
+
+        (let [term (prefs/get prefs search-in-files-term-prefs-key)
+              exts (prefs/get prefs search-in-files-exts-prefs-key)
+              include-libraries? (prefs/get prefs search-in-files-include-libraries-prefs-key)]
+          (start-search! term exts include-libraries?)
+          (ui/text! search term)
+          (ui/text! types exts)
+          (ui/value! include-libraries-check-box include-libraries?))
+
         (localization/localize! (.titleProperty stage) localization (localization/message "dialog.search-in-files.title"))
         (localization/localize! search-label localization (localization/message "dialog.search-in-files.label.search"))
         (localization/localize! types-label localization (localization/message "dialog.search-in-files.label.types"))
         (localization/localize! include-libraries-check-box localization (localization/message "dialog.search-in-files.label.include-libraries"))
         (localization/localize! ok localization (localization/message "dialog.search-in-files.button.keep-results"))
-        (init-search-in-files-tree-view! resources-tree)
 
         (ui/on-action! ok (fn on-ok! [_] (dismiss-and-show-find-results!)))
         (ui/on-double! resources-tree (fn on-double! [^Event event]
@@ -345,14 +351,6 @@
                                                 (.consume event)
                                                 (ui/request-focus! search))
                                nil))))
-
-        (let [term (prefs/get prefs search-in-files-term-prefs-key)
-              exts (prefs/get prefs search-in-files-exts-prefs-key)
-              include-libraries? (prefs/get prefs search-in-files-include-libraries-prefs-key)]
-          (ui/text! search term)
-          (ui/text! types exts)
-          (ui/value! include-libraries-check-box include-libraries?)
-          (start-search! term exts include-libraries?))
 
         (ui/observe (.textProperty search) on-input-changed!)
         (ui/observe (.textProperty types) on-input-changed!)
