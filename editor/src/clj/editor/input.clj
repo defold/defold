@@ -13,9 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.input
-  (:require [editor.os :as os])
   (:import [com.defold.libs MouseCapture MouseCapture$MouseDelta]
-           [java.awt MouseInfo]
            [javafx.event EventType]
            [javafx.scene.input DragEvent InputEvent KeyCode KeyEvent MouseEvent MouseButton ScrollEvent TransferMode]))
 
@@ -40,10 +38,6 @@
 
 (def ^:private mouse-capture-context (atom nil))
 
-(def is-wayland (and (os/is-linux?)
-                     (or (some? (System/getenv "WAYLAND_DISPLAY"))
-                         (= "wayland" (System/getenv "XDG_SESSION_TYPE")))))
-
 ;; NOTE: JavaFX provides Robot for this sort of thing, however, it requires Accessibility Permissions
 ;; on macos, so we need to make native calls
 (defn warp-cursor [x y] (MouseCapture/MouseCapture_WarpCursor x y))
@@ -63,13 +57,8 @@
 
 (defn poll-mouse-delta ^MouseCapture$MouseDelta []
   (when-let [context @mouse-capture-context]
-    (let [delta @cached-delta]
-      (when (MouseCapture/MouseCapture_PollDelta context delta)
-        @cached-delta))))
-
-(defn get-cursor-pos []
-  (let [point (.getLocation (MouseInfo/getPointerInfo))]
-    [(.getX point) (.getY point)]))
+    (when (MouseCapture/MouseCapture_PollDelta context @cached-delta)
+      @cached-delta)))
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))
@@ -89,25 +78,33 @@
 (extend-protocol ModifierKeys
   KeyEvent
   (get-modifiers [e]
-    {:alt (.isAltDown e) :shift (.isShiftDown e)
-     :meta (.isMetaDown e) :control (.isControlDown e)})
+    (cond-> #{}
+      (.isAltDown e) (conj :alt)
+      (.isShiftDown e) (conj :shift)
+      (.isMetaDown e) (conj :meta)
+      (.isControlDown e) (conj :control)))
   MouseEvent
   (get-modifiers [e]
-    {:alt (.isAltDown e) :shift (.isShiftDown e)
-     :meta (.isMetaDown e) :control (.isControlDown e)})
+    (cond-> #{}
+      (.isAltDown e) (conj :alt)
+      (.isShiftDown e) (conj :shift)
+      (.isMetaDown e) (conj :meta)
+      (.isControlDown e) (conj :control)))
   ScrollEvent
   (get-modifiers [e]
-    {:alt (.isAltDown e) :shift (.isShiftDown e)
-     :meta (.isMetaDown e) :control (.isControlDown e)})
+    (cond-> #{}
+      (.isAltDown e) (conj :alt)
+      (.isShiftDown e) (conj :shift)
+      (.isMetaDown e) (conj :meta)
+      (.isControlDown e) (conj :control)))
   InputEvent
   (get-modifiers [_]
-    ;; NOTE: Return an empty map so it doesn't potentially clobber InputState
-    {}))
+    #{}))
 
 (defn action-from-jfx [^InputEvent jfx-event]
   (let [type (translate-action (.getEventType jfx-event))
         modifiers (get-modifiers jfx-event)
-        action (merge {:type type :event jfx-event} modifiers)]
+        action {:type type :event jfx-event :modifiers modifiers}]
     (case type
       :undefined action
 
@@ -167,9 +164,7 @@
   (not (.isModifierKey code)))
 
 (defn update-input-state [state action]
-  (let [modifiers (->> [:alt :shift :meta :control]
-                       (filter action)
-                       set)
+  (let [modifiers (:modifiers action #{})
         cursor-pos (when (and (:screen-x action) (:screen-y action))
                      [(:screen-x action) (:screen-y action)])
         view-pos (when (and (:x action) (:y action))
@@ -200,3 +195,20 @@
       (and (= :key-released (:type action))
            (trackable-key? (:key-code action)))
       (update :pressed-keys disj (:key-code action)))))
+
+(defn- modifiers-match? [expected actual]
+  ;; `:meta` is never part of a binding, so ignore it on the actual side.
+  (= expected (disj actual :meta)))
+
+(defn mouse-binding-action?
+  [{:keys [button modifiers]} action]
+  (and button
+       (= button (:button action))
+       (not (contains? (:modifiers action) :meta))
+       (modifiers-match? modifiers (:modifiers action))))
+
+(defn mouse-binding-active?
+  [{:keys [button modifiers]} input-state]
+  (and button
+       (contains? (:mouse-buttons input-state) button)
+       (modifiers-match? modifiers (:modifiers input-state))))

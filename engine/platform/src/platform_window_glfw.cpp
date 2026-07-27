@@ -163,6 +163,10 @@ namespace dmPlatform
 
     static WindowResult OpenWindowOpenGL(dmWindow* wnd, const WindowCreateParams& params)
     {
+#if defined(DM_PLATFORM_IOS)
+        glfwSetViewType(GLFW_OPENGL_API);
+#endif
+
         if (params.m_HighDPI)
         {
             glfwOpenWindowHint(GLFW_WINDOW_HIGH_DPI, 1);
@@ -253,6 +257,10 @@ namespace dmPlatform
 
     static WindowResult OpenWindowNoAPI(dmWindow* wnd, const WindowCreateParams& params)
     {
+#if defined(DM_PLATFORM_IOS)
+        glfwSetViewType(GLFW_NO_API);
+#endif
+
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);
 
@@ -289,6 +297,7 @@ namespace dmPlatform
                 break;
             case WINDOW_GRAPHICS_API_WEBGPU:
             case WINDOW_GRAPHICS_API_VULKAN:
+            case WINDOW_GRAPHICS_API_METAL:
                 res = OpenWindowNoAPI(window, params);
                 break;
             default: assert(0);

@@ -80,6 +80,13 @@
 (def ^:private URLString
   (s/constrained s/Str #(try (URL. %) true (catch MalformedURLException _ false)) "URLString"))
 
+(defn- display-url
+  ^String [^String url]
+  (or (some->> url
+               (re-matches #"(https://github\.com/[^/]+/[^/]+)/archive/.+\.zip")
+               second)
+      url))
+
 (def ^:private TemplateProject
   {:name VisibleString
    :description VisibleString
@@ -136,13 +143,13 @@
     (or (-> project-file
             read-project-settings
             (settings-core/get-setting ["project" "title"])
-            not-empty)
+            coll/not-empty)
         "Unnamed")
     (catch Exception _
       nil)))
 
 (defn- write-project-title! [^File project-file ^String title]
-  (assert (string? (not-empty title)))
+  (assert (string? (coll/not-empty title)))
   (spit project-file
         (-> project-file
             read-project-settings
@@ -167,7 +174,7 @@
   (or (when-some [last-opened-project-parent-directory (some-> last-opened-project-directory .getParentFile)]
         (when (fs/existing-directory? last-opened-project-parent-directory)
           last-opened-project-parent-directory))
-      (when-some [home-directory (some-> (system/user-home) not-empty io/as-file)]
+      (when-some [home-directory (some-> (system/user-home) coll/not-empty io/as-file)]
         (when (fs/existing-directory? home-directory)
           home-directory))))
 
@@ -182,8 +189,8 @@
   (keep (fn [[path timestamp]]
           (let [file (io/as-file path)
                 instant (time/try-parse-instant timestamp)]
-            (when (and (some? instant)
-                       (<= (.toDays (time/since instant)) 30)
+            (when (and instant
+                       (= "game.project" (.getName file))
                        (fs/existing-file? file))
               (when-some [title (try-read-project-title file)]
                 {:project-file file
@@ -238,12 +245,11 @@
         (let [parts (cond-> (string/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
                             skip-root? (next))
               entry-dst ^File (apply io/file dst parts)]
-          (do
-            (if (.isDirectory entry)
-              (.mkdir entry-dst)
-              (with-open [output (FileOutputStream. entry-dst)]
-                (io/copy zip output)))
-            (recur (.getNextEntry zip))))))))
+          (if (.isDirectory entry)
+            (.mkdir entry-dst)
+            (with-open [output (FileOutputStream. entry-dst)]
+              (io/copy zip output)))
+          (recur (.getNextEntry zip)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Location field control
@@ -254,8 +260,8 @@
   (ui/with-controls location-field [directory-text title-text]
     (let [directory-path (ui/text directory-text)
           title (ui/text title-text)]
-      (when (and (not-empty directory-path)
-                 (not-empty title))
+      (when (and (coll/not-empty directory-path)
+                 (coll/not-empty title))
         (io/as-file (str directory-path File/separator title))))))
 
 (defn- location-field-title-property
@@ -269,7 +275,7 @@
     (ui/with-controls location-field [directory-text]
       (let [scene (.getScene button)
             window (.getWindow scene)
-            initial-directory (some-> directory-text ui/text not-empty io/as-file)
+            initial-directory (some-> directory-text ui/text coll/not-empty io/as-file)
             initial-directory (when (some-> initial-directory (.exists)) initial-directory)]
         (when-some [directory (dialogs/make-directory-dialog (localization (localization/message dialog-title)) initial-directory window)]
           (ui/text! directory-text (.getAbsolutePath directory)))))))
@@ -308,7 +314,7 @@
 (def ^:private defold-logo-size-pattern #"-defold-logo-size:\s*(\d+)px\s+(\d+)px")
 
 (defn- try-parse-defold-logo-size [^String style]
-  (when-some [width-and-height (not-empty (mapv #(Double/parseDouble %) (drop 1 (re-find defold-logo-size-pattern style))))]
+  (when-some [width-and-height (coll/not-empty (mapv #(Double/parseDouble %) (drop 1 (re-find defold-logo-size-pattern style))))]
     width-and-height))
 
 (defn- add-defold-logo-svg-paths! [^Node node]
@@ -342,8 +348,8 @@
 
 (defn- make-project-entry
   ^Node [^String title ^String description ^Instant timestamp matching-indices on-remove localization]
-  (assert (string? (not-empty title)))
-  (assert (or (nil? description) (string? (not-empty description))))
+  (assert (string? (coll/not-empty title)))
+  (assert (or (nil? description) (string? (coll/not-empty description))))
   (doto (HBox.)
     (ui/add-style! "project-entry")
     (ui/children!
@@ -417,12 +423,12 @@
                                              (nil? (.getItem ^ListCell target)))
                                     (.clearSelection (.getSelectionModel recent-projects-list)))
                                   (when (and (= 2 (.getClickCount mouse-event))
-                                             (not-empty (ui/selection recent-projects-list)))
+                                             (coll/not-empty (ui/selection recent-projects-list)))
                                     (open-selected-project!)))))
           (.setOnKeyPressed (ui/event-handler event
                               (when (= KeyCode/ENTER (.getCode ^KeyEvent event))
                                 (open-selected-project!))))
-          (when (not-empty (recent-projects prefs))
+          (when (coll/not-empty (recent-projects prefs))
             (ui/select-index! recent-projects-list 0)
             (.requestFocus recent-projects-list)))))
     home-pane))
@@ -460,7 +466,7 @@
                      (ui/add-child!
                        (localization/localize! (Text.) localization (localization/message description)))
                      (VBox/setVgrow Priority/ALWAYS))
-                   (doto (Hyperlink. zip-url)
+                   (doto (Hyperlink. (display-url zip-url))
                      (ui/on-action! (fn [_] (ui/open-url zip-url))))])))
 
 (defn- make-template-entry
@@ -506,7 +512,7 @@
                                          (nil? (.getItem ^ListCell target)))
                                 (.clearSelection (.getSelectionModel template-list)))
                               (when (and (= 2 (.getClickCount mouse-event))
-                                         (not-empty (ui/selection template-list)))
+                                         (coll/not-empty (ui/selection template-list)))
                                 (.requestFocus new-project-title-field)))))
       (.setOnKeyPressed (ui/event-handler event
                           (when (and (= KeyCode/ENTER (.getCode ^KeyEvent event))
@@ -581,7 +587,9 @@
                                (ui/visible! progress-bar (not (progress/done? progress)))
                                (ui/render-progress-bar! progress progress-bar))))
         install-and-restart! #(ui.updater/install-and-restart! stage updater localization)]
-    (ui.updater/init! stage update-link updater install-and-restart! render-progress! localization)))
+    ;; No project is open on the welcome screen; release-notes links are external
+    ;; (forum) urls that don't need one.
+    (ui.updater/init! stage update-link nil updater install-and-restart! render-progress! localization)))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
@@ -617,7 +625,7 @@
     (.setManaged progress-overlay true)
     (.setVisible progress-overlay true)
     (.setOnMouseClicked progress-cancel-button
-                        (ui/event-handler event
+                        (ui/event-handler _
                           (.setOnMouseClicked progress-cancel-button nil)
                           (ui/enable! progress-cancel-button false)
                           (cancel!)))

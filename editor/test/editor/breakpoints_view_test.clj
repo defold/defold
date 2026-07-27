@@ -15,9 +15,9 @@
 (ns editor.breakpoints-view-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.code.data :as code.data]
             [editor.code.script :as code.script]
             [editor.breakpoints-view :as breakpoints-view]
+            [editor.prefs :as prefs]
             [integration.test-util :as test-util]))
 
 (def ^:private project-path "test/resources/geometry_wars")
@@ -36,9 +36,8 @@
                                 new-breakpoints
                                 action-fn))
           set-breakpoints-on-script! (fn [breakpoints]
-                                       (let [regions (g/node-value script-node :regions)]
-                                         (g/set-property! script-node :regions
-                                           (mapv (partial #'breakpoints-view/breakpoint->region lines) breakpoints))))]
+                                       (g/set-property! script-node :regions
+                                         (mapv (partial #'breakpoints-view/breakpoint->region lines) breakpoints)))]
       (testing "new breakpoints are mapped to regions"
         (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :enabled true}
                            {:row 2 :resource script-resource :enabled false}]
@@ -52,7 +51,7 @@
         (let [breakpoints [{:row 1 :resource script-resource :condition "x > 5" :enabled true}
                            {:row 2 :resource script-resource :enabled false}]
               _ (set-breakpoints-on-script! breakpoints)
-              _ (call-set-regions! breakpoints breakpoints (fn [all new] new))
+              _ (call-set-regions! breakpoints breakpoints (fn [_all new] new))
               regions (g/node-value script-node :regions)]
           (is (= 2 (count regions)))
           (doseq [[bp region] (map vector breakpoints regions)]
@@ -73,7 +72,7 @@
                             {:row 2 :resource script-resource :enabled false}
                             {:row 5 :resource script-resource :condition "new1" :enabled true}
                             {:row 6 :resource script-resource :enabled false}]
-              _ (call-set-regions! original-bps modified-bps (fn [all new] new))
+              _ (call-set-regions! original-bps modified-bps (fn [_all new] new))
               new-bps (mapv (partial code.script/region->breakpoint script-resource)
                             (g/node-value script-node :regions))]
 
@@ -94,3 +93,30 @@
             (is (true? (:enabled new-1)))
             (is (nil? (:condition new-2)))
             (is (false? (:enabled new-2)))))))))
+
+(deftest restore-breakpoints-skips-stale-rows-test
+  (test-util/with-loaded-project project-path
+    (let [test-prefs (test-util/make-test-prefs)
+          script-proj-path "/main/main.script"
+          script-resource (test-util/resource workspace script-proj-path)
+          script-node (test-util/resource-node project script-resource)
+          line-count (count (g/node-value script-node :lines))
+          valid-breakpoint {:proj-path script-proj-path
+                            :row 1
+                            :condition "x > 5"
+                            :enabled true}
+          stale-breakpoints [{:proj-path script-proj-path
+                              :row -1
+                              :enabled true}
+                             {:proj-path script-proj-path
+                              :row line-count
+                              :enabled true}]]
+      (try
+        (prefs/set! test-prefs [:code :breakpoints] (into [valid-breakpoint] stale-breakpoints))
+        (breakpoints-view/restore-breakpoints! project test-prefs)
+        (let [breakpoints (g/node-value project :breakpoints)]
+          (is (= [script-resource] (mapv :resource breakpoints)))
+          (is (= [(dissoc valid-breakpoint :proj-path)]
+                 (mapv #(select-keys % [:row :condition :enabled]) breakpoints))))
+        (finally
+          (prefs/reset-path! test-prefs [:code :breakpoints]))))))

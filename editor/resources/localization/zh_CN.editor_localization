@@ -122,6 +122,8 @@ updater.dialog.button.download = 下载更新
 updater.dialog.button.install-and-restart = 安装并重启
 updater.dialog.button.download-newer-version = 下载新版本
 
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+
 # Time
 time.vague.unknown = 未知
 time.vague.just-now = 刚刚
@@ -266,6 +268,12 @@ dialog.quit-defold.header = 存在未保存的更改，您确定要退出吗？
 dialog.quit-defold.button.cancel = 取消并继续工作
 dialog.quit-defold.button.quit = 不保存退出
 
+# Project directory unavailable dialog
+
+
+# Restart Defold dialog
+
+
 # Save and upgrade file formats dialogs
 
 dialog.save-and-upgrade.title.not-safe = 无法安全升级文件格式
@@ -334,9 +342,25 @@ dialog.fetch-libraries.host-unreachable.title = 获取失败
 dialog.fetch-libraries.host-unreachable.header = 由于无法访问主机，获取已中止
 dialog.fetch-libraries.host-unreachable.content = 无法访问的主机：{host}\n\n请检查您的互联网连接并重试。
 
+# Notification view
+
+
 # Fetch libraries notification
 
+notification.fetch-libraries.changed = 项目依赖项已更改。您想现在获取库吗？
+notification.fetch-libraries.action.fetch = 获取库
+notification.fetch-libraries.action.open-game-project = 打开 game.project
+notification.fetch-libraries.problem.failed-http-request = 获取 (HTTP\:{status}) 失败
 notification.fetch-libraries.problem.http-connect-timeout = 获取失败(连接超时)
+
+# Editor scripts notification
+
+
+# Reload plugins notification
+
+
+# Disabled functionality notification
+
 
 # Open custom editor notifications
 
@@ -1045,7 +1069,6 @@ operation.tile-map.add-layer = 添加图层
 
 # Properties
 
-property.tooltip = {help, select, none {} other {帮助：{help}\n\n}}在编辑器脚本中可作为"{id}"使用
 
 # Properties: universal
 
@@ -1064,15 +1087,10 @@ property.url = URL
 # Properties: appmanifest
 
 property.appmanifest.physics-2d = 2D 物理
-property.appmanifest.physics-2d.tooltip = Box2D 版本 3 或旧版 Defold 版本
 property.appmanifest.physics-3d = 3D 物理
-property.appmanifest.physics-3d.tooltip = Bullet 或 无
 property.appmanifest.rig+model = 骨骼 + 模型
-property.appmanifest.rig+model.tooltip = 骨骼、模型或无
 property.appmanifest.exclude-record = 排除录制
-property.appmanifest.exclude-record.tooltip = 移除视频录制功能（桌面平台）
 property.appmanifest.profiler = 分析器
-property.appmanifest.profiler.tooltip = 选择何时链接到性能分析器
 property.appmanifest.exclude-sound = 排除声音
 property.appmanifest.exclude-sound-decoder-wav = 排除声音解码器：WAV
 property.appmanifest.exclude-sound-decoder-ogg = 排除声音解码器：OGG
@@ -1083,15 +1101,10 @@ property.appmanifest.exclude-image = 排除图像
 property.appmanifest.exclude-types = 排除类型
 property.appmanifest.exclude-basis-transcoder = 排除Basis转码器
 property.appmanifest.use-android-support-lib = 使用 Android 支持库
-property.appmanifest.use-android-support-lib.tooltip = 使用旧的 Android 支持库而不是 AndroidX。从 Defold 1.2.177 开始可用。
 property.appmanifest.graphics = 绘图
-property.appmanifest.graphics.tooltip = Vulkan 仅支持桌面和移动平台
 property.appmanifest.graphics-osx = 绘图(macOS)
-property.appmanifest.graphics-osx.tooltip = Vulkan 是 macOS 的默认渲染器
 property.appmanifest.graphics-web = 绘图(HTML5)
-property.appmanifest.graphics-web.tooltip = WebGPU支持处于测试版(web 平台)
 property.appmanifest.use-font-layout = 使用完整文本布局系统
-property.appmanifest.use-font-layout.tooltip = 使用支持的完整文本布局系统 (例如RTL)
 
 # Properties: atlas
 
@@ -1102,34 +1115,22 @@ property.atlas.animation.playback = 回放
 property.atlas.image.pivot = 轴心
 property.atlas.image.sprite-trim-mode = 精灵修剪模式
 property.atlas.margin = 边距
-property.atlas.margin.tooltip = 在图集上每个图像之间插入的像素
 property.atlas.inner-padding = 内边距
-property.atlas.inner-padding.tooltip = 围绕每个图像填充的空白像素
 property.atlas.extrude-borders = 扩边像素
-property.atlas.extrude-borders.tooltip = 复制边缘像素向外扩展以避免图像之间的渗色
 property.atlas.max-page-width = 最大页面宽度
 property.atlas.max-page-height = 最大页面高度
 property.atlas.max-page-size = 最大页面尺寸
-property.atlas.max-page-size.tooltip = 多页面图集中每个页面的最大宽度和高度
 property.atlas.rename-patterns = 重命名模式
-property.atlas.rename-patterns.tooltip = 逗号分隔的搜索\=对每个图像基础名称应用替换的模式；例如"hat\=cat,_normal\="重命名"hat_normal"到"cat", 这有助于在地图集中匹配动画
 
 # Properties: camera
 
 property.camera.aspect-ratio = 纵横比
-property.camera.aspect-ratio.tooltip = 仅限透视相机。平截头体宽度和高度之间的比率。1.0 假设为方形视图；1.33 适合 4\:3（1024x768）；1.78 适合16\:9。启用自动纵横比时忽略。
 property.camera.fov = 视野
-property.camera.fov.tooltip = 仅限透视相机。垂直视场，以弧度为单位。值越高显示的场景越多。
 property.camera.near-z = 近 Z
-property.camera.near-z.tooltip = 近裁剪平面的 Z 值。
 property.camera.far-z = 远 Z
-property.camera.far-z.tooltip = 远裁剪平面的 Z 值。
 property.camera.auto-aspect-ratio = 自动纵横比
-property.camera.auto-aspect-ratio.tooltip = 仅限透视相机。自动计算纵横比。
 property.camera.orthographic-projection = 正交投影
-property.camera.orthographic-projection.tooltip = 将相机切换到正交投影。
 property.camera.orthographic-zoom = 正交缩放
-property.camera.orthographic-zoom.tooltip = 仅适用于正交相机。缩放系数(> 1 放大；< 1 缩小)。
 property.camera.orthographic-mode = 正交缩放模式
 
 # Properties: collection proxy
@@ -1141,7 +1142,6 @@ property.collection-proxy.exclude = 排除
 
 property.collision-object.collision-shape = 碰撞形状
 property.collision-object.type = 类型
-property.collision-object.type.tooltip = 在编辑器脚本中可用，标识为 “collision_type”。相较于 “type”，建议优先使用此标识符，因为当组件嵌入游戏对象时，“type” 会用于表示组件类型，这会遮蔽该属性。
 property.collision-object.mass = 质量
 property.collision-object.friction = 摩擦力
 property.collision-object.restitution = 弹性
@@ -1150,11 +1150,8 @@ property.collision-object.angular-damping = 角阻尼
 property.collision-object.locked-rotation = 锁定旋转
 property.collision-object.bullet = 连续碰撞检测
 property.collision-object.event-collision = 生成碰撞事件
-property.collision-object.event-collision.tooltip = 如果禁用，则过滤掉涉及此碰撞对象的任何碰撞事件
 property.collision-object.event-contact = 生成接触事件
-property.collision-object.event-contact.tooltip = 如果禁用，则过滤掉涉及此碰撞对象的任何接触事件
 property.collision-object.event-trigger = 生成触发事件
-property.collision-object.event-trigger.tooltip = 如果禁用，则过滤掉涉及此碰撞对象的任何触发事件
 property.collision-object.group = 碰撞分组
 property.collision-object.mask = 碰撞掩码
 property.collision-object.shape.diameter = 直径
@@ -1249,6 +1246,9 @@ property.label.shadow = 阴影
 property.label.size = 大小
 property.label.text = 文本
 property.label.tracking = 字距
+
+# Properties: light
+
 
 # Properties: mesh
 
@@ -1495,519 +1495,313 @@ form.group.other = 其他
 form.label.project.bootstrap = 启动
 form.help.project.bootstrap = 引擎初始化设置
 form.label.project.bootstrap.main_collection = 主集合
-form.help.project.bootstrap.main_collection = 用于启动应用程序的集合文件的引用，默认为/logic/main.collectionc
 form.label.project.bootstrap.render = 渲染器
-form.help.project.bootstrap.render = 所使用的渲染文件，该文件定义渲染管线，默认为/builtins/render/default.renderc
 form.label.project.bootstrap.debug_init_script = 调试初始化脚本
-form.help.project.bootstrap.debug_init_script = 调试时在主集合之前运行的 Lua 脚本
 
 form.label.project.project = 项目
 form.help.project.project = 常规项目设置
 form.label.project.project.title = 标题
-form.help.project.project.title = 应用程序的标题
 form.label.project.project.version = 版本
-form.help.project.project.version = 应用程序版本
 form.label.project.project.publisher = 发布者
-form.help.project.project.publisher = 发布者名字
 form.label.project.project.developer = 开发者
-form.help.project.project.developer = 开发者名字
 form.label.project.project.write_log = 写入日志
-form.help.project.project.write_log = 将日志文件写到磁盘
 form.label.project.project.write_log_file = 写入日志文件
-form.help.project.project.write_log_file = 将日志文件写到磁盘
 form.label.project.project.minimum_log_level = 最小日志级别
-form.help.project.project.minimum_log_level = 仅显示最小日志级别及更高级别
 form.label.project.project.compress_archive = 压缩归档
-form.help.project.project.compress_archive = 压缩归档(不适用于 Android)
 form.label.project.project.dependencies = 依赖项
-form.help.project.project.dependencies = 此项目所需的项目 URL 列表
 form.label.project.project.custom_resources = 自定义资源
-form.help.project.project.custom_resources = 逗号分隔的包含在项目中资源的列表。如果指定目录，则递归包含该目录中的所有文件和目录
 form.label.project.project.bundle_resources = 资源包
-form.help.project.project.bundle_resources = 包含资源文件和文件夹的目录，在打包时应按原样复制到生成的包中
 form.label.project.project.bundle_exclude_resources = 包排除资源
-form.help.project.project.bundle_exclude_resources = 逗号分隔的不应包含在打包时的资源列表
 
 form.label.project.android = Android
 form.help.project.android = Android 相关设置
 form.label.project.android.app_icon_36x36 = 应用程序图标 36x36
-form.help.project.android.app_icon_36x36 = Android ldpi 图标文件 (.png)
 form.label.project.android.app_icon_48x48 = 应用程序图标 48x48
-form.help.project.android.app_icon_48x48 = Android mdpi 图标文件 (.png)
 form.label.project.android.app_icon_72x72 = 应用程序图标 72x72
-form.help.project.android.app_icon_72x72 = Android hdpi 图标文件 (.png)
 form.label.project.android.app_icon_96x96 = 应用程序图标 96x96
-form.help.project.android.app_icon_96x96 = Android xhdpi 图标文件 (.png)
 form.label.project.android.app_icon_144x144 = 应用程序图标 144x144
-form.help.project.android.app_icon_144x144 = Android xxhdpi 图标文件 (.png)
 form.label.project.android.app_icon_192x192 = 应用程序图标 192x192
-form.help.project.android.app_icon_192x192 = Android xxxhdpi 图标文件 (.png)
 form.label.project.android.push_icon_small = 推送小图标
-form.help.project.android.push_icon_small = 小推送通知图标 (.png)
 form.label.project.android.push_icon_large = 推送大图标
-form.help.project.android.push_icon_large = 大推送通知图标 (.png)
 form.label.project.android.push_icon_small_ldpi = 推送小LDPI 图标
-form.help.project.android.push_icon_small_ldpi = 小 ldpi 推送通知图标文件(.png)
 form.label.project.android.push_icon_small_mdpi = 推送小 MDPI 图标
-form.help.project.android.push_icon_small_mdpi = 小 mdpi 推送通知图标文件(.png)
 form.label.project.android.push_icon_small_hdpi = 推送小 HDPI 图标
-form.help.project.android.push_icon_small_hdpi = 小 hdpi 推送通知图标文件 (.png)
 form.label.project.android.push_icon_small_xhdpi = 推送小 XHDPI 图标
-form.help.project.android.push_icon_small_xhdpi = 小 xhdpi 推送通知图标文件(.png)
 form.label.project.android.push_icon_small_xxhdpi = 推送小 XXHDPI 图标
-form.help.project.android.push_icon_small_xxhdpi = 小 xxhdpi 推送通知图标文件 (.png)
 form.label.project.android.push_icon_small_xxxhdpi = 推送 小XXXHDPI 图标
-form.help.project.android.push_icon_small_xxxhdpi = 小 xxxhdpi 推送通知图标文件 (.png)
 form.label.project.android.push_icon_large_ldpi = 推送大 LDPI 图标
-form.help.project.android.push_icon_large_ldpi = 大l dpi 推送通知图标文件(.png)
 form.label.project.android.push_icon_large_mdpi = 大 MDPI 推送图标
-form.help.project.android.push_icon_large_mdpi = 大 mdpi 推送通知图标文件(.png)
 form.label.project.android.push_icon_large_hdpi = 推送大HDPI 图标
-form.help.project.android.push_icon_large_hdpi = 大 hdpi 推送通知图标文件(.png)
 form.label.project.android.push_icon_large_xhdpi = 大 XHDPI 推送图标
-form.help.project.android.push_icon_large_xhdpi = 大 xhdpi 推送通知图标文件(.png)
 form.label.project.android.push_icon_large_xxhdpi = 推送大 XXHDPI 图标
-form.help.project.android.push_icon_large_xxhdpi = 大 xxhdpi 推送通知图标文件(.png)
 form.label.project.android.push_icon_large_xxxhdpi = 推送大 XXXHDPI 图标
-form.help.project.android.push_icon_large_xxxhdpi = 大 xxxhdpi 推送通知图标文件(.png)
 form.label.project.android.push_field_title = 推送字段标题
-form.help.project.android.push_field_title = 推送载荷中用作通知标题的 JSON 字段名
 form.label.project.android.push_field_text = 推送字段文本
-form.help.project.android.push_field_text = 推送载荷中用作通知文本的 JSON 字段名
 form.label.project.android.version_code = 版本代码
-form.help.project.android.version_code = Android 版本代码 (android\:versionCode)
 form.label.project.android.minimum_sdk_version = 最小 SDK 版本
-form.help.project.android.minimum_sdk_version = 应用程序运行所需的最低 API 级别 (android\:minSdkVersion)
 form.label.project.android.target_sdk_version = 目标 SDK 版本
-form.help.project.android.target_sdk_version = 应用程序目标的 API 级别(android\:targetSdkVersion)
 form.label.project.android.package = 包
-form.help.project.android.package = 包标识符
 form.label.project.android.gcm_sender_id = GCM 发送者 ID
-form.help.project.android.gcm_sender_id = Firebase 云消息发送者 ID
 form.label.project.android.fcm_application_id = FCM 应用程序 ID
-form.help.project.android.fcm_application_id = Firebase 云消息应用程序 ID
 form.label.project.android.manifest = 配置清单
-form.help.project.android.manifest = 自定义 AndroidManifest.xml 模板文件
 form.label.project.android.iap_provider = IAP 提供者
-form.help.project.android.iap_provider = 应用内购买服务提供商，支持的选项有 'GooglePlay' 和 'Amazon'
 form.label.project.android.input_method = 输入方式
-form.help.project.android.input_method = 使用哪种输入方式，支持的选项有 'KeyEvent' 和 'HiddenInputField'
 form.label.project.android.immersive_mode = 沉浸模式
-form.help.project.android.immersive_mode = 隐藏导航栏和状态栏，并能够捕获屏幕上的所有触摸事件
 form.label.project.android.display_cutout = 刘海屏
-form.help.project.android.display_cutout = 延伸至刘海区域
 form.label.project.android.debuggable = 可调试
-form.help.project.android.debuggable = 帮助您调试应用程序并从应用程序获取文件
 form.label.project.android.proguard = ProGuard 配置
-form.help.project.android.proguard = 自定义 ProGuard 文件，帮助从最终 .apk 中删除冗余的 Java 类
 form.label.project.android.extract_native_libs = 提取原生库
-form.help.project.android.extract_native_libs = 此属性指示包安装程序是否将原生库从 APK 提取到文件系统
 
 form.label.project.html5 = HTML5
 form.help.project.html5 = HTML5 相关设置
 form.label.project.html5.set_custom_heap_size = 设置自定义堆大小
-form.help.project.html5.set_custom_heap_size = 此设置已弃用。如果你希望调整应用程序堆内存大小，请设置为 true
 form.label.project.html5.custom_heap_size = 自定义堆大小
-form.help.project.html5.custom_heap_size = 此设置已弃用。应用程序堆的大小，以字节为单位
 form.label.project.html5.heap_size = 堆大小
-form.help.project.html5.heap_size = 应用程序堆的大小，以兆字节为单位
 form.label.project.html5.htmlfile = .html Shell
-form.help.project.html5.htmlfile = 画布的 HTML shell
 form.label.project.html5.cssfile = 自定义 .css
-form.help.project.html5.cssfile = CSS 将内联到 index.html 模板中
 form.label.project.html5.splash_image = 启动画面图像
-form.help.project.html5.splash_image = 自定义 HTML 启动屏幕图像
 form.label.project.html5.archive_location_prefix = 归档位置前缀
-form.help.project.html5.archive_location_prefix = 为打包文件路径添加前缀字符串（可为完整URL）
 form.label.project.html5.archive_location_suffix = 归档位置后缀
-form.help.project.html5.archive_location_suffix = 打包文件路径后缀字符串
 form.label.project.html5.engine_arguments = 引擎参数
-form.help.project.html5.engine_arguments = 以逗号分隔的引擎参数列表
 form.label.project.html5.wasm_streaming = Wasm 流式编译
-form.help.project.html5.wasm_streaming = 启用 Wasm 流式编译（速度更快且内存占用更低，但需要配置 MIME 类型为 'application/wasm' ）
 form.label.project.html5.show_fullscreen_button = 显示全屏按钮
-form.help.project.html5.show_fullscreen_button = 在 HTML shell 中显示全屏按钮
 form.label.project.html5.show_made_with_defold = 显示 "Made With Defold"
-form.help.project.html5.show_made_with_defold = 显示 "Made with Defold" 链接
 form.label.project.html5.show_console_banner = 显示控制台横幅
-form.help.project.html5.show_console_banner = 在浏览器控制台中显示 'Made with Defold' 链接
 form.label.project.html5.scale_mode = 缩放模式
-form.help.project.html5.scale_mode = 画布的缩放模式 (默认是 'Downscale Fit')
 form.label.project.html5.retry_count = 重试次数
-form.help.project.html5.retry_count = 文件下载的重试次数
 form.label.project.html5.retry_time = 重试时间
-form.help.project.html5.retry_time = 下载失败后的重试间隔秒数
 form.label.project.html5.transparent_graphics_context = 透明环境
-form.help.project.html5.transparent_graphics_context = 设置图形背景上下文为透明
 
 form.label.project.ios = iOS
 form.help.project.ios = iOS 相关设置
 form.label.project.ios.app_icon_76x76 = 应用程序图标 76x76
-form.help.project.ios.app_icon_76x76 = iPad 上主屏幕图标 (.png)
 form.label.project.ios.app_icon_120x120 = 应用程序图标 120x120
-form.help.project.ios.app_icon_120x120 = iPhone/iPod Touch Retina显示屏主屏幕图标 (.png)
 form.label.project.ios.app_icon_152x152 = 应用程序图标 152x152
-form.help.project.ios.app_icon_152x152 = iPad Retina 显示屏主屏幕图标 (.png)
 form.label.project.ios.app_icon_167x167 = 应用程序图标 167x167
-form.help.project.ios.app_icon_167x167 = iPad Pro 主屏幕图标 (.png)
 form.label.project.ios.app_icon_180x180 = 应用程序图标 180x180
-form.help.project.ios.app_icon_180x180 = iPhone Retina HD 主屏幕图标 (.png)
 form.label.project.ios.icons_asset = 图标资产
-form.help.project.ios.icons_asset = 图标资产文件(.car)
 form.label.project.ios.launch_screen = 启动屏幕
-form.help.project.ios.launch_screen = 启动屏幕故事板
 form.label.project.ios.pre_renderered_icons = 预渲染图标
-form.help.project.ios.pre_renderered_icons = 如果图标预置，则设置为 true
 form.label.project.ios.bundle_identifier = 包标识符
-form.help.project.ios.bundle_identifier = 包标识符 (CFBundleIdentifier)
 form.label.project.ios.bundle_name = 包名称
-form.help.project.ios.bundle_name = 包短名称 (CFBundleName)。最多15个字符
 form.label.project.ios.bundle_version = 包版本
-form.help.project.ios.bundle_version = 构建版本号 (CFBundleVersion)。数字或 x.y.z 格式
 form.label.project.ios.infoplist = Info.plist
-form.help.project.ios.infoplist = 自定义 Info.plist 模板文件
 form.label.project.ios.privacymanifest = PrivacyInfo.xcprivacy
-form.help.project.ios.privacymanifest = 隐私清单文件
 form.label.project.ios.entitlements = 自定义权限
-form.help.project.ios.entitlements = iOS 应用包签名时使用的自定义授权文件。可替换供应配置文件中的任何通配符授权
 form.label.project.ios.default_language = 默认语言
-form.help.project.ios.default_language = 默认语言和区域 (CFBundleDevelopmentRegion)
 form.label.project.ios.localizations = 本地化
-form.help.project.ios.localizations = 由应用手动处理的本地化语言列表（CFBundleLocalizations），以逗号分隔的字符串形式标识
 
 form.label.project.osx = OSX
 form.help.project.osx = Mac OSX 相关设置
 form.label.project.osx.app_icon = 应用程序图标
-form.help.project.osx.app_icon = 包图标文件(.icns)
 form.label.project.osx.bundle_identifier = 包标识符
-form.help.project.osx.bundle_identifier = 包标识符 (CFBundleIdentifier)
 form.label.project.osx.bundle_name = 包名称
-form.help.project.osx.bundle_name = 包短名称 (CFBundleName)。最多15个字符
 form.label.project.osx.bundle_version = 包版本
-form.help.project.osx.bundle_version = 构建版本号 (CFBundleVersion)。数字或 x.y.z 格式
 form.label.project.osx.infoplist = Info.plist
-form.help.project.osx.infoplist = 自定义 Info.plist 模板文件
 form.label.project.osx.privacymanifest = PrivacyInfo.xcprivacy
-form.help.project.osx.privacymanifest = 隐私清单文件
 form.label.project.osx.default_language = 默认语言
-form.help.project.osx.default_language = 默认语言和区域 (CFBundleDevelopmentRegion)
 form.label.project.osx.localizations = 本地化
-form.help.project.osx.localizations = 由应用手动处理的本地化语言列表（CFBundleLocalizations），以逗号分隔的字符串形式标识
 
 form.label.project.windows = Windows
 form.help.project.windows = Windows 相关设置
 form.label.project.windows.app_icon = 应用程序图标
-form.help.project.windows.app_icon = 可执行图标文件(.ico)
 
 form.label.project.collection = 集合
 form.help.project.collection = 集合相关设置
 form.label.project.collection.max_instances = 最大实例
-form.help.project.collection.max_instances = 每个集合的最大实例数量，默认为1024
 form.label.project.collection.max_input_stack_entries = 输入堆栈最大值
-form.help.project.collection.max_input_stack_entries = 输入堆栈最大游戏对象数量，默认为16
 
 form.label.project.collectionfactory = 集合工厂
 form.help.project.collectionfactory = 集合工厂相关设置
 form.label.project.collectionfactory.max_count = 最大数量
-form.help.project.collectionfactory.max_count = 最大集合工厂数量，默认为 128
 
 form.label.project.collection_proxy = 集合代理
 form.help.project.collection_proxy = 集合代理相关设置
 form.label.project.collection_proxy.max_count = 最大数量
-form.help.project.collection_proxy.max_count = 最大集合代理数量，默认为 8
 
 form.label.project.factory = 工厂
 form.help.project.factory = 游戏对象工厂相关设置
 form.label.project.factory.max_count = 最大数量
-form.help.project.factory.max_count = 最大工厂数量，默认为 128
 
 form.label.project.gui = GUI
 form.help.project.gui = GUI 相关配置
 form.label.project.gui.max_count = 最大数量
-form.help.project.gui.max_count = 每个集合最大 Gui 组件数量，默认为 64
 form.label.project.gui.max_animation_count = 最大动画数量
-form.help.project.gui.max_animation_count = Gui 最大激活动画总数，默认为 1024
 form.label.project.gui.max_particle_count = 最大粒子数量
-form.help.project.gui.max_particle_count = 每个集合 Gui 粒子最大存活数量，默认为 1024
 form.label.project.gui.max_particlefx_count = 最大粒子特效数量
 
 form.label.project.label = 标签
 form.help.project.label = 标签相关设置
 form.label.project.label.max_count = 最大数量
-form.help.project.label.max_count = 标签的最大数量，默认为 64
 form.label.project.label.subpixels = 子像素
-form.help.project.label.subpixels = 允许标签与像素不对齐显示
 
 form.label.project.mesh = 网格
 form.help.project.mesh = 网格相关设置
 form.label.project.mesh.max_count = 最大数量
-form.help.project.mesh.max_count = 最大网格组件数量，默认为 128
 
 form.label.project.model = 模型
 form.help.project.model = 模型相关设置
 form.label.project.model.max_count = 最大数量
-form.help.project.model.max_count = 最大模型数量，默认为 128
 form.label.project.model.split_meshes = 拆分网格
-form.help.project.model.split_meshes = 将超过 65536 顶点的网格分割为新网格
 form.label.project.model.max_bone_matrix_texture_width = 最大骨骼矩阵纹理宽度
-form.help.project.model.max_bone_matrix_texture_width = 最大骨骼矩阵纹理宽度，默认为 1024
 form.label.project.model.max_bone_matrix_texture_height = 最大骨骼矩阵纹理高度
-form.help.project.model.max_bone_matrix_texture_height = 最大骨骼矩阵纹理高度，默认为 1024
 
 form.label.project.particle_fx = 粒子效果
 form.label.project.particle_fx.max_particle_count = 最大粒子数量
-form.help.project.particle_fx.max_particle_count = 粒子最大存活总数，限制 GPU 顶点缓冲区大小，默认为 1024
 form.label.project.particle_fx.max_particle_buffer_count = 最大粒子缓冲区数量
-form.help.project.particle_fx.max_particle_buffer_count = 单次 GPU 上传最大粒子数量，限制 CPU 内存使用，默认为 1024
 form.label.project.particle_fx.max_count = 最大数量
-form.help.project.particle_fx.max_count = 最大粒子特效数量，默认为 64
 form.label.project.particle_fx.max_emitter_count = 最大发射数量
-form.help.project.particle_fx.max_emitter_count = 最大粒子特效发射器数量，默认为 64
 
 form.label.project.script = 脚本
 form.help.project.script = 脚本系统设置
 form.label.project.script.shared_state = 共享状态
-form.help.project.script.shared_state = 为所有脚本类型使用共享的 Lua 状态
 
 form.label.project.sound = 音效
 form.help.project.sound = 音效相关设置
 form.label.project.sound.gain = 增益
-form.help.project.sound.gain = 全局增益(音量)，默认为 1
 form.label.project.sound.use_linear_gain = 使用线性增益
-form.help.project.sound.use_linear_gain = 若启用则增益为线性，若禁用则使用指数曲线（例如 0.5 表示 "半音量" ）。默认为 True。
 form.label.project.sound.max_sound_data = 最大音效数据
-form.help.project.sound.max_sound_data = 最大不同音效的数量，默认为 128
 form.label.project.sound.max_sound_buffers = 最大音效缓存
-form.help.project.sound.max_sound_buffers = 最大并发音效缓冲区数量，默认为 32
 form.label.project.sound.max_sound_sources = 最大音源数量
-form.help.project.sound.max_sound_sources = 最大并发播放音效数，默认为 16
 form.label.project.sound.max_sound_instances = 最大音效实例
-form.help.project.sound.max_sound_instances = 最大并发音效实例数（声道数），默认为 256
 form.label.project.sound.max_component_count = 最大组件数量
-form.help.project.sound.max_component_count = 集合中最大音效组件数量，默认为 32
 form.label.project.sound.sample_frame_count = 采样帧数量
-form.help.project.sound.sample_frame_count = 单次音频更新采样数，默认为 0（即 48kHz 音频设备使用1024 采样，44.1kHz 设备使用 768 采样）
 form.label.project.sound.use_thread = 使用线程
-form.help.project.sound.use_thread = 启用音效线程
 form.label.project.sound.stream_enabled = 启用流
-form.help.project.sound.stream_enabled = 启用音效流
 form.label.project.sound.stream_chunk_size = 流块大小
-form.help.project.sound.stream_chunk_size = 音效文件单次加载块的字节大小，默认为 16384
 form.label.project.sound.stream_preload_size = 流预加载大小
-form.help.project.sound.stream_preload_size = 音效文件初始加载块的字节大小，默认为 16384
 form.label.project.sound.stream_cache_size = 流缓存大小
-form.help.project.sound.stream_cache_size = 音效流缓存的总字节大小，默认为 2097152
 
 form.label.project.sprite = 精灵
 form.help.project.sprite = 精灵相关设置
 form.label.project.sprite.max_count = 最大数量
-form.help.project.sprite.max_count = 最大精灵数量，默认为 128
 form.label.project.sprite.subpixels = 子像素
-form.help.project.sprite.subpixels = 允许精灵与像素不对齐显示
 
 form.label.project.tilemap = 瓦片地图
 form.help.project.tilemap = 瓦片地图相关设置
 form.label.project.tilemap.max_count = 最大数量
-form.help.project.tilemap.max_count = 集合中最大并发瓦片地图数量
 form.label.project.tilemap.max_tile_count = 最大瓦片数量
-form.help.project.tilemap.max_tile_count = 集合中最大并发可见的瓦片数量
 
 form.label.project.box2d = Box2D
 form.help.project.box2d = Box2D 物理引擎设置。可选配置项取决于所使用的 Box2D 版本。
 form.label.project.box2d.velocity_iterations = 速率迭代
-form.help.project.box2d.velocity_iterations = Box2D 2.2 物理求解器的速度迭代数值，默认为 10
 form.label.project.box2d.position_iterations = 位置迭代数
-form.help.project.box2d.position_iterations = Box2D 2.2 物理求解器的位置迭代数值，默认为 10
 form.label.project.box2d.sub_step_count = 子步骤数量
-form.help.project.box2d.sub_step_count = Box2D 3.x 物理求解器的子步骤数量，默认为 4
 
 form.label.project.display = 显示设置
 form.help.project.display = 分辨率和其他相关显示设置
 form.label.project.display.width = 宽度
-form.help.project.display.width = 应用程序窗口像素宽度，默认为 960
 form.label.project.display.height = 高度
-form.help.project.display.height = 应用程序窗口像素高度，默认为 640
 form.label.project.display.high_dpi = 高 DPI
-form.help.project.display.high_dpi = 在支持时启用高 DPI 后备缓冲区
 form.label.project.display.samples = 采样
-form.help.project.display.samples = 超采样抗锯齿使用的采样数，默认为 0 ，即关闭
 form.label.project.display.fullscreen = 全屏
-form.help.project.display.fullscreen = 以全屏模式启动应用程序而非窗口模式
 form.label.project.display.display_profiles = 显示配置文件
-form.help.project.display.display_profiles = 应用程序使用的显示配置文件的文件引用
 form.label.project.display.dynamic_orientation = 动态方向
-form.help.project.display.dynamic_orientation = 动态屏幕方向支持
 form.label.project.display.update_frequency = 更新频率
-form.help.project.display.update_frequency = 游戏循环每秒更新次数。设为 0 启用可变帧率，设为 30 等数值可限制更新频率。
 form.label.project.display.swap_interval = 交换间隔
-form.help.project.display.swap_interval = 垂直同步间隔。0 表示禁用
 form.label.project.display.vsync = 垂直同步
-form.help.project.display.vsync = 垂直同步，依赖硬件 VSync 进行帧计时。具体效果可能因图形驱动和平台特性而被覆盖。
 form.label.project.display.variable_dt = 可变增量时间
-form.help.project.display.variable_dt = 已弃用。勾选时将禁用垂直同步并将帧率上限设为 0 以实现等效行为。
 form.label.project.display.display_device_info = 显示设备信息
-form.help.project.display.display_device_info = 启动时在控制台输出 GPU 信息
 
 form.label.project.engine = 引擎
 form.help.project.engine = 引擎运行时设置
 form.label.project.engine.run_while_iconified = 图标化时后台运行
-form.help.project.engine.run_while_iconified = 允许引擎在图标化时继续后台运行（仅桌面平台）
 form.label.project.engine.fixed_update_frequency = 固定更新频率
-form.help.project.engine.fixed_update_frequency = 启用部分组件使用固定帧率，单位 Hz。0 表示禁用
 form.label.project.engine.max_time_step = 最大时间步骤
-form.help.project.engine.max_time_step = 若时间步长过大，将被限制在此最大值（秒）
 
 form.label.project.font = 字体
 form.help.project.font = 字体相关设置
 form.label.project.font.runtime_generation = 运行时生成
-form.help.project.font.runtime_generation = 使用运行时字体生成
 
 form.label.project.graphics = 图形
 form.help.project.graphics = 图形相关设置
 form.label.project.graphics.default_texture_min_filter = 默认纹理最小过滤器
-form.help.project.graphics.default_texture_min_filter = 最小过滤使用的过滤方式，默认为线性过滤
 form.label.project.graphics.default_texture_mag_filter = 默认纹理 Mag 过滤器
-form.help.project.graphics.default_texture_mag_filter = 放大过滤使用的过滤方式，线性或近邻，默认为线性
 form.label.project.graphics.max_draw_calls = 最大绘制调用
-form.help.project.graphics.max_draw_calls = 最大绘制调用数
 form.label.project.graphics.max_characters = 最大字符数
-form.help.project.graphics.max_characters = 每帧可显示的最大字符数，即文本
 form.label.project.graphics.max_font_batches = 最大字体批次
-form.help.project.graphics.max_font_batches = 每帧可显示的最大文本批次
 form.label.project.graphics.max_debug_vertices = 最大调试顶点数
-form.help.project.graphics.max_debug_vertices = 最大调试顶点数，用于物理形状渲染等用途，默认为 10000
 form.label.project.graphics.texture_profiles = 纹理配置文件
-form.help.project.graphics.texture_profiles = 指定纹理配置文件与资源路径的映射关系，格式、mipmap 和最大尺寸
 form.label.project.graphics.verify_graphics_calls = 验证图形调用
-form.help.project.graphics.verify_graphics_calls = 在每次图形调用后验证返回值
 form.label.project.graphics.opengl_version_hint = OpenGL 版本提示
-form.help.project.graphics.opengl_version_hint = OpenGL 上下文版本提示。若选择特定版本，将作为最低要求版本（不适用于OpenGL ES）。默认为 OpenGL 3.3
 form.label.project.graphics.opengl_core_profile_hint = OpenGL 核心配置文件提示
-form.help.project.graphics.opengl_core_profile_hint = 创建上下文时设置核心 OpenGL配置文件提示。核心配置文件移除了已弃用的 OpenGL 功能，如立即模式渲染。不适用于 OpenGL ES。
 form.label.project.graphics.memory_size = 内存大小
-form.help.project.graphics.memory_size = 驱动程序允许使用的内存容量（MB）
 
 form.label.project.input = 输入
 form.help.project.input = 输入相关设置
 form.label.project.input.repeat_delay = 重复延迟
-form.help.project.input.repeat_delay = 键盘按键持续按住后开始重复触发的等待秒数
 form.label.project.input.repeat_interval = 重复间隔
-form.help.project.input.repeat_interval = 按住键盘按键时重复触发的时间间隔秒数
 form.label.project.input.gamepads = 游戏手柄
-form.help.project.input.gamepads = 游戏手柄配置文件引用，用于映射手柄信号至操作系统，默认为 /builtins/input/default.gamepads
 form.label.project.input.game_binding = 游戏绑定
-form.help.project.input.game_binding = 输入配置文件引用，用于映射硬件输入到操作动作，默认为 /input/game.input_bindingc
 form.label.project.input.use_accelerometer = 使用加速度计
-form.help.project.input.use_accelerometer = 决定应用是否接收加速度计事件
 
 form.label.project.network = 网络
 form.help.project.network = 网络相关设置
 form.label.project.network.http_timeout = HTTP 超时
-form.help.project.network.http_timeout = HTTP 超时时间以秒为单位。零值表示禁用超时
 form.label.project.network.ssl_certificates = SSL 证书
-form.help.project.network.ssl_certificates = SSL 证书 PEM 文件引用
 form.label.project.network.http_thread_count = HTTP 线程数量
-form.help.project.network.http_thread_count = HTTP 服务的工作线程数
 form.label.project.network.http_cache_enabled = 启用 HTTP 缓存
-form.help.project.network.http_cache_enabled = 是否持久化下载数据以供下次快速检索
 
 form.label.project.physics = 物理
 form.help.project.physics = 物理设置
 form.label.project.physics.max_collision_object_count = 最大碰撞对象数
-form.help.project.physics.max_collision_object_count = 最大碰撞对象数量，默认为 128
 form.label.project.physics.type = 类型
-form.help.project.physics.type = 使用的物理引擎类型，2D 或 3D，默认为 2D
 form.label.project.physics.use_fixed_timestep = 使用固定时间步长
-form.help.project.physics.use_fixed_timestep = 是否对物理系统使用固定时间步长。详见 engine.fixed_update_frequency
 form.label.project.physics.debug = 调试
-form.help.project.physics.debug = 可视化物理系统用于调试
 form.label.project.physics.debug_alpha = 调试透明度
-form.help.project.physics.debug_alpha = 物理可视化元素的透明度分量，范围 0 - 1，默认为 0.9
 form.label.project.physics.debug_scale = 调试缩放
-form.help.project.physics.debug_scale = 物理单位对象的绘制尺寸，如坐标系和法线，默认为 30
 form.label.project.physics.world_count = 世界数量
-form.help.project.physics.world_count = 最大并发物理世界数量，默认为 4（注意：会废弃内存）
 form.label.project.physics.gravity_x = 重力 X
-form.help.project.physics.gravity_x = 世界重力 X 轴分量，默认为 0
 form.label.project.physics.gravity_y = 重力 Y
-form.help.project.physics.gravity_y = 世界重力 Y 轴分量，默认为 -10 ，模拟自然重力
 form.label.project.physics.gravity_z = 重力 Z
-form.help.project.physics.gravity_z = 世界重力 Z 轴分量，默认为 0
 form.label.project.physics.scale = 缩放
-form.help.project.physics.scale = 如何在游戏世界中以数值精度缩放物理世界, 默认为 0.01 - 1
 form.label.project.physics.allow_dynamic_transforms = 允许动态变形
-form.help.project.physics.allow_dynamic_transforms = 若启用，允许设置动态刚体的缩放、位置和旋转，默认为 true
 form.label.project.physics.max_collisions = 最大碰撞数量
-form.help.project.physics.max_collisions = 脚本可接收的碰撞事件最大数量，默认为 64
 form.label.project.physics.max_contacts = 最大接触点数
-form.help.project.physics.max_contacts = 脚本可接收的接触点最大数量，默认为 128
 form.label.project.physics.contact_impulse_limit = 接触冲量阈值
-form.help.project.physics.contact_impulse_limit = 冲量低于此阈值的接触将不会报告给脚本，默认为 0 禁用
 form.label.project.physics.ray_cast_limit_2d = 2D 射线投射数量限制
-form.help.project.physics.ray_cast_limit_2d = 使用 2D 物理时每帧最大射线投射数量
 form.label.project.physics.ray_cast_limit_3d = 3D 射线投射数量限制
-form.help.project.physics.ray_cast_limit_3d = 使用 3D 物理时每帧最大射线投射数量
 form.label.project.physics.trigger_overlap_capacity = 触发器重叠容量
-form.help.project.physics.trigger_overlap_capacity = 可检测的重叠触发器最大数量，默认为 16
 form.label.project.physics.velocity_threshold = 速度阈值
-form.help.project.physics.velocity_threshold = 产生弹性碰撞的最小速度
 form.label.project.physics.max_fixed_timesteps = 最大固定时间
-form.help.project.physics.max_fixed_timesteps = 使用固定时间值时模拟的最大步数 (仅3D)
 
 form.label.project.profiler = 性能分析器
 form.help.project.profiler = 运行时性能分析器相关设置
 form.label.project.profiler.track_cpu = 跟踪 CPU 性能
-form.help.project.profiler.track_cpu = 在发布版本中启用 CPU 使用率采样
 form.label.project.profiler.enabled = 启用
-form.help.project.profiler.enabled = 启用游戏内性能分析器；在程序中调用 profiler.enable() 运行时启用
 form.label.project.profiler.sleep_between_server_updates = 服务器休眠时间（毫秒）
-form.help.project.profiler.sleep_between_server_updates = 服务器更新间隔休眠的毫秒数
 form.label.project.profiler.performance_timeline_enabled = 性能时间线
-form.help.project.profiler.performance_timeline_enabled = 启用向浏览器性能时间线报告
 
 form.label.project.render = 渲染
 form.help.project.render = 渲染相关配置
 form.label.project.render.clear_color_red = 清除颜色红色
-form.help.project.render.clear_color_red = 渲染清除颜色 - 红色通道
 form.label.project.render.clear_color_green = 清除颜色绿色
-form.help.project.render.clear_color_green = 渲染清除颜色 - 绿色通道
 form.label.project.render.clear_color_blue = 清除颜色蓝色
-form.help.project.render.clear_color_blue = 渲染清除颜色 - 蓝色通道
 form.label.project.render.clear_color_alpha = 清除颜色透明度
-form.help.project.render.clear_color_alpha = 渲染清除颜色 - Alpha 通道
 
 form.label.project.resource = 资源
 form.help.project.resource = 资源加载和管理相关设置
 form.label.project.resource.http_cache = HTTP 缓存
-form.help.project.resource.http_cache = 使用 HTTP 缓存以加快网络加载速度
 form.label.project.resource.uri = URI
-form.help.project.resource.uri = game.project 文件的位置，使用 URI 格式
 form.label.project.resource.max_resources = 最大资源数
-form.help.project.resource.max_resources = 可同时加载的资源最大数量，默认为 1024
 
 form.label.project.shader = 着色器
 form.help.project.shader = 着色器相关设置
 form.label.project.shader.output_spirv = 输出 SPIR-V
-form.help.project.shader.output_spirv = 此设置已弃用。编译并输出用于 Metal 或 Vulkan 的 SPIR-V 着色器
 form.label.project.shader.exclude_gles_sm100 = 排除 GLES 2.0
-form.help.project.shader.exclude_gles_sm100 = 不为运行 OpenGLES 2.0 / WebGL 1.0 的设备编译着色器
 
 form.label.project.library = 库
 form.help.project.library = 当此项目被其他项目用作库时的设置
 form.label.project.library.include_dirs = 包含目录
-form.help.project.library.include_dirs = 当此项目被用作库时要包含的目录
 
 form.label.project.liveupdate = 热更新
 form.help.project.liveupdate = 热更新设置
 form.label.project.liveupdate.enabled = 启用
-form.help.project.liveupdate.enabled = 启用热更新功能
 form.label.project.liveupdate.settings = 设置
-form.help.project.liveupdate.settings = 热更新设置资源
 
 form.label.project.native_extension = 原生扩展
 form.help.project.native_extension = 原生扩展的设置
 form.label.project.native_extension.app_manifest = 应用清单
-form.help.project.native_extension.app_manifest = 可选的配置文件,用于详细控制构建设置
 
 form.label.animationset = 动画集
 form.label.animationset.animations = 动画
@@ -2113,41 +1907,30 @@ form.label.sound.gain = 增益
 form.label.sound.pan = 声道平衡
 form.label.sound.speed = 速度
 
+
 form.label.liveupdate.liveupdate = 实时更新
 form.label.liveupdate.liveupdate.mode = 模式
-form.help.liveupdate.liveupdate.mode = 目标
 form.label.liveupdate.amazon = Amazon
 form.label.liveupdate.liveupdate.amazon-credential-profile = 凭据配置文件
-form.help.liveupdate.liveupdate.amazon-credential-profile = Amazon 凭据配置文件
 form.label.liveupdate.liveupdate.amazon-bucket = 存储桶
-form.help.liveupdate.liveupdate.amazon-bucket = Amazon 存储桶
 form.label.liveupdate.liveupdate.amazon-prefix = 前缀
-form.help.liveupdate.liveupdate.amazon-prefix = Amazon 前缀
 form.label.liveupdate.zip = Zip
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = 保存到Bundle文件夹
-form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = 在打包后将zip文件移动到bundle目录
 form.label.liveupdate.liveupdate.zip-filepath = 输出目录
-form.help.liveupdate.liveupdate.zip-filepath = Zip 输出目录
 form.label.liveupdate.liveupdate.zip-filename = 文件名
 form.title.liveupdate.liveupdate.zip-filepath = 选择 Zip 输出目录
-form.help.liveupdate.liveupdate.zip-filename = Zip 文件名
 form.label.liveupdate.liveupdate.zip-compression-level = 压缩级别
-form.help.liveupdate.liveupdate.zip-compression-level = 创建实时更新Zip存档时使用的压缩级别
 form.label.liveupdate.folder = 文件夹
 form.label.liveupdate.liveupdate.save-folder-in-bundle-folder = 保存到Bundle文件夹
-form.help.liveupdate.liveupdate.save-folder-in-bundle-folder = 在打包后将输出文件夹移动到bundle目录
 form.label.liveupdate.liveupdate.output-directory = 输出目录
-form.help.liveupdate.liveupdate.output-directory = 输出目录
 form.title.liveupdate.liveupdate.output-directory = 选择输出目录
 form.label.liveupdate.liveupdate.output-folder-name = 输出文件夹
-form.help.liveupdate.liveupdate.output-folder-name = 输出文件夹名称
 form.label.liveupdate.manifest = 清单
 form.label.liveupdate.liveupdate.publickey = 公钥
 form.title.liveupdate.liveupdate.publickey = 选择清单公钥
 form.label.liveupdate.liveupdate.privatekey = 私钥
 form.title.liveupdate.liveupdate.privatekey = 选择清单私钥
 form.label.liveupdate.liveupdate.supported-versions = 支持的引擎版本
-form.help.liveupdate.liveupdate.supported-versions = 支持的引擎版本列表
 
 form.label.material = 材质
 form.label.material.name = 名称

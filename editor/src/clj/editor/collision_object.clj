@@ -116,6 +116,7 @@
   (property node-outline-key g/Str ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
   (property id g/Str (default (protobuf/default Physics$CollisionShape$Shape :id))
+            (dynamic tooltip (properties/tooltip-dynamic :collision-object.shape :id))
             (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
@@ -771,6 +772,11 @@
   [collision-groups-data group]
   (collision-groups/color collision-groups-data group))
 
+(defn- tilemap-collision-shape? [collision-shape]
+  (boolean
+    (when collision-shape
+      (contains? #{"tilemap" "tilegrid"} (resource/type-ext collision-shape)))))
+
 (g/defnode CollisionObjectNode
   (inherits resource-node/ResourceNode)
 
@@ -849,8 +855,13 @@
             (dynamic tooltip (properties/tooltip-dynamic :collision-object :event-trigger)))
 
   (property group g/Str ; Required protobuf field.
+            (dynamic read-only? (g/fnk [collision-shape] (tilemap-collision-shape? collision-shape)))
             (dynamic label (properties/label-dynamic :collision-object :group))
-            (dynamic tooltip (properties/tooltip-dynamic :collision-object :group)))
+            (dynamic tooltip (g/fnk [collision-shape]
+                               (localization/message
+                                 (if (tilemap-collision-shape? collision-shape)
+                                   "property.collision-object.group.tilemap.tooltip"
+                                   "property.collision-object.group.tooltip")))))
   (property mask g/Str ; Nil is valid default.
             (dynamic label (properties/label-dynamic :collision-object :mask))
             (dynamic tooltip (properties/tooltip-dynamic :collision-object :mask)))

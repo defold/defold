@@ -27,7 +27,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
 
     private int size;
     private int compressedSize;
-    private int resourceOffset;
+    private long resourceOffset;
     private int flags = 0;
     private String relName;
     private String fileName;
@@ -123,11 +123,11 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.hexDigest = hexDigest;
     }
 
-    public int getResourceOffset() {
+    public long getResourceOffset() {
         return resourceOffset;
     }
 
-    public void setResourceOffset(int resourceOffset) {
+    public void setResourceOffset(long resourceOffset) {
         this.resourceOffset = resourceOffset;
     }
 

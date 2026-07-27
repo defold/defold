@@ -43,7 +43,6 @@ namespace dmRender
     typedef FontRenderBackend* HFontRenderBackend;
 
 #define DEBUG_3D_NAME "_debug3d"
-#define DEBUG_2D_NAME "_debug2d"
 
     struct Sampler
     {
@@ -104,11 +103,13 @@ namespace dmRender
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
         uint16_t                                    m_LightBufferSet;
         uint16_t                                    m_LightBufferBinding;
+        uint16_t                                    m_LightBufferCapacity;
         uint8_t                                     m_HasLightBuffer : 1;
         uint8_t                                     m_InstancingSupported : 1;
         uint8_t                                     m_HasSkinnedAttributes : 1;
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
         uint8_t                                     m_HasMorphTargetsSampler : 1;
+        uint8_t                                     m_HasMorphTargetWeightsAttribute : 1;
     };
 
     struct ComputeProgram
@@ -120,6 +121,7 @@ namespace dmRender
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         uint16_t                                    m_LightBufferSet;
         uint16_t                                    m_LightBufferBinding;
+        uint16_t                                    m_LightBufferCapacity;
         uint8_t                                     m_HasLightBuffer : 1;
     };
 
@@ -128,8 +130,6 @@ namespace dmRender
     {
         DEBUG_RENDER_TYPE_FACE_3D,
         DEBUG_RENDER_TYPE_LINE_3D,
-        DEBUG_RENDER_TYPE_FACE_2D,
-        DEBUG_RENDER_TYPE_LINE_2D,
         MAX_DEBUG_RENDER_TYPE_COUNT
     };
 
@@ -143,7 +143,6 @@ namespace dmRender
     {
         DebugRenderTypeData             m_TypeData[MAX_DEBUG_RENDER_TYPE_COUNT];
         Predicate                       m_3dPredicate;
-        Predicate                       m_2dPredicate;
         dmRender::HRenderContext        m_RenderContext;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
@@ -282,7 +281,6 @@ namespace dmRender
     struct LightPrototype
     {
         dmVMath::Vector4 m_Color;
-        dmVMath::Vector3 m_Direction;
         LightType        m_Type;
         float            m_Intensity;
         float            m_Range;
@@ -292,11 +290,12 @@ namespace dmRender
 
     struct LightInstance
     {
-        dmVMath::Point3       m_Position;
-        dmVMath::Vector3      m_Direction;
-        const LightPrototype* m_LightPrototype;
-        uint16_t              m_LightBufferIndex;
+        HLightPrototype m_LightPrototype;
+        uint16_t        m_LightBufferIndex;
+        uint16_t        m_Version;
     };
+
+    const LightPrototype* GetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
 
     // CPU-mapped representation of a light in STD140 layout
     struct LightSTD140
@@ -331,12 +330,14 @@ namespace dmRender
         dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
         HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
-        dmOpaqueHandleContainer<LightInstance> m_RenderLights;
+        dmOpaqueHandleContainer<LightPrototype> m_LightPrototypes;
+        dmArray<LightInstance>                  m_RenderLights;
         dmIndexPool16                          m_RenderLightsIndices;
 
         dmArray<LightSTD140>                   m_LightBufferScratch;
-        dmGraphics::UniformBufferLayout        m_LightBufferLayout;
+        dmArray<LightSTD140>                   m_LightBufferUploadScratch;
         dmGraphics::HUniformBuffer             m_LightUniformBuffer;
+        dmVMath::Vector3                       m_AmbientLight;
 
         HFontMap                    m_SystemFontMap;
         Matrix4                     m_View;
@@ -353,10 +354,10 @@ namespace dmRender
 
         uint32_t                    m_LightBufferDirtyStart;
         uint32_t                    m_LightBufferDirtyEnd;
+        uint32_t                    m_LightBufferInfoWriteStart;
         uint32_t                    m_LightBufferDataWriteStart;
-        uint32_t                    m_LightBufferLastWrittenCount;
         uint16_t                    m_MaxLightCount;
-        uint16_t                    m_LightBufferDirtyCount         : 1;
+        uint16_t                    m_LightBufferDirtyInfo          : 1;
         uint16_t                    m_OutOfResources                : 1;
         uint16_t                    m_StencilBufferCleared          : 1;
         uint16_t                    m_MultiBufferingRequired        : 1;
@@ -418,7 +419,7 @@ namespace dmRender
 
     // Lights
     void FinalizeLightData(HRenderContext render_context);
-    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding);
+    void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding, uint16_t* out_capacity);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
     void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program);
 

@@ -63,7 +63,7 @@
             [local-extensions :as local-extensions]
             [service.log :as log]
             [support.test-support :as test-support]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
@@ -72,6 +72,7 @@
             [util.thread-util :as thread-util])
   (:import [ch.qos.logback.classic Level Logger]
            [clojure.core Vec]
+           [com.dynamo.bob.util Library$Result]
            [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
@@ -389,10 +390,19 @@
    (let [temp-project-path (make-temp-project-copy! project-path)]
      (setup-workspace! graph temp-project-path))))
 
+(defn fetch-library-results! [project-directory library-uris]
+  (let [lib-results (library/fetch! project-directory library-uris progress/null-render-progress!)]
+    (when-let [problem-results (coll/not-empty (filterv Library$Result/.problem lib-results))]
+      (throw
+        (IllegalStateException.
+          (str "Failed to fetch test project libraries:\n"
+               (localization (localization/join "\n" (mapv library/result-message problem-results)))))))
+    lib-results))
+
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
-    (->> (library/fetch! (workspace/project-directory workspace) dependencies progress/null-render-progress!)
+    (->> (fetch-library-results! (workspace/project-directory workspace) dependencies)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
@@ -410,7 +420,7 @@
                   :else (throw (ex-info "library-uris contain invalid values."
                                         {:library-uris library-uris}))))
               library-uris)]
-    (->> (library/fetch! (workspace/project-directory workspace) library-uris progress/null-render-progress!)
+    (->> (fetch-library-results! (workspace/project-directory workspace) library-uris)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
@@ -434,6 +444,10 @@
 
      {:editable (mapv val editable-protobuf-resource-types)
       :non-editable (mapv val distinctly-non-editable-protobuf-resource-types)})))
+
+(defn gui-node-type-info [workspace node-type]
+  (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
+          [:gui-node-type-registry :node-type->type-info node-type]))
 
 (defn setup-project!
   ([workspace]
@@ -564,9 +578,12 @@
                                         g/tx-nodes-added
                                         first)))))
 
-(defn open-scene-view! [project app-view path width height]
-  (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+(defn open-scene-view!
+  ([project app-view path width height]
+   (open-scene-view! project app-view path width height {}))
+  ([project app-view path width height tool-opts]
+   (make-tab! project app-view path (fn [view-graph resource-node]
+                                      (scene/make-preview view-graph resource-node (merge {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} tool-opts) width height)))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
@@ -769,9 +786,8 @@
      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
    (let [handlers (g/sources-of view :input-handlers)
          user-data (g/node-value view :selected-tool-renderables)
-         action (reduce #(assoc %1 %2 true)
-                        {:type type :x x :y y :click-count click-count :button button}
-                        modifiers)
+         action (-> {:type type :x x :y y :click-count click-count :button button}
+                    (assoc :modifiers (set modifiers)))
          action (scene/augment-action view action)]
      ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
      (scene/dispatch-input handlers (input/make-input-state) action user-data))))
@@ -1389,16 +1405,16 @@
           (is (= (dissoc (get-in scene-data (conj gpu-texture-path :params)) :default-tex-params)
                  (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 
-(defn- build-node-result! [resource-node]
+(defn- build-node-result! [resource-node opts]
   (let [project (project/get-project resource-node)
         workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)]
     (g/with-auto-evaluation-context evaluation-context
-      (build/build-project! project resource-node old-artifact-map nil evaluation-context))))
+      (build/build-project! project resource-node old-artifact-map opts evaluation-context))))
 
-(defn build-node! [resource-node]
-  (let [build-result (build-node-result! resource-node)]
-    (when-some [error (:error build-result)]
+(defn build-node! [resource-node opts]
+  (let [build-result (build-node-result! resource-node opts)]
+    (when-let [error (:error build-result)]
       (throw (ex-info "Build produced an ErrorValue."
                       {:resource resource
                        :node-type-kw (g/node-type-kw resource-node)
@@ -1410,14 +1426,14 @@
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)]
-    (build-node! resource-node)
+    (build-node! resource-node nil)
     (make-directory-deleter build-directory)))
 
 (defn build-error! [resource-node]
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)
-        build-result (build-node-result! resource-node)]
+        build-result (build-node-result! resource-node nil)]
     (fs/delete-directory! build-directory {:fail :silently})
     (:error build-result)))
 
@@ -1488,12 +1504,23 @@
   (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
              {:tag pb-class}))
 
+(defn- resource-type-for-build-output-path [resource-types-by-build-ext ^String build-output-path]
+  ;; Return the resource-type with the longest build-ext that matches the end of
+  ;; the build-output-path. We do this to ensure multipart build-exts like
+  ;; `/lightbulb.point_light.lightc` are matched correctly.
+  (reduce-kv
+    (fn [best-resource-type build-ext resource-type]
+      (if (and (string/ends-with? build-output-path (str "." build-ext))
+               (> (count build-ext)
+                  (count (:build-ext best-resource-type ""))))
+        resource-type
+        best-resource-type))
+    nil
+    resource-types-by-build-ext))
+
 (defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
-  (let [build-ext (resource/filename->type-ext build-output-path)
-        resource-type (some (fn [[_ resource-type]]
-                              (when (= build-ext (:build-ext resource-type))
-                                resource-type))
-                            (workspace/get-resource-type-map workspace))
+  (let [resource-type (resource-type-for-build-output-path resource-types-by-build-ext build-output-path)
+        _ (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
         test-info (:test-info resource-type)
         pb-class (case (:type test-info)
                    (:code :ddf) (:built-pb-class test-info)
@@ -1504,7 +1531,6 @@
                            :file built-file
                            :resource-type resource-type
                            :bytes built-bytes}]
-    (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
     (if (nil? pb-class)
       (sorted-map build-output-path build-output-info)
       (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
@@ -1742,8 +1768,21 @@
 (defmethod edit-resource-node "label" [resource-node-id]
   (g/update-property resource-node-id :tracking type-preserving-add 0.1))
 
-(defmethod edit-resource-node "light" [resource-node-id]
-  (g/update-property resource-node-id :pb update :range type-preserving-add 1))
+(defn- edit-light-resource-node [resource-node-id]
+  ;; All light types expose :intensity; :range is only for point/spot.
+  (g/update-property resource-node-id :intensity type-preserving-add 1))
+
+(defmethod edit-resource-node "point_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "ambient_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "directional_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "spot_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
 
 (defmethod edit-resource-node "material" [resource-node-id]
   (g/update-property resource-node-id :tags conj "new_tag"))

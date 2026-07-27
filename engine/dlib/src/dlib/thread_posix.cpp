@@ -13,9 +13,13 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
+#include <limits.h>
+#include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <dlib/profile/profile.h>
+#include <dmsdk/dlib/static_assert.h>
 #include <dmsdk/dlib/thread.h>
 
 #if defined(_WIN32)
@@ -24,6 +28,38 @@
 
 namespace dmThread
 {
+    static Thread ToThread(pthread_t native_thread)
+    {
+        DM_STATIC_ASSERT(sizeof(pthread_t) <= sizeof(Thread), Invalid_struct_size);
+        Thread thread = 0;
+        memcpy(&thread, &native_thread, sizeof(native_thread));
+        return thread;
+    }
+
+    static pthread_t ToNativeThread(Thread thread)
+    {
+        DM_STATIC_ASSERT(sizeof(pthread_t) <= sizeof(Thread), Invalid_struct_size);
+        pthread_t native_thread = {};
+        memcpy(&native_thread, &thread, sizeof(native_thread));
+        return native_thread;
+    }
+
+    static TlsKey ToTlsKey(pthread_key_t native_key)
+    {
+        DM_STATIC_ASSERT(sizeof(pthread_key_t) <= sizeof(TlsKey), Invalid_struct_size);
+        TlsKey key = 0;
+        memcpy(&key, &native_key, sizeof(native_key));
+        return key;
+    }
+
+    static pthread_key_t ToNativeTlsKey(TlsKey key)
+    {
+        DM_STATIC_ASSERT(sizeof(pthread_key_t) <= sizeof(TlsKey), Invalid_struct_size);
+        pthread_key_t native_key = {};
+        memcpy(&native_key, &key, sizeof(native_key));
+        return native_key;
+    }
+
     struct ThreadData
     {
         ThreadStart m_Start;
@@ -80,18 +116,18 @@ namespace dmThread
         ret = pthread_attr_destroy(&attr);
         assert(ret == 0);
 
-        return thread;
+        return ToThread(thread);
     }
 
     void Join(Thread thread)
     {
-        int ret = pthread_join(thread, 0);
+        int ret = pthread_join(ToNativeThread(thread), 0);
         assert(ret == 0);
     }
 
     void Detach(Thread thread)
     {
-        int ret = pthread_detach(thread);
+        int ret = pthread_detach(ToNativeThread(thread));
         assert(ret == 0);
     }
 
@@ -100,29 +136,29 @@ namespace dmThread
         pthread_key_t key;
         int ret = pthread_key_create(&key, 0);
         assert(ret == 0);
-        return key;
+        return ToTlsKey(key);
     }
 
     void FreeTls(TlsKey key)
     {
-        int ret = pthread_key_delete(key);
+        int ret = pthread_key_delete(ToNativeTlsKey(key));
         assert(ret == 0);
     }
 
     void SetTlsValue(TlsKey key, void* value)
     {
-        int ret = pthread_setspecific(key, value);
+        int ret = pthread_setspecific(ToNativeTlsKey(key), value);
         assert(ret == 0);
     }
 
     void* GetTlsValue(TlsKey key)
     {
-        return pthread_getspecific(key);
+        return pthread_getspecific(ToNativeTlsKey(key));
     }
 
     Thread GetCurrentThread()
     {
-        return pthread_self();
+        return ToThread(pthread_self());
     }
 
 #if !defined(DM_DLIB_THREAD_USE_CUSTOM_SETNAME)
@@ -133,7 +169,7 @@ namespace dmThread
         pthread_setname_np(name);
 #elif defined(__EMSCRIPTEN__)
 #else
-        pthread_setname_np(thread, name);
+        pthread_setname_np(ToNativeThread(thread), name);
 #endif
     }
 #endif // DM_DLIB_THREAD_USE_CUSTOM_SETNAME

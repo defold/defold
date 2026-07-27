@@ -260,7 +260,7 @@ nodes {
   spine_scene: "spinescene"
   spine_default_animation: ""
   spine_skin: ""
-  custom_type: 405028931
+  custom_type_name: "Spine"
   enabled: true
   visible: true
   material: ""

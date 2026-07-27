@@ -133,6 +133,14 @@ namespace dmRender
             info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D;
             info->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
         }
+        else if (name_hash == VERTEX_STREAM_MORPH_TARGET_WEIGHTS)
+        {
+            info->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS;
+            if (instancing_supported)
+            {
+                info->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+            }
+        }
     }
 
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
@@ -156,6 +164,7 @@ namespace dmRender
         uint32_t num_material_attributes = m->m_MaterialAttributes.Size();
         bool use_secondary_vertex_declarations = false;
         bool has_skin_attributes = false;
+        bool has_morph_target_weights_attribute = false;
 
         // 1. Find out if we need to use secondary vertex and instance declarations
         for (int i = 0; i < num_material_attributes; ++i)
@@ -163,6 +172,8 @@ namespace dmRender
             const dmGraphics::VertexAttributeInfo& graphics_attribute = m->m_VertexAttributeInfos[i];
             use_secondary_vertex_declarations |= graphics_attribute.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
             has_skin_attributes               |= graphics_attribute.m_NameHash == VERTEX_STREAM_BONE_WEIGHTS || graphics_attribute.m_NameHash == VERTEX_STREAM_BONE_INDICES;
+            has_morph_target_weights_attribute |= graphics_attribute.m_NameHash == VERTEX_STREAM_MORPH_TARGET_WEIGHTS &&
+                                                  graphics_attribute.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
         }
 
         dmGraphics::HVertexStreamDeclaration sd_shared   = dmGraphics::NewVertexStreamDeclaration(graphics_context);
@@ -203,6 +214,7 @@ namespace dmRender
 
         m->m_VertexDeclarationShared = dmGraphics::NewVertexDeclaration(graphics_context, sd_shared);
         m->m_HasSkinnedAttributes    = has_skin_attributes;
+        m->m_HasMorphTargetWeightsAttribute = has_morph_target_weights_attribute;
         dmGraphics::DeleteVertexStreamDeclaration(sd_shared);
 
         if (use_secondary_vertex_declarations)
@@ -329,10 +341,12 @@ namespace dmRender
         bool has_light_buffer;
         uint16_t light_buffer_set;
         uint16_t light_buffer_binding;
-        GetProgramLightBufferBinding(render_context, m->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding);
-        m->m_HasLightBuffer     = has_light_buffer;
-        m->m_LightBufferSet     = light_buffer_set;
-        m->m_LightBufferBinding = light_buffer_binding;
+        uint16_t light_buffer_capacity;
+        GetProgramLightBufferBinding(render_context, m->m_Program, &has_light_buffer, &light_buffer_set, &light_buffer_binding, &light_buffer_capacity);
+        m->m_HasLightBuffer       = has_light_buffer;
+        m->m_LightBufferSet       = light_buffer_set;
+        m->m_LightBufferBinding   = light_buffer_binding;
+        m->m_LightBufferCapacity  = light_buffer_capacity;
 
         return (HMaterial)m;
     }
@@ -357,7 +371,6 @@ namespace dmRender
     {
         dmGraphics::HContext graphics_context    = dmRender::GetGraphicsContext(render_context);
         const dmArray<RenderConstant>& constants = material->m_Constants;
-        dmGraphics::HProgram program             = material->m_Program;
 
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
@@ -645,6 +658,11 @@ namespace dmRender
     bool GetMaterialHasMorphTargetsSampler(HMaterial material)
     {
         return material->m_HasMorphTargetsSampler;
+    }
+
+    bool GetMaterialHasMorphTargetWeightsAttribute(HMaterial material)
+    {
+        return material->m_HasMorphTargetWeightsAttribute;
     }
 
     dmGraphics::HUniformLocation GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash)

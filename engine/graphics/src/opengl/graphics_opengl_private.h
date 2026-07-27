@@ -60,7 +60,6 @@ namespace dmGraphics
         HOpenglID*    m_TextureIds;
         OpenGLSampler m_Sampler;
         OpenGLSampler m_SamplerDirty;
-        uint32_t      m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
     };
 
     struct OpenGLTextureBinding
@@ -96,9 +95,9 @@ namespace dmGraphics
 
     struct OpenGLBuffer
     {
+        Buffer           m_Base;
         HOpenglID        m_Id;
         DeviceBufferType m_Type;
-        uint32_t         m_MemorySize;
     };
 
     struct OpenGLVertexAttribute

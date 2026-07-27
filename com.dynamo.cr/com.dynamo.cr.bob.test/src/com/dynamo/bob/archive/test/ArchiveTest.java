@@ -18,6 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -25,8 +26,9 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -40,7 +42,6 @@ import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
@@ -63,7 +64,6 @@ public class ArchiveTest {
     private String createDummyFile(String dir, String filepath, byte[] data) throws IOException {
         File tmp = new File(Paths.get(FilenameUtils.concat(dir, filepath)).toString());
         tmp.getParentFile().mkdirs();
-        FileUtil.deleteOnExit(tmp);
 
         FileOutputStream fos = new FileOutputStream(tmp);
         fos.write(data);
@@ -120,6 +120,9 @@ public class ArchiveTest {
 
     @After
     public void tearDown() throws IOException {
+        if (project != null) {
+            project.dispose();
+        }
         FileUtils.deleteDirectory(new File(contentRoot));
         FileUtils.deleteQuietly(outputDarc);
 
@@ -141,14 +144,130 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, new HashSet<String>());
         outFileIndex.close();
         outFileData.close();
+
+        // A normal tiny archive now emits v6 and uses the packed entry layout even when
+        // offsets fit in 32 bits.
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "r")) {
+            assertEquals(ArchiveBuilder.VERSION_6, index.readInt());
+            index.readInt(); // Pad
+            assertEquals(0L, index.readLong());
+        }
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
         ar.read();
         ar.close();
+    }
+
+    // New builds no longer need v5 archive compatibility. This minimal v5 index
+    // verifies ArchiveReader fails fast with the unsupported-version error instead
+    // of trying to parse the old entry layout.
+    @Test
+    public void testReaderRejectsVersion5Archive() throws IOException {
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
+             RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
+            index.setLength(0);
+            index.writeInt(5);
+            data.setLength(0);
+        }
+
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
+        try {
+            ar.read();
+            fail("Expected v5 archives to be rejected.");
+        } catch (IOException e) {
+            assertTrue(e.getMessage().contains("Unsupported archive index version: 5"));
+        } finally {
+            ar.close();
+        }
+    }
+
+    // V6 stores archive flags in the high 4 bits of the first entry word and the offset
+    // in the low 60 bits. This hand-written v6 index uses the currently unused fourth
+    // flag bit and a sparse payload above 4 GiB, proving ArchiveReader decodes both
+    // values from the packed word before seeking to the resource data.
+    @Test
+    public void testReaderHandlesVersion6PackedOffsetAndFlags() throws IOException {
+        final long resourceOffset = ArchiveBuilder.MAX_UNSIGNED_INT_OFFSET + 1L;
+        final int flags = 1 << 3;
+        final int hashLength = 20;
+        final int hashOffset = 48;
+        final int entryOffset = hashOffset + ArchiveReader.HASH_BUFFER_BYTESIZE;
+        byte[] hash = new byte[ArchiveReader.HASH_BUFFER_BYTESIZE];
+        for (int i = 0; i < hashLength; ++i) {
+            hash[i] = (byte) (i * 11 + 5);
+        }
+        byte[] payload = new byte[] { 0x41, 0x52, 0x43, 0x36, 0x55, 0x66, 0x77, 0x01 };
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
+             RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
+            index.setLength(0);
+            index.writeInt(ArchiveReader.VERSION_6);
+            index.writeInt(0); // Pad
+            index.writeLong(0); // UserData
+            index.writeInt(1); // EntryCount
+            index.writeInt(entryOffset);
+            index.writeInt(hashOffset);
+            index.writeInt(hashLength);
+            index.write(new byte[16]); // Archive index MD5
+            index.write(hash);
+            index.writeLong(((long) flags << ArchiveBuilder.V6_FLAGS_SHIFT) | resourceOffset);
+            index.writeInt(payload.length);
+            index.writeInt(ArchiveEntry.FLAG_UNCOMPRESSED);
+
+            data.setLength(0);
+            data.seek(resourceOffset);
+            data.write(payload);
+        }
+
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
+        try {
+            ar.read();
+            ArchiveEntry entry = ar.getEntries().get(0);
+            assertEquals(resourceOffset, entry.getResourceOffset());
+            assertEquals(flags, entry.getFlags());
+            assertArrayEquals(payload, ar.getEntryContent(entry));
+        } finally {
+            ar.close();
+        }
+    }
+
+    // The builder always emits v6. Pre-seeking the data file past 0xffffffff before writing
+    // one tiny resource verifies the packed offset and readable payload.
+    @Test
+    public void testBuilderWritesVersion6ForResourceOffsetAbove4GiB() throws IOException, CompileExceptionError {
+        final long resourceOffset = ArchiveBuilder.MAX_UNSIGNED_INT_OFFSET + 1L;
+        byte[] payload = new byte[] { (byte) 0xde, (byte) 0xad, (byte) 0xbe, (byte) 0xef, 0x11, 0x22, 0x33, 0x44 };
+
+        ArchiveBuilder ab = new ArchiveBuilder(contentRoot, manifestBuilder, 4, project);
+        ab.add(createDummyFile(contentRoot, "large-offset.bin", payload));
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "rw");
+             RandomAccessFile data = new RandomAccessFile(outputData, "rw")) {
+            index.setLength(0);
+            data.setLength(0);
+            data.seek(resourceOffset);
+            ab.write(index, data, new HashSet<String>());
+        }
+
+        try (RandomAccessFile index = new RandomAccessFile(outputIndex, "r")) {
+            assertEquals(ArchiveBuilder.VERSION_6, index.readInt());
+            index.readInt(); // Pad
+            assertEquals(0L, index.readLong());
+        }
+
+        ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
+        try {
+            ar.read();
+            ArchiveEntry entry = ar.getEntries().get(0);
+            assertEquals(resourceOffset, entry.getResourceOffset());
+            assertArrayEquals(payload, ar.getEntryContent(entry));
+        } finally {
+            ar.close();
+        }
     }
 
     @Test
@@ -165,7 +284,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, new HashSet<String>());
         outFileIndex.close();
         outFileData.close();
 
@@ -204,7 +323,7 @@ public class ArchiveTest {
             RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
             archiveIndex.setLength(0);
             archiveData.setLength(0);
-            instance.write(archiveIndex, archiveData, new ArrayList<String>());
+            instance.write(archiveIndex, archiveData, new HashSet<String>());
             archiveIndex.close();
             archiveData.close();
 
@@ -280,7 +399,7 @@ public class ArchiveTest {
         ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", "beta", instance, collection1);
         ResourceNode gameobject1 = addEntry("main.goc", "delta", instance, collectionproxy1);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -308,7 +427,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -338,7 +457,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("shared.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("shared.goc", "gamma", instance, collectionproxy2);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -368,7 +487,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -397,7 +516,7 @@ public class ArchiveTest {
         ResourceNode gameobject11 = addEntry("level1.goc", "gamma", instance, collectionproxy1); // should be bundled
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -429,7 +548,7 @@ public class ArchiveTest {
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
         ResourceNode gameobject3 = addEntry("level3.goc", "eta", instance, collectionproxy2); // should be excluded
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -459,7 +578,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
 
-        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");

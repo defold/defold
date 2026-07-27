@@ -30,6 +30,7 @@
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.http-server :as ext.http-server]
+            [editor.editor-extensions.image :as ext.image]
             [editor.editor-extensions.localization :as ext.localization]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
@@ -42,6 +43,8 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.library :as library]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
             [editor.os :as os]
@@ -59,13 +62,15 @@
             [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [clojure.lang IDeref]
+  (:import [clojure.lang IDeref Murmur3]
            [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
-           [java.io PrintStream PushbackReader]
+           [com.dynamo.bob.util Library$Result]
+           [java.io InputStream PrintStream PushbackReader]
            [java.net URI]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
            [java.util HashSet]
+           [java.util.concurrent ExecutionException]
            [org.apache.commons.io FilenameUtils]
            [org.luaj.vm2 LuaError LuaFunction LuaString LuaTable LuaValue Prototype]))
 
@@ -80,6 +85,12 @@
                              msg     string message, may be multiline
     :project-prototypes    vector of project-owned editor script Prototypes
     :library-prototypes    vector of library-provided editor script Prototypes
+    :project-reload-signature
+                           hash of project editor script paths and lines when
+                           the runtime was last reloaded
+    :library-reload-signature
+                           hash of library editor script paths and lines when
+                           the runtime was last reloaded
     :rt                    editor script runtime
     :all                   map of module function keyword to a vector of tuples:
                              path      proj-path of an editor script
@@ -121,25 +132,38 @@
 (defn- unwrap-error-values [arr]
   (mapv #(cond-> % (g/error? %) :value) arr))
 
+(g/defnk produce-project-reload-signature [project-reload-signatures]
+  (Murmur3/hashUnordered project-reload-signatures))
+
+(g/defnk produce-library-reload-signature [library-reload-signatures]
+  (Murmur3/hashUnordered library-reload-signatures))
+
 (g/defnode EditorExtensions
   (input project-prototypes g/Any :array :substitute unwrap-error-values)
   (input library-prototypes g/Any :array :substitute unwrap-error-values)
+  (input project-reload-signatures g/Int :array :substitute gu/array-subst-remove-errors)
+  (input library-reload-signatures g/Int :array :substitute gu/array-subst-remove-errors)
   (output project-prototypes g/Any (gu/passthrough project-prototypes))
-  (output library-prototypes g/Any (gu/passthrough library-prototypes)))
+  (output library-prototypes g/Any (gu/passthrough library-prototypes))
+  (output project-reload-signature g/Int :cached produce-project-reload-signature)
+  (output library-reload-signature g/Int :cached produce-library-reload-signature))
 
 (defn make [graph]
   (first (g/tx-nodes-added (g/transact (g/make-node graph EditorExtensions)))))
 
 ;; region script API
 
-(defn- make-ext-get-fn [project]
+(defn- make-ext-get-fn [project localization]
   (rt/lua-fn ext-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
     (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
           editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)
           getter (graph/ext-value-getter editor-lookup property project evaluation-context)]
       (if getter
-        (getter)
+        (let [result (getter)]
+          (if (g/error-value? result)
+            (throw (LuaError. (str "Can't get \"" property "\" property: " (localization (g/error-message result)))))
+            result))
         (throw (LuaError. (str (if (resource/resource? editor-lookup)
                                  (resource/proj-path editor-lookup)
                                  (name (graph/node-id->type-keyword (graph/editor-lookup->node-id editor-lookup) evaluation-context)))
@@ -219,26 +243,37 @@
                       (spit file-path content))
                     path+contents)))
           (future/then (fn [_] (reload-resources!)))
-          (future/then rt/and-refresh-context)))))
+          (future/then
+            (fn [_]
+              (g/let-ec [basis (:basis evaluation-context)
+                         invalid-proj-paths
+                         (coll/into-> created-resource-infos []
+                           (keep (fn [{proj-path 1}]
+                                   (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
+                                     (when (g/defective? basis node-id)
+                                       proj-path)))))]
+                (rt/and-refresh-context
+                  (when-let [invalid-proj-paths (coll/not-empty invalid-proj-paths)]
+                    (LuaError. (str "Created resources are invalid: " (coll/join-to-string ", " invalid-proj-paths))))))))))))
 
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
-    (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)]
-      (let [basis (:basis evaluation-context)
-            workspace (project/workspace project evaluation-context)
-            root-path (-> (workspace/project-directory basis workspace)
-                          (path/real))
-            dir-path (-> (str root-path proj-path)
-                         (path/normalized))]
-        (if (.startsWith dir-path root-path)
-          (try
-            (path/create-directories! dir-path)
-            (future/then (reload-resources!) rt/and-refresh-context)
-            (catch FileAlreadyExistsException e
-              (throw (LuaError. (str "File already exists: " (.getMessage e)))))
-            (catch Exception e
-              (throw (LuaError. ^String (or (.getMessage e) (.getSimpleName (class e)))))))
-          (throw (LuaError. (str "Can't create " dir-path ": outside of project directory"))))))))
+    (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
+          basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          root-path (-> (workspace/project-directory basis workspace)
+                        (path/real))
+          dir-path (-> (str root-path proj-path)
+                       (path/normalized))]
+      (if (.startsWith dir-path root-path)
+        (try
+          (path/create-directories! dir-path)
+          (future/then (reload-resources!) rt/and-refresh-context)
+          (catch FileAlreadyExistsException e
+            (throw (LuaError. (str "File already exists: " (.getMessage e)))))
+          (catch Exception e
+            (throw (LuaError. ^String (or (.getMessage e) (.getSimpleName (class e)))))))
+        (throw (LuaError. (str "Can't create " dir-path ": outside of project directory")))))))
 
 (defn- make-ext-delete-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-delete-directory [{:keys [rt evaluation-context]} lua-proj-path]
@@ -260,7 +295,7 @@
         (throw (LuaError. (str "Can't delete " dir-path ": outside of project directory")))
 
         (= (.getNameCount dir-path) (.getNameCount root-path))
-        (throw (LuaError. (str "Can't delete the project directory itself")))
+        (throw (LuaError. "Can't delete the project directory itself"))
 
         (protected-path? dir-path)
         (throw (LuaError. (str "Can't delete " dir-path ": protected by editor")))
@@ -416,7 +451,7 @@
 
 (defn- make-ext-tx-set-fn [project]
   (rt/lua-fn ext-tx-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property lua-value]
-    (let [node-id (graph/unresolved-editor-lookup->node-id
+    (let [node-id (graph/editable-unresolved-editor-lookup->node-id
                     (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
                     project
                     evaluation-context)
@@ -433,6 +468,20 @@
 (defn- make-ext-save-fn [save!]
   (rt/suspendable-lua-fn ext-save [_]
     (future/then (save!) rt/and-refresh-context)))
+
+(defn- make-ext-fetch-libraries-fn [fetch-libraries! localization-state]
+  (rt/suspendable-lua-fn ext-fetch-libraries [_]
+    (future/then
+      (fetch-libraries!)
+      (fn [[lib-results reload-succeeded]]
+        (rt/and-refresh-context
+          (if-not reload-succeeded
+            (LuaError. "Reload failed")
+            (let [error-messages (coll/into-> lib-results []
+                                   (filter Library$Result/.problem)
+                                   (map library/result-message))]
+              (when (coll/not-empty error-messages)
+                (LuaError. ^String (localization-state (localization/join "\n" error-messages)))))))))))
 
 (defn- make-open-resource-fn [workspace open-resource!]
   (rt/suspendable-lua-fn open-resource [{:keys [rt evaluation-context]} lua-resource-path]
@@ -575,35 +624,60 @@
 
 (def http-request-options-coercer
   (coerce/one-of
-    (coerce/hash-map
-      :opt {:method coerce/string
-            :headers (coerce/map-of coerce/string coerce/string)
-            :body coerce/string
-            :as (coerce/enum :string :json)}
-      :extra-keys false)
+    (coerce/wrap-with-pred
+      (coerce/hash-map
+        :opt {:method coerce/string
+              :headers (coerce/map-of coerce/string coerce/string)
+              :body coerce/string
+              :as (coerce/enum :string :json)
+              :path coerce/string}
+        :extra-keys false)
+      #(not (and (contains? % :as) (contains? % :path)))
+      "specifies mutually exclusive 'as' and 'path' options")
     coerce/null))
 
-(def ext-http-request
+(defn- make-ext-http-request-fn [^Path project-path reload-resources!]
   (rt/suspendable-lua-fn ext-http-request
     ([ctx lua-url]
      (ext-http-request ctx lua-url nil))
     ([{:keys [rt]} lua-url maybe-lua-options]
      (let [options (some->> maybe-lua-options (rt/->clj rt http-request-options-coercer))
-           json (= :json (:as options))]
-       (try
-         (-> (http/request
-               (rt/->clj rt coerce/string lua-url)
-               (cond-> options json (assoc :as :input-stream)))
-             (future/then
-               (fn http-request-then [response]
-                 (cond-> response json (assoc :body (with-open [reader (io/reader (:body response))]
-                                                      (json/read reader))))))
-             (future/catch
-               (fn http-request-catch [e]
-                 (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e)))))))))
-         ;; we might get an exception when parsing the URI before we start the async request execution
-         (catch Throwable e
-           (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e))))))))))))
+           json (= :json (:as options))
+           path (:path options)]
+       (future/io
+         (try
+           (let [response @(http/request
+                             (rt/->clj rt coerce/string lua-url)
+                             (-> options (dissoc :path) (cond-> (or json path) (assoc :as :input-stream))))]
+             (cond
+               json
+               (assoc response :body (with-open [reader (io/reader (:body response))]
+                                       (json/read reader)))
+     
+               path
+               (with-open [^InputStream body (:body response)]
+                 (if-not (<= 200 (:status response) 299)
+                   (dissoc response :body)
+                   (let [destination (path/resolve-normalized project-path path)
+                         stored-path (path/atomic-replace!
+                                       destination
+                                       (fn write-response-body [temp-path]
+                                         (with-open [output (io/output-stream temp-path)]
+                                           (io/copy body output))))
+                         response (-> response
+                                      (dissoc :body)
+                                      (assoc :path (str stored-path)))]
+                     (if (path/starts-with? destination project-path)
+                       (do
+                         @(reload-resources!)
+                         (rt/and-refresh-context response))
+                       response))))
+     
+               :else
+               response))
+           (catch Throwable e
+             (let [e (if (instance? ExecutionException e) (ex-cause e) e)]
+               (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e))))))))))))))
 
 ;; endregion
 
@@ -886,6 +960,16 @@
 
 ;; region public API
 
+(defn reload-needed?
+  "Return true if reloading editor scripts would change the runtime"
+  [project evaluation-context]
+  (let [extensions (g/node-value project :editor-extensions evaluation-context)
+        state (g/user-data extensions :state)]
+    (or (not= (:project-reload-signature state)
+              (g/node-value extensions :project-reload-signature evaluation-context))
+        (not= (:library-reload-signature state)
+              (g/node-value extensions :library-reload-signature evaluation-context)))))
+
 (defn reload!
   "Reload the extensions
 
@@ -912,6 +996,9 @@
                           has OS-defined file association, returns
                           CompletableFuture (that might complete exceptionally
                           if resource could not be opened)
+    :fetch-libraries!     0-arg function that asynchronously fetches libraries,
+                          returns a CompletableFuture that completes with tuple
+                          [library-results reload-succeeded]
     :invoke-bob!          3-arg function that asynchronously invokes bob and
                           returns a CompletableFuture (which may complete
                           exceptionally if bob invocation fails). The args:
@@ -922,13 +1009,15 @@
                                                   strings
                             evaluation-context    evaluation context of the
                                                   invocation"
-  [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
-  {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! invoke-bob!]}
+  [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
+  {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
   (g/let-ec [basis (:basis evaluation-context)
              lsp (lsp/get-node-lsp basis project)
              script-annotations (project/script-annotations project evaluation-context)
              extensions (g/node-value project :editor-extensions evaluation-context)
              old-state (ext-state project evaluation-context)
+             reload-project (or (= :all kind) (= :project kind))
+             reload-library (or (= :all kind) (= :library kind))
              workspace (project/workspace project evaluation-context)
              project-path (.toPath (workspace/project-directory basis workspace))
              rt (rt/make
@@ -939,7 +1028,7 @@
                   :out (line-writer #(display-output! :out %))
                   :err (line-writer #(display-output! :err %))
                   :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
-                                  "get" (make-ext-get-fn project)
+                                  "get" (make-ext-get-fn project localization)
                                   "can_add" (graph/make-ext-can-add-fn project)
                                   "can_get" (make-ext-can-get-fn project)
                                   "can_reorder" (graph/make-ext-can-reorder-fn project)
@@ -959,6 +1048,7 @@
                                   "platform" (.getPair (Platform/getHostPlatform))
                                   "prefs" (prefs-functions/env prefs)
                                   "save" (make-ext-save-fn save!)
+                                  "fetch_libraries" (make-ext-fetch-libraries-fn fetch-libraries! localization)
                                   "transact" ext-transact
                                   "tx" {"set" (make-ext-tx-set-fn project)
                                         "add" (graph/make-ext-add-fn project)
@@ -972,8 +1062,9 @@
                                   "version" (system/defold-version)
                                   "engine_sha1" (system/defold-engine-sha1)
                                   "editor_sha1" (system/defold-editor-sha1)}
-                        "http" {"request" ext-http-request
+                        "http" {"request" (make-ext-http-request-fn project-path reload-resources!)
                                 "server" (ext.http-server/env workspace project-path web-server)}
+                        "image" (ext.image/env project-path)
                         "json" {"decode" ext-json-decode
                                 "encode" ext-json-encode}
                         "io" {"tmpfile" nil}
@@ -992,10 +1083,16 @@
              new-state (re-create-ext-state
                          (assoc opts
                            :rt rt
-                           :library-prototypes (if (or (= :all kind) (= :library kind))
+                           :project-reload-signature (if reload-project
+                                                       (g/node-value extensions :project-reload-signature evaluation-context)
+                                                       (:project-reload-signature old-state))
+                           :library-reload-signature (if reload-library
+                                                       (g/node-value extensions :library-reload-signature evaluation-context)
+                                                       (:library-reload-signature old-state))
+                           :library-prototypes (if reload-library
                                                  (g/node-value extensions :library-prototypes evaluation-context)
                                                  (:library-prototypes old-state []))
-                           :project-prototypes (if (or (= :all kind) (= :project kind))
+                           :project-prototypes (if reload-project
                                                  (g/node-value extensions :project-prototypes evaluation-context)
                                                  (:project-prototypes old-state [])))
                          evaluation-context)

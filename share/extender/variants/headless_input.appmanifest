@@ -3,13 +3,13 @@ platforms:
     common:
         context:
             defines: ["DM_HEADLESS"]
+            libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
 
     osx:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
-            libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
 
     linux:
         context:
@@ -17,32 +17,27 @@ platforms:
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan", "GraphicsAdapterOpenGLES"]
             excludeDynamicLibs: ["openal","Xext","X11","Xi","GL","GLU","EGL","GLESv1_CM","GLESv2"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
-            libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
 
     web:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
-            libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
 
     win32:
         context:
-            excludeLibs: ["librecord","libvpx","libsound","libtremolo","libgraphics","hid","platform"]
+            excludeLibs: ["record","vpx","sound","libtremolo","graphics","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
-            libs: ["librecord_null.lib","libsound_null.lib","libgraphics_null.lib","hid_null.lib","platform_null.lib"]
 
     android:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","graphics_opengles","graphics_vulkan","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterOpenGLES","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
-            libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]
 
     arm64-ios:
         context:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
-            libs: ["record_null","sound_null","graphics_null","hid_null","platform_null"]

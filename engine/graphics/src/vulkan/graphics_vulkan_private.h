@@ -46,11 +46,14 @@ namespace dmGraphics
 
     struct DeviceBuffer
     {
-        DeviceBuffer(){}
+        DeviceBuffer()
+        : m_Base()
+        {
+        }
         DeviceBuffer(const VkBufferUsageFlags usage)
-        : m_MappedDataPtr(0)
+        : m_Base()
+        , m_MappedDataPtr(0)
         , m_Usage(usage)
-        , m_MemorySize(0)
         , m_Destroyed(0)
         {
             memset(&m_Handle, 0, sizeof(m_Handle));
@@ -63,10 +66,10 @@ namespace dmGraphics
             uint8_t        m_LastUsedFrame;
         };
 
+        Buffer             m_Base;
         void*              m_MappedDataPtr;
         VulkanHandle       m_Handle;
         VkBufferUsageFlags m_Usage;
-        uint32_t           m_MemorySize : 31;
         uint32_t           m_Destroyed  : 1;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
@@ -97,7 +100,6 @@ namespace dmGraphics
         VkImageUsageFlags m_UsageFlags;
         DeviceBuffer      m_DeviceBuffer;
         HOpaqueHandle     m_PendingUpload;
-        uint32_t          m_DataSize; // for better memory profiling
         uint16_t          m_TextureSamplerIndex : 10;
         uint16_t          m_Destroyed           : 1;
         uint8_t           m_LayerCount;
@@ -583,6 +585,7 @@ namespace dmGraphics
     uint32_t              GetPhysicalDeviceCount(VkInstance vkInstance);
     void                  GetPhysicalDevices(VkInstance vkInstance, PhysicalDevice** deviceListOut, uint32_t deviceListSize, void* pNextFeature);
     bool                  GetMemoryTypeIndex(VkPhysicalDevice vk_physical_device, uint32_t typeFilter, VkMemoryPropertyFlags vk_property_flags, uint32_t* memoryIndexOut);
+    QueueFamily           GetGraphicsQueueFamily(PhysicalDevice* device);
     QueueFamily           GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
     const VkFormat        GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates, uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
     void                  GetFormatProperties(VkPhysicalDevice vk_physical_device, VkFormat vk_format, VkFormatProperties* properties);

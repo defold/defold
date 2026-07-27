@@ -27,6 +27,13 @@
 #define WIDTH 8u
 #define HEIGHT 4u
 
+TEST(dmPlatform, WindowCreateParamsInitialize)
+{
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    ASSERT_TRUE(params.m_FocusOnShow);
+}
+
 class dmPlatformTest : public jc_test_base_class
 {
 protected:

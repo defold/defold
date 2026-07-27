@@ -23,6 +23,11 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
 
+// Winuser.h defines MAX_TOUCH_COUNT to 256, which clashes with dmHID::MAX_TOUCH_COUNT.
+#ifdef MAX_TOUCH_COUNT
+#undef MAX_TOUCH_COUNT
+#endif
+
 /*# Game object functions
  *
  * API for manipulating game objects
@@ -32,6 +37,13 @@
  * @namespace dmGameObject
  * @language C++
  */
+
+/*# Game object extension context name
+ * Name used when registering the game object context with the engine context registry.
+ * @constant
+ * @name GAMEOBJECT_CONTEXT_NAME
+ */
+#define GAMEOBJECT_CONTEXT_NAME "register"
 
 namespace dmMessage
 {
@@ -210,6 +222,8 @@ namespace dmGameObject
      * @member dmGameObject::PROPERTY_TYPE_VECTOR4
      * @member dmGameObject::PROPERTY_TYPE_QUAT
      * @member dmGameObject::PROPERTY_TYPE_BOOLEAN
+     * @member dmGameObject::PROPERTY_TYPE_MATRIX4
+     * @member dmGameObject::PROPERTY_TYPE_TEXT
      * @member dmGameObject::PROPERTY_TYPE_COUNT
      */
     enum PropertyType
@@ -223,6 +237,7 @@ namespace dmGameObject
         PROPERTY_TYPE_QUAT = 5,
         PROPERTY_TYPE_BOOLEAN = 6,
         PROPERTY_TYPE_MATRIX4 = 7,
+        PROPERTY_TYPE_TEXT = 8,
         PROPERTY_TYPE_COUNT
     };
 
@@ -338,6 +353,7 @@ namespace dmGameObject
      * @member m_Url [type:const uin8_t*] An URL value (union)
      * @member m_V4 [type:float] A vector4 value (union)
      * @member m_Bool [type:bool] A boolean value (union)
+     * @member m_Text [type:const char*] A borrowed text value (union). The caller owns the pointed-to memory.
      */
     struct PropertyVar
     {
@@ -351,6 +367,7 @@ namespace dmGameObject
         PropertyVar(dmVMath::Quat v);
         PropertyVar(dmVMath::Matrix4 v);
         PropertyVar(bool v);
+        PropertyVar(const char* v);
 
         PropertyType m_Type;
         union
@@ -362,6 +379,7 @@ namespace dmGameObject
             float m_V4[4];
             float m_M4[16];
             bool m_Bool;
+            const char* m_Text;
         };
     };
 

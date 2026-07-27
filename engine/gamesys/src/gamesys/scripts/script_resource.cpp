@@ -874,8 +874,8 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *         width  = 32,
  *         height = 32,
  *         depth  = 32,
- *         format = resource.TEXTURE_FORMAT_RGBA32F,
- *         flags  = resource.TEXTURE_USAGE_FLAG_STORAGE + resource.TEXTURE_USAGE_FLAG_SAMPLE,
+ *         format = graphics.TEXTURE_FORMAT_RGBA32F,
+ *         flags  = graphics.TEXTURE_USAGE_FLAG_STORAGE + graphics.TEXTURE_USAGE_FLAG_SAMPLE,
  *     })
  * 
  *     -- pass the backing texture to the render script
@@ -1118,7 +1118,7 @@ static int CreateTextureAsync(lua_State* L)
     // The callback is optional, we don't have to do anything with the result if we don't need to.
     // I.e the upload can be fire-and-forget. There is no way an upload can fail in the graphics system,
     // we should catch any incorrectness here if that's the case.
-    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 4);
+    dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(L, 4);
 
     // Create an initial blank texture that can be used while we upload the texture data externally
     CreateTextureResourceParams create_texture_resource_params = create_params;
@@ -1162,7 +1162,7 @@ static int CreateTextureAsync(lua_State* L)
 
     SetTextureAsyncRequest* request = new SetTextureAsyncRequest();
     HOpaqueHandle request_handle = g_ResourceModule.m_LoadRequests.Put(request);
-    request->m_LuaState          = L;
+    request->m_LuaState          = dmScript::GetMainThread(L);
     request->m_TextureResource   = (TextureResource*) resource;
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
@@ -1448,7 +1448,7 @@ static int ReleaseResource(lua_State* L)
  *         width  = 8,
  *         height = 8,
  *         depth  = 8,
- *         format = resource.TEXTURE_FORMAT_RGBA32F
+ *         format = graphics.TEXTURE_FORMAT_RGBA32F
  *     }
  *      
  *     -- This expects that the texture resource "/my_3d_texture.texturec" already exists
@@ -2891,12 +2891,10 @@ static int GetAtlas(lua_State* L)
     lua_pushliteral(L, "geometries");
     lua_newtable(L);
     {
-        int geometry_count = 0;
         for (int i = 0; i < texture_set->m_Geometries.m_Count; ++i)
         {
             dmGameSystemDDF::SpriteGeometry& geom = texture_set->m_Geometries[i];
             PushGeometry(L, i, geom, tex_width, tex_height);
-            geometry_count++;
         }
 
     }

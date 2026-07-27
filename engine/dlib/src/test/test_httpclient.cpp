@@ -27,7 +27,7 @@
 #include "dlib/sys.h"
 #include "dlib/socket.h"
 #include "dlib/sslsocket.h"
-#include "dlib/http_client.h"
+#include "dlib/http/http_client.h"
 #include "dlib/http_cache_verify.h"
 #include "dlib/testutil.h"
 
@@ -541,7 +541,6 @@ struct HttpStressHelper
 
     HttpStressHelper(const dmURI::Parts& uri)
     {
-        bool secure = strcmp(uri.m_Scheme, "https") == 0;
         m_StatusCode = 0;
         m_RangeStart = 0xFFFFFFFF;
         m_RangeEnd = 0xFFFFFFFF;
@@ -744,29 +743,6 @@ static void ShutdownThread(void *args)
             dmAtomicStore32(&ctx->m_GotIt, 1);
         } else {
             break; // done.
-        }
-    }
-}
-
-static void ProxyHandshakeShutdownThread(void *args)
-{
-    ShutdownThreadContext* ctx = (ShutdownThreadContext*)args;
-    while (!dmAtomicGet32(&ctx->m_GotIt))
-    {
-        if (dmHttpClient::GetNumPoolConnections() == 0)
-        {
-            dmTime::Sleep(1000);
-            continue;
-        }
-
-        // The proxy socket is published before the CONNECT tunnel is upgraded to TLS.
-        // Wait a bit so shutdown lands during the delayed SSL handshake on the test port.
-        dmTime::Sleep(200 * 1000);
-
-        if (dmHttpClient::ShutdownConnectionPool() > 0) {
-            dmAtomicStore32(&ctx->m_GotIt, 1);
-        } else {
-            break;
         }
     }
 }

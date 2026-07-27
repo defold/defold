@@ -41,6 +41,7 @@ from google.protobuf.descriptor import FieldDescriptor
 from gameobject import gameobject_ddf_pb2
 from gamesys import atlas_ddf_pb2
 from gamesys import camera_ddf_pb2
+from gamesys import collectionproxy_ddf_pb2
 from gamesys import gamesys_ddf_pb2
 from gamesys import gui_ddf_pb2
 from gamesys import label_ddf_pb2
@@ -65,7 +66,7 @@ PROTO_BY_EXTENSION = {
     ".camera": camera_ddf_pb2.CameraDesc,
     ".collection": gameobject_ddf_pb2.CollectionDesc,
     ".collectionfactory": gamesys_ddf_pb2.CollectionFactoryDesc,
-    ".collectionproxy": gamesys_ddf_pb2.CollectionProxyDesc,
+    ".collectionproxy": collectionproxy_ddf_pb2.CollectionProxyDesc,
     ".factory": gamesys_ddf_pb2.FactoryDesc,
     ".go": gameobject_ddf_pb2.PrototypeDesc,
     ".gui": gui_ddf_pb2.SceneDesc,
@@ -84,7 +85,7 @@ PROTO_BY_EXTENSION = {
 EMBEDDED_PROTO_BY_TYPE = {
     "camera": camera_ddf_pb2.CameraDesc,
     "collectionfactory": gamesys_ddf_pb2.CollectionFactoryDesc,
-    "collectionproxy": gamesys_ddf_pb2.CollectionProxyDesc,
+    "collectionproxy": collectionproxy_ddf_pb2.CollectionProxyDesc,
     "factory": gamesys_ddf_pb2.FactoryDesc,
     "go": gameobject_ddf_pb2.PrototypeDesc,
     "label": label_ddf_pb2.LabelDesc,

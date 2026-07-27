@@ -110,6 +110,7 @@ typedef enum WindowResult
  * @member WINDOW_GRAPHICS_API_VENDOR Vendor-specific backend
  * @member WINDOW_GRAPHICS_API_WEBGPU WebGPU backend
  * @member WINDOW_GRAPHICS_API_DIRECTX DirectX backend
+ * @member WINDOW_GRAPHICS_API_METAL Metal backend
  */
 typedef enum WindowsGraphicsApi
 {
@@ -120,6 +121,7 @@ typedef enum WindowsGraphicsApi
     WINDOW_GRAPHICS_API_VENDOR   = 4,
     WINDOW_GRAPHICS_API_WEBGPU   = 5,
     WINDOW_GRAPHICS_API_DIRECTX  = 6,
+    WINDOW_GRAPHICS_API_METAL    = 7,
 } WindowsGraphicsApi;
 
 /*# window state enumeration
@@ -198,6 +200,7 @@ typedef enum WindowState
  * @member m_Fullscreen [type:uint8_t:1] Start window in fullscreen mode
  * @member m_PrintDeviceInfo [type:uint8_t:1] Print graphics device information when opening the window
  * @member m_HighDPI [type:uint8_t:1] Request high-DPI framebuffer support where available
+ * @member m_FocusOnShow [type:uint8_t:1] Focus the window when shown on desktop platforms (default: 1)
  */
 typedef struct WindowCreateParams
 {
@@ -223,14 +226,16 @@ typedef struct WindowCreateParams
     uint8_t                 m_Fullscreen                : 1;
     uint8_t                 m_PrintDeviceInfo           : 1;
     uint8_t                 m_HighDPI                   : 1;
-    uint8_t                 m_WebGLVersionHint          : 4;
+    uint8_t                 m_FocusOnShow               : 1;
+    uint8_t                                             : 3;
+    uint8_t                 m_WebGLVersionHint;
 } WindowCreateParams;
 
 /*# initialize window parameters
  * Initializes a WindowCreateParams struct with default values.
  * The struct is first cleared to zero, then `m_Width` is set to 640,
- * `m_Height` is set to 480, `m_Samples` is set to 1, and
- * `m_Title` is set to "Defold Application".
+ * `m_Height` is set to 480, `m_Samples` is set to 1,
+ * `m_Title` is set to "Defold Application", and `m_FocusOnShow` is set to 1.
  * @name WindowCreateParamsInitialize
  * @param params [type:WindowCreateParams*] the params struct
  */

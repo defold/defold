@@ -542,8 +542,6 @@ namespace dmGameSystem
         int32_t sound_streaming_cache_size = dmConfigFile::GetInt(ctx->m_Config, "sound.stream_cache_size", 2 * 1024*1024);
         ResSoundDataSetStreamingCacheSize((uint32_t)sound_streaming_cache_size);
 
-        uint32_t cache_size = dmConfigFile::GetInt(ctx->m_Config, "sound.max_sound_instances", 256);
-
         ComponentTypeSetPrio(type, 600);
         ComponentTypeSetContext(type, context);
         ComponentTypeSetHasUserData(type, true);

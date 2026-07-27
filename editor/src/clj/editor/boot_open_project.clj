@@ -22,7 +22,6 @@
             [editor.changes-view :as changes-view]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.view :as code-view]
-            [editor.color-dropper :as color-dropper]
             [editor.command-requests :as command-requests]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
@@ -30,6 +29,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
+            [editor.doc :as doc]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.server :as ext.server]
             [editor.engine-profiler :as engine-profiler]
@@ -39,6 +39,7 @@
             [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
             [editor.localization :as localization]
+            [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
             [editor.notifications-view :as notifications-view]
             [editor.os :as os]
@@ -52,6 +53,7 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
+            [editor.system :as system]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
@@ -77,6 +79,7 @@
 (def the-root (atom nil))
 
 (defn initialize-systems! [prefs]
+  (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
   (code-view/initialize! prefs))
 
 (defn initialize-project! [system-config]
@@ -108,12 +111,6 @@
   (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
 
-(defn- persist-window-state!
-  [^Stage stage ^Scene scene prefs]
-  (app-view/store-window-dimensions stage prefs)
-  (app-view/store-split-positions! scene prefs)
-  (app-view/store-hidden-panes! scene prefs))
-
 (defn- init-pending-update-indicator! [^Stage stage link project changes-view updater localization]
   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
         render-save-progress! (app-view/make-render-task-progress :save-all)
@@ -131,7 +128,7 @@
                                      (ui.updater/install-and-restart! stage updater localization)
                                      (do (ui/enable-ui!)
                                          (changes-view/refresh! changes-view))))))]
-    (ui.updater/init! stage link updater install-and-restart! render-download-progress! localization)))
+    (ui.updater/init! stage link project updater install-and-restart! render-download-progress! localization)))
 
 (defn- show-tracked-internal-files-warning! [localization]
   (dialogs/make-info-dialog
@@ -155,7 +152,7 @@
   (let [^StackPane root (ui/load-fxml "editor.fxml")
         stage (ui/make-stage)
         scene (Scene. root)]
-
+    (ui/install-external-drag-guard! scene)
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
@@ -181,7 +178,6 @@
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
           console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource prefs localization)
-          color-dropper-view   (color-dropper/make-color-dropper! *view-graph*)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          localization
@@ -191,7 +187,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* color-dropper-view prefs)
+          properties-view      (properties-view/make-properties-view workspace project app-view search-results-view *view-graph* prefs)
           changes-view         (changes-view/make-changes-view *view-graph* workspace prefs localization (.lookup root "#changes-container")
                                                                (fn [changes-view moved-files]
                                                                  (app-view/async-reload! app-view changes-view workspace moved-files)))
@@ -221,7 +217,9 @@
                                   (console/routes console-view)
                                   (hot-reload/routes workspace)
                                   (bob/routes project)
+                                  (scene/routes project app-view)
                                   (command-requests/router root localization (app-view/make-render-task-progress :resource-sync))
+                                  (doc/routes)
                                   (http-server.prefs/routes prefs)]))
           server-port (:port cli-options)
           web-server (try
@@ -316,7 +314,7 @@
                                         (fn [successful?]
                                           (if successful?
                                             (do
-                                              (persist-window-state! stage scene prefs)
+                                              (app-view/store-window-state! stage prefs)
                                               (ui/close! stage))
                                             (ui/enable-ui!)))))
                                     false)
@@ -335,7 +333,7 @@
                                                                  :variant :danger
                                                                  :result true}]}))]
                                     (when result
-                                      (persist-window-state! stage scene prefs))
+                                      (app-view/store-window-state! stage prefs))
                                     result)))))
 
       (ui/on-closed! stage (fn [_]
@@ -413,6 +411,15 @@
             (when-some [readme-resource (workspace/find-resource (g/now) workspace "/README.md")]
               (open-resource readme-resource))
             (app-view/restore-tabs-from-prefs! app-view prefs localization workspace project))
+
+          ;; The first time a given editor version is opened, surface its bundled
+          ;; release notes (once per version; the set tracks every opened version).
+          (let [version (system/defold-version)
+                opened (prefs/get prefs [:opened-versions])]
+            (when (and version (not (contains? opened version)))
+              (ui/run-later
+                (app-view/show-release-notes-dialog! localization project))
+              (prefs/set! prefs [:opened-versions] (conj opened version))))
 
           (breakpoints-view/restore-breakpoints! project prefs)
 
