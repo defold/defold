@@ -30,6 +30,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.resource-types :as resource-types]
+            [editor.resource-update :as resource-update]
             [editor.scene :as scene]
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.workspace :as workspace]
@@ -67,8 +68,8 @@
 ;; The reload ratio determines the percentage of resources that are reloaded
 ;; during the simulated reload phase. Set DM_DEV_LOAD_PROJECT_RELOAD_RATIO to a
 ;; number between 0.0 and 1.0 if you want to limit the number of resources that
-;; are reloaded. Defaults to 1.0.
-(def ^:private ^:const default-simulated-reload-ratio 1.0)
+;; are reloaded. Defaults to 0.05, or 5% of resources.
+(def ^:private ^:const default-simulated-reload-ratio 0.05)
 
 (defonce simulated-reload-ratio
   (let [^String env-simulated-reload-ratio (System/getenv "DM_DEV_LOAD_PROJECT_RELOAD_RATIO")]
@@ -87,7 +88,7 @@
 (defonce separate-load-tx-data-generation true)
 
 ;; Set to one of the task-phases below to skip the rest of the tasks.
-(def final-task :simulate-reload)
+(def final-task nil)
 
 ;; You can use this to start and stop your own profiling tool for certain tasks.
 (defn- user-profiling-hook! [task-key task-fn]
@@ -139,12 +140,15 @@
    :evaluate-build-targets
    :resolve-build-target-deps
    :build-build-targets
-   :simulate-reload])
+   :simulate-reload-plugins
+   :simulate-reload-nodes])
 
 (def ^:private final-task-index
-  (let [task-index (.indexOf task-phases final-task)]
-    (assert (nat-int? task-index) (str "Invalid final-task: " final-task))
-    task-index))
+  (if (nil? final-task)
+    (dec (count task-phases))
+    (let [task-index (.indexOf task-phases final-task)]
+      (assert (nat-int? task-index) (str "Invalid final-task: " final-task))
+      task-index)))
 
 (defn- run-task? [task-key]
   {:pre [(keyword? task-key)]}
@@ -341,17 +345,20 @@
               (log-error :message "build-failure" :cause error-line)))
           build-results)))))
 
-(defn- select-simulated-reload-resources [resources]
-  (if (<= 1.0 simulated-reload-ratio)
+(defn- select-simulated-reload-resources [resources ^double reload-ratio]
+  (if (<= 1.0 reload-ratio)
+    ;; Include all non-directory resources.
     (filterv #(= :file (resource/source-type %))
              resources)
+
+    ;; Include a seeded random subset of all non-directory resources. The subset
+    ;; will include at least one resource of each type in the project.
     (let [random (Random. (long simulated-reload-seed))]
       (into []
             (mapcat
               (fn [[_ resources]]
                 (let [shuffled-resources (ArrayList. ^Collection (sort-by resource/proj-path resources))
-                      selection-count (int (Math/ceil (* simulated-reload-ratio
-                                                         (.size shuffled-resources))))]
+                      selection-count (int (Math/ceil (* reload-ratio (.size shuffled-resources))))]
                   (Collections/shuffle shuffled-resources random)
                   (.subList shuffled-resources 0 selection-count))))
             (->> resources
@@ -360,17 +367,31 @@
                  (sort-by key))))))
 
 (defonce simulated-reload-changes
-  (when (run-task? :simulate-reload)
+  (when (run-task? :simulate-reload-plugins)
     {:added []
      :removed []
-     :changed (select-simulated-reload-resources (g/node-value workspace :resource-list))
-     :moved []}))
+     :moved []
+     :changed (select-simulated-reload-resources
+                (g/node-value workspace :resource-list)
+                simulated-reload-ratio)}))
 
-(defonce ^:private -simulate-reload-
+(defonce ^:private -simulate-reload-plugins-
   (run-and-measure-task!
-    :simulate-reload
-    (doseq [[_ listener] @(g/node-value workspace :resource-listeners)]
-      (resource/handle-changes listener simulated-reload-changes progress/null-render-progress!))
+    :simulate-reload-plugins
+    (let [touched-resources (set (:changed simulated-reload-changes))]
+      (project/reload-plugins! project touched-resources))
+    nil))
+
+(defonce simulated-reload-resource-change-plan
+  (when (run-task? :simulate-reload-nodes)
+    (let [old-nodes-by-path (g/node-value project :nodes-by-resource-path)
+          old-node->old-disk-sha256 {}] ; Bypass content equality check, forcing reload.
+      (resource-update/resource-change-plan old-nodes-by-path old-node->old-disk-sha256 simulated-reload-changes))))
+
+(defonce ^:private -simulate-reload-nodes-
+  (run-and-measure-task!
+    :simulate-reload-nodes
+    (project/perform-resource-change-plan simulated-reload-resource-change-plan project progress/null-render-progress!)
     nil))
 
 (defonce total-duration-nanos

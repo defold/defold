@@ -1226,7 +1226,7 @@
 (def ^:private make-resource-nodes-by-path-map
   (partial into {} (map (juxt (comp resource/proj-path second) first))))
 
-(defn- perform-resource-change-plan [plan project render-progress!]
+(defn perform-resource-change-plan [plan project render-progress!]
   (let [process-metrics (du/make-metrics-collector)
         resource-metrics (du/make-metrics-collector)
         transaction-metrics (du/make-metrics-collector)
