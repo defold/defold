@@ -619,6 +619,21 @@
       (testing "After transaction attempt."
         (ensure-unmodified!)))))
 
+(deftest override-node-creation-with-undeclared-properties-by-node-id-test
+  (test-support/with-clean-system
+    (let [graph-id (g/make-graph!)
+          [original-node-id] (g/tx-nodes-added
+                               (g/transact
+                                 (g/make-node graph-id helpers/OverrideTestNode)))
+          [override-node-id] (g/tx-nodes-added
+                               (g/transact
+                                 (g/override
+                                   original-node-id
+                                   {:properties-by-node-id
+                                    (constantly {:undeclared-property :undeclared-property-value})})))]
+      (is (= :undeclared-property-value
+             (g/raw-property-value (g/now) override-node-id :undeclared-property))))))
+
 (deftest override-node-creation-with-invalid-init-fn-test
   (test-support/with-clean-system
     (let [graph-id (g/make-graph!)

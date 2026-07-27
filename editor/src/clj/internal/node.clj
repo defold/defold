@@ -642,27 +642,19 @@
                  ", but those don't exist on nodes of type "
                  (:name node-type-deref)))))
 
+(defmacro validate-property-labels [node-type-ref property-values]
+  (when *assert*
+    `(when *assert*
+       (validate-property-labels-impl (deref ~node-type-ref) ~property-values))))
+
 (defn validate-property-values-impl [node-type-deref node-id property-values]
   (coll/reduce-kv-> property-values nil
     (fn [_ property-label property-value]
       (validate-property-value-impl node-type-deref node-id property-label property-value))))
 
 (defmacro validate-property-values [node-type-ref node-id property-values]
-  (when (or *assert* *check-schemas*)
-    (let [node-type-deref-sym (gensym 'node-type-deref)
-          node-id-sym (gensym 'node-id)
-          property-values-sym (gensym 'property-values)]
-      `(let [~node-type-deref-sym (deref ~node-type-ref)
-             ~node-id-sym ~node-id
-             ~property-values-sym ~property-values]
-         ~@(filter
-             some?
-             [(when *assert*
-                `(when *assert*
-                   (validate-property-labels-impl ~node-type-deref-sym ~property-values-sym)))
-              (when *check-schemas*
-                `(when *check-schemas*
-                   (validate-property-values-impl ~node-type-deref-sym ~node-id-sym ~property-values-sym)))])))))
+  `(when-check-schemas
+     (validate-property-values-impl (deref ~node-type-ref) ~node-id ~property-values)))
 
 ;;; ----------------------------------------
 ;;; Construction
@@ -671,6 +663,7 @@
   [node-type-ref args]
   (assert (and node-type-ref (deref node-type-ref)))
   (assert (or (nil? args) (map? args)))
+  (validate-property-labels node-type-ref args)
   (validate-property-values node-type-ref (:_node-id args) args)
   (coll/merge
     (->NodeImpl nil node-type-ref)
