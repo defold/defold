@@ -393,12 +393,13 @@
   (if (or (coll/empty? override-node-id-table)
           (coll/empty? selected-override-node-ids))
     {}
-    (coll/reduce-> selected-override-node-ids {}
-      (fn [pkid->override-node-id override-node-id]
-        (coll/reduce-> (pkid-vector/find-pkids override-node-id-table override-node-id)
-          pkid->override-node-id
-          (fn [pkid->override-node-id pkid]
-            (assoc pkid->override-node-id pkid override-node-id)))))))
+    (-> override-node-id-table
+        (pkid-vector/find-pkids-by-value (set selected-override-node-ids))
+        (coll/reduce-kv-> {}
+          (fn [pkid->override-node-id override-node-id pkids]
+            (coll/reduce-> pkids pkid->override-node-id
+              (fn [pkid->override-node-id pkid]
+                (assoc pkid->override-node-id pkid override-node-id))))))))
 
 (defn- arc-table->pkid-vector [arc-table]
   (if (instance? Arc arc-table)
@@ -450,6 +451,12 @@
     (nil? arc-table) []
     (instance? Arc arc-table) (if (= arc-table arc) [0] [])
     :else (pkid-vector/find-pkids arc-table arc)))
+
+(defn- arc-table-find-pkids-by-arc [arc-table arcs]
+  (cond
+    (nil? arc-table) {}
+    (instance? Arc arc-table) (if (contains? arcs arc-table) {arc-table [0]} {})
+    :else (pkid-vector/find-pkids-by-value arc-table arcs)))
 
 (defn- graphs-source-arc-table [graphs arc]
   (let [source-id (gt/source-id arc)
@@ -1254,15 +1261,27 @@
         target-arc-pkids (arc-table-find-arc-pkids (graphs-target-arc-table graphs arc) arc)]
     (pair source-arc-pkids target-arc-pkids)))
 
+(defn- find-arc-pkids-by-endpoint
+  [graphs arc-table-key endpoint-fn arcs]
+  (coll/reduce-kv-> (util/group-into {} #{} endpoint-fn arcs) {}
+    (fn [arc->pkids [node-id label] arcs]
+      (let [graph-id (gt/node-id->graph-id node-id)
+            arc-table (get-in graphs [graph-id arc-table-key node-id label])]
+        (into arc->pkids (arc-table-find-pkids-by-arc arc-table arcs))))))
+
 (defn- find-connected-arc-pkids [basis node-ids]
-  (coll/into->
-    (pair (e/mapcat #(explicit-arcs-by-source basis %) node-ids)
-          (e/mapcat #(explicit-arcs-by-target basis %) node-ids))
-    {}
-    cat
-    (distinct)
-    (map (fn [arc]
-           (pair arc (find-arc-pkids basis arc))))))
+  (let [arcs (coll/into->
+               (pair (e/mapcat #(explicit-arcs-by-source basis %) node-ids)
+                     (e/mapcat #(explicit-arcs-by-target basis %) node-ids))
+               #{}
+               cat)
+        graphs (:graphs basis)
+        source-arc->pkids (find-arc-pkids-by-endpoint graphs :sarcs gt/source arcs)
+        target-arc->pkids (find-arc-pkids-by-endpoint graphs :tarcs gt/target arcs)]
+    (coll/into-> arcs {}
+      (map (fn [arc]
+             (pair arc (pair (get source-arc->pkids arc [])
+                             (get target-arc->pkids arc []))))))))
 
 (defn basis-plan-add-override
   [_basis override-id root-id traverse-fn init-props-fn]

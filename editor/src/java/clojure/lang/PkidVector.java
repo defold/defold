@@ -580,6 +580,39 @@ public final class PkidVector extends PersistentVector {
         return (PersistentVector) result.persistent();
     }
 
+    public IPersistentMap findPkidsByValue(final IPersistentSet values) {
+        if (cnt == 0 || values.count() == 0) {
+            return PersistentHashMap.EMPTY;
+        }
+
+        ITransientMap result = PersistentHashMap.EMPTY.asTransient();
+        final MissingPkidCursor missingIterator = new MissingPkidCursor(missingPkids);
+        long missingPkid = missingIterator.hasNext() ? missingIterator.nextLong() : -1;
+        long pkid = 0;
+        int index = 0;
+
+        while (index < cnt) {
+            final Object[] array = arrayFor(index);
+
+            for (int offset = 0; offset < array.length; ++offset, ++index) {
+                while (pkid == missingPkid) {
+                    ++pkid;
+                    missingPkid = missingIterator.hasNext() ? missingIterator.nextLong() : -1;
+                }
+
+                final Object value = array[offset];
+                if (values.contains(value)) {
+                    final IPersistentVector matchingPkids = (IPersistentVector) result.valAt(value, PersistentVector.EMPTY);
+                    result = result.assoc(value, matchingPkids.cons(pkid));
+                }
+
+                ++pkid;
+            }
+        }
+
+        return result.persistent();
+    }
+
     /**
      * Returns a read-only ascending iterator over missing pkids.
      */

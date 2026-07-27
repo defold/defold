@@ -17,9 +17,10 @@
   indexes.
 
   Ordinary vector operations use realized indexes, while assoc-pkids,
-  dissoc-pkids, and find-pkids use stable pkids. Vector equality and hashing
-  consider only realized values. Generic transient conversion is unsupported."
-  (:import [clojure.lang PkidVector]))
+  dissoc-pkids, find-pkids, and find-pkids-by-value use stable pkids. Vector
+  equality and hashing consider only realized values. Generic transient
+  conversion is unsupported."
+  (:import [clojure.lang IPersistentSet PkidVector]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -53,3 +54,11 @@
   [^PkidVector pkid-vector value]
   `(let [^PkidVector pkid-vector# ~pkid-vector]
      (.findPkids pkid-vector# ~value)))
+
+(definline find-pkids-by-value
+  "Returns a map from each requested value found in the pkid-vector to a sorted
+  regular vector of its pkids."
+  [^PkidVector pkid-vector ^IPersistentSet values]
+  `(let [^PkidVector pkid-vector# ~pkid-vector
+         ^IPersistentSet values# ~values]
+     (.findPkidsByValue pkid-vector# values#)))

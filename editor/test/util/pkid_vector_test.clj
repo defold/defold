@@ -477,6 +477,24 @@
       (is (= matching-pkids
              (pkid-vector/find-pkids pkid-vector :match))))))
 
+(deftest find-pkids-by-value-test
+  (let [equal-but-not-identical-a (String. "same")
+        equal-but-not-identical-b (String. "same")
+        pkid-vector (-> (pkid-vector/pkid-vector)
+                        (conj :a)
+                        (conj nil)
+                        (conj equal-but-not-identical-a)
+                        (conj :a)
+                        (conj nil)
+                        (conj equal-but-not-identical-b)
+                        (pkid-vector/dissoc-pkids [0 4]))]
+    (is (= {:a [3]
+            nil [1]
+            "same" [2 5]}
+           (pkid-vector/find-pkids-by-value pkid-vector #{:a nil "same" :not-found})))
+    (is (= {}
+           (pkid-vector/find-pkids-by-value pkid-vector #{})))))
+
 (deftest int-set-leaf-boundary-test
   (let [pkid-vector (-> (pkid-vector/pkid-vector)
                         (pkid-vector/assoc-pkids [128] :last)
@@ -509,23 +527,28 @@
       (is (= 131 (count fully-restored-pkid-vector) (pkid-vector/next-pkid fully-restored-pkid-vector))))))
 
 (deftest batched-int-set-leaf-boundary-test
-  (let [boundary-pkids [127 128 129 255 256 257]
+  (let [anchor-pkids [126 130 254 258]
+        boundary-pkids [127 128 129 255 256 257]
+        jumbled-non-distinct-boundary-pkids [257 129 127 255 128 256 129]
         initial-pkid-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector)
-                                                     [126 130 254 258]
+                                                     anchor-pkids
                                                      :anchor)
         restored-pkid-vector (pkid-vector/assoc-pkids initial-pkid-vector
-                                                      [257 129 127 255 128 256 129]
+                                                      jumbled-non-distinct-boundary-pkids
                                                       :boundary)
         deletion-pkids (int-map/int-set boundary-pkids)
         deleted-pkid-vector (pkid-vector/dissoc-pkids restored-pkid-vector deletion-pkids)]
     (is (= boundary-pkids
            (pkid-vector/find-pkids restored-pkid-vector :boundary)))
-    (is (= [126 130 254 258]
+    (is (= anchor-pkids
            (pkid-vector/find-pkids restored-pkid-vector :anchor)))
+    (is (= {:anchor anchor-pkids
+            :boundary boundary-pkids}
+           (pkid-vector/find-pkids-by-value restored-pkid-vector #{:anchor :boundary :not-found})))
     (is (= 259
            (+ (count restored-pkid-vector)
               (count (missing-pkids restored-pkid-vector)))))
-    (is (= [126 130 254 258]
+    (is (= anchor-pkids
            (pkid-vector/find-pkids deleted-pkid-vector :anchor)))
     (is (= [] (pkid-vector/find-pkids deleted-pkid-vector :boundary)))
     (is (= boundary-pkids (vec deletion-pkids)))))
