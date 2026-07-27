@@ -1426,6 +1426,10 @@ public class Project implements AutoCloseable {
             Map<String, String> appmanifestOptions = new HashMap<>();
             appmanifestOptions.put("baseVariant", variant);
             appmanifestOptions.put("withSymbols", Boolean.toString(withSymbols));
+            // Used as d8 --min-api. Below API 24 d8 desugars static/default interface methods and
+            // emits synthetic $desugar$clinit fields that Google Play Automatic Protection rejects.
+            appmanifestOptions.put("minAndroidSdkVersion", Integer.toString(
+                    projectProperties.getIntValue("android", "minimum_sdk_version", 21)));
 
             if (hasOption("build-artifacts")) {
                 String s = option("build-artifacts", "");
