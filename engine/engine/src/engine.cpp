@@ -1234,16 +1234,19 @@ namespace dmEngine
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 #if defined(__EMSCRIPTEN__)
         window_params.m_ContextAlphabits        = dmConfigFile::GetInt(engine->m_Config, "html5.transparent_graphics_context", 0) == 0 ? 0 : 8;
-        window_params.m_WebGLVersionHint        = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.webgl_version_hint", 2);
-#else
+#elif
         window_params.m_ContextAlphabits        = 8;
 #endif
 
         if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL)
         {
-            window_params.m_OpenGLVersionHint        = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
+            window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
             window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
         }
+
+#if defined(__EMSCRIPTEN__)
+        window_params.m_GraphicsApiVersionHint = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.webgl_version_hint", 2);
+#endif
 
         engine->m_Window = dmPlatform::NewWindow();
 

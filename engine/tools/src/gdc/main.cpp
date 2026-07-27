@@ -491,7 +491,7 @@ int main(int argc, char *argv[])
     window_params.m_Height = 32;
     window_params.m_Title = "gdc";
     window_params.m_PrintDeviceInfo = false;
-    window_params.m_OpenGLVersionHint = 33;
+    window_params.m_GraphicsApiVersionHint = 33;
     window_params.m_GraphicsApi = AdapterFamilyToWindowApi(dmGraphics::GetInstalledAdapterFamily());
     window_params.m_ContextAlphabits = 8;
     window_params.m_Hidden = 1;
