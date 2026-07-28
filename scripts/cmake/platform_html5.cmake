@@ -57,6 +57,9 @@ endif()
 set(_DEFOLD_EM_LINK_OPTS
   -Wno-warn-absolute-paths
   --emit-symbol-map
+  # build_id custom section, identical in the .wasm and the .wasm.debug.wasm
+  # sidecar; crash symbolication services (e.g. Sentry) match the pair by it
+  -Wl,--build-id
   -lidbfs.js
   -sDISABLE_EXCEPTION_CATCHING=1
   -sALLOW_UNIMPLEMENTED_SYSCALLS=0

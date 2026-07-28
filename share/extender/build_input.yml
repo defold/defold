@@ -473,8 +473,11 @@ platforms:
         # appended to linkFlags by the server when the client requests symbols (bob --with-symbols);
         # produces the dmengine.wasm.debug.wasm and dmengine.wasm.map sidecars returned via symbolsPattern.
         # plain -gsource-map only: -gsource-map=inline reads every source as strict
-        # UTF-8 at link time and would fail the build on any non-UTF-8 user source
-        withSymbolsLinkFlags: ["-gseparate-dwarf", "-gsource-map"]
+        # UTF-8 at link time and would fail the build on any non-UTF-8 user source.
+        # --build-id: build_id custom section, identical in the .wasm and the
+        # .wasm.debug.wasm sidecar; crash symbolication services (e.g. Sentry)
+        # match the pair by it
+        withSymbolsLinkFlags: ["-gseparate-dwarf", "-gsource-map", "-Wl,--build-id"]
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
         emscriptenLinkFlags: ["INITIAL_MEMORY={{initialMemory}}", "DISABLE_EXCEPTION_CATCHING=1", "ALLOW_UNIMPLEMENTED_SYSCALLS=0", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\",\"stringToNewUTF8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE={{stackSize}}", "MIN_FIREFOX_VERSION={{minFirefoxVersion}}", "MIN_SAFARI_VERSION={{minSafariVersion}}", "MIN_CHROME_VERSION={{minChromeVersion}}"]
         libs:       ["idbfs.js"]

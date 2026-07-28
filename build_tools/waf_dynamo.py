@@ -708,6 +708,9 @@ def default_flags(self):
             if Options.options.with_ubsan:
                 emflags_link += ['ASSERTIONS=1']
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
+            # build_id custom section, identical in the .wasm and the .wasm.debug.wasm
+            # sidecar; crash symbolication services (e.g. Sentry) match the pair by it
+            linkflags += ['-Wl,--build-id']
             if int(opt_level) < 2:
                 # plain -gsource-map only: emscripten's -gsource-map=inline aborts the
                 # link on any non-UTF-8 source (e.g. Bullet headers); sourcesContent is

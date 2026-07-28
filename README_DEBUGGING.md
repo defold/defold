@@ -213,14 +213,61 @@ the module shows up as `wasm://wasm/...` or named after `dmloader.js`, the
 streaming instantiation was not used and no debug info will be attached — check
 that the `.wasm` is served with `Content-Type: application/wasm`.
 
-#### Symbolicating a callstack with the symbol map
+#### Symbolicating a production callstack
 
-1. Download the engine:
+A Release bundle built with `--with-symbols` produces everything needed to
+symbolicate crashes collected from end users (the wasm debug sidecars come from
+the engine link, so they exist for Extender/native-extension builds and locally
+built engines; official vanilla engines publish them for the debug variant only):
 
-	$ wget http://d.defold.com/archive/<sha1>/engine/wasm-web/dmengine.js
+* `<Project>.wasm` — the deployed engine module
+* `<Project>.wasm.debug.wasm` — the DWARF sidecar. It is a full wasm module,
+  so symbolizers run directly against it; the deployed `.wasm` is not needed.
+* `dmengine[_release].js.symbols` — wasm function index -> mangled name
+  (`--emit-symbol-map`; published for all engine variants, and for Extender
+  builds returned in the build zip)
 
-1. Download the symbols
+Archive these together per release: an Extender build is unique, so the sidecar
+from that exact build zip is the only one that matches the deployed wasm.
+Deploy only the `.wasm` (never the sidecars, see above).
 
-	$ ... dmengine.js.symbols
+The engine crash handler logs the raw JS stack to the console
+(`CALL STACK: ... CALL STACK END`; it is also stored in the crash dump).
+Production wasm frames look like:
 
-1. Match the callstack with the symbols
+* Chrome: `at <name> (https://host/Game.wasm:wasm-function[1234]:0x56789a)`
+* Firefox: `<name>@https://host/Game.wasm:wasm-function[1234]:0x56789a`
+* Safari: `<?>.wasm-function[1234]@[wasm code]` — function index only, no offset
+
+The `0x...` offset is a byte offset from the start of the wasm file. Resolve a
+collected stack with:
+
+	$ python scripts/web/symbolicate_web_callstack.py --wasm-debug Game.wasm.debug.wasm --symbols dmengine_release.js.symbols stack.txt
+
+which annotates every wasm frame with `function at file:line:column` (DWARF via
+llvm-symbolizer from the emsdk — found via `$EMSDK` or `$DYNAMO_HOME`, or pass
+`--emsdk`). Safari frames carry no offset and resolve to a function name only
+(via the symbol map). Single addresses can also be resolved manually:
+
+	$ $EMSDK/upstream/emscripten/emsymbolizer Game.wasm.debug.wasm 0x56789a
+
+or by looking up the function index in the symbol map:
+
+	$ grep '^1234:' dmengine_release.js.symbols | c++filt
+
+Notes:
+
+* Release engines compile with `-gline-tables-only`: frames resolve to the
+  correct file/line (including inlining) but that DWARF carries no function
+  names — the script fills them in from the symbol map.
+* Source paths are repo-relative for CI engines and job-dir-relative for
+  Extender extension code — the same paths as in the Chrome path substitution
+  notes above (`debugSourcePath` controls the Extender side).
+* With-symbols links also embed a `build_id` custom section, identical in the
+  `.wasm` and the `.wasm.debug.wasm` sidecar, so the pair is directly usable
+  with external symbolication services. E.g. Sentry:
+  `sentry-cli debug-files check <Project>.wasm.debug.wasm` shows the Debug ID
+  (the same for both files), and `sentry-cli debug-files upload` uploads the
+  sidecar for server-side symbolication. Runtime crash-reporter integration
+  (SDK wiring) is intentionally not part of the engine — build it as an
+  extension.
