@@ -18,11 +18,12 @@
             [editor.handler :as handler]
             [editor.system :as system]
             [editor.types :as types]
+            [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
             [internal.util :as iutil]
             [schema.core :as s])
   (:import [javafx.css PseudoClass]
-           [javafx.scene Parent]
+           [javafx.scene Node Parent]
            [javafx.scene.control Tab ToggleButton]))
 
 (set! *warn-on-reflection* true)
@@ -338,10 +339,10 @@
         (renderable-tag-descriptors scene-visibility)))
 
 (defn toggle-button [app-view]
-  (some-> ^Tab (g/node-value app-view :active-tab)
-          .getContent
-          (.lookup "#visibility-settings-graphic")
-          .getParent))
+  (some-> (g/node-value app-view :active-tab)
+          Tab/.getContent
+          (ui/lookup-by-id "visibility-settings-graphic")
+          Node/.getParent))
 
 (defn sync-filter-button-style! [app-view scene-visibility evaluation-context]
   (when-let [btn ^ToggleButton (toggle-button app-view)]

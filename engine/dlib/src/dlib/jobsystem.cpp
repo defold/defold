@@ -726,7 +726,6 @@ static void DebugPrintJob(JobThreadContext* ctx, HJob hjob)
 {
     uint32_t generation = ToGeneration(hjob);
     uint32_t index      = ToIndex(hjob);
-    JobItem& item = ctx->m_Items.Get(index);
     printf("    job: %p  (gen: %u, idx: %u)\n", (void*)(uintptr_t)hjob, index, generation);
 }
 

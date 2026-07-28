@@ -57,7 +57,7 @@
            [java.awt Desktop Desktop$Action]
            [java.io File IOException]
            [java.net URI]
-           [java.util Collection]
+           [java.util ArrayDeque Collection]
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
            [javafx.application Platform]
            [javafx.beans InvalidationListener Observable]
@@ -286,8 +286,27 @@
            (.initOwner stage owner)))
      stage)))
 
+(defn lookup-by-id
+  "Find node by id, significantly faster than Node/.lookup"
+  [^Node root ^String id]
+  (let [nodes (ArrayDeque.)]
+    (loop [node root]
+      (if (= id (.getId node))
+        node
+        (do
+          (when (instance? Parent node)
+            ;; Push children in reverse order so LIFO deque traversal visits
+            ;; siblings in normal child order.
+            (let [children (.getChildrenUnmodifiable ^Parent node)]
+              (loop [i (dec (.size children))]
+                (when-not (neg? i)
+                  (.push nodes (.get children i))
+                  (recur (dec i))))))
+          (when-not (.isEmpty nodes)
+            (recur (.pop nodes))))))))
+
 (defn collect-controls [^Parent root keys]
-  (let [controls (zipmap (map keyword keys) (map #(.lookup root (str "#" %)) keys))
+  (let [controls (zipmap (map keyword keys) (map #(lookup-by-id root %) keys))
         missing (->> controls
                   (filter (fn [[k v]] (when (nil? v) k)))
                   (map first))]
@@ -1620,6 +1639,15 @@
       (some-> content
               (.lookup ".grid-menu-item-enabled")
               (.requestFocus)))))
+;; NOTE: make-grid-menu sets :hide-on-click to false because a CustomMenuItem can have headers and
+;; empty space that we don't want dismissing the context menu when clicked on. So manually walk up
+;; the PopupWindow and hide them
+(defn- hide-popup-window-chain! [^Event event]
+  (let [node ^Node (.getSource event)]
+    (loop [window (some-> node .getScene .getWindow)]
+      (when (instance? PopupWindow window)
+        (.hide ^PopupWindow window)
+        (recur (.getOwnerWindow ^PopupWindow window))))))
 
 (defn- make-grid-menu
   "Create a grid-based menu component with categorized items arranged in columns
@@ -1691,10 +1719,13 @@
                                     {:fx/type fx.button/lifecycle
                                      :text (localization label)
                                      :disable (not enabled?)
-                                     :on-action (fn [_] (invoke-handler (contexts scene false) command user-data))
+                                     :on-action (fn [e]
+                                                  (hide-popup-window-chain! e)
+                                                  (invoke-handler (contexts scene false) command user-data))
                                      :on-key-pressed (fn [^KeyEvent e]
                                                        (when (= KeyCode/ENTER (.getCode e))
                                                          (.consume e)
+                                                         (hide-popup-window-chain! e)
                                                          (invoke-handler (contexts scene false) command user-data)))
                                      :on-mouse-entered (fn [^MouseEvent e] (.requestFocus ^Node (.getSource e)))
                                      :style-class (into ["grid-menu-item-base"]
@@ -2561,7 +2592,8 @@
                            (catch Throwable t
                              (.stop ^AnimationTimer this)
                              (swap! stopped-timers conj this)
-                             (error-reporting/report-exception! t)))))))))})))
+                             (error-reporting/report-exception! t)
+                             (error-reporting/report-disabled-functionality!)))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -2569,12 +2601,16 @@
 (defn timer-stop! [timer]
   (.stop ^AnimationTimer (:timer timer)))
 
-(defn enable-stopped-timers!
-  "Re-enables any AnimationTimers that were stopped due to exceptions."
+(defn enable-disabled-functionality!
+  "Re-enables editor functionality that was disabled due to exceptions. This
+  covers AnimationTimers that were stopped, along with the command handlers that
+  were disabled after throwing."
   []
-  (doseq [timer @stopped-timers]
-    (.start ^AnimationTimer timer))
+  (doseq [^AnimationTimer timer @stopped-timers]
+    (.start timer))
   (reset! stopped-timers #{})
+  (handler/enable-disabled-handlers!)
+  (user-data! (main-scene) ::refresh-requested? true)
   nil)
 
 (defn anim! [^double duration anim-fn end-fn]
@@ -2662,6 +2698,44 @@
 
 (defn drag-internal? [^DragEvent e]
   (some? (.getGestureSource e)))
+
+(defn install-external-drag-guard!
+  [^Scene scene]
+  ;; On macOS, JavaFX may dispatch MOUSE_DRAGGED while an external Finder drag
+  ;; is already targeting this Scene (JDK-8210797).
+  ;; The external gesture has no local MOUSE_PRESSED, so JavaFX uses default
+  ;; press coordinates and may synthesize DRAG_DETECTED over a local drag source.
+  ;; startDragAndDrop then reuses the target Dragboard as a source Dragboard.
+  ;; After the handler returns, QuantumToolkit tries to flush that Dragboard.
+  ;; Target clipboards cannot be flushed, so View throws
+  ;; UnsupportedOperationException with "Flush is forbidden from target!".
+  ;; Track the target Dragboard from Scene entry through exit or drop, and disable
+  ;; local drag detection while it is active. A local press clears stale state.
+  (let [external-dragboard (volatile! nil)]
+    (doto scene
+      (.addEventFilter DragEvent/DRAG_ENTERED_TARGET
+                       (fn [^DragEvent event]
+                         (when (and (identical? scene (.getTarget event))
+                                    (nil? (.getGestureSource event)))
+                           (vreset! external-dragboard (.getDragboard event)))))
+      (.addEventFilter DragEvent/DRAG_EXITED_TARGET
+                       (fn [^DragEvent event]
+                         (when (and (identical? scene (.getTarget event))
+                                    (nil? (.getGestureSource event))
+                                    (identical? @external-dragboard (.getDragboard event)))
+                           (vreset! external-dragboard nil))))
+      (.addEventFilter DragEvent/DRAG_DROPPED
+                       (fn [^DragEvent event]
+                         (when (and (nil? (.getGestureSource event))
+                                    (identical? @external-dragboard (.getDragboard event)))
+                           (vreset! external-dragboard nil))))
+      (.addEventFilter MouseEvent/MOUSE_PRESSED
+                       (fn [_]
+                         (vreset! external-dragboard nil)))
+      (.addEventFilter MouseEvent/MOUSE_DRAGGED
+                       (fn [^MouseEvent event]
+                         (when @external-dragboard
+                           (.setDragDetect event false)))))))
 
 (defn register-tab-toolbar [^Tab tab toolbar-css-selector menu-id]
   (let [scene (-> tab .getTabPane .getScene)

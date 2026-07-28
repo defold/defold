@@ -23,6 +23,7 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
+            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -60,6 +61,7 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -85,6 +87,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
+            [editor.updater :as updater]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -901,10 +904,28 @@
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
-  (let [render-reload-progress! (make-render-task-progress :resource-sync)]
-    (disk/async-reload! render-reload-progress! workspace moved-files changes-view
-                        (fn [_success]
-                          (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))
+  (if-not (.isDirectory (workspace/project-directory workspace))
+    (g/let-ec [^Stage stage (g/node-value app-view :stage evaluation-context)
+               localization (g/node-value app-view :localization evaluation-context)]
+      (dialogs/make-info-dialog
+        localization
+        {:title (localization/message "dialog.project-directory-unavailable.title")
+         :icon :icon/triangle-error
+         :header (localization/message "dialog.project-directory-unavailable.header")
+         :content {:wrap-text true
+                   :text (localization/message "dialog.project-directory-unavailable.content")}
+         :buttons [{:text (localization/message "dialog.button.quit")
+                    :cancel-button true
+                    :default-button true}]})
+      (.setOnCloseRequest stage nil)
+      (.close stage))
+    (disk/async-reload!
+      (make-render-task-progress :resource-sync)
+      workspace
+      moved-files
+      changes-view
+      (fn [_success]
+        (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))
 
 (defn handle-application-focused! [app-view changes-view workspace prefs]
   (when (and (disk-availability/available?)
@@ -923,7 +944,7 @@
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
 
-(defn- launch-engine! [engine-descriptor project-directory prefs debug?]
+(defn- launch-engine! [engine-descriptor project-directory prefs debug focus]
   (try
     (report-build-launch-progress! (localization/message "progress.launching-engine"))
     (let [engine (engine/install-engine! project-directory engine-descriptor)
@@ -932,8 +953,8 @@
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
                              (let [last-instance? (or (= count 1) (= instance-index count))
-                                   instance-debug? (and debug? last-instance?)
-                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug? instance-index)
+                                   instance-debug (and debug last-instance?)
+                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! instance-index))]
                                (when (not last-instance?)
@@ -979,11 +1000,11 @@
       (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
-(defn- reboot-engine! [target web-server debug?]
+(defn- reboot-engine! [target web-server debug focus]
   (try
     (report-build-launch-progress!
       (localization/message "progress.rebooting-engine" {"engine" (targets/target-message target)}))
-    (engine/reboot! target (local-url target web-server) debug?)
+    (engine/reboot! target (local-url target web-server) debug focus)
     (report-build-launch-progress!
       (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
     target
@@ -1006,11 +1027,11 @@
 (defn- on-service-url-found [prefs target]
   (engine/apply-simulated-resolution! prefs target))
 
-(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
+(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug focus]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
                              (targets/kill-launched-targets!)
-                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug?)
+                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
@@ -1033,7 +1054,7 @@
         (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
           (console/set-log-service-stream log-stream)
-          (reboot-engine! selected-target web-server debug?))
+          (reboot-engine! selected-target web-server debug focus))
 
         :else
         (do
@@ -1048,7 +1069,7 @@
               ;; running to keep engine process
               ;; from halting because stdout/err is
               ;; not consumed.
-              (reboot-engine! selected-target web-server debug?))
+              (reboot-engine! selected-target web-server debug focus))
             (launch-new-engine!))))
       (catch SocketTimeoutException e
         (debug-view/show-connect-failed-info! e (project/workspace project)))
@@ -1442,7 +1463,7 @@
       (workspace/save-build-cache! workspace))
     (nil? error)))
 
-(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
+(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane launch focus]
   (let [project-directory (workspace/project-directory workspace)
         main-scene (.getScene ^Stage main-stage)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
@@ -1459,16 +1480,21 @@
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
         (when (handle-build-results! workspace render-build-error! build-results)
-          (when (or engine skip-engine)
+          (when (and launch (or engine skip-engine))
             (show-console! main-scene tool-tab-pane)
-            (launch-built-project! project engine project-directory prefs web-server false)))
+            (launch-built-project! project engine project-directory prefs web-server false focus)))
         build-results))))
+
+(handler/defhandler :project.compile :global
+  (enabled? [] (not (build-in-progress?)))
+  (run [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane false true)))
 
 (handler/defhandler :project.build :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane user-data]
     (debug-view/detach! debug-view)
-    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true (get user-data :focus true))))
 
 (handler/defhandler :run.set-instance-count :global
   (options [prefs user-data]
@@ -1514,7 +1540,7 @@
       (fn [{:keys [engine] :as build-results}]
         (when (handle-build-results! workspace render-build-error! build-results)
           (when (or engine skip-engine)
-            (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
+            (when-let [target (launch-built-project! project engine project-directory prefs web-server true true)]
               (when (nil? (debug-view/current-session debug-view))
                 (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
@@ -1573,7 +1599,7 @@
               (dialogs/make-confirmation-dialog localization clean-build-dialog-info))
       (debug-view/detach! debug-view)
       (workspace/clear-build-cache! workspace)
-      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane))))
+      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true true))))
 
 (defn- start-new-log-pipe!
   ^PipedOutputStream []
@@ -2006,6 +2032,8 @@
                menu-items/separator
                {:label (localization/message "command.help.open-documentation")
                 :command :help.open-documentation}
+               {:label (localization/message "command.help.open-release-notes")
+                :command :help.open-release-notes}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
                {:label (localization/message "command.help.open-editor-server")
@@ -2267,6 +2295,21 @@
 
       (ui/register-menubar app-scene menu-bar ::menubar)
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
+
+      (error-reporting/init-disabled-functionality-notifier!
+        (fn notify-disabled-functionality! []
+          (notifications/show!
+            (workspace/notifications (project/workspace project))
+            {:id ::disabled-functionality
+             :type :warning
+             :message (localization/message "notification.disabled-functionality")
+             :actions [{:message (localization/message "notification.disabled-functionality.action.enable")
+                        :on-action ui/enable-disabled-functionality!}
+                       {:message (localization/message "notification.disabled-functionality.action.restart")
+                        :on-action #(ui/execute-command
+                                      (ui/contexts (ui/main-scene) true)
+                                      :app.restart
+                                      nil)}]})))
 
       (let [prev-localization-bundle (volatile! nil)
             reload-editor-scripts-notification-updater (make-reload-editor-scripts-notification-updater project)
@@ -2581,6 +2624,64 @@
    (-> (g/with-auto-evaluation-context evaluation-context
          (make-open-resource-plan app-view prefs project resource opts evaluation-context))
        (perform-open-resource-plan! localization))))
+
+(def ^:private release-notes-resource-delay
+  (delay (io/resource (str "release-notes/" (system/defold-version) ".json"))))
+
+(defn- bundled-release-notes-json [url]
+  (try
+    (with-open [reader (io/reader url)]
+      (updater/release-notes-markdown (json/read reader :key-fn keyword)))
+    (catch Exception e
+      (log/warn :message "Failed to read bundled release notes"
+                :url (str url)
+                :exception e)
+      nil)))
+
+(ui/defc release-notes-dialog
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}]}
+  [{:keys [project localization-state content result-fn]}]
+  {:fx/type dialogs/dialog-stage
+   :showing true
+   :on-close-request (fn [_] (result-fn false))
+   :title (localization-state (localization/message "release-notes-dialog.title"))
+   :size :large
+   :width 1000
+   :header {:fx/type fxui/legacy-label
+            :variant :header
+            :text (localization-state (localization/message "release-notes-dialog.header"
+                                                            {"version" (system/defold-version)}))}
+   :content {:fx/type markdown/view
+             :content content
+             :project project
+             :stylesheets [(str (io/resource "editor.css"))]
+             :root-props {:style-class "md-page-root"}}
+   :footer {:fx/type dialogs/dialog-buttons
+            :children [{:fx/type fxui/legacy-button
+                        :text (localization-state (localization/message "release-notes-dialog.button.close"))
+                        :cancel-button true
+                        :on-action (fn [_] (result-fn false))}]}})
+
+(defn show-release-notes-dialog!
+  "Shows the running version's bundled release notes in a dialog. No-op when no
+  notes shipped. Must be called on the JavaFX application thread."
+  [localization project]
+  (when-let [url @release-notes-resource-delay]
+    (when-let [content (bundled-release-notes-json url)]
+      (fxui/show-stateless-dialog-and-await-result!
+        (fn [result-fn]
+          {:fx/type release-notes-dialog
+           :result-fn result-fn
+           :localization localization
+           :content content
+           :project project})))))
+
+(handler/defhandler :help.open-release-notes :global
+  (enabled? [] @release-notes-resource-delay)
+  (run [localization project]
+    (show-release-notes-dialog! localization project)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)

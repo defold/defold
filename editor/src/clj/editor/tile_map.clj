@@ -525,7 +525,8 @@
   (property cell-map g/Any (default (int-map/int-map))
             (dynamic visible (g/constantly false)))
 
-  (property id g/Str) ; Required protobuf field.
+  (property id g/Str ; Required protobuf field.
+            (dynamic tooltip (properties/tooltip-dynamic :tile-map.layer :id)))
   (property z g/Num ; Required protobuf field.
             (default protobuf/float-zero) ; Default for nodes constructed by editor scripts
             (dynamic error (g/fnk [_node-id z]

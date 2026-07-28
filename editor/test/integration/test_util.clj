@@ -63,7 +63,7 @@
             [local-extensions :as local-extensions]
             [service.log :as log]
             [support.test-support :as test-support]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
@@ -72,6 +72,7 @@
             [util.thread-util :as thread-util])
   (:import [ch.qos.logback.classic Level Logger]
            [clojure.core Vec]
+           [com.dynamo.bob.util Library$Result]
            [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
@@ -389,13 +390,19 @@
    (let [temp-project-path (make-temp-project-copy! project-path)]
      (setup-workspace! graph temp-project-path))))
 
+(defn fetch-library-results! [project-directory library-uris]
+  (let [lib-results (library/fetch! project-directory library-uris progress/null-render-progress!)]
+    (when-let [problem-results (coll/not-empty (filterv Library$Result/.problem lib-results))]
+      (throw
+        (IllegalStateException.
+          (str "Failed to fetch test project libraries:\n"
+               (localization (localization/join "\n" (mapv library/result-message problem-results)))))))
+    lib-results))
+
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
-    (->> (library/fetch!
-           (workspace/project-directory workspace)
-           dependencies
-           progress/null-render-progress!)
+    (->> (fetch-library-results! (workspace/project-directory workspace) dependencies)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
@@ -413,10 +420,7 @@
                   :else (throw (ex-info "library-uris contain invalid values."
                                         {:library-uris library-uris}))))
               library-uris)]
-    (->> (library/fetch!
-           (workspace/project-directory workspace)
-           library-uris
-           progress/null-render-progress!)
+    (->> (fetch-library-results! (workspace/project-directory workspace) library-uris)
          (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 

@@ -65,6 +65,7 @@ TEST_F(ScriptTestLua, TestPrint)
     ASSERT_TRUE(RunString(L, "print(\"test\", \"multiple\")"));
 
     char* log = GetLog();
+    (void)log;
 
     ASSERT_EQ(top, lua_gettop(L));
 #if defined(DM_NO_HTTP_CACHE)
@@ -1157,27 +1158,6 @@ TEST_F(ScriptTestLua, InstanceId)
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref1);
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref2);
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
-}
-
-static void printStack(lua_State* L)
-{
-    int top = lua_gettop(L);
-    int bottom = 1;
-    lua_getglobal(L, "tostring");
-    for(int i = top; i >= bottom; i--)
-    {
-        lua_pushvalue(L, -1);
-        lua_pushvalue(L, i);
-        lua_pcall(L, 1, 1, 0);
-        const char *str = lua_tostring(L, -1);
-        if (str) {
-            printf("%2d: %s\n", i, str);
-        }else{
-            printf("%2d: %s\n", i, luaL_typename(L, i));
-        }
-        lua_pop(L, 1);
-    }
-    lua_pop(L, 1);
 }
 
 static bool g_panic_function_called = false;

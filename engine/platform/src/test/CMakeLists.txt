@@ -9,6 +9,7 @@ project(defold_platform_tests LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 # test_platform (unit tests using null backend)
 defold_add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp")
+target_compile_definitions(test_platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
 # Include the platform src directory for headers
 target_include_directories(test_platform PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
@@ -34,6 +35,7 @@ if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web|x86_64-xbone"))
 
     defold_add_executable(test_platform_app
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_app.cpp")
+    target_compile_definitions(test_platform_app PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
     # Include the platform src directory for headers
     target_include_directories(test_platform_app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")

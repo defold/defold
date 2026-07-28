@@ -15,7 +15,6 @@
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.slider :as fx.slider]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -28,6 +27,7 @@
             [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.localization :as localization]
+            [editor.markdown :as markdown]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.properties :as properties]
@@ -469,7 +469,7 @@
 (defn- vec->color [[r g b a]]
   (Color. (float r) (float g) (float b) (float (or a 1.0))))
 
-(defmethod make-control-view types/Color [property {:keys [color-dropper-view prefs]} localization-state]
+(defmethod make-control-view types/Color [property {:keys [prefs]} localization-state]
   (let [values (properties/values property)
         value (properties/unify-values values)
         ignore-alpha (:ignore-alpha (:edit-type property))
@@ -489,7 +489,6 @@
                                             (assoc 3 (coerce (.getOpacity new-color))))))
                               values)))
          :ignore-alpha ignore-alpha
-         :color-dropper-view color-dropper-view
          :prefs prefs
          :editable (not (properties/read-only? property))}
         (resolve-validation property localization-state))))
@@ -525,6 +524,25 @@
           (when (and (resource/exists? resource)
                      (contains? valid-extensions resource-ext))
             resource))))))
+
+(defn parse-resource-path
+  ^String [^String s]
+  (let [length (.length s)]
+    (loop [index 0]
+      (if (= index length)
+        s
+        (let [c (.charAt s index)]
+          ;; Resource resolution normalizes path separators to forward slashes. The
+          ;; remaining characters must be usable on every supported platform. Windows
+          ;; reserves control characters and " < > : | ? *, while the Editor also
+          ;; excludes quote-like characters from file names. Keep the file-name
+          ;; restrictions in sync with editor.dialogs/sanitize-common.
+          (if (or (<= (int c) 0x1f)
+                  (case c
+                    (\" \' \« \» \< \> \: \| \? \*) true
+                    false))
+            nil
+            (recur (inc index))))))))
 
 (defmethod make-control-view resource/Resource [property {:keys [workspace project]} localization-state]
   (let [value (properties/unify-values (properties/values property))
@@ -567,6 +585,7 @@
        [{:fx/type fxui/value-field
          :h-box/hgrow :always
          :value (some-> value resource/proj-path)
+         :to-value parse-resource-path
          :on-value-changed #(set-values! property (repeat (workspace/resolve-workspace-resource workspace %)))
          :editable (not read-only)
          :style-class "ext-resource-picker-field"}
@@ -635,7 +654,7 @@
            :on-value-changed #(set-values! property (repeat (cond-> % is-float float)))
            :editable (not read-only)}
           (resolve-validation property localization-state))
-      {:fx/type fx.slider/lifecycle
+      {:fx/type fxui/slider
        :grid-pane/column 1
        :focus-traversable false
        :min min
@@ -729,7 +748,7 @@
                          (coll/mapcat-indexed
                            (fn [i [property-keyword property]]
                              (let [overridden (properties/overridden? property)]
-                               (coll/pair
+                               (pair
                                  {:fx/type fxui/menu-button
                                   :min-width :use-pref-size
                                   :style-class (cond-> ["property-label"] overridden (conj "overridden"))
@@ -740,11 +759,17 @@
                                   :mnemonic-parsing false
                                   :focus-traversable false
                                   :text (localization-state (properties/label property))
-                                  :tooltip (localization-state
-                                             (localization/message
-                                               "property.tooltip"
-                                               {"help" (properties/tooltip property)
-                                                "id" (string/replace (name property-keyword) \- \_)}))
+                                  :tooltip {:fx/type fxui/tooltip
+                                            :content-display :graphic-only
+                                            :style {:-fx-padding 0}
+                                            :graphic {:fx/type markdown/view
+                                                      :content (localization-state
+                                                                 (localization/message
+                                                                   "property.tooltip"
+                                                                   {"help" (properties/tooltip property)
+                                                                    "id" (string/replace (name property-keyword) \- \_)}))
+                                                      :max-width 350.0
+                                                      :project (:project context)}}
                                   prop-button-menu ::property-menu
                                   prop-mouse-pressed-handler focus-mouse-event-source!
                                   prop-property-context [(assoc context :property property) selection-provider]}
@@ -775,7 +800,7 @@
                        :properties displayed-node-properties}}})
 
 (g/defnk produce-pane-desc
-  [workspace project app-view search-results-view displayed-node-properties color-dropper-view prefs localization]
+  [workspace project app-view search-results-view displayed-node-properties prefs localization]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type properties-pane-view
           :localization localization
@@ -784,8 +809,7 @@
                     :app-view app-view
                     :prefs prefs
                     :localization localization
-                    :search-results-view search-results-view
-                    :color-dropper-view color-dropper-view}
+                    :search-results-view search-results-view}
           :displayed-node-properties displayed-node-properties}})
 
 (g/defnode PropertiesView
@@ -796,12 +820,11 @@
   (input project g/Any)
   (input app-view g/NodeID)
   (input search-results-view g/NodeID)
-  (input color-dropper-view g/NodeID)
   (input displayed-node-properties g/Any)
 
   (output pane-desc g/Any :cached produce-pane-desc))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph color-dropper-view prefs]
+(defn make-properties-view [workspace project app-view search-results-view view-graph prefs]
   (first
     (g/tx-nodes-added
       (g/transact
@@ -810,5 +833,4 @@
           (g/connect workspace :localization view :localization)
           (g/connect project :_node-id view :project)
           (g/connect app-view :_node-id view :app-view)
-          (g/connect search-results-view :_node-id view :search-results-view)
-          (g/connect color-dropper-view :_node-id view :color-dropper-view))))))
+          (g/connect search-results-view :_node-id view :search-results-view))))))

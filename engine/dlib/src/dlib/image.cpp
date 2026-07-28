@@ -197,4 +197,3 @@ namespace dmImage
         return true;
     }
 }
-

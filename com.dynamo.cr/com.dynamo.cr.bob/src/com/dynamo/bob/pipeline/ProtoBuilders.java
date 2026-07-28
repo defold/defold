@@ -34,13 +34,14 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
@@ -66,7 +67,7 @@ public class ProtoBuilders {
 
     public static String getTextureSetExt(String str) throws Exception {
         Map<String, String> types = TextureUtil.getAtlasFileTypes();
-        String suffix = "." + FilenameUtils.getExtension(str);
+        String suffix = "." + StringUtil.toLowerCase(FilenameUtils.getExtension(str));
         String replacement = types.getOrDefault(suffix, null);
         if (replacement != null) {
             return replacement;

@@ -1,0 +1,15 @@
+platforms:
+  x86-win32:
+    context:
+      excludeLibs: [libscript_box2d_defold, libgamesys_model, libgamesys_rig]
+      excludeSymbols: []
+      symbols: []
+      libs: [libscript_box2d.lib, libgamesys_model_null.lib, libgamesys_rig_null.lib]
+      linkFlags: []
+  x86_64-win32:
+    context:
+      excludeLibs: [libscript_box2d_defold, libgamesys_model, libgamesys_rig]
+      excludeSymbols: []
+      symbols: []
+      libs: [libscript_box2d.lib, libgamesys_model_null.lib, libgamesys_rig_null.lib]
+      linkFlags: []

@@ -139,6 +139,8 @@ else()
     # Apply per-language flags via target options
     set(_DEFOLD_NON_MSVC_OPTIONS
         -Wall
+        $<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-Wno-nontrivial-memcall>
+        $<$<COMPILE_LANG_AND_ID:OBJCXX,AppleClang,Clang>:-Wno-nontrivial-memcall>
         -Werror=format
         -Werror=return-type
         -fvisibility=hidden

@@ -810,6 +810,7 @@ resource exists after failed fetch: false
           :display-output! #(doto out (.append %2) (.append \newline))
           :fetch-libraries! (fn fetch-libraries! []
                               (future/io
+                                ;; Deliberately call library/fetch! directly to exercise failed fetch reporting.
                                 (let [lib-results (library/fetch!
                                                     (workspace/project-directory workspace)
                                                     (project/project-dependencies project)
@@ -1120,26 +1121,38 @@ POST http://localhost:23456/echo {\"y\":\"foo\",\"x\":4} as json => 200
 }
 POST http://localhost:23456/echo hello world! as string => 200
 \"hello world!\"
+GET http://localhost:23456/download as string => error ({as = \"string\", path = \"downloaded.txt\"} does not satisfy any of its requirements:
+- {as = \"string\", path = \"downloaded.txt\"} specifies mutually exclusive 'as' and 'path' options
+- {as = \"string\", path = \"downloaded.txt\"} is not nil)
+download into project => 200
+resource exists before/after: false/true
+\"downloaded content\"
+download outside project => 200
+path matches: true
 ")
 
 (deftest http-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/http_project"
-    (let [server (http-server/start!
-                   (http-server/router-handler
-                     {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
-                      "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
-                      "/" {"GET" (constantly (http-server/response 200 ""))}
-                      "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
-                      "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}})
-                   :port 23456)
-          out (StringBuilder.)]
-      (try
-        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
-        ;; See test.editor_script: the test invokes http.request with various options and prints results
-        (run-edit-menu-test-command!)
-        (expect-script-output expected-http-test-output out)
-        (finally
-          (http-server/stop! server 0))))))
+  (test-util/with-temp-dir! outside-directory
+    (test-util/with-scratch-project "test/resources/editor_extensions/http_project"
+      (let [outside-path (path/of outside-directory "downloaded.txt")
+            server (http-server/start!
+                     (http-server/router-handler
+                       {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
+                        "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
+                        "/" {"GET" (constantly (http-server/response 200 ""))}
+                        "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
+                        "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}
+                        "/download" {"GET" (constantly (http-server/response 200 "downloaded content"))}
+                        "/outside-path" {"GET" (constantly (http-server/response 200 (str outside-path)))}})
+                     :port 23456)
+            out (StringBuilder.)]
+        (try
+          (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+          ;; See test.editor_script: the test invokes http.request with various options and prints results
+          (run-edit-menu-test-command!)
+          (expect-script-output expected-http-test-output out)
+          (finally
+            (http-server/stop! server 0)))))))
 
 (def ^:private resource-io-test-output
   "editor.create_resources({{\"/test/config.json\", \"{\\\"test\\\": true}\"}}) => ok!

@@ -4840,7 +4840,7 @@ namespace dmGui
         // generate a name for the cloned node
         char name[18];
         dmSnPrintf(name, 18, "__node%d", g_ClonedNodeCount++);
-        out_n->m_NameHash = dmHashString64(name);
+        out_n->m_NameHash = dmHashBufferNoReverse64(name, strlen(name));
         out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;
         out_n->m_PrevIndex = INVALID_INDEX;
         out_n->m_NextIndex = INVALID_INDEX;
