@@ -402,6 +402,16 @@
     (g/node-value node-id label evaluation-context)
     @result-atom))
 
+(defn- cache-trace [node-id label]
+  {:node-id node-id
+   :label label
+   :output-type :cache
+   :state :end
+   :dependencies []})
+
+(defn- with-first-dependency [trace-result dependency]
+  (assoc-in trace-result [:dependencies 0] dependency))
+
 (defn- check-general-tracer-results! [source target]
   (testing "Isolated."
     (is (= {:node-id target
@@ -542,13 +552,15 @@
                 :output-type :output
                 :state :end
                 :dependencies [(trace target :_properties)
-                               (trace first-order-override-target :_declared-properties)]}
+                               (with-first-dependency
+                                 (trace first-order-override-target :_declared-properties)
+                                 (cache-trace target :_declared-properties))]}
                (trace first-order-override-target :_properties)))))))
 
 (deftest tracer-results-for-second-order-override-node
   (with-clean-system
     (let [[source
-           _target
+           target
            first-order-override-target
            second-order-override-target]
           (tx-nodes
@@ -579,7 +591,14 @@
                 :output-type :output
                 :state :end
                 :dependencies [(trace first-order-override-target :_properties)
-                               (trace second-order-override-target :_declared-properties)]}
+                               (with-first-dependency
+                                 (trace second-order-override-target :_declared-properties)
+                                 {:node-id first-order-override-target
+                                  :label :_declared-properties
+                                  :output-type :output
+                                  :state :end
+                                  :dependencies [(cache-trace target :_declared-properties)
+                                                 (cache-trace first-order-override-target :_declared-properties)]})]}
                (trace second-order-override-target :_properties)))))))
 
 (deftest valid-node-value
