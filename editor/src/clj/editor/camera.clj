@@ -534,6 +534,27 @@
               dx dy))
     (make-camera :orthographic identity {:fov-x 1000 :fov-y 1000})))
 
+(defn camera->prefs-value [camera]
+  (let [^Vector4d focus-point (:focus-point camera)]
+    {:projection (:type camera)
+     :position (math/vecmath->clj (:position camera))
+     :rotation (math/vecmath->clj (:rotation camera))
+     :fov-x (:fov-x camera)
+     :fov-y (:fov-y camera)
+     :focus-point [(.x focus-point) (.y focus-point) (.z focus-point)]}))
+
+(defn try-load-camera-from-prefs [prefs path-key]
+  (let [{:keys [projection position rotation fov-x fov-y focus-point]}
+        (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera] nil)]
+    (when (and projection position rotation fov-x fov-y focus-point)
+      (let [[position-x position-y position-z] position
+            [rotation-x rotation-y rotation-z rotation-w] rotation
+            [focus-x focus-y focus-z] focus-point]
+        (assoc (make-camera projection identity {:fov-x fov-x :fov-y fov-y})
+          :position (Point3d. (double position-x) (double position-y) (double position-z))
+          :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
+          :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) 1.0))))))
+
 (def ^:private camera-command->movement
   {:scene.camera.free-look :look
    :scene.camera.orbit :tumble

@@ -129,6 +129,12 @@
                                  (:removed changes))]
     (prefs/set! prefs [:scene :resource-settings] updated-settings)))
 
+(defn- prune-resource-prefs! [prefs workspace]
+  (let [basis (g/now)
+        settings (prefs/get prefs [:scene :resource-settings])
+        pruned (into {} (filter (fn [[path-key _]] (workspace/find-resource basis workspace path-key))) settings)]
+    (prefs/set! prefs [:scene :resource-settings] pruned)))
+
 (defn- handle-resource-changes! [app-scene tab-panes open-views changes-view]
   (ui/user-data! app-scene ::ui/refresh-requested? true)
   (app-view/remove-invalid-tabs! tab-panes open-views)
@@ -393,7 +399,6 @@
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
         (concat
-          (g/set-property app-view :scene-visibility scene-visibility)
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label))
           (g/connect project :_node-id app-view :project-id)
@@ -406,6 +411,7 @@
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
           (g/connect properties-view :_node-id app-view :properties-view)
           (g/connect properties-view :pane-desc app-view :properties-pane-desc)
+          (g/connect scene-visibility :_node-id app-view :scene-visibility)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
           (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
@@ -463,6 +469,8 @@
 
           (when (git/internal-files-are-tracked? git)
             (show-tracked-internal-files-warning! localization))
+
+          (prune-resource-prefs! prefs workspace)
 
           (ui/timer-start! ui-timer)
           (slog/smoke-log "stage-loaded"))))

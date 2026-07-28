@@ -62,7 +62,6 @@
             [editor.lsp :as lsp]
             [editor.lua :as lua]
             [editor.markdown :as markdown]
-            [editor.math :as math]
             [editor.menu-items :as menu-items]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -125,7 +124,6 @@
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
-           [javax.vecmath Point3d Quat4d Vector4d]
            [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
@@ -399,7 +397,6 @@
   (property manip-space g/Keyword)
   (property keymap g/Any)
   (property localization g/Any)
-  (property scene-visibility g/Any)
 
   (input outline-pane-desc g/Any)
   (input properties-pane-desc g/Any)
@@ -418,6 +415,7 @@
   (input sub-selections-by-resource-node g/Any)
   (input debugger-sidebar-panes g/Any)
   (input debugger-execution-locations g/Any)
+  (input scene-visibility g/NodeID)
 
   (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
@@ -2242,18 +2240,6 @@
 
 (declare save-scene-camera-prefs!)
 
-(defn- dispose-scene-views! [app-view prefs]
-  (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
-             scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
-    (doseq [view-id scene-view-ids]
-      (try
-        (when-let [resource (:resource (get open-views view-id))]
-          (save-scene-camera-prefs! prefs view-id resource))
-        (scene/dispose-scene-view! view-id)
-        (catch Throwable error
-          (error-reporting/report-exception! error)))))
-  (scene-cache/drop-context! nil))
-
 (let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
       getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
   (.setAccessible getTab true)
@@ -2345,7 +2331,17 @@
                     (handle-focus-owner-change! app-view prefs new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
-      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view prefs)))
+      (ui/on-closed! stage (fn [_]
+                             (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
+                                        scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
+                               (doseq [view-id scene-view-ids]
+                                 (try
+                                   (when-let [resource (:resource (get open-views view-id))]
+                                     (save-scene-camera-prefs! prefs view-id resource))
+                                   (scene/dispose-scene-view! view-id)
+                                   (catch Throwable error
+                                     (error-reporting/report-exception! error)))))
+                             (scene-cache/drop-context! nil)))
 
       (error-reporting/init-disabled-functionality-notifier!
         (fn notify-disabled-functionality! []
@@ -2418,14 +2414,6 @@
 
       (get scene-default-camera-projection-by-ext ext :orthographic))))
 
-(defn- camera-prefs [camera]
-  {:projection (:type camera)
-   :position (math/vecmath->clj (:position camera))
-   :rotation (math/vecmath->clj (:rotation camera))
-   :fov-x (:fov-x camera)
-   :fov-y (:fov-y camera)
-   :focus-point (math/vecmath->clj (:focus-point camera))})
-
 (defn- save-scene-camera-prefs! [prefs view resource]
   (g/let-ec [camera (some-> (:basis evaluation-context)
                             (scene/view->camera view)
@@ -2433,19 +2421,7 @@
              path-key (resource/resource->proj-path resource)]
     (when (and camera path-key)
       (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
-                                (camera-prefs camera)))))
-
-(defn- try-load-camera-from-prefs [prefs path-key]
-  (let [{:keys [projection position rotation fov-x fov-y focus-point]}
-        (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera] nil)]
-    (when (and projection position rotation fov-x fov-y focus-point)
-      (let [[position-x position-y position-z] position
-            [rotation-x rotation-y rotation-z rotation-w] rotation
-            [focus-x focus-y focus-z focus-w] focus-point]
-        (assoc (camera/make-camera projection identity {:fov-x fov-x :fov-y fov-y})
-          :position (Point3d. (double position-x) (double position-y) (double position-z))
-          :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
-          :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) (double focus-w)))))))
+                                (camera/camera->prefs-value camera)))))
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
@@ -2466,7 +2442,7 @@
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn (partial select app-view)
         open-resource-fn (partial open-resource! app-view prefs localization project)
-        stored-camera (try-load-camera-from-prefs prefs (resource/resource->proj-path resource))
+        stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))
         camera-opts (if stored-camera
                       {:camera stored-camera}
                       {:default-camera-projection (default-camera-projection project resource)})
@@ -2503,9 +2479,11 @@
                                     (recent-files/add! prefs resource view-type))))
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler event
-                          (recent-files/add! prefs resource view-type)
-                          (when (= :scene (:id view-type))
-                            (save-scene-camera-prefs! prefs view resource))
+                          (let [basis (g/now)
+                                resource (resource-node/resource basis resource-node)]
+                            (recent-files/add! prefs resource view-type)
+                            (when (= :scene (:id view-type))
+                              (save-scene-camera-prefs! prefs view resource)))
 
                           ;; The menu refresh can occur after the view graph is
                           ;; deleted but before the tab controls lose input

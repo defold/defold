@@ -17,7 +17,6 @@
   split 2D/3D grid presets."
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.app-view :as app-view]
             [editor.boot-open-project :as boot-open-project]
             [editor.camera :as camera]
             [editor.fs :as fs]
@@ -31,8 +30,8 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private camera-prefs #'app-view/camera-prefs)
-(def ^:private try-load-camera-from-prefs #'app-view/try-load-camera-from-prefs)
+(def ^:private camera-prefs camera/camera->prefs-value)
+(def ^:private try-load-camera-from-prefs camera/try-load-camera-from-prefs)
 (def ^:private set-visibility-settings! #'scene-visibility/set-visibility-settings!)
 (def ^:private grid-mode #'grid/grid-mode)
 (def ^:private clean-up-resource-prefs #'boot-open-project/clean-up-resource-prefs)
