@@ -115,15 +115,15 @@
                      (string/replace #" " "")
                      (string/split #","))]
     (coll/into-> searched-exts []
-                 (remove empty?)
-                 (map #(string/replace % #"\*?\." ""))
-                 (distinct))))
+      (remove empty?)
+      (map #(string/replace % #"\*?\." ""))
+      (distinct))))
 
 (defn- make-search-resource? [searched-ext-strings search-libraries]
   {:pre [(boolean? search-libraries)]}
   (let [file-ext-patterns
         (coll/into-> searched-ext-strings []
-                     (map #(text-util/search-string->re-pattern % :case-insensitive)))]
+          (map #(text-util/search-string->re-pattern % :case-insensitive)))]
     (fn search-resource? [resource]
       (and (resource-matches-library-setting? resource search-libraries)
            (resource-matches-file-ext? resource file-ext-patterns)))))
