@@ -1833,14 +1833,14 @@
     (let [basis (:basis evaluation-context)]
       (cond
         (= :_node-id output)
-        node-id
+        (trace-expr-result node-id output evaluation-context :raw-property node-id)
 
         (or (= :_declared-properties output)
             (= :_properties output))
         (let [beh (behavior node-type output)
-              props ((:fn beh) this output evaluation-context)
               original (gt/node-by-id-at basis original-id)
               orig-props (:properties (gt/produce-value original output evaluation-context))
+              props ((:fn beh) this output evaluation-context)
               declared? (partial contains? (all-properties node-type))]
           (when-not (:dry-run evaluation-context)
             (let [;; Values for undeclared properties must be manually propagated from the original.
@@ -1906,7 +1906,7 @@
         (let [beh (behavior node-type output)]
           ((:fn beh) this output evaluation-context))
 
-        true
+        :else
         (if (contains? (all-properties node-type) output)
           (get properties output)
           (when-some [node (gt/node-by-id-at basis original-id)]
