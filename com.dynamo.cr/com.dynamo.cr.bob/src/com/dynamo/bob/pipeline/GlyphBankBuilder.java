@@ -42,7 +42,7 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
     public Task create(IResource input) throws IOException, CompileExceptionError {
 
     	FontDesc.Builder builder = getSrcBuilder(input);
-        FontDesc fontDesc = builder.build();
+        FontDesc fontDesc = FontBuilder.getEffectiveFontDesc(builder.build());
 
         File file = new File(fontDesc.getFont());
         String fileNameWithExtension = file.getName();
@@ -62,7 +62,7 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
     	FontDesc.Builder builder = getSrcBuilder(task.firstInput());
-        FontDesc fontDesc = builder.build();
+        FontDesc fontDesc = FontBuilder.getEffectiveFontDesc(builder.build());
 
         final IResource inputFontFile = BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
         BufferedInputStream fontStream = new BufferedInputStream(new ByteArrayInputStream(inputFontFile.getContent()));

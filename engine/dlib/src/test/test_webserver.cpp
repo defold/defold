@@ -81,6 +81,12 @@ public:
         self->m_Quit = true;
     }
 
+    static void RootHandler(void* user_data, dmWebServer::Request* request)
+    {
+        const char* response = "root";
+        dmWebServer::Send(request, response, strlen(response));
+    }
+
     void SetUp() override
     {
         m_Quit = false;
@@ -92,6 +98,11 @@ public:
         ASSERT_EQ(dmWebServer::RESULT_OK, r);
         dmWebServer::HandlerParams handler_params;
         handler_params.m_Userdata = this;
+
+        // Register the catch-all first to verify that the most specific
+        // matching prefix wins regardless of registration order.
+        handler_params.m_Handler = RootHandler;
+        dmWebServer::AddHandler(m_Server, "/", &handler_params);
 
         handler_params.m_Handler = QuitHandler;
         dmWebServer::AddHandler(m_Server, "/quit", &handler_params);
@@ -108,6 +119,9 @@ public:
         if (m_Server)
         {
             dmWebServer::Result r;
+            r = dmWebServer::RemoveHandler(m_Server, "/");
+            ASSERT_EQ(dmWebServer::RESULT_OK, r);
+
             r = dmWebServer::RemoveHandler(m_Server, "/quit");
             ASSERT_EQ(dmWebServer::RESULT_OK, r);
 

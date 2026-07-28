@@ -1630,7 +1630,12 @@ namespace dmGameSystem
                 break;
             }
 
-            dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
+            dmRender::DrawText(gui_context->m_RenderContext,
+                               font_map,
+                               material,
+                               dmGameSystem::ResFontGetShadowMaterial(font_resource),
+                               0,
+                               params);
         }
     }
 

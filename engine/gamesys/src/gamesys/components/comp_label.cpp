@@ -566,7 +566,13 @@ namespace dmGameSystem
             }
 
             LabelResource* resource = component->m_Resource;
-            dmRender::DrawText(render_context, GetFontMap(component, resource), GetMaterial(component, resource), component->m_MixedHash, text_params);
+            FontResource* font_resource = GetFontResource(component, resource);
+            dmRender::DrawText(render_context,
+                               dmGameSystem::ResFontGetHandle(font_resource),
+                               GetMaterial(component, resource),
+                               dmGameSystem::ResFontGetShadowMaterial(font_resource),
+                               component->m_MixedHash,
+                               text_params);
         }
 
         dmRender::FlushTexts(render_context, dmRender::RENDER_ORDER_WORLD, false);

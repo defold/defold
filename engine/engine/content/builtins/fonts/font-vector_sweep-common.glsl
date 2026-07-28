@@ -1,5 +1,3 @@
-#version 140
-
 // Based on Rook & Possum's Scanline Sweeper work:
 // "The Scanline Sweeper: A Glyph Rendering Algorithm"
 // https://rookandpossum.com/posts/scanline-sweeper
@@ -10,7 +8,9 @@
 precision highp float;
 precision highp int;
 
+#ifndef FONT_VECTOR_SWEEP_DEBUG
 #define FONT_VECTOR_SWEEP_DEBUG 0
+#endif
 
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;

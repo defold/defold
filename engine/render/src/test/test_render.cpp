@@ -112,7 +112,7 @@ static HTextLayout CreateTextLayout(dmRender::HFontMap font_map, const char* tex
 static uint32_t QueueTextAndCopyVertices(dmRender::HRenderContext render_context, dmRender::HFontMap font_map, const dmRender::DrawTextParams& params, dmArray<uint8_t>& out_vertices, HTextLayout* out_layout, float* out_radius_sq)
 {
     dmRender::RenderListBegin(render_context);
-    dmRender::DrawText(render_context, font_map, 0, 0, params);
+    dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
 
     dmRender::TextContext& text_context = render_context->m_TextContext;
     if (out_layout)
@@ -2029,6 +2029,23 @@ TEST_F(dmRenderTest, GetTextMetricsWithNullPreparedLayout)
     ASSERT_EQ(0u, metrics.m_LineCount);
 }
 
+TEST_F(dmRenderTest, DrawTextStoresFaceAndShadowMaterials)
+{
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+
+    dmRender::HMaterial material = (dmRender::HMaterial)(uintptr_t)1;
+    dmRender::HMaterial shadow_material = (dmRender::HMaterial)(uintptr_t)2;
+    dmRender::DrawTextParams params;
+    params.m_Text = "Shadow";
+    dmRender::DrawText(m_Context, m_SystemFontMap, material, shadow_material, 0, params);
+
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(material, m_Context->m_TextContext.m_TextEntries[0].m_Material);
+    ASSERT_EQ(shadow_material, m_Context->m_TextContext.m_TextEntries[0].m_ShadowMaterial);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+}
+
 TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout)
 {
     dmRender::HFontRenderBackend font_backend = dmRender::CreateFontRenderBackend();
@@ -2255,7 +2272,7 @@ TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
 
     dmRender::RenderListBegin(m_Context);
-    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, 0, params);
     ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
     ASSERT_EQ(layout, m_Context->m_TextContext.m_TextEntries[0].m_TextLayout);
     ASSERT_EQ(3u, layout->m_RefCount);

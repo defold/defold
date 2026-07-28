@@ -42,6 +42,9 @@ message FontDesc
     optional uint32 cache_height = 16 [default = 0];
     optional FontRenderMode render_mode = 17 [default = MODE_SINGLE_LAYER];
     optional string characters = 18 [default = ""];
+    // Material used for vector-font shadows that require a runtime SDF texture.
+    // Ignored for bitmap fonts and shadows with zero blur.
+    optional string shadow_material = 19 [default = "", (resource)=true];
 }
 
 // Used at runtime
@@ -125,4 +128,5 @@ message FontMap
     optional float sdf_shadow     = 22 [default = 0.0];
     optional uint32 padding       = 23 [default = 0];
     repeated string renderer_materials = 24 [(resource)=true];
+    optional string shadow_material = 25 [default = "", (resource)=true];
 }

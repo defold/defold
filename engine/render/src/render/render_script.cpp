@@ -3544,7 +3544,7 @@ bail:
                     params.m_WorldTransform.setTranslation(dmVMath::Vector3(dt->m_Position));
                     params.m_FaceColor = dt->m_Color;
                 }
-                DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, 0, 0, params);
+                DrawText(instance->m_RenderContext, instance->m_RenderContext->m_SystemFontMap, 0, 0, 0, params);
                 return;
             }
             else if (descriptor == dmRenderDDF::DrawLine::m_DDFDescriptor)

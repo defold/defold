@@ -5,8 +5,6 @@ precision highp int;
 
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;
-in highp vec2 var_sdf_texcoord;
-flat in highp float var_use_sdf_shadow;
 flat in highp vec4 var_banding;
 flat in highp vec4 var_jacobian;
 flat in highp vec4 var_glyph;
@@ -16,7 +14,6 @@ out vec4 out_fragColor;
 
 uniform highp sampler2D curve_texture;
 uniform highp sampler2D band_texture;
-uniform mediump sampler2D sdf_shadow_texture;
 
 const float CURVE_TEXTURE_WIDTH = 512.0;
 const float CURVE_TEXTURE_HEIGHT = 64.0;
@@ -27,22 +24,6 @@ const int MAX_VECTOR_BAND_CURVES = 256;
 const float LAYER_MODE_FACE = 0.0;
 const float LAYER_MODE_OUTLINE = 1.0;
 const float LAYER_MODE_SHADOW = 2.0;
-const float SDF_EDGE = 0.75;
-
-float EvaluateRuntimeSdfShadowAlpha(vec2 p)
-{
-    float sdf_sample = texture(sdf_shadow_texture, var_sdf_texcoord).r;
-    float sdf_outline = max(var_jacobian.x, 1.0 / 255.0);
-    float sdf_shadow = var_jacobian.y;
-    float sdf_spread = max(var_params.w, 0.0001);
-    float shadow_value = clamp(sdf_sample / sdf_outline, 0.0, 1.0) * SDF_EDGE;
-    vec2 source_pixel_footprint = fwidth(p) * max(var_params.xy, vec2(0.0001));
-    float sdf_smoothing = 0.25 * max(source_pixel_footprint.x,
-                                     source_pixel_footprint.y) / sdf_spread;
-    return smoothstep(sdf_shadow - sdf_smoothing,
-                      SDF_EDGE + sdf_smoothing,
-                      shadow_value);
-}
 
 vec4 SampleCurveTexel(float texel_index)
 {
@@ -510,34 +491,6 @@ float EvaluateHardShadowAlpha(vec2 p,
     return EvaluateShadowSilhouetteAlpha(face_coverage, curve_distance, outline_width);
 }
 
-float EvaluateSdfCompatibleShadowAlpha(vec2 p,
-                                       float curve_start,
-                                       float curve_count,
-                                       vec2 glyph_scale,
-                                       float outline_width,
-                                       float shadow_blur)
-{
-    const float sdf_edge = 0.75;
-    const float sdf_range = 1.0 - sdf_edge;
-    const float sqrt2 = 1.4142;
-
-    float spread = max(shadow_blur + sqrt2, 0.0001);
-    float curve_distance = sqrt(ComputeCurveDistanceSqPixels(p, curve_start, curve_count, glyph_scale));
-    float inside = IsInsideGlyph(p, curve_start, curve_count);
-    float signed_distance = mix(-curve_distance, curve_distance, inside);
-    float distance_to_shadow_body = signed_distance + outline_width;
-
-    if (distance_to_shadow_body > 0.0)
-    {
-        distance_to_shadow_body = sdf_edge;
-    }
-
-    float shadow_value = clamp(sdf_edge + sdf_range * distance_to_shadow_body / spread, 0.0, 1.0);
-    float shadow_edge = sdf_edge - sdf_range * shadow_blur / spread;
-    float smoothing = sdf_range / spread;
-    return smoothstep(shadow_edge - smoothing, sdf_edge + smoothing, shadow_value);
-}
-
 void main()
 {
     float curve_count = var_glyph.x;
@@ -550,21 +503,6 @@ void main()
     }
 
     mediump vec2 p = var_texcoord;
-
-    // Keep the runtime-SDF shadow path ahead of all vector-rendering setup.
-    // This layer only needs the atlas sample and must not evaluate contours.
-    if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5 && var_use_sdf_shadow > 0.5)
-    {
-        float shadow_alpha = EvaluateRuntimeSdfShadowAlpha(p);
-        if (shadow_alpha <= 0.0)
-        {
-            discard;
-        }
-
-        float alpha = var_color.a * shadow_alpha;
-        out_fragColor = vec4(var_color.rgb * alpha, alpha);
-        return;
-    }
 
     float outline_width = max(var_jacobian.z, 0.0);
     float shadow_blur = max(var_jacobian.w, 0.0);
@@ -586,46 +524,27 @@ void main()
 
     if (abs(layer_mode - LAYER_MODE_SHADOW) < 0.5)
     {
-        float shadow_alpha = 0.0;
-        if (shadow_blur <= 0.0)
+        // Vector outlines and blurred shadows are emitted with font-sdf.material.
+        // This path is only the zero-radius shadow, using vector coverage.
+        if (shadow_blur >= 1.0)
         {
-            vec2 hard_shadow_margin = vec2(outline_width) / glyph_metric_scale;
-            if (any(lessThan(p, -hard_shadow_margin)) ||
-                any(greaterThan(p, vec2(1.0) + hard_shadow_margin)))
-            {
-                discard;
-            }
-            shadow_alpha = EvaluateHardShadowAlpha(p,
-                                                   var_banding,
-                                                   band_row,
-                                                   band_max,
-                                                   pixel_filter_width,
-                                                   curve_start,
-                                                   curve_count,
-                                                   glyph_metric_scale,
-                                                   outline_width);
+            discard;
         }
-        else
+        vec2 hard_shadow_margin = vec2(outline_width) / glyph_metric_scale;
+        if (any(lessThan(p, -hard_shadow_margin)) ||
+            any(greaterThan(p, vec2(1.0) + hard_shadow_margin)))
         {
-            // Some vector-font shadow quads retain conservative atlas padding.
-            // Keep the winding test inside the only domain where this blur can
-            // contribute; outside it, an unrelated contour can otherwise be
-            // classified as "inside" and make the padded quad opaque.
-            const float shadow_filter_guard = 2.4142;
-            vec2 shadow_margin = vec2(outline_width + shadow_blur + shadow_filter_guard) /
-                                 glyph_metric_scale;
-            if (any(lessThan(p, -shadow_margin)) ||
-                any(greaterThan(p, vec2(1.0) + shadow_margin)))
-            {
-                discard;
-            }
-            shadow_alpha = EvaluateSdfCompatibleShadowAlpha(p,
-                                                            curve_start,
-                                                            curve_count,
-                                                            glyph_metric_scale,
-                                                            outline_width,
-                                                            shadow_blur);
+            discard;
         }
+        float shadow_alpha = EvaluateHardShadowAlpha(p,
+                                                     var_banding,
+                                                     band_row,
+                                                     band_max,
+                                                     pixel_filter_width,
+                                                     curve_start,
+                                                     curve_count,
+                                                     glyph_metric_scale,
+                                                     outline_width);
 
         if (shadow_alpha <= 0.0)
         {

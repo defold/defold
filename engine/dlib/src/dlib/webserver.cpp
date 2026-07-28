@@ -123,14 +123,17 @@ namespace dmWebServer
         dmArray<HandlerData>& handlers = server->m_Handlers;
         uint32_t n = handlers.Size();
         HandlerData* handler = 0;
+        uint32_t handler_prefix_length = 0;
         for (uint32_t i = 0; i < n; ++i)
         {
             HandlerData* h = &handlers[i];
+            uint32_t prefix_length = (uint32_t)strlen(h->m_Prefix);
 
-            if (strncmp(request->m_Resource, h->m_Prefix, strlen(h->m_Prefix)) == 0)
+            if (prefix_length > handler_prefix_length &&
+                strncmp(request->m_Resource, h->m_Prefix, prefix_length) == 0)
             {
                 handler = h;
-                break;
+                handler_prefix_length = prefix_length;
             }
         }
 

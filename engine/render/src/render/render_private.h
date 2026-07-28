@@ -159,6 +159,7 @@ namespace dmRender
         HConstant           m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
         HFontMap            m_FontMap;
         HMaterial           m_Material;
+        HMaterial           m_ShadowMaterial;
         HTextLayout         m_TextLayout;
         dmGraphics::BlendFactor m_SourceBlendFactor;
         dmGraphics::BlendFactor m_DestinationBlendFactor;
@@ -168,6 +169,7 @@ namespace dmRender
         uint32_t            m_OutlineColor;
         uint32_t            m_ShadowColor;
         uint32_t            m_RenderOrder;
+        uint8_t             m_RenderLayerMask;
         uint8_t             m_NumRenderConstants;
         bool                m_LineBreak;
         float               m_Width;

@@ -86,6 +86,13 @@ namespace dmGameSystem
     dmRender::HFontMap ResFontGetHandle(FontResource* font);
 
     /*#
+     * @name ResFontGetShadowMaterial
+     * @param font [type: FontResource*] The font resource
+     * @return result [type: dmRender::HMaterial] Optional material for the separate SDF shadow pass.
+     */
+    dmRender::HMaterial ResFontGetShadowMaterial(FontResource* font);
+
+    /*#
      * @name ResFontGetVersion
      * @param font [type: FontResource*] The font resource
      * @return version [type: uint32_t] Monotonic layout version for the font resource.

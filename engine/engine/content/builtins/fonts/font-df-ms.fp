@@ -49,7 +49,7 @@ void main()
     mediump float outline_alpha   = smoothstep(sdf_outline - sdf_smoothing, sdf_outline + sdf_smoothing, distance);
     mediump float shadow_alpha    = smoothstep(sdf_shadow - sdf_smoothing, sdf_edge + sdf_smoothing, distance_shadow);
 
-    shadow_alpha = mix(shadow_alpha,outline_alpha,sdf_shadow_as_outline);
+    shadow_alpha = mix(shadow_alpha, face_alpha, sdf_shadow_as_outline);
 
     out_fragColor = face_alpha * var_face_color * var_layer_mask.x +
       outline_alpha * var_outline_color * var_layer_mask.y * (1.0 - face_alpha * sdf_is_single_layer) +

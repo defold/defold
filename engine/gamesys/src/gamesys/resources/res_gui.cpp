@@ -30,6 +30,87 @@
 
 namespace dmGameSystem
 {
+    static int32_t FindGuiFontIndex(const dmGuiDDF::SceneDesc* desc, const char* name)
+    {
+        if (!name || name[0] == 0)
+            return -1;
+        for (uint32_t i = 0; i < desc->m_Fonts.m_Count; ++i)
+        {
+            if (strcmp(desc->m_Fonts[i].m_Name, name) == 0)
+                return (int32_t)i;
+        }
+        return -1;
+    }
+
+    static const dmGuiDDF::NodeDesc* FindGuiNodeDesc(const dmGuiDDF::SceneDesc* desc, const char* id)
+    {
+        if (!id || id[0] == 0)
+            return 0;
+        for (uint32_t i = 0; i < desc->m_Nodes.m_Count; ++i)
+        {
+            const dmGuiDDF::NodeDesc* node = &desc->m_Nodes[i];
+            if (node->m_Id && strcmp(node->m_Id, id) == 0)
+                return node;
+        }
+        return 0;
+    }
+
+    static void AppendGuiPrewarmText(const dmGuiDDF::SceneDesc* desc, const dmGuiDDF::NodeDesc* node,
+                                     const dmGuiDDF::NodeDesc* defaults, dmArray<char>* texts)
+    {
+        dmGuiDDF::NodeDesc::Type type = defaults ? defaults->m_Type : node->m_Type;
+        if (type != dmGuiDDF::NodeDesc::TYPE_TEXT)
+            return;
+
+        const char* font = node->m_Font && node->m_Font[0] != 0 ? node->m_Font : (defaults ? defaults->m_Font : 0);
+        const char* text = node->m_Text && node->m_Text[0] != 0 ? node->m_Text : (defaults ? defaults->m_Text : 0);
+        int32_t font_index = FindGuiFontIndex(desc, font);
+        if (font_index < 0 || !text || text[0] == 0)
+            return;
+
+        dmArray<char>& combined = texts[font_index];
+        uint32_t length = (uint32_t)strlen(text);
+        if (combined.Capacity() < combined.Size() + length + 2)
+            combined.SetCapacity(combined.Size() + length + 2);
+        combined.PushArray(text, length);
+        combined.Push('\n');
+    }
+
+    static void RequestGuiTextPrewarm(GuiSceneResource* resource, const char* filename)
+    {
+        dmGuiDDF::SceneDesc* desc = resource->m_SceneDesc;
+        if (resource->m_Fonts.Empty())
+            return;
+
+        dmArray<char>* texts = new dmArray<char>[resource->m_Fonts.Size()];
+        for (uint32_t i = 0; i < desc->m_Nodes.m_Count; ++i)
+            AppendGuiPrewarmText(desc, &desc->m_Nodes[i], 0, texts);
+
+        for (uint32_t i = 0; i < desc->m_Layouts.m_Count; ++i)
+        {
+            const dmGuiDDF::SceneDesc::LayoutDesc& layout = desc->m_Layouts[i];
+            for (uint32_t j = 0; j < layout.m_Nodes.m_Count; ++j)
+            {
+                const dmGuiDDF::NodeDesc* node = &layout.m_Nodes[j];
+                AppendGuiPrewarmText(desc, node, FindGuiNodeDesc(desc, node->m_Id), texts);
+            }
+        }
+
+        for (uint32_t i = 0; i < resource->m_Fonts.Size(); ++i)
+        {
+            dmArray<char>& combined = texts[i];
+            if (combined.Empty())
+                continue;
+            combined.Push(0);
+            dmResource::Result result = ResFontPrewarmText(resource->m_Fonts[i], combined.Begin(), 0, 0);
+            if (result != dmResource::RESULT_OK && result != dmResource::RESULT_NOT_SUPPORTED)
+            {
+                dmLogWarning("Unable to prewarm GUI text glyphs for '%s': %d", filename, result);
+            }
+        }
+        delete[] texts;
+    }
+
     dmResource::Result AcquireResources(dmResource::HFactory factory, dmGui::HContext context,
         dmGuiDDF::SceneDesc *desc, GuiSceneResource* resource, const char* filename)
     {
@@ -96,6 +177,8 @@ namespace dmGameSystem
             dmResource::GetPath(factory, font, &path_hash);
             resource->m_FontMapPaths.Push(path_hash);
         }
+
+        RequestGuiTextPrewarm(resource, filename);
 
         resource->m_Materials.SetCapacity(resource->m_SceneDesc->m_Materials.m_Count);
         resource->m_Materials.SetSize(0);

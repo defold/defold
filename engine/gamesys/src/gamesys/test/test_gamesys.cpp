@@ -19,6 +19,7 @@
 #include "../../../../graphics/src/null/graphics_null_private.h"
 #include "../../../../particle/src/particle_private.h"
 #include "../../../../render/src/render/render_private.h"
+#include "../../../../render/src/render/font/fontmap_private.h"
 #include "../../../../resource/src/resource_private.h"
 #include "../../../../gui/src/gui_private.h"
 
@@ -3097,7 +3098,7 @@ TEST_F(GuiResourceTest, ScriptSetFonts)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(FontTest, GlyphBankTest)
+TEST_F(FontTest, TrueTypeFontsUseRuntimeGeneration)
 {
     const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
     const char path_font_2[] = "/font/glyph_bank_test_2.fontc";
@@ -3115,23 +3116,10 @@ TEST_F(FontTest, GlyphBankTest)
     dmRender::HFontMap font_map_2 = dmGameSystem::ResFontGetHandle(font_2);
     ASSERT_NE((void*)0, font_map_2);
 
-    HFontCollection font_collection1 = dmRender::GetFontCollection(font_map_1);
-    HFontCollection font_collection2 = dmRender::GetFontCollection(font_map_2);
-    HFont hfont_1 = FontCollectionGetFont(font_collection1, 0);
-    HFont hfont_2 = FontCollectionGetFont(font_collection2, 0);
-
-    FontResult r;
-    FontGlyph* glyph_1 = 0;
-    r = GetGlyph(font_map_1, hfont_1, 'A', &glyph_1);
-    ASSERT_EQ(FONT_RESULT_OK, r);
-    ASSERT_NE((FontGlyph*)0, glyph_1);
-
-    FontGlyph* glyph_2 = 0;
-    r = GetGlyph(font_map_2, hfont_2, 'A', &glyph_2);
-    ASSERT_EQ(FONT_RESULT_OK, r);
-    ASSERT_NE((FontGlyph*)0, glyph_2);
-
-    ASSERT_NE(glyph_1->m_Bitmap.m_Data, glyph_2->m_Bitmap.m_Data);
+    // Font effects differ in render parameters; both TTF resources retain the
+    // source font and generate their vector glyph data on demand.
+    ASSERT_TRUE(font_1->m_IsDynamic);
+    ASSERT_TRUE(font_2->m_IsDynamic);
 
     dmResource::Release(m_Factory, font_1);
     dmResource::Release(m_Factory, font_2);
@@ -3250,6 +3238,33 @@ static bool WaitForDynamicFontJobCallbacks(HJobContext job_context, DynamicFontJ
         dmTime::Sleep(1000);
     }
     return state->m_CallbackCount >= callback_count;
+}
+
+TEST_F(FontTest, VectorFontPrewarmPreservesOutline)
+{
+    const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
+    dmGameSystem::FontResource* font = 0;
+    DynamicFontJobCallbackState callback_state = {0, -1, {0}};
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
+    ASSERT_NE((void*)0, font);
+
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    font_map->m_IsVector = 1;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Lorem ipsum", DynamicFontJobCallback, &callback_state));
+    ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &callback_state, 1));
+    ASSERT_EQ(1, callback_state.m_Result);
+
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    HFont hfont = FontCollectionGetFont(font_collection, 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'L', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Outline.m_CommandCount, 0u);
+    ASSERT_EQ((const uint8_t*)0, glyph->m_Bitmap.m_Data);
+
+    dmResource::Release(m_Factory, font);
 }
 
 // Reloading a dynamic font with pending work must cancel the old jobs and

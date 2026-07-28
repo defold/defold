@@ -297,6 +297,7 @@ struct FontGlyphOptions
     }
 };
 
+
 /*#
  * Get the metrics of a glyph
  * @name FontGetGlyph

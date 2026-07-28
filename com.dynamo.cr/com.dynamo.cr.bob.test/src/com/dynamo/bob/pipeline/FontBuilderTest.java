@@ -24,7 +24,9 @@ import org.junit.Test;
 import java.util.List;
 
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.render.proto.Font.FontRenderMode;
 import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontTextureFormat;
 
 import com.google.protobuf.Message;
 
@@ -43,6 +45,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Before
     public void setup() {
         addTestFiles();
+        ParseUtil.addParser("ttf", content -> null);
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
@@ -57,6 +60,17 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("vertex_program: \"/test2.vp\"\n");
         src.append("fragment_program: \"/test2.fp\"\n");
         addFile("/test2.material", src.toString());
+
+        String runtimeMaterial = "name: \"runtime_font_material\"\n" +
+                                 "tags: \"text\"\n" +
+                                 "vertex_program: \"/test.vp\"\n" +
+                                 "fragment_program: \"/test.fp\"\n";
+        addFile("/builtins/fonts/font-df.material", runtimeMaterial);
+        addFile("/builtins/fonts/font-vector_slug.material", runtimeMaterial);
+        addFile("/builtins/fonts/font-vector_sweep.material", runtimeMaterial);
+        addFile("/builtins/fonts/label-vector_sweep.material", runtimeMaterial);
+        addFile("/builtins/fonts/font-sdf.material", runtimeMaterial);
+        addFile("/builtins/fonts/label-sdf.material", runtimeMaterial);
     }
 
     @Test
@@ -66,9 +80,81 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("font: \"/Tuffy.ttf\"\n");
         src.append("material: \"/test.material\"\n");
         src.append("size: 16\n");
+        src.append("output_format: TYPE_BITMAP\n");
+        src.append("render_mode: MODE_SINGLE_LAYER\n");
+        src.append("characters: \"ABC\"\n");
+        src.append("all_chars: true\n");
+        src.append("shadow_blur: 3\n");
+        src.append("shadow_material: \"/test2.material\"\n");
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+        assertEquals(fontMap.getShadowMaterial(), ResourceUtil.minifyPath("/test2.materialc"));
+        assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, fontMap.getOutputFormat());
+        assertEquals(FontRenderMode.MODE_MULTI_LAYER, fontMap.getRenderMode());
+        assertTrue(fontMap.getCharacters().isEmpty());
+        assertTrue(!fontMap.getAllChars());
+        assertEquals("/Tuffy.ttf", fontMap.getFont());
+        assertTrue(fontMap.getGlyphBank().isEmpty());
+    }
+
+    @Test
+    public void testTTFDefaultShadowMaterial() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("shadow_blur: 1\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+
+        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font-sdf.materialc"),
+                     fontMap.getShadowMaterial());
+    }
+
+    @Test
+    public void testTTFZeroBlurUsesSdfEffectMaterial() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("shadow_blur: 0\n");
+        src.append("shadow_alpha: 1\n");
+        src.append("shadow_material: \"/test2.material\"\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+
+        assertEquals(ResourceUtil.minifyPath("/test2.materialc"),
+                     fontMap.getShadowMaterial());
+    }
+
+    @Test
+    public void testTTFOutlineUsesDefaultSdfEffectMaterial() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("outline_width: 2\n");
+        src.append("shadow_blur: 0\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+
+        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font-sdf.materialc"),
+                     fontMap.getShadowMaterial());
+    }
+
+    @Test
+    public void testTTFLabelOutlineUsesLabelSdfEffectMaterial() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/builtins/fonts/label-vector_sweep.material\"\n");
+        src.append("size: 16\n");
+        src.append("outline_width: 2\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+
+        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/label-sdf.materialc"),
+                     fontMap.getShadowMaterial());
     }
 
     @Test
@@ -78,9 +164,20 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("font: \"/bmfont.fnt\"\n");
         src.append("material: \"/test.material\"\n");
         src.append("size: 16\n");
+        src.append("output_format: TYPE_DISTANCE_FIELD\n");
+        src.append("render_mode: MODE_MULTI_LAYER\n");
+        src.append("characters: \"ABC\"\n");
+        src.append("shadow_blur: 3\n");
+        src.append("shadow_material: \"/test2.material\"\n");
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+        assertTrue(fontMap.getShadowMaterial().isEmpty());
+        assertEquals(FontTextureFormat.TYPE_BITMAP, fontMap.getOutputFormat());
+        assertEquals(FontRenderMode.MODE_SINGLE_LAYER, fontMap.getRenderMode());
+        assertEquals("ABC", fontMap.getCharacters());
+        assertTrue(fontMap.getFont().isEmpty());
+        assertTrue(!fontMap.getGlyphBank().isEmpty());
     }
 
     @Test

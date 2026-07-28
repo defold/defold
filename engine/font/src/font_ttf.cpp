@@ -375,9 +375,6 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
 
     if (options->m_GenerateOutline && has_sdf_image)
     {
-        // Vector glyphs with SDF-compatible metrics use the same pixel-space
-        // bitmap box as stbtt_GetGlyphSDF(), so curves normalize into the same
-        // coordinate system as the raster SDF image.
         glyph->m_Width = (float)srcw;
         glyph->m_Height = (float)srch;
         glyph->m_LeftBearing = (float)offsetx;

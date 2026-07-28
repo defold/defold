@@ -319,7 +319,9 @@ namespace dmRender
     static bool UsesVectorSdfShadow(HFontMap font_map)
     {
         return font_map->m_ShadowSdf &&
-               font_map->m_ShadowAlpha > 0.0f;
+               (font_map->m_ShadowBlur >= 1.0f ||
+                font_map->m_ShadowAlpha > 0.0f ||
+                font_map->m_OutlineWidth > 0.0f);
     }
 
     static void RecreateVectorSdfTexture(HFontMap font_map)
@@ -722,6 +724,8 @@ namespace dmRender
             if (font_map->m_IsVector)
             {
                 FontGlyphOptions glyph_options;
+                // Generate the shadow SDF at the authored .font size. Screen
+                // transforms only affect sampling; they never resize the atlas.
                 glyph_options.m_Scale = FontGetScaleFromSize(font, font_map->m_Size);
                 glyph_options.m_GenerateImage = UsesVectorSdfShadow(font_map);
                 glyph_options.m_GenerateOutline = true;
@@ -2250,6 +2254,16 @@ namespace dmRender
                 }
                 cache_glyph->m_VectorSdfCached =
                     UpdateVectorSdfGlyphTexture(font_map, glyph, cache_glyph->m_X, cache_glyph->m_Y) ? 1 : 0;
+                if (!cache_glyph->m_VectorSdfCached)
+                {
+                    dmLogError("Failed to cache the runtime SDF shadow for glyph %u in %s",
+                               glyph->m_GlyphIndex,
+                               dmHashReverseSafe64(font_map->m_NameHash));
+                    cache_glyph->m_Glyph = 0;
+                    cache_glyph->m_GlyphKey = 0;
+                    cache_glyph->m_Frame = 0;
+                    return 0;
+                }
             }
 
             font_map->m_GlyphCache.Put(glyph_key, cache_glyph);

@@ -160,7 +160,7 @@ namespace dmRender
     static dmhash_t g_ViewportHash = dmHashString64("viewport");
     static dmhash_t g_CurveTextureHash = dmHashString64("curve_texture");
     static dmhash_t g_BandTextureHash = dmHashString64("band_texture");
-    static dmhash_t g_SdfShadowTextureHash = dmHashString64("sdf_shadow_texture");
+    static dmhash_t g_SdfTextureHash = dmHashString64("sdf_texture");
 
     static float CalcSdfScale(const Matrix4& view_proj, float half_w, float half_h, const Matrix4& world_transform)
     {
@@ -234,7 +234,7 @@ namespace dmRender
         return center_point;
     }
 
-    void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, uint64_t batch_key, const DrawTextParams& params)
+    void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, HMaterial shadow_material, uint64_t batch_key, const DrawTextParams& params)
     {
         DM_PROFILE("DrawText");
 
@@ -260,6 +260,9 @@ namespace dmRender
             }
             if (material) {
                 dmHashUpdateBuffer64(&key_state, &material, sizeof(material));
+            }
+            if (shadow_material) {
+                dmHashUpdateBuffer64(&key_state, &shadow_material, sizeof(shadow_material));
             }
             batch_key = dmHashFinal64(&key_state);
         }
@@ -288,6 +291,7 @@ namespace dmRender
         te.m_StringOffset = offset;
         te.m_FontMap = font_map;
         te.m_Material = material;
+        te.m_ShadowMaterial = shadow_material;
         te.m_TextLayout = text_layout;
         te.m_BatchKey = batch_key;
         te.m_Next = -1;
@@ -297,6 +301,7 @@ namespace dmRender
         te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), params.m_OutlineColor.getW() * font_map->m_OutlineAlpha));
         te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(params.m_ShadowColor.getXYZ(), params.m_ShadowColor.getW() * font_map->m_ShadowAlpha));
         te.m_RenderOrder = params.m_RenderOrder;
+        te.m_RenderLayerMask = FACE | OUTLINE | SHADOW;
         te.m_Width = params.m_Width;
         te.m_Height = params.m_Height;
         te.m_Leading = params.m_Leading;
@@ -348,7 +353,8 @@ namespace dmRender
         text_context->m_TextEntries.Push(te);
     }
 
-    static void CreateFontRenderBatch(HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    static void CreateFontRenderObject(HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end,
+                                       HMaterial material, uint8_t render_layer_mask)
     {
         DM_PROFILE("FontRenderBatch");
         TextContext& text_context = render_context->m_TextContext;
@@ -356,9 +362,6 @@ namespace dmRender
         const TextEntry& first_te = *(TextEntry*) buf[*begin].m_UserData;
 
         HFontMap font_map = first_te.m_FontMap;
-        // Cache updates may recreate textures, so resolve them before deriving
-        // texture dimensions or storing handles in the render object.
-        UpdateCacheTexture(font_map);
 
         float im_recip = 1.0f;
         float ih_recip = 1.0f;
@@ -393,19 +396,19 @@ namespace dmRender
         ro->m_SourceBlendFactor = first_te.m_SourceBlendFactor;
         ro->m_DestinationBlendFactor = first_te.m_DestinationBlendFactor;
         ro->m_SetBlendFactors = 1;
-        ro->m_Material = first_te.m_Material;
+        ro->m_Material = material;
         memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
-        uint32_t curve_unit = dmRender::GetMaterialSamplerUnit(first_te.m_Material, g_CurveTextureHash);
-        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(first_te.m_Material, g_BandTextureHash);
-        uint32_t sdf_shadow_unit = dmRender::GetMaterialSamplerUnit(first_te.m_Material, g_SdfShadowTextureHash);
+        uint32_t curve_unit = dmRender::GetMaterialSamplerUnit(material, g_CurveTextureHash);
+        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, g_BandTextureHash);
+        uint32_t sdf_texture_unit = dmRender::GetMaterialSamplerUnit(material, g_SdfTextureHash);
         if (curve_unit != dmRender::INVALID_SAMPLER_UNIT)
             ro->m_Textures[curve_unit] = font_map->m_Texture;
-        else
+        else if (sdf_texture_unit == dmRender::INVALID_SAMPLER_UNIT)
             ro->m_Textures[0] = font_map->m_Texture;
         if (band_unit != dmRender::INVALID_SAMPLER_UNIT)
             ro->m_Textures[band_unit] = font_map->m_VectorBandTexture;
-        if (sdf_shadow_unit != dmRender::INVALID_SAMPLER_UNIT)
-            ro->m_Textures[sdf_shadow_unit] = font_map->m_VectorSdfTexture;
+        if (sdf_texture_unit != dmRender::INVALID_SAMPLER_UNIT)
+            ro->m_Textures[sdf_texture_unit] = font_map->m_VectorSdfTexture;
         ro->m_VertexStart = text_context.m_VertexIndex;
         ro->m_StencilTestParams = first_te.m_StencilTestParams;
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
@@ -461,13 +464,41 @@ namespace dmRender
             {
                 sdf_scale = CalcSdfScale(sdf_view_proj, sdf_half_w, sdf_half_h, te.m_Transform);
             }
-            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, te, sdf_scale, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
+            TextEntry render_te = te;
+            render_te.m_RenderLayerMask = render_layer_mask;
+            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, render_te, sdf_scale, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
             text_context.m_VertexIndex += num_vertices;
         }
 
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
+        if (ro->m_VertexCount > 0)
+        {
+            dmRender::AddToRender(render_context, ro);
+        }
+        else
+        {
+            text_context.m_RenderObjectIndex--;
+        }
+    }
 
-        dmRender::AddToRender(render_context, ro);
+    static void CreateFontRenderBatch(HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    {
+        const TextEntry& first_te = *(TextEntry*) buf[*begin].m_UserData;
+        // Cache updates may recreate textures. Resolve once before either pass
+        // stores texture handles so the shadow render object cannot be
+        // invalidated while the face object is being prepared.
+        UpdateCacheTexture(first_te.m_FontMap);
+        if (first_te.m_ShadowMaterial)
+        {
+            // Vector outlines and shadows use the same runtime SDF texture and
+            // lightweight effect material, including shadows with zero blur.
+            CreateFontRenderObject(render_context, buf, begin, end, first_te.m_ShadowMaterial, SHADOW | OUTLINE);
+            CreateFontRenderObject(render_context, buf, begin, end, first_te.m_Material, FACE);
+        }
+        else
+        {
+            CreateFontRenderObject(render_context, buf, begin, end, first_te.m_Material, FACE | OUTLINE | SHADOW);
+        }
     }
 
     static void FontRenderListDispatch(dmRender::RenderListDispatchParams const &params)

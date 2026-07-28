@@ -27,34 +27,78 @@ import com.dynamo.bob.fs.ResourceUtil;
 
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontRenderMode;
 import com.dynamo.render.proto.Font.FontTextureFormat;
 
 @ProtoParams(srcClass = FontDesc.class, messageClass = FontMap.class)
-@BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc", paramsForSignature = {"font-runtime-generation"})
+@BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
 public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
+
+    private static final String DEFAULT_VECTOR_SDF_MATERIAL =
+        "/builtins/fonts/font-sdf.material";
+    private static final String DEFAULT_LABEL_VECTOR_SDF_MATERIAL =
+        "/builtins/fonts/label-sdf.material";
 
     private static final String[] RUNTIME_FONT_RENDERER_MATERIALS = {
         "/builtins/fonts/font-df.material",
         "/builtins/fonts/font-vector_slug.material",
         "/builtins/fonts/font-vector_sweep.material",
+        "/builtins/fonts/font-sdf.material",
     };
 
-    private boolean useRuntimeGeneration(FontDesc fontDesc) {
-        boolean enabled = this.project.option("font-runtime-generation", "false").equals("true");
-        if (!enabled)
-            return false;
-
-        if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD)
-            return false;
-
+    private static boolean isTrueTypeFont(FontDesc fontDesc) {
         String path = fontDesc.getFont().toLowerCase();
         return path.endsWith(".ttf");
+    }
+
+    private static String getDefaultVectorSdfMaterial(FontDesc fontDesc) {
+        String material = fontDesc.getMaterial();
+        if (material.equals("/builtins/fonts/label-vector_slug.material") ||
+            material.equals("/builtins/fonts/label-vector_sweep.material")) {
+            return DEFAULT_LABEL_VECTOR_SDF_MATERIAL;
+        }
+        return DEFAULT_VECTOR_SDF_MATERIAL;
+    }
+
+    private boolean useRuntimeGeneration(FontDesc fontDesc) {
+        // TrueType fonts are represented by their vector outlines at runtime.
+        // BMFont sources continue to use their supplied bitmap glyph pages.
+        return isTrueTypeFont(fontDesc);
+    }
+
+    static FontDesc getEffectiveFontDesc(FontDesc fontDesc) {
+        FontDesc.Builder builder = fontDesc.toBuilder();
+        if (isTrueTypeFont(fontDesc)) {
+            // TYPE_DISTANCE_FIELD remains the internal dynamic-font image format
+            // until the legacy format enum is removed. Vector face rendering is
+            // selected by the material's curve_texture sampler.
+            builder.setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD);
+            builder.setRenderMode(FontRenderMode.MODE_MULTI_LAYER);
+            builder.clearCharacters();
+            builder.setAllChars(false);
+            // Vector outlines and visible shadows share the runtime SDF effect
+            // texture and material, including hard shadows with zero blur.
+            if (fontDesc.getShadowBlur() >= 1 ||
+                fontDesc.getShadowAlpha() > 0.0f ||
+                fontDesc.getOutlineWidth() > 0.0f) {
+                if (fontDesc.getShadowMaterial().isEmpty()) {
+                    builder.setShadowMaterial(getDefaultVectorSdfMaterial(fontDesc));
+                }
+            } else {
+                builder.clearShadowMaterial();
+            }
+        } else {
+            builder.setOutputFormat(FontTextureFormat.TYPE_BITMAP);
+            builder.setRenderMode(FontRenderMode.MODE_SINGLE_LAYER);
+            builder.clearShadowMaterial();
+        }
+        return builder.build();
     }
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         FontDesc.Builder builder = getSrcBuilder(input);
-        FontDesc fontDesc = builder.build();
+        FontDesc fontDesc = getEffectiveFontDesc(builder.build());
 
         IResource fontResource = input.getResource(fontDesc.getFont());
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
@@ -74,7 +118,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             subTask = createSubTask(fontResource, CopyBuilders.TTFBuilder.class, taskBuilder);
             for (String material : RUNTIME_FONT_RENDERER_MATERIALS)
             {
-                if (!material.equals(fontDesc.getMaterial()))
+                if (!material.equals(fontDesc.getMaterial()) &&
+                    !material.equals(fontDesc.getShadowMaterial()))
                     createSubTask(material, "material", taskBuilder);
             }
         }
@@ -86,6 +131,10 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             subTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
         }
 
+        if (!fontDesc.getShadowMaterial().isEmpty()) {
+            createSubTask(fontDesc.getShadowMaterial(), "shadow material", taskBuilder);
+        }
+
         Task task = taskBuilder.build();
         subTask.setProductOf(task);
         return task;
@@ -94,7 +143,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         FontDesc.Builder builder = getSrcBuilder(task.firstInput());
-        FontDesc fontDesc = builder.build();
+        FontDesc fontDesc = getEffectiveFontDesc(builder.build());
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
 
         BuilderUtil.checkResource(this.project, task.input(1), "material", fontDesc.getMaterial());
@@ -111,6 +160,9 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         }
 
         fontMapBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
+        if (!fontDesc.getShadowMaterial().isEmpty()) {
+            fontMapBuilder.setShadowMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getShadowMaterial(), ".material", ".materialc"));
+        }
         if (useRuntimeGeneration(fontDesc))
         {
             for (String material : RUNTIME_FONT_RENDERER_MATERIALS)
@@ -120,11 +172,9 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             }
         }
 
-        boolean allChars = fontDesc.getAllChars();
-
-        if (allChars)
+        if (fontDesc.getAllChars())
         {
-            fontMapBuilder.setAllChars(allChars); // 0x000000 - 0x10FFFF
+            fontMapBuilder.setAllChars(true); // 0x000000 - 0x10FFFF
         }
         else
         {
