@@ -61,7 +61,7 @@
 
 (defn redo-stack
   [undo-key]
-  (is/redo-stack (is/undo @g/*the-system* undo-key)))
+  (is/redo-stack (is/maybe-undo @g/*the-system* undo-key)))
 
 (defn undoable-changes
   [& tx-steps]

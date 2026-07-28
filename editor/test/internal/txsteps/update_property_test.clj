@@ -31,14 +31,15 @@
         (is (= initial-basic-property-value (g/raw-property-value (g/now) node-id :basic-property))))
 
       (testing "Transact."
-        (g/update-property
-          node-id :basic-property
-          (fn update-fn [old-value & supplied-args]
-            (is (= initial-basic-property-value old-value))
-            (is (= [:first-arg :second-arg] supplied-args))
-            initial-basic-property-value)
-          :first-arg
-          :second-arg)))))
+        (g/transact
+          (g/update-property
+            node-id :basic-property
+            (fn update-fn [old-value & supplied-args]
+              (is (= initial-basic-property-value old-value))
+              (is (= [:first-arg :second-arg] supplied-args))
+              initial-basic-property-value)
+            :first-arg
+            :second-arg))))))
 
 (deftest sets-property-to-update-fn-return-value-test
   (test-support/with-clean-system
