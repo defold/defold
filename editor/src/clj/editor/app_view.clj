@@ -2238,7 +2238,14 @@
     (refresh-scene-view! view-id dt))
   (scene-cache/prune-context! nil))
 
-(declare save-scene-camera-prefs!)
+(defn- save-scene-camera-prefs! [prefs view resource]
+  (g/let-ec [camera (some-> (:basis evaluation-context)
+                            (scene/view->camera view)
+                            (g/node-value :local-camera evaluation-context))
+             path-key (resource/resource->proj-path resource)]
+    (when (and camera path-key)
+      (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
+                                (camera/camera->prefs-value camera)))))
 
 (let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
       getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
@@ -2413,15 +2420,6 @@
           :perspective))
 
       (get scene-default-camera-projection-by-ext ext :orthographic))))
-
-(defn- save-scene-camera-prefs! [prefs view resource]
-  (g/let-ec [camera (some-> (:basis evaluation-context)
-                            (scene/view->camera view)
-                            (g/node-value :local-camera evaluation-context))
-             path-key (resource/resource->proj-path resource)]
-    (when (and camera path-key)
-      (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
-                                (camera/camera->prefs-value camera)))))
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
