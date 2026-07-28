@@ -20,6 +20,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
+            [util.fn :as fn]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [java.util ArrayList]
@@ -112,21 +113,19 @@
 
 (defn- parse-searched-exts [searched-exts]
   (let [searched-exts (some-> searched-exts
-                     (string/replace #" " "")
-                     (string/split #","))]
+                              (string/replace #" " "")
+                              (string/split #","))]
     (coll/into-> searched-exts []
       (remove empty?)
       (map #(string/replace % #"\*?\." ""))
-      (distinct))))
+      (distinct)
+      (map #(text-util/search-string->re-pattern % :case-insensitive)))))
 
-(defn- make-search-resource? [searched-ext-strings search-libraries]
+(defn- make-search-resource? [file-ext-patterns search-libraries]
   {:pre [(boolean? search-libraries)]}
-  (let [file-ext-patterns
-        (coll/into-> searched-ext-strings []
-          (map #(text-util/search-string->re-pattern % :case-insensitive)))]
-    (fn search-resource? [resource]
-      (and (resource-matches-library-setting? resource search-libraries)
-           (resource-matches-file-ext? resource file-ext-patterns)))))
+  (fn search-resource? [resource]
+    (and (resource-matches-library-setting? resource search-libraries)
+         (resource-matches-file-ext? resource file-ext-patterns))))
 
 (defn- start-search-thread [report-error! search-data-future resource-type->matches-fn produce-fn]
   (future
@@ -176,27 +175,16 @@
   [workspace project start-consumer! stop-consumer! report-error!]
   (let [pending-search-atom (atom nil)
 
-        ;; Cached prep future, keyed by the ext/library filter. When the filter
-        ;; changes, the now-obsolete future is cancelled so its whole-project
-        ;; work does not keep running in the background. Reading the atom and
-        ;; resetting it is not atomic, but every caller arrives on the UI
-        ;; thread, so there is no interleaving to guard against.
-        search-data-atom (atom nil)
+        active-search-data-atom (atom nil)
         prepare-search-data!
-        (fn [searched-exts search-libraries]
-          (let [searched-ext-strings (parse-searched-exts searched-exts)
-                filter-key [searched-ext-strings search-libraries]
-                current @search-data-atom]
-            (if (= (:key current) filter-key)
-              (:data-future current)
-              (let [{:keys [data-future cancel!]}
-                    (make-search-data-future
-                      report-error! project
-                      (make-search-resource? searched-ext-strings search-libraries))]
-                (reset! search-data-atom {:key filter-key :data-future data-future :cancel! cancel!})
-                (when current
-                  ((:cancel! current)))
-                data-future))))
+        (fn/memoize
+          {:limit 1}
+          (fn [searched-exts search-libraries]
+            (make-search-data-future
+              report-error! project
+              (make-search-resource?
+                (parse-searched-exts searched-exts)
+                search-libraries))))
 
         abort-search! (fn [pending-search]
                         (some-> pending-search :thread future-cancel)
@@ -220,17 +208,22 @@
                               nil)))]
     {:start-search! (fn [search-string searched-exts include-libraries?]
                       (try
-                        (let [search-data-future (prepare-search-data! searched-exts include-libraries?)]
-                          (swap! pending-search-atom start-search! search-data-future search-string))
+                        (let [{:keys [data-future] :as search-data} (prepare-search-data! searched-exts include-libraries?)
+                              [previous-search-data] (swap-vals! active-search-data-atom (constantly search-data))]
+                          (when (and previous-search-data
+                                     (not (identical? previous-search-data search-data)))
+                            ((:cancel! previous-search-data)))
+                          (swap! pending-search-atom start-search! data-future search-string))
                         (catch Throwable error
                           (report-error! error)))
                       nil)
      :abort-search! (fn []
                       (try
                         (swap! pending-search-atom abort-search!)
-                        (when-let [current @search-data-atom]
-                          (reset! search-data-atom nil)
-                          ((:cancel! current)))
+                        (fn/clear-memoized! prepare-search-data!)
+                        (let [[search-data] (swap-vals! active-search-data-atom (constantly nil))]
+                          (when-let [cancel! (:cancel! search-data)]
+                            (cancel!)))
                         (catch Throwable error
                           (report-error! error)))
                       nil)}))
