@@ -262,7 +262,7 @@
     (and (<= (.x min-p) (.x p) (.x max-p))
          (<= (.y min-p) (.y p) (.y max-p)))))
 
-(defn- reset-controller! [controller op-seq]
+(defn- reset-controller! [controller]
   (g/transact
     {:undoable false}
     (concat
@@ -343,7 +343,7 @@
                                               true)))))]
                        (if handled? nil action))
       :mouse-released (do
-                        (reset-controller! self op-seq)
+                        (reset-controller! self)
                         (if handle
                           nil
                           action))

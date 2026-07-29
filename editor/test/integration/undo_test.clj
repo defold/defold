@@ -23,17 +23,16 @@
 
 (deftest undo-unseq-tx-does-not-coalesce
   (testing "Undoing in unsequenced transactions does not coalesce"
-           (test-util/with-loaded-project
-             (let [project-graph (g/node-id->graph-id project)
-                   atlas-node    (test-util/resource-node project "/switcher/fish.atlas")]
-               (g/transact
-                 (concat
-                   (g/operation-sequence (gensym))
-                   (g/set-property atlas-node :margin 1)))
-               (g/transact (g/set-property atlas-node :margin 10))
-               (g/transact (g/set-property atlas-node :margin 2))
-               (g/undo! :undo/global)
-               (is (= 10 (g/node-value atlas-node :margin)))))))
+    (test-util/with-loaded-project
+      (let [atlas-node (test-util/resource-node project "/switcher/fish.atlas")]
+        (g/transact
+          (concat
+            (g/operation-sequence (gensym))
+            (g/set-property atlas-node :margin 1)))
+        (g/transact (g/set-property atlas-node :margin 10))
+        (g/transact (g/set-property atlas-node :margin 2))
+        (g/undo! :undo/global)
+        (is (= 10 (g/node-value atlas-node :margin)))))))
 
 (defn outline-children [node-id] (:children (g/node-value node-id :node-outline)))
 

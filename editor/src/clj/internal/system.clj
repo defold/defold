@@ -17,8 +17,8 @@
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
-            [internal.transaction :as it]
             [internal.paper-tape :as tape]
+            [internal.transaction :as it]
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce])

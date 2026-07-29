@@ -69,7 +69,6 @@
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
           project (test-util/setup-project! workspace)
-          project-graph-id (g/node-id->graph-id project)
 
           editable-code-resource-node-ids
           (g/with-auto-evaluation-context evaluation-context

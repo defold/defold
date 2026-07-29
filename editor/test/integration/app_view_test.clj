@@ -31,14 +31,14 @@
 
 (deftest open-editor
   (testing "Opening editor only alters undo by selection"
-           (test-util/with-loaded-project
-             (let [proj-graph (g/node-id->graph-id project)
-                   _ (is (not (g/has-undo? :undo/global)))
-                   [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
-               ;; One undo entry for selection.
-               (is (g/has-undo? :undo/global))
-               (g/undo! :undo/global)
-               (is (not (g/has-undo? :undo/global)))))))
+    (test-util/with-loaded-project
+      (is (not (g/has-undo? :undo/global)))
+      (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)
+
+      ;; One undo entry for selection.
+      (is (g/has-undo? :undo/global))
+      (g/undo! :undo/global)
+      (is (not (g/has-undo? :undo/global))))))
 
 (deftest register-view-type-is-non-undoable-test
   (test-util/with-loaded-project

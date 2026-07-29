@@ -126,10 +126,9 @@
 (deftest transform-tools
   (testing "Transform tools and manipulator interactions"
            (test-util/with-loaded-project
-             (let [project-graph (g/node-id->graph-id project)
-                   path          "/logic/atlas_sprite.collection"
+             (let [path "/logic/atlas_sprite.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+                   go-node (ffirst (g/sources-of resource-node :child-scenes))]
                (is (test-util/selected? app-view resource-node))
                ;; Initial selection
                (test-util/mouse-click! view 64 64)
