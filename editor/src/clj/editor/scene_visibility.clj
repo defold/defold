@@ -84,6 +84,7 @@
 
 (defn set-settings! [scene-visibility {:keys [filters-enabled filtered-renderable-tags]}]
   (g/transact
+    {:undoable false}
     (concat
       (g/set-property scene-visibility :visibility-filters-enabled? filters-enabled)
       (g/set-property scene-visibility :filtered-renderable-tags filtered-renderable-tags))))
@@ -152,7 +153,11 @@
                                                                                 scene-hide-history-datas)))))
 
 (defn make-scene-visibility-node! [view-graph prefs app-view]
-  (g/make-node! view-graph SceneVisibilityNode :prefs prefs :app-view app-view))
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node view-graph SceneVisibilityNode :prefs prefs :app-view app-view)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Per-Object Visibility
@@ -179,16 +184,20 @@
     ;; Remove the now-visible nodes from the hide history. This ensures the Show
     ;; Last Hidden Objects command works as expected if the user manually shows
     ;; nodes she has previously hidden.
-    (g/update-property! scene-hide-history-node :hide-history
-                        (fn [hide-history]
-                          (into []
-                                (keep (fn [hidden-outline-name-paths]
-                                        (not-empty (set/difference hidden-outline-name-paths outline-name-paths))))
-                                hide-history)))
+    (g/transact
+      {:undoable false}
+      (g/update-property scene-hide-history-node :hide-history
+                         (fn [hide-history]
+                           (into []
+                                 (keep (fn [hidden-outline-name-paths]
+                                         (not-empty (set/difference hidden-outline-name-paths outline-name-paths))))
+                                 hide-history))))
 
     ;; Remove the SceneHideHistoryNode if its history is now empty.
-    (when (empty? (g/node-value scene-hide-history-node :hide-history))
-      (g/delete-node! scene-hide-history-node))))
+    (when (coll/empty? (g/node-value scene-hide-history-node :hide-history))
+      (g/transact
+        {:undoable false}
+        (g/delete-node scene-hide-history-node)))))
 
 (defn- hide-outline-name-paths! [scene-visibility outline-name-paths]
   (assert (set? (not-empty outline-name-paths)))
@@ -196,8 +205,11 @@
   (let [scene-resource-node (g/node-value scene-visibility :active-scene-resource-node)
         scene-hide-history-node (find-scene-hide-history-node scene-visibility scene-resource-node)]
     (if (some? scene-hide-history-node)
-      (g/update-property! scene-hide-history-node :hide-history conj outline-name-paths)
       (g/transact
+        {:undoable false}
+        (g/update-property scene-hide-history-node :hide-history conj outline-name-paths))
+      (g/transact
+        {:undoable false}
         (g/make-nodes (g/node-id->graph-id scene-visibility)
                       [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
                       (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
@@ -348,11 +360,15 @@
                                   keys))))
         advance! (settings-popup/show! owner keymap localization (compute-state) 230 setting-descriptors
                                        (fn []
-                                         (g/set-property! scene-visibility :popup-advance-fn nil)
+                                         (g/transact
+                                           {:undoable false}
+                                           (g/set-property scene-visibility :popup-advance-fn nil))
                                          (sync-popup-state! scene-visibility)))
         advance-with-state! #(advance! (compute-state))]
     (when advance!
-      (g/set-property! scene-visibility :popup-advance-fn advance-with-state!))))
+      (g/transact
+        {:undoable false}
+        (g/set-property scene-visibility :popup-advance-fn advance-with-state!)))))
 
 (defn toggle-tag-visibility! [scene-visibility tag]
   (set-visibility-settings! scene-visibility

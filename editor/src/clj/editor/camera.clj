@@ -473,7 +473,9 @@
 (defn- reset-dolly! [camera-node]
   (when-let [target-camera (:dolly-target-camera (g/user-data camera-node ::camera-state))]
     (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil)
-    (g/set-property! camera-node :local-camera target-camera)))
+    (g/transact
+      {:undoable false}
+      (g/set-property camera-node :local-camera target-camera))))
 
 (defn track [^Camera camera ^Region viewport last-x last-y evt-x evt-y]
   (let [focus ^Vector4d (:focus-point camera)
@@ -794,7 +796,9 @@
   ([camera-node start-camera end-camera animate on-animation-end]
    (if animate
      (let [duration 0.5]
-       (g/set-property! camera-node :animating true)
+       (g/transact
+         {:undoable false}
+         (g/set-property camera-node :animating true))
        ;; NOTE: If the user was dollying during an animation, cancel the dolly
        (when (:dolly-target-camera (g/user-data camera-node ::camera-state))
          (g/user-data-swap! camera-node ::camera-state assoc :dolly-target-camera nil))
@@ -802,9 +806,12 @@
                  (fn [^double t]
                    (let [t (- (* t t 3) (* t t t 2))
                          cam (interpolate start-camera end-camera t)]
-                     (g/set-property! camera-node :local-camera cam)))
+                     (g/transact
+                       {:undoable false}
+                       (g/set-property camera-node :local-camera cam))))
                  (fn []
                    (g/transact
+                     {:undoable false}
                      [(g/set-property camera-node :local-camera end-camera)
                       (g/set-property camera-node :animating false)])
                    (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
@@ -812,7 +819,9 @@
                      (advance!))
                    (when on-animation-end (on-animation-end)))))
      (do
-       (g/set-property! camera-node :local-camera end-camera)
+       (g/transact
+         {:undoable false}
+         (g/set-property camera-node :local-camera end-camera))
        (when-let [advance! (g/node-value camera-node :popup-advance-fn)]
          (advance!))))
    nil))
@@ -925,7 +934,9 @@
                          (camera-orthographic->perspective (perspective-fov-y camera-node)))]
          (set-camera! camera-node local-cam camera-3d animate))
        (let [is-perspective (= (:type local-cam) :perspective)]
-         (g/set-property! camera-node :cached-3d-camera local-cam)
+         (g/transact
+           {:undoable false}
+           (g/set-property camera-node :cached-3d-camera local-cam))
          (let [end-camera (cond-> local-cam
                             is-perspective camera-perspective->orthographic
                             :always camera-orthographic-realign
@@ -968,7 +979,9 @@
       ;; NOTE: If we don't move the camera to the center, then fast mouse movements might mouse over other nodes, and JavaFX will
       ;; reset our cursor visibility
       (i/start-mouse-capture center-x center-y)
-      (g/set-property! camera-node :local-camera (assoc current-camera :focus-distance focus-distance))
+      (g/transact
+        {:undoable false}
+        (g/set-property camera-node :local-camera (assoc current-camera :focus-distance focus-distance)))
       (g/user-data-swap! camera-node ::camera-state assoc
         :free-cam-mode true
         :free-cam-velocity (Vector3d. 0.0 0.0 0.0)
@@ -1056,7 +1069,9 @@
             action
 
             (do
-              (g/set-property! self :cursor-type :pan)
+              (g/transact
+                {:undoable false}
+                (g/set-property self :cursor-type :pan))
               nil)))
 
         :mouse-moved
@@ -1073,7 +1088,9 @@
                              :initial-y nil
                              :is-dragging false
                              :movement :idle)
-          (g/set-property! self :cursor-type :default)
+          (g/transact
+            {:undoable false}
+            (g/set-property self :cursor-type :default))
           (cond
             free-cam-mode
             (stop-free-cam-mode! image-view self)
@@ -1217,7 +1234,9 @@
                        filter-fn
                        filter-fn)
               camera (apply-dolly-interpolation self camera dt)]
-          (g/set-property! self :local-camera camera)
+          (g/transact
+            {:undoable false}
+            (g/set-property self :local-camera camera))
           (when has-mouse-moved
             (when (= :dolly movement)
               (set-dolly-target! self (* ^double dolly-delta-scale (- mouse-y last-y))))
@@ -1322,16 +1341,18 @@
 
 (defn show-settings! [camera-node ^Parent owner prefs keymap localization]
   (let [persp-fov-fn
-        (fn [^double value]
+        (fn persp-fov-fn [^double value]
           (let [camera (g/node-value camera-node :local-camera)
                 fov-y-old (double (:fov-y camera))
                 fov-x-old (double (:fov-x camera))
                 aspect (/ (Math/tan (Math/toRadians (/ fov-x-old 2.0)))
                           (Math/tan (Math/toRadians (/ fov-y-old 2.0))))]
-            (g/update-property! camera-node :local-camera assoc
-                                :fov-y value
-                                :fov-x (Math/toDegrees
-                                         (* 2.0 (Math/atan (* aspect (Math/tan (Math/toRadians (/ value 2.0))))))))))
+            (g/transact
+              {:undoable false}
+              (g/update-property camera-node :local-camera assoc
+                                 :fov-y value
+                                 :fov-x (Math/toDegrees
+                                          (* 2.0 (Math/atan (* aspect (Math/tan (Math/toRadians (/ value 2.0)))))))))))
         descriptors
         [{:type :reset-all
           :on-reset (fn [swap-state]
@@ -1369,7 +1390,11 @@
                             (assoc :perspective (= :perspective (:type (g/node-value camera-node :local-camera))))))
         advance! (settings-popup/show! owner keymap localization (compute-state) 255 descriptors
                                        (fn []
-                                         (g/set-property! camera-node :popup-advance-fn nil)))
+                                         (g/transact
+                                           {:undoable false}
+                                           (g/set-property camera-node :popup-advance-fn nil))))
         advance-with-state! #(advance! (compute-state))]
     (when advance!
-      (g/set-property! camera-node :popup-advance-fn advance-with-state!))))
+      (g/transact
+        {:undoable false}
+        (g/set-property camera-node :popup-advance-fn advance-with-state!)))))

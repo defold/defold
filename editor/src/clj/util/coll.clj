@@ -74,19 +74,10 @@
              (->Eduction (comp ~first-xform ~@more-xforms)
                          ~coll)))))
 
-(defmacro ^{:arglists '([coll init ...xforms acc-fn])} reduce->
-  "Similar to core.transduce or core.reduce, but takes the input sequence as the
-  first argument, followed by a mandatory init value, and the acc-fn as the last
-  argument. Any additional arguments specified between the init value and the
-  acc-fn will be composed into a transducer. The acc-fn is assumed to take
-  two arguments and will be used with reduce when no additional transducers are
-  supplied. When transducers are supplied, we will wrap the acc-fn in a
-  multi-arity function suitable for use with core.transduce.
-
-  See also: into->, transform->, reduce-kv->, run!->."
-  [coll second-arg third-arg & more]
+(defn- gen-reduce-form
+  [coll init third-arg more]
   (case (count more)
-    0 `(reduce ~third-arg ~second-arg ~coll)
+    0 `(reduce ~third-arg ~init ~coll)
     1 (let [xform third-arg
             acc-fn (first more)]
         `(transduce ~xform
@@ -94,7 +85,7 @@
                       (fn
                         ([~'acc] ~'acc)
                         ([~'acc ~'item] (~'acc-fn ~'acc ~'item))))
-                    ~second-arg
+                    ~init
                     ~coll))
     (let [first-xform third-arg
           more-xforms (butlast more)
@@ -104,8 +95,59 @@
                     (fn
                       ([~'acc] ~'acc)
                       ([~'acc ~'item] (~'acc-fn ~'acc ~'item))))
-                  ~second-arg
+                  ~init
                   ~coll))))
+
+(defn- gen-reduce-kv-form
+  [coll init third-arg more]
+  (case (count more)
+    0 `(reduce-kv ~third-arg ~init ~coll)
+    1 (let [xform third-arg
+            acc-fn (first more)]
+        `(transduce ~xform
+                    (let [~'acc-fn ~acc-fn]
+                      (fn
+                        ([~'acc] ~'acc)
+                        ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
+                    ~init
+                    ~coll))
+    (let [first-xform third-arg
+          more-xforms (butlast more)
+          acc-fn (last more)]
+      `(transduce (comp ~first-xform ~@more-xforms)
+                  (let [~'acc-fn ~acc-fn]
+                    (fn
+                      ([~'acc] ~'acc)
+                      ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
+                  ~init
+                  ~coll))))
+
+(defmacro ^{:arglists '([coll init ...xforms acc-fn])} reduce->
+  "Similar to core.transduce or core.reduce, but takes the input sequence as the
+  first argument, followed by a mandatory init value, and the acc-fn as the last
+  argument. Any additional arguments specified between the init value and the
+  acc-fn will be composed into a transducer. The acc-fn is assumed to take
+  two arguments and will be used with reduce when no additional transducers are
+  supplied. When transducers are supplied, we will wrap the acc-fn in a
+  multi-arity function suitable for use with core.transduce.
+
+  See also: into->, transform->, reduce-kv->, run!->, or reduce=> if you want
+  the init value to go first."
+  [coll init third-arg & more]
+  (gen-reduce-form coll init third-arg more))
+
+(defmacro ^{:arglists '([init coll ...xforms acc-fn])} reduce=>
+  "Similar to core.transduce or core.reduce, but takes a mandatory init value
+  as the first argument, followed by the input sequence, and the acc-fn as the
+  last argument. Any additional arguments specified between the init value and
+  the acc-fn will be composed into a transducer. The acc-fn is assumed to take
+  two arguments and will be used with reduce when no additional transducers are
+  supplied. When transducers are supplied, we will wrap the acc-fn in a
+  multi-arity function suitable for use with core.transduce.
+
+  See also: reduce-> if you want to the input sequence to go first."
+  [init coll third-arg & more]
+  (gen-reduce-form coll init third-arg more))
 
 (defmacro ^{:arglists '([coll init ...xforms acc-fn])} reduce-kv->
   "Similar to core.reduce-kv, but takes the input sequence as the first
@@ -117,29 +159,24 @@
   transducers are supplied, we will wrap the acc-fn in a multi-arity function
   suitable for use with core.transduce.
 
-  See also: into->, transform->, reduce->, run!->."
-  [coll second-arg third-arg & more]
-  (case (count more)
-    0 `(reduce-kv ~third-arg ~second-arg ~coll)
-    1 (let [xform third-arg
-            acc-fn (first more)]
-        `(transduce ~xform
-                    (let [~'acc-fn ~acc-fn]
-                      (fn
-                        ([~'acc] ~'acc)
-                        ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
-                    ~second-arg
-                    ~coll))
-    (let [first-xform third-arg
-          more-xforms (butlast more)
-          acc-fn (last more)]
-      `(transduce (comp ~first-xform ~@more-xforms)
-                  (let [~'acc-fn ~acc-fn]
-                    (fn
-                      ([~'acc] ~'acc)
-                      ([~'acc [~'k ~'v]] (~'acc-fn ~'acc ~'k ~'v))))
-                  ~second-arg
-                  ~coll))))
+  See also: into->, transform->, reduce->, run!->, or reduce-kv=> if you want
+  the init value to go first."
+  [coll init third-arg & more]
+  (gen-reduce-kv-form coll init third-arg more))
+
+(defmacro ^{:arglists '([init coll ...xforms acc-fn])} reduce-kv=>
+  "Similar to core.reduce-kv, but takes a mandatory init value as the first
+  argument, followed by the input sequence, and the acc-fn as the last argument.
+  Any additional arguments specified between the init value and the acc-fn will
+  be composed into a transducer, which is expected to return a sequence of
+  pairs. The acc-fn is assumed to take three arguments and will be used with
+  reduce-kv when no additional transducers are supplied. When transducers are
+  supplied, we will wrap the acc-fn in a multi-arity function suitable for use
+  with core.transduce.
+
+  See also: reduce-kv-> if you want to the input sequence to go first."
+  [init coll third-arg & more]
+  (gen-reduce-kv-form coll init third-arg more))
 
 (defn comparable-value?
   "Returns true if the value is compatible with the default comparator used with
@@ -356,6 +393,17 @@
    (if (empty? coll)
      coll
      (transform-> coll (apply comp xform xforms)))))
+
+(defn transform-non-empty->
+  "Transform the collection supplied as the first argument into a new collection
+  of the same type, using a transducer composed of the remaining arguments.
+  Returns nil if the resulting collection is empty. Preserves metadata. Passes
+  the coll unaltered to not-empty if no transducers are supplied.
+
+  See also: transform->."
+  ([coll] (not-empty coll))
+  ([coll xform] (not-empty (transform-> coll xform)))
+  ([coll xform & xforms] (not-empty (apply transform-> coll xform xforms))))
 
 (defn update-vals
   "Like core.update-vals, but retains the type of the input map or record. Also
@@ -788,6 +836,81 @@
     :else
     (when-some [match (match-fn coll)]
       [(pair match init-path)])))
+
+(defmacro remove-from-associative [m k]
+  {:pre [(symbol? m)
+         (symbol? k)]}
+  `(cond
+     (nil? ~m) nil
+     (map? ~m) (dissoc ~m ~k)
+     :else (assoc ~m ~k nil)))
+
+(defn removing-assoc
+  "Like core.assoc, but removes the key from the resulting associative if it is
+  a map and the value is nil."
+  ([m k v]
+   (if (nil? v)
+     (remove-from-associative m k)
+     (assoc m k v)))
+  ([m k v & kvs]
+   (let [m (removing-assoc m k v)]
+     (if (nil? kvs)
+       m
+       (if (next kvs)
+         (recur m (first kvs) (second kvs) (nnext kvs))
+         (throw (IllegalArgumentException.
+                  "removing-assoc expects an even number of arguments after the associative.")))))))
+
+(defn removing-assoc-in
+  "Like core.assoc-in, but removes the key from the innermost associative if
+  it is a map and the value is nil, then removes any resulting empty maps along
+  the key path."
+  [m [k & ks] v]
+  (if (nil? ks)
+    (removing-assoc m k v)
+    (if-some [v (not-empty (removing-assoc-in (get m k) ks v))]
+      (assoc m k v)
+      (remove-from-associative m k))))
+
+(defn removing-update
+  "Like core.update, but removes the key from the resulting associative if it
+  is a map and the function returns nil."
+  ([m k f]
+   (if-some [v (f (get m k))]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x]
+   (if-some [v (f (get m k) x)]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x y]
+   (if-some [v (f (get m k) x y)]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x y z]
+   (if-some [v (f (get m k) x y z)]
+     (assoc m k v)
+     (remove-from-associative m k)))
+  ([m k f x y z & more]
+   (if-some [v (apply f (get m k) x y z more)]
+     (assoc m k v)
+     (remove-from-associative m k))))
+
+(defn removing-update-in
+  "Like core.update-in, but removes the key from the innermost associative if it
+  is a map and the function returns nil, then removes any resulting empty maps
+  along the key path."
+  [m ks f & args]
+  (let [up (fn up [m ks f args]
+             (let [[k & ks] ks]
+               (if ks
+                 (if-some [v (not-empty (up (get m k) ks f args))]
+                   (assoc m k v)
+                   (remove-from-associative m k))
+                 (if-some [v (apply f (get m k) args)]
+                   (assoc m k v)
+                   (remove-from-associative m k)))))]
+    (up m ks f args)))
 
 (defn sorted-assoc-in-empty-fn
   "An empty-fn for use with assoc-in-ex. Returns vectors for integer keys and

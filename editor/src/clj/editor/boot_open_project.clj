@@ -86,12 +86,13 @@
   (when (nil? @the-root)
     (g/initialize! (assoc system-config :cache-retain? project/cache-retain?))
     (alter-var-root #'*workspace-graph* (fn [_] (g/last-graph-added)))
-    (alter-var-root #'*project-graph*   (fn [_] (g/make-graph! :history true  :volatility 1)))
-    (alter-var-root #'*view-graph*      (fn [_] (g/make-graph! :history false :volatility 2)))))
+    (alter-var-root #'*project-graph* (fn [_] (g/make-graph! :volatility 1)))
+    (alter-var-root #'*view-graph* (fn [_] (g/make-graph! :volatility 2)))))
 
 (defn- setup-workspace! [project-path build-settings workspace-config localization]
   (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config localization)]
     (g/transact
+      {:undoable false}
       (concat
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
@@ -398,6 +399,7 @@
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
       (g/transact
+        {:undoable false}
         (concat
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label))
@@ -490,5 +492,4 @@
       (ui/run-now
         (icons/initialize! workspace)
         (load-stage! workspace project prefs localization project-path cli-options updater newly-created?))
-      (g/reset-undo! *project-graph*)
       (log/info :message "project loaded"))))

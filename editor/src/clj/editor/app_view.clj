@@ -512,7 +512,9 @@
                      (disconnect-sources basis app-view :active-scene)))))]
 
     (when (coll/not-empty tx-data)
-      (g/transact tx-data)
+      (g/transact
+        {:undoable false}
+        tx-data)
       (ui/user-data! app-scene ::ui/refresh-requested? true))
 
     ;; The remaining steps should always be performed, even if we didn't end up
@@ -528,15 +530,24 @@
         (apply-tab-pane-active-style! tab-pane (= active-tab-pane tab-pane))))))
 
 (handler/defhandler :scene.select-move-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :move)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :move)))
 
 (handler/defhandler :scene.select-scale-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :scale)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :scale)))
 
 (handler/defhandler :scene.select-rotate-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :rotate)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
@@ -756,7 +767,9 @@
     (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
       (when-not (= new-keymap (g/raw-property-value (g/now) app-view :keymap))
-        (g/set-property! app-view :keymap new-keymap)))
+        (g/transact
+          {:undoable false}
+          (g/set-property app-view :keymap new-keymap))))
     (ui/invalidate-menubar-item! ::file)))
 
 (defn- collect-resources [{:keys [children] :as resource}]
@@ -2173,6 +2186,7 @@
           (let [notifications (workspace/notifications workspace evaluation-context)
                 notification-id ::editor-scripts-changed]
             (g/transact
+              {:undoable false}
               (if reload-needed
                 (notifications/show
                   notifications
@@ -2293,16 +2307,20 @@
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
     (let [keymap (keymap/from-prefs prefs)
-          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
-                                                                     :stage stage
-                                                                     :scene app-scene
-                                                                     :editor-tabs-split editor-tabs-split
-                                                                     :right-split right-split
-                                                                     :tool-tab-pane tool-tab-pane
-                                                                     :active-tool :move
-                                                                     :manip-space :world
-                                                                     :keymap keymap
-                                                                     :localization localization))))]
+          app-view (first
+                     (g/tx-nodes-added
+                       (g/transact
+                         {:undoable false}
+                         (g/make-node view-graph AppView
+                                      :stage stage
+                                      :scene app-scene
+                                      :editor-tabs-split editor-tabs-split
+                                      :right-split right-split
+                                      :tool-tab-pane tool-tab-pane
+                                      :active-tool :move
+                                      :manip-space :world
+                                      :keymap keymap
+                                      :localization localization))))]
       (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)
@@ -2429,7 +2447,7 @@
               (.setContent tab-content)
               (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
               (editor-tab/set-view-type! view-type))
-        view-graph (g/make-graph! :history false :volatility 2)
+        view-graph (g/make-graph! :volatility 2)
         select-fn (partial select app-view)
         open-resource-fn (partial open-resource! app-view prefs localization project)
         camera-opts (when (= :scene (:id view-type))
@@ -2448,10 +2466,16 @@
                      :tab tab}
                     camera-opts)
         make-view-fn (:make-view-fn view-type)
+        undo-stack-revisions-before (g/undo-stack-revisions)
         view (make-view-fn view-graph parent resource-node opts)]
+    (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+            (format "The %s view-type :make-view-fn created undo steps for '%s'."
+                    (:id view-type)
+                    (resource/proj-path resource)))
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs resource view-type)
     (g/transact
+      {:undoable false}
       (concat
         (view/connect-resource-node view resource-node)
         (g/connect app-view :selected-node-properties view :selected-node-properties)
@@ -2676,6 +2700,7 @@
           tab-pane-tabs (.getTabs tab-pane)
           new-tab (make-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts)]
       (g/transact
+        {:undoable false}
         (select app-view resource-node [select-node]))
       (when select-tab
         (select-editor-tab!
@@ -3280,17 +3305,26 @@
                              image-view ^ImageView (.getGraphic tooltip)]
                          (when-not (.getImage image-view)
                            (let [resource-node (project/get-resource-node project resource)
-                                 view-graph (g/make-graph! :history false :volatility 2)
+                                 view-graph (g/make-graph! :volatility 2)
                                  select-fn (partial select app-view)
                                  opts (assoc ((:id view-type) (:view-opts resource-type))
                                         :app-view app-view
                                         :select-fn select-fn
                                         :project project
                                         :workspace workspace)
+                                 undo-stack-revisions-before (g/undo-stack-revisions)
                                  preview (make-preview-fn view-graph resource-node opts 256 256)]
+                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                     (format "The %s view-type :make-preview-fn created undo steps for '%s'."
+                                             (:id view-type)
+                                             (resource/proj-path resource)))
                              (.setImage image-view ^Image (g/node-value preview :image))
                              (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
                                (dispose-preview-fn preview))
+                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                     (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
+                                             (:id view-type)
+                                             (resource/proj-path resource)))
                              (g/delete-graph! view-graph)))))}))))
 
 (def ^:private open-assets-term-prefs-key [:open-assets :term])

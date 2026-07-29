@@ -1066,12 +1066,14 @@
         (and (contains? #{:navigation :selection} undo-grouping)
              (contains? #{:navigation :selection} prev-undo-grouping))
         [(g/operation-sequence prev-opseq)
-         (g/set-property view-node :undo-grouping-info [undo-grouping prev-opseq])]
+         (g/non-undoable
+           (g/set-property view-node :undo-grouping-info [undo-grouping prev-opseq]))]
 
         :else
         (let [opseq (gensym)]
           [(g/operation-sequence opseq)
-           (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
+           (g/non-undoable
+             (g/set-property view-node :undo-grouping-info [undo-grouping opseq]))])))))
 
 (defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
   ;; Along with undo grouping info, we also keep track of when an action was
@@ -1080,7 +1082,8 @@
   (into (operation-sequence-tx-data view-node undo-grouping)
         (when (or (contains? values-by-prop-kw :cursor-ranges)
                   (contains? values-by-prop-kw :lines))
-          (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0)))))
+          (g/non-undoable
+            (g/set-property view-node :elapsed-time-at-last-action (or (g/user-data view-node :elapsed-time) 0.0))))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -1123,16 +1126,18 @@
                       :cursor-ranges
                       (if (g/has-property? resource-node-type :cursor-ranges)
                         (g/set-property resource-node :cursor-ranges value)
-                        (g/set-property view-node :fallback-cursor-ranges value))
+                        (g/non-undoable
+                          (g/set-property view-node :fallback-cursor-ranges value)))
 
                       :regions
                       (let [{:keys [diagnostics hover-showing-lsp-regions hover-cursor-lsp-regions regions]}
                             (group-by region->prop-kw value)]
                         (concat
-                          (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
-                          (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
-                          (g/set-property view-node :diagnostics (or diagnostics []))
-                          (g/set-property resource-node prop-kw (or regions []))))
+                          (g/set-property resource-node prop-kw (or regions []))
+                          (g/non-undoable
+                            (g/set-property view-node :hover-showing-lsp-regions hover-showing-lsp-regions)
+                            (g/set-property view-node :hover-cursor-lsp-regions hover-cursor-lsp-regions)
+                            (g/set-property view-node :diagnostics (or diagnostics [])))))
 
                       ;; Several actions might have invalidated rows since
                       ;; we last produced syntax-info. We keep an ever-
@@ -1158,7 +1163,8 @@
                       (g/set-property resource-node :modified-lines value)
 
                       ;; All other properties are set on the view node.
-                      (g/set-property view-node prop-kw value))))
+                      (g/non-undoable
+                        (g/set-property view-node prop-kw value)))))
           values-by-prop-kw)))
 
 (defn- set-resource-properties
@@ -1191,49 +1197,46 @@
 (defn- handle-rename-key-pressed [view-node text rename-cursor-range swap-state ^KeyEvent e]
   (when (= KeyCode/ENTER (.getCode e))
     (.consume e)
-    (g/with-auto-evaluation-context evaluation-context
-      (let [resource-node (g/node-value view-node :resource-node evaluation-context)
-            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
-        (swap-state assoc :done true)
-        (lsp/rename
-          lsp
-          rename-cursor-range
-          text
-          (fn on-rename-response [resource->ascending-cursor-ranges-and-replacements]
-            (ui/run-later
-              (some->
-                (g/with-auto-evaluation-context evaluation-context
-                  (when (identical? rename-cursor-range (get-property view-node :rename-cursor-range evaluation-context))
-                    (let [resource->view (->> (get-property view-node :open-views evaluation-context)
-                                              (e/keep
-                                                (fn [[view {:keys [resource]}]]
-                                                  (when (g/node-kw-instance? (:basis evaluation-context) ::CodeEditorView view)
-                                                    [resource view])))
-                                              (into {}))
-                          project (get-property view-node :project evaluation-context)]
-                      (into (set-properties view-node nil {:rename-cursor-range nil})
-                            (mapcat
-                              (fn [[resource ascending-cursor-ranges-and-replacements]]
-                                (when-let [resource-node (project/get-resource-node project resource evaluation-context)]
-                                  (when (g/node-instance? (:basis evaluation-context) r/CodeEditorResourceNode resource-node)
-                                    (if-let [view (resource->view resource)]
-                                      (set-properties
-                                        view nil
-                                        (data/apply-edits
-                                          (get-property view :lines evaluation-context)
-                                          (get-property view :regions evaluation-context)
-                                          (get-property view :cursor-ranges evaluation-context)
-                                          ascending-cursor-ranges-and-replacements
-                                          (get-property view :layout evaluation-context)))
-                                      (set-resource-properties
-                                        resource-node
-                                        (data/apply-edits
-                                          (g/node-value resource-node :lines evaluation-context)
-                                          (g/node-value resource-node :regions evaluation-context)
-                                          (g/node-value resource-node :cursor-ranges evaluation-context)
-                                          ascending-cursor-ranges-and-replacements)))))))
-                            resource->ascending-cursor-ranges-and-replacements))))
-                g/transact))))))))
+    (g/let-ec [resource-node (g/node-value view-node :resource-node evaluation-context)
+               lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
+      (swap-state assoc :done true)
+      (lsp/rename
+        lsp
+        rename-cursor-range
+        text
+        (fn on-rename-response [resource->ascending-cursor-ranges-and-replacements]
+          (ui/run-later
+            (some->
+              (g/with-auto-evaluation-context evaluation-context
+                (when (identical? rename-cursor-range (get-property view-node :rename-cursor-range evaluation-context))
+                  (let [resource->view (coll/into-> (get-property view-node :open-views evaluation-context) {}
+                                         (keep (fn [[view {:keys [resource]}]]
+                                                 (when (g/node-kw-instance? (:basis evaluation-context) ::CodeEditorView view)
+                                                   (pair resource view)))))
+                        project (get-property view-node :project evaluation-context)]
+                    (into (set-properties view-node nil {:rename-cursor-range nil})
+                          (mapcat
+                            (fn [[resource ascending-cursor-ranges-and-replacements]]
+                              (when-let [resource-node (project/get-resource-node project resource evaluation-context)]
+                                (when (g/node-instance? (:basis evaluation-context) r/CodeEditorResourceNode resource-node)
+                                  (if-let [view-node (resource->view resource)]
+                                    (set-properties
+                                      view-node nil
+                                      (data/apply-edits
+                                        (get-property view-node :lines evaluation-context)
+                                        (get-property view-node :regions evaluation-context)
+                                        (get-property view-node :cursor-ranges evaluation-context)
+                                        ascending-cursor-ranges-and-replacements
+                                        (get-property view-node :layout evaluation-context)))
+                                    (set-resource-properties
+                                      resource-node
+                                      (data/apply-edits
+                                        (g/node-value resource-node :lines evaluation-context)
+                                        (g/node-value resource-node :regions evaluation-context)
+                                        (g/node-value resource-node :cursor-ranges evaluation-context)
+                                        ascending-cursor-ranges-and-replacements)))))))
+                          resource->ascending-cursor-ranges-and-replacements))))
+              g/transact)))))))
 
 (ui/defc rename-popup-view
   {:compose [{:fx/type fx/ext-state
@@ -3644,6 +3647,7 @@
       (g/with-auto-evaluation-context evaluation-context
         (r/ensure-loaded! resource-node evaluation-context)))
     (g/transact
+      {:undoable false}
       (concat
         (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)
         (gu/connect-existing-outputs resource-node-type resource-node view-node
@@ -3655,6 +3659,7 @@
            [:_properties :resource-properties]
            [:regions :regions]])))
     (g/transact
+      {:undoable false}
       (g/with-auto-evaluation-context evaluation-context
         (update-document-width evaluation-context view-node)))
     (when (and is-code-resource-type
@@ -3839,7 +3844,9 @@
     ;; Draw average fps indicator if enabled.
     (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
       (let [{:keys [^Canvas canvas ^long repaint-trigger]} canvas-repaint-info]
-        (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
+        (g/transact
+          {:undoable false}
+          (g/set-property view-node :repaint-trigger (unchecked-inc repaint-trigger)))
         (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
         (when (= 0 (mod repaint-trigger 10))
           (.resetAverageFPS performance-tracker))))))
@@ -4011,7 +4018,9 @@
    (assert (keyword? prop-kw))
    (reify ChangeListener
      (changed [_this _observable _old new]
-       (g/set-property! node-id prop-kw (observable-value->node-value new))))))
+       (g/transact
+         {:undoable false}
+         (g/set-property node-id prop-kw (observable-value->node-value new)))))))
 
 (defn make-focus-change-listener
   ^ChangeListener [view-node parent canvas]
@@ -4020,16 +4029,19 @@
   (assert (instance? Canvas canvas))
   (reify ChangeListener
     (changed [_ _ _ focus-owner]
-      (g/set-property! view-node :focus-state
-                       (cond
-                         (= canvas focus-owner)
-                         :input-focused
+      (g/transact
+        {:undoable false}
+        (g/set-property
+          view-node :focus-state
+          (cond
+            (= canvas focus-owner)
+            :input-focused
 
-                         (some? (ui/closest-node-where (partial = parent) focus-owner))
-                         :semi-focused
+            (some? (ui/closest-node-where (partial = parent) focus-owner))
+            :semi-focused
 
-                         :else
-                         :not-focused)))))
+            :else
+            :not-focused))))))
 
 ;; JavaFX generally reports wrong key-typed events when typing tilde on Swedish
 ;; keyboard layout, which is a problem when writing Lua because it uses ~ for negation,
@@ -4223,32 +4235,29 @@
         canvas-pane (Pane. (into-array Node [canvas]))
         undo-grouping-info (pair :navigation (gensym))
         lsp (lsp/get-node-lsp basis resource-node)
-        view-node
-        (setup-view!
-          resource-node
-          (-> (g/make-nodes graph
-                [view [CodeEditorView
-                       :canvas canvas
-                       :color-scheme code-color-scheme
-                       :font-size (.getValue font-size-property)
-                       :font-name (.getValue font-name-property)
-                       :grammar grammar
-                       :gutter-view (->CodeEditorGutterView)
-                       :highlighted-find-term (.getValue highlighted-find-term-property)
-                       :line-height-factor 1.2
-                       :localization localization
-                       :undo-grouping-info undo-grouping-info
-                       :visible-indentation-guides? (.getValue visible-indentation-guides-property)
-                       :visible-minimap? (.getValue visible-minimap-property)
-                       :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property))]]
-                (g/connect project :_node-id view :project)
-                (g/connect app-view :keymap view :keymap)
-                (g/connect app-view :open-views view :open-views))
-              g/transact
-              g/tx-nodes-added
-              first)
-          app-view
-          lsp)
+        view-node (first
+                    (g/tx-nodes-added
+                      (g/transact
+                        {:undoable false}
+                        (g/make-nodes graph
+                          [view [CodeEditorView
+                                 :canvas canvas
+                                 :color-scheme code-color-scheme
+                                 :font-size (.getValue font-size-property)
+                                 :font-name (.getValue font-name-property)
+                                 :grammar grammar
+                                 :gutter-view (->CodeEditorGutterView)
+                                 :highlighted-find-term (.getValue highlighted-find-term-property)
+                                 :line-height-factor 1.2
+                                 :localization localization
+                                 :undo-grouping-info undo-grouping-info
+                                 :visible-indentation-guides? (.getValue visible-indentation-guides-property)
+                                 :visible-minimap? (.getValue visible-minimap-property)
+                                 :visible-whitespace (boolean->visible-whitespace (.getValue visible-whitespace-property))]]
+                          (g/connect project :_node-id view :project)
+                          (g/connect app-view :keymap view :keymap)
+                          (g/connect app-view :open-views view :open-views)))))
+        view-node (setup-view! resource-node view-node app-view lsp)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node localization)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node localization)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node editable localization)
@@ -4270,8 +4279,16 @@
     ;; Canvas stretches to fit view, and updates properties in view node.
     (b/bind! (.widthProperty canvas) (.widthProperty canvas-pane))
     (b/bind! (.heightProperty canvas) (.heightProperty canvas-pane))
-    (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
-    (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
+    (ui/observe (.widthProperty canvas)
+                (fn [_ _ width]
+                  (g/transact
+                    {:undoable false}
+                    (g/set-property view-node :canvas-width width))))
+    (ui/observe (.heightProperty canvas)
+                (fn [_ _ height]
+                  (g/transact
+                    {:undoable false}
+                    (g/set-property view-node :canvas-height height))))
 
     ;; Configure canvas.
     (doto canvas

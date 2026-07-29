@@ -1421,6 +1421,7 @@
         (.destroy camera-inset-drawable)))
     (ui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
     (g/transact
+      {:undoable false}
       (concat
         (g/set-property node-id :drawable nil)
         (g/set-property node-id :picking-drawable nil)
@@ -1446,6 +1447,7 @@
                         (if (= play-mode :playing) :idle :playing)
                         :playing)]
     (g/transact
+      {:undoable false}
       (concat
         (g/set-property view-id :play-mode new-play-mode)
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
@@ -1466,6 +1468,7 @@
     ;; Force a redraw on next refresh without requiring input.
     (ui/user-data! image-view ::last-frame-version nil))
   (g/transact
+    {:undoable false}
     (concat
       (g/set-property view-id :play-mode :idle)
       (g/set-property view-id :active-updatable-ids [])
@@ -1640,7 +1643,9 @@
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
-  (g/set-property! app-view :manip-space manip-space))
+  (g/transact
+    {:undoable false}
+    (g/set-property app-view :manip-space manip-space)))
 
 (handler/defhandler :scene.set-manipulator-space :global
   (label [user-data]
@@ -1799,7 +1804,9 @@
       (g/user-data! view-id ::input-action-queue [])
       (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
     (when has-active-updatables
-      (g/set-property! view-id :updatable-states new-updatable-states))
+      (g/transact
+        {:undoable false}
+        (g/set-property view-id :updatable-states new-updatable-states)))
     (profiler/profile "render" -1
       (when (not= last-frame-version frame-version)
         (gl/with-drawable-as-current drawable
@@ -1917,6 +1924,7 @@
                       (.consume e))
                     (g/user-data-swap! view-id ::input-action-queue conj action)
                     (g/transact
+                      {:undoable false}
                       (concat
                         (when screen-x
                           (g/set-property view-id :cursor-pos [x y]))
@@ -1939,9 +1947,11 @@
     ;; NOTE: Preserve a strong ref to prevent GC from collecting the weakly referenced ChangeLIstener
     (.put (.getProperties parent) ::window-focused-property window-focused-property)
     (doto parent
-      (ui/on-mouse! (fn [type _]
+      (ui/on-mouse! (fn [type _event]
                       (cond (= type :exit)
-                            (g/set-property! view-id :cursor-pos nil))))
+                            (g/transact
+                              {:undoable false}
+                              (g/set-property view-id :cursor-pos nil)))))
       (.setOnMousePressed event-handler)
       (.setOnMouseReleased event-handler)
       (.setOnMouseClicked event-handler)
@@ -1989,7 +1999,9 @@
                      (proxy-super layoutInArea ^Node image-view 0.0 0.0 width height 0.0 HPos/CENTER VPos/CENTER)
                      (when (and (> width 0) (> height 0))
                        (let [viewport (types/->Region 0 width 0 height)]
-                         (g/transact (g/set-property view-id :viewport viewport))
+                         (g/transact
+                           {:undoable false}
+                           (g/set-property view-id :viewport viewport))
                          (if-let [view-id (ui/user-data image-view ::view-id)]
                            (when-some [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                              (doto drawable
@@ -2008,15 +2020,19 @@
                              (when (:camera opts)
                                (ui/user-data! image-view ::preserve-initial-camera true))
                              (if camera-inset-drawable
-                               (g/set-properties! view-id
-                                                 :drawable drawable
-                                                 :picking-drawable picking-drawable
-                                                 :camera-inset-drawable camera-inset-drawable
-                                                 :async-copy-state (atom (scene-async/make-async-copy-state width height)))
-                               (g/set-properties! view-id
-                                                 :drawable drawable
-                                                 :picking-drawable picking-drawable
-                                                 :async-copy-state (atom (scene-async/make-async-copy-state width height))))
+                               (g/transact
+                                 {:undoable false}
+                                 (g/set-properties view-id
+                                   :drawable drawable
+                                   :picking-drawable picking-drawable
+                                   :camera-inset-drawable camera-inset-drawable
+                                   :async-copy-state (atom (scene-async/make-async-copy-state width height))))
+                               (g/transact
+                                 {:undoable false}
+                                 (g/set-properties view-id
+                                   :drawable drawable
+                                   :picking-drawable picking-drawable
+                                   :async-copy-state (atom (scene-async/make-async-copy-state width height)))))
                              (when-not (:camera opts)
                                (frame-selection! view-id false))))))
                      (catch Throwable error
@@ -2024,7 +2040,9 @@
                    (proxy-super layoutChildren))))]
     (.setFocusTraversable pane true)
     (.add (.getChildren pane) image-view)
-    (g/set-property! view-id :image-view image-view)
+    (g/transact
+      {:undoable false}
+      (g/set-property view-id :image-view image-view))
     pane))
 
 (defn- make-scene-view-pane [view-id opts]
@@ -2038,15 +2056,23 @@
                                           (let [key-event ^KeyEvent event]
                                             (when (and (.isShortcutDown key-event)
                                                        (= "t" (.getText key-event)))
-                                              (g/update-property! view-id :render-mode render-mode-transitions))))))
+                                              (g/transact
+                                                {:undoable false}
+                                                (g/update-property view-id :render-mode render-mode-transitions)))))))
     scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]
-  (let [view-id (g/make-node! scene-graph SceneView :updatable-states {} :app-view (:app-view opts))
+  (let [view-id (first
+                  (g/tx-nodes-added
+                    (g/transact
+                      {:undoable false}
+                      (g/make-node scene-graph SceneView :updatable-states {} :app-view (:app-view opts)))))
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
     (ui/with-controls scene-view-pane [overlay-anchor-pane]
-      (g/set-property! view-id :overlay-anchor-pane overlay-anchor-pane))
+      (g/transact
+        {:undoable false}
+        (g/set-property view-id :overlay-anchor-pane overlay-anchor-pane)))
     view-id))
 
 (g/defnk produce-frame [all-renderables ^Region viewport pass->render-args ^GLAutoDrawable drawable]
@@ -2110,11 +2136,15 @@
             (displayed-node-properties selected-node-properties preview-overrides))))
 
 (defn make-preview-view [graph width height]
-  (g/make-node! graph PreviewView
-                :width width
-                :height height
-                :drawable (gl/offscreen-drawable width height)
-                :picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)))
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node graph PreviewView
+                     :width width
+                     :height height
+                     :drawable (gl/offscreen-drawable width height)
+                     :picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size))))))
 
 (defmulti attach-grid
   (fn [grid-node-type grid-node-id view-id resource-node camera]
@@ -2219,6 +2249,7 @@
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
     (g/transact
+      {:undoable false}
       (setup-view view-id resource-node opts))
     view-id))
 
@@ -2228,11 +2259,12 @@
                  (assoc :manual-refresh? true)
                  (dissoc :grid))]
     (g/transact
+      {:undoable false}
       (setup-view view-id resource-node opts))
     (frame-preview! view-id)
     view-id))
 
-(defn dispose-preview
+(defn- dispose-preview
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (dispose-preview node-id evaluation-context)))
@@ -2241,12 +2273,16 @@
      (gl/with-drawable-as-current drawable
        (scene-cache/drop-context! gl))
      (.destroy drawable)
-     (g/set-property! node-id :drawable nil))
+     (g/transact
+       {:undoable false}
+       (g/set-property node-id :drawable nil)))
    (when-some [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable evaluation-context)]
      (gl/with-drawable-as-current picking-drawable
        (scene-cache/drop-context! gl))
      (.destroy picking-drawable)
-     (g/set-property! node-id :picking-drawable nil))))
+     (g/transact
+       {:undoable false}
+       (g/set-property node-id :picking-drawable nil)))))
 
 (defn- focus-view! [view-id _opts done-fn]
   (if-some [^ImageView image-view (g/node-value view-id :image-view)]
@@ -2312,8 +2348,9 @@
             (dynamic edit-type (g/constantly {:type types/Vec3 :precision 0.1}))
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
-                   (when (some? new-value)
-                     (g/set-property self :scale (non-zeroify-scale new-value))))))
+                   (when-let [non-zero-scale (some-> new-value non-zeroify-scale)]
+                     (when (not= new-value non-zero-scale)
+                       (g/set-property self :scale non-zero-scale))))))
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
@@ -2403,7 +2440,7 @@
              view-type (or (coll/first-where #(= :scene (:id %)) (:view-types resource-type))
                            (throw (http-server/error (http-server/response 422 "Resource does not support previews\n"))))
              make-preview-fn (:make-preview-fn view-type)]
-    (let [view-graph (g/make-graph! :history false :volatility 2)]
+    (let [view-graph (g/make-graph! :volatility 2)]
       (try
         (let [opts (assoc (:scene (:view-opts resource-type))
                      :app-view app-view
@@ -2412,7 +2449,12 @@
                      :inherit-selection false
                      :project project
                      :workspace workspace)
+              undo-stack-revisions-before (g/undo-stack-revisions)
               preview (make-preview-fn view-graph resource-node opts width height)]
+          (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                  (format "The %s view-type :make-preview-fn created undo steps for '%s'."
+                          (:id view-type)
+                          (resource/proj-path resource)))
           (g/with-auto-evaluation-context evaluation-context
             (try
               (let [out (ByteArrayOutputStream.)
@@ -2426,7 +2468,11 @@
                 (ImageIO/write flipped-frame "png" out)
                 (http-server/response 200 {"content-type" "image/png"} (.toByteArray out)))
               (finally
-                (dispose-preview preview evaluation-context)))))
+                (dispose-preview preview evaluation-context)
+                (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                        (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
+                                (:id view-type)
+                                (resource/proj-path resource)))))))
         (finally
           (g/delete-graph! view-graph))))))
 
