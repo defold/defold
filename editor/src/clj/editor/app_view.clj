@@ -48,6 +48,7 @@
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.game-project :as game-project]
+            [editor.geom :as geom]
             [editor.git :as git]
             [editor.github :as github]
             [editor.graph-util :as gu]
@@ -124,6 +125,7 @@
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
+           [javax.vecmath Point3d]
            [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
@@ -141,36 +143,6 @@
    :changed-files {:index 1
                    :pane-id "changed-files-pane"
                    :split-id "assets-split"}})
-
-(def ^:private scene-default-camera-projection-by-ext
-  {"model" :perspective
-   "mesh" :perspective
-   "cubemap" :perspective
-   "gltf" :perspective
-   "glb" :perspective
-   "directional_light" :perspective
-   "point_light" :perspective
-   "spot_light" :perspective
-   "ambient_light" :perspective
-
-   ;; Unless we find a better way to determine whether these can start in perspective
-   ;; just open them as orthographic
-   "go" :orthographic
-   "collection" :orthographic
-   "particlefx" :orthographic
-
-   "jpg" :orthographic
-   "jpeg" :orthographic
-   "png" :orthographic
-   "atlas" :orthographic
-   "tilesource" :orthographic
-   "tileset" :orthographic
-   "tilemap" :orthographic
-   "tilegrid" :orthographic
-   "gui" :orthographic
-   "font" :orthographic
-   "sprite" :orthographic
-   "label" :orthographic})
 
 (defn- pane-visible? [^Scene main-scene pane-kw]
   (let [{:keys [pane-id split-id]} (split-info-by-pane-kw pane-kw)]
@@ -2409,9 +2381,15 @@
 
 (declare open-resource!)
 
-(defn- default-camera-projection [project resource]
+(defn- default-camera-projection [project resource resource-node]
   (let [ext (some-> resource resource/resource-type :ext)]
     (case ext
+      ("model" "mesh" "gltf" "glb")
+      :perspective
+
+      ("png" "jpg" "jpeg" "atlas" "tilesource" "tileset" "tilegrid" "tilemap" "gui" "font" "sprite" "label")
+      :orthographic
+
       "collisionobject"
       (g/let-ec [game-project (project/get-resource-node project "/game.project" evaluation-context)
                  physics-type (game-project/get-setting game-project ["physics" "type"] evaluation-context)]
@@ -2419,7 +2397,21 @@
           :orthographic
           :perspective))
 
-      (get scene-default-camera-projection-by-ext ext :orthographic))))
+      (g/let-ec [scene (g/node-value resource-node :scene evaluation-context)]
+        (letfn [(has-depth? [node]
+                  (let [aabb (:aabb node)
+                        ^Point3d extent (when aabb (geom/aabb-extent aabb))]
+                    (if (and extent
+                             (pos? (.z extent))
+                             (contains? node :renderable)
+                             (not (contains? (get-in node [:renderable :tags]) :camera)))
+                      true
+                      (boolean (some has-depth? (:children node))))))]
+          (if (and scene
+                   (not (g/error? scene))
+                   (has-depth? scene))
+            :perspective
+            :orthographic))))))
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
@@ -2440,10 +2432,10 @@
         view-graph (g/make-graph! :history false :volatility 2)
         select-fn (partial select app-view)
         open-resource-fn (partial open-resource! app-view prefs localization project)
-        stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))
-        camera-opts (if stored-camera
-                      {:camera stored-camera}
-                      {:default-camera-projection (default-camera-projection project resource)})
+        camera-opts (when (= :scene (:id view-type))
+                      (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
+                        {:camera stored-camera}
+                        {:default-camera-projection (default-camera-projection project resource resource-node)}))
         opts (merge opts
                     (get (:view-opts resource-type) (:id view-type))
                     {:app-view app-view
@@ -2454,8 +2446,7 @@
                      :workspace workspace
                      :localization localization
                      :tab tab}
-                    (when (= :scene (:id view-type))
-                      camera-opts))
+                    camera-opts)
         make-view-fn (:make-view-fn view-type)
         view (make-view-fn view-graph parent resource-node opts)]
     (assert (g/node-instance? view/WorkbenchView view))
