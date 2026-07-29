@@ -166,6 +166,27 @@ namespace dmGameSystem
  * @param value [type:userdata]
  */
 
+/*# Box2D mass data
+ *
+ * Mass properties for a Box2D body or shape.
+ *
+ * @struct
+ * @name b2d.mass_data
+ * @member mass [type:number] Body mass, usually in kilograms.
+ * @member center [type:vector3] Local center of mass.
+ * @member inertia [type:number] Rotational inertia about the local origin.
+ */
+
+/*# Box2D transform
+ *
+ * World transform for a Box2D body.
+ *
+ * @struct
+ * @name b2d.transform
+ * @member position [type:vector3] World position of the body origin.
+ * @member angle [type:number] World rotation angle in radians.
+ */
+
 /*# Get the Box2D world from the current collection
  * @name b2d.get_world
  * @return world [type: b2World] the world if successful. Otherwise `nil`.

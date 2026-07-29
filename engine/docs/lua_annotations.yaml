@@ -39,6 +39,13 @@ excluded_function_patterns:
   - "connected:*"
   - "unconnected:*"
 
+method_classes:
+  master: socket_master
+  client: socket_client
+  server: socket_server
+  connected: socket_connected
+  unconnected: socket_unconnected
+
 allowed_diagnostics:
   - lowercase-global
   - missing-return
@@ -78,9 +85,6 @@ aliases:
   b2d.chain: userdata
   b2d.shape: userdata
   b2d.contact_edge: userdata
-  socket_client: userdata
-  socket_master: userdata
-  socket_unconnected: userdata
   editor.schema: userdata
   editor.component: userdata
   editor.transaction_step: userdata
@@ -101,6 +105,8 @@ type_replacements:
   predicate: render_predicate
   client: socket_client
   master: socket_master
+  server: socket_server
+  connected: socket_connected
   unconnected: socket_unconnected
   vmath.vector3: vector3
   vmath.vector4: vector4
@@ -244,72 +250,3 @@ classes:
       c1: vector4
       c2: vector4
       c3: vector4
-  b2d.mass_data:
-    fields:
-      mass: number
-      center: vector3
-      inertia: number
-  b2d.transform:
-    fields:
-      position: vector3
-      angle: number
-  resource.atlas:
-    fields:
-      texture: string|hash
-      animations: resource.animation[]
-      geometries: resource.geometry[]
-  resource.animation:
-    fields:
-      id: string
-      width: integer
-      height: integer
-      frames: integer[]
-      playback?: go.PLAYBACK
-      fps?: integer
-      flip_vertical?: boolean
-      flip_horizontal?: boolean
-  resource.geometry:
-    fields:
-      id: string
-      width: number
-      height: number
-      pivot_x: number
-      pivot_y: number
-      rotated: boolean
-      vertices: number[]
-      uvs: number[]
-      indices: number[]
-  on_input.action:
-    fields:
-      value?: number
-      pressed?: boolean
-      released?: boolean
-      repeated?: boolean
-      x?: number
-      y?: number
-      screen_x?: number
-      screen_y?: number
-      dx?: number
-      dy?: number
-      screen_dx?: number
-      screen_dy?: number
-      gamepad?: integer
-      touch?: on_input.touch[]
-      text?: string
-  on_input.touch:
-    fields:
-      id: number
-      pressed: boolean
-      released: boolean
-      tap_count: integer
-      x: number
-      y: number
-      dx: number
-      dy: number
-      acc_x?: number
-      acc_y?: number
-      acc_z?: number
-      screen_x?: number
-      screen_y?: number
-      screen_dx?: number
-      screen_dy?: number

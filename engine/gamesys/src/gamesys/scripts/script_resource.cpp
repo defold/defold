@@ -56,6 +56,96 @@ namespace dmGameSystem
  * @language Lua
  */
 
+/*# Atlas creation data
+ *
+ * Data accepted by [ref:resource.create_atlas] and [ref:resource.set_atlas].
+ *
+ * @struct
+ * @name resource.atlas
+ * @member texture [type:string|hash] Path to the texture resource, for example `"/main/my_texture.texturec"`.
+ * @member animations [type:resource.animation[]] Animations in the atlas.
+ * @member geometries [type:resource.geometry[]] Geometries that map to the texture data.
+ */
+
+/*# Atlas animation creation data
+ *
+ * Animation data accepted when creating or updating an atlas. Specify either
+ * `frames`, or both `frame_start` and `frame_end`.
+ *
+ * @struct
+ * @name resource.animation
+ * @member id [type:string] Animation id.
+ * @member width [type:integer] Animation width.
+ * @member height [type:integer] Animation height.
+ * @member frames? [type:integer[]] Geometry indices for the animation frames.
+ * @member frame_start? [type:integer] First geometry index for the legacy contiguous frame range.
+ * @member frame_end? [type:integer] Non-inclusive last geometry index for the legacy contiguous frame range.
+ * @member playback? [type:go.PLAYBACK] Playback mode. The default is `go.PLAYBACK_ONCE_FORWARD`.
+ * @member fps? [type:integer] Animation frame rate. The default is 30.
+ * @member flip_vertical? [type:boolean] Whether to flip the animation vertically. The default is false.
+ * @member flip_horizontal? [type:boolean] Whether to flip the animation horizontally. The default is false.
+ */
+
+/*# Atlas geometry creation data
+ *
+ * Geometry data accepted when creating or updating an atlas.
+ *
+ * @struct
+ * @name resource.geometry
+ * @member id? [type:string] Geometry name, used when matching animations between atlases.
+ * @member width? [type:number] Width of the image represented by the geometry. If omitted, it is calculated from the vertices.
+ * @member height? [type:number] Height of the image represented by the geometry. If omitted, it is calculated from the vertices.
+ * @member pivot_x? [type:number] Horizontal pivot in unit coordinates. The default is 0.5.
+ * @member pivot_y? [type:number] Vertical pivot in unit coordinates. The default is 0.5.
+ * @member rotated? [type:boolean] Whether the image is rotated 90 degrees counter-clockwise in the atlas.
+ * @member vertices [type:number[]] Vertex coordinates in image space as `{px0, py0, px1, py1, ...}`.
+ * @member uvs [type:number[]] UV coordinates in image space as `{u0, v0, u1, v1, ...}`.
+ * @member indices [type:integer[]] Geometry indices where each group of three entries represents a triangle.
+ */
+
+/*# Atlas data
+ *
+ * Data returned by [ref:resource.get_atlas].
+ *
+ * @struct
+ * @name resource.atlas_data
+ * @member texture [type:string|hash] Path to the texture resource.
+ * @member animations [type:resource.animation_data[]] Animations in the atlas.
+ * @member geometries [type:resource.geometry_data[]] Geometries that map to the texture data.
+ */
+
+/*# Atlas animation data
+ *
+ * Animation data returned by [ref:resource.get_atlas].
+ *
+ * @struct
+ * @name resource.animation_data
+ * @member id [type:string] Animation id.
+ * @member width [type:integer] Animation width.
+ * @member height [type:integer] Animation height.
+ * @member frames [type:integer[]] Geometry indices for the animation frames.
+ * @member playback [type:go.PLAYBACK] Playback mode.
+ * @member fps [type:integer] Animation frame rate.
+ * @member flip_vertical [type:boolean] Whether the animation is flipped vertically.
+ * @member flip_horizontal [type:boolean] Whether the animation is flipped horizontally.
+ */
+
+/*# Atlas geometry data
+ *
+ * Geometry data returned by [ref:resource.get_atlas].
+ *
+ * @struct
+ * @name resource.geometry_data
+ * @member width [type:number] Width of the image represented by the geometry.
+ * @member height [type:number] Height of the image represented by the geometry.
+ * @member pivot_x [type:number] Horizontal pivot in unit coordinates.
+ * @member pivot_y [type:number] Vertical pivot in unit coordinates.
+ * @member rotated [type:boolean] Whether the image is rotated 90 degrees counter-clockwise in the atlas.
+ * @member vertices [type:number[]] Vertex coordinates in image space as `{px0, py0, px1, py1, ...}`.
+ * @member uvs [type:number[]] UV coordinates in image space as `{u0, v0, u1, v1, ...}`.
+ * @member indices [type:integer[]] Geometry indices where each group of three entries represents a triangle.
+ */
+
 /*# reference to material resource
  *
  * Constructor-like function with two purposes:
@@ -2813,7 +2903,7 @@ static void PushGeometry(lua_State* L, int index, dmGameSystemDDF::SpriteGeometr
  *
  * @param path [type:hash|string] The path to the atlas resource
  *
- * @return data [type:resource.atlas] A table with the following entries:
+ * @return data [type:resource.atlas_data] A table with the following entries:
  *
  * - texture
  * - geometries

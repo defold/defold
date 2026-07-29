@@ -5868,8 +5868,8 @@ namespace dmGui
      *
      * @name on_input
      * @param self [type:userdata] reference to the script state to be used for storing data
-     * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
-     * @param action [type:table] a table containing the input data, see above for a description
+     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
+     * @param action [type:on_input.action] input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *

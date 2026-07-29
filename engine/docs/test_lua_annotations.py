@@ -68,9 +68,23 @@ def message(name, field_type="string"):
     return result
 
 
+def struct(name, fields):
+    result = script_doc_ddf_pb2.Element()
+    result.type = script_doc_ddf_pb2.STRUCT
+    result.name = name
+    result.brief = "Structure"
+    result.description = "<p>Structure <code>docs</code>.</p>"
+    for field_name, field_type, field_doc in fields:
+        field = result.members.add()
+        field.name = field_name
+        field.type = field_type
+        field.doc = field_doc
+    return result
+
+
 class TestLuaAnnotations(unittest.TestCase):
 
-    def metadata(self, directory, enums=None, generics=None):
+    def metadata(self, directory, enums=None, generics=None, method_classes=None):
         data = {
             "migration": {
                 "source_commit": "test",
@@ -80,6 +94,7 @@ class TestLuaAnnotations(unittest.TestCase):
             "standard_namespaces": ["math"],
             "excluded_functions": ["init"],
             "excluded_function_patterns": ["client:*"],
+            "method_classes": method_classes or {},
             "allowed_diagnostics": ["lowercase-global", "missing-return", "args-after-dots"],
             "known_types": ["nil", "any", "boolean", "number", "integer", "string", "userdata", "table"],
             "aliases": {"hash": "userdata"},
@@ -212,6 +227,101 @@ class TestLuaAnnotations(unittest.TestCase):
             go_lua = (output / "go.lua").read_text(encoding="utf-8")
             self.assertIn("---@param value? string", go_lua)
             self.assertIn("---@return number|nil result", go_lua)
+
+    def test_receiver_functions_are_rendered_as_documented_class_methods(self):
+        send = function("client:send", "string", "number|nil")
+        send.description = "<p>Sends <code>data</code> like [ref:string.sub].</p>"
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(
+                directory,
+                method_classes={"client": "socket_client"})
+            output = Path(directory) / "output"
+            names = lua_annotations.generate(
+                [("luasocket.doc_h", document("socket", [send]))],
+                output,
+                metadata)
+
+            self.assertEqual(["meta.lua"], names)
+            meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
+            self.assertIn("---@class socket_client", meta_lua)
+            self.assertIn(
+                "---@field send fun(self:socket_client, value:string):number|nil "
+                "Sends `data` like `string.sub`.",
+                meta_lua)
+            self.assertNotIn("function client:send", meta_lua)
+            self.assertIn("---@field x number", meta_lua)
+
+    def test_documented_struct_fields_are_rendered_from_source(self):
+        options = struct("options", [
+            ("path", "string|hash", "Resource <code>path</code>."),
+            ("enabled?", "bool", "Whether enabled."),
+        ])
+        use = function("resource.use", "resource.options")
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("resource.cpp", document("resource", [options, use]))],
+                output,
+                metadata)
+
+            meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
+            self.assertIn("---@class resource.options", meta_lua)
+            self.assertIn(
+                "---@field path string|hash Resource `path`.",
+                meta_lua)
+            self.assertIn(
+                "---@field enabled? boolean Whether enabled.",
+                meta_lua)
+
+    def test_class_cannot_be_defined_in_source_and_metadata(self):
+        vector3 = struct("vector3", [("x", "number", "X")])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    "defined in source documentation or metadata"):
+                lua_annotations.generate(
+                    [("vmath.cpp", document("builtins", [vector3]))],
+                    Path(directory) / "output",
+                    metadata)
+
+    def test_conflicting_documented_classes_report_both_sources(self):
+        first = struct("options", [("value", "string", "Value")])
+        second = struct("options", [("value", "number", "Value")])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"second\.cpp: conflicting duplicate class "
+                    r"resource\.options \(previously defined in first\.cpp\)"):
+                lua_annotations.generate(
+                    [
+                        ("first.cpp", document("resource", [first])),
+                        ("second.cpp", document("resource", [second])),
+                    ],
+                    Path(directory) / "output",
+                    metadata)
+
+    def test_documented_class_unknown_type_reports_source_and_field(self):
+        options = struct("options", [
+            ("value", "missing.type", "Value"),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"resource\.cpp: resource\.options field value "
+                    r"references unknown type 'missing\.type'"):
+                lua_annotations.generate(
+                    [("resource.cpp", document("resource", [options]))],
+                    Path(directory) / "output",
+                    metadata)
 
     def test_generic_metadata_correlates_parameter_and_return_types(self):
         normalize = function(

@@ -28,6 +28,7 @@
             [editor.lua :as lua]
             [editor.os :as os]
             [editor.resource :as resource]
+            [editor.system :as system]
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll]
@@ -279,7 +280,10 @@
                :diagnostics {:globals (-> lua/defined-globals
                                           (into (lua/extract-globals-from-completions completions))
                                           (into (lua/extract-globals-from-completions lua/editor-completions)))}
-               :workspace {:library [(str (path/of root ".internal" "lua-annotations"))]}})
+               :workspace {:library [(str (path/of (system/defold-unpack-path)
+                                                   "shared"
+                                                   "lua-annotations"))
+                                     (str (path/of root ".internal" "lua-annotations"))]}})
 
             "files.associations"
             (let [workspace (g/node-value project :workspace evaluation-context)

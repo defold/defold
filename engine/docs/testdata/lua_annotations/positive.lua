@@ -51,3 +51,59 @@ model.play_anim(
         local source = sender
         pprint(completed_message, payload.animation_id, source)
     end)
+
+local tcp_client = assert(socket.connect("127.0.0.1", 8000))
+tcp_client:settimeout(0.1)
+tcp_client:send("ping")
+
+local udp_socket = assert(socket.udp())
+udp_socket:settimeout(0.1)
+udp_socket:sendto("ping", "127.0.0.1", 8000)
+
+resource.create_atlas(
+    "/generated.texturesetc",
+    {
+        texture = "/main/my_texture.texturec",
+        animations = {
+            {
+                id = "idle",
+                width = 16,
+                height = 16,
+                frames = {1},
+                playback = go.PLAYBACK_LOOP_FORWARD,
+                fps = 30,
+            },
+        },
+        geometries = {
+            {
+                vertices = {0, 0, 16, 0, 16, 16},
+                uvs = {0, 0, 16, 0, 16, 16},
+                indices = {0, 1, 2},
+            },
+        },
+    })
+
+local atlas_data = resource.get_atlas("/generated.texturesetc")
+local first_frame = atlas_data.animations[1].frames[1]
+pprint(first_frame, atlas_data.geometries[1].pivot_x)
+
+---@param action on_input.action
+local function inspect_action(action)
+    if action.touch then
+        pprint(action.touch[1].screen_x)
+    end
+    if action.gamepad_guid_info then
+        pprint(action.gamepad_guid_info.vendor)
+    end
+end
+
+inspect_action({pressed = true})
+
+local collision_body = b2d.get_body("#collisionobject")
+b2d.body.set_mass_data(
+    collision_body,
+    {
+        mass = 1,
+        center = vmath.vector3(),
+        inertia = 0,
+    })

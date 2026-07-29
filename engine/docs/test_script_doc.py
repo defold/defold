@@ -154,6 +154,20 @@ foobar
             ["table<string, {value:number|nil}>", "string[]"],
             list(parameter.types))
 
+    def test_struct_member_union_type(self):
+        doc = """
+/*#
+ * MY_STRUCT
+ * @name my.struct
+ * @struct
+ * @member value [type:string|hash] DOC
+ */
+"""
+        element = script_doc.parse_document(doc).elements[0]
+        self.assertEqual(script_doc_ddf_pb2.STRUCT, element.type)
+        self.assertEqual("string|hash", element.members[0].type)
+        self.assertEqual("DOC", element.members[0].doc)
+
     def test_invalid_nested_lua_type_expression(self):
         with self.assertRaises(ValueError):
             script_doc.extract_type_from_docstr("[type:table<string, {value:number>] DOC")

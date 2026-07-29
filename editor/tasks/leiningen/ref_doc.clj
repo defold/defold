@@ -28,16 +28,21 @@
         (io/delete-file file)))))
 
 (defn- unzip
-  "Takes the path to a zipfile `source` and unzips it to target-dir."
-  [source target-dir]
+  "Copies SDoc and Lua annotation entries from `source` to their target directories."
+  [source sdoc-target-dir lua-target-dir]
   (with-open [zip (ZipFile. (io/file source))]
     (doseq [entry (enumeration-seq (.entries zip))]
       (let [entryname (.getName entry)
-            filename (.getName (io/file entryname))
-            dest (io/file target-dir filename)]
-        (when (and (str/ends-with? filename ".sdoc")
-                   (not= filename "editor_doc.sdoc"))
-          (io/copy (.getInputStream zip entry) dest))))))
+            filename (.getName (io/file entryname))]
+        (cond
+          (and (str/ends-with? filename ".sdoc")
+               (not= filename "editor_doc.sdoc"))
+          (io/copy (.getInputStream zip entry)
+                   (io/file sdoc-target-dir filename))
+
+          (str/ends-with? filename ".lua")
+          (io/copy (.getInputStream zip entry)
+                   (io/file lua-target-dir filename)))))))
 
 (defn- ref-doc-zip
   "Get the ref-doc.zip from either S3 archive or DYNAMO_HOME."
@@ -47,10 +52,13 @@
     (io/file (format "%s/share/ref-doc.zip" (get (System/getenv) "DYNAMO_HOME")))))
 
 (defn ref-doc [project & [git-sha]]
-  (let [out-path "resources/doc"]
-    (delete-dir out-path)
-    (.mkdirs (io/file out-path))
+  (let [sdoc-target-dir "resources/doc"
+        lua-target-dir "resources/lua-annotations"]
+    (doseq [target-dir [sdoc-target-dir lua-target-dir]]
+      (delete-dir target-dir)
+      (.mkdirs (io/file target-dir)))
     (let [sha (or git-sha (:engine project))
           archive-domain (get project :archive-domain)]
       (unzip (ref-doc-zip archive-domain sha)
-             out-path))))
+             sdoc-target-dir
+             lua-target-dir))))

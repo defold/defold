@@ -109,6 +109,7 @@ def lua_doc_text(value):
         return ""
     value = re.sub(r"\[icon:.*?\]", "", value)
     value = re.sub(r"\[type:(.*?)\]", r"`\1`", value)
+    value = re.sub(r"\[ref:(.*?)\]", r"`\1`", value)
     converter = _LuaDocHtmlConverter()
     converter.feed(html.unescape(value))
     value = converter.text()
@@ -400,6 +401,15 @@ def _excluded_function(name, metadata):
     return False
 
 
+def _method_target(name, metadata):
+    field = _field_name(name)
+    if ":" not in field:
+        return None
+    receiver, method_name = field.split(":", 1)
+    class_name = metadata.get("method_classes", {}).get(receiver)
+    return (class_name, method_name) if class_name else None
+
+
 def _constant_value_type(name, enum_members):
     for enum_name, enum in enum_members.items():
         if name in enum["members"]:
@@ -427,6 +437,8 @@ def _collect(documents, metadata):
     functions = defaultdict(lambda: defaultdict(list))
     values = defaultdict(dict)
     messages = defaultdict(dict)
+    documented_classes = {}
+    class_methods = defaultdict(lambda: defaultdict(list))
     descriptions = {}
     constants = set()
 
@@ -441,7 +453,11 @@ def _collect(documents, metadata):
             root = _root_namespace(name)
             descriptions.setdefault(root, document.info.description)
             if element.type == script_doc_ddf_pb2.FUNCTION:
-                if not _excluded_function(name, metadata):
+                method_target = _method_target(name, metadata)
+                if method_target:
+                    class_name, method_name = method_target
+                    class_methods[class_name][method_name].append((source_path, element))
+                elif not _excluded_function(name, metadata):
                     functions[root][name].append((source_path, element))
             elif element.type in (script_doc_ddf_pb2.CONSTANT, script_doc_ddf_pb2.VARIABLE):
                 values[root][name] = (source_path, element)
@@ -466,8 +482,33 @@ def _collect(documents, metadata):
                             % (source_path, class_name, previous_path))
                 else:
                     messages[root][class_name] = (source_path, element)
+            elif element.type in (script_doc_ddf_pb2.STRUCT, script_doc_ddf_pb2.CLASS):
+                previous = documented_classes.get(name)
+                if previous:
+                    previous_path, previous_element = previous
+                    previous_fields = [
+                        (member.name, member.type)
+                        for member in previous_element.members
+                    ]
+                    fields = [
+                        (member.name, member.type)
+                        for member in element.members
+                    ]
+                    if fields != previous_fields:
+                        raise ValueError(
+                            "%s: conflicting duplicate class %s (previously defined in %s)"
+                            % (source_path, name, previous_path))
+                else:
+                    documented_classes[name] = (source_path, element)
 
-    return functions, values, messages, descriptions, constants
+    return (
+        functions,
+        values,
+        messages,
+        documented_classes,
+        class_methods,
+        descriptions,
+        constants)
 
 
 def _namespace_sets(functions, values):
@@ -554,6 +595,51 @@ def _render_message(class_name, element, metadata):
     return lines
 
 
+def _render_documented_class(class_name, element, metadata):
+    lines = ["---@class %s" % class_name]
+    lines.extend(lua_doc_lines(element.description or element.brief))
+    for member in element.members:
+        if not re.match(r"^[A-Za-z_]\w*\??$", member.name):
+            raise ValueError(
+                "Class %s has invalid member name '%s'"
+                % (class_name, member.name))
+        description = lua_doc_text(member.doc).replace("\n", " ")
+        lines.append("---@field %s %s%s" % (
+            member.name,
+            normalize_type(member.type, metadata),
+            " " + description if description else ""))
+    return lines
+
+
+def _method_signature(class_name, element, metadata):
+    parameters = ["self:%s" % class_name]
+    for parameter in element.parameters:
+        name = _normalize_parameter_name(parameter.name)
+        if parameter.is_optional and name != "...":
+            name += "?"
+        parameters.append("%s:%s" % (name, _parameter_type(parameter, metadata)))
+    returns = [_return_type(value, metadata) for value in element.returnvalues]
+    signature = "fun(%s)" % ", ".join(parameters)
+    if returns:
+        signature += ":%s" % (
+            returns[0] if len(returns) == 1 else "(%s)" % ", ".join(returns))
+    return signature
+
+
+def _render_class_method(class_name, method_name, variants, metadata):
+    signatures = []
+    for _, element in variants:
+        signature = _method_signature(class_name, element, metadata)
+        if signature not in signatures:
+            signatures.append(signature)
+    primary = variants[0][1]
+    description = lua_doc_text(primary.description or primary.brief).replace("\n", " ")
+    return "---@field %s %s%s" % (
+        method_name,
+        "|".join(signatures),
+        " " + description if description else "")
+
+
 def _render_enum(enum_name, enum):
     lines = ["---@alias %s %s" % (enum_name, enum["value_type"])]
     lines.extend("---| `%s`" % member for member in enum["members"])
@@ -610,17 +696,43 @@ def _render_module(root, functions, values, namespaces, descriptions, enum_membe
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _render_meta(metadata, messages):
+def _render_meta(metadata, messages, documented_classes, class_methods):
     lines = [GENERATED_NOTICE.rstrip(), ""]
     for name, target in sorted(metadata.get("aliases", {}).items()):
         lines.append("---@alias %s %s" % (name, target))
     if metadata.get("aliases"):
         lines.append("")
 
-    for class_name, class_data in sorted(metadata.get("classes", {}).items()):
-        lines.append("---@class %s" % class_name)
+    duplicate_class_names = set(metadata.get("classes", {})) & set(documented_classes)
+    if duplicate_class_names:
+        raise ValueError(
+            "Classes must be defined in source documentation or metadata, not both: %s"
+            % ", ".join(sorted(duplicate_class_names)))
+
+    class_names = (
+        set(metadata.get("classes", {}))
+        | set(documented_classes)
+        | set(class_methods))
+    for class_name in sorted(class_names):
+        documented_class = documented_classes.get(class_name)
+        if documented_class:
+            _, element = documented_class
+            lines.extend(_render_documented_class(class_name, element, metadata))
+        class_data = metadata.get("classes", {}).get(class_name) or {}
+        if not documented_class:
+            lines.append("---@class %s" % class_name)
         for field_name, field_type in sorted((class_data.get("fields") or {}).items()):
+            if not isinstance(field_type, str):
+                raise ValueError(
+                    "Metadata class field '%s.%s' must be a type string"
+                    % (class_name, field_name))
             lines.append("---@field %s %s" % (field_name, field_type))
+        for method_name, variants in sorted(class_methods.get(class_name, {}).items()):
+            lines.append(_render_class_method(
+                class_name,
+                method_name,
+                variants,
+                metadata))
         for operator, operator_types in sorted((class_data.get("operators") or {}).items()):
             parameter_type, result_type = operator_types
             if parameter_type is None:
@@ -636,10 +748,17 @@ def _render_meta(metadata, messages):
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _known_annotation_types(metadata, enum_members, messages):
+def _known_annotation_types(
+        metadata,
+        enum_members,
+        messages,
+        documented_classes,
+        class_methods):
     known = set(metadata.get("known_types", []))
     known.update(metadata.get("aliases", {}).keys())
     known.update(metadata.get("classes", {}).keys())
+    known.update(documented_classes.keys())
+    known.update(class_methods.keys())
     known.update(enum_members.keys())
     for enum in enum_members.values():
         known.update(enum["members"])
@@ -649,8 +768,20 @@ def _known_annotation_types(metadata, enum_members, messages):
     return known
 
 
-def _validate_types(functions, messages, metadata, enum_members, metadata_path):
-    known = _known_annotation_types(metadata, enum_members, messages)
+def _validate_types(
+        functions,
+        messages,
+        documented_classes,
+        class_methods,
+        metadata,
+        enum_members,
+        metadata_path):
+    known = _known_annotation_types(
+        metadata,
+        enum_members,
+        messages,
+        documented_classes,
+        class_methods)
     errors = []
 
     def validate(expression, source_path, symbol):
@@ -673,6 +804,31 @@ def _validate_types(functions, messages, metadata, enum_members, metadata_path):
         for name, (source_path, element) in root_messages.items():
             for parameter in element.parameters:
                 validate(_parameter_type(parameter, metadata), source_path, "%s field %s" % (name, parameter.name))
+    for class_name, (source_path, element) in documented_classes.items():
+        for member in element.members:
+            validate(
+                normalize_type(member.type, metadata),
+                source_path,
+                "%s field %s" % (class_name, member.name))
+    for class_name, methods in class_methods.items():
+        for method_name, variants in methods.items():
+            for source_path, element in variants:
+                for parameter in element.parameters:
+                    validate(
+                        _parameter_type(parameter, metadata),
+                        source_path,
+                        "%s:%s parameter %s" % (
+                            class_name,
+                            method_name,
+                            parameter.name))
+                for return_value in element.returnvalues:
+                    validate(
+                        _return_type(return_value, metadata),
+                        source_path,
+                        "%s:%s return %s" % (
+                            class_name,
+                            method_name,
+                            return_value.name))
 
     for enum_name, enum in enum_members.items():
         if not enum["members"]:
@@ -683,6 +839,11 @@ def _validate_types(functions, messages, metadata, enum_members, metadata_path):
         validate(alias_type, metadata_path, "alias %s" % alias_name)
     for class_name, class_data in metadata.get("classes", {}).items():
         for field_name, field_type in (class_data.get("fields") or {}).items():
+            if not isinstance(field_type, str):
+                errors.append(
+                    "%s: %s field %s must be a type string"
+                    % (metadata_path, class_name, field_name))
+                continue
             validate(field_type, metadata_path, "%s field %s" % (class_name, field_name))
         for operator, operator_types in (class_data.get("operators") or {}).items():
             parameter_type, result_type = operator_types
@@ -698,14 +859,34 @@ def _validate_types(functions, messages, metadata, enum_members, metadata_path):
 
 def generate(documents, output_dir, metadata_path, strict=True):
     metadata = load_metadata(metadata_path)
-    functions, values, messages, descriptions, constants = _collect(documents, metadata)
+    (
+        functions,
+        values,
+        messages,
+        documented_classes,
+        class_methods,
+        descriptions,
+        constants,
+    ) = _collect(documents, metadata)
     enum_members = _collect_enum_members(constants, metadata)
     namespaces = _namespace_sets(functions, values)
 
     if strict:
-        _validate_types(functions, messages, metadata, enum_members, str(metadata_path))
+        _validate_types(
+            functions,
+            messages,
+            documented_classes,
+            class_methods,
+            metadata,
+            enum_members,
+            str(metadata_path))
 
-    outputs = {"meta.lua": _render_meta(metadata, messages)}
+    outputs = {
+        "meta.lua": _render_meta(
+            metadata,
+            messages,
+            documented_classes,
+            class_methods)}
     roots = sorted(set(functions) | set(values))
     for root in roots:
         root_namespaces = namespaces.get(root, set())

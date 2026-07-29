@@ -86,6 +86,7 @@
    ;"${DYNAMO-HOME}/ext/bin/arm64-macos/tint"            "arm64-macos/tint"
    ;"${DYNAMO-HOME}/ext/bin/x86_64-win32/tint.exe"       "x86_64-win32/tint.exe"
 
+   "resources/lua-annotations"                         "shared/lua-annotations"
    "${DYNAMO-HOME}/ext/share/luajit"                    "shared/luajit"
 
    "bundle-resources/_defold"                           "_defold"})

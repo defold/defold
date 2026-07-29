@@ -15,6 +15,7 @@
 (ns integration.lsp-test
   (:require [clojure.core.async :as a :refer [<! >!]]
             [clojure.data.json :as json]
+            [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -24,12 +25,14 @@
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lsp.server :as lsp.server]
+            [editor.system :as system]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.async-support :as async-support]
             [support.test-support :as test-support]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.path :as path])
   (:import [java.io PipedInputStream PipedOutputStream]))
 
 (set! *warn-on-reflection* true)
@@ -193,6 +196,23 @@
    "exit" (constantly nil)})
 
 (def ^:private foo-json-lines ["{\"asd\": 1}"])
+
+(deftest lua-configuration-includes-official-annotations-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [official-annotations-path (str (path/of "/defold"
+                                                  "shared"
+                                                  "lua-annotations"))
+          configuration-handler (#'lsp.server/configuration-handler project)
+          [configuration] (with-redefs [system/defold-unpack-path (constantly "/defold")]
+                            (configuration-handler {:items [{:section "Lua"}]}))
+          libraries (get-in configuration [:workspace :library])]
+      (is (= official-annotations-path (first libraries)))
+      (is (= 2 (count libraries)))
+      (is (str/ends-with? (second libraries)
+                          (str java.io.File/separator
+                               ".internal"
+                               java.io.File/separator
+                               "lua-annotations"))))))
 
 (deftest lsp-server-test
   (testing "Initialize + open text document -> should publish diagnostics"

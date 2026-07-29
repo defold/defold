@@ -14,3 +14,6 @@ resource.create_texture(
     })
 
 font.prewarm_text("/invalid.fontc", "text", 42)
+
+local tcp_client = assert(socket.connect("127.0.0.1", 8000))
+tcp_client:send(42)

@@ -338,7 +338,8 @@ def _create_doc_element(tags):
             tmp = [tmp[0], '']
         member = element.members.add()
         member.name = tmp[0]
-        member.type, member.doc = extract_type_from_docstr(tmp[1])
+        member_types, member.doc = extract_type_from_docstr(tmp[1])
+        member.type = '|'.join(member_types) if isinstance(member_types, list) else member_types
 
     if 'examples' in tags:
         element.examples = "".join(tags["examples"])

@@ -63,6 +63,73 @@ namespace dmGameObject
      * @language Lua
      */
 
+    /*# Input action
+     *
+     * Data supplied to the global `on_input` lifecycle function.
+     *
+     * @struct
+     * @name on_input.action
+     * @member value? [type:number] Amount of input, usually 1 for buttons or between 0 and 1 for analogue input.
+     * @member pressed? [type:boolean] Whether the input was pressed this frame.
+     * @member released? [type:boolean] Whether the input was released this frame.
+     * @member repeated? [type:boolean] Whether the input was repeated this frame.
+     * @member x? [type:number] Pointer x-coordinate.
+     * @member y? [type:number] Pointer y-coordinate.
+     * @member screen_x? [type:number] Pointer x-coordinate in screen space.
+     * @member screen_y? [type:number] Pointer y-coordinate in screen space.
+     * @member dx? [type:number] Change in the pointer x-coordinate.
+     * @member dy? [type:number] Change in the pointer y-coordinate.
+     * @member screen_dx? [type:number] Change in the pointer x-coordinate in screen space.
+     * @member screen_dy? [type:number] Change in the pointer y-coordinate in screen space.
+     * @member acc_x? [type:number] Accelerometer x value, when present.
+     * @member acc_y? [type:number] Accelerometer y value, when present.
+     * @member acc_z? [type:number] Accelerometer z value, when present.
+     * @member gamepad? [type:integer] Index of the gamepad that provided the input.
+     * @member userid? [type:integer] Id of the user associated with the controller.
+     * @member gamepad_guid? [type:string] SDL-compatible guid of a connected gamepad.
+     * @member gamepad_guid_info? [type:on_input.gamepad_guid_info] Parsed guid information for a connected gamepad.
+     * @member gamepad_unknown? [type:boolean] Whether the input originated from an unknown or unmapped gamepad.
+     * @member gamepad_name? [type:string] Name of a connected gamepad.
+     * @member gamepad_axis? [type:number[]] Axis values for raw gamepad input.
+     * @member gamepad_hats? [type:number[]] Hat values for raw gamepad input.
+     * @member gamepad_buttons? [type:number[]] Button values for raw gamepad input.
+     * @member touch? [type:on_input.touch[]] Touch inputs, one entry per finger.
+     * @member text? [type:string] Text entered by a text input action.
+     */
+
+    /*# Touch input
+     *
+     * One touch entry in [ref:on_input.action].
+     *
+     * @struct
+     * @name on_input.touch
+     * @member id [type:integer] Identifier for the touch during its lifetime.
+     * @member pressed [type:boolean] Whether the finger was pressed this frame.
+     * @member released [type:boolean] Whether the finger was released this frame.
+     * @member tap_count [type:integer] Number of taps, such as one for a single tap and two for a double tap.
+     * @member x [type:number] Touch x-coordinate.
+     * @member y [type:number] Touch y-coordinate.
+     * @member screen_x [type:number] Touch x-coordinate in screen space.
+     * @member screen_y [type:number] Touch y-coordinate in screen space.
+     * @member dx [type:number] Change in the touch x-coordinate.
+     * @member dy [type:number] Change in the touch y-coordinate.
+     * @member screen_dx [type:number] Change in the touch x-coordinate in screen space.
+     * @member screen_dy [type:number] Change in the touch y-coordinate in screen space.
+     */
+
+    /*# Gamepad guid information
+     *
+     * Parsed fields from a connected gamepad guid.
+     *
+     * @struct
+     * @name on_input.gamepad_guid_info
+     * @member vendor [type:integer] USB vendor id.
+     * @member product [type:integer] USB product id.
+     * @member bus [type:integer] Bus used to communicate with the device.
+     * @member crc [type:integer] SDL CRC16 signature.
+     * @member version [type:integer] Device or firmware version.
+     */
+
     /*# [type:vector3] game object position
      *
      * The position of the game object.
@@ -2933,8 +3000,8 @@ bail:
      *
      * @name on_input
      * @param self [type:userdata] reference to the script state to be used for storing data
-     * @param action_id [type:hash] id of the received input action, as mapped in the input_binding-file
-     * @param action [type:table] a table containing the input data, see above for a description
+     * @param action_id [type:hash|nil] id of the received input action, as mapped in the input_binding-file, or `nil` for mouse movement
+     * @param action [type:on_input.action] input data, see above for a description
      * @return consume [type:boolean|nil] optional boolean to signal if the input should be consumed (not passed on to others) or not, default is false
      * @examples
      *
