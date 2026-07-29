@@ -12,8 +12,8 @@ precision highp int;
 
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;
-flat in highp vec4 var_effect_params;
-flat in highp vec4 var_glyph;
+flat in highp vec2 var_effect_params;
+flat in highp vec2 var_glyph;
 
 out vec4 out_fragColor;
 
@@ -275,7 +275,7 @@ void main()
     }
 
     highp vec2 p = var_texcoord;
-    int curve_start = int(var_glyph.z + 0.5);
+    int curve_start = int(var_glyph.y + 0.5);
     vec2 pixel_filter_width = max(fwidth(p), vec2(1.0 / 65536.0));
     float coverage = ScanlineSweepRender(p, curve_start, curve_count, pixel_filter_width);
     if (coverage <= 0.0)

@@ -1,0 +1,27 @@
+#version 140
+
+// Lean face-only Scanline Sweeper vertex contract.
+in highp vec4 position;
+in highp vec4 texcoord;
+in highp vec4 effect_params;
+in lowp vec4 color;
+
+out highp vec2 var_texcoord;
+out mediump vec4 var_color;
+flat out highp vec2 var_effect_params;
+flat out highp vec2 var_glyph;
+
+uniform vs_uniforms
+{
+    mat4 view_proj;
+    vec4 viewport;
+};
+
+void main()
+{
+    var_texcoord = texcoord.xy;
+    var_color = color;
+    var_effect_params = effect_params.xy;
+    var_glyph = vec2(texcoord.z, position.z);
+    gl_Position = view_proj * vec4(position.xy, 0.0, 1.0);
+}

@@ -6,8 +6,8 @@ precision highp int;
 in highp vec2 var_texcoord;
 in mediump vec4 var_color;
 flat in highp vec4 var_banding;
-flat in highp vec4 var_jacobian;
-flat in highp vec4 var_glyph;
+flat in highp vec2 var_jacobian;
+flat in highp vec2 var_glyph;
 
 out vec4 out_fragColor;
 
