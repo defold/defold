@@ -120,6 +120,8 @@ float ScanlineSweep(vec2 size, vec2 offset, vec2 p0, vec2 p1, vec2 p2)
     {
         return 0.0;
     }
+    bool rising = delta.y > 0.0;
+    float direction = rising ? 1.0 : -1.0;
     p0 -= offset;
     p1 -= offset;
     p2 -= offset;
@@ -136,14 +138,14 @@ float ScanlineSweep(vec2 size, vec2 offset, vec2 p0, vec2 p1, vec2 p2)
         float bottom = max(min(p0.y, p2.y), 0.0);
         float h = top - bottom;
         float b = min(size.x, size.x - p0.x);
-        return sign(delta.y) * b * h;
+        return direction * b * h;
     }
 
     float qa = p0.y + p2.y - 2.0 * p1.y;
     float bt = intersect_monotonic(qa, p0.y, p1.y, p2.y, 0.0);
     float tt = intersect_monotonic(qa, p0.y, p1.y, p2.y, size.y);
-    float v_min_t = delta.y > 0.0 ? bt : tt;
-    float v_max_t = delta.y > 0.0 ? tt : bt;
+    float v_min_t = rising ? bt : tt;
+    float v_max_t = rising ? tt : bt;
 
     vec2 v_min = evaluate_bezier(p0, p1, p2, clamp(v_min_t, 0.0, 1.0));
     vec2 v_max = evaluate_bezier(p0, p1, p2, clamp(v_max_t, 0.0, 1.0));
@@ -202,18 +204,18 @@ float ScanlineSweep(vec2 size, vec2 offset, vec2 p0, vec2 p1, vec2 p2)
     float coverage = 0.0;
     if (min_t > 0.0 && delta.x > 0.0)
     {
-        float h = delta.y > 0.0
+        float h = rising
             ? q0.y - max(0.0, p0.y)
             : min(size.y, p0.y) - q0.y;
-        coverage = sign(delta.y) * h * size.x;
+        coverage = direction * h * size.x;
     }
 
     if (max_t < 1.0 && delta.x < 0.0)
     {
-        float h = delta.y > 0.0
+        float h = rising
             ? min(size.y, p2.y) - q1.y
             : q1.y - max(0.0, p2.y);
-        coverage += sign(delta.y) * h * size.x;
+        coverage += direction * h * size.x;
     }
 
     coverage += scanline_sweep_area_to_right(min_t, max_t, size.x, p0, p1, p2);
