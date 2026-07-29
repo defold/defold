@@ -34,6 +34,7 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :as coll :refer [pair pair-map-by]]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.defold.extension.pipeline ILuaTranspiler ILuaTranspiler$Issue ILuaTranspiler$Severity]
            [com.dynamo.bob ClassLoaderScanner]
@@ -230,7 +231,7 @@
               added (set/difference new-transpiler-classes old-transpiler-classes)]
           (g/transact
             {:undoable false}
-            (concat
+            (e/concat
               (for [removed-class removed]
                 (g/delete-node (old-transpiler-class->node-id removed-class)))
               (for [{:keys [source-ext build-file-proj-path instance]} (create-lua-transpilers added)]

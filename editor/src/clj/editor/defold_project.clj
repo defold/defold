@@ -47,7 +47,6 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.java :as java]
-            [internal.util :as util]
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
@@ -367,7 +366,7 @@
 (defn node-load-infos->stored-disk-state [node-load-infos]
   (let [[disk-sha256s-by-node-id
          node-id+source-value-pairs]
-        (util/into-multiple
+        (iutil/into-multiple
           [{} []]
           [(keep (fn [{:keys [resource] :as node-load-info}]
                    (when (and (resource/file-resource? resource)
@@ -1272,7 +1271,7 @@
     ;; All transactions from this point on will be non-undoable. Find out if we
     ;; have any significant changes, but take care to exclude non-change
     ;; information such as the list of :kept resources from this check.
-    (when (coll/some seq (vals (dissoc plan :invalidate-outputs :kept)))
+    (when (coll/any? coll/not-empty (vals (dissoc plan :invalidate-outputs :kept)))
       (g/reset-undo! :undo/global))
 
     ;; Create the new nodes in the graph.
