@@ -105,8 +105,8 @@
       (is (= first-order-override-array-owned-node-id (g/override-original first-order-override-first-order-override-array-owned-node-id)))
       (is (= first-order-override-first-order-override-regular-owned-node-id (g/override-original second-order-override-first-order-override-regular-owned-node-id)))
       (is (= first-order-override-first-order-override-array-owned-node-id (g/override-original second-order-override-first-order-override-array-owned-node-id)))
-      (is (= first-order-override-first-order-override-regular-owned-node-id (g/override-original second-order-override-first-order-override-regular-owned-node-id)))
-      (is (= first-order-override-first-order-override-array-owned-node-id (g/override-original second-order-override-first-order-override-array-owned-node-id)))
+      (is (= second-order-override-regular-owned-node-id (g/override-original first-order-override-second-order-override-regular-owned-node-id)))
+      (is (= second-order-override-array-owned-node-id (g/override-original first-order-override-second-order-override-array-owned-node-id)))
       (is (= first-order-override-second-order-override-regular-owned-node-id (g/override-original second-order-override-second-order-override-regular-owned-node-id)))
       (is (= first-order-override-second-order-override-array-owned-node-id (g/override-original second-order-override-second-order-override-array-owned-node-id))))
 

@@ -77,9 +77,7 @@
         (ex-info
           "Missing undo-key."
           {:undo-key undo-key
-           :candidates (into (sorted-set)
-                             (map key)
-                             (:undo system))}))))
+           :candidates (mapv key (:undo system))}))))
 
 (defn undo-stack [undo]
   (if-not undo

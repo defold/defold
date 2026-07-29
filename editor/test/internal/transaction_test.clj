@@ -40,7 +40,8 @@
         [eager-tx-data] (g/eager-tx-data tx-data)]
     (is (it/non-undoable? eager-tx-data))
     (is (= [:tx-step/set-property]
-           (g/tx-data-step-types eager-tx-data)))))
+           (mapv it/tx-step-type
+                 (it/non-undoable-tx-data eager-tx-data))))))
 
 (deftest low-level-transactions
   (testing "one node"
