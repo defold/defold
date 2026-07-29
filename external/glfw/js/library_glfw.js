@@ -789,6 +789,7 @@ var LibraryGLFW = {
   },
 
   glfwTerminate: () => {
+    GLFW.removeEventListener("unload", GLFW.onWindowClose, true);
     GLFW.removeEventListener("gamepadconnected", GLFW.onJoystickConnected, true);
     GLFW.removeEventListener("gamepaddisconnected", GLFW.onJoystickDisconnected, true);
     GLFW.removeEventListener("keydown", GLFW.onKeydown, true);
@@ -801,10 +802,36 @@ var LibraryGLFW = {
     GLFW.removeEventListener('mousewheel', GLFW.onMouseWheel, { capture: true, passive: false });
     GLFW.removeEventListenerCanvas('touchstart', GLFW.onTouchStart, true);
     GLFW.removeEventListenerCanvas('touchend', GLFW.onTouchEnd, true);
-    GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchEnd, true);
+    GLFW.removeEventListenerCanvas('touchcancel', GLFW.onTouchCancel, true);
     GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
     GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
     GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
+
+    // Fullscreen and pointer lock listeners are otherwise only removed by their
+    // own change handlers, so they survive termination if we exit while active.
+    document.removeEventListener('fullscreenchange', GLFW.onFullScreenEventChange, true);
+    document.removeEventListener('mozfullscreenchange', GLFW.onFullScreenEventChange, true);
+    document.removeEventListener('webkitfullscreenchange', GLFW.onFullScreenEventChange, true);
+    document.removeEventListener('msfullscreenchange', GLFW.onFullScreenEventChange, true);
+    document.removeEventListener('pointerlockchange', GLFW.onPointerLockEventChange, true);
+    GLFW.isFullscreen = false;
+    GLFW.isPointerLocked = false;
+
+    // The callbacks point into the engine that is being destroyed. They are set
+    // again when a new window is opened.
+    GLFW.keyFunc = null;
+    GLFW.charFunc = null;
+    GLFW.markedTextFunc = null;
+    GLFW.gamepadFunc = null;
+    GLFW.mouseButtonFunc = null;
+    GLFW.mousePosFunc = null;
+    GLFW.mouseWheelFunc = null;
+    GLFW.resizeFunc = null;
+    GLFW.closeFunc = null;
+    GLFW.refreshFunc = null;
+    GLFW.focusFunc = null;
+    GLFW.iconifyFunc = null;
+    GLFW.touchFunc = null;
   },
 
   glfwGetVersion: function(major, minor, rev) {
