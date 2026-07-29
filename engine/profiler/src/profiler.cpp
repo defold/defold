@@ -51,6 +51,16 @@ namespace dmProfiler
  * @language Lua
  */
 
+/*# Profiler modes
+ * @enum
+ * @name profiler.MODE
+ */
+
+/*# Profiler view modes
+ * @enum
+ * @name profiler.VIEW_MODE
+ */
+
 static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library
 static bool g_ProfilerEnabled = false;
 static bool g_TrackCpuUsage = false;

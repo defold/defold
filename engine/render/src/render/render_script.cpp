@@ -48,6 +48,23 @@ namespace dmRender
      * @language Lua
      */
 
+    /*# Render context events
+     * @enum
+     * @name render.CONTEXT_EVENT
+     * @member render.CONTEXT_EVENT_CONTEXT_LOST
+     * @member render.CONTEXT_EVENT_CONTEXT_RESTORED
+     */
+
+    /*# Frustum plane selections
+     * @enum
+     * @name render.FRUSTUM_PLANES
+     */
+
+    /*# Render sort orders
+     * @enum
+     * @name render.SORT
+     */
+
     #define RENDER_SCRIPT_INSTANCE "RenderScriptInstance"
     #define RENDER_SCRIPT "RenderScript"
 
@@ -380,13 +397,19 @@ namespace dmRender
     /*# Render target
      * @typedef
      * @name render_target
-     * @param value [type:number]
+     * @param value [type:string|userdata]
      */
 
     /*# Texture handle
      * @typedef
      * @name texture
      * @param value [type:number]
+     */
+
+    /*# Render predicate
+     * @typedef
+     * @name render_predicate
+     * @param value [type:userdata]
      */
 
     /*# create a new constant buffer.

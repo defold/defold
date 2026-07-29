@@ -45,6 +45,66 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# Blend factors
+     * @enum
+     * @name graphics.BLEND_FACTOR
+     */
+
+    /*# Buffer types
+     * @enum
+     * @name graphics.BUFFER_TYPE
+     */
+
+    /*# Comparison functions
+     * @enum
+     * @name graphics.COMPARE_FUNC
+     */
+
+    /*# Texture compression types
+     * @enum
+     * @name graphics.COMPRESSION_TYPE
+     */
+
+    /*# Face types
+     * @enum
+     * @name graphics.FACE_TYPE
+     */
+
+    /*# Graphics states
+     * @enum
+     * @name graphics.STATE
+     */
+
+    /*# Stencil operations
+     * @enum
+     * @name graphics.STENCIL_OP
+     */
+
+    /*# Texture filters
+     * @enum
+     * @name graphics.TEXTURE_FILTER
+     */
+
+    /*# Texture formats
+     * @enum
+     * @name graphics.TEXTURE_FORMAT
+     */
+
+    /*# Texture types
+     * @enum
+     * @name graphics.TEXTURE_TYPE
+     */
+
+    /*# Texture usage flags
+     * @enum
+     * @name graphics.TEXTURE_USAGE_FLAG
+     */
+
+    /*# Texture wrapping modes
+     * @enum
+     * @name graphics.TEXTURE_WRAP
+     */
+
     /*#
      * @name graphics.BUFFER_TYPE_COLOR0_BIT
      * @constant

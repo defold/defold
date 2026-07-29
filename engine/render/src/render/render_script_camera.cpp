@@ -28,6 +28,11 @@ namespace dmRender
      * @language Lua
      */
 
+    /*# Orthographic projection modes
+     * @enum
+     * @name camera.ORTHO_MODE
+     */
+
     #define RENDER_SCRIPT_CAMERA_LIB_NAME "camera"
 
     /*# fixed orthographic zoom mode

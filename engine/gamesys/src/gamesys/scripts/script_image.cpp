@@ -43,6 +43,11 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Image types
+     * @enum
+     * @name image.TYPE
+     */
+
     #define LIB_NAME "image"
 
     /*# RGB image type

@@ -42,6 +42,16 @@ namespace dmCrash
      * @language Lua
      */
 
+    /*# System crash fields
+     * @enum
+     * @name crash.SYSFIELD
+     */
+
+    /*# User crash fields
+     * @enum
+     * @name crash.USERFIELD
+     */
+
     static HDump CheckHandle(lua_State* L, int index)
     {
         HDump h = (HDump) luaL_checkint(L, index);

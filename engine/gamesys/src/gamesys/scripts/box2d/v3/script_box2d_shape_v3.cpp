@@ -1062,7 +1062,7 @@ namespace dmGameSystem
 
 /*# Box2D shape
  * @typedef
- * @name b2Shape
+ * @name b2d.shape
  * @param value [type:userdata]
  */
 

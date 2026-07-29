@@ -1346,7 +1346,7 @@ namespace dmGameSystem
 
 /*# Box2D joint
  * @typedef
- * @name b2Joint
+ * @name b2d.joint
  * @param value [type:userdata]
  */
 

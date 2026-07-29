@@ -51,6 +51,11 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Emitter states
+     * @enum
+     * @name particlefx.EMITTER_STATE
+     */
+
     /*# [type:hash] particlefx material
      *
      * The material used during rendering by an emitter in a particle FX component.

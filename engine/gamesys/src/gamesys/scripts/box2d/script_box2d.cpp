@@ -156,13 +156,19 @@ namespace dmGameSystem
 
 /*# Box2D world
  * @typedef
- * @name b2World
+ * @name b2d.world
  * @param value [type:userdata]
  */
 
 /*# Box2D body
  * @typedef
- * @name b2Body
+ * @name b2d.body
+ * @param value [type:userdata]
+ */
+
+/*# Box2D contact edge
+ * @typedef
+ * @name b2d.contact_edge
  * @param value [type:userdata]
  */
 

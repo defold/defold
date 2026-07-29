@@ -46,6 +46,16 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Tile transformations
+     * @enum
+     * @name tilemap.TRANSFORM
+     * @member tilemap.H_FLIP
+     * @member tilemap.ROTATE_180
+     * @member tilemap.ROTATE_270
+     * @member tilemap.ROTATE_90
+     * @member tilemap.V_FLIP
+     */
+
     /*# [type:hash] tile source
      *
      * The tile source used when rendering the tile map. The type of the property is hash.

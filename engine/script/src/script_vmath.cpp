@@ -69,6 +69,65 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# Vector with three components
+     *
+     * @class
+     * @name vector3
+     * @member x [type:number] x component
+     * @member y [type:number] y component
+     * @member z [type:number] z component
+     */
+
+    /*# Vector with four components
+     *
+     * @class
+     * @name vector4
+     * @member x [type:number] x component
+     * @member y [type:number] y component
+     * @member z [type:number] z component
+     * @member w [type:number] w component
+     */
+
+    /*# Matrix with four rows and four columns
+     *
+     * @class
+     * @name matrix4
+     * @member m00 [type:number] row 0, column 0
+     * @member m01 [type:number] row 0, column 1
+     * @member m02 [type:number] row 0, column 2
+     * @member m03 [type:number] row 0, column 3
+     * @member m10 [type:number] row 1, column 0
+     * @member m11 [type:number] row 1, column 1
+     * @member m12 [type:number] row 1, column 2
+     * @member m13 [type:number] row 1, column 3
+     * @member m20 [type:number] row 2, column 0
+     * @member m21 [type:number] row 2, column 1
+     * @member m22 [type:number] row 2, column 2
+     * @member m23 [type:number] row 2, column 3
+     * @member m30 [type:number] row 3, column 0
+     * @member m31 [type:number] row 3, column 1
+     * @member m32 [type:number] row 3, column 2
+     * @member m33 [type:number] row 3, column 3
+     * @member c0 [type:vector4] column 0
+     * @member c1 [type:vector4] column 1
+     * @member c2 [type:vector4] column 2
+     * @member c3 [type:vector4] column 3
+     */
+
+    /*# Vector of unspecified length
+     *
+     * @typedef
+     * @name vector
+     * @param value [type:userdata] vector value
+     */
+
+    /*# Quaternion value
+     *
+     * @typedef
+     * @name quaternion
+     * @param value [type:vector4] quaternion components
+     */
+
 #define SCRIPT_LIB_NAME "vmath"
 #define SCRIPT_TYPE_NAME_VECTOR "vector" // Vector of unspecific length
 #define SCRIPT_TYPE_NAME_VECTOR3 "vector3"

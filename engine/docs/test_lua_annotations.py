@@ -82,6 +82,36 @@ def struct(name, fields):
     return result
 
 
+def typedef(name, target):
+    result = script_doc_ddf_pb2.Element()
+    result.type = script_doc_ddf_pb2.TYPEDEF
+    result.name = name
+    result.brief = "%s type" % name
+    parameter = result.parameters.add()
+    parameter.name = "value"
+    parameter.doc = "Underlying value"
+    parameter.types.append(target)
+    return result
+
+
+def enum(name, members=(), value_type=None):
+    result = script_doc_ddf_pb2.Element()
+    result.type = script_doc_ddf_pb2.ENUM
+    result.name = name
+    result.brief = "%s values" % name
+    if value_type:
+        parameter = result.parameters.add()
+        parameter.name = "value"
+        parameter.doc = "Underlying value"
+        parameter.types.append(value_type)
+    for member_name in members:
+        member = result.members.add()
+        member.name = member_name
+        member.type = ""
+        member.doc = ""
+    return result
+
+
 class TestLuaAnnotations(unittest.TestCase):
 
     def metadata(self, directory, enums=None, generics=None, method_classes=None):
@@ -274,7 +304,7 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn("---@field x number", meta_lua)
 
     def test_documented_struct_fields_are_rendered_from_source(self):
-        options = struct("options", [
+        options = struct("resource.options", [
             ("path", "string|hash", "Resource <code>path</code>."),
             ("enabled?", "bool", "Whether enabled."),
         ])
@@ -297,22 +327,148 @@ class TestLuaAnnotations(unittest.TestCase):
                 "---@field enabled? boolean Whether enabled.",
                 meta_lua)
 
-    def test_class_cannot_be_defined_in_source_and_metadata(self):
+    def test_class_fields_cannot_be_defined_in_source_and_metadata(self):
         vector3 = struct("vector3", [("x", "number", "X")])
 
         with tempfile.TemporaryDirectory() as directory:
             metadata = self.metadata(directory)
             with self.assertRaisesRegex(
                     ValueError,
-                    "defined in source documentation or metadata"):
+                    "Class fields must be defined in source documentation or metadata"):
                 lua_annotations.generate(
                     [("vmath.cpp", document("builtins", [vector3]))],
                     Path(directory) / "output",
                     metadata)
 
+    def test_source_class_fields_can_use_metadata_operators(self):
+        vector3 = struct("vector3", [("x", "number", "X")])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            metadata_data = yaml.safe_load(metadata.read_text(encoding="utf-8"))
+            metadata_data["classes"]["vector3"].pop("fields")
+            metadata.write_text(
+                yaml.safe_dump(metadata_data, sort_keys=False),
+                encoding="utf-8")
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("vmath.cpp", document("vmath", [vector3]))],
+                output,
+                metadata)
+
+            meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
+            self.assertIn("---@class vector3", meta_lua)
+            self.assertIn("---@field x number", meta_lua)
+            self.assertIn("---@operator unm: vector3", meta_lua)
+
+    def test_source_typedef_is_rendered_as_alias(self):
+        hash_type = typedef("hash", "userdata")
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            metadata_data = yaml.safe_load(metadata.read_text(encoding="utf-8"))
+            metadata_data["aliases"].pop("hash")
+            metadata.write_text(
+                yaml.safe_dump(metadata_data, sort_keys=False),
+                encoding="utf-8")
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("hash.cpp", document("builtins", [hash_type]))],
+                output,
+                metadata)
+
+            meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
+            self.assertIn("---hash type", meta_lua)
+            self.assertIn("---@alias hash userdata", meta_lua)
+
+    def test_source_enum_infers_members_from_constants(self):
+        playback = enum("go.PLAYBACK")
+        go_doc = document("go", [
+            playback,
+            constant("go.PLAYBACK_NONE"),
+            constant("go.PLAYBACK_LOOP_FORWARD"),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("go.cpp", go_doc)],
+                output,
+                metadata)
+
+            go_lua = (output / "go.lua").read_text(encoding="utf-8")
+            self.assertIn("---@alias go.PLAYBACK integer", go_lua)
+            self.assertIn("---| `go.PLAYBACK_NONE`", go_lua)
+            self.assertIn(
+                "---@field PLAYBACK_NONE integer",
+                go_lua)
+
+    def test_source_enum_supports_explicit_members_and_value_type(self):
+        properties = enum(
+            "gui.PROP",
+            ["gui.PROP_POSITION", "gui.PROP_ROTATION"],
+            "string")
+        gui_doc = document("gui", [
+            properties,
+            constant("gui.PROP_POSITION"),
+            constant("gui.PROP_ROTATION"),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("gui.cpp", gui_doc)],
+                output,
+                metadata)
+
+            gui_lua = (output / "gui.lua").read_text(encoding="utf-8")
+            self.assertIn("---@alias gui.PROP string", gui_lua)
+            self.assertIn("---| `gui.PROP_ROTATION`", gui_lua)
+
+    def test_conflicting_source_typedefs_report_both_sources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"second\.cpp: conflicting duplicate typedef value "
+                    r"\(previously defined in first\.cpp\)"):
+                lua_annotations.generate(
+                    [
+                        ("first.cpp", document(
+                            "builtins",
+                            [typedef("value", "string")])),
+                        ("second.cpp", document(
+                            "builtins",
+                            [typedef("value", "number")])),
+                    ],
+                    Path(directory) / "output",
+                    metadata)
+
+    def test_source_enum_rejects_missing_explicit_member(self):
+        playback = enum(
+            "go.PLAYBACK",
+            ["go.PLAYBACK_NONE", "go.PLAYBACK_MISSING"])
+        go_doc = document("go", [
+            playback,
+            constant("go.PLAYBACK_NONE"),
+        ])
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            with self.assertRaisesRegex(
+                    ValueError,
+                    r"go\.cpp: enum go\.PLAYBACK references missing constant "
+                    r"go\.PLAYBACK_MISSING"):
+                lua_annotations.generate(
+                    [("go.cpp", go_doc)],
+                    Path(directory) / "output",
+                    metadata)
+
     def test_conflicting_documented_classes_report_both_sources(self):
-        first = struct("options", [("value", "string", "Value")])
-        second = struct("options", [("value", "number", "Value")])
+        first = struct("resource.options", [("value", "string", "Value")])
+        second = struct("resource.options", [("value", "number", "Value")])
 
         with tempfile.TemporaryDirectory() as directory:
             metadata = self.metadata(directory)
@@ -329,7 +485,7 @@ class TestLuaAnnotations(unittest.TestCase):
                     metadata)
 
     def test_documented_class_unknown_type_reports_source_and_field(self):
-        options = struct("options", [
+        options = struct("resource.options", [
             ("value", "missing.type", "Value"),
         ])
 

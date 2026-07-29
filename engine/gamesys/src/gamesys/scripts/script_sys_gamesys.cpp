@@ -41,6 +41,11 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Asynchronous request status values
+     * @enum
+     * @name sys.REQUEST_STATUS
+     */
+
     enum RequestStatus
     {
         REQUEST_STATUS_ERROR_IO_ERROR  = -2,

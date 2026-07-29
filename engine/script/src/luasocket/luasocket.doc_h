@@ -66,19 +66,31 @@
 
 /*# TCP master object
  * @typedef
- * @name master
+ * @name socket_master
  * @param value [type:userdata]
  */
 
 /*# TCP client object
  * @typedef
- * @name client
+ * @name socket_client
+ * @param value [type:userdata]
+ */
+
+/*# TCP server object
+ * @typedef
+ * @name socket_server
+ * @param value [type:userdata]
+ */
+
+/*# connected UDP object
+ * @typedef
+ * @name socket_connected
  * @param value [type:userdata]
  */
 
 /*# unconnected UDP object
  * @typedef
- * @name unconnected
+ * @name socket_unconnected
  * @param value [type:userdata]
  */
 
@@ -89,7 +101,7 @@
  * Note: The TCP object returned will have the option "ipv6-v6only" set to true.
  *
  * @name socket.tcp6
- * @return tcp_master [type:master|nil] a new IPv6 TCP master object, or `nil` in case of error.
+ * @return tcp_master [type:socket_master|nil] a new IPv6 TCP master object, or `nil` in case of error.
  * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
@@ -110,7 +122,7 @@
  * Note: The UDP object returned will have the option "ipv6-v6only" set to true.
  *
  * @name socket.udp6
- * @return udp_unconnected [type:unconnected|nil] a new unconnected IPv6 UDP object, or `nil` in case of error.
+ * @return udp_unconnected [type:socket_unconnected|nil] a new unconnected IPv6 UDP object, or `nil` in case of error.
  * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
@@ -214,7 +226,7 @@
  * @param [locaddr] [type:string] optional local address to bind to.
  * @param [locport] [type:number] optional local port to bind to.
  * @param [family] [type:string] optional socket family to use, `"inet"` or `"inet6"`.
- * @return tcp_client [type:client|nil] a new IPv6 TCP client object, or `nil` in case of error.
+ * @return tcp_client [type:socket_client|nil] a new IPv6 TCP client object, or `nil` in case of error.
  * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
@@ -224,7 +236,7 @@
  * Creates and returns an unconnected IPv4 UDP object. Unconnected objects support the `sendto`, `receive`, `receivefrom`, `getoption`, `getsockname`, `setoption`, `settimeout`, `setpeername`, `setsockname`, and `close` methods. The `setpeername` method is used to connect the object.
  *
  * @name socket.udp
- * @return udp_unconnected [type:unconnected|nil] a new unconnected IPv4 UDP object, or `nil` in case of error.
+ * @return udp_unconnected [type:socket_unconnected|nil] a new unconnected IPv4 UDP object, or `nil` in case of error.
  * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
@@ -265,7 +277,7 @@
  * Creates and returns an IPv4 TCP master object. A master object can be transformed into a server object with the method `listen` (after a call to `bind`) or into a client object with the method `connect`. The only other method supported by a master object is the `close` method.
  *
  * @name socket.tcp
- * @return tcp_master [type:master|nil] a new IPv4 TCP master object, or `nil` in case of error.
+ * @return tcp_master [type:socket_master|nil] a new IPv4 TCP master object, or `nil` in case of error.
  * @return error [type:string|nil] the error message, or `nil` if no error occurred.
  *
  */
@@ -359,7 +371,7 @@
  * [icon:attention] Calling `socket.select` with a server object in the `recvt` parameter before a call to accept does not guarantee accept will return immediately. Use the `settimeout` method or accept might block until another client shows up.
  *
  * @name server:accept
- * @return tcp_client [type:client|nil] if a connection is successfully initiated, a client object is returned, or `nil` in case of error.
+ * @return tcp_client [type:socket_client|nil] if a connection is successfully initiated, a client object is returned, or `nil` in case of error.
  * @return error [type:string|nil] the error message, or `nil` if no error occurred. The error is `"timeout"` if a timeout condition is met.
  *
  */

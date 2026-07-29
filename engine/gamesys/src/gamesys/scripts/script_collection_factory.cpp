@@ -53,6 +53,11 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Collection factory status values
+     * @enum
+     * @name collectionfactory.STATUS
+     */
+
     static int HashTableIndex(lua_State* L)
     {
         if (lua_isstring(L, -1))

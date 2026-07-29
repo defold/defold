@@ -53,6 +53,11 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Factory status values
+     * @enum
+     * @name factory.STATUS
+     */
+
     /*# Get factory status
      *
      * This returns status of the factory.

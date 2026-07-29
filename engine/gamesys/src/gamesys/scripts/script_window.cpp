@@ -34,6 +34,16 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Screen-dimming modes
+     * @enum
+     * @name window.DIMMING
+     */
+
+    /*# Window events
+     * @enum
+     * @name window.WINDOW_EVENT
+     */
+
 enum WindowEvent
 {
     WINDOW_EVENT_FOCUS_LOST = 0,

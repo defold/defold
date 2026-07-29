@@ -79,6 +79,11 @@ union SaveLoadBuffer
      * @language Lua
      */
 
+    /*# Network connectivity states
+     * @enum
+     * @name sys.NETWORK
+     */
+
     char* Sys_SetupTableSerializationBuffer(int required_size)
     {
         if (required_size > MAX_BUFFER_SIZE)

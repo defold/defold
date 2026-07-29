@@ -56,6 +56,13 @@ namespace dmGameSystem
  * @language Lua
  */
 
+/*# Resource data
+ *
+ * @typedef
+ * @name resource_data
+ * @param value [type:userdata] resource data value
+ */
+
 /*# Atlas creation data
  *
  * Data accepted by [ref:resource.create_atlas] and [ref:resource.set_atlas].

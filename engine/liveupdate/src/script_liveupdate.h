@@ -38,6 +38,11 @@ namespace dmLiveUpdate
  * @language Lua
  */
 
+/*# LiveUpdate values
+ * @enum
+ * @name liveupdate.LIVEUPDATE
+ */
+
 /*# Get current mounts
  *
  * Get an array of the current mounts

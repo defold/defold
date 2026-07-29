@@ -51,6 +51,84 @@ namespace dmGui
      * @language Lua
      */
 
+    /*# Adjust modes
+     * @enum
+     * @name gui.ADJUST
+     */
+
+    /*# Anchor modes
+     * @enum
+     * @name gui.ANCHOR
+     */
+
+    /*# Blend modes
+     * @enum
+     * @name gui.BLEND
+     */
+
+    /*# Clipping modes
+     * @enum
+     * @name gui.CLIPPING_MODE
+     */
+
+    /*# Easing curves
+     * @enum
+     * @name gui.EASING
+     */
+
+    /*# Keyboard types
+     * @enum
+     * @name gui.KEYBOARD_TYPE
+     */
+
+    /*# Pie bounds modes
+     * @enum
+     * @name gui.PIEBOUNDS
+     */
+
+    /*# Pivot modes
+     * @enum
+     * @name gui.PIVOT
+     */
+
+    /*# Playback modes
+     * @enum
+     * @name gui.PLAYBACK
+     */
+
+    /*# GUI property names
+     * @enum
+     * @name gui.PROP
+     * @param value [type:string] property name
+     */
+
+    /*# GUI results
+     * @enum
+     * @name gui.RESULT
+     */
+
+    /*# Safe-area modes
+     * @enum
+     * @name gui.SAFE_AREA
+     */
+
+    /*# Size modes
+     * @enum
+     * @name gui.SIZE_MODE
+     */
+
+    /*# Node types
+     * @enum
+     * @name gui.TYPE
+     */
+
+    /*# GUI node
+     *
+     * @typedef
+     * @name node
+     * @param value [type:userdata] GUI node value
+     */
+
     /*# [type:hash] gui material
      *
      * The main material (the default material assigned to a GUI) used when rendering the gui. The type of the property is hash.

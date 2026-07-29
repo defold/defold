@@ -54,6 +54,25 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Buffer value types
+     * @enum
+     * @name buffer.VALUE_TYPE
+     */
+
+    /*# Buffer data
+     *
+     * @typedef
+     * @name buffer_data
+     * @param value [type:userdata] buffer value
+     */
+
+    /*# Buffer stream
+     *
+     * @typedef
+     * @name buffer_stream
+     * @param value [type:userdata] buffer stream value
+     */
+
     /*# uint8
      * Unsigned integer, 1 byte
      * @name buffer.VALUE_TYPE_UINT8

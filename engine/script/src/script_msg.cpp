@@ -50,6 +50,15 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# URL value
+     *
+     * @class
+     * @name url
+     * @member socket [type:hash] socket component
+     * @member path [type:hash] path component
+     * @member fragment [type:hash] fragment component
+     */
+
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;
 
     const char* UrlToString(const dmMessage::URL* url, char* buffer, uint32_t buffer_size)

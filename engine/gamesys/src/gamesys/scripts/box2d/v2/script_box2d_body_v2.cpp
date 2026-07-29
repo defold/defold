@@ -1196,6 +1196,11 @@ namespace dmGameSystem
  * @version 2
  */
 
+/*# Body types
+ * @enum
+ * @name b2d.body.B2
+ */
+
 /*# Static (immovable) body
  *
  * @name b2d.body.B2_STATIC_BODY

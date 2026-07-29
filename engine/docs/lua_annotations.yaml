@@ -68,23 +68,7 @@ aliases:
   array: table
   bool: boolean
   float: number
-  quaternion: vector4
-  hash: userdata
-  node: userdata
   constant: number
-  vector: userdata
-  resource_data: userdata
-  constant_buffer: userdata
-  render_target: string|userdata
-  render_predicate: userdata
-  buffer_stream: userdata
-  buffer_data: userdata
-  b2d.world: userdata
-  b2d.body: userdata
-  b2d.joint: userdata
-  b2d.chain: userdata
-  b2d.shape: userdata
-  b2d.contact_edge: userdata
   editor.schema: userdata
   editor.component: userdata
   editor.transaction_step: userdata
@@ -101,13 +85,6 @@ type_replacements:
   buffer: buffer_data
   bufferstream: buffer_stream
   handle: number
-  texture: number
-  predicate: render_predicate
-  client: socket_client
-  master: socket_master
-  server: socket_server
-  connected: socket_connected
-  unconnected: socket_unconnected
   vmath.vector3: vector3
   vmath.vector4: vector4
   vecto4: vector4
@@ -138,115 +115,16 @@ generics:
   vmath.slerp: vector3|vector4
   vmath.lerp: vector3|vector4
 
-enums:
-  b2d.body.B2: {}
-  buffer.VALUE_TYPE: {}
-  camera.ORTHO_MODE: {}
-  collectionfactory.STATUS: {}
-  collectionproxy.RESULT: {}
-  crash.SYSFIELD: {}
-  crash.USERFIELD: {}
-  factory.STATUS: {}
-  go.EASING: {}
-  go.PLAYBACK: {}
-  graphics.BLEND_FACTOR: {}
-  graphics.BUFFER_TYPE: {}
-  graphics.COMPARE_FUNC: {}
-  graphics.COMPRESSION_TYPE: {}
-  graphics.FACE_TYPE: {}
-  graphics.STATE: {}
-  graphics.STENCIL_OP: {}
-  graphics.TEXTURE_FILTER: {}
-  graphics.TEXTURE_FORMAT: {}
-  graphics.TEXTURE_TYPE: {}
-  graphics.TEXTURE_USAGE_FLAG: {}
-  graphics.TEXTURE_WRAP: {}
-  gui.ADJUST: {}
-  gui.ANCHOR: {}
-  gui.BLEND: {}
-  gui.CLIPPING_MODE: {}
-  gui.EASING: {}
-  gui.KEYBOARD_TYPE: {}
-  gui.PIEBOUNDS: {}
-  gui.PIVOT: {}
-  gui.PLAYBACK: {}
-  gui.PROP:
-    value_type: string
-  gui.RESULT: {}
-  gui.SAFE_AREA: {}
-  gui.SIZE_MODE: {}
-  gui.TYPE: {}
-  image.TYPE: {}
-  liveupdate.LIVEUPDATE: {}
-  particlefx.EMITTER_STATE: {}
-  physics.JOINT_TYPE: {}
-  physics.SHAPE_TYPE: {}
-  profiler.MODE: {}
-  profiler.VIEW_MODE: {}
-  render.CONTEXT_EVENT:
-    members:
-      - render.CONTEXT_EVENT_CONTEXT_LOST
-      - render.CONTEXT_EVENT_CONTEXT_RESTORED
-  render.FRUSTUM_PLANES: {}
-  render.SORT: {}
-  sys.NETWORK: {}
-  sys.REQUEST_STATUS: {}
-  tilemap.TRANSFORM:
-    members:
-      - tilemap.H_FLIP
-      - tilemap.ROTATE_180
-      - tilemap.ROTATE_270
-      - tilemap.ROTATE_90
-      - tilemap.V_FLIP
-  window.DIMMING: {}
-  window.WINDOW_EVENT: {}
-
 classes:
   vector3:
-    fields:
-      x: number
-      y: number
-      z: number
     operators:
       add: ["vector3", "vector3"]
       sub: ["vector3", "vector3"]
       mul: ["number", "vector3"]
       unm: [null, "vector3"]
   vector4:
-    fields:
-      x: number
-      y: number
-      z: number
-      w: number
     operators:
       add: ["vector4", "vector4"]
       sub: ["vector4", "vector4"]
       mul: ["number", "vector4"]
       unm: [null, "vector4"]
-  url:
-    fields:
-      socket: hash
-      path: hash
-      fragment: hash
-  matrix4:
-    fields:
-      m00: number
-      m01: number
-      m02: number
-      m03: number
-      m10: number
-      m11: number
-      m12: number
-      m13: number
-      m20: number
-      m21: number
-      m22: number
-      m23: number
-      m30: number
-      m31: number
-      m32: number
-      m33: number
-      c0: vector4
-      c1: vector4
-      c2: vector4
-      c3: vector4

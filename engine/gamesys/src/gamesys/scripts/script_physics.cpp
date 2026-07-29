@@ -55,6 +55,16 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Joint types
+     * @enum
+     * @name physics.JOINT_TYPE
+     */
+
+    /*# Shape types
+     * @enum
+     * @name physics.SHAPE_TYPE
+     */
+
     /*# spring joint type
      *
      * The following properties are available when connecting a joint of `JOINT_TYPE_SPRING` type:

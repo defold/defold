@@ -63,6 +63,16 @@ namespace dmGameObject
      * @language Lua
      */
 
+    /*# Easing curves
+     * @enum
+     * @name go.EASING
+     */
+
+    /*# Playback modes
+     * @enum
+     * @name go.PLAYBACK
+     */
+
     /*# Input action
      *
      * Data supplied to the global `on_input` lifecycle function.

@@ -42,6 +42,13 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# Hash value
+     *
+     * @typedef
+     * @name hash
+     * @param value [type:userdata] hash value
+     */
+
     #define SCRIPT_TYPE_NAME_HASH "hash"
     static uint32_t SCRIPT_HASH_TYPE_HASH = 0;
 

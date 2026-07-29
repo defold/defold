@@ -325,6 +325,12 @@ def _canonical_name(document, element):
     return "%s.%s" % (namespace, name) if namespace else name
 
 
+def _canonical_type_name(element):
+    # Type declarations name type-only symbols, not fields in the document's
+    # runtime namespace. Qualified type names must therefore be explicit.
+    return element.name.strip()
+
+
 def _namespace_of(name):
     return name.rsplit(".", 1)[0] if "." in name else ""
 
@@ -424,7 +430,24 @@ def _constant_value_type(name, enum_members):
     return "integer"
 
 
-def _collect_enum_members(constants, metadata):
+def _enum_value_type(element, metadata):
+    if not element.parameters:
+        return "integer"
+    if len(element.parameters) != 1:
+        raise ValueError(
+            "Enum %s must have at most one value-type parameter"
+            % element.name)
+    return _parameter_type(element.parameters[0], metadata)
+
+
+def _enum_member_name(enum_name, member_name):
+    if "." in member_name:
+        return member_name
+    namespace = _namespace_of(enum_name)
+    return "%s.%s" % (namespace, member_name) if namespace else member_name
+
+
+def _collect_enum_members(constants, metadata, documented_enums):
     result = {}
     for enum_name, options in metadata.get("enums", {}).items():
         options = options or {}
@@ -435,7 +458,31 @@ def _collect_enum_members(constants, metadata):
         result[enum_name] = {
             "members": members,
             "value_type": options.get("value_type", "integer"),
+            "source_path": None,
+            "element": None,
         }
+    for enum_name, (source_path, element) in documented_enums.items():
+        members = [
+            _enum_member_name(enum_name, member.name)
+            for member in element.members
+        ]
+        if not members:
+            prefix = enum_name + "_"
+            members = sorted(name for name in constants if name.startswith(prefix))
+        source_enum = {
+            "members": members,
+            "value_type": _enum_value_type(element, metadata),
+            "source_path": source_path,
+            "element": element,
+        }
+        previous = result.get(enum_name)
+        if previous and (
+                previous["members"] != source_enum["members"]
+                or previous["value_type"] != source_enum["value_type"]):
+            raise ValueError(
+                "%s: source enum %s conflicts with metadata"
+                % (source_path, enum_name))
+        result[enum_name] = source_enum
     return result
 
 
@@ -445,6 +492,8 @@ def _collect(documents, metadata):
     values = defaultdict(dict)
     messages = defaultdict(dict)
     documented_classes = {}
+    documented_aliases = {}
+    documented_enums = {}
     class_methods = defaultdict(lambda: defaultdict(list))
     descriptions = {}
     constants = set()
@@ -489,7 +538,46 @@ def _collect(documents, metadata):
                             % (source_path, class_name, previous_path))
                 else:
                     messages[root][class_name] = (source_path, element)
+            elif element.type == script_doc_ddf_pb2.TYPEDEF:
+                alias_name = _canonical_type_name(element)
+                if len(element.parameters) != 1:
+                    raise ValueError(
+                        "%s: typedef %s must have exactly one value parameter"
+                        % (source_path, alias_name))
+                alias_type = _parameter_type(element.parameters[0], metadata)
+                previous = documented_aliases.get(alias_name)
+                if previous:
+                    previous_path, _, previous_type = previous
+                    if previous_type != alias_type:
+                        raise ValueError(
+                            "%s: conflicting duplicate typedef %s "
+                            "(previously defined in %s)"
+                            % (source_path, alias_name, previous_path))
+                else:
+                    documented_aliases[alias_name] = (
+                        source_path,
+                        element,
+                        alias_type)
+            elif element.type == script_doc_ddf_pb2.ENUM:
+                previous = documented_enums.get(name)
+                if previous:
+                    previous_path, previous_element = previous
+                    previous_members = [
+                        member.name for member in previous_element.members
+                    ]
+                    members = [member.name for member in element.members]
+                    if (
+                            previous_members != members
+                            or _enum_value_type(previous_element, metadata)
+                            != _enum_value_type(element, metadata)):
+                        raise ValueError(
+                            "%s: conflicting duplicate enum %s "
+                            "(previously defined in %s)"
+                            % (source_path, name, previous_path))
+                else:
+                    documented_enums[name] = (source_path, element)
             elif element.type in (script_doc_ddf_pb2.STRUCT, script_doc_ddf_pb2.CLASS):
+                name = _canonical_type_name(element)
                 previous = documented_classes.get(name)
                 if previous:
                     previous_path, previous_element = previous
@@ -513,6 +601,8 @@ def _collect(documents, metadata):
         values,
         messages,
         documented_classes,
+        documented_aliases,
+        documented_enums,
         class_methods,
         descriptions,
         constants)
@@ -648,7 +738,11 @@ def _render_class_method(class_name, method_name, variants, metadata):
 
 
 def _render_enum(enum_name, enum):
-    lines = ["---@alias %s %s" % (enum_name, enum["value_type"])]
+    lines = []
+    if enum["element"]:
+        lines.extend(lua_doc_lines(
+            enum["element"].description or enum["element"].brief))
+    lines.append("---@alias %s %s" % (enum_name, enum["value_type"]))
     lines.extend("---| `%s`" % member for member in enum["members"])
     return lines
 
@@ -703,23 +797,49 @@ def _render_module(root, functions, values, namespaces, descriptions, enum_membe
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _render_meta(metadata, messages, documented_classes, class_methods):
+def _render_meta(
+        metadata,
+        messages,
+        documented_classes,
+        documented_aliases,
+        class_methods):
     lines = [GENERATED_NOTICE.rstrip(), ""]
-    for name, target in sorted(metadata.get("aliases", {}).items()):
-        lines.append("---@alias %s %s" % (name, target))
-    if metadata.get("aliases"):
-        lines.append("")
-
-    duplicate_class_names = set(metadata.get("classes", {})) & set(documented_classes)
-    if duplicate_class_names:
-        raise ValueError(
-            "Classes must be defined in source documentation or metadata, not both: %s"
-            % ", ".join(sorted(duplicate_class_names)))
+    aliases = dict(metadata.get("aliases", {}))
+    for name, (source_path, _, target) in documented_aliases.items():
+        previous = aliases.get(name)
+        if previous is not None and previous != target:
+            raise ValueError(
+                "%s: source typedef %s conflicts with metadata alias"
+                % (source_path, name))
+        aliases[name] = target
 
     class_names = (
         set(metadata.get("classes", {}))
         | set(documented_classes)
         | set(class_methods))
+    class_aliases = set(aliases) & class_names
+
+    for name, target in sorted(aliases.items()):
+        if name in class_aliases:
+            continue
+        documented_alias = documented_aliases.get(name)
+        if documented_alias:
+            _, element, _ = documented_alias
+            lines.extend(lua_doc_lines(element.description or element.brief))
+        lines.append("---@alias %s %s" % (name, target))
+    if aliases:
+        lines.append("")
+
+    duplicate_class_names = {
+        class_name
+        for class_name in set(metadata.get("classes", {})) & set(documented_classes)
+        if (metadata["classes"][class_name].get("fields") or {})
+    }
+    if duplicate_class_names:
+        raise ValueError(
+            "Class fields must be defined in source documentation or metadata, not both: %s"
+            % ", ".join(sorted(duplicate_class_names)))
+
     for class_name in sorted(class_names):
         documented_class = documented_classes.get(class_name)
         if documented_class:
@@ -727,7 +847,10 @@ def _render_meta(metadata, messages, documented_classes, class_methods):
             lines.extend(_render_documented_class(class_name, element, metadata))
         class_data = metadata.get("classes", {}).get(class_name) or {}
         if not documented_class:
-            lines.append("---@class %s" % class_name)
+            base = aliases.get(class_name)
+            lines.append("---@class %s%s" % (
+                class_name,
+                ": %s" % base if base else ""))
         for field_name, field_type in sorted((class_data.get("fields") or {}).items()):
             if not isinstance(field_type, str):
                 raise ValueError(
@@ -760,11 +883,13 @@ def _known_annotation_types(
         enum_members,
         messages,
         documented_classes,
+        documented_aliases,
         class_methods):
     known = set(metadata.get("known_types", []))
     known.update(metadata.get("aliases", {}).keys())
     known.update(metadata.get("classes", {}).keys())
     known.update(documented_classes.keys())
+    known.update(documented_aliases.keys())
     known.update(class_methods.keys())
     known.update(enum_members.keys())
     for enum in enum_members.values():
@@ -779,15 +904,18 @@ def _validate_types(
         functions,
         messages,
         documented_classes,
+        documented_aliases,
         class_methods,
         metadata,
         enum_members,
+        constants,
         metadata_path):
     known = _known_annotation_types(
         metadata,
         enum_members,
         messages,
         documented_classes,
+        documented_aliases,
         class_methods)
     errors = []
 
@@ -817,6 +945,8 @@ def _validate_types(
                 normalize_type(member.type, metadata),
                 source_path,
                 "%s field %s" % (class_name, member.name))
+    for alias_name, (source_path, _, alias_type) in documented_aliases.items():
+        validate(alias_type, source_path, "typedef %s" % alias_name)
     for class_name, methods in class_methods.items():
         for method_name, variants in methods.items():
             for source_path, element in variants:
@@ -839,8 +969,20 @@ def _validate_types(
 
     for enum_name, enum in enum_members.items():
         if not enum["members"]:
-            errors.append("Enum alias '%s' has no matching constant members" % enum_name)
-        validate(enum["value_type"], metadata_path, "enum %s" % enum_name)
+            source = enum["source_path"] or metadata_path
+            errors.append(
+                "%s: enum alias '%s' has no matching constant members"
+                % (source, enum_name))
+        for member in enum["members"]:
+            if member not in constants:
+                source = enum["source_path"] or metadata_path
+                errors.append(
+                    "%s: enum %s references missing constant %s"
+                    % (source, enum_name, member))
+        validate(
+            enum["value_type"],
+            enum["source_path"] or metadata_path,
+            "enum %s" % enum_name)
 
     for alias_name, alias_type in metadata.get("aliases", {}).items():
         validate(alias_type, metadata_path, "alias %s" % alias_name)
@@ -871,11 +1013,16 @@ def generate(documents, output_dir, metadata_path, strict=True):
         values,
         messages,
         documented_classes,
+        documented_aliases,
+        documented_enums,
         class_methods,
         descriptions,
         constants,
     ) = _collect(documents, metadata)
-    enum_members = _collect_enum_members(constants, metadata)
+    enum_members = _collect_enum_members(
+        constants,
+        metadata,
+        documented_enums)
     namespaces = _namespace_sets(functions, values)
 
     if strict:
@@ -883,9 +1030,11 @@ def generate(documents, output_dir, metadata_path, strict=True):
             functions,
             messages,
             documented_classes,
+            documented_aliases,
             class_methods,
             metadata,
             enum_members,
+            constants,
             str(metadata_path))
 
     outputs = {
@@ -893,6 +1042,7 @@ def generate(documents, output_dir, metadata_path, strict=True):
             metadata,
             messages,
             documented_classes,
+            documented_aliases,
             class_methods)}
     roots = sorted(set(functions) | set(values))
     for root in roots:

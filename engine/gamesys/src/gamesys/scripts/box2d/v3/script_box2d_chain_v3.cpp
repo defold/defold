@@ -638,7 +638,7 @@ namespace dmGameSystem
 
 /*# Box2D chain
  * @typedef
- * @name b2Chain
+ * @name b2d.chain
  * @param value [type:userdata]
  */
 

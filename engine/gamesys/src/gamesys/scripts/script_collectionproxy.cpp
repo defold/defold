@@ -38,6 +38,11 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Collection proxy results
+     * @enum
+     * @name collectionproxy.RESULT
+     */
+
     static dmhash_t GetCollectionUrlHashFromCollectionProxy(lua_State* L, int index, dmResource::HFactory* factory)
     {
         dmMessage::URL sender;
