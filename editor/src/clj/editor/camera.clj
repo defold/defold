@@ -524,6 +524,39 @@
            :position (Point3d. (.x delta) (.y delta) (.z delta))
            :rotation r)))
 
+(def ^:private default-3d-tumble
+  "The tumble realign-camera applies when toggling out of 2D mode."
+  [200.0 -100.0])
+
+(defn default-scene-camera
+  ^Camera [prefs projection]
+  (if (= :perspective projection)
+    (let [[dx dy] default-3d-tumble]
+      (tumble (make-camera :perspective identity {:fov-y (prefs/get prefs prefs-key-fov)})
+              dx dy))
+    (make-camera :orthographic identity {:fov-x 1000 :fov-y 1000})))
+
+(defn camera->prefs-value [camera]
+  (let [^Vector4d focus-point (:focus-point camera)]
+    {:projection (:type camera)
+     :position (math/vecmath->clj (:position camera))
+     :rotation (math/vecmath->clj (:rotation camera))
+     :fov-x (:fov-x camera)
+     :fov-y (:fov-y camera)
+     :focus-point [(.x focus-point) (.y focus-point) (.z focus-point)]}))
+
+(defn try-load-camera-from-prefs [prefs path-key]
+  (let [{:keys [projection position rotation fov-x fov-y focus-point]}
+        (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:camera] nil)]
+    (when (and projection position rotation fov-x fov-y focus-point)
+      (let [[position-x position-y position-z] position
+            [rotation-x rotation-y rotation-z rotation-w] rotation
+            [focus-x focus-y focus-z] focus-point]
+        (assoc (make-camera projection identity {:fov-x fov-x :fov-y fov-y})
+          :position (Point3d. (double position-x) (double position-y) (double position-z))
+          :rotation (Quat4d. (double rotation-x) (double rotation-y) (double rotation-z) (double rotation-w))
+          :focus-point (Vector4d. (double focus-x) (double focus-y) (double focus-z) 1.0))))))
+
 (def ^:private camera-command->movement
   {:scene.camera.free-look :look
    :scene.camera.orbit :tumble
@@ -893,7 +926,8 @@
      (if (mode-2d? local-cam)
        (let [viewport (g/node-value camera-node :viewport evaluation-context)
              camera-3d (or (g/node-value camera-node :cached-3d-camera evaluation-context)
-                           (tumble local-cam 200.0 -100.0))
+                           (let [[dx dy] default-3d-tumble]
+                             (tumble local-cam dx dy)))
              camera-3d (sync-camera-position camera-node camera-3d local-cam viewport)
              local-cam (cond-> local-cam
                          (= (:type camera-3d) :perspective)

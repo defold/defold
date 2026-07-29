@@ -1143,6 +1143,7 @@ scene-popup.scene-visibility.gui-shapes = GUI Shapes
 scene-popup.scene-visibility.gui-particle-effects = GUI Particle Effects
 scene-popup.scene-visibility.gui-spine-scenes = GUI Spine Scenes
 scene-popup.scene-visibility.gui-text = GUI Text
+scene-popup.scene-visibility.lights = Lights
 scene-popup.scene-visibility.models = Models
 scene-popup.scene-visibility.particle-effects = Particle Effects
 scene-popup.scene-visibility.skeletons = Skeletons

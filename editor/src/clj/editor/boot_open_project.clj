@@ -107,6 +107,35 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
+(defn- clean-up-resource-prefs [prefs changes]
+  (let [moved (reduce (fn [settings [old new]]
+                        (let [old-path-key (:project-path old)
+                              new-path-key (:project-path new)]
+                          (if-let [entry (get-in settings [:settings old-path-key])]
+                            (-> settings
+                                (update :settings dissoc old-path-key)
+                                (update :settings assoc new-path-key entry)
+                                (update :moved conj old-path-key))
+                            settings)))
+                      {:settings (prefs/get prefs [:scene :resource-settings])
+                       :moved #{}}
+                      (:moved changes))
+        updated-settings (reduce (fn [settings entry]
+                                   (let [path-key (:project-path entry)]
+                                     (if (and (contains? settings path-key)
+                                              (not (contains? (:moved moved) path-key)))
+                                       (dissoc settings path-key)
+                                       settings)))
+                                 (:settings moved)
+                                 (:removed changes))]
+    (prefs/set! prefs [:scene :resource-settings] updated-settings)))
+
+(defn- prune-resource-prefs! [prefs workspace]
+  (let [basis (g/now)
+        settings (prefs/get prefs [:scene :resource-settings])
+        pruned (into {} (filter (fn [[path-key _]] (workspace/find-resource basis workspace path-key))) settings)]
+    (prefs/set! prefs [:scene :resource-settings] pruned)))
+
 (defn- handle-resource-changes! [app-scene tab-panes open-views changes-view]
   (ui/user-data! app-scene ::ui/refresh-requested? true)
   (app-view/remove-invalid-tabs! tab-panes open-views)
@@ -174,7 +203,7 @@
           workbench            (.lookup root "#workbench")
           notifications        (.lookup root "#notifications")
           [app-view ui-timer]  (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split right-split tool-tabs prefs localization)
-          scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph* app-view)
+          scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph* prefs app-view)
           outline-view         (outline-view/make-outline-view *view-graph* project app-view localization)
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
@@ -279,10 +308,11 @@
 
       (workspace/add-resource-listener! workspace 0
                                         (reify resource/ResourceListener
-                                          (handle-changes [_ _ _]
+                                          (handle-changes [_ changes _]
                                             (let [open-views (g/node-value app-view :open-views)
                                                   panes (.getItems ^SplitPane editor-tabs-split)]
-                                              (handle-resource-changes! scene panes open-views changes-view)))))
+                                              (handle-resource-changes! scene panes open-views changes-view)
+                                              (clean-up-resource-prefs prefs changes)))))
 
       (.addEventFilter scene
                        InputEvent/ANY
@@ -383,6 +413,7 @@
           (g/connect outline-view :tree-selection scene-visibility :outline-selection)
           (g/connect properties-view :_node-id app-view :properties-view)
           (g/connect properties-view :pane-desc app-view :properties-pane-desc)
+          (g/connect scene-visibility :_node-id app-view :scene-visibility)
           (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
           (g/connect scene-visibility :outline-name-paths outline-view :outline-name-paths)
           (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
@@ -440,6 +471,8 @@
 
           (when (git/internal-files-are-tracked? git)
             (show-tracked-internal-files-warning! localization))
+
+          (prune-resource-prefs! prefs workspace)
 
           (ui/timer-start! ui-timer)
           (slog/smoke-log "stage-loaded"))))
