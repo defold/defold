@@ -840,9 +840,10 @@
 (defmacro remove-from-associative [m k]
   {:pre [(symbol? m)
          (symbol? k)]}
-  `(if (map? ~m)
-     (dissoc ~m ~k)
-     (assoc ~m ~k nil)))
+  `(cond
+     (nil? ~m) nil
+     (map? ~m) (dissoc ~m ~k)
+     :else (assoc ~m ~k nil)))
 
 (defn removing-assoc
   "Like core.assoc, but removes the key from the resulting associative if it is

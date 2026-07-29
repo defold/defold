@@ -1511,6 +1511,18 @@
                  value)))))))
 
 (deftest removing-assoc-test
+  (testing "Operates on nil."
+    (is (= {:a 1}
+           (coll/removing-assoc nil :a 1))))
+
+  (testing "Operates on map."
+    (is (= {:a 1}
+           (coll/removing-assoc {} :a 1))))
+
+  (testing "Operates on vector."
+    (is (= [1]
+           (coll/removing-assoc [] 0 1))))
+
   (testing "Adds and replaces non-nil values."
     (is (= {:a 1
             :b 2}
@@ -1527,6 +1539,9 @@
                                  :c 3}
                                 :a nil
                                 :b nil))))
+
+  (testing "Leaves nil unchanged when removing nil values."
+    (is (nil? (coll/removing-assoc nil :a nil))))
 
   (testing "Associates nil into non-map associatives."
     (is (= [:a nil :c]
@@ -1546,6 +1561,18 @@
           (coll/removing-assoc {} :a 1 :b)))))
 
 (deftest removing-assoc-in-test
+  (testing "Operates on nil."
+    (is (= {:a 1}
+           (coll/removing-assoc-in nil [:a] 1))))
+
+  (testing "Operates on map."
+    (is (= {:a 1}
+           (coll/removing-assoc-in {} [:a] 1))))
+
+  (testing "Operates on vector."
+    (is (= [1]
+           (coll/removing-assoc-in [] [0] 1))))
+
   (testing "Adds and replaces non-nil values."
     (is (= {:a {:b 1}}
            (coll/removing-assoc-in {} [:a :b] 1)))
@@ -1574,6 +1601,18 @@
                                    [:a :b]
                                    nil))))
 
+  (testing "Leaves nil unchanged when removing nil values."
+    (is (nil? (coll/removing-assoc-in nil [:a] nil)))
+    (is (nil? (coll/removing-assoc-in nil [:a :b] nil))))
+
+  (testing "Does not create maps when removing missing values."
+    (is (= {}
+           (coll/removing-assoc-in {} [:a :b :c] nil)))
+    (is (= {}
+           (coll/removing-assoc-in {:a {}} [:a :b] nil)))
+    (is (= {}
+           (coll/removing-assoc-in {:a nil} [:a :b] nil))))
+
   (testing "Associates nil into nested non-map associatives."
     (is (= {:a [:b nil :d]}
            (coll/removing-assoc-in {:a [:b :c :d]} [:a 1] nil))))
@@ -1591,6 +1630,18 @@
       (is (identical? nested-meta (meta (:a altered-map)))))))
 
 (deftest removing-update-test
+  (testing "Operates on nil."
+    (is (= {:a 1}
+           (coll/removing-update nil :a (constantly 1)))))
+
+  (testing "Operates on map."
+    (is (= {:a 1}
+           (coll/removing-update {} :a (constantly 1)))))
+
+  (testing "Operates on vector."
+    (is (= [1]
+           (coll/removing-update [] 0 (constantly 1)))))
+
   (testing "Updates existing values."
     (is (= {:a 2
             :b 2}
@@ -1622,6 +1673,9 @@
                                  :a
                                  (constantly nil)))))
 
+  (testing "Leaves nil unchanged when the function returns nil."
+    (is (nil? (coll/removing-update nil :a (constantly nil)))))
+
   (testing "Associates nil into non-map associatives."
     (is (= [:a nil :c]
            (coll/removing-update [:a :b :c] 1 (constantly nil)))))
@@ -1634,6 +1688,18 @@
       (is (identical? original-meta (meta altered-map))))))
 
 (deftest removing-update-in-test
+  (testing "Operates on nil."
+    (is (= {:a 1}
+           (coll/removing-update-in nil [:a] (constantly 1)))))
+
+  (testing "Operates on map."
+    (is (= {:a 1}
+           (coll/removing-update-in {} [:a] (constantly 1)))))
+
+  (testing "Operates on vector."
+    (is (= [1]
+           (coll/removing-update-in [] [0] (constantly 1)))))
+
   (testing "Updates nested existing values."
     (is (= {:a {:b 2}}
            (coll/removing-update-in {:a {:b 1}} [:a :b] inc))))
@@ -1675,6 +1741,18 @@
                                      :d 3}
                                     [:a :b]
                                     (constantly nil)))))
+
+  (testing "Leaves nil unchanged when removing nil values."
+    (is (nil? (coll/removing-update-in nil [:a] (constantly nil))))
+    (is (nil? (coll/removing-update-in nil [:a :b] (constantly nil)))))
+
+  (testing "Does not create maps when updating missing values to nil."
+    (is (= {}
+           (coll/removing-update-in {} [:a :b :c] (constantly nil))))
+    (is (= {}
+           (coll/removing-update-in {:a {}} [:a :b] (constantly nil))))
+    (is (= {}
+           (coll/removing-update-in {:a nil} [:a :b] (constantly nil)))))
 
   (testing "Associates nil into nested non-map associatives."
     (is (= {:a [:b nil :d]}
