@@ -17,6 +17,7 @@
   split 2D/3D grid presets."
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.boot-open-project :as boot-open-project]
             [editor.camera :as camera]
             [editor.fs :as fs]
@@ -35,6 +36,7 @@
 (def ^:private set-visibility-settings! #'scene-visibility/set-visibility-settings!)
 (def ^:private grid-mode #'grid/grid-mode)
 (def ^:private clean-up-resource-prefs #'boot-open-project/clean-up-resource-prefs)
+(def ^:private default-camera-projection #'app-view/default-camera-projection)
 
 (def ^:private resource-settings-path [:scene :resource-settings])
 
@@ -304,3 +306,47 @@
       (clean-up-resource-prefs prefs (changes :added [(resource-change "/fresh.go")]
                                               :changed [(resource-change "/a.collection")]))
       (is (= {"/a.collection" an-entry} (settings-of prefs))))))
+
+;; -----------------------------------------------------------------------------
+;; Default camera projection
+;; -----------------------------------------------------------------------------
+
+(defn- projection-of [project proj-path]
+  (let [resource-node (test-util/resource-node project proj-path)]
+    (default-camera-projection project (g/node-value resource-node :resource) resource-node)))
+
+(deftest scene-geometry-decides-the-default-projection
+  (test-util/with-loaded-project
+    (testing "a game object whose only bounds come from a camera stays orthographic"
+      (is (= :orthographic (projection-of project "/logic/main.go"))))
+
+    (testing "2D content stays orthographic"
+      (is (= :orthographic (projection-of project "/logic/atlas_sprite.go")))
+      (is (= :orthographic (projection-of project "/logic/atlas_sprite.collection"))))))
+
+(deftest a-scene-that-fails-to-produce-falls-back-to-orthographic
+  ;; /graphics/box.model still uses the pre-migration single material fields, so
+  ;; its scene evaluates to an ErrorValue. Opening the tab must not blow up.
+  (test-util/with-loaded-project
+    (let [box-go (test-util/resource-node project "/graphics/box.go")]
+      (is (g/error? (g/node-value box-go :scene))
+          "fixture check: box.go is expected to have a broken scene")
+      (is (= :orthographic (projection-of project "/graphics/box.go"))))))
+
+(deftest projection-traverses-nested-collections
+  (test-util/with-loaded-project "test/resources/build_project/SideScroller"
+    (testing "collection -> game object -> model"
+      (is (= :perspective (projection-of project "/main/main.collection"))))
+
+    (testing "collections nested three deep with no geometry stay orthographic"
+      ;; base -> sub1 -> sub2 -> empty.go, all structural nodes with sentinel aabbs.
+      (is (= :orthographic (projection-of project "/hierarchy/base.collection"))))))
+
+(deftest a-model-outweighs-a-camera-in-the-same-game-object
+  (test-util/with-loaded-project "test/resources/all_types_project"
+    (is (= :perspective (projection-of project "/test.go")))))
+
+(deftest collision-objects-follow-the-project-physics-type
+  (test-util/with-loaded-project
+    ;; test_project sets physics type = 3D.
+    (is (= :perspective (projection-of project "/collision_object/embedded_shapes.collisionobject")))))
