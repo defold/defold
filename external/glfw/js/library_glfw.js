@@ -805,11 +805,6 @@ var LibraryGLFW = {
     GLFW.removeEventListenerCanvas('touchmove', GLFW.onTouchMove, true);
     GLFW.removeEventListenerCanvas('focus', GLFW.onFocus, true);
     GLFW.removeEventListenerCanvas('blur', GLFW.onBlur, true);
-
-    var canvas = Module["canvas"];
-    if (typeof canvas !== 'undefined') {
-        Module["canvas"].width = Module["canvas"].height = 1;
-    }
   },
 
   glfwGetVersion: function(major, minor, rev) {
