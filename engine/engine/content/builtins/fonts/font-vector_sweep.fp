@@ -24,8 +24,8 @@ const int MAX_VECTOR_CURVES = 256;
 
 vec4 SampleCurveTexel(int texel)
 {
-    int texel_x = texel % CURVE_TEXTURE_WIDTH_TEXELS;
-    int texel_y = texel / CURVE_TEXTURE_WIDTH_TEXELS;
+    int texel_x = texel & (CURVE_TEXTURE_WIDTH_TEXELS - 1);
+    int texel_y = texel >> 9;
     return texelFetch(curve_texture, ivec2(texel_x, texel_y), 0);
 }
 
