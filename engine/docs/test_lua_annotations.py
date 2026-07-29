@@ -228,6 +228,27 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertIn("---@param value? string", go_lua)
             self.assertIn("---@return number|nil result", go_lua)
 
+    def test_overloads_with_different_parameter_optionality_are_preserved(self):
+        required = function("go.lookup", "string")
+        optional = function("go.lookup", "string")
+        optional.parameters[0].is_optional = True
+
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [("go.cpp", document("go", [required, optional]))],
+                output,
+                metadata)
+            go_lua = (output / "go.lua").read_text(encoding="utf-8")
+            self.assertIn("---@overload fun(value?:string)", go_lua)
+
+    def test_html_entities_are_preserved_as_text(self):
+        self.assertEqual(
+            "`headers table<string, string>`",
+            lua_annotations.lua_doc_text(
+                "<code>headers table&lt;string, string&gt;</code>"))
+
     def test_receiver_functions_are_rendered_as_documented_class_methods(self):
         send = function("client:send", "string", "number|nil")
         send.description = "<p>Sends <code>data</code> like [ref:string.sub].</p>"

@@ -107,3 +107,14 @@ b2d.body.set_mass_data(
         center = vmath.vector3(),
         inertia = 0,
     })
+
+local physics_world = b2d.get_world()
+b2d.world.cast_ray(
+    physics_world,
+    vmath.vector3(),
+    vmath.vector3())
+
+render.clear({
+    [graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(),
+    [graphics.BUFFER_TYPE_DEPTH_BIT] = 1,
+})

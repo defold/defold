@@ -111,7 +111,7 @@ def lua_doc_text(value):
     value = re.sub(r"\[type:(.*?)\]", r"`\1`", value)
     value = re.sub(r"\[ref:(.*?)\]", r"`\1`", value)
     converter = _LuaDocHtmlConverter()
-    converter.feed(html.unescape(value))
+    converter.feed(value)
     value = converter.text()
     value = re.sub(r"^\s*:\s*", "", value, flags=re.MULTILINE)
     return value
@@ -375,7 +375,14 @@ def _function_signature(element, metadata, include_names=True):
 
 
 def _function_identity(element, metadata):
-    return _function_signature(element, metadata, include_names=False)
+    parameter_types = [
+        (_parameter_type(parameter, metadata), parameter.is_optional)
+        for parameter in element.parameters
+    ]
+    return (
+        tuple(parameter_types),
+        tuple(_return_type(value, metadata) for value in element.returnvalues),
+    )
 
 
 def _function_stub_parameter_names(element):

@@ -1571,7 +1571,7 @@ namespace dmRender
      * color attachments, all buffers will be cleared with the same value.
      *
      * @name render.clear
-     * @param buffers [type:graphics.BUFFER_TYPE[]] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
+     * @param buffers [type:table<graphics.BUFFER_TYPE, number|vector4>] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
