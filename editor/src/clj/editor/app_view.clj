@@ -2379,7 +2379,7 @@
     (.addAll  (.getChildren info-panel) (Arrays/asList (into-array Node [left-label spacer right-link])))
     info-panel))
 
-(declare open-resource!)
+(declare open-resource! resource->tab-data)
 
 (defn- default-camera-projection [project resource resource-node]
   (let [ext (some-> resource resource/resource-type :ext)]
@@ -2485,7 +2485,71 @@
                             (g/delete-graph! view-graph))
                           (when close-handler
                             (.handle close-handler event)))))
+    (clojure.pprint/pprint (resource->tab-data workspace localization resource))
     tab))
+
+(defn- resource->tab-data [workspace localization resource]
+  (let [basis (g/now) ;; TODO JOE: Make sure this is good use of ec
+        resource-type (resource/lookup-resource-type basis workspace resource)
+        ;; TODO JOE: make-tab! needs this parent to construct the `view`
+        parent (AnchorPane.)]
+   {:title (tab-title resource false)
+    :icon (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16)
+    :tooltip (or (resource/proj-path resource) "unknown")
+    :content (if (resource/read-only? resource)
+               (doto (VBox.)
+                 (ui/children! [(make-info-box! localization)
+                                (doto parent (VBox/setVgrow Priority/ALWAYS))]))
+               parent)
+    :style-classes (resource/style-classes resource)}))
+
+(comment
+  (defn- associate-tab-with-resource-and-view [prefs view-graph tab resource view-type]
+    (let [view-type (FILLME resource)]
+      (editor-tab/set-view-type! tab view-type)
+      (.setOnSelectionChanged tab (ui/event-handler event
+                                    (when (.isSelected tab)
+                                      (recent-files/add! prefs resource view-type))))
+      (let [close-handler (.getOnClosed tab)]
+        (.setOnClosed tab (ui/event-handler event
+                            (recent-files/add! prefs resource view-type)
+
+                            ;; The menu refresh can occur after the view graph is
+                            ;; deleted but before the tab controls lose input
+                            ;; focus, causing handlers to evaluate against deleted
+                            ;; graph nodes. Using run-later here prevents this.
+                            (ui/run-later
+                              (doto tab
+                                (editor-tab/set-view-type! nil)
+                                (editor-tab/set-view-node-id! nil))
+                              (g/delete-graph! view-graph))
+                            (when close-handler
+                              (.handle close-handler event)))))))
+
+  (require 'dev)
+  (ui/run-now
+    (g/let-ec [basis (g/now)
+               resource (workspace/find-resource (dev/workspace) "/README.md")
+               resource-type (resource/lookup-resource-type basis (dev/workspace) resource)
+               editor-tabs-split (g/valid-node-value (dev/app-view) :editor-tabs-split evaluation-context)
+               tab-pane-tabs (.getTabs (first (.getItems editor-tabs-split)))]
+      (make-javafx-tab! {:title "README.md",
+                         :icon (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16)
+                         :tooltip "/README.md",
+                         :content (AnchorPane.)
+                         :style-classes #{"resource"}}
+                        tab-pane-tabs)))
+  :-)
+
+(defn- make-javafx-tab! [tab-data ^ObservableList tabs]
+  (let [{:keys [title icon tooltip content style-classes]} tab-data
+        tab (doto (Tab. title)
+              (.setContent content)
+              (.setTooltip (Tooltip. tooltip))
+              (.setGraphic icon))]
+    (.add tabs tab)
+    (.addAll (.getStyleClass tab) ^Collection style-classes)
+    (ui/register-tab-toolbar tab "#toolbar" :toolbar)))
 
 (defn- substitute-args [tmpl args]
   (reduce (fn [tmpl [key val]]
