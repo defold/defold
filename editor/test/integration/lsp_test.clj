@@ -197,6 +197,17 @@
 
 (def ^:private foo-json-lines ["{\"asd\": 1}"])
 
+(deftest completion-insert-text-mode-test
+  (are [completion-item expected-insert-text-mode]
+    (= expected-insert-text-mode
+       (get-in (#'lsp.server/completion-item:lsp->editor completion-item)
+               [:insert :insert-text-mode]))
+    {:label "default"} :adjust-indentation
+    {:label "as-is"
+     :insertTextMode 1} :as-is
+    {:label "adjust"
+     :insertTextMode 2} :adjust-indentation))
+
 (deftest lua-configuration-includes-official-annotations-test
   (with-scratch-project "test/resources/lsp_project"
     (let [official-annotations-path (str (path/of "/defold"

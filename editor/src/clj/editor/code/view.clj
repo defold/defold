@@ -1995,73 +1995,93 @@
 (def ^:private prev-tab-trigger! #(select-closest-tab-trigger-region! :prev %))
 (def ^:private next-tab-trigger! #(select-closest-tab-trigger-region! :next %))
 
-(defn- accept-suggestion!
-  ([view-node]
-   (when-let [completion (selected-suggestion view-node)]
-     (accept-suggestion! view-node (code-completion/insertion completion))))
-  ([view-node insertion]
-   (let [indent-level-pattern (get-property view-node :indent-level-pattern)
-         indent-string (get-property view-node :indent-string)
-         grammar (get-property view-node :grammar)
-         lines (get-property view-node :lines)
-         regions (get-property view-node :regions)
-         layout (get-property view-node :layout)
-         explicit-cursor-range (:cursor-range insertion)
-         implied-cursor-ranges (:cursor-ranges (get-property view-node :completion-context))
-         replacement-cursor-ranges (if explicit-cursor-range [explicit-cursor-range] implied-cursor-ranges)
-         {:keys [insert-string exit-ranges tab-triggers additional-edits]} insertion
-         replacement-lines (split-lines insert-string)
-         replacement-line-counts (mapv count replacement-lines)
-         insert-string-index->replacement-lines-cursor
-         (fn insert-string-index->replacement-lines-cursor [^long i]
-           (loop [row 0
-                  col i]
-             (let [^long row-len (replacement-line-counts row)]
-               (if (< row-len col)
-                 (recur (inc row) (dec (- col row-len)))
-                 (data/->Cursor row col)))))
-         insert-string-index-range->cursor-range
-         (fn insert-string-index-range->cursor-range [[from to]]
-           (data/->CursorRange
-             (insert-string-index->replacement-lines-cursor from)
-             (insert-string-index->replacement-lines-cursor to)))
-         ;; cursor ranges and replacements
-         splices (mapv
-                   (fn [replacement-range]
-                     (let [scope-id (gensym "tab-scope")
-                           introduced-regions
-                           (-> [(assoc (insert-string-index-range->cursor-range [0 (count insert-string)])
-                                  :type :tab-trigger-scope
-                                  :id scope-id)]
-                               (cond->
-                                 tab-triggers
-                                 (into
-                                   (comp
-                                     (map-indexed
-                                       (fn [i tab-trigger]
-                                         (let [tab-trigger-contents (assoc (dissoc tab-trigger :ranges)
-                                                                      :type :tab-trigger-word
-                                                                      :scope-id scope-id
-                                                                      :index i)]
-                                           (eduction
-                                             (map (fn [range]
-                                                    (conj (insert-string-index-range->cursor-range range)
-                                                          tab-trigger-contents)))
-                                             (:ranges tab-trigger)))))
-                                     cat)
-                                   tab-triggers)
+(defn- completion-replacement-cursor-ranges [view-node completion]
+  (if-let [explicit-cursor-range (get-in completion [:insert :cursor-range])]
+    [explicit-cursor-range]
+    (:cursor-ranges (get-property view-node :completion-context))))
 
-                                 exit-ranges
-                                 (into
-                                   (map (fn [index-range]
-                                          (assoc (insert-string-index-range->cursor-range index-range)
-                                            :type :tab-trigger-exit
-                                            :scope-id scope-id)))
-                                   exit-ranges))
-                               sort
-                               vec)]
-                       [replacement-range replacement-lines introduced-regions]))
-                   replacement-cursor-ranges)
+(defn- completion-insertion [view-node completion replacement-range]
+  (let [lines (get-property view-node :lines)
+        start (data/cursor-range-start replacement-range)
+        line-prefix (subs (lines (.row start)) 0 (.col start))
+        line-leading-whitespace (re-find #"^[\t ]*" line-prefix)]
+    (code-completion/insertion completion
+                               (get-property view-node :indent-string)
+                               (get-property view-node :tab-spaces)
+                               line-leading-whitespace)))
+
+(defn- accept-suggestion!
+  [view-node completion]
+  (let [indent-level-pattern (get-property view-node :indent-level-pattern)
+        indent-string (get-property view-node :indent-string)
+        grammar (get-property view-node :grammar)
+        lines (get-property view-node :lines)
+        regions (get-property view-node :regions)
+        layout (get-property view-node :layout)
+
+        explicit-cursor-range (get-in completion [:insert :cursor-range])
+        implied-cursor-ranges (:cursor-ranges (get-property view-node :completion-context))
+        replacement-cursor-ranges (completion-replacement-cursor-ranges view-node completion)
+        replacement-range+insertions (mapv (fn [replacement-range]
+                                             [replacement-range
+                                              (completion-insertion view-node completion replacement-range)])
+                                           replacement-cursor-ranges)
+        {:keys [exit-ranges tab-triggers additional-edits insert-text-mode]}
+        (second (first replacement-range+insertions))
+
+        ;; cursor ranges and replacements
+        splices (mapv
+                  (fn [[replacement-range insertion]]
+                    (let [{:keys [insert-string exit-ranges tab-triggers]} insertion
+                          replacement-lines (split-lines insert-string)
+                          replacement-line-counts (mapv count replacement-lines)
+                          insert-string-index->replacement-lines-cursor
+                          (fn insert-string-index->replacement-lines-cursor [^long i]
+                            (loop [row 0
+                                   col i]
+                              (let [^long row-len (replacement-line-counts row)]
+                                (if-not (< row-len col)
+                                  (data/->Cursor row col)
+                                  (recur (inc row) (dec (- col row-len)))))))
+                          insert-string-index-range->cursor-range
+                          (fn insert-string-index-range->cursor-range [[from to]]
+                            (data/->CursorRange
+                              (insert-string-index->replacement-lines-cursor from)
+                              (insert-string-index->replacement-lines-cursor to)))
+                          scope-id (gensym "tab-scope")
+                          introduced-regions
+                          (-> [(assoc (insert-string-index-range->cursor-range [0 (count insert-string)])
+                                 :type :tab-trigger-scope
+                                 :id scope-id)]
+                              (cond->
+                                tab-triggers
+                                (into
+                                  (comp
+                                    (map-indexed
+                                      (fn [i tab-trigger]
+                                        (let [tab-trigger-contents (assoc (dissoc tab-trigger :ranges)
+                                                                     :type :tab-trigger-word
+                                                                     :scope-id scope-id
+                                                                     :index i)]
+                                          (eduction
+                                            (map (fn [range]
+                                                   (conj (insert-string-index-range->cursor-range range)
+                                                         tab-trigger-contents)))
+                                            (:ranges tab-trigger)))))
+                                    cat)
+                                  tab-triggers)
+
+                                exit-ranges
+                                (into
+                                  (map (fn [index-range]
+                                         (assoc (insert-string-index-range->cursor-range index-range)
+                                           :type :tab-trigger-exit
+                                           :scope-id scope-id)))
+                                  exit-ranges))
+                              sort
+                              vec)]
+                      [replacement-range replacement-lines introduced-regions]))
+                  replacement-range+insertions)
          tab-scope-ids (into #{}
                              (comp
                                (mapcat (fn [[_ _ regions]]
@@ -2105,7 +2125,14 @@
                                        splices)]
                          (vec (sort-by first splices)))
                        splices)
-         props (data/replace-typed-chars indent-level-pattern indent-string grammar lines regions layout all-splices)]
+         props (data/replace-typed-chars indent-level-pattern
+                                         indent-string
+                                         grammar
+                                         lines
+                                         regions
+                                         layout
+                                         all-splices
+                                         (nil? insert-text-mode))]
      (when (some? props)
        (hide-hover! view-node)
        (hide-suggestions! view-node)
@@ -2142,7 +2169,7 @@
                                                       regions)
                                                 ;; no triggers: remove introduced regions
                                                 (into [] (remove introduced-region?) regions)))
-                              (data/frame-cursor layout))))))))
+                              (data/frame-cursor layout)))))))
 
 (def ^:private ext-with-list-view-props
   (fx/make-ext-with-props
@@ -2180,7 +2207,7 @@
                               text matching-indices
                               :deprecated (contains? (:tags completion) :deprecated))]}
        :on-mouse-clicked (fn [_]
-                           (accept-suggestion! view-node (code-completion/insertion completion)))})
+                           (accept-suggestion! view-node completion))})
     {}))
 
 (defn- completion-popup-view
@@ -2493,7 +2520,8 @@
 (defn- tab! [view-node]
   (cond
     (suggestions-visible? view-node)
-    (accept-suggestion! view-node)
+    (when-let [completion (selected-suggestion view-node)]
+      (accept-suggestion! view-node completion))
 
     (in-tab-trigger? view-node)
     (next-tab-trigger! view-node)
@@ -2532,30 +2560,31 @@
           (and selected-suggestion
                (or (= "\r" typed)
                    (contains? (:commit-characters selected-suggestion) typed)))
-          (let [insertion (code-completion/insertion selected-suggestion)]
-            (do (accept-suggestion! view-node insertion)
-                [;; insert-typed
-                 (not
-                   ;; exclude typed when...
-                   (or (= typed "\r")
-                       ;; At this point, we know we typed a commit character.
-                       ;; If there are tab stops, and we typed a character
-                       ;; before the tab stop, we assume the commit character
-                       ;; is a shortcut for accepting a completion and jumping
-                       ;; into the tab stop, e.g. foo($1) + "(" => don't
-                       ;; insert. Otherwise, we insert typed, e.g.:
-                       ;; - foo($1) + "{" => the typed character is expected
-                       ;;   to be inside the tab stop, for example, when foo
-                       ;;   expects a hash map
-                       ;; - vmath + "." => the typed character is expected
-                       ;;   to be after the snippet.
-                       (when-let [^long i (->> insertion :tab-triggers first :ranges first first)]
-                         (when (pos? i)
-                           (= typed (subs (:insert-string insertion) (dec i) i))))))
-                 ;; show-suggestions
-                 (not
-                   ;; hide suggestions when entering new scope
-                   (#{"[" "(" "{"} typed))]))
+          (let [replacement-range (first (completion-replacement-cursor-ranges view-node selected-suggestion))
+                insertion (completion-insertion view-node selected-suggestion replacement-range)]
+            (accept-suggestion! view-node selected-suggestion)
+            [;; insert-typed
+             (not
+               ;; exclude typed when...
+               (or (= typed "\r")
+                   ;; At this point, we know we typed a commit character.
+                   ;; If there are tab stops, and we typed a character
+                   ;; before the tab stop, we assume the commit character
+                   ;; is a shortcut for accepting a completion and jumping
+                   ;; into the tab stop, e.g. foo($1) + "(" => don't
+                   ;; insert. Otherwise, we insert typed, e.g.:
+                   ;; - foo($1) + "{" => the typed character is expected
+                   ;;   to be inside the tab stop, for example, when foo
+                   ;;   expects a hash map
+                   ;; - vmath + "." => the typed character is expected
+                   ;;   to be after the snippet.
+                   (when-let [^long i (->> insertion :tab-triggers first :ranges first first)]
+                     (when (pos? i)
+                       (= typed (subs (:insert-string insertion) (dec i) i))))))
+             ;; show-suggestions
+             (not
+               ;; hide suggestions when entering new scope
+               (#{"[" "(" "{"} typed))])
 
           (data/typing-deindents-line? grammar (get-property view-node :lines) (get-property view-node :cursor-ranges) typed)
           [true false]

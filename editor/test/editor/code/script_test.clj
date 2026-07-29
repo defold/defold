@@ -43,6 +43,36 @@
   (comp xform-test-lines->cursors
         (map data/Cursor->CursorRange)))
 
+(deftest replace-typed-chars-adjust-grammar-indentation-test
+  (let [lines ["if true then"
+               "    foo"]
+        replacement-range (data/->CursorRange (data/->Cursor 1 4)
+                                              (data/->Cursor 1 7))
+        splices [[replacement-range
+                  ["function ()"
+                   "\tbody"
+                   "end"]]]]
+    (are [adjust-grammar-indentation expected-lines]
+      (= expected-lines
+         (:lines
+           (data/replace-typed-chars
+             indent-level-pattern
+             indent-string
+             script/lua-grammar
+             lines
+             []
+             (layout-info lines)
+             splices
+             adjust-grammar-indentation)))
+      true ["if true then"
+            "    function ()"
+            "        body"
+            "    end"]
+      false ["if true then"
+             "    function ()"
+             "\tbody"
+             "end"])))
+
 (deftest insert-indentation-test
   (are [inserted-lines before after]
     (= {:lines           (into [] xform-test-lines->lines after)

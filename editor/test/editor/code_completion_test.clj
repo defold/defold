@@ -89,3 +89,54 @@
     "1\r2\n3\r\n4" "1\n2\n3\n4"
     "foo\n\r\n\r" "foo\n\n\n"
     "foo\r\n\n\n\n" "foo\n\n\n\n"))
+
+(deftest insertion-adjust-indentation-test
+  (testing "adjusts every line relative to the insertion cursor before evaluating snippets"
+    (is (= {:insert-string "function ()\n      value\n    end"
+            :exit-ranges [[18 23]]
+            :insert-text-mode :adjust-indentation}
+           (code-completion/insertion
+             (code-completion/make "function"
+                                   :insert {:type :snippet
+                                            :value "function ()\n\t${0:value}\nend"
+                                            :insert-text-mode :adjust-indentation})
+             "  "
+             2
+             "    "))))
+
+  (testing "normalizes the first line without adding the cursor indentation"
+    (is (= {:insert-string "  first\n      second"
+            :insert-text-mode :adjust-indentation}
+           (code-completion/insertion
+             (code-completion/make "first"
+                                   :insert {:type :plaintext
+                                            :value "\tfirst\n\tsecond"
+                                            :insert-text-mode :adjust-indentation})
+             "  "
+             2
+             "    "))))
+
+  (testing "preserves indentation for as-is insertions"
+    (is (= {:insert-string "function ()\n\tvalue\nend"
+            :exit-ranges [[13 18]]
+            :insert-text-mode :as-is}
+           (code-completion/insertion
+             (code-completion/make "function"
+                                   :insert {:type :snippet
+                                            :value "function ()\n\t${0:value}\nend"
+                                            :insert-text-mode :as-is})
+             "  "
+             2
+             "    "))))
+
+  (testing "adjusts plaintext insertions"
+    (is (= {:insert-string "first\n    second"
+            :insert-text-mode :adjust-indentation}
+           (code-completion/insertion
+             (code-completion/make "first"
+                                   :insert {:type :plaintext
+                                            :value "first\nsecond"
+                                            :insert-text-mode :adjust-indentation})
+             "    "
+             4
+             "    ")))))

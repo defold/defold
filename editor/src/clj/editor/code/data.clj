@@ -2416,10 +2416,13 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
-(defn replace-typed-chars [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices]
-  (-> (splice lines regions splices)
-      (fix-indentation-after-splice indent-level-pattern indent-string grammar)
-      (update-document-width-after-splice layout)))
+(defn replace-typed-chars
+  [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices adjust-grammar-indentation]
+  (let [splice-properties (splice lines regions splices)
+        splice-properties (if-not adjust-grammar-indentation
+                            splice-properties
+                            (fix-indentation-after-splice splice-properties indent-level-pattern indent-string grammar))]
+    (update-document-width-after-splice splice-properties layout)))
 
 ;; -----------------------------------------------------------------------------
 

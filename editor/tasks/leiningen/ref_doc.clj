@@ -31,18 +31,22 @@
   "Copies SDoc and Lua annotation entries from `source` to their target directories."
   [source sdoc-target-dir lua-target-dir]
   (with-open [zip (ZipFile. (io/file source))]
-    (doseq [entry (enumeration-seq (.entries zip))]
-      (let [entryname (.getName entry)
-            filename (.getName (io/file entryname))]
-        (cond
-          (and (str/ends-with? filename ".sdoc")
-               (not= filename "editor_doc.sdoc"))
-          (io/copy (.getInputStream zip entry)
-                   (io/file sdoc-target-dir filename))
+    (let [entries (.entries zip)]
+      (loop []
+        (when (.hasMoreElements entries)
+          (let [entry (.nextElement entries)
+                entryname (.getName entry)
+                filename (.getName (io/file entryname))]
+            (cond
+              (and (str/ends-with? filename ".sdoc")
+                   (not= filename "editor_doc.sdoc"))
+              (io/copy (.getInputStream zip entry)
+                       (io/file sdoc-target-dir filename))
 
-          (str/ends-with? filename ".lua")
-          (io/copy (.getInputStream zip entry)
-                   (io/file lua-target-dir filename)))))))
+              (str/ends-with? filename ".lua")
+              (io/copy (.getInputStream zip entry)
+                       (io/file lua-target-dir filename)))
+            (recur)))))))
 
 (defn- ref-doc-zip
   "Get the ref-doc.zip from either S3 archive or DYNAMO_HOME."
