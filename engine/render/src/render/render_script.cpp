@@ -672,7 +672,7 @@ namespace dmRender
      * Enables a particular render state. The state will be enabled until disabled.
      *
      * @name render.enable_state
-     * @param state [type:constant] state to enable
+     * @param state [type:graphics.STATE] state to enable
      *
      * - `graphics.STATE_DEPTH_TEST`
      * - `graphics.STATE_STENCIL_TEST`
@@ -721,7 +721,7 @@ namespace dmRender
      * Disables a render state.
      *
      * @name render.disable_state
-     * @param state [type:constant] state to disable
+     * @param state [type:graphics.STATE] state to disable
      *
      * - `graphics.STATE_DEPTH_TEST`
      * - `graphics.STATE_STENCIL_TEST`
@@ -826,7 +826,7 @@ namespace dmRender
      *
      * @name render.render_target
      * @param name [type:string] render target name
-     * @param parameters [type:table] table of buffer parameters, see the description for available keys and values
+     * @param parameters [type:table<number, { format:graphics.TEXTURE_FORMAT, width:number, height:number, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:number }>] table of buffer parameters, see the description for available keys and values
      * @return render_target [type:render_target] new render target
      * @examples
      *
@@ -1169,7 +1169,7 @@ namespace dmRender
      *
      * @name render.set_render_target
      * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
-     * @param [options] [type:table] optional table with behaviour parameters
+     * @param [options] [type:{ transient?:graphics.BUFFER_TYPE[] }] optional table with behaviour parameters
      *
      * `transient`
      * : [type:table] Transient frame buffer types are only valid while the render target is active, i.e becomes undefined when a new target is set by a subsequent call to set_render_target.
@@ -1299,7 +1299,7 @@ namespace dmRender
      * @name render.enable_texture
      * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
      * @param handle_or_name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
-     * @param [buffer_type] [type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
+     * @param [buffer_type] [type:graphics.BUFFER_TYPE] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      *
@@ -1495,7 +1495,7 @@ namespace dmRender
      *
      * @name render.get_render_target_width
      * @param render_target [type:render_target] render target from which to retrieve the buffer width
-     * @param buffer_type [type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] which type of buffer to retrieve the width from
+     * @param buffer_type [type:graphics.BUFFER_TYPE] which type of buffer to retrieve the width from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_COLOR[x]_BIT` (x: [0..3], if supported!)
@@ -1535,7 +1535,7 @@ namespace dmRender
      *
      * @name render.get_render_target_height
      * @param render_target [type:render_target] render target from which to retrieve the buffer height
-     * @param buffer_type [type:graphics.BUFFER_TYPE_COLOR0_BIT|graphics.BUFFER_TYPE_COLOR1_BIT|graphics.BUFFER_TYPE_COLOR2_BIT|graphics.BUFFER_TYPE_COLOR3_BIT|graphics.BUFFER_TYPE_DEPTH_BIT|graphics.BUFFER_TYPE_STENCIL_BIT] which type of buffer to retrieve the height from
+     * @param buffer_type [type:graphics.BUFFER_TYPE] which type of buffer to retrieve the height from
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
@@ -1571,7 +1571,7 @@ namespace dmRender
      * color attachments, all buffers will be cleared with the same value.
      *
      * @name render.clear
-     * @param buffers [type:table] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
+     * @param buffers [type:graphics.BUFFER_TYPE[]] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
      *
      * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
@@ -1664,7 +1664,7 @@ namespace dmRender
      *
      * @name render.draw
      * @param predicate [type:number] predicate to draw for
-     * @param [options] [type:table] optional table with properties:
+     * @param [options] [type:{ frustum?:matrix4, frustum_planes?:render.FRUSTUM_PLANES, constants?:constant_buffer, sort_order?:render.SORT }] optional table with properties:
      *
      * `frustum`
      * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
@@ -1811,7 +1811,7 @@ namespace dmRender
     /*# draws all 3d debug graphics
      * Draws all 3d debug graphics such as lines drawn with "draw_line" messages and physics visualization.
      * @name render.draw_debug3d
-     * @param [options] [type:table] optional table with properties:
+     * @param [options] [type:{ frustum?:matrix4, frustum_planes?:render.FRUSTUM_PLANES }] optional table with properties:
      *
      * `frustum`
      * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
@@ -2019,8 +2019,8 @@ namespace dmRender
      * It is also useful for drawing antialiased points and lines in arbitrary order.
      *
      * @name render.set_blend_func
-     * @param source_factor [type:number] source factor
-     * @param destination_factor [type:number] destination factor
+     * @param source_factor [type:graphics.BLEND_FACTOR] source factor
+     * @param destination_factor [type:graphics.BLEND_FACTOR] destination factor
      * @examples
      *
      * Set the blend func to the most common one:
@@ -2304,7 +2304,7 @@ namespace dmRender
     * The depth function is initially set to `graphics.COMPARE_FUNC_LESS`.
     *
     * @name render.set_depth_func
-    * @param func [type:number] depth test function, see the description for available values
+    * @param func [type:graphics.COMPARE_FUNC] depth test function, see the description for available values
     * @examples
     *
     * Enable depth test and set the depth test function to "not equal".
@@ -2369,7 +2369,7 @@ namespace dmRender
     * - `graphics.COMPARE_FUNC_ALWAYS` (always passes)
     *
     * @name render.set_stencil_func
-    * @param func [type:number] stencil test function, see the description for available values
+    * @param func [type:graphics.COMPARE_FUNC] stencil test function, see the description for available values
     * @param ref [type:number] reference value for the stencil test
     * @param mask [type:number] mask that is ANDed with both the reference value and the stored stencil value when the test is done
     * @examples
@@ -2432,9 +2432,9 @@ namespace dmRender
     * The initial value for all operators is `graphics.STENCIL_OP_KEEP`.
     *
     * @name render.set_stencil_op
-    * @param sfail [type:number] action to take when the stencil test fails
-    * @param dpfail [type:number] the stencil action when the stencil test passes
-    * @param dppass  [type:number] the stencil action when both the stencil test and the depth test pass, or when the stencil test passes and either there is no depth buffer or depth testing is not enabled
+    * @param sfail [type:graphics.STENCIL_OP] action to take when the stencil test fails
+    * @param dpfail [type:graphics.STENCIL_OP] the stencil action when the stencil test passes
+    * @param dppass  [type:graphics.STENCIL_OP] the stencil action when both the stencil test and the depth test pass, or when the stencil test passes and either there is no depth buffer or depth testing is not enabled
     * @examples
     *
     * Set the stencil function to never pass and operator to always draw 1's
@@ -2485,7 +2485,7 @@ namespace dmRender
      * `face_type` is `graphics.FACE_TYPE_BACK`.
      *
      * @name render.set_cull_face
-     * @param face_type [type:number] face type
+     * @param face_type [type:graphics.FACE_TYPE] face type
      *
      * - `graphics.FACE_TYPE_FRONT`
      * - `graphics.FACE_TYPE_BACK`
@@ -2669,7 +2669,7 @@ namespace dmRender
      * The current limit to the number of tags that can be defined is `64`.
      *
      * @name render.predicate
-     * @param tags [type:table] table of tags that the predicate should match. The tags can be of either hash or string type
+     * @param tags [type:(string|hash)[]] table of tags that the predicate should match. The tags can be of either hash or string type
      * @return predicate [type:number] new predicate
      * @examples
      *
@@ -2802,7 +2802,7 @@ namespace dmRender
      *
      * @name render.set_camera
      * @param camera [type:url|number|nil] camera id to use, or nil to reset
-     * @param [options] [type:table] optional table with properties:
+     * @param [options] [type:{ use_frustum?:boolean }] optional table with properties:
      *
      * `use_frustum`
      * : [type:boolean] If true, the renderer will use the cameras view-projection matrix for frustum culling (default: false)
@@ -3008,14 +3008,26 @@ namespace dmRender
     }
 #undef CHECK_COMPUTE_SUPPORT
 
+    /*# rendering context was lost
+     *
+     * @name render.CONTEXT_EVENT_CONTEXT_LOST
+     * @constant
+     */
+
+    /*# rendering context was restored
+     *
+     * @name render.CONTEXT_EVENT_CONTEXT_RESTORED
+     * @constant
+     */
+
    /*# set render's event listener
-    * Set or remove listener. Currenly only only two type of events can arrived:
+    * Set or remove listener. Currently only two types of events can arrive:
     * `render.CONTEXT_EVENT_CONTEXT_LOST` - when rendering context lost. Rending paused and all graphics resources become invalid.
     * `render.CONTEXT_EVENT_CONTEXT_RESTORED` - when rendering context was restored. Rendering still paused and graphics resources still 
     * invalid but can be reloaded.
     *
     * @name render.set_listener
-    * @param callback [type:function(self, event_type)|nil] A callback that receives all render related events.
+    * @param callback [type:fun(self:any, event_type:render.CONTEXT_EVENT)|nil] A callback that receives all render related events.
     * Pass `nil` if want to remove listener.
     *
     * `self`

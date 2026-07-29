@@ -397,18 +397,80 @@ def _parse_comment(text):
 
     return element
 
-def extract_type_from_docstr(s):
-    # try to extract the type information
-    m = re.search(r'^\s*(?:\s*\[type:\s*([^\]]*)\])+\s*([\w\W]*)', s)
-    if m and m.group(1):
-        type_list = m.group(1).split("|")
-        if len(type_list) == 1:
-            type_list = type_list[0]
-        if m.group(2):
-            return type_list, m.group(2)
-        return type_list, ""
+def split_type_union(type_expression):
+    """Split a Lua type union without splitting nested type expressions."""
+    parts = []
+    start = 0
+    stack = []
+    pairs = {"]": "[", "}": "{", ")": "(", ">": "<"}
+    for index, char in enumerate(type_expression):
+        if char in "[{(<":
+            stack.append(char)
+        elif char in "]})>":
+            if not stack or stack[-1] != pairs[char]:
+                raise ValueError("Unbalanced Lua type expression: %s" % type_expression)
+            stack.pop()
+        elif char == "|" and not stack:
+            parts.append(type_expression[start:index].strip())
+            start = index + 1
+    if stack:
+        raise ValueError("Unbalanced Lua type expression: %s" % type_expression)
+    parts.append(type_expression[start:].strip())
+    if any(not part for part in parts):
+        raise ValueError("Invalid Lua type union: %s" % type_expression)
+    return parts
 
-    return "", s
+
+def _extract_balanced_type_tag(s):
+    match = re.match(r"^\s*\[type:\s*", s)
+    if not match:
+        return None
+
+    start = match.end()
+    square_depth = 1
+    brace_depth = 0
+    paren_depth = 0
+    angle_depth = 0
+    for index in range(start, len(s)):
+        char = s[index]
+        if char == "[":
+            square_depth += 1
+        elif char == "]":
+            square_depth -= 1
+            if square_depth == 0 and brace_depth == 0 and paren_depth == 0 and angle_depth == 0:
+                return s[start:index].strip(), s[index + 1:].lstrip()
+            if square_depth < 0:
+                break
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth -= 1
+        elif char == "(":
+            paren_depth += 1
+        elif char == ")":
+            paren_depth -= 1
+        elif char == "<":
+            angle_depth += 1
+        elif char == ">":
+            angle_depth -= 1
+
+        if min(square_depth, brace_depth, paren_depth, angle_depth) < 0:
+            break
+
+    raise ValueError("Unbalanced [type:...] tag: %s" % s)
+
+
+def extract_type_from_docstr(s):
+    extracted = _extract_balanced_type_tag(s)
+    if not extracted:
+        return "", s
+
+    type_expression, doc = extracted
+    if not type_expression:
+        return "", doc
+
+    type_list = split_type_union(type_expression)
+    return (type_list[0] if len(type_list) == 1 else type_list), doc
 
 def is_optional(str):
     m = re.search(r'^\[(.*)\]', str)
@@ -419,10 +481,12 @@ def is_optional(str):
 
 
 LUA_TYPES = [
-    "string", "number", "boolean", "table", "userdata", "nil", "function", "thread",
+    "string", "number", "integer", "boolean", "table", "userdata", "nil", "function", "thread",
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
     "constant", "resource", "buffer", "any", "file",
-    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData", "bufferstream" ]
+    "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData", "bufferstream",
+    "resource_data", "buffer_data", "buffer_stream", "constant_buffer", "render_target", "render_predicate",
+    "socket_client", "socket_master", "socket_unconnected" ]
 CPP_TYPES = [
     "string", "float", "double", "long", "int", "bool", "char", "void",
     "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",
@@ -433,29 +497,10 @@ CPP_TYPES = [
     "dmhash_t", "dmArray", "dmAllocator" ]
 
 def validate_lua_type(t, doc):
-    # function(self, node) -> function
-    if t.startswith("function("):
-        v = t.split("(")
-        t = v[0]
-
-    # only validate types in the same namespace
-    if "." in t:
-        v = t.split(".")
-        namespace = v[0]
-        if namespace != doc.info.namespace:
-            print("Ignoring type '%s' in '%s' (%s) since namespaces do not match" % (t, doc.info.name, doc.info.path))
-            return True
-
-    # standard Lua types
-    if t in LUA_TYPES:
-        return True
-
-    # is type defined in the same document?
-    for element in doc.elements:
-        if element.name == t:
-            return True
-
-    return False
+    # Lua types can refer to aliases, classes, enum families and messages from
+    # other documents. They are therefore validated by lua_annotations.py only
+    # after every Lua document and the official metadata have been loaded.
+    return True
 
 def validate_cpp_type(t, doc):
     t = t.replace("*", "").replace("&", "").replace("const ", "").replace("unsigned ", "")

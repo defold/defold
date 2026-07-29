@@ -1,0 +1,779 @@
+{
+  "attribution": {
+    "license": "MIT",
+    "patch_directory": "https://github.com/astrochili/defold-annotations/tree/b0731459640bb6aa9f91ea24128bb6584c270160/patches",
+    "project": "astrochili/defold-annotations",
+    "release": "1.13.0",
+    "rules_directory": "https://github.com/astrochili/defold-annotations/tree/b0731459640bb6aa9f91ea24128bb6584c270160/rules",
+    "source_commit": "b0731459640bb6aa9f91ea24128bb6584c270160"
+  },
+  "normalization": "Lua table path patterns and replacement values are preserved verbatim; production source documentation and cross-cutting metadata must implement these outcomes.",
+  "patches": {
+    "editor.apidoc_doc.lua": [
+      {
+        "expected": "[string]",
+        "path_pattern": "elements.editor.create_resources.parameters.resources.types.string["
+      },
+      {
+        "expected": "{ reload_resources?:boolean, out?:string, err?:string }",
+        "path_pattern": "elements.editor.execute.parameters.options.types.table"
+      },
+      {
+        "expected": "{ path:string, exists:boolean, is_file:boolean, is_directory:boolean }",
+        "path_pattern": "elements.editor.external_file_attributes.returnvalues.attributes.types.table"
+      },
+      {
+        "expected": "...",
+        "path_pattern": "elements.editor.bob.parameters.\\\\.\\\\.\\\\.commands.name"
+      },
+      {
+        "expected": "{ item:editor.schema, default?:[any], scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.array.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ default?:boolean, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.boolean.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ values:[nil|boolean|number|string], default?:any, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.enum.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ default?:integer, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.integer.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ default?:string, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.keyword.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ default?:number, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.number.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ properties:table<string, editor.schema>, default?:table<string, editor.schema>, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.object.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ key:editor.schema, val:editor.schema, default?:table, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.object_of.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ schemas:[editor.schema], default?:any, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.one_of.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ item:editor.schema, default?:table<editor.schema, boolean>, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.set.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ default?:string, scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.string.parameters.opts.types.table"
+      },
+      {
+        "expected": "{ items:[editor.schema], default?:[any], scope?:string }",
+        "path_pattern": "elements.editor.prefs.schema.tuple.parameters.opts.types.table"
+      },
+      {
+        "expected": "[string]",
+        "path_pattern": "elements.editor.properties.returnvalues.properties.types.string["
+      },
+      {
+        "expected": "{ exists:boolean, is_file:boolean, is_directory:boolean }",
+        "path_pattern": "elements.editor.resource_attributes.returnvalues.value.types.table"
+      },
+      {
+        "expected": "[editor.transaction_step]",
+        "path_pattern": "elements.editor.transact.parameters.txs.types.transaction_step["
+      },
+      {
+        "expected": "[string]|nil",
+        "path_pattern": "elements.editor.ui.show_resource_dialog.returnvalues.value.types.string["
+      },
+      {
+        "expected": "A hook that caches the result of a computation between re-renders.",
+        "path_pattern": "elements.editor.ui.use_memo.brief"
+      },
+      {
+        "expected": "any",
+        "path_pattern": "elements.editor.ui.use_memo.parameters.\\\\.\\\\.\\\\..types.\\\\.\\\\.\\\\.any"
+      },
+      {
+        "expected": "any ...",
+        "path_pattern": "elements.editor.ui.use_memo.returnvalues.values.types.\\\\.\\\\.\\\\.any"
+      },
+      {
+        "expected": "any",
+        "path_pattern": "elements.editor.ui.use_state.parameters.\\\\.\\\\.\\\\..types.\\\\.\\\\.\\\\.any"
+      },
+      {
+        "expected": "table<string, string>",
+        "path_pattern": "elements.http.server.external_file_response.parameters.headers.types.table&lt;string,string&gt;"
+      },
+      {
+        "expected": "table<string, string>",
+        "path_pattern": "elements.http.server.json_response.parameters.headers.types.table&lt;string,string&gt;"
+      },
+      {
+        "expected": "table<string, string>",
+        "path_pattern": "elements.http.server.resource_response.parameters.headers.types.table&lt;string,string&gt;"
+      },
+      {
+        "expected": "table<string, string>",
+        "path_pattern": "elements.http.server.response.parameters.headers.types.table&lt;string,string&gt;"
+      },
+      {
+        "expected": "{ decode_null_as_userdata?:boolean }",
+        "path_pattern": "elements.json.decode.parameters.options.types.table"
+      },
+      {
+        "expected": "[nil|boolean|number|string|editor.message]",
+        "path_pattern": "elements.localization.and_list.parameters.items.types.any["
+      },
+      {
+        "expected": "[nil|boolean|number|string|editor.message]",
+        "path_pattern": "elements.localization.concat.parameters.items.types.any["
+      },
+      {
+        "expected": "[nil|boolean|number|string|editor.message]",
+        "path_pattern": "elements.localization.or_list.parameters.items.types.any["
+      },
+      {
+        "expected": "{ method?:string, level?:integer }",
+        "path_pattern": "elements.zip.pack.parameters.opts.types.table"
+      }
+    ],
+    "gameobject_script.cpp_doc.lua": [
+      {
+        "expected": "fun(self, url:url, property:hash)",
+        "path_pattern": "elements.go.animate.parameters.complete_function.types.function(self, url, property)"
+      },
+      {
+        "expected": "{ index?:integer, key?:hash, keys?:[hash] }",
+        "path_pattern": "elements.go.get.parameters.options.types.table"
+      },
+      {
+        "expected": "{ index?:integer, key?:hash, keys?:[hash] }",
+        "path_pattern": "elements.go.set.parameters.options.types.table"
+      }
+    ],
+    "gamesys-model_ddf.proto_doc.lua": [
+      {
+        "expected": "go.PLAYBACK",
+        "path_pattern": "elements.model_animation_done.parameters.playback.types.constant"
+      }
+    ],
+    "gui_script.cpp_doc.lua": [
+      {
+        "expected": "fun(self, node:node)",
+        "path_pattern": "elements.gui.animate.parameters.complete_function.types.function(self, node)"
+      },
+      {
+        "expected": "gui.PROP|hash",
+        "path_pattern": "elements.gui.animate.parameters.property.types"
+      },
+      {
+        "expected": "gui.EASING",
+        "path_pattern": "elements.gui.animate.parameters.easing.types.constant"
+      },
+      {
+        "expected": "gui.PLAYBACK",
+        "path_pattern": "elements.gui.animate.parameters.playback.types.constant"
+      },
+      {
+        "expected": "gui.PROP",
+        "path_pattern": "elements.gui.cancel_animations.parameters.property.types.constant"
+      },
+      {
+        "expected": "table<hash, node>",
+        "path_pattern": "elements.gui.clone_tree.returnvalues.clones.types.table"
+      },
+      {
+        "expected": "gui.ADJUST",
+        "path_pattern": "elements.gui.get_adjust_mode.returnvalues.adjust_mode.types.constant"
+      },
+      {
+        "expected": "gui.PROP",
+        "path_pattern": "elements.gui.get.parameters.property.types.constant"
+      },
+      {
+        "expected": "table<hash, vector3>",
+        "path_pattern": "elements.gui.get_layouts.returnvalues..types.table"
+      },
+      {
+        "expected": "gui.BLEND",
+        "path_pattern": "elements.gui.get_blend_mode.returnvalues.blend_mode.types.constant"
+      },
+      {
+        "expected": "gui.CLIPPING_MODE",
+        "path_pattern": "elements.gui.get_clipping_mode.returnvalues.clipping_mode.types.constant"
+      },
+      {
+        "expected": "gui.PIEBOUNDS",
+        "path_pattern": "elements.gui.get_outer_bounds.returnvalues.bounds_mode.types.constant"
+      },
+      {
+        "expected": "gui.PIVOT",
+        "path_pattern": "elements.gui.get_pivot.returnvalues.pivot.types.constant"
+      },
+      {
+        "expected": "table<hash, node>",
+        "path_pattern": "elements.gui.get_tree.returnvalues.clones.types.table"
+      },
+      {
+        "expected": "gui.TYPE",
+        "path_pattern": "elements.gui.get_type.returnvalues.type.types.constant"
+      },
+      {
+        "expected": "gui.ANCHOR",
+        "path_pattern": "elements.gui.get_xanchor.returnvalues.anchor.types.constant"
+      },
+      {
+        "expected": "gui.ANCHOR",
+        "path_pattern": "elements.gui.get_yanchor.returnvalues.anchor.types.constant"
+      },
+      {
+        "expected": "gui.SIZE_MODE",
+        "path_pattern": "elements.gui.get_size_mode.returnvalues.size_mode.types.constant"
+      },
+      {
+        "expected": "gui.RESULT|nil",
+        "path_pattern": "elements.gui.new_texture.returnvalues.code.types.number"
+      },
+      {
+        "expected": "fun(self, node:node)",
+        "path_pattern": "elements.gui.play_flipbook.parameters.complete_function.types.function(self, node)"
+      },
+      {
+        "expected": "fun(self, node:node, emitter:hash, state:particlefx.EMITTER_STATE)",
+        "path_pattern": "elements.gui.play_particlefx.parameters.emitter_state_function.types.function(self, node, emitter, state)"
+      },
+      {
+        "expected": "{ offset?:number, playback_rate?:number }",
+        "path_pattern": "elements.gui.play_flipbook.parameters.play_properties.types.table"
+      },
+      {
+        "expected": "gui.ADJUST",
+        "path_pattern": "elements.gui.set_adjust_mode.parameters.adjust_mode.types.constant"
+      },
+      {
+        "expected": "gui.BLEND",
+        "path_pattern": "elements.gui.set_blend_mode.parameters.blend_mode.types.constant"
+      },
+      {
+        "expected": "gui.CLIPPING_MODE",
+        "path_pattern": "elements.gui.set_clipping_mode.parameters.clipping_mode.types.constant"
+      },
+      {
+        "expected": "gui.PIEBOUNDS",
+        "path_pattern": "elements.gui.set_outer_bounds.parameters.bounds_mode.types.constant"
+      },
+      {
+        "expected": "gui.PIVOT",
+        "path_pattern": "elements.gui.set_pivot.parameters.pivot.types.constant"
+      },
+      {
+        "expected": "gui.PROP",
+        "path_pattern": "elements.gui.set.parameters.property.types.constant"
+      },
+      {
+        "expected": "gui.SAFE_AREA",
+        "path_pattern": "elements.gui.set_safe_area_mode.parameters.mode.types.constant"
+      },
+      {
+        "expected": "gui.SIZE_MODE",
+        "path_pattern": "elements.gui.set_size_mode.parameters.size_mode.types.constant"
+      },
+      {
+        "expected": "gui.ANCHOR",
+        "path_pattern": "elements.gui.set_xanchor.parameters.anchor.types.constant"
+      },
+      {
+        "expected": "gui.ANCHOR",
+        "path_pattern": "elements.gui.set_yanchor.parameters.anchor.types.constant"
+      },
+      {
+        "expected": "gui.KEYBOARD_TYPE",
+        "path_pattern": "elements.gui.show_keyboard.parameters.type.types.constant"
+      },
+      {
+        "expected": "{ clear?:boolean }",
+        "path_pattern": "elements.gui.stop_particlefx.parameters.options.types.table"
+      }
+    ],
+    "lua_string.doc_h_doc.lua": [
+      {
+        "expected": "",
+        "path_pattern": "elements.string.format.parameters.\\\\.\\\\.\\\\..doc"
+      },
+      {
+        "expected": "False",
+        "path_pattern": "elements.string.format.parameters.\\\\.\\\\.\\\\..is_optional"
+      },
+      {
+        "expected": "any",
+        "path_pattern": "elements.string.format.parameters.\\\\.\\\\.\\\\..types.\\\\.\\\\.\\\\.any"
+      },
+      {
+        "expected": "",
+        "path_pattern": "elements.string.format.parameters.formatstring.doc"
+      },
+      {
+        "expected": "False",
+        "path_pattern": "elements.string.format.parameters.formatstring.is_optional"
+      },
+      {
+        "expected": "string",
+        "path_pattern": "elements.string.format.parameters.formatstring.types.string"
+      }
+    ],
+    "profiler.cpp_doc.lua": [
+      {
+        "expected": "profiler.MODE",
+        "path_pattern": "elements.profiler.set_ui_mode.parameters.mode.types.constant"
+      },
+      {
+        "expected": "profiler.VIEW_MODE",
+        "path_pattern": "elements.profiler.set_ui_view_mode.parameters.mode.types.constant"
+      }
+    ],
+    "render-render_script.cpp_doc.lua": [
+      {
+        "expected": "graphics.STATE",
+        "path_pattern": "elements.render.disable_state.parameters.state.types.constant"
+      },
+      {
+        "expected": "{ frustum?:matrix4, frustum_planes?:render.FRUSTUM_PLANES, constants?:constant_buffer, sort_order?:render.SORT }",
+        "path_pattern": "elements.render.draw.parameters.options.types.table"
+      },
+      {
+        "expected": "{ frustum?:matrix4, frustum_planes?:render.FRUSTUM_PLANES }",
+        "path_pattern": "elements.render.draw_debug3d.parameters.options.types.table"
+      },
+      {
+        "expected": "graphics.STATE",
+        "path_pattern": "elements.render.enable_state.parameters.state.types.constant"
+      },
+      {
+        "expected": "graphics.BUFFER_TYPE",
+        "path_pattern": "elements.render.enable_texture.parameters.buffer_type.types"
+      },
+      {
+        "expected": "graphics.BUFFER_TYPE",
+        "path_pattern": "elements.render.get_render_target_height.parameters.buffer_type.types"
+      },
+      {
+        "expected": "graphics.BUFFER_TYPE",
+        "path_pattern": "elements.render.get_render_target_width.parameters.buffer_type.types"
+      },
+      {
+        "expected": "[string|hash]",
+        "path_pattern": "elements.render.predicate.parameters.tags.types.table"
+      },
+      {
+        "expected": "[graphics.BUFFER_TYPE]",
+        "path_pattern": "elements.render.clear.parameters.buffers.types.table"
+      },
+      {
+        "expected": "table<number, { format:graphics.TEXTURE_FORMAT, width:number, height:number, min_filter?:graphics.TEXTURE_FILTER, mag_filter?:graphics.TEXTURE_FILTER, u_wrap?:graphics.TEXTURE_WRAP, v_wrap?:graphics.TEXTURE_WRAP, flags?:number }>",
+        "path_pattern": "elements.render.render_target.parameters.parameters.types.table"
+      },
+      {
+        "expected": "{ use_frustum?:boolean }",
+        "path_pattern": "elements.render.set_camera.parameters.options.types.table"
+      },
+      {
+        "expected": "graphics.BLEND_FACTOR",
+        "path_pattern": "elements.render.set_blend_func.parameters.destination_factor.types.number"
+      },
+      {
+        "expected": "graphics.BLEND_FACTOR",
+        "path_pattern": "elements.render.set_blend_func.parameters.source_factor.types.number"
+      },
+      {
+        "expected": "graphics.FACE_TYPE",
+        "path_pattern": "elements.render.set_cull_face.parameters.face_type.types.number"
+      },
+      {
+        "expected": "graphics.COMPARE_FUNC",
+        "path_pattern": "elements.render.set_depth_func.parameters.func.types.number"
+      },
+      {
+        "expected": "fun(self, event_type:render.CONTEXT_EVENT)",
+        "path_pattern": "elements.render.set_listener.parameters.callback.types.function(self, event_type)"
+      },
+      {
+        "expected": "{ transient?:[graphics.BUFFER_TYPE] }",
+        "path_pattern": "elements.render.set_render_target.parameters.options.types.table"
+      },
+      {
+        "expected": "graphics.COMPARE_FUNC",
+        "path_pattern": "elements.render.set_stencil_func.parameters.func.types.number"
+      },
+      {
+        "expected": "graphics.STENCIL_OP",
+        "path_pattern": "elements.render.set_stencil_op.parameters.dpfail.types.number"
+      },
+      {
+        "expected": "graphics.STENCIL_OP",
+        "path_pattern": "elements.render.set_stencil_op.parameters.dppass.types.number"
+      },
+      {
+        "expected": "graphics.STENCIL_OP",
+        "path_pattern": "elements.render.set_stencil_op.parameters.sfail.types.number"
+      }
+    ],
+    "render-render_script_camera.cpp_doc.lua": [
+      {
+        "expected": "camera.ORTHO_MODE",
+        "path_pattern": "elements.camera.get_orthographic_mode.returnvalues.mode.types.number"
+      },
+      {
+        "expected": "camera.ORTHO_MODE",
+        "path_pattern": "elements.camera.set_orthographic_mode.parameters.mode.types.number"
+      }
+    ],
+    "script_crash.cpp_doc.lua": [
+      {
+        "expected": "crash.SYSFIELD",
+        "path_pattern": "elements.crash.get_sys_field.parameters.index.types.number"
+      },
+      {
+        "expected": "crash.USERFIELD",
+        "path_pattern": "elements.crash.get_user_field.parameters.index.types.number"
+      },
+      {
+        "expected": "[{ name:string, address:string }]",
+        "path_pattern": "elements.crash.get_modules.returnvalues.modules.types.table"
+      },
+      {
+        "expected": "crash.USERFIELD",
+        "path_pattern": "elements.crash.set_user_field.parameters.index.types.number"
+      }
+    ],
+    "scripts-box2d-script_box2d_body_defold.cpp_doc.lua": [
+      {
+        "expected": "b2d.body.get_angle",
+        "path_pattern": "elements.b2d.body.get_world_center.name"
+      }
+    ],
+    "scripts-script_buffer.cpp_doc.lua": [
+      {
+        "expected": "[{ name:hash|string, type:buffer.VALUE_TYPE, count:number }]",
+        "path_pattern": "elements.buffer.create.parameters.declaration.types.table"
+      },
+      {
+        "expected": "buffer.VALUE_TYPE",
+        "path_pattern": "elements.buffer.get_metadata.returnvalues.value_type.types.constant"
+      },
+      {
+        "expected": "[number]",
+        "path_pattern": "elements.buffer.get_metadata.returnvalues.values.types.table"
+      },
+      {
+        "expected": "buffer.VALUE_TYPE",
+        "path_pattern": "elements.buffer.set_metadata.parameters.value_type.types.constant"
+      },
+      {
+        "expected": "[number]",
+        "path_pattern": "elements.buffer.set_metadata.parameters.values.types.table"
+      }
+    ],
+    "scripts-script_collection_factory.cpp_doc.lua": [
+      {
+        "expected": "table<hash, hash>",
+        "path_pattern": "elements.collectionfactory.create.returnvalues.ids.types.table"
+      },
+      {
+        "expected": "collectionfactory.STATUS",
+        "path_pattern": "elements.collectionfactory.get_status.returnvalues.status.types.constant"
+      },
+      {
+        "expected": "fun(self, url:url, result:boolean)",
+        "path_pattern": "elements.collectionfactory.load.parameters.complete_function.types.function(self, url, result)"
+      }
+    ],
+    "scripts-script_collectionproxy.cpp_doc.lua": [
+      {
+        "expected": "[string]",
+        "path_pattern": "elements.collectionproxy.get_resources.returnvalues.resources.types.table"
+      },
+      {
+        "expected": "collectionproxy.RESULT",
+        "path_pattern": "elements.collectionproxy.set_collection.returnvalues.code.types.number"
+      }
+    ],
+    "scripts-script_factory.cpp_doc.lua": [
+      {
+        "expected": "factory.STATUS",
+        "path_pattern": "elements.factory.get_status.returnvalues.status.types.constant"
+      },
+      {
+        "expected": "fun(self, url:url, result:boolean)",
+        "path_pattern": "elements.factory.load.parameters.complete_function.types.function(self, url, result)"
+      }
+    ],
+    "scripts-script_font.cpp_doc.lua": [
+      {
+        "expected": "fun(self, request_id:number, result:boolean, errstring?:string)",
+        "path_pattern": "elements.font.prewarm_text.parameters.callback.types.function(self, request_id, result, errstring)"
+      }
+    ],
+    "scripts-script_http.cpp_doc.lua": [
+      {
+        "expected": "fun(self, id:hash, response:table)",
+        "path_pattern": "elements.http.request.parameters.callback.types.function(self, id, response)"
+      }
+    ],
+    "scripts-script_image.cpp_doc.lua": [
+      {
+        "expected": "{ width:number, height:number, depth:number, block_size_x:number, block_size_y:number, block_size_z:number }",
+        "path_pattern": "elements.image.get_astc_header.returnvalues.table.types.table"
+      },
+      {
+        "expected": "{ width:number, height:number, type:image.TYPE, buffer:string }",
+        "path_pattern": "elements.image.load.returnvalues.image.types.table"
+      },
+      {
+        "expected": "{ width:number, height:number, type:image.TYPE, buffer:buffer_data }",
+        "path_pattern": "elements.image.load_buffer.returnvalues.image.types.table"
+      }
+    ],
+    "scripts-script_model.cpp_doc.lua": [
+      {
+        "expected": "fun(self, message_id:hash, message:message.model.model_animation_done, sender:url)",
+        "path_pattern": "elements.model.play_anim.parameters.complete_function.types.function(self, message_id, message, sender)"
+      },
+      {
+        "expected": "go.PLAYBACK",
+        "path_pattern": "elements.model.play_anim.parameters.playback.types.constant"
+      },
+      {
+        "expected": "{ blend_duration?:number, offset?:number, playback_rate?:number }",
+        "path_pattern": "elements.model.play_anim.parameters.play_properties.types.table"
+      }
+    ],
+    "scripts-script_particlefx.cpp_doc.lua": [
+      {
+        "expected": "fun(self, id:hash, emitter:hash, state:particlefx.EMITTER_STATE)",
+        "path_pattern": "elements.particlefx.play.parameters.emitter_state_function.types.function(self, id, emitter, state)"
+      },
+      {
+        "expected": "{ clear?:boolean }",
+        "path_pattern": "elements.particlefx.stop.parameters.options.types.table"
+      }
+    ],
+    "scripts-script_physics.cpp_doc.lua": [
+      {
+        "expected": "physics.JOINT_TYPE",
+        "path_pattern": "elements.physics.create_joint.parameters.joint_type.types.number"
+      },
+      {
+        "expected": "{ collide_connected?:boolean }",
+        "path_pattern": "elements.physics.get_joint_properties.returnvalues.properties.types.table"
+      },
+      {
+        "expected": "{ type?:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }",
+        "path_pattern": "elements.physics.get_shape.returnvalues.table.types.table"
+      },
+      {
+        "expected": "{ all?:boolean }",
+        "path_pattern": "elements.physics.raycast.parameters.options.types.table"
+      },
+      {
+        "expected": "[message.physics.ray_cast_response]|message.physics.ray_cast_response",
+        "path_pattern": "elements.physics.raycast.returnvalues.result.types.table"
+      },
+      {
+        "expected": "fun(self, events:[message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed])",
+        "path_pattern": "elements.physics.set_event_listener.parameters.callback.types.function(self, events)"
+      },
+      {
+        "expected": "{ type?:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }",
+        "path_pattern": "elements.physics.set_shape.parameters.table.types.table"
+      }
+    ],
+    "scripts-script_resource.cpp_doc.lua": [
+      {
+        "expected": "resource.atlas",
+        "path_pattern": "elements.resource.create_atlas.parameters.table.types.table"
+      },
+      {
+        "expected": "{ buffer:buffer_data, transfer_ownership?:boolean }",
+        "path_pattern": "elements.resource.create_buffer.parameters.table.types.table"
+      },
+      {
+        "expected": "{ data?:string, filesize?:number, partial?:boolean }",
+        "path_pattern": "elements.resource.create_sound_data.parameters.options.types.table"
+      },
+      {
+        "expected": "{ type:graphics.TEXTURE_TYPE, width:number, height:number, depth:number, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:number, compression_type?:graphics.COMPRESSION_TYPE }",
+        "path_pattern": "elements.resource.create_texture.parameters.table.types.table"
+      },
+      {
+        "expected": "fun(self, request_id:number, resource:hash)",
+        "path_pattern": "elements.resource.create_texture_async.parameters.callback.types.function"
+      },
+      {
+        "expected": "{ type:graphics.TEXTURE_TYPE, width:number, height:number, depth:number, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:number, compression_type?:graphics.COMPRESSION_TYPE }",
+        "path_pattern": "elements.resource.create_texture_async.parameters.table.types.table"
+      },
+      {
+        "expected": "resource.atlas",
+        "path_pattern": "elements.resource.get_atlas.returnvalues.data.types.table"
+      },
+      {
+        "expected": "{ handle:number, attachments:[{ handle:number, width:number, height:number, depth:number, mipmaps:number, type:graphics.TEXTURE_TYPE, buffer_type:graphics.BUFFER_TYPE, texture:hash }] }",
+        "path_pattern": "elements.resource.get_render_target_info.returnvalues.table.types.table"
+      },
+      {
+        "expected": "{ width?:number, leading?:number, tracking?:number, line_break?:boolean }",
+        "path_pattern": "elements.resource.get_text_metrics.parameters.options.types.table"
+      },
+      {
+        "expected": "{ width:number, height:number, max_ascent:number, max_descent:number }",
+        "path_pattern": "elements.resource.get_text_metrics.returnvalues.metrics.types.table"
+      },
+      {
+        "expected": "{ handle:number, width:number, height:number, depth:number, mipmaps:number, flags:number, type:graphics.TEXTURE_TYPE }",
+        "path_pattern": "elements.resource.get_texture_info.returnvalues.table.types.table"
+      },
+      {
+        "expected": "resource.atlas",
+        "path_pattern": "elements.resource.set_atlas.parameters.table.types.table"
+      },
+      {
+        "expected": "{ transfer_ownership?: boolean }",
+        "path_pattern": "elements.resource.set_buffer.parameters.table.types.table"
+      },
+      {
+        "expected": "{ type:graphics.TEXTURE_TYPE, width:number, height:number, format:graphics.TEXTURE_FORMAT, x?:number, y?:number, z?:number, mipmap?:number, compression_type?:graphics.COMPRESSION_TYPE}",
+        "path_pattern": "elements.resource.set_texture.parameters.table.types.table"
+      }
+    ],
+    "scripts-script_sound.cpp_doc.lua": [
+      {
+        "expected": "[hash]",
+        "path_pattern": "elements.sound.get_groups.returnvalues.groups.types.table"
+      },
+      {
+        "expected": "fun(self, message_id:hash, message:message.sound.sound_done|message.sound.sound_stopped, sender:url)",
+        "path_pattern": "elements.sound.play.parameters.complete_function.types.function(self, message_id, message, sender)"
+      },
+      {
+        "expected": "{ delay?:number, gain?:number, pan?:number, speed?:number, start_time?:number, start_frame?:number }",
+        "path_pattern": "elements.sound.play.parameters.play_properties.types.table"
+      },
+      {
+        "expected": "{ play_id:number }",
+        "path_pattern": "elements.sound.stop.parameters.stop_properties.types.table"
+      }
+    ],
+    "scripts-script_sprite.cpp_doc.lua": [
+      {
+        "expected": "fun(self, message_id:hash, message:message.sprite.animation_done, sender:url)",
+        "path_pattern": "elements.sprite.play_flipbook.parameters.complete_function.types.function(self, message_id, message, sender)"
+      }
+    ],
+    "scripts-script_sys_gamesys.cpp_doc.lua": [
+      {
+        "expected": "fun(self, request_id:number, result:{ status:sys.REQUEST_STATUS, buffer:buffer_data|nil })",
+        "path_pattern": "elements.sys.load_buffer_async.parameters.status_callback.types.function(self, request_id, result)"
+      }
+    ],
+    "scripts-script_tilemap.cpp_doc.lua": [
+      {
+        "expected": "tilemap.TRANSFORM",
+        "path_pattern": "elements.tilemap.set_tile.parameters.transform_bitmask.types.number"
+      }
+    ],
+    "scripts-script_window.cpp_doc.lua": [
+      {
+        "expected": "window.DIMMING",
+        "path_pattern": "elements.window.get_dim_mode.returnvalues.mode.types.constant"
+      },
+      {
+        "expected": "{ x:number, y:number, width:number, height:number, inset_left:number, inset_top:number, inset_right:number, inset_bottom:number }",
+        "path_pattern": "elements.window.get_safe_area.returnvalues.safe_area.types.table"
+      },
+      {
+        "expected": "fun(self, event:window.WINDOW_EVENT, data:{ width:number, height:number })",
+        "path_pattern": "elements.window.set_listener.parameters.callback.types.function(self, event, data)"
+      },
+      {
+        "expected": "window.DIMMING",
+        "path_pattern": "elements.window.set_dim_mode.parameters.mode.types.constant"
+      }
+    ],
+    "src-script.cpp_doc.lua": [
+      {
+        "expected": "...",
+        "path_pattern": "elements.pprint.parameters.v.name"
+      }
+    ],
+    "src-script_json.cpp_doc.lua": [
+      {
+        "expected": "{ decode_null_as_userdata?:boolean }",
+        "path_pattern": "elements.json.decode.parameters.options.types.table"
+      },
+      {
+        "expected": "{ encode_empty_table_as_object:string }",
+        "path_pattern": "elements.json.encode.parameters.options.types.table"
+      }
+    ],
+    "src-script_sys.cpp_doc.lua": [
+      {
+        "expected": "{ installed:boolean }",
+        "path_pattern": "elements.sys.get_application_info.returnvalues.app_info.types.table"
+      },
+      {
+        "expected": "sys.NETWORK",
+        "path_pattern": "elements.sys.get_connectivity.returnvalues.status.types.constant"
+      },
+      {
+        "expected": "{ version:string, version_sha1:string, is_debug:boolean }",
+        "path_pattern": "elements.sys.get_engine_info.returnvalues.engine_info.types.table"
+      },
+      {
+        "expected": "{ name:string, address?:string, mac?:string, up:boolean, running:boolean }",
+        "path_pattern": "elements.sys.get_ifaddrs.returnvalues.ifaddrs.types.table"
+      },
+      {
+        "expected": "{ ignore_secure?:boolean }",
+        "path_pattern": "elements.sys.get_sys_info.parameters.options.types.table"
+      },
+      {
+        "expected": "{ device_model?:string, manufacturer?:string, system_name:string, system_version:string, api_version:string, language:string, device_language:string, territory:string, gmt_offset:number, device_ident?:string, user_agent?:string }",
+        "path_pattern": "elements.sys.get_sys_info.returnvalues.sys_info.types.table"
+      },
+      {
+        "expected": "{ target?:string, name?:string }",
+        "path_pattern": "elements.sys.open_url.parameters.attributes.types.table"
+      }
+    ],
+    "src-script_timer.cpp_doc.lua": [
+      {
+        "expected": "fun(self, handle:number, time_elapsed:number)",
+        "path_pattern": "elements.timer.delay.parameters.callback.types.function(self, handle, time_elapsed)"
+      },
+      {
+        "expected": "{ time_remaining:number, delay:number, repeating:boolean }",
+        "path_pattern": "elements.timer.get_info.returnvalues.data.types.table"
+      }
+    ],
+    "src-script_vmath.cpp_doc.lua": [
+      {
+        "expected": "number?",
+        "path_pattern": "elements.vmath.euler_to_quat.parameters.y.types.number"
+      },
+      {
+        "expected": "number?",
+        "path_pattern": "elements.vmath.euler_to_quat.parameters.z.types.number"
+      },
+      {
+        "expected": "[number]",
+        "path_pattern": "elements.vmath.vector.parameters.t.types.table"
+      }
+    ]
+  }
+}

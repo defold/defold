@@ -32,7 +32,7 @@
                            :types ["integer"]
                            :doc "HTTP status code, an integer, default 200"}
         http-headers-param {:name "[headers]"
-                            :types ["table&lt;string,string&gt;"]
+                            :types ["table<string, string>"]
                             :doc "HTTP response headers, a table from lower-case header names to header values"}
         http-response-param {:name "response" :types ["response"] :doc "HTTP response value, userdata"}
         resource-path-param {:name "resource_path"
@@ -160,7 +160,7 @@ editor.command({
           :description "Query information about a project resource"
           :parameters [resource-path-param]
           :returnvalues [{:name "value"
-                          :types ["table"]
+                          :types ["{ exists:boolean, is_file:boolean, is_directory:boolean }"]
                           :doc (str "A table with the following keys:"
                                     (lua-completion/args-doc-html
                                       [{:name "exists"
@@ -222,7 +222,7 @@ editor.create_resources({
                         :types ["string"]
                         :doc "External file path, resolved against project root if relative"}]
           :returnvalues [{:name "attributes"
-                          :types ["table"]
+                          :types ["{ path:string, exists:boolean, is_file:boolean, is_directory:boolean }"]
                           :doc "A table with the following keys:<dl>
                                                  <dt><code>path <small>string</small></code></dt>
                                                  <dd>resolved file path</dd>
@@ -242,7 +242,7 @@ editor.create_resources({
                         :types ["string"]
                         :doc "Optional shell command arguments"}
                        {:name "[options]"
-                        :types ["table"]
+                        :types ["{ reload_resources?:boolean, out?:string, err?:string }"]
                         :doc "Optional options table. Supported entries:
                                            <ul>
                                              <li>
@@ -287,7 +287,7 @@ editor.create_resources({
           :parameters [{:name "[options]"
                         :types ["table"]
                         :doc "table of command line options for bob, without the leading dashes (<code>--</code>). You can use snake_case instead of kebab-case for option keys. Only long option names are supported (i.e. <code>output</code>, not <code>o</code>). Supported value types are strings, integers and booleans. If an option takes no arguments, use a boolean (i.e. <code>true</code>). If an option may be repeated, you can use an array of values."}
-                       {:name "[...commands]"
+                       {:name "[...]"
                         :types ["string"]
                         :doc "bob commands, e.g. <code>\"resolve\"</code> or <code>\"build\"</code>"}]
           :returnvalues []
@@ -671,17 +671,23 @@ end
            {:name "localization.and_list"
             :type :function
             :description "Create a message pattern that renders a list with the \"and\" conjunction (for example: a, b, and c) once it is stringified"
-            :parameters [{:name "items" :types ["any[]"] :doc localizable-items-doc}]
+            :parameters [{:name "items"
+                          :types ["(nil|boolean|number|string|message)[]"]
+                          :doc localizable-items-doc}]
             :returnvalues [message-pattern-ret]}
            {:name "localization.or_list"
             :type :function
             :description "Create a message pattern that renders a list with the \"or\" conjunction (for example: a, b, or c) once it is stringified"
-            :parameters [{:name "items" :types ["any[]"] :doc localizable-items-doc}]
+            :parameters [{:name "items"
+                          :types ["(nil|boolean|number|string|message)[]"]
+                          :doc localizable-items-doc}]
             :returnvalues [message-pattern-ret]}
            {:name "localization.concat"
             :type :function
             :description "Create a message pattern that concatenates values (similar to <code>table.concat</code>) and performs the actual concatenation when stringified"
-            :parameters [{:name "items" :types ["any[]"] :doc localizable-items-doc}
+            :parameters [{:name "items"
+                          :types ["(nil|boolean|number|string|message)[]"]
+                          :doc localizable-items-doc}
                          {:name "[separator]"
                           :types ["nil" "boolean" "number" "string" "message"]
                           :doc "optional separator inserted between values; defaults to an empty string"}]
@@ -964,7 +970,7 @@ end
                           :types ["string"]
                           :doc "output zip file path, resolved against project root if relative"}
                          {:name "[opts]"
-                          :types ["table"]
+                          :types ["{ method?:string, level?:integer }"]
                           :doc (str "compression options, a table with the following keys:"
                                     (lua-completion/args-doc-html [method-param level-param]))}
                          {:name "entries"

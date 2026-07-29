@@ -125,7 +125,7 @@
 
 (defn- enum-prop [name & {:keys [enum doc] :as props}]
   (apply make-prop name (mapcat identity (cond-> (assoc props :coerce (get-enum-coercer enum)
-                                                              :types ["string"])
+                                                   :types ["string"])
                                                  doc
                                                  (update :doc doc-with-ul-options (enum-doc-options enum))))))
 
@@ -721,7 +721,7 @@
                  :types ["any" "function"]
                  :doc "local state initializer, either initial data structure or function that produces the data structure"}
                 {:name "[...]"
-                 :types ["...any"]
+                 :types ["any"]
                  :doc "used when <code>init</code> is a function, the args are passed to the initializer function"}]
    :returnvalues [{:name "state"
                    :types ["any"]
@@ -755,10 +755,10 @@ end)</code></pre>"})
                  :types ["function"]
                  :doc "function that will be used to compute the cached value"}
                 {:name "[...]"
-                 :types ["...any"]
+                 :types ["any"]
                  :doc "args to the computation function"}]
    :returnvalues [{:name "values"
-                   :types ["...any"]
+                   :types ["any"]
                    :doc "all returned values of the compute function"}]
    :examples "<pre><code>local function increment(n)
     return n + 1

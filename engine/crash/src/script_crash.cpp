@@ -120,7 +120,7 @@ namespace dmCrash
      * There are 32 slots indexed from 0. Each slot stores at most 255 characters.
      *
      * @name crash.set_user_field
-     * @param index [type:number] slot index. 0-indexed
+     * @param index [type:crash.USERFIELD] slot index. 0-indexed
      * @param value [type:string] string value to store
      */
     static int Crash_SetUserField(lua_State* L)
@@ -149,7 +149,7 @@ namespace dmCrash
      *
      * @name crash.get_modules
      * @param handle [type:number] crash dump handle
-     * @return modules [type:table] module table
+     * @return modules [type:{ name:string, address:string }[]] module table
      */
     static int Crash_GetModules(lua_State* L)
     {
@@ -192,7 +192,7 @@ namespace dmCrash
      *
      * @name crash.get_user_field
      * @param handle [type:number] crash dump handle
-     * @param index [type:number] user data slot index
+     * @param index [type:crash.USERFIELD] user data slot index
      * @return value [type:string] user data value recorded in the crash dump
      */
     static int Crash_GetUserField(lua_State* L)
@@ -221,7 +221,7 @@ namespace dmCrash
      *
      * @name crash.get_sys_field
      * @param handle [type:number] crash dump handle
-     * @param index [type:number] system field enum. Must be less than [ref:crash.SYSFIELD_MAX]
+     * @param index [type:crash.SYSFIELD] system field enum. Must be less than [ref:crash.SYSFIELD_MAX]
      * @return value [type:string|nil] value recorded in the crash dump, or `nil` if it didn't exist
      */
     static int Crash_GetSysField(lua_State* L)

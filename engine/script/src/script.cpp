@@ -588,7 +588,7 @@ namespace dmScript
      * will recurse.
      *
      * @name pprint
-     * @param v [type:any] value to print
+     * @param ... [type:any] values to print
      * @examples
      *
      * Pretty printing a Lua table with a nested table:

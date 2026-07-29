@@ -141,6 +141,23 @@ foobar
         p3 = elements[0].parameters[2]
         self.assertEqual(True, p3.is_optional)
 
+    def test_nested_lua_type_expression(self):
+        doc = """
+/*#
+ * MY_DESC
+ * @name MY_NAME
+ * @param options [type:table<string, {value:number|nil}>|string[]] DOC
+ */
+"""
+        parameter = script_doc.parse_document(doc).elements[0].parameters[0]
+        self.assertEqual(
+            ["table<string, {value:number|nil}>", "string[]"],
+            list(parameter.types))
+
+    def test_invalid_nested_lua_type_expression(self):
+        with self.assertRaises(ValueError):
+            script_doc.extract_type_from_docstr("[type:table<string, {value:number>] DOC")
+
     def test_return(self):
         doc= """
 /*#
@@ -180,7 +197,7 @@ foobar
         self.assertEqual(True, True) # make sure it doesn't crash
 
 
-    def test_wrong_type(self):
+    def test_lua_type_validation_is_deferred(self):
         doc= """
 /*#
  * MY_DESC
@@ -188,13 +205,8 @@ foobar
  * @param param_x [type:foobar] DOCX
  */
 """
-        exception = False
-        try:
-            script_doc.parse_document(doc)
-        except Exception:
-            exception = True
-
-        self.assertEqual(exception, True)
+        parameter = script_doc.parse_document(doc).elements[0].parameters[0]
+        self.assertEqual(["foobar"], list(parameter.types))
 
 
     def test_document(self):

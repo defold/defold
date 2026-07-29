@@ -565,7 +565,7 @@ namespace dmGui
      *
      * @name gui.get_type
      * @param node [type:node] node from which to get the type
-     * @return type [type:constant] type
+     * @return type [type:gui.TYPE] type
      *
      * - `gui.TYPE_BOX`
      * - `gui.TYPE_TEXT`
@@ -679,7 +679,7 @@ namespace dmGui
      *
      * @name gui.get
      * @param node [type:node] node to get the property for
-     * @param property [type:string|hash|constant] the property to retrieve
+     * @param property [type:string|hash|gui.PROP] the property to retrieve
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:number] index into array property (1 based)
      *
@@ -823,7 +823,7 @@ namespace dmGui
      *
      * @name gui.set
      * @param node [type:node|url] node to set the property for, or msg.url() to the gui itself
-     * @param property [type:string|hash|constant] the property to set
+     * @param property [type:string|hash|gui.PROP] the property to set
      * @param value [type:number|vector4|vector3|quaternion|nil] the property to set. `nil` is only supported for removing runtime texture mappings with `gui.set(msg.url(), "textures", nil, {key = ...})`.
      * @param [options] [type:table] optional options table (only applicable for material constants)
      * - `index` [type:number] index into array property (1 based)
@@ -1440,7 +1440,7 @@ namespace dmGui
      *
      * @name gui.animate
      * @param node [type:node] node to animate
-     * @param property [type:string|constant] property to animate
+     * @param property [type:gui.PROP|hash] property to animate
      *
      * - `"position"`
      * - `"rotation"`
@@ -1473,14 +1473,14 @@ namespace dmGui
      * - `gui.PROP_SLICE9`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
-     * @param easing [type:constant|vector] easing to use during animation.
+     * @param easing [type:gui.EASING|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
      *      [type:vector] with a custom curve. See the <a href="/manuals/animation#_easing">animation guide</a> for more information.
      * @param duration [type:number] duration of the animation in seconds.
      * @param [delay] [type:number] delay before the animation starts in seconds.
-     * @param [complete_function] [type:function(self, node)] function to call when the
+     * @param [complete_function] [type:fun(self:any, node:node)] function to call when the
      *      animation has completed
-     * @param [playback] [type:constant] playback mode
+     * @param [playback] [type:gui.PLAYBACK] playback mode
      *
      * - `gui.PLAYBACK_ONCE_FORWARD`
      * - `gui.PLAYBACK_ONCE_BACKWARD`
@@ -1637,7 +1637,7 @@ namespace dmGui
      *
      * @name gui.cancel_animations
      * @param node [type:node] node that should have its animation canceled
-     * @param [property] [type:nil|string|constant] optional property for which the animation should be canceled
+     * @param [property] [type:nil|string|gui.PROP] optional property for which the animation should be canceled
      *
      * - `"position"`
      * - `"rotation"`
@@ -1871,7 +1871,7 @@ namespace dmGui
      *
      * @name gui.get_blend_mode
      * @param node [type:node] node from which to get the blend mode
-     * @return blend_mode [type:constant] blend mode
+     * @return blend_mode [type:gui.BLEND] blend mode
      *
      * - `gui.BLEND_ALPHA`
      * - `gui.BLEND_ADD`
@@ -1892,7 +1892,7 @@ namespace dmGui
      *
      * @name gui.set_blend_mode
      * @param node [type:node] node to set blend mode for
-     * @param blend_mode [type:constant] blend mode to set
+     * @param blend_mode [type:gui.BLEND] blend mode to set
      *
      * - `gui.BLEND_ALPHA`
      * - `gui.BLEND_ADD`
@@ -2028,7 +2028,7 @@ namespace dmGui
      * @name gui.play_flipbook
      * @param node [type:node] node to set animation for
      * @param animation [type:string|hash] animation id
-     * @param [complete_function] [type:function(self, node)] optional function to call when the animation has completed
+     * @param [complete_function] [type:fun(self:any, node:node)] optional function to call when the animation has completed
      *
      * `self`
      * :        [type:object] The current object.
@@ -2036,7 +2036,7 @@ namespace dmGui
      * `node`
      * :        [type:node] The node that is animated.
      *
-     * @param [play_properties] [type:table] optional table with properties
+     * @param [play_properties] [type:{ offset?:number, playback_rate?:number }] optional table with properties
      *
      * `offset`
      * : [type:number] The normalized initial value of the animation cursor when the animation starts playing
@@ -2190,7 +2190,7 @@ namespace dmGui
      * @param buffer [type:string] texture data
      * @param flip [type:boolean] flip texture vertically
      * @return success [type:boolean] texture creation was successful
-     * @return code [type:number] one of the gui.RESULT_* codes if unsuccessful
+     * @return code [type:gui.RESULT|nil] one of the gui.RESULT_* codes if unsuccessful
      * @examples
      *
      * How to create a texture and apply it to a new box node:
@@ -2746,7 +2746,7 @@ namespace dmGui
      * no display profiles are assigned), the width/height pair is 0.
      *
      * @name gui.get_layouts
-     * @return [type:table] layout_id_hash -> vmath.vector3(width, height, 0)
+     * @return [type:table<hash, vector3>] layout_id_hash -> vmath.vector3(width, height, 0)
      */
     static int LuaGetLayouts(lua_State* L)
     {
@@ -2785,7 +2785,7 @@ namespace dmGui
      *
      * @name gui.get_clipping_mode
      * @param node [type:node] node from which to get the clipping mode
-     * @return clipping_mode [type:constant] clipping mode
+     * @return clipping_mode [type:gui.CLIPPING_MODE] clipping mode
      * <ul>
      *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
      *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
@@ -2803,7 +2803,7 @@ namespace dmGui
      *
      * @name gui.set_clipping_mode
      * @param node [type:node] node to set clipping mode for
-     * @param clipping_mode [type:constant] clipping mode to set
+     * @param clipping_mode [type:gui.CLIPPING_MODE] clipping mode to set
      * <ul>
      *   <li><code>gui.CLIPPING_MODE_NONE</code></li>
      *   <li><code>gui.CLIPPING_MODE_STENCIL</code></li>
@@ -2885,7 +2885,7 @@ namespace dmGui
      *
      * @name gui.get_xanchor
      * @param node [type:node] node to get x-anchor from
-     * @return anchor [type:constant] anchor constant
+     * @return anchor [type:gui.ANCHOR] anchor constant
      *
      * - `gui.ANCHOR_NONE`
      * - `gui.ANCHOR_LEFT`
@@ -2909,7 +2909,7 @@ namespace dmGui
      *
      * @name gui.set_xanchor
      * @param node [type:node] node to set x-anchor for
-     * @param anchor [type:constant] anchor constant
+     * @param anchor [type:gui.ANCHOR] anchor constant
      *
      * - `gui.ANCHOR_NONE`
      * - `gui.ANCHOR_LEFT`
@@ -2943,7 +2943,7 @@ namespace dmGui
      *
      * @name gui.get_yanchor
      * @param node [type:node] node to get y-anchor from
-     * @return anchor [type:constant] anchor constant
+     * @return anchor [type:gui.ANCHOR] anchor constant
      *
      * - `gui.ANCHOR_NONE`
      * - `gui.ANCHOR_TOP`
@@ -2971,7 +2971,7 @@ namespace dmGui
      *
      * @name gui.set_yanchor
      * @param node [type:node] node to set y-anchor for
-     * @param anchor [type:constant] anchor constant
+     * @param anchor [type:gui.ANCHOR] anchor constant
      *
      * - `gui.ANCHOR_NONE`
      * - `gui.ANCHOR_TOP`
@@ -3005,7 +3005,7 @@ namespace dmGui
      *
      * @name gui.get_pivot
      * @param node [type:node] node to get pivot from
-     * @return pivot [type:constant] pivot constant
+     * @return pivot [type:gui.PIVOT] pivot constant
      * <ul>
      *   <li><code>gui.PIVOT_CENTER</code></li>
      *   <li><code>gui.PIVOT_N</code></li>
@@ -3040,7 +3040,7 @@ namespace dmGui
      *
      * @name gui.set_pivot
      * @param node [type:node] node to set pivot for
-     * @param pivot [type:constant] pivot constant
+     * @param pivot [type:gui.PIVOT] pivot constant
      * <ul>
      *   <li><code>gui.PIVOT_CENTER</code></li>
      *   <li><code>gui.PIVOT_N</code></li>
@@ -3317,7 +3317,7 @@ namespace dmGui
      *
      * @name gui.set_outer_bounds
      * @param node [type:node] node for which to set the outer bounds mode
-     * @param bounds_mode [type:constant] the outer bounds mode of the pie node:
+     * @param bounds_mode [type:gui.PIEBOUNDS] the outer bounds mode of the pie node:
      *
      * - `gui.PIEBOUNDS_RECTANGLE`
      * - `gui.PIEBOUNDS_ELLIPSE`
@@ -3348,7 +3348,7 @@ namespace dmGui
      *
      * @name gui.get_outer_bounds
      * @param node [type:node] node from where to get the outer bounds mode
-     * @return bounds_mode [type:constant] the outer bounds mode of the pie node:
+     * @return bounds_mode [type:gui.PIEBOUNDS] the outer bounds mode of the pie node:
      *
      * - `gui.PIEBOUNDS_RECTANGLE`
      * - `gui.PIEBOUNDS_ELLIPSE`
@@ -3591,7 +3591,7 @@ namespace dmGui
      *
      * @name gui.get_adjust_mode
      * @param node [type:node] node from which to get the adjust mode (node)
-     * @return adjust_mode [type:constant] the current adjust mode
+     * @return adjust_mode [type:gui.ADJUST] the current adjust mode
      *
      * - `gui.ADJUST_FIT`
      * - `gui.ADJUST_ZOOM`
@@ -3611,7 +3611,7 @@ namespace dmGui
      *
      * @name gui.set_adjust_mode
      * @param node [type:node] node to set adjust mode for
-     * @param adjust_mode [type:constant] adjust mode to set
+     * @param adjust_mode [type:gui.ADJUST] adjust mode to set
      *
      * - `gui.ADJUST_FIT`
      * - `gui.ADJUST_ZOOM`
@@ -3632,7 +3632,7 @@ namespace dmGui
      * Sets how the safe area is applied to this gui scene.
      *
      * @name gui.set_safe_area_mode
-     * @param mode [type:constant] safe area mode
+     * @param mode [type:gui.SAFE_AREA] safe area mode
      *
      * - `gui.SAFE_AREA_NONE`
      * - `gui.SAFE_AREA_LONG`
@@ -3665,7 +3665,7 @@ namespace dmGui
      *
      * @name gui.get_size_mode
      * @param node [type:node] node from which to get the size mode (node)
-     * @return size_mode [type:constant] the current size mode
+     * @return size_mode [type:gui.SIZE_MODE] the current size mode
      *
      *   - `gui.SIZE_MODE_MANUAL`
      *   - `gui.SIZE_MODE_AUTO`
@@ -3687,7 +3687,7 @@ namespace dmGui
      *
      * @name gui.set_size_mode
      * @param node [type:node] node to set size mode for
-     * @param size_mode [type:constant] size mode to set
+     * @param size_mode [type:gui.SIZE_MODE] size mode to set
      *
      *   - `gui.SIZE_MODE_MANUAL`
      *   - `gui.SIZE_MODE_AUTO`
@@ -3928,7 +3928,7 @@ namespace dmGui
      *
      * @name gui.clone_tree
      * @param node [type:node] root node to clone
-     * @return clones [type:table] a table mapping node ids to the corresponding cloned nodes
+     * @return clones [type:table<hash, node>] a table mapping node ids to the corresponding cloned nodes
      */
     static int LuaCloneTree(lua_State* L)
     {
@@ -4007,7 +4007,7 @@ namespace dmGui
      *
      * @name gui.get_tree
      * @param node [type:node] root node to get node tree from
-     * @return clones [type:table] a table mapping node ids to the corresponding nodes
+     * @return clones [type:table<hash, node>] a table mapping node ids to the corresponding nodes
      */
     static int LuaGetTree(lua_State* L)
     {
@@ -4108,7 +4108,7 @@ namespace dmGui
      * This function is only available on iOS and Android. [icon:ios] [icon:android].
      *
      * @name gui.show_keyboard
-     * @param type [type:constant] keyboard type
+     * @param type [type:gui.KEYBOARD_TYPE] keyboard type
      *
      * - `gui.KEYBOARD_TYPE_DEFAULT`
      * - `gui.KEYBOARD_TYPE_EMAIL`
@@ -4757,7 +4757,7 @@ namespace dmGui
      *
      * @name gui.play_particlefx
      * @param node [type:node] node to play particle fx for
-     * @param [emitter_state_function] [type:function(self, node, emitter, state)] optional callback function that will be called when an emitter attached to this particlefx changes state.
+     * @param [emitter_state_function] [type:fun(self:any, node:node, emitter:hash, state:particlefx.EMITTER_STATE)] optional callback function that will be called when an emitter attached to this particlefx changes state.
      *
      * `self`
      * : [type:object] The current object
@@ -4842,7 +4842,7 @@ namespace dmGui
      *
      * @name gui.stop_particlefx
      * @param node [type:node] node to stop particle fx for
-     * @param [options] [type:table] options when stopping the particle fx. Supported options:
+     * @param [options] [type:{ clear?:boolean }] options when stopping the particle fx. Supported options:
      *
      * - [type:boolean] `clear`: instantly clear spawned particles
      */

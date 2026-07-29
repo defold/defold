@@ -481,7 +481,7 @@ namespace dmRender
     *
     * @name camera.get_orthographic_mode
     * @param camera [type:url|number|nil] camera id
-    * @return mode [type:number] one of camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or
+    * @return mode [type:camera.ORTHO_MODE] one of camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or
     * camera.ORTHO_MODE_AUTO_COVER
     */
     GET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, lua_pushnumber);
@@ -504,7 +504,7 @@ namespace dmRender
     *
     * @name camera.set_orthographic_mode
     * @param camera [type:url|number|nil] camera id
-    * @param mode [type:number] camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or camera.ORTHO_MODE_AUTO_COVER
+    * @param mode [type:camera.ORTHO_MODE] camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or camera.ORTHO_MODE_AUTO_COVER
     */
     SET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, LuaCheckOrthoZoomMode);
 

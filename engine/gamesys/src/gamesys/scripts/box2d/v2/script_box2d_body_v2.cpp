@@ -1286,13 +1286,13 @@ namespace dmGameSystem
  */
 
 /*# Get the angle in radians.
- * @name b2d.body.get_world_center
+ * @name b2d.body.get_angle
  * @param body [type: b2Body] body
  * @return angle [type: number] the current world rotation angle in radians.
  */
 
 /*# Get the world position of the center of mass.
- * @name b2d.body.get_world_center
+ * @name b2d.body.get_world_center_of_mass
  * @param body [type: b2Body] body
  * @return center [type: vector3] Get the world position of the center of mass.
  */

@@ -320,7 +320,7 @@ namespace dmGameSystem
      * Get a table of all mixer group names (hashes).
      *
      * @name sound.get_groups
-     * @return groups [type:table] table of mixer group names
+     * @return groups [type:hash[]] table of mixer group names
      * @examples
      *
      * Get the mixer groups, set all gains to 0 except for "master" and "soundfx"
@@ -428,7 +428,7 @@ namespace dmGameSystem
      *
      * @name sound.play
      * @param url [type:string|hash|url] the sound that should play
-     * @param [play_properties] [type:table] optional table with properties:
+     * @param [play_properties] [type:{ delay?:number, gain?:number, pan?:number, speed?:number, start_time?:number, start_frame?:number }] optional table with properties:
      * `delay`
      * : [type:number] delay in seconds before the sound starts playing, default is 0.
      *
@@ -447,7 +447,7 @@ namespace dmGameSystem
      * `start_frame`
      * : [type:number] start playback offset (frames/samples). Optional, mutually exclusive with `start_time`. If both are provided, `start_frame` is used.
      *
-     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
+     * @param [complete_function] [type:fun(self:any, message_id:hash, message:message.sound.sound_done|message.sound.sound_stopped, sender:url)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
      *
      * `self`
      * : [type:object] The current object.
@@ -580,7 +580,7 @@ namespace dmGameSystem
      *
      * @name sound.stop
      * @param url [type:string|hash|url] the sound component that should stop
-     * @param [stop_properties] [type:table] optional table with properties:
+     * @param [stop_properties] [type:{ play_id:number }] optional table with properties:
      * `play_id`
      * : [type:number] the sequential play identifier that should be stopped (was given by the sound.play() function)
      *

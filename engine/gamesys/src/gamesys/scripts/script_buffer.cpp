@@ -339,7 +339,7 @@ namespace dmGameSystem
      *
      * @name buffer.create
      * @param element_count [type:number] The number of elements the buffer should hold
-     * @param declaration [type:table] A table where each entry (table) describes a stream
+     * @param declaration [type:({ name:hash|string, type:buffer.VALUE_TYPE, count:number })[]] A table where each entry (table) describes a stream
      *
      * - [type:hash|string] `name`: The name of the stream
      * - [type:constant] `type`: The data type of the stream
@@ -929,8 +929,8 @@ namespace dmGameSystem
      * @name buffer.set_metadata
      * @param buf [type:buffer] the buffer to set the metadata on
      * @param metadata_name [type:hash|string] name of the metadata entry
-     * @param values [type:table] actual metadata, an array of numeric values
-     * @param value_type [type:constant] type of values when stored
+     * @param values [type:number[]] actual metadata, an array of numeric values
+     * @param value_type [type:buffer.VALUE_TYPE] type of values when stored
      *
      * @examples
      * How to set a metadata entry on a buffer
@@ -1045,8 +1045,8 @@ namespace dmGameSystem
      * @name buffer.get_metadata
      * @param buf [type:buffer] the buffer to get the metadata from
      * @param metadata_name [type:hash|string] name of the metadata entry
-     * @return values [type:table|nil] table of metadata values or `nil` if the entry does not exist
-     * @return value_type [type:constant|nil] numeric type of values or `nil`
+     * @return values [type:number[]|nil] table of metadata values or `nil` if the entry does not exist
+     * @return value_type [type:buffer.VALUE_TYPE|nil] numeric type of values or `nil`
      *
      * @examples
      * How to get a metadata entry from a buffer

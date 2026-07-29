@@ -1,0 +1,315 @@
+# Cross-document metadata for the generated Lua language-server annotations.
+#
+# The initial contents were reconciled with defold-annotations at:
+# https://github.com/astrochili/defold-annotations/tree/b0731459640bb6aa9f91ea24128bb6584c270160
+#
+# Source-specific documentation corrections belong in their source API comments,
+# not in this file.
+
+migration:
+  source_commit: b0731459640bb6aa9f91ea24128bb6584c270160
+  patch_files: 31
+  patch_entries: 176
+  manifest: lua_annotations_migration.json
+
+standard_namespaces:
+  - base
+  - coroutine
+  - debug
+  - io
+  - math
+  - os
+  - package
+  - string
+  - table
+
+excluded_functions:
+  - init
+  - update
+  - fixed_update
+  - on_input
+  - on_message
+  - on_reload
+  - final
+
+excluded_function_patterns:
+  - "client:*"
+  - "server:*"
+  - "master:*"
+  - "connected:*"
+  - "unconnected:*"
+
+allowed_diagnostics:
+  - lowercase-global
+  - missing-return
+  - args-after-dots
+
+known_types:
+  - nil
+  - any
+  - boolean
+  - number
+  - integer
+  - string
+  - userdata
+  - function
+  - thread
+  - table
+  - file
+
+aliases:
+  array: table
+  bool: boolean
+  float: number
+  quaternion: vector4
+  hash: userdata
+  node: userdata
+  constant: number
+  vector: userdata
+  resource_data: userdata
+  constant_buffer: userdata
+  render_target: string|userdata
+  render_predicate: userdata
+  buffer_stream: userdata
+  buffer_data: userdata
+  b2d.world: userdata
+  b2d.body: userdata
+  b2d.joint: userdata
+  b2d.chain: userdata
+  b2d.shape: userdata
+  b2d.contact_edge: userdata
+  socket_client: userdata
+  socket_master: userdata
+  socket_unconnected: userdata
+  editor.schema: userdata
+  editor.component: userdata
+  editor.transaction_step: userdata
+  editor.tiles: userdata
+  editor.image: userdata
+  editor.command: userdata
+  editor.message: userdata
+  http.response: userdata
+  http.route: userdata
+
+type_replacements:
+  quat: quaternion
+  resource: resource_data
+  buffer: buffer_data
+  bufferstream: buffer_stream
+  handle: number
+  texture: number
+  predicate: render_predicate
+  client: socket_client
+  master: socket_master
+  unconnected: socket_unconnected
+  vmath.vector3: vector3
+  vmath.vector4: vector4
+  vecto4: vector4
+  schema: editor.schema
+  component: editor.component
+  tiles: editor.tiles
+  transaction_step: editor.transaction_step
+  command: editor.command
+  response: http.response
+  route: http.route
+  message: editor.message
+  b2World: b2d.world
+  b2Body: b2d.body
+  b2BodyType: b2d.body.B2
+  b2Joint: b2d.joint
+  b2Chain: b2d.chain
+  b2Shape: b2d.shape
+  b2ContactEdge: b2d.contact_edge
+  b2MassData: b2d.mass_data
+  b2Transform: b2d.transform
+  image: editor.image
+
+generics:
+  vmath.clamp: number|vector3|vector4
+  vmath.dot: vector3|vector4
+  vmath.normalize: vector3|vector4|quaternion
+  vmath.mul_per_elem: vector3|vector4
+  vmath.slerp: vector3|vector4
+  vmath.lerp: vector3|vector4
+
+enums:
+  b2d.body.B2: {}
+  buffer.VALUE_TYPE: {}
+  camera.ORTHO_MODE: {}
+  collectionfactory.STATUS: {}
+  collectionproxy.RESULT: {}
+  crash.SYSFIELD: {}
+  crash.USERFIELD: {}
+  factory.STATUS: {}
+  go.EASING: {}
+  go.PLAYBACK: {}
+  graphics.BLEND_FACTOR: {}
+  graphics.BUFFER_TYPE: {}
+  graphics.COMPARE_FUNC: {}
+  graphics.COMPRESSION_TYPE: {}
+  graphics.FACE_TYPE: {}
+  graphics.STATE: {}
+  graphics.STENCIL_OP: {}
+  graphics.TEXTURE_FILTER: {}
+  graphics.TEXTURE_FORMAT: {}
+  graphics.TEXTURE_TYPE: {}
+  graphics.TEXTURE_USAGE_FLAG: {}
+  graphics.TEXTURE_WRAP: {}
+  gui.ADJUST: {}
+  gui.ANCHOR: {}
+  gui.BLEND: {}
+  gui.CLIPPING_MODE: {}
+  gui.EASING: {}
+  gui.KEYBOARD_TYPE: {}
+  gui.PIEBOUNDS: {}
+  gui.PIVOT: {}
+  gui.PLAYBACK: {}
+  gui.PROP:
+    value_type: string
+  gui.RESULT: {}
+  gui.SAFE_AREA: {}
+  gui.SIZE_MODE: {}
+  gui.TYPE: {}
+  image.TYPE: {}
+  liveupdate.LIVEUPDATE: {}
+  particlefx.EMITTER_STATE: {}
+  physics.JOINT_TYPE: {}
+  physics.SHAPE_TYPE: {}
+  profiler.MODE: {}
+  profiler.VIEW_MODE: {}
+  render.CONTEXT_EVENT:
+    members:
+      - render.CONTEXT_EVENT_CONTEXT_LOST
+      - render.CONTEXT_EVENT_CONTEXT_RESTORED
+  render.FRUSTUM_PLANES: {}
+  render.SORT: {}
+  sys.NETWORK: {}
+  sys.REQUEST_STATUS: {}
+  tilemap.TRANSFORM:
+    members:
+      - tilemap.H_FLIP
+      - tilemap.ROTATE_180
+      - tilemap.ROTATE_270
+      - tilemap.ROTATE_90
+      - tilemap.V_FLIP
+  window.DIMMING: {}
+  window.WINDOW_EVENT: {}
+
+classes:
+  vector3:
+    fields:
+      x: number
+      y: number
+      z: number
+    operators:
+      add: ["vector3", "vector3"]
+      sub: ["vector3", "vector3"]
+      mul: ["number", "vector3"]
+      unm: [null, "vector3"]
+  vector4:
+    fields:
+      x: number
+      y: number
+      z: number
+      w: number
+    operators:
+      add: ["vector4", "vector4"]
+      sub: ["vector4", "vector4"]
+      mul: ["number", "vector4"]
+      unm: [null, "vector4"]
+  url:
+    fields:
+      socket: hash
+      path: hash
+      fragment: hash
+  matrix4:
+    fields:
+      m00: number
+      m01: number
+      m02: number
+      m03: number
+      m10: number
+      m11: number
+      m12: number
+      m13: number
+      m20: number
+      m21: number
+      m22: number
+      m23: number
+      m30: number
+      m31: number
+      m32: number
+      m33: number
+      c0: vector4
+      c1: vector4
+      c2: vector4
+      c3: vector4
+  b2d.mass_data:
+    fields:
+      mass: number
+      center: vector3
+      inertia: number
+  b2d.transform:
+    fields:
+      position: vector3
+      angle: number
+  resource.atlas:
+    fields:
+      texture: string|hash
+      animations: resource.animation[]
+      geometries: resource.geometry[]
+  resource.animation:
+    fields:
+      id: string
+      width: integer
+      height: integer
+      frames: integer[]
+      playback?: go.PLAYBACK
+      fps?: integer
+      flip_vertical?: boolean
+      flip_horizontal?: boolean
+  resource.geometry:
+    fields:
+      id: string
+      width: number
+      height: number
+      pivot_x: number
+      pivot_y: number
+      rotated: boolean
+      vertices: number[]
+      uvs: number[]
+      indices: number[]
+  on_input.action:
+    fields:
+      value?: number
+      pressed?: boolean
+      released?: boolean
+      repeated?: boolean
+      x?: number
+      y?: number
+      screen_x?: number
+      screen_y?: number
+      dx?: number
+      dy?: number
+      screen_dx?: number
+      screen_dy?: number
+      gamepad?: integer
+      touch?: on_input.touch[]
+      text?: string
+  on_input.touch:
+    fields:
+      id: number
+      pressed: boolean
+      released: boolean
+      tap_count: integer
+      x: number
+      y: number
+      dx: number
+      dy: number
+      acc_x?: number
+      acc_y?: number
+      acc_z?: number
+      screen_x?: number
+      screen_y?: number
+      screen_dx?: number
+      screen_dy?: number

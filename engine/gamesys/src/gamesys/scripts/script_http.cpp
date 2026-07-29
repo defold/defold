@@ -268,7 +268,7 @@ namespace dmGameSystem
      * @name http.request
      * @param url [type:string] target url
      * @param method [type:string] HTTP/HTTPS method, e.g. "GET", "PUT", "POST" etc.
-     * @param callback [type:function(self, id, response)] response callback function
+     * @param callback [type:fun(self:any, id:hash, response:table)] response callback function
      *
      * `self`
      * : [type:object] The script instance

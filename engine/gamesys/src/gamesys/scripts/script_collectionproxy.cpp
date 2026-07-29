@@ -131,7 +131,7 @@ namespace dmGameSystem
      * @param [url] [type:string|hash|url] the collection proxy component
      * @param [prototype] [type:string|nil] the path to the new collection, or `nil`
      * @return success [type:boolean] collection change was successful
-     * @return code [type:number] one of the collectionproxy.RESULT_* codes if unsuccessful
+     * @return code [type:collectionproxy.RESULT] one of the collectionproxy.RESULT_* codes if unsuccessful
      *
      * @examples
      *
@@ -599,7 +599,7 @@ namespace dmGameSystem
      * @namespace collectionproxy
      * @name collectionproxy.get_resources
      * @param collectionproxy [type:url] the collectionproxy to check for resources.
-     * @return resources [type:table] the resources, or an empty list if the
+     * @return resources [type:string[]] the resources, or an empty list if the
      * collection was not excluded.
      *
      * @examples

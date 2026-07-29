@@ -112,7 +112,7 @@ namespace dmGameSystem
     * `flip_vertically`
     * : [type:boolean] True if the image contents should be flipped vertically. Defaults to `false`.
     *
-    * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
+    * @return image [type:{ width:number, height:number, type:image.TYPE, buffer:string }|nil] object or `nil` if loading fails. The object is a table with the following fields:
     *
     * - [type:number] `width`: image width
     * - [type:number] `height`: image height
@@ -214,7 +214,7 @@ namespace dmGameSystem
     * `flip_vertically`
     * : [type:boolean] True if the image contents should be flipped vertically. Defaults to `false`.
     *
-    * @return image [type:table|nil] object or `nil` if loading fails. The object is a table with the following fields:
+    * @return image [type:{ width:number, height:number, type:image.TYPE, buffer:buffer_data }|nil] object or `nil` if loading fails. The object is a table with the following fields:
     *
     * - [type:number] `width`: image width
     * - [type:number] `height`: image height
@@ -337,7 +337,7 @@ namespace dmGameSystem
     * @name image.get_astc_header
     * @param buffer [type:string] .astc file data buffer
     *
-    * @return table [type:table|nil] header or `nil` if buffer is not a valid .astc. The header has these fields:
+    * @return table [type:{ width:number, height:number, depth:number, block_size_x:number, block_size_y:number, block_size_z:number }|nil] header or `nil` if buffer is not a valid .astc. The header has these fields:
     *
     * - [type:number] `width`: image width
     * - [type:number] `height`: image height

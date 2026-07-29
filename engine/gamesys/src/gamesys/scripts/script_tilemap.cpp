@@ -157,7 +157,7 @@ namespace dmGameSystem
      * @param x [type:number] x-coordinate of the tile
      * @param y [type:number] y-coordinate of the tile
      * @param tile [type:number] index of new tile to set. 0 resets the cell
-     * @param [transform_bitmask] [type:number] optional flip and/or rotation should be applied to the tile
+     * @param [transform_bitmask] [type:tilemap.TRANSFORM] optional flip and/or rotation should be applied to the tile
      * @examples
      *
      * ```lua

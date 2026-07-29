@@ -11,6 +11,7 @@ set(DOCS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(DOCS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 set(DOCS_APIDOC_DIR "${DOCS_BUILD_DIR}/apidoc")
 set(DOCS_CONVERTED_DIR "${DOCS_BUILD_DIR}/converted")
+set(DOCS_LUA_DIR "${DOCS_CONVERTED_DIR}/lua")
 set(DOCS_STAMP_DIR "${DOCS_BUILD_DIR}/stamps")
 set(DOCS_PROTO_PY_DIR "${DOCS_BUILD_DIR}/python")
 set(DOCS_PROTO_PY "${DOCS_PROTO_PY_DIR}/script_doc_ddf_pb2.py")
@@ -18,12 +19,30 @@ set(DOCS_SHARE_DIR "${DEFOLD_SDK_ROOT}/share")
 set(DOCS_OUTPUT_DIR "${DOCS_SHARE_DIR}/doc")
 set(DOCS_ARCHIVE "${DOCS_SHARE_DIR}/ref-doc.zip")
 set(DOCS_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/docs_outputs.txt")
+set(DOCS_LUA_OUTPUT_MANIFEST "${DOCS_BUILD_DIR}/lua_outputs.txt")
+set(DOCS_LUA_METADATA "${DOCS_ROOT}/lua_annotations.yaml")
+set(DOCS_LUA_MIGRATION_MANIFEST "${DOCS_ROOT}/lua_annotations_migration.json")
+set(DOCS_LUA_FIXTURE_DIR "${DOCS_ROOT}/testdata/lua_annotations")
 
 set(DEFOLD_DOCS_FORMATS "sdoc;json;script_api;lua" CACHE STRING "Semicolon-separated docs output formats")
 set(DEFOLD_DOCS_RUN_TESTS ON CACHE BOOL "Run script_doc.py tests when building docs")
+set(DEFOLD_DOCS_LUALS_EXECUTABLE "$ENV{DEFOLD_DOCS_LUALS_EXECUTABLE}" CACHE FILEPATH
+  "Optional Lua language server executable used to validate generated annotations")
 
 set(_DOCS_ALL_FORMATS sdoc json script_api lua)
 set(_DOCS_SOURCE_EXTENSIONS .h .hpp .cpp .cs .c .doc_h .proto .apidoc)
+set(_DOCS_PER_DOCUMENT_FORMATS)
+set(_DOCS_GENERATE_LUA OFF)
+foreach(_docs_format IN LISTS DEFOLD_DOCS_FORMATS)
+  list(FIND _DOCS_ALL_FORMATS "${_docs_format}" _docs_format_index)
+  if(_docs_format_index EQUAL -1)
+    message(FATAL_ERROR "Unknown docs format '${_docs_format}' in DEFOLD_DOCS_FORMATS")
+  elseif(_docs_format STREQUAL "lua")
+    set(_DOCS_GENERATE_LUA ON)
+  else()
+    list(APPEND _DOCS_PER_DOCUMENT_FORMATS "${_docs_format}")
+  endif()
+endforeach()
 
 defold_protoc_gen_py(
   "${DOCS_PROTO_PY}"
@@ -160,32 +179,61 @@ foreach(_docs_index RANGE 0 ${_DOCS_APIDOC_LAST})
   list(GET _DOCS_APIDOC_OUTPUTS ${_docs_index} _docs_apidoc)
   list(GET _DOCS_APIDOC_KEYS ${_docs_index} _docs_key)
   set(_docs_outputs)
-  foreach(_docs_format IN LISTS DEFOLD_DOCS_FORMATS)
-    list(FIND _DOCS_ALL_FORMATS "${_docs_format}" _docs_format_index)
-    if(_docs_format_index EQUAL -1)
-      message(FATAL_ERROR "Unknown docs format '${_docs_format}' in DEFOLD_DOCS_FORMATS")
-    endif()
+  foreach(_docs_format IN LISTS _DOCS_PER_DOCUMENT_FORMATS)
     list(APPEND _docs_outputs "${DOCS_CONVERTED_DIR}/${_docs_key}_doc.${_docs_format}")
   endforeach()
+  if(_docs_outputs)
+    add_custom_command(
+      OUTPUT ${_docs_outputs}
+      COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
+        convert
+        --docs-dir "${DOCS_ROOT}"
+        --input "${_docs_apidoc}"
+        --output-dir "${DOCS_CONVERTED_DIR}"
+        --key "${_docs_key}"
+        --formats ${_DOCS_PER_DOCUMENT_FORMATS}
+        --pythonpath "${DOCS_PROTO_PY_DIR}"
+      DEPENDS
+        "${_docs_apidoc}"
+        "${DOCS_PROTO_PY}"
+        "${DOCS_ROOT}/build_docs.py"
+        "${DOCS_ROOT}/script_doc.py"
+      COMMENT "Converting API doc ${_docs_key}"
+      VERBATIM)
+    list(APPEND _DOCS_CONVERTED_OUTPUTS ${_docs_outputs})
+  endif()
+endforeach()
+
+set(_DOCS_LUA_DEPS)
+if(_DOCS_GENERATE_LUA)
+  set(DOCS_LUA_STAMP "${DOCS_STAMP_DIR}/lua.stamp")
+  set(_DOCS_LUA_INPUT_ARGS)
+  foreach(_docs_apidoc IN LISTS _DOCS_APIDOC_OUTPUTS)
+    list(APPEND _DOCS_LUA_INPUT_ARGS --input "${_docs_apidoc}")
+  endforeach()
   add_custom_command(
-    OUTPUT ${_docs_outputs}
+    OUTPUT "${DOCS_LUA_STAMP}" "${DOCS_LUA_OUTPUT_MANIFEST}"
     COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
-      convert
+      lua
       --docs-dir "${DOCS_ROOT}"
-      --input "${_docs_apidoc}"
-      --output-dir "${DOCS_CONVERTED_DIR}"
-      --key "${_docs_key}"
-      --formats ${DEFOLD_DOCS_FORMATS}
+      ${_DOCS_LUA_INPUT_ARGS}
+      --output-dir "${DOCS_LUA_DIR}"
+      --manifest "${DOCS_LUA_OUTPUT_MANIFEST}"
+      --metadata "${DOCS_LUA_METADATA}"
       --pythonpath "${DOCS_PROTO_PY_DIR}"
+      --stamp "${DOCS_LUA_STAMP}"
     DEPENDS
-      "${_docs_apidoc}"
+      ${_DOCS_APIDOC_OUTPUTS}
       "${DOCS_PROTO_PY}"
       "${DOCS_ROOT}/build_docs.py"
       "${DOCS_ROOT}/script_doc.py"
-    COMMENT "Converting API doc ${_docs_key}"
+      "${DOCS_ROOT}/lua_annotations.py"
+      "${DOCS_LUA_METADATA}"
+      "${DOCS_LUA_MIGRATION_MANIFEST}"
+    COMMENT "Generating aggregate Lua API annotations"
     VERBATIM)
-  list(APPEND _DOCS_CONVERTED_OUTPUTS ${_docs_outputs})
-endforeach()
+  list(APPEND _DOCS_LUA_DEPS "${DOCS_LUA_STAMP}" "${DOCS_LUA_OUTPUT_MANIFEST}")
+endif()
 
 file(WRITE "${DOCS_OUTPUT_MANIFEST}" "")
 foreach(_docs_output IN LISTS _DOCS_CONVERTED_OUTPUTS)
@@ -194,20 +242,45 @@ foreach(_docs_output IN LISTS _DOCS_CONVERTED_OUTPUTS)
 endforeach()
 
 set(DOCS_SYNC_STAMP "${DOCS_STAMP_DIR}/sync.stamp")
+set(_DOCS_SYNC_MANIFEST_ARGS --manifest "${DOCS_OUTPUT_MANIFEST}")
+if(_DOCS_GENERATE_LUA)
+  list(APPEND _DOCS_SYNC_MANIFEST_ARGS --manifest "${DOCS_LUA_OUTPUT_MANIFEST}")
+endif()
 add_custom_command(
   OUTPUT "${DOCS_SYNC_STAMP}"
   COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
     sync
-    --manifest "${DOCS_OUTPUT_MANIFEST}"
+    ${_DOCS_SYNC_MANIFEST_ARGS}
     --output-dir "${DOCS_OUTPUT_DIR}"
     --all-formats ${_DOCS_ALL_FORMATS}
     --stamp "${DOCS_SYNC_STAMP}"
   DEPENDS
     ${_DOCS_CONVERTED_OUTPUTS}
+    ${_DOCS_LUA_DEPS}
     "${DOCS_OUTPUT_MANIFEST}"
     "${DOCS_ROOT}/build_docs.py"
   COMMENT "Installing API docs"
   VERBATIM)
+
+set(_DOCS_ARCHIVE_DEP "${DOCS_SYNC_STAMP}")
+if(_DOCS_GENERATE_LUA AND DEFOLD_DOCS_LUALS_EXECUTABLE)
+  set(DOCS_LUA_VALIDATE_STAMP "${DOCS_STAMP_DIR}/validate_lua.stamp")
+  add_custom_command(
+    OUTPUT "${DOCS_LUA_VALIDATE_STAMP}"
+    COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
+      validate-lua
+      --executable "${DEFOLD_DOCS_LUALS_EXECUTABLE}"
+      --input-dir "${DOCS_OUTPUT_DIR}"
+      --metadata "${DOCS_LUA_METADATA}"
+      --stamp "${DOCS_LUA_VALIDATE_STAMP}"
+    DEPENDS
+      "${DOCS_SYNC_STAMP}"
+      "${DOCS_ROOT}/build_docs.py"
+      "${DOCS_LUA_METADATA}"
+    COMMENT "Validating Lua API annotations with LuaLS"
+    VERBATIM)
+  set(_DOCS_ARCHIVE_DEP "${DOCS_LUA_VALIDATE_STAMP}")
+endif()
 
 add_custom_command(
   OUTPUT "${DOCS_ARCHIVE}"
@@ -217,12 +290,49 @@ add_custom_command(
     --archive "${DOCS_ARCHIVE}"
     --archive-root "${DOCS_SHARE_DIR}"
   DEPENDS
-    "${DOCS_SYNC_STAMP}"
+    "${_DOCS_ARCHIVE_DEP}"
     "${DOCS_ROOT}/build_docs.py"
   COMMENT "Packaging API docs"
   VERBATIM)
 
 set(_DOCS_BUILD_DEPS "${DOCS_ARCHIVE}")
+if(_DOCS_GENERATE_LUA AND DEFOLD_DOCS_LUALS_EXECUTABLE)
+  set(DOCS_LUA_ARCHIVE_VALIDATE_STAMP "${DOCS_STAMP_DIR}/validate_lua_archive.stamp")
+  add_custom_command(
+    OUTPUT "${DOCS_LUA_ARCHIVE_VALIDATE_STAMP}"
+    COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
+      validate-lua-archive
+      --executable "${DEFOLD_DOCS_LUALS_EXECUTABLE}"
+      --archive "${DOCS_ARCHIVE}"
+      --metadata "${DOCS_LUA_METADATA}"
+      --stamp "${DOCS_LUA_ARCHIVE_VALIDATE_STAMP}"
+    DEPENDS
+      "${DOCS_ARCHIVE}"
+      "${DOCS_ROOT}/build_docs.py"
+      "${DOCS_LUA_METADATA}"
+    COMMENT "Validating packaged Lua API annotations with LuaLS"
+    VERBATIM)
+  list(APPEND _DOCS_BUILD_DEPS "${DOCS_LUA_ARCHIVE_VALIDATE_STAMP}")
+
+  set(DOCS_LUA_BEHAVIOR_VALIDATE_STAMP "${DOCS_STAMP_DIR}/validate_lua_behavior.stamp")
+  add_custom_command(
+    OUTPUT "${DOCS_LUA_BEHAVIOR_VALIDATE_STAMP}"
+    COMMAND "${Python3_EXECUTABLE}" "${DOCS_ROOT}/build_docs.py"
+      validate-lua-behavior
+      --executable "${DEFOLD_DOCS_LUALS_EXECUTABLE}"
+      --annotations-dir "${DOCS_LUA_DIR}"
+      --fixture-dir "${DOCS_LUA_FIXTURE_DIR}"
+      --stamp "${DOCS_LUA_BEHAVIOR_VALIDATE_STAMP}"
+    DEPENDS
+      "${DOCS_LUA_STAMP}"
+      "${DOCS_ROOT}/build_docs.py"
+      "${DOCS_LUA_FIXTURE_DIR}/positive.lua"
+      "${DOCS_LUA_FIXTURE_DIR}/negative.lua"
+    COMMENT "Validating Lua annotation behavior fixtures"
+    VERBATIM)
+  list(APPEND _DOCS_BUILD_DEPS "${DOCS_LUA_BEHAVIOR_VALIDATE_STAMP}")
+endif()
+
 if(DEFOLD_DOCS_RUN_TESTS)
   set(DOCS_TEST_STAMP "${DOCS_STAMP_DIR}/test_script_doc.stamp")
   add_custom_command(
@@ -236,7 +346,11 @@ if(DEFOLD_DOCS_RUN_TESTS)
       "${DOCS_PROTO_PY}"
       "${DOCS_ROOT}/build_docs.py"
       "${DOCS_ROOT}/script_doc.py"
+      "${DOCS_ROOT}/lua_annotations.py"
+      "${DOCS_ROOT}/lua_annotations.yaml"
+      "${DOCS_ROOT}/lua_annotations_migration.json"
       "${DOCS_ROOT}/test_script_doc.py"
+      "${DOCS_ROOT}/test_lua_annotations.py"
     WORKING_DIRECTORY "${DOCS_ROOT}"
     COMMENT "Running script_doc tests"
     VERBATIM)

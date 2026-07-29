@@ -99,9 +99,9 @@
        :props [(ui-docs/make-prop :item
                                   :required true
                                   :coerce schema-coercer
-                                  :types ["schema"]
+                                  :types ["editor.schema"]
                                   :doc "array item schema")
-               (make-default-prop "item[]")
+               (make-default-prop "any[]")
                scope-prop])
      (ui-docs/component
        "set"
@@ -109,9 +109,9 @@
        :props [(ui-docs/make-prop :item
                                   :required true
                                   :coerce schema-coercer
-                                  :types ["schema"]
+                                  :types ["editor.schema"]
                                   :doc "set item schema")
-               (make-default-prop "table&lt;item, true&gt;")
+               (make-default-prop "table<editor.schema, boolean>")
                scope-prop])
      (ui-docs/component
        "object"
@@ -119,9 +119,9 @@
        :props [(ui-docs/make-prop :properties
                                   :required true
                                   :coerce (coerce/map-of serializable-keyword-coercer schema-coercer)
-                                  :types ["table&lt;string, schema&gt;"]
+                                  :types ["table<string, editor.schema>"]
                                   :doc "a table from property key (string) to value schema")
-               (make-default-prop "table")
+               (make-default-prop "table<string, editor.schema>")
                scope-prop])
      (ui-docs/component
        "object_of"
@@ -129,12 +129,12 @@
        :props [(ui-docs/make-prop :key
                                   :required true
                                   :coerce schema-coercer
-                                  :types ["schema"]
+                                  :types ["editor.schema"]
                                   :doc "table key schema")
                (ui-docs/make-prop :val
                                   :required true
                                   :coerce schema-coercer
-                                  :types ["schema"]
+                                  :types ["editor.schema"]
                                   :doc "table value schema")
                (make-default-prop "table")
                scope-prop])
@@ -151,7 +151,7 @@
                                               coerce/string)
                                             :min-count 1
                                             :distinct true)
-                                  :types ["any[]"]
+                                  :types ["(nil|boolean|number|string)[]"]
                                   :doc "allowed values, must be scalar (nil, boolean, number or string)")
                (make-default-prop "any")
                scope-prop])
@@ -161,7 +161,7 @@
        :props [(ui-docs/make-prop :schemas
                                   :required true
                                   :coerce (coerce/vector-of schema-coercer :min-count 2)
-                                  :types ["schema[]"]
+                                  :types ["editor.schema[]"]
                                   :doc "alternative schemas")
                (make-default-prop "any")
                scope-prop])
@@ -171,7 +171,7 @@
        :props [(ui-docs/make-prop :items
                                   :required true
                                   :coerce (coerce/vector-of schema-coercer :min-count 2)
-                                  :types ["schema[]"]
+                                  :types ["editor.schema[]"]
                                   :doc "schemas for the items")
                (make-default-prop "any[]")
                scope-prop])]))
@@ -183,7 +183,18 @@
      :type :function
      :description description
      :parameters [{:name (if optional "[opts]" "opts")
-                   :types ["table"]
+                   :types [(str "{ "
+                                (coll/join-to-string
+                                  ", "
+                                  (into []
+                                        (map (fn [{prop-name :name
+                                                   :keys [required types]}]
+                                               (str (clojure.core/name prop-name)
+                                                    (when-not required "?")
+                                                    ":"
+                                                    (coll/join-to-string "|" types))))
+                                        props))
+                                " }")]
                    :doc (str (when-not optional
                                (str "Required opts:\n"
                                     (ui-docs/props-doc-html req)

@@ -487,7 +487,7 @@ static int EnableProfilerUI(lua_State* L)
  * Set the on-screen profile mode - run, pause, record or show peak frame
  *
  * @name profiler.set_ui_mode
- * @param mode [type:constant] the mode to set the ui profiler in
+ * @param mode [type:profiler.MODE] the mode to set the ui profiler in
  *
  * - `profiler.MODE_RUN` This is default mode that continously shows the last frame
  * - `profiler.MODE_PAUSE` Pauses on the currently displayed frame
@@ -530,7 +530,7 @@ static int SetProfileUIMode(lua_State* L)
  * Set the on-screen profile view mode - minimized or expanded
  *
  * @name profiler.set_ui_view_mode
- * @param mode [type:constant] the view mode to set the ui profiler in
+ * @param mode [type:profiler.VIEW_MODE] the view mode to set the ui profiler in
  *
  * - `profiler.VIEW_MODE_FULL` The default mode which displays all the ui profiler details
  * - `profiler.VIEW_MODE_MINIMIZED` Minimized mode which only shows the top header (fps counters and ui profiler mode)

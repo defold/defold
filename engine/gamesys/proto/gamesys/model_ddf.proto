@@ -87,7 +87,7 @@ message ModelCancelAnimation
  * @message
  * @name model_animation_done
  * @param animation_id [type:hash] the id of the completed animation
- * @param playback [type:constant] the playback mode of the completed animation
+ * @param playback [type:go.PLAYBACK] the playback mode of the completed animation
  * @examples
  *
  * ```lua

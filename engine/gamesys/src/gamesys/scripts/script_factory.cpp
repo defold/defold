@@ -62,7 +62,7 @@ namespace dmGameSystem
      *
      * @name factory.get_status
      * @param [url] [type:string|hash|url] the factory component to get status from
-     * @return status [type:constant] status of the factory component
+     * @return status [type:factory.STATUS] status of the factory component
      *
      * - `factory.STATUS_UNLOADED`
      * - `factory.STATUS_LOADING`
@@ -138,7 +138,7 @@ namespace dmGameSystem
      *
      * @name factory.load
      * @param [url] [type:string|hash|url] the factory component to load
-     * @param [complete_function] [type:function(self, url, result)] function to call when resources are loaded.
+     * @param [complete_function] [type:fun(self:any, url:url, result:boolean)] function to call when resources are loaded.
      *
      * `self`
      * : [type:object] The current object.

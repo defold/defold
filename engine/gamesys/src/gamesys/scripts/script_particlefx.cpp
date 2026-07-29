@@ -190,7 +190,7 @@ namespace dmGameSystem
      *
      * @name particlefx.play
      * @param url [type:string|hash|url] the particle fx that should start playing.
-     * @param [emitter_state_function] [type:function(self, id, emitter, state)] optional callback function that will be called when an emitter attached to this particlefx changes state.
+     * @param [emitter_state_function] [type:fun(self:any, id:hash, emitter:hash, state:particlefx.EMITTER_STATE)] optional callback function that will be called when an emitter attached to this particlefx changes state.
      *
      * `self`
      * : [type:object] The current object
@@ -295,7 +295,7 @@ namespace dmGameSystem
      *
      * @name particlefx.stop
      * @param url [type:string|hash|url] the particle fx that should stop playing
-     * @param [options] [type:table] Options when stopping the particle fx. Supported options:
+     * @param [options] [type:{ clear?:boolean }] Options when stopping the particle fx. Supported options:
      *
      * - [type:boolean] `clear`: instantly clear spawned particles
      *

@@ -398,12 +398,12 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param [options] [type:table] a lua table containing options for the raycast.
+     * @param [options] [type:{ all?:boolean }] a lua table containing options for the raycast.
      *
      * `all`
      * : [type:boolean] Set to `true` to return all ray cast hits. If `false`, it will only return the closest hit.
      *
-     * @return result [type:table|nil] It returns a list. If missed it returns `nil`. See [ref:ray_cast_response] for details on the returned values.
+     * @return result [type:message.physics.ray_cast_response[]|message.physics.ray_cast_response|nil] It returns a list. If missed it returns `nil`. See [ref:ray_cast_response] for details on the returned values.
      * @examples
      *
      * How to perform a ray cast synchronously:
@@ -680,7 +680,7 @@ namespace dmGameSystem
      * Note: Currently only supported in 2D physics.
      *
      * @name physics.create_joint
-     * @param joint_type [type:number] the joint type
+     * @param joint_type [type:physics.JOINT_TYPE] the joint type
      * @param collisionobject_a [type:string|hash|url] first collision object
      * @param joint_id [type:string|hash] id of the joint
      * @param position_a [type:vector3] local position where to attach the joint on the first collision object
@@ -772,7 +772,7 @@ namespace dmGameSystem
      * @name physics.get_joint_properties
      * @param collisionobject [type:string|hash|url] collision object where the joint exist
      * @param joint_id [type:string|hash] id of the joint
-     * @return properties [type:table] properties table. See the joint types for what fields are available, the only field available for all types is:
+     * @return properties [type:{ collide_connected?:boolean }] properties table. See the joint types for what fields are available, the only field available for all types is:
      *
      * - [type:boolean] `collide_connected`: Set this flag to true if the attached bodies should collide.
      *
@@ -1342,7 +1342,7 @@ namespace dmGameSystem
      * @name physics.get_shape
      * @param url [type:string|hash|url] the collision object.
      * @param shape [type:string|hash] the name of the shape to get data for.
-     * @return table [type:table] A table containing meta data about the physics shape
+     * @return table [type:{ type?:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }] A table containing meta data about the physics shape
      *
      * `type`
      * : [type:number] The shape type. Supported values:
@@ -1440,7 +1440,7 @@ namespace dmGameSystem
      * @name physics.set_shape
      * @param url [type:string|hash|url] the collision object.
      * @param shape [type:string|hash] the name of the shape to get data for.
-     * @param table [type:table] the shape data to update the shape with.
+     * @param table [type:{ type?:physics.SHAPE_TYPE, diameter?:number, dimensions?:vector3, height?:number }] the shape data to update the shape with.
      *
      * See [ref:physics.get_shape] for a detailed description of each field in the data table.
      *
@@ -1548,7 +1548,7 @@ namespace dmGameSystem
      *
      * @name physics.set_event_listener
      *
-     * @param callback [type:function(self, events)|nil] A callback that receives an information about all the physics interactions in this physics world.
+     * @param callback [type:fun(self:any, events:(message.physics.contact_point_event|message.physics.collision_event|message.physics.trigger_event|message.physics.ray_cast_response|message.physics.ray_cast_missed)[])|nil] A callback that receives an information about all the physics interactions in this physics world.
      *
      * `self`
      * : [type:object] The calling script

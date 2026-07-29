@@ -632,7 +632,7 @@ union SaveLoadBuffer
      *
      * @name sys.open_url
      * @param url [type:string] url to open
-     * @param [attributes] [type:table] table with attributes
+     * @param [attributes] [type:{ target?:string, name?:string }] table with attributes
      *
      * `target`
      * - [type:string] [icon:html5]: Optional. Specifies the target attribute or the name of the window. The following values are supported:
@@ -740,9 +740,9 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
-     * @param [options] [type:table] optional options table
+     * @param [options] [type:{ ignore_secure?:boolean }] optional options table
      * - ignore_secure [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
-     * @return sys_info [type:table] table with system information in the following fields:
+     * @return sys_info [type:{ device_model?:string, manufacturer?:string, system_name:string, system_version:string, api_version:string, language:string, device_language:string, territory:string, gmt_offset:number, device_ident?:string, user_agent?:string }] table with system information in the following fields:
      *
      * `device_model`
      * : [type:string] [icon:ios][icon:android] Only available on iOS and Android.
@@ -858,7 +858,7 @@ union SaveLoadBuffer
      * Returns a table with engine information.
      *
      * @name sys.get_engine_info
-     * @return engine_info [type:table] table with engine information in the following fields:
+     * @return engine_info [type:{ version:string, version_sha1:string, is_debug:boolean }] table with engine information in the following fields:
      *
      * `version`
      * : [type:string] The current Defold engine version, i.e. "1.2.96"
@@ -914,7 +914,7 @@ union SaveLoadBuffer
      *
      * @name sys.get_application_info
      * @param app_string [type:string] platform specific string with application package or query, see above for details.
-     * @return app_info [type:table] table with application information in the following fields:
+     * @return app_info [type:{ installed:boolean }] table with application information in the following fields:
      *
      * `installed`
      * : [type:boolean] `true` if the application is installed, `false` otherwise.
@@ -982,7 +982,7 @@ union SaveLoadBuffer
      * Returns an array of tables with information on network interfaces.
      *
      * @name sys.get_ifaddrs
-     * @return ifaddrs [type:table] an array of tables. Each table entry contain the following fields:
+     * @return ifaddrs [type:{ name:string, address?:string, mac?:string, up:boolean, running:boolean }] an array of tables. Each table entry contain the following fields:
      *
      * `name`
      * : [type:string] Interface name
@@ -1183,7 +1183,7 @@ union SaveLoadBuffer
      * On desktop, this function always return `sys.NETWORK_CONNECTED`.
      *
      * @name sys.get_connectivity
-     * @return status [type:constant] network connectivity status:
+     * @return status [type:sys.NETWORK] network connectivity status:
      *
      * - `sys.NETWORK_DISCONNECTED` (no network connection is found)
      * - `sys.NETWORK_CONNECTED_CELLULAR` (connected through mobile cellular)

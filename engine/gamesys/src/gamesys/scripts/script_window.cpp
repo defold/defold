@@ -106,7 +106,7 @@ static void RunCallback(CallbackInfo* cbinfo)
  *
  * @name window.set_listener
  *
- * @param callback [type:function(self, event, data)|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
+ * @param callback [type:fun(self:any, event:window.WINDOW_EVENT, data:{ width:number, height:number })|nil] A callback which receives info about window events. Pass an empty function or `nil` if you no longer wish to receive callbacks.
  *
  * `self`
  * : [type:object] The calling script
@@ -210,7 +210,7 @@ static int SetMouseLock(lua_State* L)
  * This function has no effect on platforms that does not support dimming.
  *
  * @name window.set_dim_mode
- * @param mode [type:constant] The mode for screen dimming
+ * @param mode [type:window.DIMMING] The mode for screen dimming
  *
  * - `window.DIMMING_ON`
  * - `window.DIMMING_OFF`
@@ -248,7 +248,7 @@ static int SetDimMode(lua_State* L)
  * On platforms that does not support dimming, `window.DIMMING_UNKNOWN` is always returned.
  *
  * @name window.get_dim_mode
- * @return mode [type:constant] The mode for screen dimming
+ * @return mode [type:window.DIMMING] The mode for screen dimming
  *
  * - `window.DIMMING_UNKNOWN`
  * - `window.DIMMING_ON`
@@ -289,7 +289,7 @@ static int GetSize(lua_State* L)
  * this returns the full window size and zero insets.
  *
  * @name window.get_safe_area
- * @return safe_area [type:table] safe area data
+ * @return safe_area [type:{ x:number, y:number, width:number, height:number, inset_left:number, inset_top:number, inset_right:number, inset_bottom:number }] safe area data
  *
  * `safe_area`
  * : [type:table] table containing these keys:

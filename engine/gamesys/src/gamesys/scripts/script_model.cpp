@@ -246,7 +246,7 @@ namespace dmGameSystem
      * @name model.play_anim
      * @param url [type:string|hash|url] the model for which to play the animation
      * @param anim_id [type:string|hash] id of the animation to play
-     * @param playback [type:constant] playback mode of the animation
+     * @param playback [type:go.PLAYBACK] playback mode of the animation
      *
      * - `go.PLAYBACK_ONCE_FORWARD`
      * - `go.PLAYBACK_ONCE_BACKWARD`
@@ -255,7 +255,7 @@ namespace dmGameSystem
      * - `go.PLAYBACK_LOOP_BACKWARD`
      * - `go.PLAYBACK_LOOP_PINGPONG`
      *
-     * @param [play_properties] [type:table] optional table with properties
+     * @param [play_properties] [type:{ blend_duration?:number, offset?:number, playback_rate?:number }] optional table with properties
      *
      * Play properties table:
      *
@@ -268,7 +268,7 @@ namespace dmGameSystem
      * `playback_rate`
      * : [type:number] The rate with which the animation will be played. Must be positive.
      *
-     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the animation has completed.
+     * @param [complete_function] [type:fun(self:any, message_id:hash, message:message.model.model_animation_done, sender:url)] function to call when the animation has completed.
      *
      * `self`
      * : [type:object] The current object.

@@ -84,7 +84,7 @@ namespace dmGameSystem
      *
      * @name collectionfactory.get_status
      * @param [url] [type:string|hash|url] the collection factory component to get status from
-     * @return status [type:constant] status of the collection factory component
+     * @return status [type:collectionfactory.STATUS] status of the collection factory component
      *
      * - `collectionfactory.STATUS_UNLOADED`
      * - `collectionfactory.STATUS_LOADING`
@@ -159,7 +159,7 @@ namespace dmGameSystem
      *
      * @name collectionfactory.load
      * @param [url] [type:string|hash|url] the collection factory component to load
-     * @param [complete_function] [type:function(self, url, result)] function to call when resources are loaded.
+     * @param [complete_function] [type:fun(self:any, url:url, result:boolean)] function to call when resources are loaded.
      *
      * `self`
      * : [type:object] The current object.
@@ -244,7 +244,7 @@ namespace dmGameSystem
      * @param [rotation] [type:quaternion] rotation to assign to the newly spawned collection
      * @param [properties] [type:table] table of script properties to propagate to any new game object instances
      * @param [scale] [type:number|vector3] uniform scaling to apply to the newly spawned collection (must be greater than 0).
-     * @return ids [type:table] a table mapping the id:s from the collection to the new instance id:s
+     * @return ids [type:table<hash, hash>] a table mapping the id:s from the collection to the new instance id:s
      * @examples
      *
      * How to spawn a collection of game objects:

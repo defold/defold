@@ -725,7 +725,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * @name resource.create_texture
  *
  * @param path [type:string] The path to the resource.
- * @param table [type:table] A table containing info about how to create the texture. Supported entries:
+ * @param table [type:{ type:graphics.TEXTURE_TYPE, width:number, height:number, depth:number, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:number, compression_type?:graphics.COMPRESSION_TYPE }] A table containing info about how to create the texture. Supported entries:
  *
  * `type`
  * : [type:number] The texture type. Supported values:
@@ -801,7 +801,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
- * @param buffer [type:buffer] optional buffer of precreated pixel data
+ * @param [buffer] [type:buffer] optional buffer of precreated pixel data
  *
  * @return path [type:hash] The path to the resource.
  *
@@ -934,7 +934,7 @@ static int CreateTexture(lua_State* L)
  * @name resource.create_texture_async
  *
  * @param path [type:string|hash] The path to the resource.
- * @param table [type:table] A table containing info about how to create the texture. Supported entries:
+ * @param table [type:{ type:graphics.TEXTURE_TYPE, width:number, height:number, depth:number, format:graphics.TEXTURE_FORMAT, flags?:graphics.TEXTURE_USAGE_FLAG, max_mipmaps?:number, compression_type?:graphics.COMPRESSION_TYPE }] A table containing info about how to create the texture. Supported entries:
  * `type`
  * : [type:number] The texture type. Supported values:
  *
@@ -1008,8 +1008,8 @@ static int CreateTexture(lua_State* L)
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
- * @param buffer [type:buffer] optional buffer of precreated pixel data
- * @param callback [type:function] callback function when texture is created (self, request_id, resource)
+ * @param [buffer] [type:buffer] optional buffer of precreated pixel data
+ * @param callback [type:fun(self:any, request_id:number, resource:hash)] callback function when texture is created (self, request_id, resource)
  *
  * @return path [type:hash] The path to the texture resource.
  * @return request_id [type:number] The request id for the async request.
@@ -1260,7 +1260,7 @@ static int ReleaseResource(lua_State* L)
  * @name resource.set_texture
  *
  * @param path [type:hash|string] The path to the resource
- * @param table [type:table] A table containing info about the texture. Supported entries:
+ * @param table [type:{ type:graphics.TEXTURE_TYPE, width:number, height:number, format:graphics.TEXTURE_FORMAT, x?:number, y?:number, z?:number, mipmap?:number, compression_type?:graphics.COMPRESSION_TYPE}] A table containing info about the texture. Supported entries:
  *
  * `type`
  * : [type:number] The texture type. Supported values:
@@ -1561,7 +1561,7 @@ static int SetTexture(lua_State* L)
  * @name resource.get_texture_info
  *
  * @param path [type:hash|string|number] The path to the resource or a texture handle
- * @return table [type:table] A table containing info about the texture:
+ * @return table [type:{ handle:number, width:number, height:number, depth:number, mipmaps:number, flags:number, type:graphics.TEXTURE_TYPE }] A table containing info about the texture:
  *
  * `handle`
  * : [type:number] the opaque handle to the texture resource
@@ -1679,7 +1679,7 @@ static int GetTextureInfo(lua_State* L)
  * @name resource.get_render_target_info
  *
  * @param path [type:hash|string|number] The path to the resource or a render target handle
- * @return table [type:table] A table containing info about the render target:
+ * @return table [type:{ handle:number, attachments:{ handle:number, width:number, height:number, depth:number, mipmaps:number, type:graphics.TEXTURE_TYPE, buffer_type:graphics.BUFFER_TYPE, texture:hash }[] }] A table containing info about the render target:
  *
  * `handle`
  * : [type:number] the opaque handle to the texture resource
@@ -2387,7 +2387,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * @name resource.create_atlas
  *
  * @param path [type:string] The path to the resource.
- * @param table [type:table] A table containing info about how to create the atlas. Supported entries:
+ * @param table [type:resource.atlas] A table containing info about how to create the atlas. Supported entries:
  *
  * * `texture`
  * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
@@ -2593,7 +2593,7 @@ static int CreateAtlas(lua_State* L)
  * @name resource.set_atlas
  *
  * @param path [type:hash|string] The path to the atlas resource
- * @param table [type:table] A table containing info about the atlas. Supported entries:
+ * @param table [type:resource.atlas] A table containing info about the atlas. Supported entries:
  *
  * * `texture`
  * : [type:string|hash] the path to the texture resource, e.g "/main/my_texture.texturec"
@@ -2813,7 +2813,7 @@ static void PushGeometry(lua_State* L, int index, dmGameSystemDDF::SpriteGeometr
  *
  * @param path [type:hash|string] The path to the atlas resource
  *
- * @return data [type:table] A table with the following entries:
+ * @return data [type:resource.atlas] A table with the following entries:
  *
  * - texture
  * - geometries
@@ -2960,7 +2960,7 @@ static uint8_t* CheckBufferOrString(lua_State* L, int index, uint32_t* data_size
  *
  * @name resource.create_sound_data
  * @param path [type:string] the path to the resource. Must not already exist.
- * @param [options] [type:table] A table containing parameters for the text. Supported entries:
+ * @param [options] [type:{ data?:string, filesize?:number, partial?:boolean }] A table containing parameters for the text. Supported entries:
  *
  * `data`
  * : [type:string] The raw data of the file. May be partial, but must include the header of the file
@@ -3086,7 +3086,7 @@ void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
  * @name resource.create_buffer
  *
  * @param path [type:string] The path to the resource.
- * @param [table] [type:table] A table containing info about how to create the buffer. Supported entries:
+ * @param [table] [type:{ buffer:buffer_data, transfer_ownership?:boolean }] A table containing info about how to create the buffer. Supported entries:
  *
  * * `buffer`
  * : [type:buffer] the buffer to bind to this resource
@@ -3318,7 +3318,7 @@ static int GetBuffer(lua_State* L)
  *
  * @param path [type:hash|string] The path to the resource
  * @param buffer [type:buffer] The resource buffer
- * @param [table] [type:table] A table containing info about how to set the buffer. Supported entries:
+ * @param [table] [type:{ transfer_ownership?: boolean }] A table containing info about how to set the buffer. Supported entries:
  *
  * * `transfer_ownership`
  * : [type:boolean] optional flag to determine whether or not the resource should take over ownership of the buffer object (default false)
@@ -3487,7 +3487,7 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  * @name resource.get_text_metrics
  * @param url [type:hash] the font to get the (unscaled) metrics from
  * @param text [type:string] text to measure
- * @param [options] [type:table] A table containing parameters for the text. Supported entries:
+ * @param [options] [type:{ width?:number, leading?:number, tracking?:number, line_break?:boolean }] A table containing parameters for the text. Supported entries:
  *
  * `width`
  * : [type:number] The width of the text field. Not used if `line_break` is false.
@@ -3501,7 +3501,7 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  * `line_break`
  * : [type:boolean] If the calculation should consider line breaks (default false)
  *
- * @return metrics [type:table] a table with the following fields:
+ * @return metrics [type:{ width:number, height:number, max_ascent:number, max_descent:number }] a table with the following fields:
  *
  * - width
  * - height

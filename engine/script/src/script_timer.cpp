@@ -634,7 +634,7 @@ namespace dmScript
      * @name timer.delay
      * @param delay [type:number] time interval in seconds
      * @param repeating [type:boolean] true = repeat timer until cancel, false = one-shot timer
-     * @param callback [type:function(self, handle, time_elapsed)] timer callback function
+     * @param callback [type:fun(self:any, handle:number, time_elapsed:number)] timer callback function
      *
      * `self`
      * : [type:object] The current object
@@ -781,7 +781,7 @@ namespace dmScript
      *
      * @name  timer.get_info
      * @param handle [type:number] the timer handle returned by timer.delay()
-     * @return data [type:table|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
+     * @return data [type:{ time_remaining:number, delay:number, repeating:boolean }|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
      *
      * `time_remaining`
      * : [type:number] Time remaining until the next time a timer.delay() fires.

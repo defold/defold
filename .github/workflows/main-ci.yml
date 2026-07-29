@@ -228,6 +228,10 @@ jobs:
       },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
+        name: 'Install pinned Lua language server for docs validation',
+        run: 'python engine/docs/build_docs.py install-lua-language-server --project-clj editor/project.clj --platform ${{ matrix.platform }} --output-dir "$RUNNER_TEMP/defold-lua-language-server" --github-env "$GITHUB_ENV"'
+      },
+      {
         name: 'Build engine',
         run: 'ci/ci.sh engine --platform=${{ matrix.platform }} --archive'
       },

@@ -883,7 +883,7 @@ namespace dmScript
      * value position in the vector.
      *
      * @name vmath.vector
-     * @param t [type:table] table of numbers
+     * @param t [type:number[]] table of numbers
      * @return v [type:vector] new vector
      * @examples
      *
@@ -2676,8 +2676,8 @@ namespace dmScript
      *
      * @name vmath.euler_to_quat
      * @param x [type:number|vector3] rotation around x-axis in degrees or vector3 with euler angles in degrees
-     * @param y [type:number] rotation around y-axis in degrees
-     * @param z [type:number] rotation around z-axis in degrees
+     * @param [y] [type:number] rotation around y-axis in degrees
+     * @param [z] [type:number] rotation around z-axis in degrees
      * @return q [type:quaternion] quaternion describing an equivalent rotation (231 (YZX) rotation sequence)
      * @examples
      * 
