@@ -34,12 +34,12 @@
         http-headers-param {:name "[headers]"
                             :types ["table<string, string>"]
                             :doc "HTTP response headers, a table from lower-case header names to header values"}
-        http-response-param {:name "response" :types ["response"] :doc "HTTP response value, userdata"}
+        http-response-param {:name "response" :types ["http.response"] :doc "HTTP response value, userdata"}
         resource-path-param {:name "resource_path"
                              :types ["string"]
                              :doc "Resource path (starting with <code>/</code>)"}
         transaction-step-param {:name "tx"
-                                :types ["transaction_step"]
+                                :types ["editor.transaction_step"]
                                 :doc "A transaction step"}
         boolean-ret-param {:name "value" :types ["boolean"] :doc ""}]
     (vec
@@ -94,7 +94,7 @@
                         :doc (str "A table with the following keys:"
                                   (lua-completion/args-doc-html
                                     [{:name "label"
-                                      :types ["string" "message"]
+                                      :types ["string" "editor.message"]
                                       :doc "required, user-visible command name, either a string or a localization message"}
                                      {:name "locations"
                                       :types ["string[]"]
@@ -133,7 +133,7 @@
                                       :types ["function"]
                                       :doc "optional function that is invoked when the user decides to execute the command; will receive opts table with values populated by the query"}]))}]
           :returnvalues [{:name "command"
-                          :types ["command"]
+                          :types ["editor.command"]
                           :doc ""}]
           :examples "Print Git history for a file:
 ```
@@ -319,7 +319,7 @@ editor.create_resources({
          {:name "editor.transact"
           :type :function
           :parameters [{:name "txs"
-                        :types ["transaction_step[]"]
+                        :types ["editor.transaction_step[]"]
                         :doc "An array of transaction steps created using <code>editor.tx.*</code> functions"}]
           :description "Change the editor state in a single, undoable transaction"}
          {:name "editor.tx"
@@ -522,7 +522,7 @@ editor.create_resources({
                                       :types ["string" "any"]
                                       :doc "optional request body, depends on the <code>as</code> argument"}])
                                   "\nHandler function should return either a single response value, or 0 or more arguments to the <code>http.server.response()</code> function")}]
-          :returnvalues [{:name "route" :types ["route"] :doc "HTTP server route"}]
+          :returnvalues [{:name "route" :types ["http.route"] :doc "HTTP server route"}]
           :examples "Receive JSON and respond with JSON:
 ```
 http.server.route(
@@ -568,13 +568,13 @@ http.server.route(
                         :types ["string"]
                         :doc "External file path, resolved against project root if relative"}]
           :returnvalues [{:name "image"
-                          :types ["image"]
+                          :types ["editor.image"]
                           :doc "image userdata"}]}
          {:name "image.size"
           :type :function
           :description "Return the width and height of a loaded image."
           :parameters [{:name "image"
-                        :types ["image"]
+                        :types ["editor.image"]
                         :doc "image userdata returned by <code>image.load_file()</code>"}]
           :returnvalues [{:name "width"
                           :types ["integer"]
@@ -586,7 +586,7 @@ http.server.route(
           :type :function
           :description "Return the color of a pixel from a loaded image.\n\nCoordinates are 1-based, with <code>1, 1</code> at the top-left corner."
           :parameters [{:name "image"
-                        :types ["image"]
+                        :types ["editor.image"]
                         :doc "image userdata returned by <code>image.load_file()</code>"}
                        {:name "x"
                         :types ["integer"]
@@ -610,7 +610,7 @@ http.server.route(
           :type :function
           :description "Iterate over pixels in a loaded image.\n\nThe iterator returns pixels row by row from top-left to bottom-right. Coordinates are 1-based."
           :parameters [{:name "image"
-                        :types ["image"]
+                        :types ["editor.image"]
                         :doc "image userdata returned by <code>image.load_file()</code>"}]
           :returnvalues [{:name "iterator"
                           :types ["function"]
@@ -651,7 +651,7 @@ end
                         :types ["any"]
                         :doc "any Lua value to pretty-print"}]}]
         (let [message-pattern-ret {:name "message"
-                                   :types ["message"]
+                                   :types ["editor.message"]
                                    :doc "a userdata value that, when stringified with <code>tostring()</code>, will produce a localized text according to the currently selected language in the editor"}
               localizable-value-doc "<code>nil</code>, <code>boolean</code>, <code>number</code>, <code>string</code>, or another <code>message</code> instance"
               localizable-items-doc (str "array of values; each value may be " localizable-value-doc)]
@@ -672,24 +672,24 @@ end
             :type :function
             :description "Create a message pattern that renders a list with the \"and\" conjunction (for example: a, b, and c) once it is stringified"
             :parameters [{:name "items"
-                          :types ["(nil|boolean|number|string|message)[]"]
+                          :types ["(nil|boolean|number|string|editor.message)[]"]
                           :doc localizable-items-doc}]
             :returnvalues [message-pattern-ret]}
            {:name "localization.or_list"
             :type :function
             :description "Create a message pattern that renders a list with the \"or\" conjunction (for example: a, b, or c) once it is stringified"
             :parameters [{:name "items"
-                          :types ["(nil|boolean|number|string|message)[]"]
+                          :types ["(nil|boolean|number|string|editor.message)[]"]
                           :doc localizable-items-doc}]
             :returnvalues [message-pattern-ret]}
            {:name "localization.concat"
             :type :function
             :description "Create a message pattern that concatenates values (similar to <code>table.concat</code>) and performs the actual concatenation when stringified"
             :parameters [{:name "items"
-                          :types ["(nil|boolean|number|string|message)[]"]
+                          :types ["(nil|boolean|number|string|editor.message)[]"]
                           :doc localizable-items-doc}
                          {:name "[separator]"
-                          :types ["nil" "boolean" "number" "string" "message"]
+                          :types ["nil" "boolean" "number" "string" "editor.message"]
                           :doc "optional separator inserted between values; defaults to an empty string"}]
             :returnvalues [message-pattern-ret]}])
         (when (System/getProperty "defold.dev")
@@ -745,7 +745,7 @@ end
                          {:name "options" :types ["any[]"] :doc "select box options"}
                          {:name "to_string" :types ["function"] :doc "option stringifier"}
                          {:name "[rest_props]" :types ["table"] :doc "extra props for <code>editor.ui.select_box</code>"}]
-            :returnvalues [{:name "select_box" :types ["component"] :doc "UI component"}]}
+            :returnvalues [{:name "select_box" :types ["editor.component"] :doc "UI component"}]}
            {:name "editor.bundle.check_box"
             :type :function
             :description "Helper function for creating a check box component"
@@ -754,7 +754,7 @@ end
                          {:name "key" :types ["string"] :doc "config key for the selected value"}
                          {:name "text" :types ["string"] :doc "check box label text"}
                          {:name "[rest_props]" :types ["table"] :doc "extra props for <code>editor.ui.check_box</code>"}]
-            :returnvalues [{:name "check_box" :types ["component"] :doc "UI component"}]}
+            :returnvalues [{:name "check_box" :types ["editor.component"] :doc "UI component"}]}
            {:name "editor.bundle.set_element_check_box"
             :type :function
             :description "Helper function for creating a check box for an enum value of set config key"
@@ -764,7 +764,7 @@ end
                          {:name "element" :types ["string"] :doc "enum value in the set"}
                          {:name "text" :types ["string"] :doc "check box label text"}
                          {:name "[error]" :types ["string"] :doc "error message"}]
-            :returnvalues [{:name "check_box" :types ["component"] :doc "UI component"}]}
+            :returnvalues [{:name "check_box" :types ["editor.component"] :doc "UI component"}]}
            {:name "editor.bundle.external_file_field"
             :type :function
             :description "Helper function for creating an external file field component"
@@ -773,7 +773,7 @@ end
                          {:name "key" :types ["string"] :doc "config key for the set"}
                          {:name "[error]" :types ["string"] :doc "error message"}
                          {:name "[rest_props]" :types ["table"] :doc "extra props for <code>editor.ui.external_file_field</code>"}]
-            :returnvalues [{:name "external_file_field" :types ["component"] :doc "UI component"}]}
+            :returnvalues [{:name "external_file_field" :types ["editor.component"] :doc "UI component"}]}
            {:name "editor.bundle.dialog"
             :type :function
             :description "Helper function for creating a bundle dialog component"
@@ -781,8 +781,8 @@ end
                          {:name "config" :types ["table"] :doc "config map with common boolean keys"}
                          {:name "hint" :types ["string" "nil"] :doc "dialog hint text"}
                          {:name "error" :types ["string" "nil"] :doc "dialog error text"}
-                         {:name "rows" :types ["component[][]"] :doc "grid rows of UI elements, dialog content"}]
-            :returnvalues [{:name "dialog" :types ["component"] :doc "UI component"}]}
+                         {:name "rows" :types ["editor.component[][]"] :doc "grid rows of UI elements, dialog content"}]
+            :returnvalues [{:name "dialog" :types ["editor.component"] :doc "UI component"}]}
            {:name "editor.bundle.grid_row"
             :type :function
             :description "Return a 2-element array that represents a single grid row in a bundle dialog"
@@ -790,35 +790,35 @@ end
                           :types ["string" "nil"]
                           :doc "optional string label"}
                          {:name "content"
-                          :types ["component" "component[]"]
+                          :types ["editor.component" "editor.component[]"]
                           :doc "either a single UI component, or an array of components (will be laid out vertically)"}]
             :returnvalues [{:name "row"
-                            :types ["component[]"]
+                            :types ["editor.component[]"]
                             :doc "a single grid row"}]}
            {:name "editor.bundle.desktop_variant_grid_row"
             :type :function
             :description "Create a grid row for the desktop variant setting"
             :parameters [{:name "config" :types ["table"] :doc "config table with <code>variant</code> key"}
                          {:name "set_config" :types ["function"] :doc "config setter"}]
-            :returnvalues [{:name "row" :types ["component[]"] :doc "grid row"}]}
+            :returnvalues [{:name "row" :types ["editor.component[]"] :doc "grid row"}]}
            {:name "editor.bundle.common_variant_grid_row"
             :type :function
             :description "Create a grid row for the common variant setting"
             :parameters [{:name "config" :types ["table"] :doc "config map with <code>variant</code> key"}
                          {:name "set_config" :types ["function"] :doc "config setter"}]
-            :returnvalues [{:name "row" :types ["component[]"] :doc "grid row"}]}
+            :returnvalues [{:name "row" :types ["editor.component[]"] :doc "grid row"}]}
            {:name "editor.bundle.texture_compression_grid_row"
             :type :function
             :description "Create a grid row for the texture compression setting"
             :parameters [{:name "config" :types ["table"] :doc "config map with <code>texture_compression</code> key"}
                          {:name "set_config" :types ["function"] :doc "config setter"}]
-            :returnvalues [{:name "row" :types ["component[]"] :doc "grid row"}]}
+            :returnvalues [{:name "row" :types ["editor.component[]"] :doc "grid row"}]}
            {:name "editor.bundle.check_boxes_grid_row"
             :type :function
             :description "Create a grid row for the common boolean settings"
             :parameters [{:name "config" :types ["table"] :doc "config map with common boolean keys"}
                          {:name "set_config" :types ["function"] :doc "config setter"}]
-            :returnvalues [{:name "row" :types ["component[]"] :doc "grid row"}]}
+            :returnvalues [{:name "row" :types ["editor.component[]"] :doc "grid row"}]}
            {:name "editor.bundle.config"
             :type :function
             :description "Get bundle config, optionally showing a dialog to edit the config"
@@ -829,7 +829,7 @@ end
                           :types ["string"]
                           :doc "preference key used for loading the bundle config"}
                          {:name "dialog_component"
-                          :types ["component"]
+                          :types ["editor.component"]
                           :doc "UI component for the dialog, will receive <code>config</code> and (optional) <code>errors</code> props"}
                          {:name "[errors_fn]"
                           :types ["function"]
@@ -881,9 +881,9 @@ end
            {:name "editor.bundle.config_schema"
             :type :function
             :description "Helper function for constructing prefs schema for new bundle dialogs"
-            :parameters [{:name "variant_schema" :types ["schema"] :doc "bundle variant schema"}
+            :parameters [{:name "variant_schema" :types ["editor.schema"] :doc "bundle variant schema"}
                          {:name "[properties]" :types ["table" "nil"] :doc "extra config properties"}]
-            :returnvalues [{:name "schema" :types ["schema"] :doc (str "full bundle schema, defines a project-scoped object schema with the following keys:"
+            :returnvalues [{:name "schema" :types ["editor.schema"] :doc (str "full bundle schema, defines a project-scoped object schema with the following keys:"
                                                                        (lua-completion/args-doc-html
                                                                          [{:name "variant" :doc "the provided variant schema"}
                                                                           {:name "texture_compression" :types ["string"] :doc "either <code>enabled</code>, <code>disabled</code> or <code>editor</code>"}
@@ -891,7 +891,7 @@ end
                                                                           {:name "build_report" :types ["boolean"]}
                                                                           {:name "liveupdate" :types ["boolean"]}
                                                                           {:name "contentless" :types ["boolean"]}]))}]}])
-        (let [tiles-param {:name "tiles" :types ["tiles"] :doc "unbounded 2d grid of tiles"}
+        (let [tiles-param {:name "tiles" :types ["editor.tiles"] :doc "unbounded 2d grid of tiles"}
               x-param {:name "x" :types ["integer"] :doc "x coordinate of a tile"}
               y-param {:name "y" :types ["integer"] :doc "y coordinate of a tile"}
               tile-doc "1-indexed tile index of a tilemap's tilesource"

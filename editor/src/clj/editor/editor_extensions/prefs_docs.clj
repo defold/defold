@@ -202,7 +202,7 @@
                              "Optional opts:\n"
                              (ui-docs/props-doc-html opt))}]
      :returnvalues [{:name "value"
-                     :types ["schema"]
+                     :types ["editor.schema"]
                      :doc "Prefs schema"}]}))
 
 (def enums

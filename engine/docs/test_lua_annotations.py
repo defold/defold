@@ -203,16 +203,15 @@ class TestLuaAnnotations(unittest.TestCase):
         self.assertNotIn("known_types", metadata)
         self.assertEqual(
             {
-                "schema",
                 "editor.schema",
-                "component",
-                "transaction_step",
-                "tiles",
-                "image",
-                "command",
-                "message",
-                "response",
-                "route",
+                "editor.component",
+                "editor.transaction_step",
+                "editor.tiles",
+                "editor.image",
+                "editor.command",
+                "editor.message",
+                "http.response",
+                "http.route",
             },
             set(metadata["aliases"]))
         self.assertEqual(
