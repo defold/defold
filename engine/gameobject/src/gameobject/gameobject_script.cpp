@@ -630,7 +630,7 @@ namespace dmGameObject
      * - index [type:number] index into array property (1 based)
      * - key [type:hash] name of internal property
      * - keys [type:table] array of internal component resources identified by key (e.g. a particle fx emitter, see examples below)
-     * @return value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value of the specified property
+     * @return value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource_data] the value of the specified property
      *
      * @examples
      * Get a property "speed" from a script "player", the property must be declared in the player-script:
@@ -773,7 +773,7 @@ namespace dmGameObject
      * @name go.set
      * @param url [type:string|hash|url] url of the game object or component having the property
      * @param property [type:string|hash] id of the property to set
-     * @param value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource] the value to set
+     * @param value [type:number|boolean|hash|url|vector3|vector4|quaternion|resource_data] the value to set
      * @param [options] [type:{ index?:integer, key?:hash, keys?:hash[] }] optional options table
      * - index [type:integer] index into array property (1 based)
      * - key [type:hash] name of internal property
@@ -2063,7 +2063,7 @@ namespace dmGameObject
      *
      * @name go.property
      * @param name [type:string] the id of the property
-     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource|boolean] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
+     * @param value [type:number|hash|url|vector3|vector4|quaternion|resource_data|boolean] default value of the property. In the case of a url, only the empty constructor msg.url() is allowed. In the case of a resource one of the resource constructors (eg resource.atlas(), resource.font() etc) is expected.
      * @examples
      *
      * This example demonstrates how to define a property called "health" in a script.

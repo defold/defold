@@ -1189,13 +1189,13 @@ namespace dmGameSystem
 
 /*# Box2D world
  * @typedef
- * @name b2d.world
+ * @name b2World
  * @param value [type:userdata]
  */
 
 /*# Box2D body
  * @typedef
- * @name b2d.body
+ * @name b2Body
  * @param value [type:userdata]
  */
 

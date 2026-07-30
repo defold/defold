@@ -46,6 +46,7 @@ namespace dmGameSystem
     /*# Image types
      * @enum
      * @name image.TYPE
+     * @param value [type:string] image type
      */
 
     #define LIB_NAME "image"
@@ -121,7 +122,7 @@ namespace dmGameSystem
     *
     * - [type:number] `width`: image width
     * - [type:number] `height`: image height
-    * - [type:constant] `type`: image type
+    * - [type:image.TYPE] `type`: image type
     *     - `image.TYPE_RGB`
     *     - `image.TYPE_RGBA`
     *     - `image.TYPE_LUMINANCE`
@@ -223,12 +224,12 @@ namespace dmGameSystem
     *
     * - [type:number] `width`: image width
     * - [type:number] `height`: image height
-    * - [type:constant] `type`: image type
+    * - [type:image.TYPE] `type`: image type
     *     - `image.TYPE_RGB`
     *     - `image.TYPE_RGBA`
     *     - `image.TYPE_LUMINANCE`
     *     - `image.TYPE_LUMINANCE_ALPHA`
-    * - [type:buffer] `buffer`: the script buffer that holds the decompressed image data. See [ref:buffer.create] how to use the buffer.
+    * - [type:buffer_data] `buffer`: the script buffer that holds the decompressed image data. See [ref:buffer.create] how to use the buffer.
     *
     * @examples
     *

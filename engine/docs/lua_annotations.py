@@ -30,6 +30,20 @@ Generated using the Defold build pipeline
 ---@diagnostic disable: args-after-dots
 """
 
+LUA_BUILTIN_TYPES = frozenset({
+    "nil",
+    "any",
+    "boolean",
+    "number",
+    "integer",
+    "string",
+    "userdata",
+    "function",
+    "thread",
+    "table",
+    "file",
+})
+
 
 def load_metadata(path):
     with open(path, encoding="utf-8") as metadata_file:
@@ -331,6 +345,11 @@ def _canonical_type_name(element):
     return element.name.strip()
 
 
+def _canonical_alias_name(element, metadata):
+    name = _canonical_type_name(element)
+    return metadata.get("type_replacements", {}).get(name, name)
+
+
 def _namespace_of(name):
     return name.rsplit(".", 1)[0] if "." in name else ""
 
@@ -539,7 +558,7 @@ def _collect(documents, metadata):
                 else:
                     messages[root][class_name] = (source_path, element)
             elif element.type == script_doc_ddf_pb2.TYPEDEF:
-                alias_name = _canonical_type_name(element)
+                alias_name = _canonical_alias_name(element, metadata)
                 if len(element.parameters) != 1:
                     raise ValueError(
                         "%s: typedef %s must have exactly one value parameter"
@@ -885,7 +904,7 @@ def _known_annotation_types(
         documented_classes,
         documented_aliases,
         class_methods):
-    known = set(metadata.get("known_types", []))
+    known = set(LUA_BUILTIN_TYPES)
     known.update(metadata.get("aliases", {}).keys())
     known.update(metadata.get("classes", {}).keys())
     known.update(documented_classes.keys())

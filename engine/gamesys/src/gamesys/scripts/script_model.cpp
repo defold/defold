@@ -280,7 +280,7 @@ namespace dmGameSystem
      * : [type:table] Information about the completion:
      *
      * - [type:hash] `animation_id` - the animation that was completed.
-     * - [type:constant] `playback` - the playback mode for the animation.
+     * - [type:go.PLAYBACK] `playback` - the playback mode for the animation.
      *
      * `sender`
      * : [type:url] The invoker of the callback: the model component.

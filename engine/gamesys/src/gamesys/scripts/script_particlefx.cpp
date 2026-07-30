@@ -207,7 +207,7 @@ namespace dmGameSystem
      * : [type:hash] The id of the emitter
      *
      * `state`
-     * : [type:constant] the new state of the emitter:
+     * : [type:particlefx.EMITTER_STATE] the new state of the emitter:
      *
      * - `particlefx.EMITTER_STATE_SLEEPING`
      * - `particlefx.EMITTER_STATE_PRESPAWN`

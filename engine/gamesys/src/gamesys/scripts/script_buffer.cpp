@@ -361,10 +361,10 @@ namespace dmGameSystem
      * @param declaration [type:({ name:hash|string, type:buffer.VALUE_TYPE, count:number })[]] A table where each entry (table) describes a stream
      *
      * - [type:hash|string] `name`: The name of the stream
-     * - [type:constant] `type`: The data type of the stream
+     * - [type:buffer.VALUE_TYPE] `type`: The data type of the stream
      * - [type:number] `count`: The number of values each element should hold
      *
-     * @return buffer [type:buffer] the new buffer
+     * @return buffer [type:buffer_data] the new buffer
      *
      * @examples
      * How to create and initialize a buffer
@@ -445,9 +445,9 @@ namespace dmGameSystem
      * Get a specified stream from a buffer.
      *
      * @name buffer.get_stream
-     * @param buffer [type:buffer] the buffer to get the stream from
+     * @param buffer [type:buffer_data] the buffer to get the stream from
      * @param stream_name [type:hash|string] the stream name
-     * @return stream [type:bufferstream] the data stream
+     * @return stream [type:buffer_stream] the data stream
     */
     static int GetStream(lua_State* L)
     {
@@ -521,9 +521,9 @@ namespace dmGameSystem
      * The source and destination streams can be the same.
      *
      * @name buffer.copy_stream
-     * @param dst [type:bufferstream] the destination stream
+     * @param dst [type:buffer_stream] the destination stream
      * @param dstoffset [type:number] the offset to start copying data to (measured in value type)
-     * @param src [type:bufferstream] the source data stream
+     * @param src [type:buffer_stream] the source data stream
      * @param srcoffset [type:number] the offset to start copying data from (measured in value type)
      * @param count [type:number] the number of values to copy (measured in value type)
      *
@@ -595,9 +595,9 @@ namespace dmGameSystem
      * The source and destination buffer can be the same.
      *
      * @name buffer.copy_buffer
-     * @param dst [type:buffer] the destination buffer
+     * @param dst [type:buffer_data] the destination buffer
      * @param dstoffset [type:number] the offset to start copying data to
-     * @param src [type:buffer] the source data buffer
+     * @param src [type:buffer_data] the source data buffer
      * @param srcoffset [type:number] the offset to start copying data from
      * @param count [type:number] the number of elements to copy
      *
@@ -705,7 +705,7 @@ namespace dmGameSystem
      * Get a copy of all the bytes from a specified stream as a Lua string.
      *
      * @name buffer.get_bytes
-     * @param buffer [type:buffer] the source buffer
+     * @param buffer [type:buffer_data] the source buffer
      * @param stream_name [type:hash] the name of the stream
      * @return data [type:string] the buffer data as a Lua string
     */
@@ -946,7 +946,7 @@ namespace dmGameSystem
      * [icon:attention] The value type and count given when updating the entry should match those used when first creating it.
      *
      * @name buffer.set_metadata
-     * @param buf [type:buffer] the buffer to set the metadata on
+     * @param buf [type:buffer_data] the buffer to set the metadata on
      * @param metadata_name [type:hash|string] name of the metadata entry
      * @param values [type:number[]] actual metadata, an array of numeric values
      * @param value_type [type:buffer.VALUE_TYPE] type of values when stored
@@ -1062,7 +1062,7 @@ namespace dmGameSystem
      * Get a named metadata entry from a buffer along with its type.
      *
      * @name buffer.get_metadata
-     * @param buf [type:buffer] the buffer to get the metadata from
+     * @param buf [type:buffer_data] the buffer to get the metadata from
      * @param metadata_name [type:hash|string] name of the metadata entry
      * @return values [type:number[]|nil] table of metadata values or `nil` if the entry does not exist
      * @return value_type [type:buffer.VALUE_TYPE|nil] numeric type of values or `nil`

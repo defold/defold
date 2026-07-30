@@ -110,7 +110,7 @@ message AcquireCameraFocus {}
  */
 message ReleaseCameraFocus {}
 
-/*# [type:float] camera fov
+/*# [type:number] camera fov
  *
  * Vertical field of view of the camera.
  * The type of the property is float.
@@ -129,7 +129,7 @@ message ReleaseCameraFocus {}
  * ```
  */
 
- /*# [type:float] camera near_z
+ /*# [type:number] camera near_z
  *
  * Camera frustum near plane.
  * The type of the property is float.
@@ -147,7 +147,7 @@ message ReleaseCameraFocus {}
  * ```
  */
 
-/*# [type:float] camera far_z
+/*# [type:number] camera far_z
  *
  * Camera frustum far plane.
  * The type of the property is float.
@@ -165,7 +165,7 @@ message ReleaseCameraFocus {}
  * ```
  */
 
-/*# [type:float] camera orthographic_zoom
+/*# [type:number] camera orthographic_zoom
  *
  * Positive zoom multiplier when using an orthographic projection. In auto fit and auto cover
  * modes, this value is multiplied with the calculated orthographic_auto_zoom value.
@@ -185,7 +185,7 @@ message ReleaseCameraFocus {}
  * ```
  */
 
-/*# [type:float] camera orthographic_auto_zoom
+/*# [type:number] camera orthographic_auto_zoom
  *
  * [mark:READ ONLY] The zoom calculated from the current window and project dimensions
  * in auto fit and auto cover modes. The value is 1.0 in fixed mode.
@@ -203,7 +203,7 @@ message ReleaseCameraFocus {}
  * ```
  */
 
-/*# [type:float] camera projection
+/*# [type:matrix4] camera projection
  *
  * [mark:READ ONLY] The calculated projection matrix of the camera.
  * The type of the property is matrix4.
@@ -220,7 +220,7 @@ message ReleaseCameraFocus {}
  * ```
  */
 
-/*# [type:float] camera view
+/*# [type:matrix4] camera view
  *
  * [mark:READ ONLY] The calculated view matrix of the camera.
  * The type of the property is matrix4.
@@ -237,7 +237,7 @@ message ReleaseCameraFocus {}
  * ```
  */
 
-/*# [type:float] camera aspect ratio
+/*# [type:number] camera aspect ratio
  *
  * The ratio between the frustum width and height. Used when calculating the
  * projection of a perspective camera.

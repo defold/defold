@@ -425,7 +425,7 @@ static void PreCreateResource(lua_State* L, const char* path_str, const char* pa
  * @name resource.set
  *
  * @param path [type:string|hash] The path to the resource
- * @param buffer [type:buffer] The buffer of precreated data, suitable for the intended resource type
+ * @param buffer [type:buffer_data] The buffer of precreated data, suitable for the intended resource type
  *
  * @examples
  *
@@ -464,7 +464,7 @@ static int Set(lua_State* L)
  * @name resource.load
  *
  * @param path [type:string] The path to the resource
- * @return buffer [type:buffer] Returns the buffer stored on disc
+ * @return buffer [type:buffer_data] Returns the buffer stored on disc
  *
  * @examples
  *
@@ -898,7 +898,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
- * @param [buffer] [type:buffer] optional buffer of precreated pixel data
+ * @param [buffer] [type:buffer_data] optional buffer of precreated pixel data
  *
  * @return path [type:hash] The path to the resource.
  *
@@ -1105,7 +1105,7 @@ static int CreateTexture(lua_State* L)
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
- * @param [buffer] [type:buffer] optional buffer of precreated pixel data
+ * @param [buffer] [type:buffer_data] optional buffer of precreated pixel data
  * @param callback [type:fun(self:any, request_id:number, resource:hash)] callback function when texture is created (self, request_id, resource)
  *
  * @return path [type:hash] The path to the texture resource.
@@ -1432,7 +1432,7 @@ static int ReleaseResource(lua_State* L)
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
  *
- * @param buffer [type:buffer] The buffer of precreated pixel data
+ * @param buffer [type:buffer_data] The buffer of precreated pixel data
  *
  * [icon:attention] To update a cube map texture you need to pass in six times the amount of data via the buffer, since a cube map has six sides!
  * 
@@ -2508,7 +2508,7 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * : [type:number] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `playback`
- * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
+ * : [type:go.PLAYBACK] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
  *
  * * `fps`
  * : [type:number] optional fps of the animation, the default value is 30
@@ -2714,7 +2714,7 @@ static int CreateAtlas(lua_State* L)
  * : [type:number] index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. <number-of-geometries> in atlas.
  *
  * * `playback`
- * : [type:constant] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
+ * : [type:go.PLAYBACK] optional playback mode of the animation, the default value is [ref:go.PLAYBACK_ONCE_FORWARD]
  *
  * * `fps`
  * : [type:number] optional fps of the animation, the default value is 30
@@ -3186,7 +3186,7 @@ void PrintBuffer(const char* label, const dmScript::LuaHBuffer& buffer)
  * @param [table] [type:{ buffer:buffer_data, transfer_ownership?:boolean }] A table containing info about how to create the buffer. Supported entries:
  *
  * * `buffer`
- * : [type:buffer] the buffer to bind to this resource
+ * : [type:buffer_data] the buffer to bind to this resource
  *
  * * `transfer_ownership`
  * : [type:boolean] optional flag to determine whether or not the resource should take over ownership of the buffer object (default true)
@@ -3361,7 +3361,7 @@ static int CreateBuffer(lua_State* L)
  * @name resource.get_buffer
  *
  * @param path [type:hash|string] The path to the resource
- * @return buffer [type:buffer] The resource buffer
+ * @return buffer [type:buffer_data] The resource buffer
  *
  * @examples
  * How to get the data from a buffer
@@ -3414,7 +3414,7 @@ static int GetBuffer(lua_State* L)
  * @name resource.set_buffer
  *
  * @param path [type:hash|string] The path to the resource
- * @param buffer [type:buffer] The resource buffer
+ * @param buffer [type:buffer_data] The resource buffer
  * @param [table] [type:{ transfer_ownership?: boolean }] A table containing info about how to set the buffer. Supported entries:
  *
  * * `transfer_ownership`

@@ -51,24 +51,7 @@ allowed_diagnostics:
   - missing-return
   - args-after-dots
 
-known_types:
-  - nil
-  - any
-  - boolean
-  - number
-  - integer
-  - string
-  - userdata
-  - function
-  - thread
-  - table
-  - file
-
 aliases:
-  array: table
-  bool: boolean
-  float: number
-  constant: number
   editor.schema: userdata
   editor.component: userdata
   editor.transaction_step: userdata
@@ -80,32 +63,10 @@ aliases:
   http.route: userdata
 
 type_replacements:
-  quat: quaternion
-  resource: resource_data
-  buffer: buffer_data
-  bufferstream: buffer_stream
-  handle: number
-  vmath.vector3: vector3
-  vmath.vector4: vector4
-  vecto4: vector4
-  schema: editor.schema
-  component: editor.component
-  tiles: editor.tiles
-  transaction_step: editor.transaction_step
-  command: editor.command
-  response: http.response
-  route: http.route
-  message: editor.message
-  b2World: b2d.world
-  b2Body: b2d.body
   b2BodyType: b2d.body.B2
-  b2Joint: b2d.joint
-  b2Chain: b2d.chain
-  b2Shape: b2d.shape
   b2ContactEdge: b2d.contact_edge
   b2MassData: b2d.mass_data
   b2Transform: b2d.transform
-  image: editor.image
 
 generics:
   vmath.clamp: number|vector3|vector4

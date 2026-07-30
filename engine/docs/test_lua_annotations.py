@@ -126,7 +126,6 @@ class TestLuaAnnotations(unittest.TestCase):
             "excluded_function_patterns": ["client:*"],
             "method_classes": method_classes or {},
             "allowed_diagnostics": ["lowercase-global", "missing-return", "args-after-dots"],
-            "known_types": ["nil", "any", "boolean", "number", "integer", "string", "userdata", "table"],
             "aliases": {"hash": "userdata"},
             "type_replacements": {"bool": "boolean"},
             "generics": generics or {},
@@ -201,6 +200,29 @@ class TestLuaAnnotations(unittest.TestCase):
         self.assertEqual(
             metadata["migration"]["patch_entries"],
             sum(len(entries) for entries in manifest["patches"].values()))
+        self.assertNotIn("known_types", metadata)
+        self.assertEqual(
+            {
+                "schema",
+                "editor.schema",
+                "component",
+                "transaction_step",
+                "tiles",
+                "image",
+                "command",
+                "message",
+                "response",
+                "route",
+            },
+            set(metadata["aliases"]))
+        self.assertEqual(
+            {
+                "b2BodyType",
+                "b2ContactEdge",
+                "b2MassData",
+                "b2Transform",
+            },
+            set(metadata["type_replacements"]))
 
     def test_unknown_type_fails_after_aggregation_with_source_and_symbol(self):
         unknown = document("go", [function("go.play", "not_a_real_type")])
@@ -380,6 +402,44 @@ class TestLuaAnnotations(unittest.TestCase):
             meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
             self.assertIn("---hash type", meta_lua)
             self.assertIn("---@alias hash userdata", meta_lua)
+
+    def test_box2d_handle_types_remain_distinct_from_runtime_namespaces(self):
+        handle_types = [
+            typedef("b2World", "userdata"),
+            typedef("b2Body", "userdata"),
+            typedef("b2Joint", "userdata"),
+            typedef("b2Shape", "userdata"),
+            typedef("b2Chain", "userdata"),
+        ]
+        namespace_documents = [
+            document("b2d", handle_types),
+            document("b2d.world", []),
+            document("b2d.body", []),
+            document("b2d.joint", []),
+            document("b2d.shape", []),
+            document("b2d.chain", []),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            metadata = self.metadata(directory)
+            metadata_data = yaml.safe_load(metadata.read_text(encoding="utf-8"))
+            metadata_data["type_replacements"] = {}
+            metadata.write_text(
+                yaml.safe_dump(metadata_data, sort_keys=False),
+                encoding="utf-8")
+            output = Path(directory) / "output"
+            lua_annotations.generate(
+                [
+                    ("box2d_%d.cpp" % index, box2d_document)
+                    for index, box2d_document in enumerate(namespace_documents)
+                ],
+                output,
+                metadata)
+
+            meta_lua = (output / "meta.lua").read_text(encoding="utf-8")
+            for type_name in ("b2World", "b2Body", "b2Joint", "b2Shape", "b2Chain"):
+                self.assertIn("---@alias %s userdata" % type_name, meta_lua)
+            for namespace in ("world", "body", "joint", "shape", "chain"):
+                self.assertNotIn("---@alias b2d.%s userdata" % namespace, meta_lua)
 
     def test_source_enum_infers_members_from_constants(self):
         playback = enum("go.PLAYBACK")

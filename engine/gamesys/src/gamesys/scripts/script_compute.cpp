@@ -185,7 +185,7 @@ namespace dmGameSystem
      *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
      *
      * `value`
-     * : [type:vmath.vector4|vmath.matrix4] the value(s) of the constant. If the constant is an array, the value will be a table of vmath.vector4 or vmath.matrix4 if the type is `material.CONSTANT_TYPE_USER_MATRIX4`.
+     * : [type:vector4|matrix4] the value(s) of the constant. If the constant is an array, the value will be a table of vector4 or matrix4 if the type is `material.CONSTANT_TYPE_USER_MATRIX4`.
      *
      * @examples
      * Get the shader constants from a compute program resource
@@ -439,7 +439,7 @@ namespace dmGameSystem
      *   - `material.CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE`
      *
      * `value`
-     * : [type:vmath.vector4|vmath.vector3|vmath.matrix4|number|table] the value(s) of the constant. If the shader constant is an array, the amount of values to update depends on how many values that are passed in the 'value' field.
+     * : [type:vector4|vector3|matrix4|number|table] the value(s) of the constant. If the shader constant is an array, the amount of values to update depends on how many values that are passed in the 'value' field.
      *
      * @examples
      * Set a shader constant in a compute program

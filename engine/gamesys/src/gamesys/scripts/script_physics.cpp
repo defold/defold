@@ -1564,7 +1564,7 @@ namespace dmGameSystem
      * : [type:object] The calling script
      *
      * `event`
-     * : [type:constant] The type of event. Can be one of these messages:
+     * : [type:hash] The type of event. Can be one of these messages:
      *
      *
      * - [ref:contact_point_event]

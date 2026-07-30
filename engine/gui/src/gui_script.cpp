@@ -2258,11 +2258,11 @@ namespace dmGui
      * @param texture_id [type:string|hash] texture id
      * @param width [type:number] texture width
      * @param height [type:number] texture height
-     * @param type [type:string|constant] texture type
+     * @param type [type:string|image.TYPE] texture type
      *
-     * - `"rgb"` - RGB</li>
-     * - `"rgba"` - RGBA</li>
-     * - `"l"` - LUMINANCE</li>
+     * - `"rgb"` or `image.TYPE_RGB` - RGB</li>
+     * - `"rgba"` or `image.TYPE_RGBA` - RGBA</li>
+     * - `"l"` or `image.TYPE_LUMINANCE` - LUMINANCE</li>
      * - `"astc"` - ASTC compressed format</li>
      *
      * @param buffer [type:string] texture data
@@ -2405,11 +2405,11 @@ namespace dmGui
      * @param texture [type:string|hash] texture id
      * @param width [type:number] texture width
      * @param height [type:number] texture height
-     * @param type [type:string|constant] texture type
+     * @param type [type:string|image.TYPE] texture type
      * <ul>
-     *   <li><code>"rgb"</code> - RGB</li>
-     *   <li><code>"rgba"</code> - RGBA</li>
-     *   <li><code>"l"</code> - LUMINANCE</li>
+     *   <li><code>"rgb"</code> or <code>image.TYPE_RGB</code> - RGB</li>
+     *   <li><code>"rgba"</code> or <code>image.TYPE_RGBA</code> - RGBA</li>
+     *   <li><code>"l"</code> or <code>image.TYPE_LUMINANCE</code> - LUMINANCE</li>
      *   <li><code>"astc"</code> - ASTC compressed format</li>
      * </ul>
      * @param buffer [type:string] texture data
@@ -4847,7 +4847,7 @@ namespace dmGui
      * : [type:hash] The id of the emitter
      *
      * `state`
-     * : [type:constant] the new state of the emitter:
+     * : [type:particlefx.EMITTER_STATE] the new state of the emitter:
      *
      * - `particlefx.EMITTER_STATE_SLEEPING`
      * - `particlefx.EMITTER_STATE_PRESPAWN`

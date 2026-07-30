@@ -223,7 +223,7 @@ namespace dmGameSystem
      *
      * @name sys.load_buffer
      * @param path [type:string] the path to load the buffer from
-     * @return buffer [type:buffer] the buffer with data
+     * @return buffer [type:buffer_data] the buffer with data
      * @examples
      *
      * Load binary data from a custom project resource:
@@ -302,7 +302,7 @@ namespace dmGameSystem
      * - `resource.REQUEST_STATUS_ERROR_NOT_FOUND`
      *
      * `buffer`
-     * : [type:buffer] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
+     * : [type:buffer_data] If the request was successfull, this will contain the request payload in a buffer object, and nil otherwise. Make sure to check the status before doing anything with the buffer value!
      *
      * @return handle [type:number] a handle to the request
      * @examples
