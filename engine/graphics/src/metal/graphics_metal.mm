@@ -4910,6 +4910,11 @@ namespace dmGraphics
 
     }
 
+    static void MetalRecreateGraphicsHandles(HContext _context)
+    {
+        // NOP: Metal does not lose its device objects the way a WebGL context does.
+    }
+
     static void MetalGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         MetalContext* context = (MetalContext*)_context;

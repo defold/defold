@@ -1136,6 +1136,7 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
     params.m_IsBufferPartial= buffer_size != resource_size;
     params.m_Resource       = rd;
     params.m_Filename       = name;
+    params.m_IsContextRestore = 0;
     rd->m_PrevResource = 0;
     Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
@@ -1209,6 +1210,127 @@ Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* o
     return result;
 }
 
+// Loads the full original bytes of a resource addressed by its content hash into factory->m_Buffer.
+// Unlike LoadResource(), it does not require a canonical path string: the mounts (and the bundled
+// archive in particular) are keyed by the content hash, so this works in release builds where the
+// hash->filename table is unavailable. The 'name' argument is best-effort and only used by mount
+// providers that need a path (the dev file provider); archive mounts ignore it.
+static Result LoadResourceByHash(HFactory factory, dmhash_t name_hash, const char* name, void** buffer, uint32_t* buffer_size, uint32_t* resource_size)
+{
+    uint32_t file_size;
+    Result r = dmResourceMounts::GetResourceSize(factory->m_Mounts, name_hash, name, &file_size);
+    if (r != RESULT_OK)
+        return r;
+
+    if (factory->m_Buffer.Capacity() < file_size)
+        factory->m_Buffer.SetCapacity(file_size);
+    factory->m_Buffer.SetSize(file_size);
+
+    if (file_size > 0)
+    {
+        r = dmResourceMounts::ReadResource(factory->m_Mounts, name_hash, name, (uint8_t*) factory->m_Buffer.Begin(), factory->m_Buffer.Size());
+        if (r != RESULT_OK)
+        {
+            factory->m_Buffer.SetSize(0);
+            return r;
+        }
+    }
+
+    *buffer        = factory->m_Buffer.Begin();
+    *buffer_size   = file_size;
+    *resource_size = file_size;
+    return RESULT_OK;
+}
+
+static Result DoRecreateResource(HFactory factory, dmhash_t name_hash)
+{
+    ResourceDescriptor* rd = factory->m_Resources->Get(name_hash);
+    if (rd == 0x0)
+        return RESULT_RESOURCE_NOT_FOUND;
+
+    ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
+    if (!resource_type->m_RecreateFunction)
+        return RESULT_NOT_SUPPORTED;
+
+    // Best-effort name: authoritative path from the reload table if present (dev), otherwise the
+    // reverse-hashed string. Only used for logging and by the dev file provider; archive reads by hash.
+    const char* name = 0;
+    if (factory->m_ResourceHashToFilename)
+    {
+        const char** s = factory->m_ResourceHashToFilename->Get(name_hash);
+        if (s)
+            name = *s;
+    }
+    if (!name)
+        name = dmHashReverseSafe64(name_hash);
+
+    void* buffer;
+    uint32_t buffer_size;
+    uint32_t resource_size;
+    Result result = LoadResourceByHash(factory, name_hash, name, &buffer, &buffer_size, &resource_size);
+    if (result != RESULT_OK)
+        return result;
+
+    assert(buffer == factory->m_Buffer.Begin());
+
+    ResourceRecreateParams params;
+    params.m_Factory         = factory;
+    params.m_Type            = resource_type;
+    params.m_Context         = resource_type->m_Context;
+    params.m_Message         = 0;
+    params.m_Buffer          = buffer;
+    params.m_BufferSize      = buffer_size;
+    params.m_FileSize        = resource_size;
+    params.m_IsBufferPartial = buffer_size != resource_size;
+    params.m_Resource        = rd;
+    params.m_Filename        = name;
+    // This path only runs when re-creating GPU resources after a lost graphics context: the bytes
+    // are the unchanged originals, so recreate functions may restore GPU objects in place.
+    params.m_IsContextRestore = 1;
+    rd->m_PrevResource = 0;
+
+    Result create_result = (Result) resource_type->m_RecreateFunction(&params);
+    if (create_result != RESULT_OK)
+        return create_result;
+
+    rd->m_Version = IncreaseVersion(factory);
+    rd->m_ResourceSizeOnDisc = buffer_size;
+
+    // Intentionally NOT invoking ResourceReloadedCallbacks: they are unavailable in release builds and
+    // component correctness here relies on the graphics handle indirection (the resource keeps the same
+    // handle, only the GPU object behind it is regenerated), not on reload notifications.
+
+    if (rd->m_PrevResource)
+    {
+        ResourceDescriptor tmp_resource = *rd;
+        tmp_resource.m_Resource = rd->m_PrevResource;
+        ResourceDestroyParams destroy_params;
+        destroy_params.m_Factory  = factory;
+        destroy_params.m_Type     = resource_type;
+        destroy_params.m_Context  = resource_type->m_Context;
+        destroy_params.m_Resource = &tmp_resource;
+        Result res = (Result) resource_type->m_DestroyFunction(&destroy_params);
+        rd->m_PrevResource = 0x0;
+        return res;
+    }
+    return RESULT_OK;
+}
+
+Result RecreateResource(HFactory factory, dmhash_t name_hash)
+{
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+    return DoRecreateResource(factory, name_hash);
+}
+
+dmhash_t GetResourceTypeExtensionHash(HFactory factory, dmhash_t name_hash)
+{
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+    ResourceDescriptor* rd = factory->m_Resources->Get(name_hash);
+    if (rd == 0x0)
+        return 0;
+    return ((ResourceType*) rd->m_ResourceType)->m_ExtensionHash;
+}
+
 Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t datasize)
 {
     DM_PROFILE(__FUNCTION__);
@@ -1239,6 +1361,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t 
     params.m_Resource = rd;
     params.m_Filename = 0;
     params.m_FilenameHash = hashed_name;
+    params.m_IsContextRestore = 0;
     Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
     {
@@ -1293,6 +1416,7 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
     params.m_Resource = rd;
     params.m_Filename = 0;
     params.m_FilenameHash = hashed_name;
+    params.m_IsContextRestore = 0;
     Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
     {

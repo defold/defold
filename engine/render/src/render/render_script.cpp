@@ -3074,6 +3074,72 @@ namespace dmRender
         return 0;
     }
 
+   /*# recreate graphics resources after a context restore
+    * Recreates, in chunks across several frames, all GPU resources that were created from resource
+    * files (textures, shaders, buffers, meshes, render targets). Intended to be called after the
+    * graphics context has been restored (see [ref:render.set_listener] and
+    * `render.CONTEXT_EVENT_CONTEXT_RESTORED`), for example after a WebGL context restore on HTML5.
+    *
+    * Rendering stays paused while the resources are being recreated and is automatically resumed once
+    * the process has finished. The work is spread across frames so the application stays responsive.
+    *
+    * @name render.reload_resources
+    * @param finish_callback [type:function(self)] Called once when all resources have been recreated.
+    * @param progress_callback [type:function(self, done, total)|nil] Optional. Called every frame with
+    * the number of resources recreated so far (`done`) and the total number to recreate (`total`).
+    *
+    * `self`
+    * : [type:object] The render script
+    *
+    * @examples
+    *
+    * ```lua
+    * --- custom.render_script
+    * function init(self)
+    *    render.set_listener(function(self, event_type)
+    *        if event_type == render.CONTEXT_EVENT_CONTEXT_RESTORED then
+    *            render.reload_resources(function(self)
+    *                print("All resources recreated")
+    *            end, function(self, done, total)
+    *                print("Recreated " .. done .. "/" .. total)
+    *            end)
+    *        end
+    *    end)
+    * end
+    * ```
+    */
+    static int RenderScript_ReloadResources(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        RenderScriptInstance* script_instance = RenderScriptInstance_Check(L);
+
+        if (lua_type(L, 1) != LUA_TFUNCTION)
+        {
+            return DM_LUA_ERROR("argument 1 to render.reload_resources() must be a function (finish_callback)");
+        }
+
+        int progress_type = lua_type(L, 2);
+        if (progress_type != LUA_TNONE && progress_type != LUA_TNIL && progress_type != LUA_TFUNCTION)
+        {
+            return DM_LUA_ERROR("argument 2 to render.reload_resources() must be a function or nil (progress_callback)");
+        }
+
+        dmScript::LuaCallbackInfo* finish   = dmScript::CreateCallback(L, 1);
+        dmScript::LuaCallbackInfo* progress = progress_type == LUA_TFUNCTION ? dmScript::CreateCallback(L, 2) : 0x0;
+
+        if (!dmRender::StartResourceReload(script_instance->m_RenderContext, finish, progress))
+        {
+            dmScript::DestroyCallback(finish);
+            if (progress)
+            {
+                dmScript::DestroyCallback(progress);
+            }
+            return DM_LUA_ERROR("render.reload_resources() is already in progress");
+        }
+        return 0;
+    }
+
     static const luaL_reg Render_methods[] =
     {
         {"enable_state",                    RenderScript_EnableState},
@@ -3115,6 +3181,7 @@ namespace dmRender
         {"dispatch_compute",                RenderScript_Dispatch},
         {"set_camera",                      RenderScript_SetCamera},
         {"set_listener",                    RenderScript_SetListener},
+        {"reload_resources",                RenderScript_ReloadResources},
         {0, 0}
     };
 

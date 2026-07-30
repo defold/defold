@@ -269,6 +269,25 @@ namespace dmRender
     bool IsRenderPaused(HRenderContext context);
 
     /**
+     * Start recreating, in chunks across frames, all GPU resources that were created from resource
+     * files (textures, shaders, buffers, meshes, render targets). Intended to be called from a render
+     * script after a graphics context has been restored (e.g. WebGL context restore on HTML5).
+     * The two callbacks are owned by the render context until the reload finishes:
+     *   - finish_callback(self) is invoked once when all resources have been recreated.
+     *   - progress_callback(self, done, total) is invoked each frame with the running progress (optional, may be 0).
+     * Rendering stays paused until the reload completes, at which point it is automatically un-paused.
+     * @return true if the reload was started, false if one is already in flight.
+     */
+    bool StartResourceReload(HRenderContext context, dmScript::LuaCallbackInfo* finish_callback, dmScript::LuaCallbackInfo* progress_callback);
+
+    /**
+     * Advances an in-flight resource reload by one chunk (bounded by a per-frame time budget). Safe to
+     * call every frame regardless of state; it is a no-op when no reload is in flight. Must be driven
+     * even while rendering is paused (i.e. from the main loop, outside the normal render update).
+     */
+    void UpdateResourceReload(HRenderContext context, float dt);
+
+    /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
      * @param context Render context handle
      * @param x0 x coordinate of the left edge of the square

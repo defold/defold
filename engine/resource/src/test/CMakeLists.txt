@@ -332,6 +332,9 @@ endfunction()
 defold_add_executable(test_block_allocator "${RESOURCE_TEST_ROOT}/test_block_allocator.cpp")
 resource_configure_test(test_block_allocator ON)
 
+defold_add_executable(test_resource_recreate "${RESOURCE_TEST_ROOT}/test_resource_recreate.cpp")
+resource_configure_test(test_resource_recreate ON ResourceProviderFile)
+
 defold_add_executable(test_provider_file "${RESOURCE_TEST_ROOT}/test_provider_file.cpp")
 resource_configure_test(test_provider_file ON ResourceProviderFile)
 

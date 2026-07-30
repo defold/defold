@@ -131,6 +131,7 @@ namespace dmGraphics
     typedef uint32_t (*GetNumSupportedExtensionsFn)(HContext context);
     typedef const char* (*GetSupportedExtensionFn)(HContext context, uint32_t index);
     typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
+    typedef void (*RecreateGraphicsHandlesFn)(HContext context);
     typedef void (*GetViewportFn)(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height);
     typedef HUniformBuffer (*NewUniformBufferFn)(HContext context, UniformBufferLayout layout, uint32_t size);
     typedef void (*DeleteUniformBufferFn)(HContext, HUniformBuffer uniform_buffer);
@@ -221,6 +222,7 @@ namespace dmGraphics
         GetSupportedExtensionFn m_GetSupportedExtension;
         GetPipelineStateFn m_GetPipelineState;
         InvalidateGraphicsHandlesFn m_InvalidateGraphicsHandles;
+        RecreateGraphicsHandlesFn m_RecreateGraphicsHandles;
         GetViewportFn m_GetViewport;
         NewUniformBufferFn m_NewUniformBuffer;
         DeleteUniformBufferFn m_DeleteUniformBuffer;
@@ -313,6 +315,7 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetSupportedExtension); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, RecreateGraphicsHandles); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetViewport); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewUniformBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteUniformBuffer); \

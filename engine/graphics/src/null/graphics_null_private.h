@@ -39,6 +39,7 @@ namespace dmGraphics
         void*            m_Data;
         TextureSampler   m_Sampler;
         int32_t*         m_LastBoundUnit; // testing
+        uint32_t         m_GpuGeneration; // testing: matches NullContext::m_GpuGeneration while the GPU object is valid
     };
 
     struct VertexStreamBuffer
@@ -71,6 +72,7 @@ namespace dmGraphics
         Buffer   m_Base;
         char*    m_Buffer;
         char*    m_Copy;
+        uint32_t m_GpuGeneration; // testing, see NullTexture::m_GpuGeneration
     };
 
     struct IndexBuffer
@@ -78,12 +80,14 @@ namespace dmGraphics
         Buffer   m_Base;
         char*    m_Buffer;
         char*    m_Copy;
+        uint32_t m_GpuGeneration; // testing, see NullTexture::m_GpuGeneration
     };
 
     struct NullRenderTarget
     {
         RenderTarget m_Base;
         FrameBuffer  m_FrameBuffer;
+        uint32_t     m_GpuGeneration; // testing, see NullTexture::m_GpuGeneration
     };
 
     struct NullShaderModule
@@ -110,6 +114,7 @@ namespace dmGraphics
         uint32_t                   m_UniformDataSize;
         dmArray<NullUniformBuffer> m_UniformBuffers;
         ShaderDesc::Language       m_Language;
+        uint32_t                   m_GpuGeneration; // testing, see NullTexture::m_GpuGeneration
     };
 
     static const uint32_t UNIFORM_BUFFERS_ALIGNMENT = 4;
@@ -137,6 +142,9 @@ namespace dmGraphics
 
         int32_t                            m_ScissorRect[4];
         uint32_t                           m_TextureUnit;
+        // testing: incremented by InvalidateGraphicsHandles to simulate WebGL context loss; an asset
+        // is considered GPU-valid while its m_GpuGeneration equals this value.
+        uint32_t                           m_GpuGeneration;
         // Only use for testing
         uint32_t                           m_AsyncProcessingSupport : 1;
         uint32_t                           m_UseAsyncTextureLoad    : 1;

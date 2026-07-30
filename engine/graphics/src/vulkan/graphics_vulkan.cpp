@@ -5445,6 +5445,11 @@ bail:
         // NOP
     }
 
+    static void VulkanRecreateGraphicsHandles(HContext context)
+    {
+        // NOP: Vulkan does not lose its device objects the way a WebGL context does.
+    }
+
     ///////////////////////////////////
     // dmsdk / graphics_vulkan.h impls:
     ///////////////////////////////////

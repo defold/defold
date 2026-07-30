@@ -701,6 +701,7 @@ struct ResourcePostCreateParams
  * @member m_Message [type: const void*] Pointer holding a precreated message
  * @member m_Resource [type: HResourceDescriptor] The resource descriptor to update. Temporary, don't copy.
  * @member m_Type [type: HResourceType] The resource type
+ * @member m_IsContextRestore [type: uint8_t] Set when re-creating GPU resources after a lost+restored graphics context. The source bytes are unchanged, so implementations should restore GPU objects in place (keeping handles and pointers stable) instead of destroying and re-creating sub-objects.
  */
 struct ResourceRecreateParams
 {
@@ -715,6 +716,7 @@ struct ResourceRecreateParams
     const void*         m_Message;
     HResourceDescriptor m_Resource;
     HResourceType       m_Type;
+    uint8_t             m_IsContextRestore;
 };
 
 /*#

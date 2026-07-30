@@ -1983,6 +1983,10 @@ bail:
         {
             DM_PROFILE("Frame");
 
+            // Drive any in-flight render.reload_resources() recreation. This must run every frame even
+            // while rendering is paused (it is what eventually un-pauses rendering once finished).
+            dmRender::UpdateResourceReload(engine->m_RenderContext, dt);
+
             bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext);
 
             {
@@ -2510,7 +2514,11 @@ bail:
         // After this point, the rest of the resources should be loaded the ordinary way
         if (!engine->m_ConnectionAppMode)
         {
-            int unload = dmConfigFile::GetInt(engine->m_Config, "dmengine.unload_builtins", 1);
+            // Keep the builtins archive mounted by default: resources loaded from it (e.g. the
+            // system font materials/shaders) must stay re-readable by hash so they can be recreated
+            // after a lost graphics context (render.reload_resources). Set to 1 to reclaim the memory
+            // if context loss recovery of builtin resources is not a concern.
+            int unload = dmConfigFile::GetInt(engine->m_Config, "dmengine.unload_builtins", 0);
             if (unload)
             {
                 dmResource::ReleaseBuiltinsArchive(engine->m_Factory);

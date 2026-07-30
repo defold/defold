@@ -45,6 +45,13 @@ defold_target_link_libraries(test_profilerext_lua "${TARGET_PLATFORM}"
 defold_target_link_lua(test_profilerext_lua "${TARGET_PLATFORM}")
 defold_target_link_socket(test_profilerext_lua "${TARGET_PLATFORM}")
 defold_target_link_app(test_profilerext_lua "${TARGET_PLATFORM}")
+# Web (emscripten) needs the JS-library implementations of dmSys*/dmScript*/dmRender* symbols,
+# mirroring the sibling test_profilerext_render target. Without these the wasm-web link fails with
+# undefined dmSysGetUserAgent/dmSysOpenURL/... symbols.
+defold_target_link_libraries_web(test_profilerext_lua "${TARGET_PLATFORM}"
+  library_sys.js
+  library_script.js
+  library_render.js)
 if(TARGET_PLATFORM MATCHES "win32")
   target_link_libraries(test_profilerext_lua PRIVATE Psapi.lib)
 endif()

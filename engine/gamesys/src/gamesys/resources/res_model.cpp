@@ -245,6 +245,41 @@ namespace dmGameSystem
         }
     }
 
+    // Graphics context restore: re-upload the existing CPU-side mesh data into the SAME buffer
+    // handles. SetVertexBufferData/SetIndexBufferData regenerate the underlying GPU objects in
+    // place, so the ModelResourceBuffers pointers and buffer handles cached by components (e.g.
+    // MeshRenderItem::m_Buffers in comp_model) stay valid — unlike the full Release+Acquire path,
+    // which would allocate new ModelResourceBuffers and leave live components with dangling pointers.
+    static void RestoreBufferContents(ModelResource* resource)
+    {
+        dmArray<uint8_t> scratch_buffer;
+        for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
+        {
+            MeshInfo& info = resource->m_Meshes[i];
+            const dmRigDDF::Mesh* ddf_mesh = info.m_Mesh;
+            ModelResourceBuffers* buffers  = info.m_Buffers;
+            if (buffers == 0 || buffers->m_VertexBuffer == 0)
+                continue;
+
+            uint32_t num_vertices = ddf_mesh->m_Positions.m_Count / 3;
+            uint32_t vertex_size  = GetRigModelVertexFormatSize(buffers->m_RigModelVertexFormat);
+            uint32_t data_size    = num_vertices * vertex_size;
+
+            if (scratch_buffer.Capacity() < data_size)
+                scratch_buffer.SetCapacity(data_size);
+            scratch_buffer.SetSize(data_size);
+            CreateVertexData(ddf_mesh, scratch_buffer.Begin(), buffers->m_RigModelVertexFormat);
+
+            dmGraphics::SetVertexBufferData(buffers->m_VertexBuffer, data_size, scratch_buffer.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+            if (buffers->m_IndexBuffer)
+            {
+                uint32_t index_type_size = dmGraphics::TYPE_UNSIGNED_INT == buffers->m_IndexBufferElementType ? 4 : 2;
+                dmGraphics::SetIndexBufferData(buffers->m_IndexBuffer, buffers->m_IndexCount * index_type_size, ddf_mesh->m_Indices.m_Data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            }
+        }
+    }
+
     static dmResource::Result AcquireMorphTargetTextures(dmResource::HFactory factory, ModelResource* resource)
     {
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
@@ -525,6 +560,17 @@ namespace dmGameSystem
 
     dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams* params)
     {
+        ModelResource* model_resource = (ModelResource*)dmResource::GetResource(params->m_Resource);
+
+        if (params->m_IsContextRestore)
+        {
+            // The source bytes are unchanged; only the GPU objects were lost with the graphics
+            // context. Re-upload from the CPU-side data still held by the resource, keeping every
+            // handle and sub-object pointer stable.
+            RestoreBufferContents(model_resource);
+            return dmResource::RESULT_OK;
+        }
+
         dmModelDDF::Model* ddf;
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmModelDDF_Model_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
@@ -534,7 +580,6 @@ namespace dmGameSystem
         ModelContext* model_ctx = (ModelContext*) params->m_Context;
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(model_ctx->m_RenderContext);
 
-        ModelResource* model_resource = (ModelResource*)dmResource::GetResource(params->m_Resource);
         ReleaseResources(graphics_context, params->m_Factory, model_resource);
         model_resource->m_Model = ddf;
         return AcquireResources(graphics_context, params->m_Factory, model_resource);

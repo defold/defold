@@ -2450,6 +2450,10 @@ namespace dmGraphics
     {
         g_functions.m_InvalidateGraphicsHandles(context);
     }
+    void RecreateGraphicsHandles(HContext context)
+    {
+        g_functions.m_RecreateGraphicsHandles(context);
+    }
     void GetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         g_functions.m_GetViewport(context, x, y, width, height);

@@ -3575,6 +3575,11 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         // NOP
     }
 
+    static void DX12RecreateGraphicsHandles(HContext context)
+    {
+        // NOP: DirectX 12 does not lose its device objects the way a WebGL context does.
+    }
+
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};
