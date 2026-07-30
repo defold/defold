@@ -29,25 +29,21 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
   defold_get_graphics_symbols(_graphics_app_symbols "${TARGET_PLATFORM}")
 
   if(_graphics_app_symbols)
-    list(APPEND _graphics_app_symbols ResourceProviderFile)
     defold_create_exported_symbols_file(
       "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_graphics_app.cpp"
       "${_graphics_app_symbols}")
 
     defold_add_executable(test_app_graphics
       "${GRAPHICS_TEST_SRC_DIR}/test_app_graphics.cpp"
-      "${GRAPHICS_TEST_SRC_DIR}/../../../gamesys/src/gamesys/resources/res_shader_program.cpp"
       "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_graphics_app.cpp")
     target_include_directories(test_app_graphics PRIVATE
       "${GRAPHICS_SRC_DIR}"
-      "${GRAPHICS_PROTO_ROOT}"
-      "${GRAPHICS_TEST_SRC_DIR}/../../../gamesys/src")
+      "${GRAPHICS_PROTO_ROOT}")
     defold_target_link_libraries(test_app_graphics "${TARGET_PLATFORM}"
       testmain
       ddf
       dlib
-      profile_null
-      resource)
+      profile_null)
     defold_target_link_graphics(test_app_graphics "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_platform(test_app_graphics "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_socket(test_app_graphics "${TARGET_PLATFORM}" PRIVATE)

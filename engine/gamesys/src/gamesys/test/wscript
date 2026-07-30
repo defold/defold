@@ -215,6 +215,35 @@ def build(bld):
                 embed_source = embed_source,
                 target = 'test_gamesys')
 
+    if not bld.env.PLATFORM in ('x86_64-ios', 'x86_64-ps4', 'x86_64-ps5'):
+        shader_program_graphics_libs = ['GRAPHICS', 'graphics_transcoder_basisu']
+        shader_program_platform_lib = ['PLATFORM']
+        shader_program_glfw_lib = ['DMGLFW']
+        shader_program_extra_libs = []
+        shader_program_symbols = ['ResourceProviderFile']
+
+        if bld.env.PLATFORM in ('arm64-linux'):
+            shader_program_graphics_libs = ['GRAPHICS_OPENGLES', 'graphics_transcoder_basisu']
+            shader_program_symbols += ['GraphicsAdapterOpenGLES']
+        elif platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+            shader_program_symbols += ['GraphicsAdapterOpenGL']
+
+        if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
+            shader_program_extra_libs += ['OPENGL', 'graphics']
+            shader_program_symbols += ['GraphicsAdapterOpenGL']
+
+        if len(shader_program_symbols) > 1:
+            glfw_js = '%s/ext/lib/%s/js/library_glfw.js' % (bld.env.DYNAMO_HOME, bld.env.PLATFORM)
+            bld.program(features = 'cxx cprogram test skip_test',
+                        includes = '../../../src ../../../proto .',
+                        exported_symbols = shader_program_symbols,
+                        source = ['test_app_shader_program.cpp', '../resources/res_shader_program.cpp'],
+                        use = 'TESTMAIN APP DDF DLIB PROFILE_NULL RESOURCE'.split() +
+                              shader_program_graphics_libs + shader_program_platform_lib +
+                              shader_program_glfw_lib + shader_program_extra_libs,
+                        web_libs = ['library_sys.js', glfw_js],
+                        target = 'test_app_shader_program')
+
     bld.program(features = 'cxx cprogram embed test',
                 includes = '../../../src ../../../proto',
                 use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
