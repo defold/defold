@@ -11,6 +11,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/dlib/log.h>
+#include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/time.h>
 
 #include <stdlib.h> // free
 
@@ -26,6 +28,37 @@
 
 #if defined(FONT_USE_HARFBUZZ)
     #include <harfbuzz/hb.h>
+#endif
+
+//#define FONT_TTF_DEBUG_TIMING
+
+#if defined(FONT_TTF_DEBUG_TIMING)
+struct FontTimingScope
+{
+    const char* m_Label;
+    const char* m_FontPath;
+    uint32_t    m_GlyphIndex;
+    uint64_t    m_Start;
+
+    FontTimingScope(const char* label, const char* font_path, uint32_t glyph_index)
+    : m_Label(label)
+    , m_FontPath(font_path)
+    , m_GlyphIndex(glyph_index)
+    , m_Start(dmTime::GetMonotonicTime())
+    {
+    }
+
+    ~FontTimingScope()
+    {
+        uint64_t tend = dmTime::GetMonotonicTime();
+        float elapsed_ms = (tend - m_Start) / 1000.0f;
+        dmLogWarning("FONT_TTF_DEBUG_TIMING: %s font='%s' glyph=%u took %.3f ms", m_Label, m_FontPath ? m_FontPath : "<null>", m_GlyphIndex, elapsed_ms);
+    }
+};
+
+#define FONT_TTF_TIMING_SCOPE(label, font_path, glyph_index) FontTimingScope font_timing_scope(label, font_path, glyph_index)
+#else
+#define FONT_TTF_TIMING_SCOPE(label, font_path, glyph_index)
 #endif
 
 struct TTFFont
@@ -102,7 +135,17 @@ static float GetLineGapTTF(HFont hfont, float scale)
 static FontResult FreeGlyphTTF(HFont hfont, FontGlyph* glyph)
 {
     (void)hfont;
-    stbtt_FreeSDF(glyph->m_Bitmap.m_Data, 0);
+
+    if (glyph->m_Bitmap.m_Data)
+    {
+        stbtt_FreeSDF(glyph->m_Bitmap.m_Data, 0);
+    }
+
+    free(glyph->m_Outline.m_Commands);
+    glyph->m_Outline.m_Commands = 0;
+    glyph->m_Outline.m_CommandCount = 0;
+    glyph->m_Outline.m_Flags = 0;
+
     return FONT_RESULT_OK;
 }
 
@@ -113,9 +156,161 @@ static uint32_t GetGlyphIndexTTF(HFont hfont, uint32_t codepoint)
     return (uint32_t)stbtt_FindGlyphIndex(info, (int)codepoint);
 }
 
+struct OutlineBuildContext
+{
+    dmArray<FontCurveCommand> m_Commands;
+    bool                      m_Unsupported; // E.g. vcubic
+
+    OutlineBuildContext()
+    : m_Unsupported(false)
+    {
+    }
+};
+
+static void EnsureOutlineCapacity(OutlineBuildContext* ctx)
+{
+    if (ctx->m_Commands.Full())
+    {
+        ctx->m_Commands.OffsetCapacity(16);
+    }
+}
+
+static void PushOutlineCommand(OutlineBuildContext* ctx, const FontCurveCommand& command)
+{
+    EnsureOutlineCapacity(ctx);
+    ctx->m_Commands.Push(command);
+}
+
+static void OutlineMoveTo(OutlineBuildContext* ctx, float scale, float to_x, float to_y)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_MOVE_TO;
+    command.m_Points[0].m_X = to_x * scale;
+    command.m_Points[0].m_Y = to_y * scale;
+    PushOutlineCommand(ctx, command);
+}
+
+static void OutlineLineTo(OutlineBuildContext* ctx, float scale, float to_x, float to_y)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_LINE_TO;
+    command.m_Points[0].m_X = to_x * scale;
+    command.m_Points[0].m_Y = to_y * scale;
+    PushOutlineCommand(ctx, command);
+}
+
+static void OutlineQuadraticTo(OutlineBuildContext* ctx, float scale,
+                               float control_x, float control_y,
+                               float to_x, float to_y)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_QUADRATIC_TO;
+    command.m_Points[0].m_X = control_x * scale;
+    command.m_Points[0].m_Y = control_y * scale;
+    command.m_Points[1].m_X = to_x * scale;
+    command.m_Points[1].m_Y = to_y * scale;
+    PushOutlineCommand(ctx, command);
+}
+
+static void OutlineClosePath(OutlineBuildContext* ctx)
+{
+    FontCurveCommand command;
+    memset(&command, 0, sizeof(command));
+    command.m_Type = FONT_CURVE_CLOSE;
+    PushOutlineCommand(ctx, command);
+}
+
+static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, float scale, FontGlyph* glyph)
+{
+    FONT_TTF_TIMING_SCOPE(__FUNCTION__, font->m_Path, glyph_index);
+
+    stbtt_vertex* vertices = 0;
+    int vertex_count = stbtt_GetGlyphShape(&font->m_Font, glyph_index, &vertices);
+    if (vertex_count < 0)
+    {
+        return FONT_RESULT_ERROR;
+    }
+
+    OutlineBuildContext ctx;
+    ctx.m_Commands.SetCapacity(32);
+    ctx.m_Commands.SetSize(0);
+
+    bool path_open = false;
+    for (int i = 0; i < vertex_count; ++i)
+    {
+        stbtt_vertex& vertex = vertices[i];
+        switch (vertex.type)
+        {
+            case STBTT_vmove:
+            {
+                if (path_open)
+                {
+                    OutlineClosePath(&ctx);
+                }
+                OutlineMoveTo(&ctx, scale, vertex.x, vertex.y);
+                path_open = true;
+                break;
+            }
+            case STBTT_vline:
+            {
+                OutlineLineTo(&ctx, scale, vertex.x, vertex.y);
+                break;
+            }
+            case STBTT_vcurve:
+            {
+                OutlineQuadraticTo(&ctx, scale, vertex.cx, vertex.cy, vertex.x, vertex.y);
+                break;
+            }
+            case STBTT_vcubic:
+            {
+                ctx.m_Unsupported = true;
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+    }
+
+    if (path_open)
+    {
+        OutlineClosePath(&ctx);
+    }
+
+    stbtt_FreeShape(&font->m_Font, vertices);
+
+    if (ctx.m_Unsupported)
+    {
+        return FONT_RESULT_NOT_SUPPORTED;
+    }
+
+    if (ctx.m_Commands.Size() == 0)
+    {
+        return FONT_RESULT_OK;
+    }
+
+    uint32_t data_size = ctx.m_Commands.Size() * sizeof(FontCurveCommand);
+    FontCurveCommand* commands = (FontCurveCommand*)malloc(data_size);
+    if (!commands)
+    {
+        return FONT_RESULT_ERROR;
+    }
+
+    memcpy(commands, ctx.m_Commands.Begin(), data_size);
+    glyph->m_Outline.m_Commands = commands;
+    glyph->m_Outline.m_CommandCount = ctx.m_Commands.Size();
+    glyph->m_Outline.m_Flags = 0;
+    return FONT_RESULT_OK;
+}
+
 static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* glyph)
 {
     TTFFont* font = ToFont(hfont);
+    FONT_TTF_TIMING_SCOPE(__FUNCTION__, font->m_Path, glyph_index);
 
     memset(glyph, 0, sizeof(*glyph));
     glyph->m_GlyphIndex = glyph_index;
@@ -132,8 +327,8 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
     float padding = options->m_StbttSDFPadding;
     int on_edge_value = options->m_StbttSDFOnEdgeValue;
 
-    int ascent = 0;
-    int descent = 0;
+    float ascent = y1 * scale;
+    float descent = -y0 * scale;
     int srcw = 0;
     int srch = 0;
     int offsetx = 0;
@@ -157,13 +352,15 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
             // We don't call stbtt_FreeSDF(src, 0);
             // But instead let the user call FreeGlyphTTF()
 
-            ascent = -offsety;
-            descent = srch - ascent;
+            ascent = (float)-offsety;
+            descent = (float)srch - ascent;
         }
     }
 
+    bool has_sdf_image = options->m_GenerateImage && glyph->m_Bitmap.m_Data;
+
     // The dimensions of the visible area
-    if (x0 != x1 && y0 != y1)
+    if (options->m_GenerateImage && x0 != x1 && y0 != y1)
     {
         // Only modify non empty glyphs (from stbtt_GetGlyphSDF())
         x0 -= padding;
@@ -172,12 +369,39 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
         y1 += padding;
     }
 
-    glyph->m_Width = (x1 - x0) * scale;
-    glyph->m_Height = (y1 - y0) * scale;
     glyph->m_Advance = advx*scale;
-    glyph->m_LeftBearing = lsb*scale;
     glyph->m_Ascent = ascent;
     glyph->m_Descent = descent;
+
+    if (options->m_GenerateOutline && has_sdf_image)
+    {
+        // Vector glyphs with SDF-compatible metrics use the same pixel-space
+        // bitmap box as stbtt_GetGlyphSDF(), so curves normalize into the same
+        // coordinate system as the raster SDF image.
+        glyph->m_Width = (float)srcw;
+        glyph->m_Height = (float)srch;
+        glyph->m_LeftBearing = (float)offsetx;
+    }
+    else
+    {
+        glyph->m_Width = (x1 - x0) * scale;
+        glyph->m_Height = (y1 - y0) * scale;
+        glyph->m_LeftBearing = (options->m_GenerateOutline && !options->m_GenerateImage) ? x0 * scale : lsb * scale;
+    }
+
+    if (options->m_GenerateOutline)
+    {
+        FontResult outline_result = GenerateGlyphOutlineTTF(font, glyph_index, scale, glyph);
+        if (outline_result != FONT_RESULT_OK)
+        {
+            if (glyph->m_Bitmap.m_Data)
+            {
+                stbtt_FreeSDF(glyph->m_Bitmap.m_Data, 0);
+                glyph->m_Bitmap.m_Data = 0;
+            }
+            return outline_result;
+        }
+    }
 
     return FONT_RESULT_OK;
 }

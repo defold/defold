@@ -1618,6 +1618,7 @@ namespace dmEngine
             engine->m_ResourceTypeContexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
             engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
         }
+        engine->m_ResourceTypeContexts.Put(dmHashString64(CONTEXT_REGISTRY_CONTEXT_NAME), engine->m_ContextRegistry);
         engine->m_ResourceTypeContexts.Put(dmHashString64("fontc"), engine->m_RenderContext);
         engine->m_ResourceTypeContexts.Put(dmHashString64("lightc"), engine->m_RenderContext);
 

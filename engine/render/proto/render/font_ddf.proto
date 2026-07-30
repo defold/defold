@@ -124,4 +124,5 @@ message FontMap
     optional float sdf_outline    = 21 [default = 0.0];
     optional float sdf_shadow     = 22 [default = 0.0];
     optional uint32 padding       = 23 [default = 0];
+    repeated string renderer_materials = 24 [(resource)=true];
 }

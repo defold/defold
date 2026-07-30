@@ -38,8 +38,20 @@ namespace dmRender
             free(m_CellTempData);
             m_CellTempData = 0;
 
+            free(m_VectorCurveData);
+            m_VectorCurveData = 0;
+
+            free(m_VectorBandData);
+            m_VectorBandData = 0;
+
             if (m_Texture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
+
+            if (m_VectorSdfTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorSdfTexture);
+
+            if (m_VectorBandTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorBandTexture);
 
             dmHashTable<uint64_t, FontGlyph*>::Iterator iter = m_Glyphs.GetIterator();
             while(iter.Next())
@@ -47,6 +59,7 @@ namespace dmRender
                 FontGlyph* glyph = iter.GetValue();
                 if ( (glyph->m_Bitmap.m_Flags & FONT_GLYPH_BM_FLAG_DATA_IS_BORROWED) == 0)
                     free((void*)glyph->m_Bitmap.m_Data);
+                free((void*)glyph->m_Outline.m_Commands);
                 delete glyph;
             }
         }
@@ -56,12 +69,18 @@ namespace dmRender
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
         HFontRenderBackend      m_FontRenderBackend;
-        dmGraphics::HTexture    m_Texture;
+        dmGraphics::HTexture    m_Texture;       // Legacy glyph cache texture, or curve texture for vector fonts
+        dmGraphics::HTexture    m_VectorSdfTexture;
+        dmGraphics::HTexture    m_VectorBandTexture;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
+        void*                   m_VectorCurveData;
+        float*                  m_VectorBandData;
+        dmGraphics::TextureFormat m_VectorCurveFormat;
 
         dmHashTable64<FontGlyph*>   m_Glyphs;       // Ache with generated glyphs (with bitmap data!)
         dmHashTable64<CacheGlyph*>  m_GlyphCache;   // Quick check what glyphs are in the cache texture
+        dmHashTable64<uint8_t>      m_DebugGlyphBBoxesLogged;
         CacheGlyph*                 m_Cache;        // The data (i.e. the pool)
         uint16_t*                   m_CacheIndices; // Indices into the cache array
         uint32_t                    m_CacheCursor;
@@ -73,6 +92,7 @@ namespace dmRender
         float                   m_PixelScale;   // Scale factor from points to pixel scale
         float                   m_ShadowX;
         float                   m_ShadowY;
+        float                   m_ShadowBlur;
         float                   m_MaxAscent;
         float                   m_MaxDescent;
         float                   m_SdfSpread;
@@ -80,6 +100,7 @@ namespace dmRender
         float                   m_SdfShadow;
         float                   m_Alpha;
         float                   m_OutlineAlpha;
+        float                   m_OutlineWidth;
         float                   m_ShadowAlpha;
 
         uint8_t*                m_CellTempData; // a temporary unpack buffer for the compressed glyphs
@@ -101,6 +122,12 @@ namespace dmRender
         uint16_t                m_CacheCellCount;       // Number of cells in total
         uint16_t                m_MaxGlyphWidth;        // Maximum width of any of the used glyphs
         uint16_t                m_MaxGlyphHeight;       // Maximum height of any of the used glyphs
+        uint32_t                m_VectorCurveCapacity;  // Number of texels in the vector curve texture
+        uint32_t                m_VectorCurveCursor;    // Next free texel in the vector curve texture
+        uint32_t                m_VectorBandCapacity;   // Number of texels in the Slug band texture
+        uint32_t                m_VectorBandCursor;     // Next free row in the Slug band texture
+        uint8_t                 m_VectorCurveComponentSize;
+        uint8_t                 m_VectorCurveTexelsPerCurve;
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
         uint8_t                 m_Padding;              // The padding of the cell
@@ -111,7 +138,11 @@ namespace dmRender
         uint8_t                 m_IsCacheSizeTooSmall:1;
         uint8_t                 m_CacheChannels:3;      // Number of channels (1-4)
         uint8_t                 m_IsSdf:1;
-        uint8_t                 :7;
+        uint8_t                 m_IsVector:1;
+        uint8_t                 m_VectorRenderer:2;
+        uint8_t                 m_ShadowSdf:1;
+        uint8_t                 m_DebugGlyphBBoxes:1;
+        uint8_t                 :3;
     };
 }
 

@@ -34,7 +34,9 @@ void main()
 
     shadow_alpha = mix(shadow_alpha,outline_alpha,sdf_shadow_as_outline);
 
-    out_fragColor = face_alpha * var_face_color * var_layer_mask.x +
+    mediump vec4 glyph_color = face_alpha * var_face_color * var_layer_mask.x +
         outline_alpha * var_outline_color * var_layer_mask.y * (1.0 - face_alpha * sdf_is_single_layer) +
         shadow_alpha * var_shadow_color * var_layer_mask.z * (1.0 - min(1.0,outline_alpha + face_alpha) * sdf_is_single_layer);
+
+    out_fragColor = glyph_color;
 }

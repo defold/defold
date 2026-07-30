@@ -33,6 +33,12 @@ import com.dynamo.render.proto.Font.FontTextureFormat;
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc", paramsForSignature = {"font-runtime-generation"})
 public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
+    private static final String[] RUNTIME_FONT_RENDERER_MATERIALS = {
+        "/builtins/fonts/font-df.material",
+        "/builtins/fonts/font-vector_slug.material",
+        "/builtins/fonts/font-vector_sweep.material",
+    };
+
     private boolean useRuntimeGeneration(FontDesc fontDesc) {
         boolean enabled = this.project.option("font-runtime-generation", "false").equals("true");
         if (!enabled)
@@ -66,6 +72,11 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         {
             // input(2)
             subTask = createSubTask(fontResource, CopyBuilders.TTFBuilder.class, taskBuilder);
+            for (String material : RUNTIME_FONT_RENDERER_MATERIALS)
+            {
+                if (!material.equals(fontDesc.getMaterial()))
+                    createSubTask(material, "material", taskBuilder);
+            }
         }
         else
         {
@@ -100,6 +111,14 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         }
 
         fontMapBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
+        if (useRuntimeGeneration(fontDesc))
+        {
+            for (String material : RUNTIME_FONT_RENDERER_MATERIALS)
+            {
+                fontMapBuilder.addRendererMaterials(
+                    ResourceUtil.minifyPathAndReplaceExt(material, ".material", ".materialc"));
+            }
+        }
 
         boolean allChars = fontDesc.getAllChars();
 

@@ -30,6 +30,13 @@
 
 namespace dmRender
 {
+    enum FontRendererType
+    {
+        FONT_RENDERER_SDF = 0,
+        FONT_RENDERER_SLUG = 1,
+        FONT_RENDERER_SWEEP = 2,
+    };
+
     /**
      * A font map holds the glyph cache, and font information
      * @name HFontMap
@@ -67,6 +74,8 @@ namespace dmRender
         float m_ShadowX;
         /// Offset of the shadow along the y-axis
         float m_ShadowY;
+        /// Blur radius of the shadow
+        float m_ShadowBlur;
         /// Max ascent of font
         float m_MaxAscent;
         /// Max descent of font, positive value
@@ -81,6 +90,8 @@ namespace dmRender
         float m_Alpha;
         /// Font outline alpha
         float m_OutlineAlpha;
+        /// Font outline width
+        float m_OutlineWidth;
         /// Font shadow alpha
         float m_ShadowAlpha;
 
@@ -97,6 +108,8 @@ namespace dmRender
 
         uint8_t m_IsMonospaced:1;
         uint8_t m_IsDynamic:1;
+        uint8_t m_ShadowSdf:1;
+        uint8_t m_DebugGlyphBBoxes:1;
         uint8_t m_Padding:6;        // Note: Not C struct padding, but actual glyph padding.
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
@@ -108,9 +121,23 @@ namespace dmRender
     struct CacheGlyph
     {
         FontGlyph*  m_Glyph;
-        uint32_t    m_Frame; // Age
-        int16_t     m_X;     // The top left texel in the cache texture
-        int16_t     m_Y;     // The top left texel in the cache texture
+        uint32_t    m_Frame;                 // Age
+        int16_t     m_X;                     // The top left texel in the cache texture
+        int16_t     m_Y;                     // The top left texel in the cache texture
+        uint16_t    m_VectorCurveTexel;      // First curve texel for vector glyphs
+        uint16_t    m_VectorCurveTexelCount; // Number of curve texels used by the glyph
+        uint16_t    m_VectorCurveCount;      // Number of encoded quadratic segments
+        uint16_t    m_VectorStripeTexel;     // First scanline stripe metadata texel
+        uint16_t    m_VectorBandIndex;       // Slug band/header row index
+        uint8_t     m_VectorStripeCount;     // Number of horizontal scanline stripes, or zero
+        uint8_t     m_VectorBandMaxX;        // Maximum Slug vertical band index
+        uint8_t     m_VectorBandMaxY;        // Maximum Slug horizontal band index
+        float       m_VectorBandScaleX;
+        float       m_VectorBandScaleY;
+        float       m_VectorBandOffsetX;
+        float       m_VectorBandOffsetY;
+        uint8_t     m_VectorSdfCached:1;      // Runtime SDF bitmap is present in the vector SDF atlas
+        uint8_t     :7;
         // TODO: add page here as well
         // private
         uint64_t    m_GlyphKey;
@@ -165,6 +192,7 @@ namespace dmRender
      * @return dmGraphics::HTexture Texture handle
      */
     dmGraphics::HTexture GetFontMapTexture(HFontMap font_map);
+    dmGraphics::HTexture GetFontMapBandTexture(HFontMap font_map);
 
     /**
      * Set font map material
@@ -179,6 +207,20 @@ namespace dmRender
      * @return HMaterial handle
      */
     HMaterial GetFontMapMaterial(HFontMap font_map);
+
+    /**
+     * Check if the font map uses the vector text path
+     * @param font_map Font map handle
+     * @return true if the font map uses the vector path
+     */
+    bool GetFontMapIsVector(HFontMap font_map);
+
+    /**
+     * Get the SDF spread used for this font map.
+     * @param font_map Font map handle
+     * @return SDF spread in pixels
+     */
+    float GetFontMapSdfSpread(HFontMap font_map);
 
     struct TextMetrics
     {

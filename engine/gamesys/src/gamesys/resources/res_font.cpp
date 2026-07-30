@@ -20,10 +20,12 @@
 
 #include <string.h>
 
+#include <dlib/context_registry.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
 #include <dlib/utf8.h>
+#include <dmsdk/dlib/configfile.h>
 
 #include <font/fontcollection.h>
 #include <font/text_layout.h>
@@ -37,6 +39,19 @@ namespace dmGameSystem
 {
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
+    const static dmhash_t SAMPLER_HASH_CURVE_TEXTURE = dmHashString64("curve_texture");
+    const static char* SDF_MATERIAL = "/builtins/fonts/font-df.materialc";
+    const static char* SLUG_MATERIAL = "/builtins/fonts/font-vector_slug.materialc";
+    const static char* SWEEP_MATERIAL = "/builtins/fonts/font-vector_sweep.materialc";
+
+    struct FontResourceContext
+    {
+        dmRender::HRenderContext m_RenderContext;
+        uint8_t                  m_Renderer:2;
+        uint8_t                  m_ShadowSdf:1;
+        uint8_t                  m_DebugGlyphBBoxes:1;
+        uint8_t                  :4;
+    };
 
     struct ImageDataHeader
     {
@@ -315,7 +330,25 @@ namespace dmGameSystem
 
     }
 
-    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
+    static bool IsVectorMaterial(MaterialResource* material_resource)
+    {
+        return material_resource &&
+               material_resource->m_Material &&
+               dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE) != dmRender::INVALID_SAMPLER_UNIT;
+    }
+
+    static const char* GetRendererMaterial(uint8_t renderer)
+    {
+        switch ((dmRender::FontRendererType)renderer)
+        {
+            case dmRender::FONT_RENDERER_SDF:   return SDF_MATERIAL;
+            case dmRender::FONT_RENDERER_SLUG:  return SLUG_MATERIAL;
+            case dmRender::FONT_RENDERER_SWEEP: return SWEEP_MATERIAL;
+            default:                            return SWEEP_MATERIAL;
+        }
+    }
+
+    static dmResource::Result AcquireResources(FontResourceContext* context, dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
                                                     FontResource* font_map, const char* filename)
     {
         font_map->m_DDF = ddf;
@@ -324,6 +357,20 @@ namespace dmGameSystem
         if (result != dmResource::RESULT_OK)
         {
             return result;
+        }
+
+        if (context && IsVectorMaterial(font_map->m_MaterialResource))
+        {
+            const char* renderer_material = GetRendererMaterial(context->m_Renderer);
+            dmResource::Release(factory, (void*) font_map->m_MaterialResource);
+            font_map->m_MaterialResource = 0;
+
+            result = dmResource::Get(factory, renderer_material, (void**) &font_map->m_MaterialResource);
+            if (result != dmResource::RESULT_OK)
+            {
+                dmLogError("Failed to load font renderer material '%s' for '%s': %d", renderer_material, filename, result);
+                return result;
+            }
         }
 
         if (IsDynamic(ddf))
@@ -391,7 +438,9 @@ namespace dmGameSystem
         params->m_NameHash           = dmHashString64(filename);
         params->m_ShadowX            = ddf->m_ShadowX;
         params->m_ShadowY            = ddf->m_ShadowY;
+        params->m_ShadowBlur         = ddf->m_ShadowBlur;
         params->m_OutlineAlpha       = ddf->m_OutlineAlpha;
+        params->m_OutlineWidth       = ddf->m_OutlineWidth;
         params->m_ShadowAlpha        = ddf->m_ShadowAlpha;
         params->m_Alpha              = ddf->m_Alpha;
         params->m_LayerMask          = ddf->m_LayerMask;
@@ -568,31 +617,68 @@ namespace dmGameSystem
             return FONT_RESULT_ERROR;
         }
 
-        // Increment all child resources (i.e. .ttf) before we send them to the thread
-        FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, 1, 0, 0);
-        job_info->m_Job = dmGameSystem::FontGenAddGlyphByIndex(job_info->m_FontGenJobData, font, glyph_index, TextCallbackJobInfo, (void*)job_info);
-        if (!job_info->m_Job)
+        bool is_vector = dmRender::GetFontMapIsVector(font_map);
+
+        if (!is_vector)
         {
-            DestroyJobInfo(job_info);
-            return FONT_RESULT_ERROR;
+            // Increment all child resources (i.e. .ttf) before we send them to the thread
+            FontJobResourceInfo* job_info = CreateJobResourceInfo(resource->m_Factory, resource, 1, 0, 0);
+            job_info->m_Job = dmGameSystem::FontGenAddGlyphByIndex(job_info->m_FontGenJobData, font, glyph_index, TextCallbackJobInfo, (void*)job_info);
+            if (!job_info->m_Job)
+            {
+                DestroyJobInfo(job_info);
+                return FONT_RESULT_ERROR;
+            }
+
+            PushPendingJob(resource, job_info);
+
+            // Instead of keeping track of the async creation process here, we create a null dummy glyph
+            // and instead rely on the font generator to overwrite the dummy glyph once it's fully generated.
+            // This will prevent from further calls to this cache miss function in the meantime.
+            FontGlyph* glyph = new FontGlyph;
+            memset(glyph, 0, sizeof(*glyph));
+            glyph->m_GlyphIndex = (uint16_t)glyph_index;
+            *out = glyph;
+            return FONT_RESULT_OK;
         }
 
-        PushPendingJob(resource, job_info);
+        FontGlyphOptions options;
+        options.m_Scale = FontGetScaleFromSize(font, dmRender::GetFontMapSize(font_map));
+        options.m_GenerateImage = true;
+        options.m_GenerateOutline = true;
+        options.m_StbttSDFPadding = dmRender::GetFontMapSdfSpread(font_map);
 
-        // Instead of keeping track of the async creation process here, we create a null dummy glyph
-        // and instead rely on the font generator to overwrite the dummy glyph once it's fully generated.
-        // This will prevent from further calls to this cache miss function in the meantime.
+        FontGlyph temp;
+        memset(&temp, 0, sizeof(temp));
+        FontResult r = FontGetGlyphByIndex(font, glyph_index, &options, &temp);
+        if (r != FONT_RESULT_OK)
+        {
+            return r;
+        }
+
         FontGlyph* glyph = new FontGlyph;
-        memset(glyph, 0, sizeof(*glyph));
-        glyph->m_GlyphIndex = (uint16_t)glyph_index;
+        *glyph = temp;
+
+        temp.m_Outline.m_Commands = 0;
+        temp.m_Outline.m_CommandCount = 0;
+        temp.m_Outline.m_Flags = 0;
+        FontFreeGlyph(font, &temp);
+
+        glyph->m_Bitmap.m_Data = 0;
+        glyph->m_Bitmap.m_DataSize = 0;
+        glyph->m_Bitmap.m_Channels = 0;
+        glyph->m_Bitmap.m_Flags = 0;
+
         *out = glyph;
         return FONT_RESULT_OK;
     }
 
-    static dmResource::Result CreateFont(dmRender::HRenderContext context, dmRenderDDF::FontMap* ddf, const char* path, FontResource* resource)
+    static dmResource::Result CreateFont(FontResourceContext* context, dmRenderDDF::FontMap* ddf, const char* path, FontResource* resource)
     {
         dmRender::FontMapParams params;
         SetupParamsBase(ddf, path, &params);
+        params.m_ShadowSdf = context ? context->m_ShadowSdf : 0;
+        params.m_DebugGlyphBBoxes = context ? context->m_DebugGlyphBBoxes : 0;
 
         HFont hfont;
 
@@ -622,8 +708,9 @@ namespace dmGameSystem
             params.m_OnGlyphCacheMissContext = resource;
         }
 
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context);
-        resource->m_FontMap = dmRender::NewFontMap(context, graphics_context, params);
+        dmRender::HRenderContext render_context = context->m_RenderContext;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        resource->m_FontMap = dmRender::NewFontMap(render_context, graphics_context, params);
         if (!resource->m_FontMap)
         {
             dmLogError("Failed creating resource '%s'", path);
@@ -640,38 +727,43 @@ namespace dmGameSystem
 
     static dmResource::Result PrewarmFont(dmResource::HFactory factory, const char* path, FontResource* font)
     {
-        if (font->m_IsDynamic)
-        {
-            // Prewarm cache
-            bool all_chars = font->m_DDF->m_AllChars;
-            bool has_chars = font->m_DDF->m_Characters != 0 && font->m_DDF->m_Characters[0] != 0;
-            if (all_chars || !has_chars)
-            {
-                font->m_PrewarmDone = 1;
-                return dmResource::RESULT_OK;
-            }
+        font->m_Prewarming = 0;
+        font->m_PrewarmDone = 1;
+        return dmResource::RESULT_OK;
 
-            font->m_Prewarming = 1;
-            font->m_PrewarmDone = 0;
+        // if (font->m_IsDynamic)
+        // {
+        //     // Prewarm cache
+        //     bool all_chars = font->m_DDF->m_AllChars;
+        //     bool has_chars = font->m_DDF->m_Characters != 0 && font->m_DDF->m_Characters[0] != 0;
+        //     if (all_chars || !has_chars)
+        //     {
+        //         font->m_PrewarmDone = 1;
+        //         return dmResource::RESULT_OK;
+        //     }
 
-            dmResource::Result r = ResFontPrewarmText(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font);
-            if (dmResource::RESULT_OK != r)
-            {
-                font->m_Prewarming = 0;
-                dmLogError("Failed to prewarm glyph cache for font '%s'", path);
-                return dmResource::RESULT_OK;
-            }
-        }
-        else
-        {
-            font->m_PrewarmDone = 1;
-        }
+        //     font->m_Prewarming = 1;
+        //     font->m_PrewarmDone = 0;
 
-        return font->m_Prewarming ? dmResource::RESULT_PENDING : dmResource::RESULT_OK;
+        //     dmResource::Result r = ResFontPrewarmText(font, font->m_DDF->m_Characters, PrewarmGlyphsCallback, font);
+        //     if (dmResource::RESULT_OK != r)
+        //     {
+        //         font->m_Prewarming = 0;
+        //         dmLogError("Failed to prewarm glyph cache for font '%s'", path);
+        //         return dmResource::RESULT_OK;
+        //     }
+        // }
+        // else
+        // {
+        //     font->m_PrewarmDone = 1;
+        // }
+
+        // return font->m_Prewarming ? dmResource::RESULT_PENDING : dmResource::RESULT_OK;
     }
 
     static dmResource::Result ResFontPreload(const dmResource::ResourcePreloadParams* params)
     {
+        FontResourceContext* context = (FontResourceContext*) params->m_Context;
         dmRenderDDF::FontMap* ddf;
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
@@ -680,6 +772,10 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
+        if (context)
+        {
+            dmResource::PreloadHint(params->m_HintInfo, GetRendererMaterial(context->m_Renderer));
+        }
         if (IsDynamic(ddf))
             dmResource::PreloadHint(params->m_HintInfo, ddf->m_Font);
 
@@ -691,10 +787,11 @@ namespace dmGameSystem
     {
         FontResource* font = new FontResource;
         font->m_Factory = params->m_Factory;
+        FontResourceContext* context = (FontResourceContext*) params->m_Context;
 
         const char* path = params->m_Filename;
         dmRenderDDF::FontMap* ddf = (dmRenderDDF::FontMap*) params->m_PreloadData;
-        dmResource::Result r = AcquireResources(params->m_Factory, ddf, font, path);
+        dmResource::Result r = AcquireResources(context, params->m_Factory, ddf, font, path);
         if (r != dmResource::RESULT_OK)
         {
             DeleteFontResource(params->m_Factory, font);
@@ -713,7 +810,7 @@ namespace dmGameSystem
             SetupDynamicFontState(params->m_Factory, font);
         }
 
-        r = CreateFont((dmRender::HRenderContext) params->m_Context, ddf, path, font);
+        r = CreateFont(context, ddf, path, font);
         if (r != dmResource::RESULT_OK)
         {
             DeleteFontResource(params->m_Factory, font);
@@ -764,8 +861,9 @@ namespace dmGameSystem
         const char* path = params->m_Filename;
         FontResource* tmp_font_map = new FontResource;
         tmp_font_map->m_Factory = params->m_Factory;
+        FontResourceContext* context = (FontResourceContext*) params->m_Context;
 
-        dmResource::Result r = AcquireResources(params->m_Factory, ddf, tmp_font_map, path);
+        dmResource::Result r = AcquireResources(context, params->m_Factory, ddf, tmp_font_map, path);
         if(r != dmResource::RESULT_OK)
         {
             DeleteFontResource(params->m_Factory, tmp_font_map);
@@ -777,7 +875,7 @@ namespace dmGameSystem
             SetupDynamicFontState(params->m_Factory, tmp_font_map);
         }
 
-        r = CreateFont((dmRender::HRenderContext) params->m_Context, ddf, path, tmp_font_map);
+        r = CreateFont(context, ddf, path, tmp_font_map);
         if (r != dmResource::RESULT_OK)
         {
             DeleteFontResource(params->m_Factory, tmp_font_map);
@@ -1026,9 +1124,37 @@ namespace dmGameSystem
         // The engine.cpp creates the contexts for some of our our built in types (i.e. same context for some types)
         void* render_context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
         assert(render_context);
+        FontResourceContext* font_context = new FontResourceContext();
+        memset(font_context, 0, sizeof(*font_context));
+        font_context->m_RenderContext = (dmRender::HRenderContext) render_context;
+
+        HContextRegistry context_registry = (HContextRegistry) ResourceTypeContextGetContextByHash(ctx, dmHashString64(CONTEXT_REGISTRY_CONTEXT_NAME));
+        dmConfigFile::HConfig config = context_registry ? (dmConfigFile::HConfig) ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME) : 0;
+        if (config)
+        {
+            const char* renderer = dmConfigFile::GetString(config, "font.renderer", "sweep");
+            if (strcmp(renderer, "sdf") == 0)
+                font_context->m_Renderer = dmRender::FONT_RENDERER_SDF;
+            else if (strcmp(renderer, "slug") == 0)
+                font_context->m_Renderer = dmRender::FONT_RENDERER_SLUG;
+            else if (strcmp(renderer, "sweep") == 0)
+                font_context->m_Renderer = dmRender::FONT_RENDERER_SWEEP;
+            else
+            {
+                dmLogWarning("Unknown font.renderer value '%s'; using 'sweep'", renderer);
+                font_context->m_Renderer = dmRender::FONT_RENDERER_SWEEP;
+            }
+            font_context->m_ShadowSdf = dmConfigFile::GetInt(config, "font.shadow_sdf", 0) != 0;
+            font_context->m_DebugGlyphBBoxes = dmConfigFile::GetInt(config, "font.debug_glyph_bboxes", 0) != 0;
+        }
+        else
+        {
+            font_context->m_Renderer = dmRender::FONT_RENDERER_SWEEP;
+        }
+
         return (ResourceResult)dmResource::SetupType(ctx,
                                            type,
-                                           render_context,
+                                           font_context,
                                            ResFontPreload,
                                            ResFontCreate,
                                            ResFontPostCreate,
@@ -1038,6 +1164,8 @@ namespace dmGameSystem
 
     static ResourceResult DeregisterResourceType_Font(HResourceTypeContext ctx, HResourceType type)
     {
+        FontResourceContext* font_context = (FontResourceContext*) ResourceTypeGetContext(type);
+        delete font_context;
         return RESOURCE_RESULT_OK;
     }
 }

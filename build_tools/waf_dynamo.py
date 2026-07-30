@@ -1723,9 +1723,10 @@ Task.task_factory('dSYM',
                       color='YELLOW',
                       after='link_task')
 
-Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
+Task.task_factory('DSYMZIP', '"${ZIP}" -r "${TGT}" "${SRC}"',
                       color='BROWN',
-                      after='dSYM') # Not sure how I could ensure this task running after the dSYM task /MAWE
+                      after='dSYM',
+                      shell=True) # Not sure how I could ensure this task running after the dSYM task /MAWE
 
 @feature('extract_symbols')
 @after('cprogram', 'cxxprogram', 'cshlib', 'cxxshlib')
