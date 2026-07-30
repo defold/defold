@@ -65,6 +65,7 @@ The following third party software has licenses which does not require inclusion
   * ZLib
     * Box2D - Erin Catto
     * Bullet Physics - Erwin Coumans
+    * [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) - Micha Mettke and contributors. Used by the desktop-only fontviewer development and test application. Not included in the Defold engine or games built with Defold. Licensed under the MIT license; the license text is included with the vendored library in `engine/font/src/test/fontviewer/LICENSE.nuklear`.
     * GLFW - Marcus Geelnard, Camilla Löwy
     * bindgen (Sokol) - Andre Weissflog
     * SDL - Sam Lantinga (slouken@libsdl.org)

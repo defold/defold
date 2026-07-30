@@ -21,8 +21,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
-
-import com.dynamo.bob.util.StringUtil;
+import java.util.Locale;
 
 public class BMFont
 {
@@ -318,7 +317,7 @@ public class BMFont
         while ((line = in.readLine()) != null) {
 
             String[] line_parts = line.split(" ", 2);
-            entry_id = StringUtil.toLowerCase(line_parts[0]);
+            entry_id = line_parts[0].toLowerCase(Locale.ROOT);
             DefaultHashMap<String,String> entries = null;
 
             if (line_parts.length > 1)

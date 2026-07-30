@@ -29,6 +29,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -45,14 +46,35 @@ import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.ChannelData;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.Fontc.DistanceFieldBackend;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
+import com.dynamo.bob.font.FontRenderer;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.GlyphBank;
 import com.dynamo.render.proto.Font.GlyphBank.Glyph;
+import com.dynamo.render.proto.Font.FontTextureFormat;
 
 public class FontTest {
 
     private static final double EPSILON = 0.000001;
+
+    private static double normalizedRedChannelDifference(BufferedImage a, BufferedImage b) {
+        int sampleWidth = Math.max(a.getWidth(), b.getWidth());
+        int sampleHeight = Math.max(a.getHeight(), b.getHeight());
+        long difference = 0;
+        for (int y = 0; y < sampleHeight; ++y) {
+            int ay = y * a.getHeight() / sampleHeight;
+            int by = y * b.getHeight() / sampleHeight;
+            for (int x = 0; x < sampleWidth; ++x) {
+                int ax = x * a.getWidth() / sampleWidth;
+                int bx = x * b.getWidth() / sampleWidth;
+                int av = (a.getRGB(ax, ay) >> 16) & 0xff;
+                int bv = (b.getRGB(bx, by) >> 16) & 0xff;
+                difference += Math.abs(av - bv);
+            }
+        }
+        return difference / (255.0 * sampleWidth * sampleHeight);
+    }
 
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -265,6 +287,112 @@ public class FontTest {
 
         // unicode chars
         assertEquals(0xF8FF, glyphBank.getGlyphs(glyphBank.getGlyphsCount() - 1).getCharacter());
+    }
+
+    @Test
+    public void testNativeDistanceFieldDifferenceFromJavaReference() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(32)
+            .setCharacters("@AgjW")
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
+            .setOutlineWidth(2.0f)
+            .setShadowBlur(3)
+            .setShadowAlpha(1.0f)
+            .build();
+
+        Fontc nativeFontc = new Fontc(DistanceFieldBackend.NATIVE);
+        Fontc referenceFontc = new Fontc(DistanceFieldBackend.JAVA_REFERENCE);
+        byte[] fontBytes;
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            fontBytes = IOUtils.toByteArray(input);
+        }
+        FontResourceResolver resolver = resourceName -> {
+            throw new FileNotFoundException(resourceName);
+        };
+        try (InputStream input = new ByteArrayInputStream(fontBytes)) {
+            nativeFontc.compile(input, fontDesc, true, resolver);
+        }
+        try (InputStream input = new ByteArrayInputStream(fontBytes)) {
+            referenceFontc.compile(input, fontDesc, true, resolver);
+        }
+
+        assertEquals(referenceFontc.getGlyphs().size(), nativeFontc.getGlyphs().size());
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = fontDesc.getSize();
+        params.cacheWidth = 1;
+        params.cacheHeight = 1;
+        params.outlineWidth = fontDesc.getOutlineWidth();
+        params.shadowBlur = fontDesc.getShadowBlur();
+        double totalDifference = 0.0;
+        int comparedGlyphs = 0;
+        int dimensionChanges = 0;
+        try (FontRenderer renderer = new FontRenderer(fontDesc.getFont(), fontBytes, params)) {
+            for (int i = 0; i < nativeFontc.getGlyphs().size(); ++i) {
+                Fontc.Glyph nativeGlyph = nativeFontc.getGlyphs().get(i);
+                Fontc.Glyph referenceGlyph = referenceFontc.getGlyphs().get(i);
+                if (nativeGlyph.image == null || referenceGlyph.image == null) {
+                    continue;
+                }
+
+                FontRenderer.GeneratedGlyph generated = renderer.generateGlyph(nativeGlyph.c);
+                assertEquals(generated.advance, nativeGlyph.advance, EPSILON);
+                assertEquals(generated.width, nativeGlyph.image.getWidth());
+                assertEquals(generated.height, nativeGlyph.image.getHeight());
+                ByteBuffer pixels = generated.pixels.duplicate();
+                for (int y = 0; y < generated.height; ++y) {
+                    for (int x = 0; x < generated.width; ++x) {
+                        int color = nativeGlyph.image.getRGB(x, y);
+                        assertEquals(pixels.get() & 0xff, (color >> 16) & 0xff);
+                        assertEquals(pixels.get() & 0xff, (color >> 8) & 0xff);
+                        assertEquals(pixels.get() & 0xff, color & 0xff);
+                    }
+                }
+
+                totalDifference += normalizedRedChannelDifference(nativeGlyph.image, referenceGlyph.image);
+                if (nativeGlyph.image.getWidth() != referenceGlyph.image.getWidth() ||
+                    nativeGlyph.image.getHeight() != referenceGlyph.image.getHeight()) {
+                    ++dimensionChanges;
+                }
+                ++comparedGlyphs;
+            }
+        }
+
+        double meanDifference = totalDifference / comparedGlyphs;
+        System.out.printf("Native/Java SDF comparison: glyphs=%d, dimension_changes=%d, mean_normalized_red_difference=%.6f%n",
+                          comparedGlyphs, dimensionChanges, meanDifference);
+        assertTrue(comparedGlyphs > 0);
+        assertTrue(dimensionChanges > 0);
+        assertTrue(meanDifference > 0.01 && meanDifference < 0.2);
+    }
+
+    @Test
+    public void testNativeDistanceFieldSingleChannelGlyphBank() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("A")
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
+            .build();
+
+        Fontc fontc = new Fontc();
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            fontc.compile(input, fontDesc, false, resourceName -> {
+                throw new FileNotFoundException(resourceName);
+            });
+        }
+
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        assertEquals(1, glyphBank.getGlyphChannels());
+        assertEquals(1, glyphBank.getGlyphsCount());
+        assertEquals(Fontc.GetFontMapPadding(fontDesc), glyphBank.getPadding());
+        assertTrue(glyphBank.getGlyphs(0).getGlyphDataSize() > 1);
+        assertTrue(glyphBank.getGlyphs(0).getWidth() > 0.0f);
+        assertEquals(fontc.getGlyphs().get(0).image.getWidth(), glyphBank.getGlyphs(0).getWidth(), EPSILON);
+        assertEquals(fontc.getGlyphs().get(0).image.getHeight(),
+                     glyphBank.getGlyphs(0).getAscent() + glyphBank.getGlyphs(0).getDescent());
     }
 
     @Test

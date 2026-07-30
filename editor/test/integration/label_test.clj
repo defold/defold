@@ -64,6 +64,18 @@
         (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
         (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
 
+(deftest native-label-text-box-alignment-test
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")
+          distance-field-font (workspace/find-resource workspace "/editor1/test.font")]
+      (test-util/with-prop [node-id :font distance-field-font]
+        (let [text-data (g/node-value node-id :text-data)]
+          (is (some? (get-in text-data [:font-data :font-map :native-renderer])))
+          (is (= {:box-height 32.0
+                  :offset [-64.0 -16.0 0.0]
+                  :vertical-align :middle}
+                 (select-keys text-data [:box-height :offset :vertical-align]))))))))
+
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]
   (let [scene-render-data (scene/produce-scene-render-data {:scene scene :selection selection :hidden-renderable-tags #{} :hidden-node-outline-key-paths #{} :local-camera camera})

@@ -59,7 +59,6 @@ public class DistanceFieldGenerator
             }
             else if (t > 1)
             {
-                // Closest point is t=1 of the line
                 double xx = x - (x0 + dx);
                 double yy = y - (y0 + dy);
                 double distSqr = xx*xx + yy*yy;
@@ -68,7 +67,6 @@ public class DistanceFieldGenerator
             }
             else
             {
-                // Case when the closest point is along the line, and t will be [0,1]
                 double px = x0 + t * dx - x;
                 double py = y0 + t * dy - y;
                 double distSqr = px*px + py*py;

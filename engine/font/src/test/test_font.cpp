@@ -28,6 +28,8 @@
 
 #include "font.h"
 #include "fontcollection.h"
+#include "glyph_gen.h"
+#include "glyph_vertex.h"
 #include "text_layout.h"
 
 //static const char* g_TextLorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut tempus quam in lacinia imperdiet. Vestibulum interdum erat quis purus lacinia, at ullamcorper arcu sagittis. Etiam molestie varius lacus, eget fringilla enim tempor quis. In at mollis dolor, et dictum sem. Mauris condimentum metus sed auctor tempus.";
@@ -78,6 +80,52 @@ protected:
 TEST_F(FontTest, LoadTTF)
 {
     // Empty. Just loading/unloading a font
+}
+
+TEST_F(FontTest, GenerateSdfGlyphWithShadowChannels)
+{
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    params.m_SdfPadding = 6.0f;
+    params.m_OutlineWidth = 1.0f;
+    params.m_ShadowBlur = 2.0f;
+
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &glyph));
+    ASSERT_EQ(3u, glyph.m_Bitmap.m_Channels);
+    ASSERT_EQ((uint32_t)(glyph.m_Bitmap.m_Width * glyph.m_Bitmap.m_Height * 3), glyph.m_Bitmap.m_DataSize);
+    ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+    FontFreeGlyph(m_Font, &glyph);
+}
+
+TEST_F(FontTest, PackLayeredGlyphVertices)
+{
+    ASSERT_EQ(96u, sizeof(FontGlyphVertex));
+
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(m_Font, 32.0f);
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(m_Font, 'A');
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, glyph_index, &params, &glyph));
+
+    FontGlyphVertex vertices[18];
+    memset(vertices, 0, sizeof(vertices));
+    dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
+    dmVMath::Vector4 white(1.0f, 1.0f, 1.0f, 1.0f);
+    dmVMath::Vector4 black(0.0f, 0.0f, 0.0f, 1.0f);
+    FontPackGlyphVertices(&glyph, 1.0f / 256.0f, 1.0f / 256.0f,
+                          0, 0, (uint32_t)glyph.m_Ascent, 1,
+                          3, FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW,
+                          0, 6, transform, 0.0f, 0.0f,
+                          white, black, black, 0.75f, 0.5f, 0.1f, 0.25f,
+                          2.0f, -2.0f, true, vertices);
+
+    ASSERT_EQ(1.0f, vertices[12].m_LayerMasks[0]);
+    ASSERT_EQ(1.0f, vertices[6].m_LayerMasks[1]);
+    ASSERT_EQ(1.0f, vertices[0].m_LayerMasks[2]);
+    ASSERT_NE(vertices[12].m_Position[0], vertices[0].m_Position[0]);
+    FontFreeGlyph(m_Font, &glyph);
 }
 
 static TextResult TestLayout(HFontCollection coll, dmArray<uint32_t>& codepoints,

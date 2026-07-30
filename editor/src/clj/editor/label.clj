@@ -336,17 +336,28 @@
   (output save-value g/Any :cached produce-save-value)
   (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking]
                                            (font/layout-text font-map text line-break (first size) tracking leading)))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot]
-                                        (let [text-size [(:width text-layout) (:height text-layout) 0]]
-                                          (cond-> {:text-layout text-layout
-                                                   :font-data font-data
-                                                   :color color
-                                                   :outline outline
-                                                   :shadow shadow
-                                                   :align (pivot->h-align pivot)}
-                                            font-data (assoc :offset (let [[x y] (pivot-offset pivot text-size)
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot size]
+                                        (let [text-size [(:width text-layout) (:height text-layout) 0]
+                                              text-data {:text-layout text-layout
+                                                         :font-data font-data
+                                                         :color color
+                                                         :outline outline
+                                                         :shadow shadow
+                                                         :align (pivot->h-align pivot)}]
+                                          (cond
+                                            (nil? font-data)
+                                            text-data
+
+                                            (get-in font-data [:font-map :native-renderer])
+                                            (assoc text-data
+                                                   :box-height (second size)
+                                                   :offset (pivot-offset pivot size)
+                                                   :vertical-align (pivot->v-align pivot))
+
+                                            :else
+                                            (assoc text-data :offset (let [[x y] (pivot-offset pivot text-size)
                                                                            h (second text-size)]
-                                                                       [x (+ y (- h (get-in font-data [:font-map :max-ascent])))]))))))
+                                                                       [x (+ y (- h (:max-ascent text-layout)))]))))))
   (output aabb g/Any :cached (g/fnk [pivot size]
                                (let [offset-fn (partial mapv + (pivot-offset pivot size))
                                      [min-x min-y _] (offset-fn [0 0 0])

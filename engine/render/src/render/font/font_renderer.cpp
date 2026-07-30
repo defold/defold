@@ -305,7 +305,7 @@ namespace dmRender
         te.m_SourceBlendFactor = params.m_SourceBlendFactor;
         te.m_DestinationBlendFactor = params.m_DestinationBlendFactor;
 
-        TextLayoutSettings settings;
+        TextLayoutSettings settings = {};
         settings.m_Width = params.m_Width;
         settings.m_LineBreak = params.m_LineBreak;
         settings.m_Leading = params.m_Leading;

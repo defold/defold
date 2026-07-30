@@ -147,8 +147,8 @@ set(DEFOLD_ENGINE_LIBS
   shaderc
   ddf
   platform
-  font
   graphics
+  font
   particle
   lua
   hid
@@ -212,6 +212,11 @@ if(DEFOLD_ENGINE_LIB_SET STREQUAL "all" OR DEFOLD_ENGINE_LIB_SET STREQUAL "targe
   add_subdirectory("share/extender" "${DEFOLD_BUILD_HOME}/share/extender/build/${TARGET_PLATFORM}")
 endif()
 
+# Subprojects call project(), which can reinitialize an unset install prefix.
+# Reassert the SDK destination after configuring all subprojects so direct
+# CMake configurations cannot generate absolute /sdk, /lib, or /share paths.
+set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
+
 set(_DEFOLD_BOB_LIGHT_DEPENDS
   "${DEFOLD_BOB_DIR}/build.gradle"
   "${DEFOLD_GRADLEW}")
@@ -246,6 +251,15 @@ if(TARGET modelimporter_jar)
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
       "${DEFOLD_MODELC_BINARY_DIR}/modelimporter.jar"
       "${DEFOLD_SDK_ROOT}/share/java/modelimporter.jar")
+endif()
+if(TARGET font_renderer_jar)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS
+    font_renderer_jar
+    "${DEFOLD_FONT_BINARY_DIR}/fontrenderer.jar")
+  list(APPEND _DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${DEFOLD_FONT_BINARY_DIR}/fontrenderer.jar"
+      "${DEFOLD_SDK_ROOT}/share/java/fontrenderer.jar")
 endif()
 if(TARGET texturecompiler_jar)
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS

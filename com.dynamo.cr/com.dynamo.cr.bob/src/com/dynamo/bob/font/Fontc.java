@@ -41,6 +41,7 @@ import java.awt.image.Kernel;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -53,6 +54,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.TreeSet;
@@ -73,6 +75,7 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
+import com.dynamo.bob.font.FontRenderer.GeneratedGlyph;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.GlyphBank;
@@ -125,6 +128,11 @@ class BlendComposite implements Composite {
 
 public class Fontc {
 
+    public enum DistanceFieldBackend {
+        NATIVE,
+        JAVA_REFERENCE
+    }
+
     public static final char[] ASCII_7BIT;
     static {
         int start = 32;
@@ -144,8 +152,8 @@ public class Fontc {
         public int           index;
         public int           c;
         public int           width;
-        public int           advance;
-        public int           leftBearing;
+        public float         advance;
+        public float         leftBearing;
         public int           ascent;
         public int           descent;
         public int           x;
@@ -167,6 +175,8 @@ public class Fontc {
 
     private Font font;
     private BMFont bmfont;
+    private final DistanceFieldBackend distanceFieldBackend;
+    private FontRenderer nativeFontRenderer;
 
     public static long FontDescToHash(FontDesc fontDesc) {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
@@ -270,7 +280,15 @@ public class Fontc {
     }
 
     public Fontc() {
+        this(DistanceFieldBackend.NATIVE);
+    }
 
+    /** The reference backend exists only for measuring migrations in tests. */
+    public Fontc(DistanceFieldBackend distanceFieldBackend) {
+        if (distanceFieldBackend == null) {
+            throw new NullPointerException("distanceFieldBackend");
+        }
+        this.distanceFieldBackend = distanceFieldBackend;
     }
 
     public ArrayList<Glyph> getGlyphs() {
@@ -285,12 +303,9 @@ public class Fontc {
         return StringUtil.toLowerCase(fd.getFont()).endsWith("fnt");
     }
 
-    public void TTFBuilder(InputStream fontStream) throws FontFormatException, IOException {
-
+    private ArrayList<Integer> getRequestedCharacters() {
         ArrayList<Integer> characters = new ArrayList<Integer>();
-
         if (!fontDesc.getAllChars()) {
-
             String chars = fontDesc.getCharacters();
             if (!StringUtils.isEmpty(chars)) {
                 for (int i = 0; i < chars.length(); i++) {
@@ -313,6 +328,11 @@ public class Fontc {
             Set<Integer> deDup = new TreeSet<Integer>(characters);
             characters = new ArrayList<Integer>(deDup);
         }
+        return characters;
+    }
+
+    public void TTFBuilder(InputStream fontStream) throws FontFormatException, IOException {
+        ArrayList<Integer> characters = getRequestedCharacters();
 
         if (fontDesc.getOutlineWidth() > 0.0f) {
             outlineStroke = new BasicStroke(fontDesc.getOutlineWidth() * 2.0f);
@@ -445,6 +465,79 @@ public class Fontc {
         return sdfLimitValue * (1.0f - sdfEdge) + sdfEdge;
     }
 
+    private boolean usesNativeDistanceField() {
+        return distanceFieldBackend == DistanceFieldBackend.NATIVE &&
+               inputFormat == InputFontFormat.FORMAT_TRUETYPE &&
+               fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD;
+    }
+
+    private float getNativeSdfPadding() {
+        float shadowBlur = fontDesc.getShadowAlpha() > 0.0f ? fontDesc.getShadowBlur() : 0.0f;
+        return FontRenderer.DEFAULT_SDF_BASE_PADDING + fontDesc.getOutlineWidth() + shadowBlur;
+    }
+
+    private static float calculateNativeSdfLimit(float padding, float width) {
+        float baseEdge = sdfEdge * 255.0f;
+        return (baseEdge - (FontRenderer.DEFAULT_SDF_EDGE_VALUE / padding) * width) / 255.0f;
+    }
+
+    private void nativeTTFBuilder() throws FontFormatException {
+        ArrayList<Integer> characters = getRequestedCharacters();
+        int loopEnd = fontDesc.getAllChars() ? 0x10FFFF : characters.size();
+        float maxAdvance = 0.0f;
+        int maxWidth = 0;
+
+        for (int i = 0; i < loopEnd; ++i) {
+            int codePoint = fontDesc.getAllChars() ? i : characters.get(i);
+            GeneratedGlyph generated;
+            try {
+                generated = nativeFontRenderer.generateGlyph(codePoint);
+            } catch (RuntimeException e) {
+                throw new FontFormatException(String.format("Native SDF generation failed for U+%04X: %s", codePoint, e.getMessage()));
+            }
+
+            if (generated.glyphIndex == 0) {
+                continue;
+            }
+
+            Glyph glyph = new Glyph();
+            glyph.c = codePoint;
+            glyph.index = i;
+            glyph.advance = generated.advance;
+            glyph.leftBearing = generated.leftBearing;
+            glyph.width = generated.width;
+            glyph.ascent = Math.round(generated.ascent);
+            glyph.descent = Math.round(generated.descent);
+            maxAdvance = Math.max(maxAdvance, glyph.advance);
+            maxWidth = Math.max(maxWidth, glyph.width);
+            if (generated.width == 0 || generated.height == 0) {
+                glyph.image = null;
+            } else {
+                BufferedImage image = new BufferedImage(generated.width, generated.height, BufferedImage.TYPE_3BYTE_BGR);
+                ByteBuffer pixels = generated.pixels.duplicate();
+                for (int y = 0; y < generated.height; ++y) {
+                    for (int x = 0; x < generated.width; ++x) {
+                        int red = pixels.get() & 0xff;
+                        int green = generated.channels > 1 ? pixels.get() & 0xff : 0;
+                        int blue = generated.channels > 2 ? pixels.get() & 0xff : 0;
+                        image.setRGB(x, y, (red << 16) | (green << 8) | blue);
+                    }
+                }
+                glyph.image = image;
+            }
+            if (!(glyph.width == 0 && glyph.advance == 0.0f && codePoint >= 65000)) {
+                glyphs.add(glyph);
+            }
+        }
+
+        FontRenderer.Layout metrics = nativeFontRenderer.measure("", false, 0.0f, 1.0f, 0.0f);
+        glyphBankBuilder.setMaxAscent(metrics.maxAscent)
+                        .setMaxDescent(metrics.maxDescent)
+                        .setMaxAdvance(maxAdvance)
+                        .setMaxWidth(maxWidth)
+                        .setMaxHeight(metrics.maxAscent + metrics.maxDescent);
+    }
+
     private byte[] toByteArray(BufferedImage image, int width, int height, int bpp, int targetBpp) throws IOException {
         int dataSize = width * height * bpp;
         byte[] tmp = new byte[dataSize];
@@ -499,8 +592,13 @@ public class Fontc {
             padding = 0;
             cell_padding = 1;
         } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            sdfSpread        = getPaddedSdfSpread(fontDesc.getOutlineWidth());
-            sdfShadowSpread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
+            if (usesNativeDistanceField()) {
+                sdfSpread = getNativeSdfPadding();
+                sdfShadowSpread = fontDesc.getShadowBlur();
+            } else {
+                sdfSpread = getPaddedSdfSpread(fontDesc.getOutlineWidth());
+                sdfShadowSpread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
+            }
         }
 
         Color faceColor = new Color(fontDesc.getAlpha(), 0.0f, 0.0f);
@@ -520,9 +618,17 @@ public class Fontc {
             shadowConvolve = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, hints);
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            glyphBankBuilder.setSdfSpread(GetFontMapSdfSpread(fontDesc));
-            glyphBankBuilder.setSdfOutline(GetFontMapSdfOutline(fontDesc));
-            glyphBankBuilder.setSdfShadow(GetFontMapSdfShadow(fontDesc));
+            if (usesNativeDistanceField()) {
+                float nativePadding = getNativeSdfPadding();
+                glyphBankBuilder.setSdfSpread(nativePadding);
+                glyphBankBuilder.setSdfOutline(calculateNativeSdfLimit(nativePadding, fontDesc.getOutlineWidth()));
+                glyphBankBuilder.setSdfShadow(fontDesc.getShadowBlur() == 0 ? 1.0f :
+                                               calculateNativeSdfLimit(nativePadding, fontDesc.getShadowBlur()));
+            } else {
+                glyphBankBuilder.setSdfSpread(GetFontMapSdfSpread(fontDesc));
+                glyphBankBuilder.setSdfOutline(GetFontMapSdfOutline(fontDesc));
+                glyphBankBuilder.setSdfShadow(GetFontMapSdfShadow(fontDesc));
+            }
         }
 
         // Load external image resource for BMFont files
@@ -589,15 +695,17 @@ public class Fontc {
 
             int ascent  = glyph.ascent;
             int descent = glyph.descent;
-            int width   = glyph.width + padding * 2 + cell_padding * 2;
+            int width   = glyph.width + (usesNativeDistanceField() ? 0 : padding * 2) + cell_padding * 2;
 
             cell_width       = Math.max(cell_width, width);
             cell_max_ascent  = Math.max(cell_max_ascent, ascent);
             cell_max_descent = Math.max(cell_max_descent, descent);
         }
 
-        cell_height       = cell_max_ascent + cell_max_descent + padding * 2 + cell_padding * 2;
-        cell_max_ascent  += padding;
+        cell_height = cell_max_ascent + cell_max_descent + (usesNativeDistanceField() ? 0 : padding * 2) + cell_padding * 2;
+        if (!usesNativeDistanceField()) {
+            cell_max_ascent += padding;
+        }
 
         // Some hardware don't like doing subimage updates on non-aligned cell positions.
         if (channelCount == 3) {
@@ -649,7 +757,8 @@ public class Fontc {
                 glyphImage = drawBMFontGlyph(glyph, imageBMFont);
             } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                        inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-                glyphImage = makeDistanceField(glyph, padding, sdfSpread, sdfShadowSpread, font, sdfEdge, shadowConvolve);
+                glyphImage = usesNativeDistanceField() ? glyph.image :
+                             makeDistanceField(glyph, padding, sdfSpread, sdfShadowSpread, font, sdfEdge, shadowConvolve);
             } else {
                 throw new FontFormatException("Invalid font format combination!");
             }
@@ -757,20 +866,21 @@ public class Fontc {
         }
 
         boolean monospace = true;
-        int prevAdvance = -1;
+        float prevAdvance = -1.0f;
 
         for (int i = 0; i < include_glyph_count; i++) {
             Glyph glyph = glyphs.get(i);
-            // The Defold generator clips the SDF image but the stb generator does not.
-            // So, we need to have a width, and an image width, in order to handle the different values at runtime
-            int width = glyph.width + (glyph.width > 0 ? padding * 2 : 0);
+            // Native glyph metrics already include the stb SDF padding. The Java
+            // reference path still adds its padding around the AWT visual bounds.
+            int glyphPadding = usesNativeDistanceField() ? 0 : padding;
+            int width = glyph.width + (glyph.width > 0 ? glyphPadding * 2 : 0);
             GlyphBank.Glyph.Builder glyphBuilder = GlyphBank.Glyph.newBuilder()
                 .setCharacter(glyph.c)
                 .setWidth(width)
                 .setAdvance(glyph.advance)
                 .setLeftBearing(glyph.leftBearing)
-                .setAscent(glyph.ascent + padding)
-                .setDescent(glyph.descent + padding)
+                .setAscent(glyph.ascent + glyphPadding)
+                .setDescent(glyph.descent + glyphPadding)
                 .setGlyphDataOffset(glyph.cache_entry_offset)
                 .setGlyphDataSize(glyph.cache_entry_size);
 
@@ -782,7 +892,7 @@ public class Fontc {
 
             glyphBankBuilder.addGlyphs(glyphBuilder);
 
-            if (prevAdvance == -1)
+            if (prevAdvance == -1.0f)
                 prevAdvance = glyph.advance;
 
             monospace = monospace && (prevAdvance == glyph.advance);
@@ -843,7 +953,7 @@ public class Fontc {
             pi.next();
         }
 
-        glyph.x = -glyph.leftBearing + padding;
+        glyph.x = -(int)Math.floor(glyph.leftBearing) + padding;
         glyph.y =  glyph.ascent + padding;
 
         // Glyph vector coordinates of the destination rect.
@@ -932,7 +1042,7 @@ public class Fontc {
         int width = glyph.width + padding * 2;
         int height = glyph.ascent + glyph.descent + padding * 2;
 
-        int dx = -glyph.leftBearing + padding;
+        int dx = -(int)Math.floor(glyph.leftBearing) + padding;
         int dy = glyph.ascent + padding;
 
         glyph.x = dx;
@@ -1016,11 +1126,32 @@ public class Fontc {
 
         if (Fontc.isBitmapFont(fontDesc)) {
             FNTBuilder(fontStream);
-        } else {
-            TTFBuilder(fontStream);
+            return generateGlyphData(preview, resourceResolver);
         }
 
-        return generateGlyphData(preview, resourceResolver);
+        byte[] fontBytes = fontStream.readAllBytes();
+        if (!usesNativeDistanceField()) {
+            TTFBuilder(new ByteArrayInputStream(fontBytes));
+            return generateGlyphData(preview, resourceResolver);
+        }
+
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = fontDesc.getSize();
+        // Per-glyph compilation does not use the renderer atlas, but sessions
+        // deliberately share font loading and SDF configuration with previews.
+        params.cacheWidth = 1;
+        params.cacheHeight = 1;
+        params.sdfBasePadding = FontRenderer.DEFAULT_SDF_BASE_PADDING;
+        params.sdfEdgeValue = FontRenderer.DEFAULT_SDF_EDGE_VALUE;
+        params.outlineWidth = fontDesc.getOutlineWidth();
+        params.shadowBlur = fontDesc.getShadowAlpha() > 0.0f ? fontDesc.getShadowBlur() : 0.0f;
+        try (FontRenderer renderer = new FontRenderer(fontDesc.getFont(), fontBytes, params)) {
+            nativeFontRenderer = renderer;
+            nativeTTFBuilder();
+            return generateGlyphData(preview, resourceResolver);
+        } finally {
+            nativeFontRenderer = null;
+        }
     }
 
     public BufferedImage generatePreviewImage() throws IOException {

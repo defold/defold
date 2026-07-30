@@ -41,7 +41,7 @@
             [editor.workspace :as workspace]
             [schema.core :as schema]
             [service.log :as log])
-  (:import [com.dynamo.bob.font BMFont Fontc]
+  (:import [com.dynamo.bob.font BMFont Fontc FontRenderer FontRenderer$Layout FontRenderer$Params FontRenderer$RenderResult FontRenderer$TextureUpdate]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -99,6 +99,15 @@
   (vec4 face_color)
   (vec4 outline_color)
   (vec4 shadow_color)
+  (vec3 layer_mask))
+
+(vtx/defvertex ^:private ^:no-put NativeFontVertex
+  (vec3 position)
+  (vec2 texcoord0)
+  (vec4 face_color)
+  (vec4 outline_color)
+  (vec4 shadow_color)
+  (vec4 sdf_params)
   (vec3 layer_mask))
 
 (def ^:private vertex-order [0 1 2 1 3 2])
@@ -352,23 +361,44 @@
 (defn- font-map->glyphs [font-map]
   (into {} (map (fn [g] [(:character g) g])) (:glyphs font-map)))
 
+(defn- native-layout-text
+  [font-map text line-break? max-width text-tracking text-leading]
+  (let [^FontRenderer renderer (:native-renderer font-map)
+        line-height (+ ^double (:max-descent font-map) ^double (:max-ascent font-map))
+        pixel-tracking (* line-height text-tracking)
+        ^FontRenderer$Layout layout (.measure renderer text line-break? (float max-width) (float text-leading) (float pixel-tracking))]
+    {:width (double (.-width layout))
+     :height (double (.-height layout))
+     :line-count (long (.-lineCount layout))
+     :max-ascent (double (.-maxAscent layout))
+     :max-descent (double (.-maxDescent layout))
+     :text text
+     :line-break line-break?
+     :layout-width max-width
+     :text-tracking pixel-tracking
+     :text-leading text-leading}))
+
 (defn measure
   ([font-map text]
    (measure font-map text false 0 0 1))
   ([font-map text line-break? max-width text-tracking text-leading]
    (if (or (nil? font-map) (nil? text) (empty? text))
      [0 0]
-     (let [glyphs (font-map->glyphs font-map)
-           line-height (+ (:max-descent font-map) (:max-ascent font-map))
-           text-tracking (* line-height text-tracking)
-           lines (split-text glyphs text line-break? max-width text-tracking)
-           line-widths (map (partial measure-line (:is-monospaced font-map) (:padding font-map) glyphs text-tracking) lines)
-           max-width (reduce max 0 line-widths)]
-       [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))]))))
+     (if (:native-renderer font-map)
+       (let [{:keys [width height]} (native-layout-text font-map text line-break? max-width text-tracking text-leading)]
+         [width height])
+       (let [glyphs (font-map->glyphs font-map)
+             line-height (+ (:max-descent font-map) (:max-ascent font-map))
+             text-tracking (* line-height text-tracking)
+             lines (split-text glyphs text line-break? max-width text-tracking)
+             line-widths (map (partial measure-line (:is-monospaced font-map) (:padding font-map) glyphs text-tracking) lines)
+             max-width (reduce max 0 line-widths)]
+         [max-width (* line-height (+ 1 (* text-leading (dec (count lines)))))])))))
 
 (g/deftype FontData {:type     schema/Keyword
                      :font-map schema/Any
-                     :texture  schema/Any})
+                     :texture  schema/Any
+                     :native-renderer schema/Any})
 
 (defn- place-glyph [glyph-cache glyph]
   (let [placed-glyph (glyph-cache glyph)]
@@ -379,23 +409,27 @@
 (defn layout-text [font-map text line-break? max-width text-tracking text-leading]
   (let [text-layout {:width max-width
                      :height 0
+                     :max-ascent (:max-ascent font-map)
+                     :max-descent (:max-descent font-map)
                      :lines []
                      :line-widths []
                      :text-tracking text-tracking
                      :text-leading text-leading}]
-    (if (or (nil? font-map) (nil? text) (nil? text))
+    (if (or (nil? font-map) (nil? text))
       text-layout
-      (let [glyphs (font-map->glyphs font-map)
-            line-height (+ (:max-descent font-map) (:max-ascent font-map))
-            text-tracking (* line-height text-tracking)
-            lines (split-text glyphs text line-break? max-width text-tracking)
-            line-widths (mapv (partial measure-line (:is-monospaced font-map) (:padding font-map) glyphs text-tracking) lines)
-            max-width (reduce max 0 line-widths)]
-        (assoc text-layout
-               :width max-width
-               :height (* line-height (+ 1 (* text-leading (dec (count lines)))))
-               :lines lines
-               :line-widths line-widths)))))
+      (if (:native-renderer font-map)
+        (native-layout-text font-map text line-break? max-width text-tracking text-leading)
+        (let [glyphs (font-map->glyphs font-map)
+              line-height (+ (:max-descent font-map) (:max-ascent font-map))
+              text-tracking (* line-height text-tracking)
+              lines (split-text glyphs text line-break? max-width text-tracking)
+              line-widths (mapv (partial measure-line (:is-monospaced font-map) (:padding font-map) glyphs text-tracking) lines)
+              max-width (reduce max 0 line-widths)]
+          (assoc text-layout
+                 :width max-width
+                 :height (* line-height (+ 1 (* text-leading (dec (count lines)))))
+                 :lines lines
+                 :line-widths line-widths))))))
 
 (defn glyph-count
   [text-entries]
@@ -509,28 +543,139 @@
     (when (and layer-mask-enabled outline-enabled) (fill-vertex-buffer-quads vbuf text-entries font-map is-distance-field put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] font-offset alpha outline-alpha shadow-alpha))
     (fill-vertex-buffer-quads vbuf text-entries font-map is-distance-field put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask font-offset alpha outline-alpha shadow-alpha)))
 
+(declare glyph-channels->data-format)
+
+(defn- make-native-atlas-state [_gl _params]
+  (volatile! 0))
+
+(defn- update-native-atlas-state [_gl atlas-state _params]
+  atlas-state)
+
+(defn- destroy-native-atlas-states [_gl _atlas-states _]
+  nil)
+
+(scene-cache/register-object-cache! ::native-atlas-states make-native-atlas-state update-native-atlas-state destroy-native-atlas-states)
+
+(defn- entry-transform
+  ^Matrix4d [{:keys [offset text-cursor-offset world-transform]}]
+  (let [[offset-x offset-y] (or offset [0.0 0.0])
+        [cursor-x cursor-y] (if (map? text-cursor-offset)
+                             [(:x text-cursor-offset 0.0) (:y text-cursor-offset 0.0)]
+                             (or text-cursor-offset [0.0 0.0]))
+        translation (doto (Matrix4d.)
+                      (.setIdentity)
+                      (.setTranslation (Vector3d. (+ offset-x cursor-x) (+ offset-y cursor-y) 0.0)))
+        result (Matrix4d. ^Matrix4d world-transform)]
+    (.mul result translation)
+    result))
+
+(defn- matrix->float-array
+  ^floats [^Matrix4d matrix]
+  (float-array [(.-m00 matrix) (.-m10 matrix) (.-m20 matrix) (.-m30 matrix)
+                (.-m01 matrix) (.-m11 matrix) (.-m21 matrix) (.-m31 matrix)
+                (.-m02 matrix) (.-m12 matrix) (.-m22 matrix) (.-m32 matrix)
+                (.-m03 matrix) (.-m13 matrix) (.-m23 matrix) (.-m33 matrix)]))
+
+(defn- render-native-entry!
+  ^FontRenderer$RenderResult [^GL2 gl {:keys [font-map native-renderer texture]} entry atlas-version]
+  (let [text-layout (:text-layout entry)
+        alpha (double (:alpha font-map 1.0))
+        outline-alpha (double (:outline-alpha font-map 1.0))
+        shadow-alpha (double (:shadow-alpha font-map 1.0))
+        face-color (float-array (mapv #(* alpha %) (:color entry)))
+        outline-color (float-array (update (:outline entry) 3 #(* outline-alpha %)))
+        shadow-color (float-array (update (:shadow entry) 3 #(* shadow-alpha %)))
+        align (case (:align entry :center) :left 0 :center 1 :right 2)
+        box-height (:box-height entry)
+        vertical-align (case (:vertical-align entry :top) :top 0 :middle 1 :bottom 2)
+        ^FontRenderer$RenderResult result
+        (.render ^FontRenderer native-renderer
+                 ^String (:text text-layout)
+                 ^boolean (:line-break text-layout)
+                 (float (:layout-width text-layout))
+                 ;; GUI and label entries use the same node box and vertical
+                 ;; alignment as runtime. Other editor previews retain their
+                 ;; existing baseline-relative entry transform.
+                 (float (or box-height (:max-ascent text-layout)))
+                 (float (:text-leading text-layout))
+                 (float (:text-tracking text-layout))
+                 (int align)
+                 (int (if box-height vertical-align 0))
+                 (matrix->float-array (entry-transform entry))
+                 face-color outline-color shadow-color
+                 (float (:sdf-screen-scale entry 1.0))
+                 (long @atlas-version))]
+    (when-let [^FontRenderer$TextureUpdate update (.-textureUpdate result)]
+      (texture/update-sub-image! texture gl 0 (.-pixels update)
+                                 (glyph-channels->data-format (.-channels update))
+                                 (.-x update) (.-y update) (.-width update) (.-height update)))
+    (vreset! atlas-version (.-atlasVersion result))
+    result))
+
+(defn- gen-native-vertex-buffer
+  [^GL2 gl font-data text-entries atlas-version]
+  (let [[results atlas-reflowed]
+        (loop [entry-index 0
+               results (transient [])
+               atlas-reflowed false]
+          (if (= entry-index (count text-entries))
+            [(persistent! results) atlas-reflowed]
+            (let [^FontRenderer$RenderResult result (render-native-entry! gl font-data (nth text-entries entry-index) atlas-version)
+                  ^FontRenderer$TextureUpdate update (.-textureUpdate result)
+                  full-atlas-update (and update
+                                         (zero? (.-x update))
+                                         (zero? (.-y update))
+                                         (= (:cache-width (:font-map font-data)) (.-width update))
+                                         (= (:cache-height (:font-map font-data)) (.-height update)))]
+              (recur (inc entry-index)
+                     (conj! results result)
+                     (or atlas-reflowed
+                         (and (pos? entry-index) full-atlas-update))))))
+        ;; A full atlas update from a later entry may have relocated glyphs
+        ;; referenced by earlier results. All glyphs are cached now, so one
+        ;; additional pass is guaranteed to use stable atlas coordinates.
+        results (if atlas-reflowed
+                  (mapv #(render-native-entry! gl font-data % atlas-version) text-entries)
+                  results)
+        vertex-count (transduce (map #(.-vertexCount ^FontRenderer$RenderResult %)) + results)
+        byte-buffer (vtx/make-buf (* vertex-count (:size NativeFontVertex)))]
+    (run! (fn [^FontRenderer$RenderResult result]
+            (let [^ByteBuffer vertices (.-vertices result)]
+              (.put byte-buffer (.duplicate vertices))))
+          results)
+    (.flip byte-buffer)
+    (vtx/wrap-vertex-buffer NativeFontVertex :static byte-buffer)))
+
 (defn gen-vertex-buffer
   ([^GL2 gl font-data text-entries]
    (gen-vertex-buffer gl font-data text-entries nil))
   ([^GL2 gl {:keys [type font-map] :as font-data} text-entries render-args]
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
-         vbuf (make-vbuf type text-entries (:layer-mask font-map))
-         glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
-                                                  (select-keys font-data [:font-map :texture]))]
-     (vtx/flip! (fill-vertex-buffer gl vbuf font-data text-entries glyph-cache)))))
+         native-renderer (:native-renderer font-map)]
+     (if native-renderer
+       (let [atlas-version (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)]
+         (gen-native-vertex-buffer gl (assoc font-data :native-renderer native-renderer) text-entries atlas-version))
+       (let [vbuf (make-vbuf type text-entries (:layer-mask font-map))
+             glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
+                                                      (select-keys font-data [:font-map :texture]))]
+         (vtx/flip! (fill-vertex-buffer gl vbuf font-data text-entries glyph-cache)))))))
 
 (defn request-vertex-buffer
   ([^GL2 gl request-id font-data text-entries]
    (request-vertex-buffer gl request-id font-data text-entries nil))
   ([^GL2 gl request-id font-data text-entries render-args]
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
-         glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
-                                                  (select-keys font-data [:font-map :texture]))
-         layer-count (count-layers-in-mask (:layer-mask (:font-map font-data)))]
-     (scene-cache/request-object! ::vb [request-id (:type font-data) (vertex-count text-entries layer-count)] gl
-                                  {:font-data font-data
-                                   :text-entries text-entries
-                                   :glyph-cache glyph-cache}))))
+         native-renderer (get-in font-data [:font-map :native-renderer])]
+     (if native-renderer
+       (let [atlas-version (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)]
+         (gen-native-vertex-buffer gl (assoc font-data :native-renderer native-renderer) text-entries atlas-version))
+       (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
+                                                      (select-keys font-data [:font-map :texture]))
+             layer-count (count-layers-in-mask (:layer-mask (:font-map font-data)))]
+         (scene-cache/request-object! ::vb [request-id (:type font-data) (vertex-count text-entries layer-count)] gl
+                                      {:font-data font-data
+                                       :text-entries text-entries
+                                       :glyph-cache glyph-cache}))))))
 
 (defn get-texture-recip-uniform [font-map]
   (let [cache-width (:cache-width font-map)
@@ -615,6 +760,27 @@
     :cache-height cache-height
     :render-mode render-mode))
 
+(defn- make-native-renderer
+  ^FontRenderer [font font-desc font-map]
+  (let [params (FontRenderer$Params.)
+        shadow-blur (if (and (pos? ^double (:shadow-alpha font-desc))
+                             (pos? ^double (:alpha font-desc)))
+                      (:shadow-blur font-desc)
+                      0.0)]
+    (set! (.-size params) (float (:size font-desc)))
+    (set! (.-cacheWidth params) (int (:cache-width font-map)))
+    (set! (.-cacheHeight params) (int (:cache-height font-map)))
+    (set! (.-cacheCellPadding params) (int (:glyph-padding font-map)))
+    (set! (.-sdfSpread params) (float (:sdf-spread font-map)))
+    (set! (.-sdfOutline params) (float (:sdf-outline font-map)))
+    (set! (.-sdfShadow params) (float (:sdf-shadow font-map)))
+    (set! (.-outlineWidth params) (float (:outline-width font-desc)))
+    (set! (.-shadowBlur params) (float shadow-blur))
+    (set! (.-shadowX params) (float (:shadow-x font-desc)))
+    (set! (.-shadowY params) (float (:shadow-y font-desc)))
+    (set! (.-layerMask params) (int (:layer-mask font-map)))
+    (FontRenderer. (resource/proj-path font) (resource/resource->bytes font) params)))
+
 (defn- make-font-map [_node-id font type pb-msg font-resource-resolver]
   (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font font-message)
                                       (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font font-message)
@@ -634,7 +800,9 @@
                              (not-empty))]
         (g/error-aggregate errors))
       (try
-        (font-gen/generate pb-msg font font-resource-resolver)
+        (let [font-map (font-gen/generate pb-msg font font-resource-resolver)]
+          (cond-> font-map
+            (= :distance-field type) (assoc :native-renderer (make-native-renderer font pb-msg font-map))))
         (catch Exception error
           (let [message (.getMessage error)]
             (log/error :msg (str "Failed to generate bitmap from Font. " message) :exception error)
@@ -976,7 +1144,8 @@
   (output font-data FontData :cached (g/fnk [type gpu-texture font-map]
                                             {:type type
                                              :texture gpu-texture
-                                             :font-map font-map}))
+                                             :font-map font-map
+                                             :native-renderer (:native-renderer font-map)}))
   (output preview-text g/Str :cached produce-preview-text))
 
 (defn load-font [_project self resource font-desc]
