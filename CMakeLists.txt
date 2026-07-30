@@ -113,6 +113,8 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
     "${DEFOLD_HOME}/engine/texc/src/*"
     "${DEFOLD_HOME}/engine/modelc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/modelc/src/*"
+    "${DEFOLD_HOME}/engine/font/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/font/src/*"
     "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/shaderc/src/*")
   set(_DEFOLD_HOST_TOOLS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/host_tools-$<CONFIG>.stamp")
@@ -176,6 +178,7 @@ set(DEFOLD_HOST_LIBS
   jni
   texc
   modelc
+  font
   shaderc)
 set(DEFOLD_TARGET_LIBS ${DEFOLD_ENGINE_LIBS})
 # Bob archives ship compiler JNI libraries for these desktop targets, even when
