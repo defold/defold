@@ -1166,15 +1166,15 @@ namespace dmGraphics
                 res.m_InstanceNameHash = bindings[i].m_InstanceNameHash;
             }
 
-            if (res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
-                res.m_BindingInfo.m_SamplerTextureIndex = bindings[i].m_Bindinginfo.m_SamplerTextureIndex;
-            else
-                res.m_BindingInfo.m_BlockSize = bindings[i].m_Bindinginfo.m_BlockSize;
-
             if (res.m_Type.m_UseTypeIndex)
                 res.m_Type.m_TypeIndex = bindings[i].m_Type.m_Type.m_TypeIndex;
             else
                 res.m_Type.m_ShaderType = bindings[i].m_Type.m_Type.m_ShaderType;
+
+            if (!res.m_Type.m_UseTypeIndex && res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                res.m_BindingInfo.m_SamplerTextureIndex = bindings[i].m_Bindinginfo.m_SamplerTextureIndex;
+            else
+                res.m_BindingInfo.m_BlockSize = bindings[i].m_Bindinginfo.m_BlockSize;
         }
     }
 

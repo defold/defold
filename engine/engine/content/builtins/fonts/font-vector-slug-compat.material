@@ -1,0 +1,24 @@
+name: "font-vector-slug-compat"
+tags: "gui"
+vertex_program: "/builtins/fonts/font-vector-slug-face.vp"
+fragment_program: "/builtins/fonts/font-vector-slug-compat.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}
+samplers {
+  name: "curve_texture_packed"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_NEAREST
+  filter_mag: FILTER_MODE_MAG_NEAREST
+  max_anisotropy: 1.0
+}
+samplers {
+  name: "band_texture_packed"
+  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+  filter_min: FILTER_MODE_MIN_NEAREST
+  filter_mag: FILTER_MODE_MAG_NEAREST
+  max_anisotropy: 1.0
+}

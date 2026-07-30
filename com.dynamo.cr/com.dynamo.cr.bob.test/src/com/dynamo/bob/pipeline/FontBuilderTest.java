@@ -66,11 +66,12 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                                  "vertex_program: \"/test.vp\"\n" +
                                  "fragment_program: \"/test.fp\"\n";
         addFile("/builtins/fonts/font-df.material", runtimeMaterial);
-        addFile("/builtins/fonts/font-vector_slug.material", runtimeMaterial);
-        addFile("/builtins/fonts/font-vector_sweep.material", runtimeMaterial);
-        addFile("/builtins/fonts/label-vector_sweep.material", runtimeMaterial);
-        addFile("/builtins/fonts/font-sdf.material", runtimeMaterial);
-        addFile("/builtins/fonts/label-sdf.material", runtimeMaterial);
+        addFile("/builtins/fonts/font-vector-slug.material", runtimeMaterial);
+        addFile("/builtins/fonts/font-vector-sweep.material", runtimeMaterial);
+        addFile("/builtins/fonts/label-vector-sweep.material", runtimeMaterial);
+        addFile("/builtins/fonts/label-vector-sweep-compat.material", runtimeMaterial);
+        addFile("/builtins/fonts/label-vector-slug-compat.material", runtimeMaterial);
+        addFile("/builtins/fonts/label-df.material", runtimeMaterial);
     }
 
     @Test
@@ -108,7 +109,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
-        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font-sdf.materialc"),
+        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font-df.materialc"),
                      fontMap.getShadowMaterial());
     }
 
@@ -139,7 +140,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
-        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font-sdf.materialc"),
+        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font-df.materialc"),
                      fontMap.getShadowMaterial());
     }
 
@@ -147,13 +148,27 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     public void testTTFLabelOutlineUsesLabelSdfEffectMaterial() throws Exception {
         StringBuilder src = new StringBuilder();
         src.append("font: \"/Tuffy.ttf\"\n");
-        src.append("material: \"/builtins/fonts/label-vector_sweep.material\"\n");
+        src.append("material: \"/builtins/fonts/label-vector-sweep.material\"\n");
         src.append("size: 16\n");
         src.append("outline_width: 2\n");
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
-        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/label-sdf.materialc"),
+        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/label-df.materialc"),
+                     fontMap.getShadowMaterial());
+    }
+
+    @Test
+    public void testTTFCompatLabelOutlineUsesLabelSdfEffectMaterial() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/builtins/fonts/label-vector-sweep-compat.material\"\n");
+        src.append("size: 16\n");
+        src.append("outline_width: 2\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+
+        assertEquals(ResourceUtil.minifyPath("/builtins/fonts/label-df.materialc"),
                      fontMap.getShadowMaterial());
     }
 

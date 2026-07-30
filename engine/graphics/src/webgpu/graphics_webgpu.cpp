@@ -2671,6 +2671,18 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
     for (int i = 0; i < resources.Size(); ++i)
     {
         ShaderResourceBinding& res = resources[i];
+        bool texture_has_sampler = false;
+        for (int j = 0; j < resources.Size(); ++j)
+        {
+            ShaderResourceBinding& sampler_res = resources[j];
+            if (!sampler_res.m_Type.m_UseTypeIndex &&
+                sampler_res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER &&
+                sampler_res.m_BindingInfo.m_SamplerTextureIndex == i)
+            {
+                texture_has_sampler = true;
+                break;
+            }
+        }
         assert(res.m_Set < MAX_SET_COUNT);
         assert(res.m_Binding < MAX_BINDINGS_PER_SET_COUNT);
         WGPUBindGroupLayoutEntry& binding = bindings[res.m_Set][res.m_Binding];
@@ -2696,7 +2708,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                             break;
                         case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:
                             binding.texture.viewDimension = WGPUTextureViewDimension_Cube;
-                            if (res.m_StageFlags & WGPUShaderStage_Compute)
+                            if ((res.m_StageFlags & WGPUShaderStage_Compute) || !texture_has_sampler)
                                 binding.texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
                             else
                                 binding.texture.sampleType = WGPUTextureSampleType_Float;
@@ -2709,13 +2721,13 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                             break;
                         case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY:
                             binding.texture.viewDimension = WGPUTextureViewDimension_2DArray;
-                            if (res.m_StageFlags & WGPUShaderStage_Compute)
+                            if ((res.m_StageFlags & WGPUShaderStage_Compute) || !texture_has_sampler)
                                 binding.texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
                             else
                                 binding.texture.sampleType = WGPUTextureSampleType_Float;
                             break;
                         default:
-                            if (res.m_StageFlags & WGPUShaderStage_Compute)
+                            if ((res.m_StageFlags & WGPUShaderStage_Compute) || !texture_has_sampler)
                                 binding.texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
                             else
                                 binding.texture.sampleType = WGPUTextureSampleType_Float;

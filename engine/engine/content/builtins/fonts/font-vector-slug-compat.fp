@@ -1,5 +1,4 @@
 #version 140
-
 precision highp float;
 precision highp int;
 
@@ -11,25 +10,68 @@ flat in highp vec2 var_glyph;
 
 out vec4 out_fragColor;
 
-uniform highp sampler2D curve_texture;
-uniform highp sampler2D band_texture;
+uniform highp sampler2D curve_texture_packed;
+uniform highp sampler2D band_texture_packed;
+uniform fs_uniforms
+{
+    // xy contains the texture dimensions and zw their reciprocals.
+    highp vec4 curve_texture_size;
+    highp vec4 band_texture_size;
+};
 
-const float CURVE_TEXTURE_WIDTH = 512.0;
-const float CURVE_TEXTURE_HEIGHT = 64.0;
-const float BAND_TEXTURE_WIDTH = 2048.0;
-const float BAND_TEXTURE_HEIGHT = 128.0;
 const int MAX_VECTOR_BAND_CURVES = 256;
 
 vec4 SampleCurveTexel(float texel_index)
 {
-    float texel_x = mod(texel_index, CURVE_TEXTURE_WIDTH);
-    float texel_y = floor(texel_index / CURVE_TEXTURE_WIDTH);
-    return textureLod(curve_texture, vec2((texel_x + 0.5) / CURVE_TEXTURE_WIDTH, (texel_y + 0.5) / CURVE_TEXTURE_HEIGHT), 0.0);
+    float texel_y = floor(texel_index / curve_texture_size.x);
+    float texel_x = texel_index - texel_y * curve_texture_size.x;
+    return texture(curve_texture_packed, (vec2(texel_x, texel_y) + 0.5) * curve_texture_size.zw);
+}
+
+vec4 SampleRawBandTexel(float row, float column)
+{
+    return texture(band_texture_packed, (vec2(column, row) + 0.5) * band_texture_size.zw);
+}
+
+float DecodePackedHalf(vec2 encoded)
+{
+    vec2 bytes = floor(encoded * 255.0 + 0.5);
+    float high_byte = bytes.x;
+    float sign_value = high_byte >= 128.0 ? -1.0 : 1.0;
+    high_byte = mod(high_byte, 128.0);
+    float exponent = floor(high_byte * 0.25);
+    float mantissa = mod(high_byte, 4.0) * 256.0 + bytes.y;
+
+    if (exponent < 0.5)
+        return sign_value * exp2(-14.0) * (mantissa / 1024.0);
+    if (exponent > 30.5)
+        return sign_value * 65504.0;
+    return sign_value * exp2(exponent - 15.0) * (1.0 + mantissa / 1024.0);
+}
+
+vec2 DecodePackedHalf2(vec4 encoded)
+{
+    return vec2(DecodePackedHalf(encoded.rg), DecodePackedHalf(encoded.ba));
+}
+
+float DecodePackedUint16(vec2 encoded)
+{
+    vec2 bytes = floor(encoded * 255.0 + 0.5);
+    return bytes.x * 256.0 + bytes.y;
+}
+
+void LoadCurve(float curve_texel, out vec4 p12, out vec2 p3)
+{
+    p12 = vec4(
+        DecodePackedHalf2(SampleCurveTexel(curve_texel)),
+        DecodePackedHalf2(SampleCurveTexel(curve_texel + 1.0)));
+    p3 = DecodePackedHalf2(SampleCurveTexel(curve_texel + 2.0));
 }
 
 vec4 SampleBandTexel(float row, float column)
 {
-    return textureLod(band_texture, vec2((column + 0.5) / BAND_TEXTURE_WIDTH, (row + 0.5) / BAND_TEXTURE_HEIGHT), 0.0);
+    vec4 encoded = SampleRawBandTexel(row, column);
+    return vec4(DecodePackedUint16(encoded.rg), DecodePackedUint16(encoded.ba), 0.0, 0.0);
 }
 
 int CalcRootCode(float y1, float y2, float y3)
@@ -37,8 +79,11 @@ int CalcRootCode(float y1, float y2, float y3)
     int i1 = (y1 < 0.0) ? 1 : 0;
     int i2 = (y2 < 0.0) ? 2 : 0;
     int i3 = (y3 < 0.0) ? 4 : 0;
-    int shift = i1 + i2 + i3;
-    return (0x2E74 >> shift) & 0x0101;
+    int code_index = i1 + i2 + i3;
+    if (code_index == 1) return 256;
+    if (code_index == 2 || code_index == 4 || code_index == 5) return 257;
+    if (code_index == 6) return 1;
+    return 0;
 }
 
 vec2 SolveHorizPoly(vec4 p12, vec2 p3)
@@ -107,8 +152,11 @@ float SlugRenderFiltered(vec2 render_coord, vec4 band_transform, float band_row,
         vec4 loc_raw = SampleBandTexel(band_row, float(hband_offset + curve_index));
         float curve_texel = loc_raw.x;
 
-        vec4 p12 = SampleCurveTexel(curve_texel) - vec4(render_coord, render_coord);
-        vec2 p3 = SampleCurveTexel(curve_texel + 1.0).xy - render_coord;
+        vec4 p12;
+        vec2 p3;
+        LoadCurve(curve_texel, p12, p3);
+        p12 -= vec4(render_coord, render_coord);
+        p3 -= render_coord;
 
         if (max(max(p12.x, p12.z), p3.x) * filters_per_em.x < -0.5)
         {
@@ -151,8 +199,11 @@ float SlugRenderFiltered(vec2 render_coord, vec4 band_transform, float band_row,
         vec4 loc_raw = SampleBandTexel(band_row, float(vband_offset + curve_index));
         float curve_texel = loc_raw.x;
 
-        vec4 p12 = SampleCurveTexel(curve_texel) - vec4(render_coord, render_coord);
-        vec2 p3 = SampleCurveTexel(curve_texel + 1.0).xy - render_coord;
+        vec4 p12;
+        vec2 p3;
+        LoadCurve(curve_texel, p12, p3);
+        p12 -= vec4(render_coord, render_coord);
+        p3 -= render_coord;
 
         if (max(max(p12.y, p12.w), p3.y) * filters_per_em.y < -0.5)
         {

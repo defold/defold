@@ -159,8 +159,12 @@ namespace dmRender
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
     static dmhash_t g_ViewportHash = dmHashString64("viewport");
     static dmhash_t g_CurveTextureHash = dmHashString64("curve_texture");
+    static dmhash_t g_CurveTexturePackedHash = dmHashString64("curve_texture_packed");
     static dmhash_t g_BandTextureHash = dmHashString64("band_texture");
-    static dmhash_t g_SdfTextureHash = dmHashString64("sdf_texture");
+    static dmhash_t g_BandTexturePackedHash = dmHashString64("band_texture_packed");
+    static dmhash_t g_CurveTextureSizeHash = dmHashString64("curve_texture_size");
+    static dmhash_t g_BandTextureSizeHash = dmHashString64("band_texture_size");
+    static dmhash_t g_TextureSamplerHash = dmHashString64("texture_sampler");
 
     static float CalcSdfScale(const Matrix4& view_proj, float half_w, float half_h, const Matrix4& world_transform)
     {
@@ -399,24 +403,54 @@ namespace dmRender
         ro->m_Material = material;
         memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
         uint32_t curve_unit = dmRender::GetMaterialSamplerUnit(material, g_CurveTextureHash);
+        if (curve_unit == dmRender::INVALID_SAMPLER_UNIT)
+            curve_unit = dmRender::GetMaterialSamplerUnit(material, g_CurveTexturePackedHash);
         uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, g_BandTextureHash);
-        uint32_t sdf_texture_unit = dmRender::GetMaterialSamplerUnit(material, g_SdfTextureHash);
+        if (band_unit == dmRender::INVALID_SAMPLER_UNIT)
+            band_unit = dmRender::GetMaterialSamplerUnit(material, g_BandTexturePackedHash);
+        uint32_t texture_unit = dmRender::GetMaterialSamplerUnit(material, g_TextureSamplerHash);
         if (curve_unit != dmRender::INVALID_SAMPLER_UNIT)
             ro->m_Textures[curve_unit] = font_map->m_Texture;
-        else if (sdf_texture_unit == dmRender::INVALID_SAMPLER_UNIT)
-            ro->m_Textures[0] = font_map->m_Texture;
+        else if (texture_unit != dmRender::INVALID_SAMPLER_UNIT)
+        {
+            const bool vector_sdf_effect = font_map->m_IsVector &&
+                                           (render_layer_mask & FACE) == 0;
+            ro->m_Textures[texture_unit] = vector_sdf_effect
+                ? font_map->m_VectorSdfTexture
+                : font_map->m_Texture;
+        }
+        else
+        {
+            const bool vector_sdf_effect = font_map->m_IsVector &&
+                                           (render_layer_mask & FACE) == 0;
+            ro->m_Textures[0] = vector_sdf_effect
+                ? font_map->m_VectorSdfTexture
+                : font_map->m_Texture;
+        }
         if (band_unit != dmRender::INVALID_SAMPLER_UNIT)
             ro->m_Textures[band_unit] = font_map->m_VectorBandTexture;
-        if (sdf_texture_unit != dmRender::INVALID_SAMPLER_UNIT)
-            ro->m_Textures[sdf_texture_unit] = font_map->m_VectorSdfTexture;
         ro->m_VertexStart = text_context.m_VertexIndex;
         ro->m_StencilTestParams = first_te.m_StencilTestParams;
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
 
         Vector4 texture_size_recip(im_recip, ih_recip, cache_cell_width_ratio, cache_cell_height_ratio);
+        Vector4 curve_texture_size(0.0f, 0.0f, 0.0f, 0.0f);
+        Vector4 band_texture_size(0.0f, 0.0f, 0.0f, 0.0f);
         Vector4 viewport(0.0f, 0.0f, 0.0f, 0.0f);
 
         dmGraphics::HContext gc = GetGraphicsContext(render_context);
+        if (curve_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_Texture)
+        {
+            float width = (float)dmGraphics::GetTextureWidth(gc, font_map->m_Texture);
+            float height = (float)dmGraphics::GetTextureHeight(gc, font_map->m_Texture);
+            curve_texture_size = Vector4(width, height, 1.0f / width, 1.0f / height);
+        }
+        if (band_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_VectorBandTexture)
+        {
+            float width = (float)dmGraphics::GetTextureWidth(gc, font_map->m_VectorBandTexture);
+            float height = (float)dmGraphics::GetTextureHeight(gc, font_map->m_VectorBandTexture);
+            band_texture_size = Vector4(width, height, 1.0f / width, 1.0f / height);
+        }
         int32_t vp_x = 0;
         int32_t vp_y = 0;
         uint32_t vp_w = 0;
@@ -433,6 +467,8 @@ namespace dmRender
         dmRender::SetNamedConstants(constants_buffer, (HConstant*)first_te.m_RenderConstants, first_te.m_NumRenderConstants);
         dmRender::SetNamedConstant(constants_buffer, g_TextureSizeRecipHash, &texture_size_recip, 1);
         dmRender::SetNamedConstant(constants_buffer, g_ViewportHash, &viewport, 1);
+        dmRender::SetNamedConstant(constants_buffer, g_CurveTextureSizeHash, &curve_texture_size, 1);
+        dmRender::SetNamedConstant(constants_buffer, g_BandTextureSizeHash, &band_texture_size, 1);
 
         ro->m_ConstantBuffer = constants_buffer;
 

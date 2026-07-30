@@ -75,8 +75,9 @@ namespace dmRender
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
         void*                   m_VectorCurveData;
-        float*                  m_VectorBandData;
+        void*                   m_VectorBandData;
         dmGraphics::TextureFormat m_VectorCurveFormat;
+        dmGraphics::TextureFormat m_VectorBandFormat;
 
         dmHashTable64<FontGlyph*>   m_Glyphs;       // Ache with generated glyphs (with bitmap data!)
         dmHashTable64<CacheGlyph*>  m_GlyphCache;   // Quick check what glyphs are in the cache texture
@@ -127,6 +128,7 @@ namespace dmRender
         uint32_t                m_VectorBandCapacity;   // Number of texels in the Slug band texture
         uint32_t                m_VectorBandCursor;     // Next free row in the Slug band texture
         uint8_t                 m_VectorCurveComponentSize;
+        uint8_t                 m_VectorBandComponentSize;
         uint8_t                 m_VectorCurveTexelsPerCurve;
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
@@ -139,10 +141,11 @@ namespace dmRender
         uint8_t                 m_CacheChannels:3;      // Number of channels (1-4)
         uint8_t                 m_IsSdf:1;
         uint8_t                 m_IsVector:1;
+        uint8_t                 m_VectorCurvePacked:1;
         uint8_t                 m_VectorRenderer:2;
         uint8_t                 m_ShadowSdf:1;
         uint8_t                 m_DebugGlyphBBoxes:1;
-        uint8_t                 :3;
+        uint8_t                 :2;
     };
 }
 

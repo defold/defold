@@ -35,15 +35,14 @@ import com.dynamo.render.proto.Font.FontTextureFormat;
 public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     private static final String DEFAULT_VECTOR_SDF_MATERIAL =
-        "/builtins/fonts/font-sdf.material";
+        "/builtins/fonts/font-df.material";
     private static final String DEFAULT_LABEL_VECTOR_SDF_MATERIAL =
-        "/builtins/fonts/label-sdf.material";
+        "/builtins/fonts/label-df.material";
 
     private static final String[] RUNTIME_FONT_RENDERER_MATERIALS = {
         "/builtins/fonts/font-df.material",
-        "/builtins/fonts/font-vector_slug.material",
-        "/builtins/fonts/font-vector_sweep.material",
-        "/builtins/fonts/font-sdf.material",
+        "/builtins/fonts/font-vector-slug.material",
+        "/builtins/fonts/font-vector-sweep.material",
     };
 
     private static boolean isTrueTypeFont(FontDesc fontDesc) {
@@ -53,8 +52,10 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     private static String getDefaultVectorSdfMaterial(FontDesc fontDesc) {
         String material = fontDesc.getMaterial();
-        if (material.equals("/builtins/fonts/label-vector_slug.material") ||
-            material.equals("/builtins/fonts/label-vector_sweep.material")) {
+        if (material.equals("/builtins/fonts/label-vector-slug.material") ||
+            material.equals("/builtins/fonts/label-vector-slug-compat.material") ||
+            material.equals("/builtins/fonts/label-vector-sweep.material") ||
+            material.equals("/builtins/fonts/label-vector-sweep-compat.material")) {
             return DEFAULT_LABEL_VECTOR_SDF_MATERIAL;
         }
         return DEFAULT_VECTOR_SDF_MATERIAL;

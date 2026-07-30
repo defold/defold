@@ -116,6 +116,38 @@ TEST_F(FontTest, GlyphOutlineWithoutBitmap)
     ASSERT_EQ((FontCurveCommand*)0, glyph.m_Outline.m_Commands);
 }
 
+TEST_F(FontTest, GlyphOutlineMetricsUnaffectedBySDFBitmap)
+{
+    FontGlyphOptions outline_options;
+    outline_options.m_Scale = FontGetScaleFromSize(m_Font, 28.0f);
+    outline_options.m_GenerateOutline = true;
+
+    FontGlyph outline_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(m_Font, 'O', &outline_options, &outline_glyph));
+
+    FontGlyphOptions sdf_options = outline_options;
+    sdf_options.m_GenerateImage = true;
+    sdf_options.m_StbttSDFPadding = 8.0f;
+
+    FontGlyph sdf_glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(m_Font, 'O', &sdf_options, &sdf_glyph));
+
+    ASSERT_EQ(outline_glyph.m_Outline.m_Width, sdf_glyph.m_Outline.m_Width);
+    ASSERT_EQ(outline_glyph.m_Outline.m_Height, sdf_glyph.m_Outline.m_Height);
+    ASSERT_EQ(outline_glyph.m_Outline.m_LeftBearing, sdf_glyph.m_Outline.m_LeftBearing);
+    ASSERT_EQ(outline_glyph.m_Outline.m_Ascent, sdf_glyph.m_Outline.m_Ascent);
+    ASSERT_EQ(outline_glyph.m_Outline.m_Descent, sdf_glyph.m_Outline.m_Descent);
+
+    ASSERT_NE((uint8_t*)0, sdf_glyph.m_Bitmap.m_Data);
+    ASSERT_GT(sdf_glyph.m_Width, sdf_glyph.m_Outline.m_Width);
+    ASSERT_GT(sdf_glyph.m_Height, sdf_glyph.m_Outline.m_Height);
+    ASSERT_LT(sdf_glyph.m_LeftBearing, sdf_glyph.m_Outline.m_LeftBearing);
+    ASSERT_GT(sdf_glyph.m_Ascent, sdf_glyph.m_Outline.m_Ascent);
+
+    ASSERT_EQ(FONT_RESULT_OK, FontFreeGlyph(m_Font, &outline_glyph));
+    ASSERT_EQ(FONT_RESULT_OK, FontFreeGlyph(m_Font, &sdf_glyph));
+}
+
 
 static TextResult TestLayout(HFontCollection coll, dmArray<uint32_t>& codepoints,
                         TextLayoutSettings* settings,

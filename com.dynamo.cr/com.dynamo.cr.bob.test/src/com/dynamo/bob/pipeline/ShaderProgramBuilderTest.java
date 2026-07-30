@@ -581,6 +581,16 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_SPIRV);
     }
 
+    @Test
+    public void testExcludeGlesSm100WithDebugGlslOutput() throws Exception {
+        getProject().getProjectProperties().putBooleanValue("shader", "exclude_gles_sm100", true);
+        getProject().setOption("debug-output-glsl", "true");
+        checkOnlyExpectedLanguages(
+            buildShaderForPlatform(Platform.Armv7Android.getPair(), Platform.Armv7Android.getPair(), "exclude_gles100_debug_glsl_android"),
+            ShaderDesc.Language.LANGUAGE_GLES_SM300,
+            ShaderDesc.Language.LANGUAGE_SPIRV);
+    }
+
     private void testOutput(String expected, String source) {
         if (!expected.equals(source)) {
             System.err.printf("EXPECTED:\n'%s'%n", expected);

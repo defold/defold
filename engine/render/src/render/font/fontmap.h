@@ -198,8 +198,9 @@ namespace dmRender
      * Set font map material
      * @param font_map Font map handle
      * @param material Material handle
+     * @return true if the material's font texture contract is supported
      */
-    void SetFontMapMaterial(HFontMap font_map, HMaterial material);
+    bool SetFontMapMaterial(HFontMap font_map, HMaterial material);
 
     /**
      * Get font map material

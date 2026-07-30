@@ -143,7 +143,7 @@ public class ShaderProgramBuilder extends Builder {
             this.modulesDescs.get(i).source = this.modulePreprocessors.get(i).getCompiledSource();
         }
 
-        compileOptions.excludeGlesSm100 = getExcludeGlesSm100Flag();
+        compileOptions.excludeGlesSm100 = compileOptions.excludeGlesSm100 || getExcludeGlesSm100Flag();
         compileOptions.shaderAdapters = this.project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
         compileOptions.glslEsDefaultFloatPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_float", "mediump"));
         compileOptions.glslEsDefaultIntPrecision = shaderPrecisionFromString(this.project.getProjectProperties().getStringValue("shader", "glsl_es_default_precision_int", "highp"));
@@ -163,6 +163,9 @@ public class ShaderProgramBuilder extends Builder {
         if (getOutputGLSLFlag()) {
             ArrayList<ShaderDesc.Language> glslLanguages = ShaderCompilers.GetSupportedOpenGLVersionsForPlatform(this.project.getPlatform());
             for (ShaderDesc.Language glslLanguage : glslLanguages) {
+                if (compileOptions.excludeGlesSm100 && glslLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
+                    continue;
+                }
                 addUniqueShaderLanguage(glslLanguage);
             }
         }

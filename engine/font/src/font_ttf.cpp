@@ -329,6 +329,16 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
 
     float ascent = y1 * scale;
     float descent = -y0 * scale;
+
+    if (options->m_GenerateOutline)
+    {
+        glyph->m_Outline.m_Width = (x1 - x0) * scale;
+        glyph->m_Outline.m_Height = (y1 - y0) * scale;
+        glyph->m_Outline.m_LeftBearing = x0 * scale;
+        glyph->m_Outline.m_Ascent = ascent;
+        glyph->m_Outline.m_Descent = descent;
+    }
+
     int srcw = 0;
     int srch = 0;
     int offsetx = 0;

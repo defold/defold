@@ -1,5 +1,4 @@
 #version 140
-
 // Based on Rook & Possum's Scanline Sweeper work:
 // "The Scanline Sweeper: A Glyph Rendering Algorithm"
 // https://rookandpossum.com/posts/scanline-sweeper
@@ -17,25 +16,63 @@ flat in highp vec2 var_glyph;
 
 out vec4 out_fragColor;
 
-uniform highp sampler2D curve_texture;
+uniform highp sampler2D curve_texture_packed;
+uniform fs_uniforms
+{
+    // xy contains the texture dimensions and zw their reciprocals.
+    highp vec4 curve_texture_size;
+};
 
-const int CURVE_TEXTURE_WIDTH_TEXELS = 512;
 const int MAX_VECTOR_CURVES = 256;
 
 vec4 SampleCurveTexel(int texel)
 {
-    int texel_x = texel & (CURVE_TEXTURE_WIDTH_TEXELS - 1);
-    int texel_y = texel >> 9;
-    return texelFetch(curve_texture, ivec2(texel_x, texel_y), 0);
+    float texture_width = curve_texture_size.x;
+    float texel_index = float(texel);
+    float texel_y = floor(texel_index / texture_width);
+    float texel_x = texel_index - texel_y * texture_width;
+    return texture(curve_texture_packed, (vec2(texel_x, texel_y) + 0.5) * curve_texture_size.zw);
+}
+
+float DecodePackedHalf(vec2 encoded)
+{
+    vec2 bytes = floor(encoded * 255.0 + 0.5);
+    float high_byte = bytes.x;
+    float sign_value = high_byte >= 128.0 ? -1.0 : 1.0;
+    high_byte = mod(high_byte, 128.0);
+    float exponent = floor(high_byte * 0.25);
+    float mantissa = mod(high_byte, 4.0) * 256.0 + bytes.y;
+
+    if (exponent < 0.5)
+    {
+        return sign_value * exp2(-14.0) * (mantissa / 1024.0);
+    }
+    if (exponent > 30.5)
+    {
+        return sign_value * 65504.0;
+    }
+    return sign_value * exp2(exponent - 15.0) * (1.0 + mantissa / 1024.0);
+}
+
+vec2 DecodePackedHalf2(vec4 encoded)
+{
+    return vec2(DecodePackedHalf(encoded.rg), DecodePackedHalf(encoded.ba));
+}
+
+float DecodePackedUint16(vec2 encoded)
+{
+    vec2 bytes = floor(encoded * 255.0 + 0.5);
+    return bytes.x * 256.0 + bytes.y;
 }
 
 void LoadCurve(int curve_texel, out vec2 p0, out vec2 p1, out vec2 p2)
 {
     vec4 curve_a = SampleCurveTexel(curve_texel);
     vec4 curve_b = SampleCurveTexel(curve_texel + 1);
-    p0 = curve_a.xy;
-    p1 = curve_a.zw;
-    p2 = curve_b.xy;
+    vec4 curve_c = SampleCurveTexel(curve_texel + 2);
+    p0 = DecodePackedHalf2(curve_a);
+    p1 = DecodePackedHalf2(curve_b);
+    p2 = DecodePackedHalf2(curve_c);
 }
 
 void LoadScanlineStripeRange(float y, out int curve_start, out int curve_count)
@@ -44,8 +81,8 @@ void LoadScanlineStripeRange(float y, out int curve_start, out int curve_count)
     float stripe_index = floor(clamp(y, 0.0, 0.999999) * stripe_count);
     int stripe_texel = int(var_effect_params.x + 0.5);
     vec4 stripe_metadata = SampleCurveTexel(stripe_texel + int(stripe_index));
-    curve_start = stripe_texel + int(stripe_metadata.x + 0.5);
-    curve_count = int(stripe_metadata.y + 0.5);
+    curve_start = stripe_texel + int(DecodePackedUint16(stripe_metadata.rg) + 0.5);
+    curve_count = int(DecodePackedUint16(stripe_metadata.ba) + 0.5);
 }
 
 float QuadraticAxis(float t, float p0, float p1, float p2)
@@ -257,7 +294,7 @@ float ScanlineSweepRender(vec2 render_coord, int curve_start, int curve_count, v
         vec2 p1;
         vec2 p2;
         LoadCurve(curve_texel, p0, p1, p2);
-        curve_texel += 2;
+        curve_texel += 3;
         signed_area += ScanlineSweep(size,
                                      offset,
                                      p0 * inv_filter_width,

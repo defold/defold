@@ -124,6 +124,17 @@ static void SetVectorColor(GlyphVertex& vertex, const Vector4& color)
     vertex.m_VectorColor[3] = ToUNorm8(color.getW());
 }
 
+static void SetSdfEffectProperties(GlyphVertex& vertex, float layer_mode, const Vector4& color)
+{
+    const bool is_outline = layer_mode == 1.0f;
+    float* layer_color = is_outline ? vertex.m_OutlineColor : vertex.m_ShadowColor;
+    layer_color[0] = color.getX();
+    layer_color[1] = color.getY();
+    layer_color[2] = color.getZ();
+    layer_color[3] = color.getW();
+    vertex.m_LayerMasks[is_outline ? 1 : 2] = 1.0f;
+}
+
 static void ClearGlyphQuad(uint32_t vertexindex, GlyphVertex* vertices)
 {
     for (uint32_t i = 0; i < 6; ++i)
@@ -444,6 +455,7 @@ static void OutputGlyphVector(uint32_t vertexindex,
                               float sdf_outline,
                               float sdf_shadow,
                               float sdf_spread,
+                              float sdf_smoothing,
                               float texcoord_min_x,
                               float texcoord_min_y,
                               float texcoord_max_x,
@@ -496,12 +508,12 @@ static void OutputGlyphVector(uint32_t vertexindex,
         v.m_VectorBanding[1] = band_scale_y; \
         v.m_VectorBanding[2] = band_offset_x; \
         v.m_VectorBanding[3] = band_offset_y; \
-        v.m_Position[2] = curve_start; \
-        v.m_Position[3] = layer_mode; \
-        v.m_SdfParams[0] = width; \
-        v.m_SdfParams[1] = height; \
-        v.m_SdfParams[2] = curve_texel_stride; \
-        v.m_SdfParams[3] = sdf_spread; \
+        v.m_Position[2] = use_sdf_shadow ? v.m_Position[2] : curve_start; \
+        v.m_Position[3] = use_sdf_shadow ? v.m_Position[3] : layer_mode; \
+        v.m_SdfParams[0] = use_sdf_shadow ? 0.75f : width; \
+        v.m_SdfParams[1] = use_sdf_shadow ? sdf_outline : height; \
+        v.m_SdfParams[2] = use_sdf_shadow ? sdf_smoothing : curve_texel_stride; \
+        v.m_SdfParams[3] = use_sdf_shadow ? sdf_shadow : sdf_spread; \
         v.m_LayerMasks[0] = use_sdf_shadow ? 1.0f : 0.0f; \
         SetVectorColor(v, color);
 
@@ -509,6 +521,20 @@ static void OutputGlyphVector(uint32_t vertexindex,
     SET_VECTOR_VERTEX(v2, texcoord_min_x, texcoord_max_y)
     SET_VECTOR_VERTEX(v3, texcoord_max_x, texcoord_min_y)
     SET_VECTOR_VERTEX(v6, texcoord_max_x, texcoord_max_y)
+
+    if (use_sdf_shadow)
+    {
+        // The vector SDF fallback uses the established font-df vertex and
+        // fragment contract. Its layer mask selects either outline or shadow.
+        v1.m_LayerMasks[0] = 0.0f;
+        v2.m_LayerMasks[0] = 0.0f;
+        v3.m_LayerMasks[0] = 0.0f;
+        v6.m_LayerMasks[0] = 0.0f;
+        SetSdfEffectProperties(v1, layer_mode, color);
+        SetSdfEffectProperties(v2, layer_mode, color);
+        SetSdfEffectProperties(v3, layer_mode, color);
+        SetSdfEffectProperties(v6, layer_mode, color);
+    }
 
     #undef SET_VECTOR_VERTEX
 
@@ -553,6 +579,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                            uint32_t frame,
                                            TextLayout* layout,
                                            const TextEntry& te,
+                                           float sdf_scale,
                                            GlyphVertex* vertices,
                                            uint32_t num_vertices)
 {
@@ -561,6 +588,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     const Vector4 shadow_color = dmGraphics::UnpackRGBA(te.m_ShadowColor);
     const float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
     const float leading = line_height * te.m_Leading;
+    const float sdf_smoothing = 0.25f /
+        (font_map->m_SdfSpread * dmMath::Max(sdf_scale, 0.0001f));
 
     TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
     uint32_t glyph_count = TextLayoutGetGlyphCount(layout);
@@ -670,8 +699,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                 continue;
             }
 
-            float glyph_width = dmMath::Max(0.0001f, glyph->m_Width);
-            float glyph_height = dmMath::Max(0.0001f, glyph->m_Ascent + glyph->m_Descent);
+            float glyph_width = dmMath::Max(0.0001f, glyph->m_Outline.m_Width);
+            float glyph_height = dmMath::Max(0.0001f, glyph->m_Outline.m_Ascent + glyph->m_Outline.m_Descent);
             float sdf_width = glyph->m_Bitmap.m_Width > 0 ? (float)glyph->m_Bitmap.m_Width : glyph_width;
             float sdf_left_bearing = glyph->m_LeftBearing;
             float sdf_ascent = glyph->m_Ascent;
@@ -758,6 +787,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   font_map->m_SdfOutline,
                                   font_map->m_SdfShadow,
                                   font_map->m_SdfSpread,
+                                  sdf_smoothing,
                                   shadow_texcoord_min_x,
                                   shadow_texcoord_min_y,
                                   shadow_texcoord_max_x,
@@ -789,8 +819,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                 {
                     // The runtime bitmap metrics include SDF padding and do not
                     // share the analytical face's normalized bounds exactly.
-                    // Use the complete atlas entry; the effect shader cheaply
-                    // rejects samples outside the outline threshold.
+                    // Use the complete atlas entry; it includes the padding
+                    // required by the outline threshold.
                     outline_min_x = 0.0f;
                     outline_min_y = 0.0f;
                     outline_max_x = 1.0f;
@@ -835,6 +865,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   font_map->m_SdfOutline,
                                   font_map->m_SdfShadow,
                                   font_map->m_SdfSpread,
+                                  sdf_smoothing,
                                   outline_min_x,
                                   outline_min_y,
                                   outline_max_x,
@@ -859,10 +890,10 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   x,
                                   y,
                                   glyph_width,
-                                  g->m_Width,
-                                  g->m_LeftBearing,
-                                  glyph->m_Ascent,
-                                  glyph->m_Descent,
+                                  glyph->m_Outline.m_Width,
+                                  glyph->m_Outline.m_LeftBearing,
+                                  glyph->m_Outline.m_Ascent,
+                                  glyph->m_Outline.m_Descent,
                                   cache_glyph->m_VectorCurveTexel,
                                   cache_glyph->m_VectorCurveCount,
                                   font_map->m_VectorCurveTexelsPerCurve,
@@ -884,6 +915,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   font_map->m_SdfOutline,
                                   font_map->m_SdfShadow,
                                   font_map->m_SdfSpread,
+                                  sdf_smoothing,
                                   face_texcoord_min_x,
                                   face_texcoord_min_y,
                                   face_texcoord_max_x,
@@ -941,7 +973,7 @@ static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t f
 
     if (font_map->m_IsVector)
     {
-        return CreateFontVectorVertexData(font_map, frame, layout, te, vertices, num_vertices);
+        return CreateFontVectorVertexData(font_map, frame, layout, te, sdf_scale, vertices, num_vertices);
     }
 
     uint32_t vertexindex        = 0;

@@ -40,11 +40,10 @@ namespace dmGameSystem
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
     const static dmhash_t SAMPLER_HASH_CURVE_TEXTURE = dmHashString64("curve_texture");
-    const static dmhash_t SAMPLER_HASH_SDF_TEXTURE = dmHashString64("sdf_texture");
+    const static dmhash_t SAMPLER_HASH_CURVE_TEXTURE_PACKED = dmHashString64("curve_texture_packed");
     const static char* SDF_MATERIAL = "/builtins/fonts/font-df.materialc";
-    const static char* SLUG_MATERIAL = "/builtins/fonts/font-vector_slug.materialc";
-    const static char* SWEEP_MATERIAL = "/builtins/fonts/font-vector_sweep.materialc";
-    const static char* FONT_SDF_MATERIAL = "/builtins/fonts/font-sdf.materialc";
+    const static char* SLUG_MATERIAL = "/builtins/fonts/font-vector-slug.materialc";
+    const static char* SWEEP_MATERIAL = "/builtins/fonts/font-vector-sweep.materialc";
 
     struct FontResourceContext
     {
@@ -334,7 +333,8 @@ namespace dmGameSystem
     {
         return material_resource &&
                material_resource->m_Material &&
-               dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE) != dmRender::INVALID_SAMPLER_UNIT;
+               (dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE) != dmRender::INVALID_SAMPLER_UNIT ||
+                dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE_PACKED) != dmRender::INVALID_SAMPLER_UNIT);
     }
 
     static const char* GetRendererMaterial(uint8_t renderer)
@@ -379,7 +379,7 @@ namespace dmGameSystem
     {
         return ddf->m_ShadowMaterial && ddf->m_ShadowMaterial[0]
             ? ddf->m_ShadowMaterial
-            : FONT_SDF_MATERIAL;
+            : SDF_MATERIAL;
     }
 
     static dmResource::Result AcquireResources(FontResourceContext* context, dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
@@ -403,15 +403,6 @@ namespace dmGameSystem
             {
                 return result;
             }
-        }
-
-        if (font_map->m_ShadowMaterialResource &&
-            dmRender::GetMaterialSamplerUnit(font_map->m_ShadowMaterialResource->m_Material,
-                                             SAMPLER_HASH_SDF_TEXTURE) == dmRender::INVALID_SAMPLER_UNIT)
-        {
-            dmLogError("Font SDF material '%s' for '%s' must declare an sdf_texture sampler",
-                       GetShadowMaterial(ddf), filename);
-            return dmResource::RESULT_FORMAT_ERROR;
         }
 
         if (IsDynamic(ddf))
@@ -496,11 +487,10 @@ namespace dmGameSystem
 
     static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, HFont hfont, dmRender::FontMapParams* params)
     {
-        // The lightweight vector effect pass samples one shared SDF channel.
-        // The legacy SDF face material still reads its blurred shadow from the
-        // blue channel, so retain the generated three-channel glyph in that
-        // configuration.
-        params->m_GlyphChannels = ddf->m_ShadowBlur > 0 && !params->m_ShadowSdf ? 3 : 1;
+        // font-df.fp reads blurred shadow data from the blue channel. Keep the
+        // legacy three-channel cache contract for both the SDF renderer and
+        // vector faces using SDF outline/shadow effects.
+        params->m_GlyphChannels = ddf->m_ShadowBlur > 0 ? 3 : 1;
 
         float outline_padding;
         float shadow_padding; // the extra padding for the shadow blur
@@ -702,7 +692,11 @@ namespace dmGameSystem
         resource->m_CacheCellPadding  = params.m_CacheCellPadding;
         resource->m_Padding           = ddf->m_Padding;
 
-        dmRender::SetFontMapMaterial(resource->m_FontMap, resource->m_MaterialResource->m_Material);
+        if (!dmRender::SetFontMapMaterial(resource->m_FontMap, resource->m_MaterialResource->m_Material))
+        {
+            dmLogError("Font material is not supported for resource '%s'", path);
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
         dmRender::SetFontMapUserData(resource->m_FontMap, (void*)resource);
         return dmResource::RESULT_OK;
     }

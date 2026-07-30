@@ -120,6 +120,11 @@ struct FontGlyphOutline
     FontCurveCommand*   m_Commands;
     uint32_t            m_CommandCount;
     uint32_t            m_Flags;
+    float               m_Width;        // Unpadded analytical outline width
+    float               m_Height;       // Unpadded analytical outline height
+    float               m_LeftBearing;  // Outline offset from the glyph origin
+    float               m_Ascent;       // Outline extent above the baseline
+    float               m_Descent;      // Positive outline extent below the baseline
 };
 
 /*#

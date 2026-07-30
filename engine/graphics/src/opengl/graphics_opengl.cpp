@@ -1693,15 +1693,22 @@ static void LogFrameBufferError(GLenum status)
         }
         else
         {
-            // https://registry.khronos.org/OpenGL/extensions/EXT/EXT_color_buffer_half_float.txt
-            if (OpenGLIsExtensionSupported(_context, "EXT_color_buffer_half_float"))
+            // Texture format support only requires that the format can be uploaded
+            // and sampled. Color-buffer extensions are stronger than necessary here.
+            // WebGL extension names omit the GL_ prefix used by native GLES.
+            bool half_float_texture_supported = OpenGLIsExtensionSupported(_context, "GL_OES_texture_half_float") ||
+                                                OpenGLIsExtensionSupported(_context, "OES_texture_half_float") ||
+                                                OpenGLIsExtensionSupported(_context, "EXT_color_buffer_half_float");
+            if (half_float_texture_supported)
             {
                 context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB16F;
                 context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA16F;
             }
 
-            // https://registry.khronos.org/webgl/extensions/WEBGL_color_buffer_float/
-            if (OpenGLIsExtensionSupported(_context, "WEBGL_color_buffer_float"))
+            bool float_texture_supported = OpenGLIsExtensionSupported(_context, "GL_OES_texture_float") ||
+                                           OpenGLIsExtensionSupported(_context, "OES_texture_float") ||
+                                           OpenGLIsExtensionSupported(_context, "WEBGL_color_buffer_float");
+            if (float_texture_supported)
             {
                 context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB32F;
                 context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA32F;
