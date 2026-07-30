@@ -288,19 +288,34 @@
               (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
               (is (= [] (fn/call-logger-calls report-error!)))))))
 
-      (testing "A search runs correctly after a prior search with the same filter was aborted"
+      (testing "Aborting an in-flight preparation evicts it from the cache"
         (let [report-error! (fn/make-call-logger)
               consumer (make-consumer report-error!)
               start-consumer! (partial consumer-start! consumer)
               stop-consumer! consumer-stop!
-              {:keys [start-search! abort-search!]}
-              (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)]
-          (start-search! "255" nil true)
-          (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
-          (abort-search!)
-          (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
-          (start-search! "255" nil true)
-          (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
-          (is (seq (consumer-consumed consumer)))
-          (abort-search!)
-          (is (= [] (fn/call-logger-calls report-error!))))))))
+              preparation-started (promise)
+              builds (atom 0)
+              first-future-atom (atom nil)
+              real-make-future project-search/make-search-data-future]
+          (with-redefs [project-search/make-search-data-future
+                        (fn [& args]
+                          (if (= 1 (swap! builds inc))
+                            (let [blocking-promise (promise)
+                                  blocking-future (future
+                                                    (deliver preparation-started true)
+                                                    (deref blocking-promise))]
+                              (reset! first-future-atom blocking-future)
+                              blocking-future)
+                            (apply real-make-future args)))]
+            (let [{:keys [start-search! abort-search!]}
+                  (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)]
+              (start-search! "255" nil true)
+              (is (true? (deref preparation-started timeout-ms false)))
+              (abort-search!)
+              (is (future-cancelled? @first-future-atom))
+              (start-search! "255" nil true)
+              (is (= 2 @builds))
+              (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
+              (is (seq (consumer-consumed consumer)))
+              (abort-search!)
+              (is (= [] (fn/call-logger-calls report-error!))))))))))

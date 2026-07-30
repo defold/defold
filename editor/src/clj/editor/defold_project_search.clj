@@ -163,7 +163,7 @@
   [workspace project start-consumer! stop-consumer! report-error!]
   (let [pending-search-atom (atom nil)
 
-        active-search-data-atom (atom nil)
+        active-search-data-future-atom (atom nil)
         prepare-search-data!
         (fn/memoize
           {:limit 1}
@@ -197,7 +197,7 @@
     {:start-search! (fn [search-string searched-exts include-libraries?]
                       (try
                         (let [search-data-future (prepare-search-data! searched-exts include-libraries?)
-                              [previous-search-data-future] (swap-vals! active-search-data-atom (constantly search-data-future))]
+                              [previous-search-data-future] (swap-vals! active-search-data-future-atom (constantly search-data-future))]
                           (when (and previous-search-data-future
                                      (not (identical? previous-search-data-future search-data-future)))
                             (future-cancel previous-search-data-future))
@@ -209,7 +209,7 @@
                       (try
                         (swap! pending-search-atom abort-search!)
                         (fn/clear-memoized! prepare-search-data!)
-                        (let [[search-data-future] (swap-vals! active-search-data-atom (constantly nil))]
+                        (let [[search-data-future] (swap-vals! active-search-data-future-atom (constantly nil))]
                           (some-> search-data-future future-cancel))
                         (catch Throwable error
                           (report-error! error)))
