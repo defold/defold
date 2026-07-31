@@ -65,6 +65,7 @@
                    (doto (VBox.) (.setId "quick-help-box"))
                    (doto (GridPane.) (.setId "quick-help-items"))])
     (g/transact
+      {:undoable false}
       (concat
         (g/set-property app-view :editor-tabs-split editor-tabs-split)
         (g/set-property app-view :localization test-util/localization)))
@@ -136,10 +137,13 @@
           resourceless-view (first
                               (g/tx-nodes-added
                                 (g/transact
+                                  {:undoable false}
                                   (g/make-node (test-util/make-view-graph!) view/WorkbenchView))))
           tab (doto (Tab. "Gone")
                 (editor-tab/set-view-node-id! resourceless-view))]
-      (g/transact (g/connect resourceless-view :view-data app-view :open-views))
+      (g/transact
+        {:undoable false}
+        (g/connect resourceless-view :view-data app-view :open-views))
       (.add (tab-pane-tabs editor-tabs-split) tab)
       (app-view/remove-invalid-tabs! (.getItems editor-tabs-split)
                                      (g/node-value app-view :open-views))
