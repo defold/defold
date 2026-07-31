@@ -562,6 +562,7 @@ dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + поддержка потоков
 dialog.bundle.option.architecture.armv7-android = 32-бит (armv7)
 dialog.bundle.option.architecture.arm64-android = 64-бит (arm64)
+dialog.bundle.option.architecture.x86_64-android = 64-бит (x86_64)
 dialog.bundle.label.sign-application = Подписать приложение
 dialog.bundle.label.code-signing-identity = Удостоверение подписи
 dialog.bundle.label.provisioning-profile = Provisioning-профиль

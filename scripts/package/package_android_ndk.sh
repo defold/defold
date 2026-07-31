@@ -88,15 +88,15 @@ if [ ! -e "${TARGET_PATH}/${ANDROID_NDK_BASENAME}.tar.gz" ]; then
 	#(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/aarch64-linux-android-4.9)
 	#(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/renderscript)
 
+	# We keep x86_64-linux-android, it's needed to build for the x86_64-android platform
+	# (i.e. the Android emulators). Only the 32 bit i686 target is removed.
 	(cd ${TMP} && rm -rf ${ANDROID_NDK}/sysroot/usr/lib/i686-linux-android)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/sysroot/usr/lib/x86_64-linux-android)
 
 	# (cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/x86-4.9)
 	# (cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/x86_64-4.9)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/i686-linux-android)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/x86_64-linux-android)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/i686-linux-android)
-	(cd ${TMP} && rm -rf ${ANDROID_NDK}/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/lib/x86_64-linux-android)
+	NDK_PREBUILT=${ANDROID_NDK}/toolchains/llvm/prebuilt/${HOST}-x86_64
+	(cd ${TMP} && rm -rf ${NDK_PREBUILT}/i686-linux-android)
+	(cd ${TMP} && rm -rf ${NDK_PREBUILT}/sysroot/usr/lib/i686-linux-android)
 
 	echo "Creating NDK archive" ${TARGET_PATH}/${ANDROID_NDK_BASENAME}.tar.gz
 	(cd ${TMP} && tar -czf ${TARGET_PATH}/${ANDROID_NDK_BASENAME}.tar.gz ${ANDROID_NDK})

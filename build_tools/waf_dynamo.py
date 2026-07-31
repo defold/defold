@@ -82,7 +82,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengl_compute':
         return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-ios', 'arm64-ios']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-android', 'x86_64-ios', 'arm64-ios']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     if feature == 'metal':
@@ -262,7 +262,7 @@ def platform_graphics_libs_and_symbols(platform):
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
-    elif platform in ('armv7-android', 'arm64-android'):
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         use_opengles = Options.options.with_opengl or not Options.options.with_vulkan
         use_vulkan = Options.options.with_vulkan or not Options.options.with_opengl
     else:
@@ -279,7 +279,7 @@ def platform_graphics_libs_and_symbols(platform):
 
     if use_vulkan:
         glfw_lib = 'DMGLFW'
-        if platform in ('armv7-android', 'arm64-android') and not use_opengles:
+        if platform in ('armv7-android', 'arm64-android', 'x86_64-android') and not use_opengles:
             glfw_lib = 'DMGLFW_VULKAN'
         graphics_libs += ['GRAPHICS_VULKAN', glfw_lib, 'VULKAN']
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
@@ -382,19 +382,29 @@ def dmsdk_add_files(bld, target, source):
             bld.install_files(os.path.join(target, sdk_dir), f)
 
 def getAndroidNDKArch(target_arch):
-    return 'arm64' if 'arm64' == target_arch else 'arm'
+    if 'arm64' == target_arch:
+        return 'arm64'
+    if 'x86_64' == target_arch:
+        return 'x86_64'
+    return 'arm'
 
 def getAndroidArch(target_arch):
-    return 'arm64-v8a' if 'arm64' == target_arch else 'armeabi-v7a'
+    if 'arm64' == target_arch:
+        return 'arm64-v8a'
+    if 'x86_64' == target_arch:
+        return 'x86_64'
+    return 'armeabi-v7a'
 
 def getAndroidCompilerName(target_arch, api_version):
     if target_arch == 'arm64':
         return 'aarch64-linux-android%s-clang' % (api_version)
+    elif target_arch == 'x86_64':
+        return 'x86_64-linux-android%s-clang' % (api_version)
     else:
         return 'armv7a-linux-androideabi%s-clang' % (api_version)
 
 def getAndroidNDKAPIVersion(target_arch):
-    if target_arch == 'arm64':
+    if target_arch in ('arm64', 'x86_64'):
         return sdk.ANDROID_64_NDK_API_VERSION
     else:
         return sdk.ANDROID_NDK_API_VERSION
@@ -404,6 +414,10 @@ def getAndroidCompileFlags(target_arch):
     # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
     if 'arm64' == target_arch:
         return ['-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv8-a', '-fvisibility=hidden']
+    # NOTE: no -march for x86_64. The NDK's x86_64-linux-android<api>-clang wrapper already
+    # targets the baseline mandated by the Android x86_64 ABI (SSE4.2 + POPCNT).
+    elif 'x86_64' == target_arch:
+        return ['-DGOOGLE_PROTOBUF_NO_RTTI', '-fvisibility=hidden']
     # NOTE:
     # -fno-exceptions added
     else:
@@ -411,7 +425,8 @@ def getAndroidCompileFlags(target_arch):
 
 def getAndroidLinkFlags(target_arch):
     common_flags = ['-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
-    if target_arch == 'arm64':
+    # 16kb page alignment is required on 64 bit Android, x86_64 emulator images use it too
+    if target_arch in ('arm64', 'x86_64'):
         return common_flags + ['-Wl,-z,max-page-size=16384']
     else:
         return ['-Wl,--fix-cortex-a8'] + common_flags
@@ -1154,7 +1169,7 @@ Task.task_factory('app_bundle',
 
 def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
-    if platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','armv7-android','arm64-android']:
+    if platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','armv7-android','arm64-android','x86_64-android']:
         return 0 # return ok, path is still unstripped
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
@@ -1304,10 +1319,8 @@ def android_package(task):
         print ('', file=f)
 
     with open(task.gdb_setup.abspath(), 'w') as f:
-        if 'arm64' == build_util.get_target_architecture():
-            print ('set solib-search-path ./libs/arm64-v8a:./obj/local/arm64-v8a/', file=f)
-        else:
-            print ('set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/', file=f)
+        android_abi = getAndroidArch(build_util.get_target_architecture())
+        print ('set solib-search-path ./libs/%s:./obj/local/%s/' % (android_abi, android_abi), file=f)
 
     return 0
 
@@ -1320,7 +1333,7 @@ Task.task_factory('android_package',
 @after('apply_link')
 @feature('apk')
 def create_android_package(self):
-    if not re.match('arm.*?android', self.env['PLATFORM']):
+    if not re.match('.*?-android$', self.env['PLATFORM']):
         return
     Utils.def_attrs(self, android_package = None)
 
@@ -1344,10 +1357,8 @@ def create_android_package(self):
     except BuildUtilityException as ex:
         android_package_task.fatal(ex.msg)
 
-    if 'arm64' == build_util.get_target_architecture():
-        native_lib = self.path.get_bld().make_node("%s.android/libs/arm64-v8a/%s" % (exe_name, lib_name))
-    else:
-        native_lib = self.path.get_bld().make_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
+    android_abi = getAndroidArch(build_util.get_target_architecture())
+    native_lib = self.path.get_bld().make_node("%s.android/libs/%s/%s" % (exe_name, android_abi, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
     android_package_task.classes_dex = self.path.get_bld().make_node("%s.android/classes.dex" % (exe_name))
@@ -1355,10 +1366,7 @@ def create_android_package(self):
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.get_bld().make_node("%s.android/jni/Android.mk" % (exe_name))
     android_package_task.application_mk = self.path.get_bld().make_node("%s.android/jni/Application.mk" % (exe_name))
-    if 'arm64' == build_util.get_target_architecture():
-        android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/arm64-v8a/gdb.setup" % (exe_name))
-    else:
-        android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
+    android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/%s/gdb.setup" % (exe_name, android_abi))
 
     android_package_task.set_outputs([native_lib,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
@@ -1385,7 +1393,7 @@ task.sig_explicit_deps = sig_copy_stub
 @before('process_source')
 @feature('apk')
 def create_copy_glue(self):
-    if not re.match('arm.*?android', self.env['PLATFORM']):
+    if not re.match('.*?-android$', self.env['PLATFORM']):
         return
 
     stub = self.path.get_bld().find_or_declare('android_stub.cpp')
@@ -1447,7 +1455,7 @@ Task.task_factory('dex', '${D8} --dex --output ${TGT} ${SRC}',
 @after('apply_java')
 @feature('dex')
 def apply_dex(self):
-    if not re.match('arm.*?android', self.env['PLATFORM']):
+    if not re.match('.*?-android$', self.env['PLATFORM']):
         return
 
     jar = self.path.find_or_declare(self.destfile)
@@ -1889,7 +1897,7 @@ def detect(conf):
         conf.env['GCC-OBJCLINK'] = '-lobjc'
 
 
-    elif TargetOS.ANDROID == target_os and build_util.get_target_architecture() in ('armv7', 'arm64'):
+    elif TargetOS.ANDROID == target_os and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         bp_arch, bp_os = host_platform.split('-')
         exe_suffix = ''
@@ -2051,7 +2059,7 @@ def detect(conf):
         conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
-    if platform in ('x86_64-linux','arm64-linux','armv7-android','arm64-android'): # Currently the only platform exhibiting the behavior
+    if platform in ('x86_64-linux','arm64-linux','armv7-android','arm64-android','x86_64-android'): # Currently the only platform exhibiting the behavior
         conf.env['STLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
         conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
 

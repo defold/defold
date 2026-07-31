@@ -27,6 +27,7 @@ function usage() {
     echo " * x86_64-ios"
     echo " * armv7-android"
     echo " * arm64-android"
+    echo " * x86_64-android"
     echo " * i586-mingw32msvc"
     echo " * wasm-web"
     echo " * wasm_pthread-web"

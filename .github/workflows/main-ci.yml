@@ -169,6 +169,8 @@ jobs:
             skip_tests: true
           - platform: arm64-android
             skip_tests: true
+          - platform: x86_64-android
+            skip_tests: true
     runs-on: ubuntu-latest
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))
     timeout-minutes: 30

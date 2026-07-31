@@ -30,7 +30,7 @@ def build(bld):
         elif platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
             extra_symbols += ['GraphicsAdapterOpenGL']
 
-        if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
+        if bld.env.PLATFORM in ('armv7-android', 'arm64-android', 'x86_64-android'):
             extra_libs += ['OPENGL', 'graphics']
             extra_symbols += ['GraphicsAdapterOpenGL']
 

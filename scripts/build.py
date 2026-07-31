@@ -52,7 +52,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
-                    'armv7-android', 'arm64-android',
+                    'armv7-android', 'arm64-android', 'x86_64-android',
                     'wasm-web', 'wasm_pthread-web']
 
 _CMAKE_FEATURE_FLAG_MAP = {
@@ -392,6 +392,22 @@ PACKAGES_ANDROID_64=[
     "SkriBidi-1e8038"]
 PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
+PACKAGES_ANDROID_X86_64=[
+    "protobuf-3.20.1",
+    "luajit-2.1.0-3e223cb",
+    "tremolo-b0cb4d1",
+    "bullet-2.77",
+    "glfw-2.7.1",
+    "box2d-3.1.0",
+    "box2d_defold-2.2.1",
+    "opus-1.5.2",
+    "vkquality-1.1-2642a0d",
+    "harfbuzz-13.2.1",
+    "SheenBidi-2.9.0",
+    "libunibreak-6.1",
+    "SkriBidi-1e8038"]
+PACKAGES_ANDROID_X86_64.append(sdk.ANDROID_PACKAGE)
+
 PACKAGES_EMSCRIPTEN=[
     "protobuf-3.20.1",
     "bullet-2.77",
@@ -418,6 +434,7 @@ PLATFORM_PACKAGES = {
     'x86_64-ios':       PACKAGES_IOS_X86_64,
     'armv7-android':    PACKAGES_ANDROID,
     'arm64-android':    PACKAGES_ANDROID_64,
+    'x86_64-android':   PACKAGES_ANDROID_X86_64,
     'wasm-web':         PACKAGES_EMSCRIPTEN,
     'wasm_pthread-web': PACKAGES_EMSCRIPTEN
 }
@@ -457,7 +474,8 @@ BOB_TOOL_PACKAGES = ('codesign_allocate', 'strip', 'zipalign')
 
 BOB_EXTRA_PLATFORM_PACKAGES = {
     'armv7-android': ["vkquality-1.1-2642a0d"],
-    'arm64-android': [sdk.ANDROID_PACKAGE, "vkquality-1.1-2642a0d"]
+    'arm64-android': [sdk.ANDROID_PACKAGE, "vkquality-1.1-2642a0d"],
+    'x86_64-android': ["vkquality-1.1-2642a0d"]
 }
 
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
@@ -1378,7 +1396,7 @@ class Configuration(object):
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
-        if target_platform in ('armv7-android', 'arm64-android'):
+        if target_platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
             host = self.host
             if 'win32' in host:
                 host = 'win'
@@ -1610,7 +1628,7 @@ class Configuration(object):
             paths = _findlibs(libdirs)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
 
-            if platform in ['armv7-android', 'arm64-android']:
+            if platform in ['armv7-android', 'arm64-android', 'x86_64-android']:
                 # Android Jars (Dynamo)
                 jardir = os.path.join(self.dynamo_home, 'share/java')
                 paths = _findjars(jardir, ('android.jar', 'dlib.jar', 'r.jar'))
@@ -1802,7 +1820,7 @@ class Configuration(object):
 
     def _strip_engine(self, path):
         """ Strips the debug symbols from an executable """
-        if self.target_platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios','armv7-android','arm64-android']:
+        if self.target_platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios','armv7-android','arm64-android','x86_64-android']:
             return False
 
         sdkfolder = join(self.ext, 'SDKs')
@@ -1927,7 +1945,7 @@ class Configuration(object):
                 self.fatal("Requested Android test device '%s' is not available" % self.test_device)
 
             if can_run_android_tests:
-                android_tests = ['armv7-android', 'arm64-android']
+                android_tests = ['armv7-android', 'arm64-android', 'x86_64-android']
                 supported_tests['x86_64-macos'].extend(android_tests)
                 supported_tests['arm64-macos'].extend(android_tests)
                 supported_tests['x86_64-linux'].extend(android_tests)
@@ -2499,12 +2517,7 @@ class Configuration(object):
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
         self.build_tracker.start_component(lib, platform)
 
-        if lib in CMAKE_SUPPORT:
-            if platform == 'win32':
-                platform = 'x86-win32'
-            self._build_engine_lib_cmake(lib, platform, skip_tests, directory)
-        else:
-            self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
+        self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
 
         self.build_tracker.end_component(lib, platform)
 
@@ -2656,12 +2669,15 @@ class Configuration(object):
             flags = self._get_build_flags()
             flags['prefix'] = join(self.defold_root, 'packages')
             cmd = self._build_engine_cmd_waf(**flags)
-            args = cmd.split() + ['package']
+            # Some of these libraries vendor an upstream CMakeLists.txt next to our wscript
+            # (e.g. external/box2d_v2). Without --with-waf the CMake library guard in
+            # waf_dynamo mistakes them for migrated libraries and aborts the build.
+            args = cmd.split() + ['--with-waf', 'package']
             for lib in waf_libs:
                 self._build_engine_lib(args, lib, platform=self.target_platform, directory='external')
 
         for lib in [lib for lib in libs if lib in EXTERNAL_CMAKE_LIBS]:
-            if lib == 'vkquality' and self.target_platform not in ('armv7-android', 'arm64-android') and not self.external_package:
+            if lib == 'vkquality' and self.target_platform not in ('armv7-android', 'arm64-android', 'x86_64-android') and not self.external_package:
                 self._log("Skipping vkquality for non-Android platform: %s" % self.target_platform)
                 continue
             self._build_external_lib_cmake(lib, self.target_platform)
@@ -2773,7 +2789,8 @@ class Configuration(object):
                          'ext/share/java/vkquality.jar': 'lib/vkquality.jar',
                          'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
                          'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
-                         'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so'}
+                         'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so',
+                         'ext/lib/x86_64-android/libvkquality.so': 'libexec/x86_64-android/libvkquality.so'}
 
         switch_files = {}
         win32_engine_platform = self._engine_artifact_platform('win32')
@@ -2795,7 +2812,7 @@ class Configuration(object):
                      'linux-bundling': linux_files,
                      'switch-bundling': switch_files}
         # Add dmengine to 'artefacts' procedurally
-        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android']],
+        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android'], ['x86_64-android', 'x86_64-android']],
                            'win32-bundling': [[win32_engine_platform, 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
                            'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
                            'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],

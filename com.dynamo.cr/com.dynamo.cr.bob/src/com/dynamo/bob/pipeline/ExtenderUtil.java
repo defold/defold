@@ -973,8 +973,10 @@ public class ExtenderUtil {
 
         List<String> armv7ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
         List<String> arm64ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
+        List<String> x86_64ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.X86_64Android.getExtenderPaths()));
         Set<String> set = new LinkedHashSet<>(armv7ExtenderPaths);
         set.addAll(arm64ExtenderPaths);
+        set.addAll(x86_64ExtenderPaths);
         platformFolderAlternatives = new ArrayList<>(set);
 
         // Project specific bundle resources

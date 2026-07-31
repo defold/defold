@@ -70,7 +70,7 @@ else()
 endif()
 list(APPEND RESOURCE_SOURCES "${RESOURCE_SRC_DIR}/async/load_queue.cpp")
 
-if(TARGET_PLATFORM MATCHES "^(armv7-android|arm64-android)$")
+if(TARGET_PLATFORM MATCHES "^(armv7-android|arm64-android|x86_64-android)$")
   list(APPEND RESOURCE_SOURCES "${RESOURCE_SRC_DIR}/mount/mount_android.cpp")
 elseif(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-macos|arm64-macos|arm64-ios|x86_64-ios)$")
   list(APPEND RESOURCE_SOURCES "${RESOURCE_SRC_DIR}/mount/mount_mmap.cpp")

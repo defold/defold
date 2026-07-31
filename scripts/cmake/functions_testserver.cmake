@@ -107,7 +107,7 @@ function(defold_register_test_with_server target platform)
   _defold_testserver_server_dir_args(_SERVER_DIR_ARGS ${_SERVER_DIRS})
 
   set(_ANDROID_ARGS)
-  if(platform MATCHES "arm64-android|armv7-android")
+  if(platform MATCHES "arm64-android|armv7-android|x86_64-android")
     list(APPEND _ANDROID_ARGS
       --android-runner "${DEFOLD_HOME}/build_tools/build_android.py"
       --android-cwd "${_RUN_DIR_ABS}")
@@ -159,14 +159,14 @@ function(defold_register_test_with_server target platform)
   endif()
 
   set(_sequential_dep ${target})
-  if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
+  if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android|x86_64-android|arm64-ios|x86_64-ios")
     set(_prepare_target "prepare_${_run_target}")
     if(NOT TARGET ${_prepare_target})
       add_custom_target(${_prepare_target} DEPENDS ${target})
     endif()
     set(_sequential_dep ${_prepare_target})
   endif()
-  if(NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
+  if(NOT platform MATCHES "arm64-android|armv7-android|x86_64-android|arm64-ios|x86_64-ios")
     defold_register_sequential_test_command(${_run_target}
       COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
         --workdir "${_RUN_DIR_ABS}"
@@ -245,7 +245,7 @@ function(defold_register_tests_with_server group platform)
   endif()
 
   set(_ANDROID_ARGS)
-  if(platform MATCHES "arm64-android|armv7-android")
+  if(platform MATCHES "arm64-android|armv7-android|x86_64-android")
     list(APPEND _ANDROID_ARGS
       --android-runner "${DEFOLD_HOME}/build_tools/build_android.py"
       --android-cwd "${_RUN_DIR_ABS}")
@@ -297,14 +297,14 @@ function(defold_register_tests_with_server group platform)
   endif()
 
   set(_sequential_dep ${DTS_TARGETS})
-  if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
+  if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT platform MATCHES "arm64-android|armv7-android|x86_64-android|arm64-ios|x86_64-ios")
     set(_prepare_target "prepare_${_run_target}")
     if(NOT TARGET ${_prepare_target})
       add_custom_target(${_prepare_target} DEPENDS ${DTS_TARGETS})
     endif()
     set(_sequential_dep ${_prepare_target})
   endif()
-  if(NOT platform MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
+  if(NOT platform MATCHES "arm64-android|armv7-android|x86_64-android|arm64-ios|x86_64-ios")
     defold_register_sequential_test_command(${_run_target}
       COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
         --workdir "${_RUN_DIR_ABS}"

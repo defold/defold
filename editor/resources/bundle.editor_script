@@ -397,7 +397,8 @@ local android_dialog = editor.ui.component(function(props)
         })),
         editor.bundle.grid_row(localization.message("dialog.bundle.label.architectures"), {
             editor.bundle.set_element_check_box(config, set_config, "architectures", "armv7-android", localization.message("dialog.bundle.option.architecture.armv7-android"), errors and errors.architectures),
-            editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-android", localization.message("dialog.bundle.option.architecture.arm64-android"), errors and errors.architectures)
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "arm64-android", localization.message("dialog.bundle.option.architecture.arm64-android"), errors and errors.architectures),
+            editor.bundle.set_element_check_box(config, set_config, "architectures", "x86_64-android", localization.message("dialog.bundle.option.architecture.x86_64-android"), errors and errors.architectures)
         }),
         editor.bundle.grid_row(localization.message("dialog.bundle.label.android.bundle-format"), {
             editor.bundle.set_element_check_box(config, set_config, "bundle_format", "apk", localization.message("dialog.bundle.option.bundle-format.apk"), errors and errors.bundle_format),
@@ -489,9 +490,16 @@ end
 local function bundle_android(show_dialog)
     local config = editor.bundle.config(show_dialog, "bundle.android", android_dialog, android_errors)
 
-    local armv7 = config.architectures["armv7-android"]
-    local arm64 = config.architectures["arm64-android"]
-    local output_subdir = (armv7 and arm64 and "universal-android") or (armv7 and "armv7-android") or "arm64-android"
+    local selected_architectures = {}
+    for _, architecture in ipairs({"armv7-android", "arm64-android", "x86_64-android"}) do
+        if config.architectures[architecture] then
+            selected_architectures[#selected_architectures + 1] = architecture
+        end
+    end
+    if #selected_architectures == 0 then
+        selected_architectures = {"arm64-android"}
+    end
+    local output_subdir = #selected_architectures > 1 and "universal-android" or selected_architectures[1]
     local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
 
     local apk = config.bundle_format.apk
@@ -499,7 +507,7 @@ local function bundle_android(show_dialog)
 
     editor.bundle.create(config, output_directory, {
         platform = "armv7-android",
-        architectures = (armv7 and arm64 and "armv7-android,arm64-android") or (armv7 and "armv7-android") or "arm64-android",
+        architectures = table.concat(selected_architectures, ","),
         bundle_format = (apk and aab and "apk,aab") or (apk and "apk") or "aab",
         keystore = #config.keystore > 0 and config.keystore or nil,
         keystore_pass = #config["keystore-pass"] > 0 and config["keystore-pass"] or nil,
@@ -589,7 +597,7 @@ function M.get_prefs_schema()
             ["keystore-pass"] = editor.prefs.schema.string(),
             ["key-pass"] = editor.prefs.schema.string(),
             architectures = editor.prefs.schema.set({
-                item = editor.prefs.schema.enum({values = {"armv7-android", "arm64-android"}}),
+                item = editor.prefs.schema.enum({values = {"armv7-android", "arm64-android", "x86_64-android"}}),
                 default = {["armv7-android"] = true}
             }),
             bundle_format = editor.prefs.schema.set({
