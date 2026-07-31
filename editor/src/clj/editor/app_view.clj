@@ -419,8 +419,11 @@
               [resource-node resource-node-type])))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (into [] (keep :resource-node) (vals open-views))))
+  ;; NOTE: Empty rather than nil when nothing is selected. Command contexts with a nil
+  ;; selection stop the context chain in handler/eval-contexts, which leaves a
+  ;; context menu opened over a tab without a resource with nothing to show.
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
-                                    (get selected-node-ids-by-resource-node active-resource-node)))
+                                    (get selected-node-ids-by-resource-node active-resource-node [])))
   (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource-node active-resource-node]
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
