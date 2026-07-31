@@ -120,7 +120,7 @@ static void DestroySession(FontRendererSession* session)
 
 static bool RebuildAtlas(FontRendererSession* session)
 {
-    memset(session->m_Atlas, 0, session->m_AtlasWidth * session->m_AtlasHeight * session->m_Channels);
+    memset(session->m_Atlas, 0, (size_t)session->m_AtlasWidth * session->m_AtlasHeight * session->m_Channels);
     const uint32_t columns = session->m_AtlasWidth / session->m_CellWidth;
     const uint32_t rows = session->m_AtlasHeight / session->m_CellHeight;
     if (columns * rows < session->m_Glyphs.Size())
