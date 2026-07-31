@@ -286,7 +286,7 @@ void _glfwAndroidPlatformOnInitWindow(void)
 void _glfwAndroidPlatformOnGainedFocus(void)
 {
     // If we failed to create the window in APP_CMD_INIT_WINDOW, let's try again
-    if (_glfwWinAndroid.surface == EGL_NO_SURFACE)
+    if (_glfwWin.clientAPI != GLFW_NO_API && _glfwWinAndroid.surface == EGL_NO_SURFACE)
     {
         CreateGLSurface();
     }
@@ -300,7 +300,7 @@ void _glfwAndroidPlatformOnResize(void)
 void _glfwAndroidPlatformAfterFlushEvents(void)
 {
     // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
-    if (_glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
+    if (_glfwWin.clientAPI != GLFW_NO_API && _glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
     {
         LOGV("Recreating surface");
         CreateGLSurface();
