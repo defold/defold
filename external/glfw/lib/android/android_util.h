@@ -50,17 +50,26 @@ struct InputEvent
     int64_t m_EventTime;
 };
 
+typedef enum GlfwAndroidEglResult
+{
+    GLFW_ANDROID_EGL_RESULT_FATAL    = -1,
+    GLFW_ANDROID_EGL_RESULT_DEFERRED = 0,
+    GLFW_ANDROID_EGL_RESULT_READY    = 1,
+} GlfwAndroidEglResult;
+
 int init_gl(_GLFWwin_android* win);
 
 void final_gl(_GLFWwin_android* win);
 
-void create_gl_surface(_GLFWwin_android* win);
+GlfwAndroidEglResult create_gl_surface(_GLFWwin_android* win);
 
 void destroy_gl_surface(_GLFWwin_android* win);
 
-void make_current(_GLFWwin_android* win);
+GlfwAndroidEglResult make_current(_GLFWwin_android* win);
 
-void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force);
+GlfwAndroidEglResult update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force);
+
+int _glfwAndroidIsAppResumed(void);
 
 int query_gl_aux_context(_GLFWwin_android* win);
 

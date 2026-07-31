@@ -157,34 +157,175 @@ static EGLint choose_egl_config(EGLDisplay display, EGLConfig* config)
     return result;
 }
 
-static int IsAppAndWindowReady(_GLFWwin_android* win)
+static ANativeWindow* AcquireAppWindow(_GLFWwin_android* win)
 {
-    return win != 0 && win->app != 0 && win->app->window != 0;
+    if (win == 0 || win->app == 0)
+        return 0;
+
+    int did_attach = 0;
+    JNIAttachCurrentThreadIfNeeded(&did_attach);
+    pthread_mutex_lock(&win->app->mutex);
+    ANativeWindow* window = win->app->window;
+    if (window)
+        ANativeWindow_acquire(window);
+    pthread_mutex_unlock(&win->app->mutex);
+    JNIDetachCurrentThreadIfNeeded(did_attach);
+
+    return window;
 }
 
-static int WaitForAppAndWindow(_GLFWwin_android* win)
+static int IsAppWindowCurrent(_GLFWwin_android* win, ANativeWindow* window)
 {
-    useconds_t  wait_period = 50*1000;
-    int         num_waits = 10;
-    do {
-        if (IsAppAndWindowReady(win)) {
+    if (win == 0 || win->app == 0 || window == 0 || !_glfwAndroidIsAppResumed())
+        return 0;
 
-            LOGI("ENGINE THREAD: Window ready!");
-            return 1;
+    pthread_mutex_lock(&win->app->mutex);
+    int is_current = win->app->window == window;
+    pthread_mutex_unlock(&win->app->mutex);
+    return is_current;
+}
+
+static ANativeWindow* WaitForAppAndWindow(_GLFWwin_android* win)
+{
+    const useconds_t wait_period = 50*1000;
+    int logged_wait = 0;
+    while (win != 0 && win->app != 0 && !win->app->destroyRequested)
+    {
+        if (_glfwAndroidIsAppResumed())
+        {
+            ANativeWindow* window = AcquireAppWindow(win);
+            if (window)
+            {
+                LOGI("ENGINE THREAD: Window ready!");
+                return window;
+            }
         }
-        LOGI("ENGINE THREAD: Window not ready. Waiting...");
-        usleep(wait_period);
-    } while(--num_waits > 0);
 
-    LOGI("ENGINE THREAD: Window not ready. Exiting!");
-    return 0;
+        if (!logged_wait)
+        {
+            LOGI("ENGINE THREAD: Window not ready. Waiting...");
+            logged_wait = 1;
+        }
+        usleep(wait_period);
+    }
+
+    LOGI("ENGINE THREAD: App is being destroyed. Exiting!");
+    return NULL;
+}
+
+static GlfwAndroidEglResult GetEglFailureResult(const char* operation, EGLint error)
+{
+    LOGW("%s failed, eglGetError: %X", operation, error);
+
+    switch (error)
+    {
+        case EGL_BAD_ALLOC:
+        case EGL_BAD_CURRENT_SURFACE:
+        case EGL_BAD_NATIVE_WINDOW:
+        case EGL_BAD_SURFACE:
+            return GLFW_ANDROID_EGL_RESULT_DEFERRED;
+        case EGL_NOT_INITIALIZED:
+        case EGL_BAD_DISPLAY:
+        case EGL_BAD_CONFIG:
+        case EGL_BAD_CONTEXT:
+        case EGL_CONTEXT_LOST:
+        default:
+            return GLFW_ANDROID_EGL_RESULT_FATAL;
+    }
+}
+
+static void ReleaseWindow(ANativeWindow* window)
+{
+    if (window)
+    {
+        int did_attach = 0;
+        JNIAttachCurrentThreadIfNeeded(&did_attach);
+        ANativeWindow_release(window);
+        JNIDetachCurrentThreadIfNeeded(did_attach);
+    }
+}
+
+static void ReleaseNativeWindow(_GLFWwin_android* win)
+{
+    if (win->native_window)
+    {
+        ReleaseWindow(win->native_window);
+        win->native_window = NULL;
+    }
+}
+
+static GlfwAndroidEglResult CreateGLSurfaceForWindow(_GLFWwin_android* win, ANativeWindow* window)
+{
+    if (window == NULL)
+        return GLFW_ANDROID_EGL_RESULT_DEFERRED;
+
+    if (win->display == EGL_NO_DISPLAY)
+    {
+        ReleaseWindow(window);
+        return GLFW_ANDROID_EGL_RESULT_FATAL;
+    }
+
+    if (win->surface != EGL_NO_SURFACE)
+    {
+        GlfwAndroidEglResult result = IsAppWindowCurrent(win, win->native_window)
+            ? GLFW_ANDROID_EGL_RESULT_READY
+            : GLFW_ANDROID_EGL_RESULT_DEFERRED;
+        ReleaseWindow(window);
+        return result;
+    }
+
+    if (!IsAppWindowCurrent(win, window))
+    {
+        ReleaseWindow(window);
+        return GLFW_ANDROID_EGL_RESULT_DEFERRED;
+    }
+
+    EGLint format;
+    if (eglGetConfigAttrib(win->display, win->config, EGL_NATIVE_VISUAL_ID, &format) != EGL_TRUE)
+    {
+        EGLint error = eglGetError();
+        ReleaseWindow(window);
+        return GetEglFailureResult("eglGetConfigAttrib", error);
+    }
+
+    if (ANativeWindow_setBuffersGeometry(window, 0, 0, format) < 0)
+    {
+        LOGW("ANativeWindow_setBuffersGeometry failed, deferring surface creation.");
+        ReleaseWindow(window);
+        return GLFW_ANDROID_EGL_RESULT_DEFERRED;
+    }
+
+    eglGetError();
+    EGLSurface surface = eglCreateWindowSurface(win->display, win->config, window, NULL);
+    EGLint error = eglGetError();
+    if (surface == EGL_NO_SURFACE || error != EGL_SUCCESS)
+    {
+        GlfwAndroidEglResult result = GetEglFailureResult("eglCreateWindowSurface", error);
+        if (surface != EGL_NO_SURFACE)
+            eglDestroySurface(win->display, surface);
+        ReleaseWindow(window);
+        return result;
+    }
+
+    if (!IsAppWindowCurrent(win, window))
+    {
+        eglDestroySurface(win->display, surface);
+        ReleaseWindow(window);
+        return GLFW_ANDROID_EGL_RESULT_DEFERRED;
+    }
+
+    ReleaseNativeWindow(win);
+    win->native_window = window;
+    win->surface = surface;
+    return GLFW_ANDROID_EGL_RESULT_READY;
 }
 
 int init_gl(_GLFWwin_android* win)
 {
     LOGV("init_gl");
 
-    if (!WaitForAppAndWindow(win))
+    ANativeWindow* window = WaitForAppAndWindow(win);
+    if (!window)
     {
         LOGE("ENGINE THREAD: Window not ready. Returning from init_gl()");
         return 0;
@@ -196,25 +337,26 @@ int init_gl(_GLFWwin_android* win)
      */
     EGLint numConfigs;
     EGLConfig config;
-    EGLContext context;
-    EGLint format;
+    EGLContext context = EGL_NO_CONTEXT;
 
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    CHECK_EGL_ERROR
-    eglInitialize(display, 0, 0);
-    CHECK_EGL_ERROR
+    if (display == EGL_NO_DISPLAY || eglInitialize(display, 0, 0) != EGL_TRUE)
+    {
+        EGLint error = eglGetError();
+        LOGE("Failed to initialize EGL, eglGetError: %X", error);
+        ReleaseWindow(window);
+        return 0;
+    }
 
 
     numConfigs = choose_egl_config(display, &config);
     // No configs found, error out
     if (numConfigs == 0)
     {
+        eglTerminate(display);
+        ReleaseWindow(window);
         return 0;
     }
-
-    eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID, &format);
-    CHECK_EGL_ERROR
-    ANativeWindow_setBuffersGeometry(win->app->window, 0, 0, format);
 
     EGLint contextAttribs[] = {
         EGL_CONTEXT_MAJOR_VERSION, 3,
@@ -224,10 +366,18 @@ int init_gl(_GLFWwin_android* win)
     context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
     if (context == EGL_NO_CONTEXT)
     {
+        eglGetError();
         contextAttribs[1] = 2;
         context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttribs);
     }
-    CHECK_EGL_ERROR
+    if (context == EGL_NO_CONTEXT)
+    {
+        EGLint error = eglGetError();
+        LOGE("Failed to create EGL context, eglGetError: %X", error);
+        eglTerminate(display);
+        ReleaseWindow(window);
+        return 0;
+    }
 
     win->display = display;
     win->context = context;
@@ -251,6 +401,7 @@ int init_gl(_GLFWwin_android* win)
             EGLSurface aux_surface = eglCreatePbufferSurface(display, config, attribpbf);
             if(aux_surface == EGL_NO_SURFACE)
             {
+                eglGetError();
                 eglDestroyContext(display, aux_context);
                 LOGV("create_gl_aux_context unsupported");
             }
@@ -261,9 +412,26 @@ int init_gl(_GLFWwin_android* win)
                 LOGV("create_gl_aux_context success");
             }
         }
+        else
+        {
+            eglGetError();
+        }
     }
 
-    create_gl_surface(win);
+    GlfwAndroidEglResult surface_result;
+    do
+    {
+        surface_result = CreateGLSurfaceForWindow(win, window);
+        if (surface_result == GLFW_ANDROID_EGL_RESULT_DEFERRED)
+            window = WaitForAppAndWindow(win);
+    }
+    while (surface_result == GLFW_ANDROID_EGL_RESULT_DEFERRED && window != NULL);
+
+    if (surface_result != GLFW_ANDROID_EGL_RESULT_READY)
+    {
+        final_gl(win);
+        return 0;
+    }
 
     return 1;
 }
@@ -277,90 +445,98 @@ void final_gl(_GLFWwin_android* win)
     {
         if (win->aux_context != EGL_NO_CONTEXT)
         {
-            eglDestroySurface(win->display, win->aux_surface);
-            eglDestroyContext(win->display, win->aux_context);
+            if (eglDestroySurface(win->display, win->aux_surface) != EGL_TRUE)
+                GetEglFailureResult("eglDestroySurface(aux)", eglGetError());
+            if (eglDestroyContext(win->display, win->aux_context) != EGL_TRUE)
+                GetEglFailureResult("eglDestroyContext(aux)", eglGetError());
+            win->aux_surface = EGL_NO_SURFACE;
+            win->aux_context = EGL_NO_CONTEXT;
         }
 
         if (win->context != EGL_NO_CONTEXT)
         {
-            eglMakeCurrent(win->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-            eglDestroyContext(win->display, win->context);
-            CHECK_EGL_ERROR
+            if (eglMakeCurrent(win->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
+                GetEglFailureResult("eglMakeCurrent(EGL_NO_SURFACE)", eglGetError());
+            if (eglDestroyContext(win->display, win->context) != EGL_TRUE)
+                GetEglFailureResult("eglDestroyContext", eglGetError());
             win->context = EGL_NO_CONTEXT;
         }
-        eglTerminate(win->display);
-        CHECK_EGL_ERROR
+        if (eglTerminate(win->display) != EGL_TRUE)
+            GetEglFailureResult("eglTerminate", eglGetError());
         win->display = EGL_NO_DISPLAY;
     }
-    if (win->native_window)
-    {
-        ANativeWindow_release(win->native_window);
-        win->native_window = NULL;
-    }
+    ReleaseNativeWindow(win);
     JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
-void create_gl_surface(_GLFWwin_android* win)
+GlfwAndroidEglResult create_gl_surface(_GLFWwin_android* win)
 {
     LOGV("create_gl_surface");
     int did_attach = 0;
     JNIAttachCurrentThreadIfNeeded(&did_attach);
-    if (win->display != EGL_NO_DISPLAY)
+
+    GlfwAndroidEglResult result;
+    if (win->display == EGL_NO_DISPLAY)
     {
-        EGLSurface surface = win->surface;
-        if (surface == EGL_NO_SURFACE)
-        {
-            ANativeWindow* window = win->app->window;
-            if (!window)
-            {
-                LOGV("Window not ready, deferring surface creation.");
-                win->surface = EGL_NO_SURFACE;
-                return;
-            }
-
-            // Hold a ref to the native window for the lifetime of the EGL surface.
-            if (win->native_window != window)
-            {
-                ANativeWindow_acquire(window);
-                if (win->native_window)
-                    ANativeWindow_release(win->native_window);
-                win->native_window = window;
-            }
-
-            surface = eglCreateWindowSurface(win->display, win->config, win->native_window, NULL);
-            EGLint error = eglGetError();
-            if (!_glfwAndroidVerifySurfaceError(error))
-            {
-                LOGE("Failed to create window surface due to bad window. Trying again later.");
-                win->surface = EGL_NO_SURFACE;
-                if (win->native_window)
-                {
-                    ANativeWindow_release(win->native_window);
-                    win->native_window = NULL;
-                }
-                return;
-            }
-            CHECK_EGL_ERROR
-        }
-        win->surface = surface;
+        result = GLFW_ANDROID_EGL_RESULT_FATAL;
     }
+    else if (win->surface != EGL_NO_SURFACE)
+    {
+        result = GLFW_ANDROID_EGL_RESULT_READY;
+    }
+    else
+    {
+        ANativeWindow* window = AcquireAppWindow(win);
+        if (window == NULL)
+            LOGV("Window not ready, deferring surface creation.");
+        result = CreateGLSurfaceForWindow(win, window);
+    }
+
     JNIDetachCurrentThreadIfNeeded(did_attach);
+    return result;
 }
 
-void make_current(_GLFWwin_android* win)
+GlfwAndroidEglResult make_current(_GLFWwin_android* win)
 {
+    if (win->display == EGL_NO_DISPLAY || win->context == EGL_NO_CONTEXT)
+        return GLFW_ANDROID_EGL_RESULT_FATAL;
+    if (win->surface == EGL_NO_SURFACE)
+        return GLFW_ANDROID_EGL_RESULT_DEFERRED;
+    if (!IsAppWindowCurrent(win, win->native_window))
+        return GLFW_ANDROID_EGL_RESULT_DEFERRED;
+
     EGLBoolean res = eglMakeCurrent(win->display, win->surface, win->surface, win->context);
-    assert(res == EGL_TRUE);
-    CHECK_EGL_ERROR
+    if (res != EGL_TRUE)
+    {
+        EGLint error = eglGetError();
+        return GetEglFailureResult("eglMakeCurrent", error);
+    }
+
+    return IsAppWindowCurrent(win, win->native_window)
+        ? GLFW_ANDROID_EGL_RESULT_READY
+        : GLFW_ANDROID_EGL_RESULT_DEFERRED;
 }
 
-void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force)
+GlfwAndroidEglResult update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force)
 {
+    if (win_android->display == EGL_NO_DISPLAY)
+        return GLFW_ANDROID_EGL_RESULT_FATAL;
+    if (win_android->surface == EGL_NO_SURFACE)
+        return GLFW_ANDROID_EGL_RESULT_DEFERRED;
+    if (!IsAppWindowCurrent(win_android, win_android->native_window))
+        return GLFW_ANDROID_EGL_RESULT_DEFERRED;
+
     EGLint w, h;
-    eglQuerySurface(win_android->display, win_android->surface, EGL_WIDTH, &w);
-    CHECK_EGL_ERROR
-    eglQuerySurface(win_android->display, win_android->surface, EGL_HEIGHT, &h);
-    CHECK_EGL_ERROR
+    if (eglQuerySurface(win_android->display, win_android->surface, EGL_WIDTH, &w) != EGL_TRUE)
+    {
+        EGLint error = eglGetError();
+        return GetEglFailureResult("eglQuerySurface(EGL_WIDTH)", error);
+    }
+    if (eglQuerySurface(win_android->display, win_android->surface, EGL_HEIGHT, &h) != EGL_TRUE)
+    {
+        EGLint error = eglGetError();
+        return GetEglFailureResult("eglQuerySurface(EGL_HEIGHT)", error);
+    }
 
     if (force || (win->width != w || win->height != h))
     {
@@ -372,6 +548,10 @@ void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int 
         win->width = w;
         win->height = h;
     }
+
+    return IsAppWindowCurrent(win_android, win_android->native_window)
+        ? GLFW_ANDROID_EGL_RESULT_READY
+        : GLFW_ANDROID_EGL_RESULT_DEFERRED;
 }
 
 void destroy_gl_surface(_GLFWwin_android* win)
@@ -381,20 +561,23 @@ void destroy_gl_surface(_GLFWwin_android* win)
     JNIAttachCurrentThreadIfNeeded(&did_attach);
     if (win->display != EGL_NO_DISPLAY)
     {
-        eglMakeCurrent(win->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (eglMakeCurrent(win->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) != EGL_TRUE)
+        {
+            EGLint error = eglGetError();
+            GetEglFailureResult("eglMakeCurrent(EGL_NO_SURFACE)", error);
+        }
         if (win->surface != EGL_NO_SURFACE)
         {
-            eglDestroySurface(win->display, win->surface);
-            CHECK_EGL_ERROR
+            if (eglDestroySurface(win->display, win->surface) != EGL_TRUE)
+            {
+                EGLint error = eglGetError();
+                GetEglFailureResult("eglDestroySurface", error);
+            }
             win->surface = EGL_NO_SURFACE;
         }
     }
     win->surface = EGL_NO_SURFACE;
-    if (win->native_window)
-    {
-        ANativeWindow_release(win->native_window);
-        win->native_window = NULL;
-    }
+    ReleaseNativeWindow(win);
     JNIDetachCurrentThreadIfNeeded(did_attach);
 }
 
