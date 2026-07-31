@@ -322,4 +322,3 @@ public class FontRendererLayout {
         return addr.reinterpret(layout().byteSize() * elementCount, arena, cleanup);
     }
 }
-

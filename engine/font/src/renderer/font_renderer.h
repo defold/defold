@@ -17,18 +17,14 @@
 
 #include <stdint.h>
 
-#if defined(_MSC_VER)
-#define FONT_RENDERER_API __declspec(dllexport)
-#else
-#define FONT_RENDERER_API __attribute__((visibility("default")))
-#endif
+#include <dlib/shared_library.h>
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-    typedef struct FontRendererSession* HFontRenderer;
+    typedef struct FontRendererContext* HFontRenderer;
 
     typedef enum FontRendererResult
     {
@@ -88,61 +84,72 @@ extern "C"
         uint32_t m_PixelCount;
     } FontRendererGlyph;
 
-    typedef struct FontRendererRenderResult
+    typedef struct FontRendererProperties
     {
-        uint8_t* m_Vertices;
-        uint32_t m_VertexByteCount;
-        uint32_t m_VertexCount;
+        float    m_FaceColor[4];
+        float    m_OutlineColor[4];
+        float    m_ShadowColor[4];
+        float    m_Width;
+        float    m_Height;
+        float    m_Leading;
+        float    m_Tracking;
+        float    m_SdfScale;
+        uint32_t m_LineBreak;
+        uint32_t m_Align;
+        uint32_t m_VerticalAlign;
+    } FontRendererProperties;
+
+    typedef struct FontTexture
+    {
+        uint8_t* m_Pixels;
         uint64_t m_AtlasVersion;
-        uint32_t m_HasTextureUpdate;
-        uint32_t m_TextureX;
-        uint32_t m_TextureY;
-        uint32_t m_TextureWidth;
-        uint32_t m_TextureHeight;
-        uint32_t m_TextureChannels;
-        uint8_t* m_TexturePixels;
-        uint32_t m_TexturePixelCount;
-    } FontRendererRenderResult;
+        uint32_t m_PixelCount;
+        uint32_t m_X;
+        uint32_t m_Y;
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_Channels;
+    } FontTexture;
 
-    FONT_RENDERER_API FontRendererResult FontRendererCreate(const char*               name,
-                                                            const uint8_t*            font_bytes,
-                                                            uint32_t                  font_byte_count,
-                                                            const FontRendererParams* params,
-                                                            HFontRenderer*            renderer);
-    FONT_RENDERER_API void               FontRendererDestroy(HFontRenderer renderer);
+    DM_DLLEXPORT FontRendererResult FontRendererCreate(const char*               name,
+                                                       const uint8_t*            font_bytes,
+                                                       uint32_t                  font_byte_count,
+                                                       const FontRendererParams* params,
+                                                       HFontRenderer*            renderer);
+    DM_DLLEXPORT void               FontRendererDestroy(HFontRenderer renderer);
 
-    FONT_RENDERER_API FontRendererResult FontRendererMeasure(HFontRenderer       renderer,
-                                                             const uint32_t*     codepoints,
-                                                             uint32_t            codepoint_count,
-                                                             uint32_t            line_break,
-                                                             float               width,
-                                                             float               leading,
-                                                             float               tracking,
-                                                             FontRendererLayout* layout);
+    DM_DLLEXPORT FontRendererResult FontRendererMeasure(HFontRenderer       renderer,
+                                                        const uint32_t*     codepoints,
+                                                        uint32_t            codepoint_count,
+                                                        uint32_t            line_break,
+                                                        float               width,
+                                                        float               leading,
+                                                        float               tracking,
+                                                        FontRendererLayout* layout);
 
-    FONT_RENDERER_API FontRendererResult FontRendererGenerateGlyph(HFontRenderer      renderer,
-                                                                   uint32_t           codepoint,
-                                                                   FontRendererGlyph* glyph);
-    FONT_RENDERER_API void               FontRendererFreeGlyph(FontRendererGlyph* glyph);
+    DM_DLLEXPORT FontRendererResult FontRendererGenerateGlyph(HFontRenderer      renderer,
+                                                              uint32_t           codepoint,
+                                                              FontRendererGlyph* glyph);
+    DM_DLLEXPORT void               FontRendererFreeGlyph(FontRendererGlyph* glyph);
 
-    FONT_RENDERER_API FontRendererResult FontRendererRender(HFontRenderer             renderer,
-                                                            const uint32_t*           codepoints,
-                                                            uint32_t                  codepoint_count,
-                                                            uint32_t                  line_break,
-                                                            float                     width,
-                                                            float                     height,
-                                                            float                     leading,
-                                                            float                     tracking,
-                                                            uint32_t                  align,
-                                                            uint32_t                  vertical_align,
-                                                            const float*              transform,
-                                                            const float*              face_color,
-                                                            const float*              outline_color,
-                                                            const float*              shadow_color,
-                                                            float                     sdf_scale,
-                                                            uint64_t                  known_atlas_version,
-                                                            FontRendererRenderResult* result);
-    FONT_RENDERER_API void               FontRendererFreeRenderResult(FontRendererRenderResult* result);
+    DM_DLLEXPORT FontRendererResult FontRendererSetProperties(HFontRenderer                 renderer,
+                                                              const FontRendererProperties* properties);
+    DM_DLLEXPORT FontRendererResult FontRendererSetText(HFontRenderer   renderer,
+                                                        const uint32_t* codepoints,
+                                                        uint32_t        codepoint_count);
+    DM_DLLEXPORT uint64_t           FontRendererHash(HFontRenderer renderer);
+    DM_DLLEXPORT FontRendererResult FontRendererBeginBatch(HFontRenderer renderer);
+    DM_DLLEXPORT FontRendererResult FontRendererGenerateTexture(HFontRenderer renderer,
+                                                                uint64_t      known_atlas_version,
+                                                                FontTexture*  texture);
+    DM_DLLEXPORT void               FontRendererFreeTexture(FontTexture* texture);
+    DM_DLLEXPORT FontRendererResult FontRendererGetVertexBufferSize(HFontRenderer renderer,
+                                                                    uint32_t*     vertex_count,
+                                                                    uint32_t*     vertex_buffer_size);
+    DM_DLLEXPORT FontRendererResult FontRendererGetVertices(HFontRenderer renderer,
+                                                            const float*  world_transform,
+                                                            uint8_t*      vertex_buffer,
+                                                            uint32_t      vertex_buffer_size);
 
 #ifdef __cplusplus
 }

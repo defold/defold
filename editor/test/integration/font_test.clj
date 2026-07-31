@@ -23,13 +23,34 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
-  (:import [com.dynamo.render.proto Font$FontDesc]))
+  (:import [com.dynamo.render.proto Font$FontDesc]
+           [javax.vecmath Matrix4d]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
 
 (defn- prop! [node-id label val]
   (g/transact (g/set-property node-id label val)))
+
+(deftest effective-sdf-scale-test
+  (let [effective-sdf-scale (ns-resolve 'editor.font 'effective-sdf-scale)
+        identity-transform (doto (Matrix4d.)
+                             (.setIdentity))
+        scaled-transform (doto (Matrix4d.)
+                           (.setIdentity)
+                           (.setScale 2.0))]
+    (testing "uses the projected screen scale when available"
+      (is (= 0.5 (effective-sdf-scale 0.25 identity-transform)))
+      (is (= 2.0 (effective-sdf-scale 2.0 identity-transform))))
+    (testing "falls back to the local transform scale when projection is invalid"
+      (is (= 1.0 (effective-sdf-scale 0.0 identity-transform)))
+      (is (= 2.0 (effective-sdf-scale 0.0 scaled-transform))))))
+
+(deftest native-sdf-limit-test
+  (let [native-sdf-limit (ns-resolve 'editor.font 'native-sdf-limit)]
+    (is (= 0.75 (native-sdf-limit 3.0 0.0)))
+    (is (< (native-sdf-limit 6.0 2.0)
+           (native-sdf-limit 6.0 1.0)))))
 
 (deftest load-material-render-data
   (test-util/with-loaded-project

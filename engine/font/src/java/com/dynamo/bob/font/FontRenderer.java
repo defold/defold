@@ -19,13 +19,19 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererBeginBatch;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererCreate;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererDestroy;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererFreeGlyph;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererFreeRenderResult;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGenerateGlyph;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGenerateTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGetVertexBufferSize;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGetVertices;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererHash;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererMeasure;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererRender;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererSetProperties;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererSetText;
 
 import java.io.File;
 import java.lang.foreign.Arena;
@@ -39,7 +45,8 @@ import com.dynamo.bob.font.generated.FontRendererFFM;
 import com.dynamo.bob.font.generated.FontRendererGlyph;
 import com.dynamo.bob.font.generated.FontRendererLayout;
 import com.dynamo.bob.font.generated.FontRendererParams;
-import com.dynamo.bob.font.generated.FontRendererRenderResult;
+import com.dynamo.bob.font.generated.FontRendererProperties;
+import com.dynamo.bob.font.generated.FontTexture;
 
 /**
  * Java 25 FFM wrapper around the native Defold font renderer.
@@ -89,6 +96,20 @@ public final class FontRenderer implements AutoCloseable {
         public int layerMask = LAYER_FACE;
     }
 
+    public static final class Properties {
+        public boolean lineBreak;
+        public float width;
+        public float height;
+        public float leading;
+        public float tracking;
+        public int align;
+        public int verticalAlign;
+        public float[] faceColor;
+        public float[] outlineColor;
+        public float[] shadowColor;
+        public float sdfScale;
+    }
+
     public static final class Layout {
         public final float width;
         public final float height;
@@ -105,7 +126,8 @@ public final class FontRenderer implements AutoCloseable {
         }
     }
 
-    public static final class TextureUpdate {
+    public static final class Texture {
+        public final long atlasVersion;
         public final int x;
         public final int y;
         public final int width;
@@ -113,29 +135,25 @@ public final class FontRenderer implements AutoCloseable {
         public final int channels;
         public final ByteBuffer pixels;
 
-        private TextureUpdate(MemorySegment values) {
-            x = FontRendererRenderResult.m_TextureX(values);
-            y = FontRendererRenderResult.m_TextureY(values);
-            width = FontRendererRenderResult.m_TextureWidth(values);
-            height = FontRendererRenderResult.m_TextureHeight(values);
-            channels = FontRendererRenderResult.m_TextureChannels(values);
-            pixels = copyNativeBytes(FontRendererRenderResult.m_TexturePixels(values),
-                    FontRendererRenderResult.m_TexturePixelCount(values));
+        private Texture(MemorySegment values) {
+            atlasVersion = FontTexture.m_AtlasVersion(values);
+            x = FontTexture.m_X(values);
+            y = FontTexture.m_Y(values);
+            width = FontTexture.m_Width(values);
+            height = FontTexture.m_Height(values);
+            channels = FontTexture.m_Channels(values);
+            int pixelCount = FontTexture.m_PixelCount(values);
+            pixels = pixelCount == 0 ? null : copyNativeBytes(FontTexture.m_Pixels(values), pixelCount);
         }
     }
 
-    public static final class RenderResult {
+    public static final class Vertices {
         public final ByteBuffer vertices;
         public final int vertexCount;
-        public final long atlasVersion;
-        public final TextureUpdate textureUpdate;
 
-        private RenderResult(MemorySegment values) {
-            vertices = copyNativeBytes(FontRendererRenderResult.m_Vertices(values),
-                    FontRendererRenderResult.m_VertexByteCount(values));
-            vertexCount = FontRendererRenderResult.m_VertexCount(values);
-            atlasVersion = FontRendererRenderResult.m_AtlasVersion(values);
-            textureUpdate = FontRendererRenderResult.m_HasTextureUpdate(values) == 0 ? null : new TextureUpdate(values);
+        private Vertices(ByteBuffer vertices, int vertexCount) {
+            this.vertices = vertices;
+            this.vertexCount = vertexCount;
         }
     }
 
@@ -250,8 +268,8 @@ public final class FontRenderer implements AutoCloseable {
     /**
      * Generates a glyph bitmap and metrics using the same native font implementation as the engine runtime.
      *
-     * <p>Used by Bob when compiling glyph banks. The Editor renders complete text through {@link #render}
-     * instead.</p>
+     * <p>Used by Bob when compiling glyph banks. The Editor uses {@link #generateTexture} and
+     * {@link #getVertices} instead.</p>
      *
      * @param codepoint Unicode codepoint to generate
      * @return copied glyph bitmap and metrics
@@ -273,49 +291,114 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
-     * Shapes text and produces render vertices and any required atlas update.
+     * Retains layout and rendering properties for subsequent texture and vertex generation.
      *
-     * <p>Used by the Editor for distance-field font previews. Bob generates individual glyphs through
-     * {@link #generateGlyph}.</p>
-     *
-     * @param text text to render
-     * @param lineBreak whether the text may wrap at the supplied width
-     * @param width render-box width
-     * @param height render-box height
-     * @param leading line-height multiplier
-     * @param tracking additional spacing between glyphs
-     * @param align horizontal text alignment value
-     * @param verticalAlign vertical text alignment value
-     * @param transform column-major 4-by-4 transform matrix
-     * @param faceColor face color as four floats
-     * @param outlineColor outline color as four floats
-     * @param shadowColor shadow color as four floats
-     * @param sdfScale distance-field scale
-     * @param knownAtlasVersion atlas version already held by the caller
-     * @return copied vertex data, atlas version, and optional texture update
+     * <p>Used by the Editor before generating each distance-field text entry.</p>
      */
-    public synchronized RenderResult render(String text, boolean lineBreak, float width, float height,
-                                            float leading, float tracking, int align, int verticalAlign,
-                                            float[] transform, float[] faceColor, float[] outlineColor,
-                                            float[] shadowColor, float sdfScale, long knownAtlasVersion) {
-        if (text == null || transform == null || faceColor == null || outlineColor == null || shadowColor == null)
+    public synchronized void setProperties(Properties properties) {
+        if (properties == null || properties.faceColor == null ||
+                properties.outlineColor == null || properties.shadowColor == null)
             throw new NullPointerException();
-        if (transform.length != 16 || faceColor.length != 4 || outlineColor.length != 4 || shadowColor.length != 4)
-            throw new IllegalArgumentException("Invalid transform or color array size");
+        if (properties.faceColor.length != 4 || properties.outlineColor.length != 4 || properties.shadowColor.length != 4)
+            throw new IllegalArgumentException("Invalid color array size");
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment values = FontRendererProperties.allocate(arena);
+            FontRendererProperties.m_FaceColor(values, arena.allocateFrom(JAVA_FLOAT, properties.faceColor));
+            FontRendererProperties.m_OutlineColor(values, arena.allocateFrom(JAVA_FLOAT, properties.outlineColor));
+            FontRendererProperties.m_ShadowColor(values, arena.allocateFrom(JAVA_FLOAT, properties.shadowColor));
+            FontRendererProperties.m_Width(values, properties.width);
+            FontRendererProperties.m_Height(values, properties.height);
+            FontRendererProperties.m_Leading(values, properties.leading);
+            FontRendererProperties.m_Tracking(values, properties.tracking);
+            FontRendererProperties.m_SdfScale(values, properties.sdfScale);
+            FontRendererProperties.m_LineBreak(values, flag(properties.lineBreak));
+            FontRendererProperties.m_Align(values, properties.align);
+            FontRendererProperties.m_VerticalAlign(values, properties.verticalAlign);
+            checkResult(FontRendererSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
+        }
+    }
+
+    /**
+     * Retains the text used by subsequent texture and vertex generation.
+     *
+     * <p>Used by the Editor when preparing each distance-field text entry.</p>
+     *
+     * @param text text to shape and render
+     */
+    public synchronized void setText(String text) {
+        if (text == null)
+            throw new NullPointerException("text");
         int[] codepoints = text.codePoints().toArray();
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment result = FontRendererRenderResult.allocate(arena);
-            int status = FontRendererRender(requireHandle(), arena.allocateFrom(JAVA_INT, codepoints),
-                    codepoints.length, flag(lineBreak), width, height, leading, tracking,
-                    align, verticalAlign, arena.allocateFrom(JAVA_FLOAT, transform), arena.allocateFrom(JAVA_FLOAT, faceColor),
-                    arena.allocateFrom(JAVA_FLOAT, outlineColor), arena.allocateFrom(JAVA_FLOAT, shadowColor),
-                    sdfScale, knownAtlasVersion, result);
-            checkResult(status, "Native font rendering failed");
+            checkResult(FontRendererSetText(requireHandle(), arena.allocateFrom(JAVA_INT, codepoints), codepoints.length),
+                    "Unable to set native font renderer text");
+        }
+    }
+
+    /**
+     * Returns a stable hash of the retained properties and text.
+     *
+     * <p>Used by the Editor to reuse vertex buffers when the native renderer state is unchanged.</p>
+     */
+    public synchronized long hash() {
+        return FontRendererHash(requireHandle());
+    }
+
+    /**
+     * Starts a render batch and protects glyphs used in it from atlas eviction.
+     *
+     * <p>Used by the Editor before generating textures for all text entries in a render batch.</p>
+     */
+    public synchronized void beginBatch() {
+        checkResult(FontRendererBeginBatch(requireHandle()), "Unable to begin native font render batch");
+    }
+
+    /**
+     * Shapes the retained text, populates the glyph atlas, and returns any required texture update.
+     *
+     * <p>Used by the Editor before requesting vertices so atlas coordinates remain stable.</p>
+     */
+    public synchronized Texture generateTexture(long knownAtlasVersion) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment texture = FontTexture.allocate(arena);
+            int status = FontRendererGenerateTexture(requireHandle(), knownAtlasVersion, texture);
+            checkResult(status, "Native font texture generation failed");
             try {
-                return new RenderResult(result);
+                return new Texture(texture);
             } finally {
-                FontRendererFreeRenderResult(result);
+                FontRendererFreeTexture(texture);
             }
+        }
+    }
+
+    /**
+     * Shapes the retained text and returns vertices using glyphs previously populated by {@link #generateTexture}.
+     *
+     * <p>Used by the Editor after all glyph textures in the render batch have been generated.</p>
+     *
+     * @param worldTransform column-major 4-by-4 transform applied to every generated vertex
+     */
+    public synchronized Vertices getVertices(float[] worldTransform) {
+        if (worldTransform == null)
+            throw new NullPointerException("worldTransform");
+        if (worldTransform.length != 16)
+            throw new IllegalArgumentException("Invalid world transform array size");
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment vertexCount = arena.allocate(JAVA_INT);
+            MemorySegment vertexBufferSize = arena.allocate(JAVA_INT);
+            int status = FontRendererGetVertexBufferSize(requireHandle(), vertexCount, vertexBufferSize);
+            checkResult(status, "Unable to calculate native font vertex buffer size");
+
+            int count = vertexCount.get(JAVA_INT, 0);
+            long unsignedBufferSize = Integer.toUnsignedLong(vertexBufferSize.get(JAVA_INT, 0));
+            if (unsignedBufferSize > Integer.MAX_VALUE)
+                throw new IllegalStateException("Native font vertex buffer exceeds the Java buffer size limit");
+            ByteBuffer vertices = ByteBuffer.allocateDirect((int)unsignedBufferSize).order(ByteOrder.nativeOrder());
+            status = FontRendererGetVertices(requireHandle(), arena.allocateFrom(JAVA_FLOAT, worldTransform),
+                    MemorySegment.ofBuffer(vertices), vertices.capacity());
+            checkResult(status, "Native font vertex generation failed");
+            return new Vertices(vertices, count);
         }
     }
 

@@ -40,8 +40,9 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [schema.core :as schema]
-            [service.log :as log])
-  (:import [com.dynamo.bob.font BMFont Fontc FontRenderer FontRenderer$Layout FontRenderer$Params FontRenderer$RenderResult FontRenderer$TextureUpdate]
+            [service.log :as log]
+            [util.defonce :as defonce])
+  (:import [com.dynamo.bob.font BMFont Fontc FontRenderer FontRenderer$Layout FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$Vertices]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -175,6 +176,19 @@
                   scale (Math/sqrt (Math/max len-sq-x len-sq-y))]
               (if (<= scale 0.0) 0.0 scale))))))))
 
+(defn- effective-sdf-scale
+  ^double [^double sdf-screen-scale ^Matrix4d world-transform]
+  (let [sdf-scale (if (> sdf-screen-scale 0.0)
+                    (Math/max sdf-screen-scale sdf-min-screen-scale)
+                    (local-scale-from-transform (or world-transform geom/Identity4d)))]
+    (Math/max (double sdf-scale) sdf-min-scale)))
+
+(defn- native-sdf-limit
+  ^double [^double padding ^double width]
+  (/ (- (* 0.75 255.0)
+        (* (/ (double FontRenderer/DEFAULT_SDF_EDGE_VALUE) padding) width))
+     255.0))
+
 (defn- add-sdf-screen-scale
   "Annotate text entries with :sdf-screen-scale when rendering SDF fonts."
   [render-args font-data text-entries]
@@ -197,11 +211,7 @@
         sdf-spread (double sdf-spread)
         sdf-outline (double sdf-outline)
         sdf-shadow (double sdf-shadow)
-        sdf-scale (if (> sdf-screen-scale 0.0)
-                    (Math/max sdf-screen-scale (double sdf-min-screen-scale))
-                    (local-scale-from-transform (or world-transform geom/Identity4d)))
-        sdf-scale (double sdf-scale)
-        sdf-scale (if (< sdf-scale (double sdf-min-scale)) (double sdf-min-scale) sdf-scale)
+        sdf-scale (effective-sdf-scale sdf-screen-scale world-transform)
         sdf-smoothing (/ 0.25 (* sdf-spread sdf-scale))
         sdf-edge 0.75]
     (fn [^ByteBuffer bb x y z u v]
@@ -576,75 +586,99 @@
                 (.-m02 matrix) (.-m12 matrix) (.-m22 matrix) (.-m32 matrix)
                 (.-m03 matrix) (.-m13 matrix) (.-m23 matrix) (.-m33 matrix)]))
 
-(defn- render-native-entry!
-  ^FontRenderer$RenderResult [^GL2 gl {:keys [font-map native-renderer texture]} entry atlas-version]
+(defn- set-native-renderer-state!
+  [^FontRenderer native-renderer font-map entry]
   (let [text-layout (:text-layout entry)
         alpha (double (:alpha font-map 1.0))
         outline-alpha (double (:outline-alpha font-map 1.0))
         shadow-alpha (double (:shadow-alpha font-map 1.0))
-        face-color (float-array (mapv #(* alpha %) (:color entry)))
-        outline-color (float-array (update (:outline entry) 3 #(* outline-alpha %)))
-        shadow-color (float-array (update (:shadow entry) 3 #(* shadow-alpha %)))
         align (case (:align entry :center) :left 0 :center 1 :right 2)
         box-height (:box-height entry)
         vertical-align (case (:vertical-align entry :top) :top 0 :middle 1 :bottom 2)
-        ^FontRenderer$RenderResult result
-        (.render ^FontRenderer native-renderer
-                 ^String (:text text-layout)
-                 ^boolean (:line-break text-layout)
-                 (float (:layout-width text-layout))
-                 ;; GUI and label entries use the same node box and vertical
-                 ;; alignment as runtime. Other editor previews retain their
-                 ;; existing baseline-relative entry transform.
-                 (float (or box-height (:max-ascent text-layout)))
-                 (float (:text-leading text-layout))
-                 (float (:text-tracking text-layout))
-                 (int align)
-                 (int (if box-height vertical-align 0))
-                 (matrix->float-array (entry-transform entry))
-                 face-color outline-color shadow-color
-                 (float (:sdf-screen-scale entry 1.0))
-                 (long @atlas-version))]
-    (when-let [^FontRenderer$TextureUpdate update (.-textureUpdate result)]
-      (texture/update-sub-image! texture gl 0 (.-pixels update)
-                                 (glyph-channels->data-format (.-channels update))
-                                 (.-x update) (.-y update) (.-width update) (.-height update)))
-    (vreset! atlas-version (.-atlasVersion result))
-    result))
+        properties (FontRenderer$Properties.)]
+    (set! (.-lineBreak properties) ^boolean (:line-break text-layout))
+    (set! (.-width properties) (float (:layout-width text-layout)))
+    ;; GUI and label entries use the same node box and vertical alignment as
+    ;; runtime. Other editor previews retain their existing baseline-relative
+    ;; entry transform.
+    (set! (.-height properties) (float (or box-height (:max-ascent text-layout))))
+    (set! (.-leading properties) (float (:text-leading text-layout)))
+    (set! (.-tracking properties) (float (:text-tracking text-layout)))
+    (set! (.-align properties) (int align))
+    (set! (.-verticalAlign properties) (int (if box-height vertical-align 0)))
+    (set! (.-faceColor properties) (float-array (mapv #(* alpha %) (:color entry))))
+    (set! (.-outlineColor properties) (float-array (update (:outline entry) 3 #(* outline-alpha %))))
+    (set! (.-shadowColor properties) (float-array (update (:shadow entry) 3 #(* shadow-alpha %))))
+    (set! (.-sdfScale properties)
+          (float (effective-sdf-scale (double (:sdf-screen-scale entry 0.0))
+                                      (:world-transform entry))))
+    (.setProperties native-renderer properties)
+    (.setText native-renderer ^String (get-in entry [:text-layout :text]))))
+
+(defn- generate-native-texture!
+  [^GL2 gl {:keys [font-map native-renderer texture]} entry atlas-version]
+  (set-native-renderer-state! native-renderer font-map entry)
+  (let [^FontRenderer$Texture generated-texture
+        (.generateTexture ^FontRenderer native-renderer (long @atlas-version))]
+    (when-let [^ByteBuffer pixels (.-pixels generated-texture)]
+      (texture/update-sub-image! texture gl 0 pixels
+                                 (glyph-channels->data-format (.-channels generated-texture))
+                                 (.-x generated-texture) (.-y generated-texture)
+                                 (.-width generated-texture) (.-height generated-texture)))
+    (vreset! atlas-version (.-atlasVersion generated-texture))
+    (.hash ^FontRenderer native-renderer)))
+
+(defn- prepare-native-render-batch!
+  [^GL2 gl {:keys [native-renderer] :as font-data} text-entries atlas-version]
+  (.beginBatch ^FontRenderer native-renderer)
+  (let [entry-signatures
+        (mapv (fn [entry]
+                [(generate-native-texture! gl font-data entry atlas-version)
+                 (vec (matrix->float-array (entry-transform entry)))])
+              text-entries)]
+    [native-renderer (long @atlas-version) entry-signatures]))
+
+(defn- get-native-vertices
+  ^FontRenderer$Vertices [font-data entry]
+  (let [{:keys [font-map native-renderer]} font-data]
+    (set-native-renderer-state! native-renderer font-map entry)
+    (.getVertices ^FontRenderer native-renderer (matrix->float-array (entry-transform entry)))))
 
 (defn- gen-native-vertex-buffer
-  [^GL2 gl font-data text-entries atlas-version]
-  (let [[results atlas-reflowed]
-        (loop [entry-index 0
-               results (transient [])
-               atlas-reflowed false]
-          (if (= entry-index (count text-entries))
-            [(persistent! results) atlas-reflowed]
-            (let [^FontRenderer$RenderResult result (render-native-entry! gl font-data (nth text-entries entry-index) atlas-version)
-                  ^FontRenderer$TextureUpdate update (.-textureUpdate result)
-                  full-atlas-update (and update
-                                         (zero? (.-x update))
-                                         (zero? (.-y update))
-                                         (= (:cache-width (:font-map font-data)) (.-width update))
-                                         (= (:cache-height (:font-map font-data)) (.-height update)))]
-              (recur (inc entry-index)
-                     (conj! results result)
-                     (or atlas-reflowed
-                         (and (pos? entry-index) full-atlas-update))))))
-        ;; A full atlas update from a later entry may have relocated glyphs
-        ;; referenced by earlier results. All glyphs are cached now, so one
-        ;; additional pass is guaranteed to use stable atlas coordinates.
-        results (if atlas-reflowed
-                  (mapv #(render-native-entry! gl font-data % atlas-version) text-entries)
-                  results)
-        vertex-count (transduce (map #(.-vertexCount ^FontRenderer$RenderResult %)) + results)
+  [font-data text-entries]
+  (let [results (mapv #(get-native-vertices font-data %) text-entries)
+        vertex-count (transduce (map #(.-vertexCount ^FontRenderer$Vertices %)) + results)
         byte-buffer (vtx/make-buf (* vertex-count (:size NativeFontVertex)))]
-    (run! (fn [^FontRenderer$RenderResult result]
+    (run! (fn [^FontRenderer$Vertices result]
             (let [^ByteBuffer vertices (.-vertices result)]
               (.put byte-buffer (.duplicate vertices))))
           results)
     (.flip byte-buffer)
     (vtx/wrap-vertex-buffer NativeFontVertex :static byte-buffer)))
+
+(defonce/type NativeVertexBufferRequest [font-data text-entries signature]
+  Object
+  (equals [this other]
+    (or (identical? this other)
+        (let [^NativeVertexBufferRequest other other]
+          (and (instance? NativeVertexBufferRequest other)
+               (= signature (.-signature other))))))
+  (hashCode [_]
+    (hash signature)))
+
+(defn- make-native-vb
+  [_gl ^NativeVertexBufferRequest request]
+  (gen-native-vertex-buffer (.-font-data request) (.-text-entries request)))
+
+(defn- update-native-vb
+  [_gl _vertex-buffer ^NativeVertexBufferRequest request]
+  (make-native-vb nil request))
+
+(defn- destroy-native-vbs
+  [_gl _vertex-buffers _]
+  nil)
+
+(scene-cache/register-object-cache! ::native-vb make-native-vb update-native-vb destroy-native-vbs)
 
 (defn gen-vertex-buffer
   ([^GL2 gl font-data text-entries]
@@ -654,7 +688,8 @@
          native-renderer (:native-renderer font-map)]
      (if native-renderer
        (let [atlas-version (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)]
-         (gen-native-vertex-buffer gl (assoc font-data :native-renderer native-renderer) text-entries atlas-version))
+         (prepare-native-render-batch! gl (assoc font-data :native-renderer native-renderer) text-entries atlas-version)
+         (gen-native-vertex-buffer (assoc font-data :native-renderer native-renderer) text-entries))
        (let [vbuf (make-vbuf type text-entries (:layer-mask font-map))
              glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
                                                       (select-keys font-data [:font-map :texture]))]
@@ -667,8 +702,11 @@
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
          native-renderer (get-in font-data [:font-map :native-renderer])]
      (if native-renderer
-       (let [atlas-version (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)]
-         (gen-native-vertex-buffer gl (assoc font-data :native-renderer native-renderer) text-entries atlas-version))
+       (let [atlas-version (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
+             font-data (assoc font-data :native-renderer native-renderer)
+             signature (prepare-native-render-batch! gl font-data text-entries atlas-version)]
+         (scene-cache/request-object! ::native-vb [request-id (:type font-data)] gl
+                                      (NativeVertexBufferRequest. font-data text-entries signature)))
        (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
                                                       (select-keys font-data [:font-map :texture]))
              layer-count (count-layers-in-mask (:layer-mask (:font-map font-data)))]
@@ -763,18 +801,24 @@
 (defn- make-native-renderer
   ^FontRenderer [font font-desc font-map]
   (let [params (FontRenderer$Params.)
-        shadow-blur (if (and (pos? ^double (:shadow-alpha font-desc))
-                             (pos? ^double (:alpha font-desc)))
-                      (:shadow-blur font-desc)
-                      0.0)]
+        shadow-blur (double (if (and (pos? ^double (:shadow-alpha font-desc))
+                                     (pos? ^double (:alpha font-desc)))
+                              (:shadow-blur font-desc)
+                              0.0))
+        outline-width (double (:outline-width font-desc))
+        sdf-padding (+ (double FontRenderer/DEFAULT_SDF_BASE_PADDING)
+                       outline-width
+                       shadow-blur)]
     (set! (.-size params) (float (:size font-desc)))
     (set! (.-cacheWidth params) (int (:cache-width font-map)))
     (set! (.-cacheHeight params) (int (:cache-height font-map)))
     (set! (.-cacheCellPadding params) (int (:glyph-padding font-map)))
-    (set! (.-sdfSpread params) (float (:sdf-spread font-map)))
-    (set! (.-sdfOutline params) (float (:sdf-outline font-map)))
-    (set! (.-sdfShadow params) (float (:sdf-shadow font-map)))
-    (set! (.-outlineWidth params) (float (:outline-width font-desc)))
+    (set! (.-sdfSpread params) (float sdf-padding))
+    (set! (.-sdfOutline params) (float (native-sdf-limit sdf-padding outline-width)))
+    (set! (.-sdfShadow params) (float (if (zero? shadow-blur)
+                                       1.0
+                                       (native-sdf-limit sdf-padding shadow-blur))))
+    (set! (.-outlineWidth params) (float outline-width))
     (set! (.-shadowBlur params) (float shadow-blur))
     (set! (.-shadowX params) (float (:shadow-x font-desc)))
     (set! (.-shadowY params) (float (:shadow-y font-desc)))

@@ -736,4 +736,3 @@ public class FontRendererParams {
         return addr.reinterpret(layout().byteSize() * elementCount, arena, cleanup);
     }
 }
-

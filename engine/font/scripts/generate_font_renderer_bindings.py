@@ -46,14 +46,21 @@ FUNCTIONS = (
     "FontRendererMeasure",
     "FontRendererGenerateGlyph",
     "FontRendererFreeGlyph",
-    "FontRendererRender",
-    "FontRendererFreeRenderResult",
+    "FontRendererSetProperties",
+    "FontRendererSetText",
+    "FontRendererHash",
+    "FontRendererBeginBatch",
+    "FontRendererGenerateTexture",
+    "FontRendererFreeTexture",
+    "FontRendererGetVertexBufferSize",
+    "FontRendererGetVertices",
 )
 STRUCTS = (
     "FontRendererParams",
     "FontRendererLayout",
     "FontRendererGlyph",
-    "FontRendererRenderResult",
+    "FontRendererProperties",
+    "FontTexture",
 )
 TYPEDEFS = (
     "HFontRenderer",
@@ -77,6 +84,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Generate Java 25 FFM bindings for the font renderer")
     parser.add_argument("--jextract", required=True, help="Path to the Java 25 jextract executable")
     parser.add_argument("--header", required=True, type=pathlib.Path, help="Front-facing C header")
+    parser.add_argument("--include-dir", required=True, type=pathlib.Path, help="C header include directory")
     parser.add_argument("--output", required=True, type=pathlib.Path, help="Java source root")
     return parser.parse_args()
 
@@ -91,6 +99,7 @@ def main():
             "--target-package", PACKAGE,
             "--header-class-name", HEADER_CLASS,
             "--symbols-class-name", SYMBOLS_CLASS,
+            "--include-dir", str(args.include_dir.resolve()),
         ]
         for function in FUNCTIONS:
             command.extend(("--include-function", function))
@@ -116,7 +125,7 @@ def main():
         for generated_file in generated_files:
             contents = generated_file.read_text(encoding="utf-8")
             output_file = output_package / generated_file.name
-            output_file.write_text(LICENSE + contents, encoding="utf-8")
+            output_file.write_text(LICENSE + contents.rstrip() + "\n", encoding="utf-8")
             shutil.copymode(generated_file, output_file)
 
 

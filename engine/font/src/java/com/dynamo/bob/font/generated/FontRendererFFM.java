@@ -39,7 +39,7 @@ public class FontRendererFFM extends FontRendererSymbols {
 
     /**
      * {@snippet lang=c :
-     * typedef struct FontRendererSession *HFontRenderer
+     * typedef struct FontRendererContext *HFontRenderer
      * }
      */
     public static final AddressLayout HFontRenderer = FontRendererFFM.C_POINTER;
@@ -436,29 +436,14 @@ public class FontRendererFFM extends FontRendererSymbols {
         }
     }
 
-    private static class FontRendererRender {
+    private static class FontRendererSetProperties {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             FontRendererFFM.C_INT,
             FontRendererFFM.C_POINTER,
-            FontRendererFFM.C_POINTER,
-            FontRendererFFM.C_INT,
-            FontRendererFFM.C_INT,
-            FontRendererFFM.C_FLOAT,
-            FontRendererFFM.C_FLOAT,
-            FontRendererFFM.C_FLOAT,
-            FontRendererFFM.C_FLOAT,
-            FontRendererFFM.C_INT,
-            FontRendererFFM.C_INT,
-            FontRendererFFM.C_POINTER,
-            FontRendererFFM.C_POINTER,
-            FontRendererFFM.C_POINTER,
-            FontRendererFFM.C_POINTER,
-            FontRendererFFM.C_FLOAT,
-            FontRendererFFM.C_LONG_LONG,
             FontRendererFFM.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererRender");
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererSetProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -466,45 +451,45 @@ public class FontRendererFFM extends FontRendererSymbols {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * FontRendererResult FontRendererRender(HFontRenderer renderer, const uint32_t *codepoints, uint32_t codepoint_count, uint32_t line_break, float width, float height, float leading, float tracking, uint32_t align, uint32_t vertical_align, const float *transform, const float *face_color, const float *outline_color, const float *shadow_color, float sdf_scale, uint64_t known_atlas_version, FontRendererRenderResult *result)
+     * FontRendererResult FontRendererSetProperties(HFontRenderer renderer, const FontRendererProperties *properties)
      * }
      */
-    public static FunctionDescriptor FontRendererRender$descriptor() {
-        return FontRendererRender.DESC;
+    public static FunctionDescriptor FontRendererSetProperties$descriptor() {
+        return FontRendererSetProperties.DESC;
     }
 
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * FontRendererResult FontRendererRender(HFontRenderer renderer, const uint32_t *codepoints, uint32_t codepoint_count, uint32_t line_break, float width, float height, float leading, float tracking, uint32_t align, uint32_t vertical_align, const float *transform, const float *face_color, const float *outline_color, const float *shadow_color, float sdf_scale, uint64_t known_atlas_version, FontRendererRenderResult *result)
+     * FontRendererResult FontRendererSetProperties(HFontRenderer renderer, const FontRendererProperties *properties)
      * }
      */
-    public static MethodHandle FontRendererRender$handle() {
-        return FontRendererRender.HANDLE;
+    public static MethodHandle FontRendererSetProperties$handle() {
+        return FontRendererSetProperties.HANDLE;
     }
 
     /**
      * Address for:
      * {@snippet lang=c :
-     * FontRendererResult FontRendererRender(HFontRenderer renderer, const uint32_t *codepoints, uint32_t codepoint_count, uint32_t line_break, float width, float height, float leading, float tracking, uint32_t align, uint32_t vertical_align, const float *transform, const float *face_color, const float *outline_color, const float *shadow_color, float sdf_scale, uint64_t known_atlas_version, FontRendererRenderResult *result)
+     * FontRendererResult FontRendererSetProperties(HFontRenderer renderer, const FontRendererProperties *properties)
      * }
      */
-    public static MemorySegment FontRendererRender$address() {
-        return FontRendererRender.ADDR;
+    public static MemorySegment FontRendererSetProperties$address() {
+        return FontRendererSetProperties.ADDR;
     }
 
     /**
      * {@snippet lang=c :
-     * FontRendererResult FontRendererRender(HFontRenderer renderer, const uint32_t *codepoints, uint32_t codepoint_count, uint32_t line_break, float width, float height, float leading, float tracking, uint32_t align, uint32_t vertical_align, const float *transform, const float *face_color, const float *outline_color, const float *shadow_color, float sdf_scale, uint64_t known_atlas_version, FontRendererRenderResult *result)
+     * FontRendererResult FontRendererSetProperties(HFontRenderer renderer, const FontRendererProperties *properties)
      * }
      */
-    public static int FontRendererRender(MemorySegment renderer, MemorySegment codepoints, int codepoint_count, int line_break, float width, float height, float leading, float tracking, int align, int vertical_align, MemorySegment transform, MemorySegment face_color, MemorySegment outline_color, MemorySegment shadow_color, float sdf_scale, long known_atlas_version, MemorySegment result) {
-        var mh$ = FontRendererRender.HANDLE;
+    public static int FontRendererSetProperties(MemorySegment renderer, MemorySegment properties) {
+        var mh$ = FontRendererSetProperties.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("FontRendererRender", renderer, codepoints, codepoint_count, line_break, width, height, leading, tracking, align, vertical_align, transform, face_color, outline_color, shadow_color, sdf_scale, known_atlas_version, result);
+                traceDowncall("FontRendererSetProperties", renderer, properties);
             }
-            return (int)mh$.invokeExact(renderer, codepoints, codepoint_count, line_break, width, height, leading, tracking, align, vertical_align, transform, face_color, outline_color, shadow_color, sdf_scale, known_atlas_version, result);
+            return (int)mh$.invokeExact(renderer, properties);
         } catch (Error | RuntimeException ex) {
            throw ex;
         } catch (Throwable ex$) {
@@ -512,12 +497,15 @@ public class FontRendererFFM extends FontRendererSymbols {
         }
     }
 
-    private static class FontRendererFreeRenderResult {
-        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
-            FontRendererFFM.C_POINTER
+    private static class FontRendererSetText {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererFreeRenderResult");
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererSetText");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -525,45 +513,411 @@ public class FontRendererFFM extends FontRendererSymbols {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * void FontRendererFreeRenderResult(FontRendererRenderResult *result)
+     * FontRendererResult FontRendererSetText(HFontRenderer renderer, const uint32_t *codepoints, uint32_t codepoint_count)
      * }
      */
-    public static FunctionDescriptor FontRendererFreeRenderResult$descriptor() {
-        return FontRendererFreeRenderResult.DESC;
+    public static FunctionDescriptor FontRendererSetText$descriptor() {
+        return FontRendererSetText.DESC;
     }
 
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * void FontRendererFreeRenderResult(FontRendererRenderResult *result)
+     * FontRendererResult FontRendererSetText(HFontRenderer renderer, const uint32_t *codepoints, uint32_t codepoint_count)
      * }
      */
-    public static MethodHandle FontRendererFreeRenderResult$handle() {
-        return FontRendererFreeRenderResult.HANDLE;
+    public static MethodHandle FontRendererSetText$handle() {
+        return FontRendererSetText.HANDLE;
     }
 
     /**
      * Address for:
      * {@snippet lang=c :
-     * void FontRendererFreeRenderResult(FontRendererRenderResult *result)
+     * FontRendererResult FontRendererSetText(HFontRenderer renderer, const uint32_t *codepoints, uint32_t codepoint_count)
      * }
      */
-    public static MemorySegment FontRendererFreeRenderResult$address() {
-        return FontRendererFreeRenderResult.ADDR;
+    public static MemorySegment FontRendererSetText$address() {
+        return FontRendererSetText.ADDR;
     }
 
     /**
      * {@snippet lang=c :
-     * void FontRendererFreeRenderResult(FontRendererRenderResult *result)
+     * FontRendererResult FontRendererSetText(HFontRenderer renderer, const uint32_t *codepoints, uint32_t codepoint_count)
      * }
      */
-    public static void FontRendererFreeRenderResult(MemorySegment result) {
-        var mh$ = FontRendererFreeRenderResult.HANDLE;
+    public static int FontRendererSetText(MemorySegment renderer, MemorySegment codepoints, int codepoint_count) {
+        var mh$ = FontRendererSetText.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("FontRendererFreeRenderResult", result);
+                traceDowncall("FontRendererSetText", renderer, codepoints, codepoint_count);
             }
-            mh$.invokeExact(result);
+            return (int)mh$.invokeExact(renderer, codepoints, codepoint_count);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class FontRendererHash {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_LONG_LONG,
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererHash");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * uint64_t FontRendererHash(HFontRenderer renderer)
+     * }
+     */
+    public static FunctionDescriptor FontRendererHash$descriptor() {
+        return FontRendererHash.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * uint64_t FontRendererHash(HFontRenderer renderer)
+     * }
+     */
+    public static MethodHandle FontRendererHash$handle() {
+        return FontRendererHash.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * uint64_t FontRendererHash(HFontRenderer renderer)
+     * }
+     */
+    public static MemorySegment FontRendererHash$address() {
+        return FontRendererHash.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * uint64_t FontRendererHash(HFontRenderer renderer)
+     * }
+     */
+    public static long FontRendererHash(MemorySegment renderer) {
+        var mh$ = FontRendererHash.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontRendererHash", renderer);
+            }
+            return (long)mh$.invokeExact(renderer);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class FontRendererBeginBatch {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererBeginBatch");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererBeginBatch(HFontRenderer renderer)
+     * }
+     */
+    public static FunctionDescriptor FontRendererBeginBatch$descriptor() {
+        return FontRendererBeginBatch.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererBeginBatch(HFontRenderer renderer)
+     * }
+     */
+    public static MethodHandle FontRendererBeginBatch$handle() {
+        return FontRendererBeginBatch.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererBeginBatch(HFontRenderer renderer)
+     * }
+     */
+    public static MemorySegment FontRendererBeginBatch$address() {
+        return FontRendererBeginBatch.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererBeginBatch(HFontRenderer renderer)
+     * }
+     */
+    public static int FontRendererBeginBatch(MemorySegment renderer) {
+        var mh$ = FontRendererBeginBatch.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontRendererBeginBatch", renderer);
+            }
+            return (int)mh$.invokeExact(renderer);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class FontRendererGenerateTexture {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_LONG_LONG,
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererGenerateTexture");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGenerateTexture(HFontRenderer renderer, uint64_t known_atlas_version, FontTexture *texture)
+     * }
+     */
+    public static FunctionDescriptor FontRendererGenerateTexture$descriptor() {
+        return FontRendererGenerateTexture.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGenerateTexture(HFontRenderer renderer, uint64_t known_atlas_version, FontTexture *texture)
+     * }
+     */
+    public static MethodHandle FontRendererGenerateTexture$handle() {
+        return FontRendererGenerateTexture.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGenerateTexture(HFontRenderer renderer, uint64_t known_atlas_version, FontTexture *texture)
+     * }
+     */
+    public static MemorySegment FontRendererGenerateTexture$address() {
+        return FontRendererGenerateTexture.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGenerateTexture(HFontRenderer renderer, uint64_t known_atlas_version, FontTexture *texture)
+     * }
+     */
+    public static int FontRendererGenerateTexture(MemorySegment renderer, long known_atlas_version, MemorySegment texture) {
+        var mh$ = FontRendererGenerateTexture.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontRendererGenerateTexture", renderer, known_atlas_version, texture);
+            }
+            return (int)mh$.invokeExact(renderer, known_atlas_version, texture);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class FontRendererFreeTexture {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererFreeTexture");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * void FontRendererFreeTexture(FontTexture *texture)
+     * }
+     */
+    public static FunctionDescriptor FontRendererFreeTexture$descriptor() {
+        return FontRendererFreeTexture.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * void FontRendererFreeTexture(FontTexture *texture)
+     * }
+     */
+    public static MethodHandle FontRendererFreeTexture$handle() {
+        return FontRendererFreeTexture.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * void FontRendererFreeTexture(FontTexture *texture)
+     * }
+     */
+    public static MemorySegment FontRendererFreeTexture$address() {
+        return FontRendererFreeTexture.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * void FontRendererFreeTexture(FontTexture *texture)
+     * }
+     */
+    public static void FontRendererFreeTexture(MemorySegment texture) {
+        var mh$ = FontRendererFreeTexture.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontRendererFreeTexture", texture);
+            }
+            mh$.invokeExact(texture);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class FontRendererGetVertexBufferSize {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_POINTER
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererGetVertexBufferSize");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGetVertexBufferSize(HFontRenderer renderer, uint32_t *vertex_count, uint32_t *vertex_buffer_size)
+     * }
+     */
+    public static FunctionDescriptor FontRendererGetVertexBufferSize$descriptor() {
+        return FontRendererGetVertexBufferSize.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGetVertexBufferSize(HFontRenderer renderer, uint32_t *vertex_count, uint32_t *vertex_buffer_size)
+     * }
+     */
+    public static MethodHandle FontRendererGetVertexBufferSize$handle() {
+        return FontRendererGetVertexBufferSize.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGetVertexBufferSize(HFontRenderer renderer, uint32_t *vertex_count, uint32_t *vertex_buffer_size)
+     * }
+     */
+    public static MemorySegment FontRendererGetVertexBufferSize$address() {
+        return FontRendererGetVertexBufferSize.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGetVertexBufferSize(HFontRenderer renderer, uint32_t *vertex_count, uint32_t *vertex_buffer_size)
+     * }
+     */
+    public static int FontRendererGetVertexBufferSize(MemorySegment renderer, MemorySegment vertex_count, MemorySegment vertex_buffer_size) {
+        var mh$ = FontRendererGetVertexBufferSize.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontRendererGetVertexBufferSize", renderer, vertex_count, vertex_buffer_size);
+            }
+            return (int)mh$.invokeExact(renderer, vertex_count, vertex_buffer_size);
+        } catch (Error | RuntimeException ex) {
+           throw ex;
+        } catch (Throwable ex$) {
+           throw new AssertionError("should not reach here", ex$);
+        }
+    }
+
+    private static class FontRendererGetVertices {
+        public static final FunctionDescriptor DESC = FunctionDescriptor.of(
+            FontRendererFFM.C_INT,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_POINTER,
+            FontRendererFFM.C_INT
+        );
+
+        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("FontRendererGetVertices");
+
+        public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
+    }
+
+    /**
+     * Function descriptor for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGetVertices(HFontRenderer renderer, const float *world_transform, uint8_t *vertex_buffer, uint32_t vertex_buffer_size)
+     * }
+     */
+    public static FunctionDescriptor FontRendererGetVertices$descriptor() {
+        return FontRendererGetVertices.DESC;
+    }
+
+    /**
+     * Downcall method handle for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGetVertices(HFontRenderer renderer, const float *world_transform, uint8_t *vertex_buffer, uint32_t vertex_buffer_size)
+     * }
+     */
+    public static MethodHandle FontRendererGetVertices$handle() {
+        return FontRendererGetVertices.HANDLE;
+    }
+
+    /**
+     * Address for:
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGetVertices(HFontRenderer renderer, const float *world_transform, uint8_t *vertex_buffer, uint32_t vertex_buffer_size)
+     * }
+     */
+    public static MemorySegment FontRendererGetVertices$address() {
+        return FontRendererGetVertices.ADDR;
+    }
+
+    /**
+     * {@snippet lang=c :
+     * FontRendererResult FontRendererGetVertices(HFontRenderer renderer, const float *world_transform, uint8_t *vertex_buffer, uint32_t vertex_buffer_size)
+     * }
+     */
+    public static int FontRendererGetVertices(MemorySegment renderer, MemorySegment world_transform, MemorySegment vertex_buffer, int vertex_buffer_size) {
+        var mh$ = FontRendererGetVertices.HANDLE;
+        try {
+            if (TRACE_DOWNCALLS) {
+                traceDowncall("FontRendererGetVertices", renderer, world_transform, vertex_buffer, vertex_buffer_size);
+            }
+            return (int)mh$.invokeExact(renderer, world_transform, vertex_buffer, vertex_buffer_size);
         } catch (Error | RuntimeException ex) {
            throw ex;
         } catch (Throwable ex$) {

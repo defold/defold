@@ -78,11 +78,13 @@ if(FONT_RENDERER_IS_DESKTOP)
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererGlyph.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererLayout.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererParams.java"
-    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererRenderResult.java")
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererProperties.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontTexture.java")
   add_custom_target(generate_font_renderer_ffm
     COMMAND "${Python3_EXECUTABLE}" "${FONT_RENDERER_BINDING_GENERATOR}"
             --jextract "${DEFOLD_JEXTRACT_EXECUTABLE}"
             --header "${FONT_RENDERER_SRC_DIR}/font_renderer.h"
+            --include-dir "${FONT_ROOT}/../dlib/src"
             --output "${FONT_RENDERER_GENERATED_JAVA_ROOT}"
     DEPENDS "${FONT_RENDERER_SRC_DIR}/font_renderer.h" "${FONT_RENDERER_BINDING_GENERATOR}"
     COMMENT "Generating Java 25 FFM bindings for font_renderer.h")
