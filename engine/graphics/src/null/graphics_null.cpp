@@ -1927,8 +1927,6 @@ namespace dmGraphics
 
     static void NullRecreateGraphicsHandles(HContext context)
     {
-        // The null adapter has no context-owned GPU objects to regenerate; resource-backed assets are
-        // revalidated individually as they are recreated. NOP.
     }
 
     static void NullGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)

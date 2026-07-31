@@ -237,6 +237,8 @@ namespace dmGraphics
 {
     using namespace dmVMath;
 
+    static const char* BASE_OUTPUT_NAME = "_DMENGINE_GENERATED_gl_FragColor";
+
     #define TO_STR_CASE(x) case x: return #x;
     static const char* GetGLErrorLiteral(GLint err)
     {
@@ -2388,8 +2390,6 @@ static void LogFrameBufferError(GLenum status)
         }
         OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
         vertex_buffer->m_Base.m_Size = size;
-        // EnsureGLBuffer regenerates the GL name if the context was lost, so a full data upload
-        // (e.g. resource recreate after context restore) re-establishes the buffer object in place.
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, EnsureGLBuffer(g_Context, vertex_buffer->m_Id));
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
@@ -2432,7 +2432,6 @@ static void LogFrameBufferError(GLenum status)
         OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
         index_buffer->m_Base.m_Size = size;
 
-        // EnsureGLBuffer regenerates the GL name if the context was lost (see OpenGLSetVertexBufferData).
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, EnsureGLBuffer(g_Context, index_buffer->m_Id));
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
@@ -3760,11 +3759,10 @@ static void LogFrameBufferError(GLenum status)
         // For MRT bindings to work correctly on all platforms,
         // we need to specify output locations manually
 #ifndef GL_ES_VERSION_2_0
-        const char* base_output_name = "_DMENGINE_GENERATED_gl_FragColor";
         char buf[64] = {0};
         for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
-            snprintf(buf, sizeof(buf), "%s_%d", base_output_name, i);
+            snprintf(buf, sizeof(buf), "%s_%d", BASE_OUTPUT_NAME, i);
             glBindFragDataLocation(p, i, buf);
         }
 #endif
@@ -3994,11 +3992,10 @@ static void LogFrameBufferError(GLenum status)
 #ifndef GL_ES_VERSION_2_0
         if (bind_frag_data)
         {
-            const char* base_output_name = "_DMENGINE_GENERATED_gl_FragColor";
             char buf[64] = {0};
             for (int i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
             {
-                snprintf(buf, sizeof(buf), "%s_%d", base_output_name, i);
+                snprintf(buf, sizeof(buf), "%s_%d", BASE_OUTPUT_NAME, i);
                 glBindFragDataLocation(p, i, buf);
             }
         }
@@ -5174,16 +5171,16 @@ static void LogFrameBufferError(GLenum status)
         // and re-apply the previously set sampler state to the fresh objects — they start with
         // default parameters (a mipmapped min filter), which would otherwise leave e.g. a
         // non-mipmapped texture incomplete (sampling as black).
-        bool gl_handles_regenerated = false;
-        for (int i = 0; i < tex->m_Base.m_NumTextureIds; ++i)
+        bool is_gl_handles_regenerated = false;
+        for (uint16_t i = 0; i < tex->m_Base.m_NumTextureIds; ++i)
         {
             if (GetGLHandle(context, tex->m_TextureIds[i]) == 0)
             {
                 EnsureGLTexture(context, tex->m_TextureIds[i]);
-                gl_handles_regenerated = true;
+                is_gl_handles_regenerated = true;
             }
         }
-        if (gl_handles_regenerated)
+        if (is_gl_handles_regenerated)
         {
             ApplySamplerState(context, tex);
         }

@@ -1220,10 +1220,14 @@ static Result LoadResourceByHash(HFactory factory, dmhash_t name_hash, const cha
     uint32_t file_size;
     Result r = dmResourceMounts::GetResourceSize(factory->m_Mounts, name_hash, name, &file_size);
     if (r != RESULT_OK)
+    {
         return r;
+    }
 
     if (factory->m_Buffer.Capacity() < file_size)
+    {
         factory->m_Buffer.SetCapacity(file_size);
+    }
     factory->m_Buffer.SetSize(file_size);
 
     if (file_size > 0)
@@ -1246,11 +1250,15 @@ static Result DoRecreateResource(HFactory factory, dmhash_t name_hash)
 {
     ResourceDescriptor* rd = factory->m_Resources->Get(name_hash);
     if (rd == 0x0)
+    {
         return RESULT_RESOURCE_NOT_FOUND;
+    }
 
     ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
     if (!resource_type->m_RecreateFunction)
+    {
         return RESULT_NOT_SUPPORTED;
+    }
 
     // Best-effort name: authoritative path from the reload table if present (dev), otherwise the
     // reverse-hashed string. Only used for logging and by the dev file provider; archive reads by hash.
@@ -1259,17 +1267,23 @@ static Result DoRecreateResource(HFactory factory, dmhash_t name_hash)
     {
         const char** s = factory->m_ResourceHashToFilename->Get(name_hash);
         if (s)
+        {
             name = *s;
+        }
     }
     if (!name)
+    {
         name = dmHashReverseSafe64(name_hash);
+    }
 
     void* buffer;
     uint32_t buffer_size;
     uint32_t resource_size;
     Result result = LoadResourceByHash(factory, name_hash, name, &buffer, &buffer_size, &resource_size);
     if (result != RESULT_OK)
+    {
         return result;
+    }
 
     assert(buffer == factory->m_Buffer.Begin());
 
@@ -1327,7 +1341,9 @@ dmhash_t GetResourceTypeExtensionHash(HFactory factory, dmhash_t name_hash)
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
     ResourceDescriptor* rd = factory->m_Resources->Get(name_hash);
     if (rd == 0x0)
+    {
         return 0;
+    }
     return ((ResourceType*) rd->m_ResourceType)->m_ExtensionHash;
 }
 
@@ -1398,13 +1414,16 @@ Result SetResource(HFactory factory, uint64_t hashed_name, void* message)
     assert(message);
 
     ResourceDescriptor* rd = factory->m_Resources->Get(hashed_name);
-    if (!rd) {
+    if (!rd)
+    {
         return RESULT_RESOURCE_NOT_FOUND;
     }
 
     ResourceType* resource_type = (ResourceType*) rd->m_ResourceType;
     if (!resource_type->m_RecreateFunction)
+    {
         return RESULT_NOT_SUPPORTED;
+    }
 
     ResourceRecreateParams params;
     params.m_Factory = factory;

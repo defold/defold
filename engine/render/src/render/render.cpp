@@ -237,9 +237,13 @@ namespace dmRender
         {
             ResourceReloadState* state = render_context->m_ResourceReload;
             if (state->m_FinishCallback)
+            {
                 dmScript::DestroyCallback(state->m_FinishCallback);
+            }
             if (state->m_ProgressCallback)
+            {
                 dmScript::DestroyCallback(state->m_ProgressCallback);
+            }
             delete state;
             render_context->m_ResourceReload = 0x0;
         }
@@ -1411,7 +1415,9 @@ namespace dmRender
     {
         dmArray<dmhash_t>* hashes = (dmArray<dmhash_t>*) user_ctx;
         if (hashes->Full())
+        {
             hashes->OffsetCapacity(128);
+        }
         hashes->Push(resource.m_Id);
         return true;
     }
@@ -1433,9 +1439,13 @@ namespace dmRender
             dmhash_t name_hash = all_hashes[i];
             int bucket = GetReloadBucket(dmResource::GetResourceTypeExtensionHash(factory, name_hash));
             if (bucket < 0)
+            {
                 continue;
+            }
             if (state->m_Worklist.Full())
+            {
                 state->m_Worklist.OffsetCapacity(64);
+            }
             ResourceReloadItem item;
             item.m_NameHash = name_hash;
             item.m_Bucket   = (uint8_t) bucket;
@@ -1443,17 +1453,23 @@ namespace dmRender
         }
 
         if (state->m_Worklist.Size() > 1)
+        {
             qsort(state->m_Worklist.Begin(), state->m_Worklist.Size(), sizeof(ResourceReloadItem), CompareReloadItems);
+        }
     }
 
     static void InvokeReloadProgress(dmScript::LuaCallbackInfo* cbk, uint32_t done, uint32_t total)
     {
         if (cbk == 0 || !dmScript::IsCallbackValid(cbk))
+        {
             return;
+        }
         lua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0);
         if (!dmScript::SetupCallback(cbk))
+        {
             return;
+        }
         lua_pushinteger(L, done);
         lua_pushinteger(L, total);
         dmScript::PCall(L, 3, 0); // self + done + total
@@ -1463,11 +1479,15 @@ namespace dmRender
     static void InvokeReloadFinish(dmScript::LuaCallbackInfo* cbk)
     {
         if (cbk == 0 || !dmScript::IsCallbackValid(cbk))
+        {
             return;
+        }
         lua_State* L = dmScript::GetCallbackLuaContext(cbk);
         DM_LUA_STACK_CHECK(L, 0);
         if (!dmScript::SetupCallback(cbk))
+        {
             return;
+        }
         dmScript::PCall(L, 1, 0); // self
         dmScript::TeardownCallback(cbk);
     }
@@ -1475,11 +1495,15 @@ namespace dmRender
     bool StartResourceReload(HRenderContext context, dmScript::LuaCallbackInfo* finish_callback, dmScript::LuaCallbackInfo* progress_callback)
     {
         if (context->m_ResourceReload != 0)
+        {
             return false;
+        }
 
         dmResource::HFactory factory = dmScript::GetResourceFactory(context->m_ScriptContext);
         if (factory == 0)
+        {
             return false;
+        }
 
         ResourceReloadState* state = new ResourceReloadState();
         state->m_Cursor           = 0;
@@ -1491,10 +1515,6 @@ namespace dmRender
         state->m_Total = state->m_Worklist.Size();
 
         context->m_ResourceReload = state;
-
-        // Ensure rendering is paused until every GPU object has been recreated (it usually already is,
-        // having been paused on CONTEXT_LOST). Completion is driven from UpdateResourceReload().
-        SetRenderPause(context, 1u);
 
         // Restore context-owned graphics state up front, BEFORE any resource is recreated: on the web
         // this re-fetches the WebGL extension objects invalidated with the lost context (texture
@@ -1508,7 +1528,9 @@ namespace dmRender
     {
         ResourceReloadState* state = context->m_ResourceReload;
         if (state == 0)
+        {
             return;
+        }
 
         DM_PROFILE("UpdateResourceReload");
 
@@ -1528,11 +1550,15 @@ namespace dmRender
 
             // Always make progress (at least one item), then stop once the frame budget is spent.
             if ((dmTime::GetMonotonicTime() - start) >= budget_us)
+            {
                 break;
+            }
         }
 
         if (state->m_ProgressCallback)
+        {
             InvokeReloadProgress(state->m_ProgressCallback, state->m_Cursor, state->m_Total);
+        }
 
         if (state->m_Cursor >= state->m_Total)
         {
@@ -1550,9 +1576,13 @@ namespace dmRender
             InvokeReloadFinish(finish);
 
             if (finish)
+            {
                 dmScript::DestroyCallback(finish);
+            }
             if (progress)
+            {
                 dmScript::DestroyCallback(progress);
+            }
         }
     }
 

@@ -711,8 +711,8 @@ struct ResourceRecreateParams
     const char*         m_Filename;
     const void*         m_Buffer;
     uint32_t            m_BufferSize;
-    uint32_t            m_FileSize:31;
-    uint32_t            m_IsBufferPartial:1;
+    uint32_t            m_FileSize : 31;
+    uint32_t            m_IsBufferPartial : 1;
     const void*         m_Message;
     HResourceDescriptor m_Resource;
     HResourceType       m_Type;

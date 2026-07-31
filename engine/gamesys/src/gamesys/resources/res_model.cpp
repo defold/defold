@@ -259,14 +259,18 @@ namespace dmGameSystem
             const dmRigDDF::Mesh* ddf_mesh = info.m_Mesh;
             ModelResourceBuffers* buffers  = info.m_Buffers;
             if (buffers == 0 || buffers->m_VertexBuffer == 0)
+            {
                 continue;
+            }
 
             uint32_t num_vertices = ddf_mesh->m_Positions.m_Count / 3;
             uint32_t vertex_size  = GetRigModelVertexFormatSize(buffers->m_RigModelVertexFormat);
             uint32_t data_size    = num_vertices * vertex_size;
 
             if (scratch_buffer.Capacity() < data_size)
+            {
                 scratch_buffer.SetCapacity(data_size);
+            }
             scratch_buffer.SetSize(data_size);
             CreateVertexData(ddf_mesh, scratch_buffer.Begin(), buffers->m_RigModelVertexFormat);
 
@@ -564,9 +568,6 @@ namespace dmGameSystem
 
         if (params->m_IsContextRestore)
         {
-            // The source bytes are unchanged; only the GPU objects were lost with the graphics
-            // context. Re-upload from the CPU-side data still held by the resource, keeping every
-            // handle and sub-object pointer stable.
             RestoreBufferContents(model_resource);
             return dmResource::RESULT_OK;
         }
