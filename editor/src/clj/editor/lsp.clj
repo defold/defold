@@ -133,7 +133,10 @@
   (fn [state]
     (let [state (assoc-in state [:server->server-state server :diagnostics resource] diagnostics-result)]
       (when-let [view-node (get-in state [:resource->view-node resource])]
-        (ui/run-later (g/transact (set-view-node-diagnostics-tx state resource view-node))))
+        (ui/run-later
+          (g/transact
+            {:undoable false}
+            (set-view-node-diagnostics-tx state resource view-node))))
       state)))
 
 (defn- apply-full-or-unchanged-resource-diagnostics [state server [resource result]]
@@ -180,6 +183,7 @@
       (when (:completion capabilities)
         (ui/run-later
           (g/transact
+            {:undoable false}
             (refresh-completion-trigger-characters-for-languages-tx state languages))))
       state)))
 
@@ -360,6 +364,7 @@
   {:pre [(s/assert ::server-state server-state)]}
   (ui/run-later
     (g/transact
+      {:undoable false}
       (concat
         (for [resource (keys diagnostics)
               :let [view-node (get-in state [:resource->view-node resource])]
@@ -455,6 +460,7 @@
     (when-let [view-node (-> state :resource->view-node (get resource))]
       (ui/run-later
         (g/transact
+          {:undoable false}
           (g/set-property view-node :document-symbols document-symbols))))
     state))
 
@@ -714,6 +720,7 @@
                     (request-document-symbols resource))]
       (ui/run-later
         (g/transact
+          {:undoable false}
           (concat
             (set-view-node-diagnostics-tx state resource view-node)
             (set-view-node-completion-trigger-characters-tx state resource view-node))))

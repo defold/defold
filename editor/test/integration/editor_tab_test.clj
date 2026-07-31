@@ -35,6 +35,7 @@
   (first
     (g/tx-nodes-added
       (g/transact
+        {:undoable false}
         (g/make-node view-graph TestNonResourceWorkbenchView :parent parent)))))
 
 (defn- make-test-tab-spec [_opts]

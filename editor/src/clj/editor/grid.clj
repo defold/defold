@@ -275,7 +275,9 @@
 (defn- invalidate-grids! [app-view]
   (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
              grid-id (g/node-value scene-view-id :grid evaluation-context)]
-    (g/transact [(g/invalidate-output grid-id :grids)])))
+    (g/transact
+      {:undoable false}
+      (g/invalidate-output grid-id :grids))))
 
 (defn show-settings! [^Parent owner app-view prefs keymap localization]
   (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)

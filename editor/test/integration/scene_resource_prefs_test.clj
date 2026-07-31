@@ -145,7 +145,9 @@
           stored-tags (fn [proj-path]
                         (prefs/get-pref-entry-in prefs resource-settings-path proj-path
                                                  [:scene-visibility :filtered-renderable-tags] nil))]
-      (g/transact (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type))
+      (g/transact
+        {:undoable false}
+        (g/connect app-view :active-resource-node+type scene-visibility :active-resource-node+type))
 
       (test-util/open-scene-view! project app-view collection-path 128 128 {:prefs prefs})
       (set-visibility-settings! scene-visibility #(update % :filtered-renderable-tags conj :sprite))
@@ -204,10 +206,14 @@
           grid-id (first
                     (g/tx-nodes-added
                       (g/transact
+                        {:undoable false}
                         (g/make-nodes (g/node-id->graph-id view-id) [grid [grid/Grid :prefs prefs]]
                           (g/connect camera-id :camera grid :camera)))))
           merged-options #(g/node-value grid-id :merged-options)
-          set-camera! #(g/set-property! camera-id :local-camera %)]
+          set-camera! (fn set-camera! [camera]
+                        (g/transact
+                          {:undoable false}
+                          (g/set-property camera-id :local-camera camera)))]
       (prefs/set! prefs [:scene :grid-2d :opacity] 0.125)
       (prefs/set! prefs [:scene :grid-3d :opacity] 0.875)
 
