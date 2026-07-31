@@ -1663,6 +1663,26 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(m_Context, texture);
 }
 
+static inline dmGraphics::RenderTargetCreationParams InitializeRenderTargetParams(uint32_t w, uint32_t h)
+{
+    dmGraphics::RenderTargetCreationParams p = {};
+
+    #define SET_PARAM_DIM(p, cp) \
+        p.m_Width  = w; \
+        p.m_Height = h; \
+        cp.m_Width  = w; \
+        cp.m_Height = h;
+
+    for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+    {
+        SET_PARAM_DIM(p.m_ColorBufferParams[i], p.m_ColorBufferCreationParams[i]);
+    }
+    SET_PARAM_DIM(p.m_DepthBufferParams, p.m_DepthBufferCreationParams);
+    SET_PARAM_DIM(p.m_StencilBufferParams, p.m_StencilBufferCreationParams);
+    #undef SET_PARAM_DIM
+    return p;
+}
+
 // Simulates a WebGL-style context loss/restore: after InvalidateGraphicsHandles all GPU-backed assets
 // become invalid, and re-uploading their content (as the resource recreate path does) revalidates them
 // in place while keeping the engine-visible handles stable.
@@ -1697,16 +1717,30 @@ TEST_F(dmGraphicsTest, ContextRestoreRecreatesGpuHandles)
     shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fs, (uint32_t) strlen(fs));
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, shader_desc_builder.Get(), 0, 0);
 
-    dmGraphics::NullTexture*  nt = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(m_NullContext->m_BaseContext.m_AssetHandleContainer, texture);
-    dmGraphics::VertexBuffer* vb = (dmGraphics::VertexBuffer*) vbuffer;
-    dmGraphics::IndexBuffer*  ib = (dmGraphics::IndexBuffer*) ibuffer;
-    dmGraphics::NullProgram*  np = (dmGraphics::NullProgram*) program;
+    // Render target: unlike the assets above it has no resource recreate path (render scripts
+    // create render targets at runtime), so RecreateGraphicsHandles restores it wholesale,
+    // together with the attachment textures it owns.
+    dmGraphics::RenderTargetCreationParams rt_params = InitializeRenderTargetParams(WIDTH, HEIGHT);
+    rt_params.m_ColorBufferParams[0].m_Format        = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    rt_params.m_DepthBufferParams.m_Format           = dmGraphics::TEXTURE_FORMAT_DEPTH;
+    dmGraphics::HRenderTarget rtarget    = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT, rt_params);
+    dmGraphics::HTexture      rtarget_tex = dmGraphics::GetRenderTargetTexture(m_Context, rtarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    ASSERT_NE((dmGraphics::HTexture) 0, rtarget_tex);
+
+    dmGraphics::NullTexture*      nt  = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(m_NullContext->m_BaseContext.m_AssetHandleContainer, texture);
+    dmGraphics::VertexBuffer*     vb  = (dmGraphics::VertexBuffer*) vbuffer;
+    dmGraphics::IndexBuffer*      ib  = (dmGraphics::IndexBuffer*) ibuffer;
+    dmGraphics::NullProgram*      np  = (dmGraphics::NullProgram*) program;
+    dmGraphics::NullRenderTarget* nrt = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(m_NullContext->m_BaseContext.m_AssetHandleContainer, rtarget);
+    dmGraphics::NullTexture*      nrt_tex = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(m_NullContext->m_BaseContext.m_AssetHandleContainer, rtarget_tex);
 
     // Initially valid: each asset's recorded generation matches the context generation.
     ASSERT_EQ(m_NullContext->m_GpuGeneration, nt->m_GpuGeneration);
     ASSERT_EQ(m_NullContext->m_GpuGeneration, vb->m_GpuGeneration);
     ASSERT_EQ(m_NullContext->m_GpuGeneration, ib->m_GpuGeneration);
     ASSERT_EQ(m_NullContext->m_GpuGeneration, np->m_GpuGeneration);
+    ASSERT_EQ(m_NullContext->m_GpuGeneration, nrt->m_GpuGeneration);
+    ASSERT_EQ(m_NullContext->m_GpuGeneration, nrt_tex->m_GpuGeneration);
 
     dmGraphics::HTexture      texture_before = texture;
     dmGraphics::HVertexBuffer vbuffer_before = vbuffer;
@@ -1719,8 +1753,11 @@ TEST_F(dmGraphicsTest, ContextRestoreRecreatesGpuHandles)
     ASSERT_NE(m_NullContext->m_GpuGeneration, vb->m_GpuGeneration);
     ASSERT_NE(m_NullContext->m_GpuGeneration, ib->m_GpuGeneration);
     ASSERT_NE(m_NullContext->m_GpuGeneration, np->m_GpuGeneration);
+    ASSERT_NE(m_NullContext->m_GpuGeneration, nrt->m_GpuGeneration);
+    ASSERT_NE(m_NullContext->m_GpuGeneration, nrt_tex->m_GpuGeneration);
 
     // Recreate content in place, as the resource recreate path would, reusing the same handles.
+    // The render target is deliberately not touched: RecreateGraphicsHandles restores it.
     dmGraphics::SetTexture(m_Context, texture, params);
     dmGraphics::SetVertexBufferData(vbuffer, sizeof(vdata), vdata, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
     dmGraphics::SetIndexBufferData(ibuffer, sizeof(idata), idata, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
@@ -1732,12 +1769,16 @@ TEST_F(dmGraphicsTest, ContextRestoreRecreatesGpuHandles)
     ASSERT_EQ(m_NullContext->m_GpuGeneration, vb->m_GpuGeneration);
     ASSERT_EQ(m_NullContext->m_GpuGeneration, ib->m_GpuGeneration);
     ASSERT_EQ(m_NullContext->m_GpuGeneration, np->m_GpuGeneration);
+    ASSERT_EQ(m_NullContext->m_GpuGeneration, nrt->m_GpuGeneration);
+    ASSERT_EQ(m_NullContext->m_GpuGeneration, nrt_tex->m_GpuGeneration);
     ASSERT_EQ(texture_before, texture);
     ASSERT_EQ(vbuffer_before, vbuffer);
     ASSERT_EQ(ibuffer_before, ibuffer);
     ASSERT_EQ(program_before, program);
+    ASSERT_EQ(rtarget_tex, dmGraphics::GetRenderTargetTexture(m_Context, rtarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT));
 
     delete [] (char*) params.m_Data;
+    dmGraphics::DeleteRenderTarget(m_Context, rtarget);
     dmGraphics::DeleteTexture(m_Context, texture);
     dmGraphics::DeleteVertexBuffer(vbuffer);
     dmGraphics::DeleteIndexBuffer(ibuffer);
@@ -2052,26 +2093,6 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(m_Context, texture);
-}
-
-static inline dmGraphics::RenderTargetCreationParams InitializeRenderTargetParams(uint32_t w, uint32_t h)
-{
-    dmGraphics::RenderTargetCreationParams p = {};
-
-    #define SET_PARAM_DIM(p, cp) \
-        p.m_Width  = w; \
-        p.m_Height = h; \
-        cp.m_Width  = w; \
-        cp.m_Height = h;
-
-    for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-    {
-        SET_PARAM_DIM(p.m_ColorBufferParams[i], p.m_ColorBufferCreationParams[i]);
-    }
-    SET_PARAM_DIM(p.m_DepthBufferParams, p.m_DepthBufferCreationParams);
-    SET_PARAM_DIM(p.m_StencilBufferParams, p.m_StencilBufferCreationParams);
-    #undef SET_PARAM_DIM
-    return p;
 }
 
 TEST_F(dmGraphicsTest, TestRenderTarget)

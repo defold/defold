@@ -700,14 +700,15 @@ const char* GetExtFromPath(const char* path)
 
 // Assumes m_LoadMutex is already held
 static Result DoCreateResource(HFactory factory, ResourceType* resource_type, const char* name, const char* canonical_path,
-    dmhash_t canonical_path_hash, void* buffer, uint32_t buffer_size, uint32_t resource_size, void** resource_out)
+    dmhash_t canonical_path_hash, void* buffer, uint32_t buffer_size, uint32_t resource_size, bool created_from_memory, void** resource_out)
 {
     // TODO: We should *NOT* allocate SResource dynamically...
     ResourceDescriptor tmp_resource;
     memset(&tmp_resource, 0, sizeof(tmp_resource));
-    tmp_resource.m_NameHash       = canonical_path_hash;
-    tmp_resource.m_ReferenceCount = 1;
-    tmp_resource.m_ResourceType   = resource_type;
+    tmp_resource.m_NameHash          = canonical_path_hash;
+    tmp_resource.m_ReferenceCount    = 1;
+    tmp_resource.m_ResourceType      = resource_type;
+    tmp_resource.m_CreatedFromMemory = created_from_memory;
 
     void* preload_data = 0;
     Result create_error = RESULT_OK;
@@ -900,7 +901,7 @@ static Result CreateAndLoadResource(HFactory factory, const char* path, void** r
     assert(buffer == factory->m_Buffer.Begin());
 
     return DoCreateResource(factory, resource_type, path, canonical_path, canonical_path_hash,
-                                buffer, buffer_size, resource_size, resource);
+                                buffer, buffer_size, resource_size, false, resource);
 }
 
 Result CreateResourcePartial(HFactory factory, HResourceType type, const char* name, void* data, uint32_t data_size, uint32_t file_size, void** resource)
@@ -933,7 +934,7 @@ Result CreateResourcePartial(HFactory factory, HResourceType type, const char* n
         }
     }
 
-    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, file_size, resource);
+    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, file_size, true, resource);
 }
 
 Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource)
@@ -1345,6 +1346,13 @@ dmhash_t GetResourceTypeExtensionHash(HFactory factory, dmhash_t name_hash)
         return 0;
     }
     return ((ResourceType*) rd->m_ResourceType)->m_ExtensionHash;
+}
+
+bool IsResourceCreatedFromMemory(HFactory factory, dmhash_t name_hash)
+{
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+    ResourceDescriptor* rd = factory->m_Resources->Get(name_hash);
+    return rd != 0x0 && rd->m_CreatedFromMemory;
 }
 
 Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t datasize)

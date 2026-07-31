@@ -59,6 +59,9 @@ struct ResourceDescriptor
     uint32_t        m_ResourceSizeOnDisc;
     uint32_t        m_ReferenceCount;
     uint16_t        m_Version;
+    // Created via CreateResource() from an in-memory buffer: there are no source bytes in any
+    // mount, so the resource can never be re-read by its name hash (e.g. by RecreateResource).
+    uint8_t         m_CreatedFromMemory : 1;
 };
 
 struct ResourceType

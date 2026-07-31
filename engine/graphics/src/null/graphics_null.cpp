@@ -1927,6 +1927,44 @@ namespace dmGraphics
 
     static void NullRecreateGraphicsHandles(HContext context)
     {
+        // Mirror the OpenGL adapter: render targets (and the attachment textures they own) have no
+        // resource recreate path — runtime-created ones are not resources at all — and their contents
+        // are transient, so a context restore revalidates them wholesale here. Every other asset is
+        // revalidated by its own re-upload/reload path.
+        NullContext* ctx = (NullContext*) context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_BaseContext.m_AssetHandleContainerMutex);
+        dmArray<HRenderTarget>& render_targets = ctx->m_BaseContext.m_RenderTargets;
+        for (uint32_t i = 0; i < render_targets.Size(); ++i)
+        {
+            NullRenderTarget* rt = GetAssetFromContainer<NullRenderTarget>(ctx->m_BaseContext.m_AssetHandleContainer, render_targets[i]);
+            if (rt == 0x0)
+            {
+                continue;
+            }
+            rt->m_GpuGeneration = ctx->m_GpuGeneration;
+
+            HTexture attachments[MAX_BUFFER_COLOR_ATTACHMENTS + 3];
+            uint32_t num_attachments = 0;
+            for (int j = 0; j < MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+            {
+                attachments[num_attachments++] = rt->m_Base.m_TextureColor[j];
+            }
+            attachments[num_attachments++] = rt->m_Base.m_TextureDepth;
+            attachments[num_attachments++] = rt->m_Base.m_TextureStencil;
+            attachments[num_attachments++] = rt->m_Base.m_TextureDepthStencil;
+
+            for (uint32_t j = 0; j < num_attachments; ++j)
+            {
+                if (attachments[j])
+                {
+                    NullTexture* tex = GetAssetFromContainer<NullTexture>(ctx->m_BaseContext.m_AssetHandleContainer, attachments[j]);
+                    if (tex)
+                    {
+                        tex->m_GpuGeneration = ctx->m_GpuGeneration;
+                    }
+                }
+            }
+        }
     }
 
     static void NullGetViewport(HContext context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)

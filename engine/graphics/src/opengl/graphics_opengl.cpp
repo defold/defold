@@ -266,6 +266,12 @@ namespace dmGraphics
 
 // We use defines here so that we get a callstack from the correct function
 
+// The graphics context can be lost while a frame is still in flight (WebGL, GL_KHR_robustness):
+// GL then reports one of these codes and every call is a no-op until the context is restored —
+// not a programming error, so don't assert on it.
+#define DMGRAPHICS_GL_ERROR_CONTEXT_LOST       0x0507
+#define DMGRAPHICS_GL_ERROR_CONTEXT_LOST_WEBGL 0x9242
+
 #if !defined(ANDROID)
 
 #define CHECK_GL_ERROR \
@@ -274,8 +280,12 @@ namespace dmGraphics
             GLint err = glGetError(); \
             if (err != 0) \
             { \
-                LogGLError(err, __FUNCTION__, __LINE__); \
-                assert(0); \
+                if (err == DMGRAPHICS_GL_ERROR_CONTEXT_LOST || err == DMGRAPHICS_GL_ERROR_CONTEXT_LOST_WEBGL) { \
+                    dmLogWarning("OpenGL context lost (%s:%d)", __FUNCTION__, __LINE__); \
+                } else { \
+                    LogGLError(err, __FUNCTION__, __LINE__); \
+                    assert(0); \
+                } \
             } \
         } \
     }
@@ -454,13 +464,35 @@ static void LogFrameBufferError(GLenum status)
     }
 }
 
+// The graphics context can be lost while a frame is still in flight (WebGL dispatches the loss
+// event only after the current tick, so the engine renders up to one full frame on an already
+// lost context). Every GL call is a no-op then and framebuffer status queries fail — that is
+// not a programming error, so the asserting validation macros below must stand down for it.
+// Mirrors the Android surface-destroyed handling in CHECK_GL_ERROR.
+static inline bool IsNativeContextLost()
+{
+#if defined(__EMSCRIPTEN__)
+    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+    return ctx == 0 || emscripten_is_webgl_context_lost(ctx);
+#else
+    return false;
+#endif
+}
+
 #define CHECK_GL_FRAMEBUFFER_ERROR \
     { \
         GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
         if (status != GL_FRAMEBUFFER_COMPLETE) \
         { \
-            LogFrameBufferError(status);\
-            assert(false);\
+            if (status == 0 || IsNativeContextLost()) \
+            { \
+                dmLogWarning("glCheckFramebufferStatus failed (graphics context lost)"); \
+            } \
+            else \
+            { \
+                LogFrameBufferError(status);\
+                assert(false);\
+            } \
         } \
     } \
 
@@ -634,6 +666,19 @@ static void LogFrameBufferError(GLenum status)
         }
         return handle;
     }
+
+    static inline GLuint EnsureGLRenderbuffer(OpenGLContext* context, HOpenglID idx)
+    {
+        GLuint handle = GetGLHandle(context, idx);
+        if (handle == 0)
+        {
+            glGenRenderbuffers(1, &handle);
+            SetGLHandle(context, idx, handle);
+        }
+        return handle;
+    }
+
+    static void ApplySamplerState(OpenGLContext* context, const OpenGLTexture* texture);
 
 #if defined(__EMSCRIPTEN__)
     // Enables all official WebGL extensions on the current context. Called at initialization,
@@ -4394,7 +4439,7 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthStencilAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, EnsureGLRenderbuffer(context, rt->m_DepthStencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_Base.m_DepthStencilTextureParams.m_Width, rt->m_Base.m_DepthStencilTextureParams.m_Height);
                 CHECK_GL_ERROR;
     #ifdef GL_DEPTH_STENCIL_ATTACHMENT
@@ -4411,6 +4456,14 @@ static void LogFrameBufferError(GLenum status)
             else if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
             {
                 OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureDepthStencil);
+
+                // Context restore: this branch bypasses SetTexture (see the workaround note below), so the
+                // regenerate-and-reapply-sampler-state guard from OpenGLSetTexture is mirrored here.
+                if (GetGLHandle(context, attachment_tex->m_TextureIds[0]) == 0)
+                {
+                    EnsureGLTexture(context, attachment_tex->m_TextureIds[0]);
+                    ApplySamplerState(context, attachment_tex);
+                }
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
@@ -4443,7 +4496,7 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_DepthAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, EnsureGLRenderbuffer(context, rt->m_DepthAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(context), rt->m_Base.m_DepthBufferParams.m_Width, rt->m_Base.m_DepthBufferParams.m_Height);
                 CHECK_GL_ERROR;
 
@@ -4462,7 +4515,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, rt->m_StencilAttachment.m_Buffer));
+                glBindRenderbuffer(GL_RENDERBUFFER, EnsureGLRenderbuffer(context, rt->m_StencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, rt->m_Base.m_StencilBufferParams.m_Width, rt->m_Base.m_StencilBufferParams.m_Height);
                 CHECK_GL_ERROR;
 
@@ -4636,6 +4689,65 @@ static void LogFrameBufferError(GLenum status)
         context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
 
         delete rt;
+    }
+
+    // Context-loss recovery for render targets. Unlike textures/buffers/programs they are not
+    // resource-backed in general (render scripts create them at runtime) and their contents are
+    // transient (re-rendered every frame), so they are restored wholesale here instead of through
+    // the resource reload worklist: regenerate the FBO name into the same handle slot, then re-run
+    // the attachment setup, which re-allocates texture/renderbuffer storage from the creation
+    // params retained on the render target and re-attaches everything to the fresh FBO. Every
+    // engine-visible handle (HRenderTarget, attachment HTextures, HOpenglID slots) stays stable.
+    static void OpenGLRestoreRenderTargets(OpenGLContext* context)
+    {
+        bool any_restored = false;
+        dmArray<HRenderTarget>& render_targets = context->m_BaseContext.m_RenderTargets;
+        for (uint32_t i = 0; i < render_targets.Size(); ++i)
+        {
+            OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_targets[i]);
+            if (rt == 0x0 || GetGLHandle(context, rt->m_Id) != 0)
+            {
+                continue; // reload without a preceding context loss
+            }
+
+            GLuint handle = 0;
+            glGenFramebuffers(1, &handle);
+            SetGLHandle(context, rt->m_Id, handle);
+            CHECK_GL_ERROR;
+            glBindFramebuffer(GL_FRAMEBUFFER, handle);
+            CHECK_GL_ERROR;
+
+            // Nothing is attached to the fresh FBO yet.
+            for (int j = 0; j < MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+            {
+                rt->m_ColorAttachments[j].m_Attached = false;
+            }
+            rt->m_DepthAttachment.m_Attached        = false;
+            rt->m_StencilAttachment.m_Attached      = false;
+            rt->m_DepthStencilAttachment.m_Attached = false;
+
+            ApplyRenderTargetAttachments((HContext) context, rt, false);
+
+            if (rt->m_Base.m_ColorAttachmentCount == 0)
+            {
+            #if !defined(GL_ES_VERSION_2_0)
+                // See the matching block in OpenGLNewRenderTarget.
+                glDrawBuffer(GL_NONE);
+                CHECK_GL_ERROR;
+                glReadBuffer(GL_NONE);
+                CHECK_GL_ERROR;
+            #endif
+            }
+
+            CHECK_GL_FRAMEBUFFER_ERROR;
+            any_restored = true;
+        }
+
+        if (any_restored)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
+            CHECK_GL_ERROR;
+        }
     }
 
     uint32_t OpenGLGetDefaultFramebufferId(HContext _context)
@@ -5656,16 +5768,22 @@ static void LogFrameBufferError(GLenum status)
         OpenGLEnableWebGLExtensions();
 #endif
 
-        // Resource-backed objects (textures, programs, buffers, render targets) are regenerated in
-        // place by their own recreate paths. Here we only regenerate context-owned GL objects that the
-        // resource layer never touches. The global VAO is created with the same glGenVertexArrays guard;
-        // the zero-check keeps a reload without a preceding context loss from leaking the live VAO.
+        // Resource-backed objects (textures, programs, buffers) are regenerated in place by their own
+        // recreate paths. Here we only restore objects the resource layer never touches. The global
+        // VAO is created with the same glGenVertexArrays guard; the zero-check keeps a reload without
+        // a preceding context loss from leaking the live VAO.
         if (glGenVertexArrays && GetGLHandle(context, context->m_GlobalVAO) == 0)
         {
             GLuint vao = 0;
             glGenVertexArrays(1, &vao);
             SetGLHandle(context, context->m_GlobalVAO, vao);
         }
+
+        // Render targets (and the attachment storage they own) are restored wholesale — runtime-created
+        // ones have no resource recreate path, and their contents are transient. This runs before the
+        // reload worklist re-uploads any resource content, so the compressed/depth texture extensions
+        // re-enabled above are already in effect.
+        OpenGLRestoreRenderTargets(context);
     }
 
     static void OpenGLGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)

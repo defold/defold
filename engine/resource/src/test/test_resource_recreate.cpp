@@ -169,8 +169,24 @@ TEST(RecreateByHashTest, RecreateByHash)
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::RecreateResource(factory, dmHashString64("does/not/exist")));
     ASSERT_EQ((dmhash_t) 0, dmResource::GetResourceTypeExtensionHash(factory, dmHashString64("does/not/exist")));
 
+    // A file-backed resource is not flagged as memory-created; neither is an unknown hash.
+    ASSERT_FALSE(dmResource::IsResourceCreatedFromMemory(factory, name_hash));
+    ASSERT_FALSE(dmResource::IsResourceCreatedFromMemory(factory, dmHashString64("does/not/exist")));
+
+    // A resource created directly from an in-memory buffer IS flagged: it has no byte source in
+    // any mount, so the reload worklist must skip it (recreate-by-hash can never succeed).
+    const char* memory_resource_name = "/__testcreatedfrommemory__.foo";
+    const char* memory_bytes = "789";
+    int* memory_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, memory_resource_name, (void*) memory_bytes, strlen(memory_bytes), (void**) &memory_resource));
+    ASSERT_EQ(789, *memory_resource);
+    dmhash_t memory_name_hash = dmHashString64(memory_resource_name);
+    ASSERT_TRUE(dmResource::IsResourceCreatedFromMemory(factory, memory_name_hash));
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::RecreateResource(factory, memory_name_hash));
+
     dmSys::Unlink(path);
     dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
+    dmResource::Release(factory, memory_resource);
     dmResource::Release(factory, resource);
     dmResource::DeleteFactory(factory);
 }

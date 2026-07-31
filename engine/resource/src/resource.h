@@ -232,6 +232,16 @@ namespace dmResource
     dmhash_t GetResourceTypeExtensionHash(HFactory factory, dmhash_t name_hash);
 
     /**
+     * Check if an already loaded resource was created directly from an in-memory buffer
+     * (dmResource::CreateResource). Such resources have no source bytes in any mount, so
+     * RecreateResource() can never succeed for them.
+     * @param factory Resource factory
+     * @param name_hash Hashed canonical name of the resource
+     * @return true if the resource exists and was created from memory
+     */
+    bool IsResourceCreatedFromMemory(HFactory factory, dmhash_t name_hash);
+
+    /**
      * Get type for resource
      * @param factory Factory handle
      * @param resource Resource

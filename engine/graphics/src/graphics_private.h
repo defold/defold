@@ -236,6 +236,10 @@ namespace dmGraphics
         uint32_t                           m_ContextFeatureSupport;
         uint32_t                           m_Width;
         uint32_t                           m_Height;
+        // Every live render target, maintained by the NewRenderTarget/DeleteRenderTarget dispatchers.
+        // Render targets are not resource-backed in general (render scripts create them at runtime),
+        // so RecreateGraphicsHandles walks this list to restore them in place after a lost context.
+        dmArray<HRenderTarget>             m_RenderTargets;
         uint32_t                           m_VerifyGraphicsCalls : 1;
         uint32_t                           m_PrintDeviceInfo     : 1;
     };

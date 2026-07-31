@@ -1404,10 +1404,12 @@ namespace dmRender
         if (ext_hash == h_meshc)         return 2;
         if (ext_hash == h_modelc)        return 2; // model vertex/index buffers (in-place restore, see ResModelRecreate)
 
-        // NOTE: render_targetc is intentionally NOT recreated here yet. Its recreate path (Delete+New)
+        // NOTE: render_targetc is intentionally NOT recreated here. Its recreate path (Delete+New)
         // would allocate a brand-new HRenderTarget and new attachment HTextures, breaking the
-        // handle-stability guarantee this feature relies on. A correct in-place restore (regenerating
-        // the FBO and attachment storage into the existing handles) is a follow-up.
+        // handle-stability guarantee this feature relies on. Instead, ALL render targets — resource-
+        // backed and runtime-created (render.render_target) alike — are restored in place by
+        // RecreateGraphicsHandles at the start of the reload: their contents are transient
+        // (re-rendered every frame), so only the FBO + attachment storage need regenerating.
         return -1;
     }
 
@@ -1439,6 +1441,14 @@ namespace dmRender
             dmhash_t name_hash = all_hashes[i];
             int bucket = GetReloadBucket(dmResource::GetResourceTypeExtensionHash(factory, name_hash));
             if (bucket < 0)
+            {
+                continue;
+            }
+            // Resources created directly from memory (render target attachment wrappers, textures made
+            // with resource.create_texture, ...) have no byte source in any mount, so recreate-by-hash
+            // can never succeed for them. Render target attachments are restored wholesale by
+            // RecreateGraphicsHandles; other memory-created resources remain their owners' concern.
+            if (dmResource::IsResourceCreatedFromMemory(factory, name_hash))
             {
                 continue;
             }
