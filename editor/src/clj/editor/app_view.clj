@@ -2425,8 +2425,10 @@
     `:tooltip` - required, tab tooltip, a localization message or a string
     `:icon` - optional, Node shown as the tab graphic
     `:style-classes` - optional, collection of style class names
-    `:instance-key` - optional, value identifying this tab among all editor
-                      tabs, used to find it again. See open-editor-tab!
+    `:instance-key` - optional, caller-supplied value identifying this logical
+                      tab among all editor tabs. Opening the same key reuses the
+                      existing tab; omitting it always creates a new tab.
+                      See open-editor-tab!
     `:view-type` - optional, view-type map. See workspace/register-view-type
     `:wrap-content-fn` - optional, (fn [parent]) returning the tab content
                          wrapping the view parent
@@ -2464,24 +2466,22 @@
         (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
     (editor-tab/set-view-node-id! tab view)
     (.add tabs tab)
-    (.addAll (.getStyleClass tab) ^Collection (vec style-classes))
+    (ui/add-styles! tab style-classes)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
-    (let [close-handler (.getOnClosed tab)]
-      (.setOnClosed tab (ui/event-handler event
-                          (when on-closed-fn
-                            (on-closed-fn view))
+    (ui/on-closed! tab
+                   (fn [_event]
+                     (when on-closed-fn
+                       (on-closed-fn view))
 
-                          ;; The menu refresh can occur after the view graph is
-                          ;; deleted but before the tab controls lose input
-                          ;; focus, causing handlers to evaluate against deleted
-                          ;; graph nodes. Using run-later here prevents this.
-                          (ui/run-later
-                            (doto tab
-                              (editor-tab/set-view-type! nil)
-                              (editor-tab/set-view-node-id! nil))
-                            (g/delete-graph! view-graph))
-                          (when close-handler
-                            (.handle close-handler event)))))
+                     ;; The menu refresh can occur after the view graph is
+                     ;; deleted but before the tab controls lose input focus,
+                     ;; causing handlers to evaluate against deleted graph
+                     ;; nodes. Using run-later here prevents this.
+                     (ui/run-later
+                       (doto tab
+                         (editor-tab/set-view-type! nil)
+                         (editor-tab/set-view-node-id! nil))
+                       (g/delete-graph! view-graph))))
     tab))
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
@@ -2574,9 +2574,9 @@
   selecting the tab that is already open when its instance key matches. Returns
   the Tab. Must be called on the JavaFX application thread.
 
-  `opts` is handed to the tab type and on to its view, and must contain the
-  `:localization` used for the tab title. See editor-tab/register-type!."
-  [app-view type-id opts]
+  `opts` is handed to the tab type and on to its view. See
+  editor-tab/register-type!."
+  [app-view localization type-id opts]
   (let [make-tab-spec-fn (:make-tab-spec-fn (editor-tab/resolve-type type-id))
         tab-spec (make-tab-spec-fn opts)
         instance-key (:instance-key tab-spec)
@@ -2587,7 +2587,7 @@
                             (coll/first-where #(= instance-key (editor-tab/instance-key %)))))
         tab (or existing-tab
                 (let [^TabPane tab-pane (g/node-value app-view :active-tab-pane)]
-                  (make-editor-tab! app-view (:localization opts) (.getTabs tab-pane) tab-spec opts)))]
+                  (make-editor-tab! app-view localization (.getTabs tab-pane) tab-spec opts)))]
     (select-editor-tab! tab opts)
     tab))
 

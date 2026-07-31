@@ -74,7 +74,7 @@
   (.getTabs ^TabPane (first (.getItems editor-tabs-split))))
 
 (defn- open-test-tab! [app-view]
-  (app-view/open-editor-tab! app-view ::test-tab {:localization test-util/localization}))
+  (app-view/open-editor-tab! app-view test-util/localization ::test-tab {}))
 
 (deftest open-non-resource-tab-test
   (test-util/with-loaded-project

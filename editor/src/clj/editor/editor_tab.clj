@@ -127,16 +127,8 @@
   [type-id]
   (get @tab-types-atom type-id))
 
-(defn instance-key
-  "Returns the value identifying which instance of its tab type the editor tab
-  is, if any. See app-view/open-editor-tab!."
-  [^Tab editor-tab]
-  {:pre [(instance? Tab editor-tab)]}
+(defn instance-key [^Tab editor-tab]
   (ui/user-data editor-tab ::instance-key))
 
-(defn set-instance-key!
-  "Associate a value identifying which instance of its tab type the editor tab
-  is. Instance keys must be unique across tab types. Returns nil."
-  [^Tab editor-tab instance-key]
-  {:pre [(instance? Tab editor-tab)]}
+(defn set-instance-key! [^Tab editor-tab instance-key]
   (ui/user-data! editor-tab ::instance-key instance-key))
