@@ -96,3 +96,47 @@
       (let [proj-path (resource/proj-path resource)]
         [proj-path
          view-type-id]))))
+
+;; Tab types that show something other than a project resource. Tabs of these
+;; types are ephemeral: nothing saves or restores them yet. Subsystems that need
+;; to handle a tab by its type look the type up here rather than knowing about
+;; the feature that registered it.
+(defonce ^:private tab-types-atom (atom {}))
+
+(defn register-type!
+  "Registers an editor tab type, replacing any type previously registered under
+  the same id. Returns nil.
+
+  `type-id` - qualified keyword identifying the tab type
+  `descriptor` - map with:
+    `:make-tab-spec-fn` - (fn [opts] tab-spec), where tab-spec describes the tab
+                          to app-view/make-editor-tab!"
+  [type-id descriptor]
+  {:pre [(qualified-keyword? type-id)]}
+  (swap! tab-types-atom assoc type-id descriptor)
+  nil)
+
+(defn unregister-type!
+  "Removes the editor tab type registered under `type-id`. Returns nil."
+  [type-id]
+  (swap! tab-types-atom dissoc type-id)
+  nil)
+
+(defn resolve-type
+  "Returns the descriptor registered under `type-id`, or nil."
+  [type-id]
+  (get @tab-types-atom type-id))
+
+(defn instance-key
+  "Returns the value identifying which instance of its tab type the editor tab
+  is, if any. See app-view/open-editor-tab!."
+  [^Tab editor-tab]
+  {:pre [(instance? Tab editor-tab)]}
+  (ui/user-data editor-tab ::instance-key))
+
+(defn set-instance-key!
+  "Associate a value identifying which instance of its tab type the editor tab
+  is. Instance keys must be unique across tab types. Returns nil."
+  [^Tab editor-tab instance-key]
+  {:pre [(instance? Tab editor-tab)]}
+  (ui/user-data! editor-tab ::instance-key instance-key))
