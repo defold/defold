@@ -169,6 +169,8 @@ static ANativeWindow* AcquireAppWindow(_GLFWwin_android* win)
     JNIAttachCurrentThreadIfNeeded(&did_attach);
     pthread_mutex_lock(&win->app->mutex);
     ANativeWindow* window = win->app->window;
+    if (win->app->pendingWindow != window)
+        window = NULL;
     if (window)
         ANativeWindow_acquire(window);
     pthread_mutex_unlock(&win->app->mutex);
@@ -183,7 +185,7 @@ static int IsAppWindowCurrent(_GLFWwin_android* win, ANativeWindow* window)
         return 0;
 
     pthread_mutex_lock(&win->app->mutex);
-    int is_current = win->app->window == window;
+    int is_current = win->app->window == window && win->app->pendingWindow == window;
     pthread_mutex_unlock(&win->app->mutex);
     return is_current;
 }
