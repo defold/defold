@@ -52,9 +52,10 @@ struct InputEvent
 
 typedef enum GlfwAndroidEglResult
 {
-    GLFW_ANDROID_EGL_RESULT_FATAL    = -1,
-    GLFW_ANDROID_EGL_RESULT_DEFERRED = 0,
-    GLFW_ANDROID_EGL_RESULT_READY    = 1,
+    GLFW_ANDROID_EGL_RESULT_FATAL         = -1,
+    GLFW_ANDROID_EGL_RESULT_DEFERRED      = 0,
+    GLFW_ANDROID_EGL_RESULT_READY         = 1,
+    GLFW_ANDROID_EGL_RESULT_RETRY_ALLOC   = 2,
 } GlfwAndroidEglResult;
 
 int init_gl(_GLFWwin_android* win);
@@ -70,6 +71,12 @@ GlfwAndroidEglResult make_current(_GLFWwin_android* win);
 GlfwAndroidEglResult update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force);
 
 void wait_for_egl_retry(uint32_t retry_count);
+
+int is_egl_result_retryable(GlfwAndroidEglResult result);
+
+GlfwAndroidEglResult limit_egl_failure_retries(_GLFWwin_android* win, GlfwAndroidEglResult result);
+
+void reset_egl_failure_retries(_GLFWwin_android* win);
 
 int _glfwAndroidIsAppResumed(void);
 

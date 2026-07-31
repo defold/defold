@@ -17,10 +17,11 @@ extern struct android_app* g_AndroidApp;
 static int g_PendingResize = 0;
 static int g_PendingResizeBecauseOfInsets = 0;
 
-static void HandleGLSurfaceFailure(GlfwAndroidEglResult result)
+static GlfwAndroidEglResult HandleGLSurfaceFailure(GlfwAndroidEglResult result)
 {
+    result = limit_egl_failure_retries(&_glfwWinAndroid, result);
     destroy_gl_surface(&_glfwWinAndroid);
-    _glfwWinAndroid.should_recreate_surface = result == GLFW_ANDROID_EGL_RESULT_DEFERRED;
+    _glfwWinAndroid.should_recreate_surface = is_egl_result_retryable(result);
     _glfwWin.iconified = 1;
 
     if (result == GLFW_ANDROID_EGL_RESULT_FATAL)
@@ -28,6 +29,8 @@ static void HandleGLSurfaceFailure(GlfwAndroidEglResult result)
         LOGE("Fatal EGL failure. Closing the window.");
         androidDestroyWindow();
     }
+
+    return result;
 }
 
 static GlfwAndroidEglResult CreateGLSurface()
@@ -35,7 +38,7 @@ static GlfwAndroidEglResult CreateGLSurface()
     GlfwAndroidEglResult result = create_gl_surface(&_glfwWinAndroid);
     if (result != GLFW_ANDROID_EGL_RESULT_READY)
     {
-        HandleGLSurfaceFailure(result);
+        result = HandleGLSurfaceFailure(result);
         return result;
     }
 
@@ -53,10 +56,11 @@ static GlfwAndroidEglResult CreateGLSurface()
 
     if (result != GLFW_ANDROID_EGL_RESULT_READY)
     {
-        HandleGLSurfaceFailure(result);
+        result = HandleGLSurfaceFailure(result);
         return result;
     }
 
+    reset_egl_failure_retries(&_glfwWinAndroid);
     _glfwWinAndroid.should_recreate_surface = 0;
     computeIconifiedState();
     return GLFW_ANDROID_EGL_RESULT_READY;
@@ -128,6 +132,7 @@ int _glfwAndroidPlatformOpenWindow(int width, int height, const _GLFWwndconfig* 
     {
         GlfwAndroidEglResult result;
         uint32_t retry_count = 0;
+        reset_egl_failure_retries(&_glfwWinAndroid);
         do
         {
             if (init_gl(&_glfwWinAndroid) == 0)
@@ -139,17 +144,18 @@ int _glfwAndroidPlatformOpenWindow(int width, int height, const _GLFWwndconfig* 
 
             if (result != GLFW_ANDROID_EGL_RESULT_READY)
             {
-                HandleGLSurfaceFailure(result);
+                result = HandleGLSurfaceFailure(result);
                 final_gl(&_glfwWinAndroid);
             }
-            if (result == GLFW_ANDROID_EGL_RESULT_DEFERRED)
+            if (is_egl_result_retryable(result))
                 wait_for_egl_retry(retry_count++);
         }
-        while (result == GLFW_ANDROID_EGL_RESULT_DEFERRED);
+        while (is_egl_result_retryable(result));
 
         if (result != GLFW_ANDROID_EGL_RESULT_READY)
             return GL_FALSE;
 
+        reset_egl_failure_retries(&_glfwWinAndroid);
         _glfwWinAndroid.should_recreate_surface = 0;
         computeIconifiedState();
     }
@@ -163,6 +169,7 @@ void _glfwAndroidPlatformCloseWindow(void)
     {
         destroy_gl_surface(&_glfwWinAndroid);
         final_gl(&_glfwWinAndroid);
+        reset_egl_failure_retries(&_glfwWinAndroid);
         _glfwWin.opened = 0;
     }
 }
@@ -262,6 +269,7 @@ void _glfwAndroidPlatformSetPendingResizeBecauseOfInsets(void)
 
 void _glfwAndroidPlatformOnTermWindow(void)
 {
+    reset_egl_failure_retries(&_glfwWinAndroid);
     if (_glfwWin.clientAPI != GLFW_NO_API)
     {
         spinlock_lock(&_glfwWinAndroid.m_RenderLock);
@@ -275,6 +283,7 @@ void _glfwAndroidPlatformOnTermWindow(void)
 
 void _glfwAndroidPlatformOnInitWindow(void)
 {
+    reset_egl_failure_retries(&_glfwWinAndroid);
     // We don't get here the first time around, but from the second and onwards
     // The first time, the create_gl_surface() is called from the _glfwPlatformOpenWindow function
     if (_glfwWin.opened && _glfwWinAndroid.display != EGL_NO_DISPLAY && _glfwWinAndroid.surface == EGL_NO_SURFACE)

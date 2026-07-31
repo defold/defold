@@ -22,6 +22,7 @@
 
 #define EGL_RETRY_INITIAL_DELAY_US (50 * 1000)
 #define EGL_RETRY_MAX_DELAY_US     (800 * 1000)
+#define EGL_BAD_ALLOC_MAX_RETRIES  (8)
 
 
 static bool is_alpha_transparency_enabled()
@@ -233,6 +234,39 @@ void wait_for_egl_retry(uint32_t retry_count)
     usleep(delay_us);
 }
 
+int is_egl_result_retryable(GlfwAndroidEglResult result)
+{
+    return result == GLFW_ANDROID_EGL_RESULT_DEFERRED ||
+           result == GLFW_ANDROID_EGL_RESULT_RETRY_ALLOC;
+}
+
+GlfwAndroidEglResult limit_egl_failure_retries(_GLFWwin_android* win, GlfwAndroidEglResult result)
+{
+    if (result != GLFW_ANDROID_EGL_RESULT_RETRY_ALLOC)
+    {
+        reset_egl_failure_retries(win);
+        return result;
+    }
+
+    if (win->egl_bad_alloc_retry_count >= EGL_BAD_ALLOC_MAX_RETRIES)
+    {
+        LOGE("EGL allocation failed after %u retries. Treating the failure as fatal.",
+             EGL_BAD_ALLOC_MAX_RETRIES);
+        reset_egl_failure_retries(win);
+        return GLFW_ANDROID_EGL_RESULT_FATAL;
+    }
+
+    ++win->egl_bad_alloc_retry_count;
+    LOGW("EGL allocation failed. Retry %u of %u.",
+         win->egl_bad_alloc_retry_count, EGL_BAD_ALLOC_MAX_RETRIES);
+    return result;
+}
+
+void reset_egl_failure_retries(_GLFWwin_android* win)
+{
+    win->egl_bad_alloc_retry_count = 0;
+}
+
 static GlfwAndroidEglResult GetEglFailureResult(const char* operation, EGLint error)
 {
     LOGW("%s failed, eglGetError: %X", operation, error);
@@ -240,6 +274,7 @@ static GlfwAndroidEglResult GetEglFailureResult(const char* operation, EGLint er
     switch (error)
     {
         case EGL_BAD_ALLOC:
+            return GLFW_ANDROID_EGL_RESULT_RETRY_ALLOC;
         case EGL_BAD_CURRENT_SURFACE:
         case EGL_BAD_NATIVE_WINDOW:
         case EGL_BAD_SURFACE:
@@ -443,13 +478,15 @@ int init_gl(_GLFWwin_android* win)
     do
     {
         surface_result = CreateGLSurfaceForWindow(win, window);
-        if (surface_result == GLFW_ANDROID_EGL_RESULT_DEFERRED)
+        if (surface_result != GLFW_ANDROID_EGL_RESULT_READY)
+            surface_result = limit_egl_failure_retries(win, surface_result);
+        if (is_egl_result_retryable(surface_result))
         {
             wait_for_egl_retry(retry_count++);
             window = WaitForAppAndWindow(win);
         }
     }
-    while (surface_result == GLFW_ANDROID_EGL_RESULT_DEFERRED && window != NULL);
+    while (is_egl_result_retryable(surface_result) && window != NULL);
 
     if (surface_result != GLFW_ANDROID_EGL_RESULT_READY)
     {
