@@ -33,6 +33,7 @@ def run_bob(task):
     # Bob writes a dynamic output tree outside Waf's task graph. The declared
     # target is a stamp, so Waf can order and explicitly target this side-effect.
     for stamp in task.outputs:
+        stamp.parent.mkdir()
         stamp.write('')
 
 def build(bld):
@@ -114,6 +115,7 @@ def build(bld):
     # Build custom collections first to prevent overrides in default game.projectc
     settings = [
         'cross_script_messaging.ini',
+        'issue-12703.ini',
         'render_script.ini',
         'camera_acquire_input_focus.ini',
         'text_input.ini']

@@ -53,7 +53,24 @@ elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
 elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32|x86-win32")
         include(platform_windows)
 elseif (TARGET_PLATFORM MATCHES "x86_64-xbone")
-        include(platform_xbone)
+        defold_get_private_repo_root(_DEFOLD_XBOX_PRIVATE_REPO_ROOT "${TARGET_PLATFORM}")
+        if(NOT _DEFOLD_XBOX_PRIVATE_REPO_ROOT)
+            message(FATAL_ERROR "Private Xbox platform requires a private repo root for ${TARGET_PLATFORM}")
+        endif()
+
+        set(_DEFOLD_XBOX_PLATFORM_MODULE "")
+        foreach(_DEFOLD_XBOX_PLATFORM_MODULE_NAME IN ITEMS platform_xbox platform_xbone)
+            include("${_DEFOLD_XBOX_PRIVATE_REPO_ROOT}/scripts/cmake/${_DEFOLD_XBOX_PLATFORM_MODULE_NAME}.cmake" OPTIONAL RESULT_VARIABLE _DEFOLD_XBOX_PLATFORM_MODULE)
+            if(_DEFOLD_XBOX_PLATFORM_MODULE)
+                break()
+            endif()
+        endforeach()
+        if(NOT _DEFOLD_XBOX_PLATFORM_MODULE)
+            message(FATAL_ERROR "Private Xbox platform module not found in ${_DEFOLD_XBOX_PRIVATE_REPO_ROOT}/scripts/cmake")
+        endif()
+        unset(_DEFOLD_XBOX_PLATFORM_MODULE)
+        unset(_DEFOLD_XBOX_PLATFORM_MODULE_NAME)
+        unset(_DEFOLD_XBOX_PRIVATE_REPO_ROOT)
 elseif (TARGET_PLATFORM MATCHES "arm64-nx64")
         # Mark this configuration as using a private vendor platform (e.g., Switch)
         set(DEFOLD_IS_PRIVATE_VENDOR ON CACHE BOOL "Building with private vendor platform configuration" FORCE)
@@ -64,14 +81,6 @@ else()
         if(NOT _DEFOLD_PRIVATE_PLATFORM_MODULE)
             message(FATAL_ERROR "Unsupported platform: ${TARGET_PLATFORM}")
         endif()
-endif()
-
-if(TARGET_PLATFORM MATCHES "x86_64-xbone")
-    target_compile_definitions(defold_sdk INTERFACE DM_HOSTFS=\"G:\")
-    set(DEFOLD_PLATFORM_TEST_DEFINES
-        JC_TEST_NO_DEATH_TEST
-        JC_TEST_USE_COLORS=0
-        JC_TEST_USE_PRINTF)
 endif()
 
 #**************************************************************************
@@ -86,10 +95,15 @@ target_compile_definitions(defold_sdk INTERFACE
 
 if(DEFOLD_MSVC_IDE_SOLUTION)
     target_compile_definitions(defold_sdk INTERFACE
-        JC_TEST_USE_COLORS=0
         DM_LOG_TO_DEBUGGER)
+    if(NOT DEFOLD_TEST_COLORS)
+        target_compile_definitions(defold_sdk INTERFACE JC_TEST_USE_COLORS=0)
+    endif()
 elseif(DEFINED ENV{GITHUB_WORKFLOW})
-    target_compile_definitions(defold_sdk INTERFACE GITHUB_CI JC_TEST_USE_COLORS=1)
+    target_compile_definitions(defold_sdk INTERFACE GITHUB_CI)
+    if(DEFOLD_TEST_COLORS)
+        target_compile_definitions(defold_sdk INTERFACE JC_TEST_USE_COLORS=1)
+    endif()
 endif()
 
 set(DEFOLD_PLATFORM_SUPPORTS_COMPUTE ON)
@@ -112,9 +126,6 @@ endif()
 
 if(MSVC_CL)
     target_compile_definitions(defold_sdk INTERFACE _HAS_EXCEPTIONS=0)
-    if(TARGET_PLATFORM MATCHES "x86_64-xbone")
-        target_compile_definitions(defold_sdk INTERFACE _ITERATOR_DEBUG_LEVEL=0)
-    endif()
 
     # Match Waf: disable RTTI and C++ exception handling for engine code.
     # CMake's MSVC defaults add /EHsc, which conflicts with SEH __try blocks
@@ -128,6 +139,8 @@ else()
     # Apply per-language flags via target options
     set(_DEFOLD_NON_MSVC_OPTIONS
         -Wall
+        $<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang>:-Wno-nontrivial-memcall>
+        $<$<COMPILE_LANG_AND_ID:OBJCXX,AppleClang,Clang>:-Wno-nontrivial-memcall>
         -Werror=format
         -Werror=return-type
         -fvisibility=hidden

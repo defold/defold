@@ -1,5 +1,9 @@
-/gui/default.texture_profiles
+/display_profiles/gui_layout_no_auto.display_profiles
+/font/glyph_bank_test_1.font
+/font/valid_font.font
 /gui/async_texture_auto_size.go
+/gui/custom_properties_layout.go
+/gui/default.texture_profiles
 /gui/draw_count_empty_text_test.go
 /gui/draw_count_test.go
 /gui/draw_count_test2.go
@@ -29,7 +33,5 @@
 /gui/texture_reload_override.go
 /gui/texture_resources_texture_resources.go
 /gui/texture_setter_override.go
-/gui/valid_png.raw
 /gui/valid_gui.go
-/font/valid_font.font
-/font/glyph_bank_test_1.font
+/gui/valid_png.raw

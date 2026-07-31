@@ -113,6 +113,13 @@
                                                                  {:name "cardinality"
                                                                   :types ["string"]
                                                                   :doc "either <code>\"one\"</code> (will use first selected item) or <code>\"many\"</code> (will use all selected items)"}]))}
+                                                   {:name "active_view"
+                                                    :types ["table"]
+                                                    :doc (str "current active editor view, a table with the following keys:"
+                                                              (lua-completion/args-doc-html
+                                                                [{:name "type"
+                                                                  :types ["string"]
+                                                                  :doc "either <code>\"code\"</code>, <code>\"scene\"</code>, <code>\"html\"</code>, or <code>\"form\"</code>"}]))}
                                                    {:name "argument"
                                                     :types ["table"]
                                                     :doc "the command argument"}]))}
@@ -414,7 +421,10 @@ editor.create_resources({
                                       :doc "request body"}
                                      {:name "as"
                                       :types ["string"]
-                                      :doc "response body converter, either <code>\"string\"</code> or <code>\"json\"</code>"}]))}]
+                                      :doc "response body converter, either <code>\"string\"</code> or <code>\"json\"</code>; mutually exclusive with <code>path</code>"}
+                                     {:name "path"
+                                      :types ["string"]
+                                      :doc "destination file path, resolved against project root if relative; mutually exclusive with <code>as</code>"}]))}]
           :returnvalues [{:name "response"
                           :types ["table"]
                           :doc (str "HTTP response, a table with the following keys:"
@@ -427,7 +437,10 @@ editor.create_resources({
                                         :doc "response headers, a table where each key is a lower-cased string, and each value is either a string or an array of strings if the header was repeated"}
                                        {:name "body"
                                         :types ["string" "any" "nil"]
-                                        :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}]))}]}
+                                        :doc "response body, present only when <code>as</code> option was provided, either a string or a parsed json value"}
+                                       {:name "path"
+                                        :types ["string" "nil"]
+                                        :doc "resolved absolute destination path, present only after a successful response was written when the <code>path</code> option was provided"}]))}]}
          {:name "http.server"
           :type :module
           :description "Editor's HTTP server-related functionality"}

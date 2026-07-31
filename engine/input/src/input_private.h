@@ -133,6 +133,7 @@ namespace dmInput
     {
         dmHID::GamepadGuid m_Guid;
         char m_DeviceName[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        char* m_RawMapping;
         GamepadInput m_Inputs[dmInputDDF::MAX_GAMEPAD_COUNT];
         float m_DeadZone; // Deprecated
         uint32_t m_DeviceId; // hash of device id
@@ -142,7 +143,8 @@ namespace dmInput
     struct Context
     {
         dmIndexPool8                    m_GamepadIndices;
-        dmHashTable32< GamepadConfig >  m_GamepadMaps;
+        dmArray<GamepadConfig>          m_GamepadConfigs;
+        dmHashTable32< uint32_t >       m_GamepadMaps;
         dmHashTable32<bool>             m_UnmappedGamepads;
         dmHID::HContext                 m_HidContext;
         Binding*                        m_Binding;

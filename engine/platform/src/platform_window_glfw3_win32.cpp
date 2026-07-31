@@ -54,6 +54,42 @@ namespace dmPlatform
     static XInputGetCapabilitiesExFn g_XInputGetCapabilitiesEx = 0;
     static bool g_XInputCapabilitiesFunctionsResolved = false;
     static char g_JoystickDeviceGuid[GLFW_JOYSTICK_LAST + 1][33];
+    static HWND g_ConsoleCloseWindow = 0;
+
+    static BOOL WINAPI ConsoleControlHandler(DWORD control_type)
+    {
+        switch (control_type)
+        {
+        case CTRL_C_EVENT:
+        case CTRL_BREAK_EVENT:
+        case CTRL_CLOSE_EVENT:
+            if (g_ConsoleCloseWindow)
+            {
+                PostMessageW(g_ConsoleCloseWindow, WM_CLOSE, 0, 0);
+                return TRUE;
+            }
+            return FALSE;
+        default:
+            return FALSE;
+        }
+    }
+
+    void InstallWindowCloseHandlerNative(HWindow window)
+    {
+        g_ConsoleCloseWindow = glfwGetWin32Window(window->m_Window);
+        SetConsoleCtrlHandler(ConsoleControlHandler, TRUE);
+    }
+
+    void UninstallWindowCloseHandlerNative(HWindow window)
+    {
+        if (g_ConsoleCloseWindow != glfwGetWin32Window(window->m_Window))
+        {
+            return;
+        }
+
+        SetConsoleCtrlHandler(ConsoleControlHandler, FALSE);
+        g_ConsoleCloseWindow = 0;
+    }
 
     static bool IsGLFWXInputGuid(const char* guid)
     {
@@ -70,9 +106,13 @@ namespace dmPlatform
         g_XInputCapabilitiesFunctionsResolved = true;
 
         const wchar_t* libraries[] = {
-            L"xinput9_1_0.dll",
+            // XInputGetCapabilitiesEx is available by ordinal from the
+            // Windows 8+ XInput implementation.  The engine links against
+            // xinput9_1_0, but that compatibility DLL does not export it.
+            // https://learn.microsoft.com/en-us/windows/win32/xinput/xinput-versions
             L"xinput1_4.dll",
             L"xinput1_3.dll",
+            L"xinput9_1_0.dll",
         };
 
         for (uint32_t i = 0; i < sizeof(libraries) / sizeof(libraries[0]); ++i)
@@ -80,16 +120,23 @@ namespace dmPlatform
             HMODULE xinput_module = GetModuleHandleW(libraries[i]);
             if (!xinput_module)
             {
+                // GLFW loads XInput dynamically and the selected DLL is not
+                // guaranteed to still be discoverable by name here.  Load a
+                // suitable implementation explicitly and retain it for the
+                // lifetime of the process so the resolved pointers stay valid.
+                xinput_module = LoadLibraryW(libraries[i]);
+            }
+            if (!xinput_module)
+            {
                 continue;
             }
 
-            if (!g_XInputGetCapabilities)
+            XInputGetCapabilitiesFn get_capabilities = (XInputGetCapabilitiesFn) GetProcAddress(xinput_module, "XInputGetCapabilities");
+            XInputGetCapabilitiesExFn get_capabilities_ex = (XInputGetCapabilitiesExFn) GetProcAddress(xinput_module, (LPCSTR) 108);
+            if (get_capabilities && get_capabilities_ex)
             {
-                g_XInputGetCapabilities = (XInputGetCapabilitiesFn) GetProcAddress(xinput_module, "XInputGetCapabilities");
-            }
-            g_XInputGetCapabilitiesEx = (XInputGetCapabilitiesExFn) GetProcAddress(xinput_module, (LPCSTR) 108);
-            if (g_XInputGetCapabilities && g_XInputGetCapabilitiesEx)
-            {
+                g_XInputGetCapabilities = get_capabilities;
+                g_XInputGetCapabilitiesEx = get_capabilities_ex;
                 return;
             }
         }

@@ -120,13 +120,12 @@
       (test-util/editable-controls)))
 
 (defn- check-text-fields! [resource-node prop-kw new-num-values text-fields-fn]
-  (let [project-graph (g/node-id->graph-id resource-node)
-        view-node (ffirst (g/targets-of resource-node :form-data))
+  (let [view-node (ffirst (g/targets-of resource-node :form-data))
         original-value (g/node-value resource-node prop-kw)
 
         check-field!
         (fn check-field! [field-index new-num-value]
-          (with-open [_ (test-util/make-graph-reverter project-graph)]
+          (with-open [_ (test-util/make-system-reverter)]
             (let [text-field-count
                   (do
                     (render-form! view-node)
@@ -174,8 +173,8 @@
                 original-property-values)
 
           form-view-parent (AnchorPane.)
-          project-graph (g/make-graph! :history true :volatility 1)
-          view-graph (g/make-graph! :history false :volatility 2)
+          project-graph (g/make-graph! :volatility 1)
+          view-graph (g/make-graph! :volatility 2)
           resource-node (apply g/make-node! project-graph NumericPropertiesNode (mapcat identity property-values))
           view-node (cljfx-form-view/make-form-view-node! view-graph form-view-parent resource-node nil nil test-util/localization)
           form-data (g/node-value view-node :form-data)

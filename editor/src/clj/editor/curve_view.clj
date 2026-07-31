@@ -26,6 +26,7 @@
             [editor.gl.vertex :as vtx]
             [editor.grid :as grid]
             [editor.handler :as handler]
+            [editor.mouse-binding :as mouse-binding]
             [editor.properties :as properties]
             [editor.rulers :as rulers]
             [editor.scene :as scene]
@@ -51,6 +52,19 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private ^:dynamic *programmatic-selection* nil)
+
+(mouse-binding/register!
+  ::curve-view-camera
+  "Curve Editor"
+  [{:command :scene.camera.pan
+    :action ["Pan"]}
+   {:command :scene.camera.zoom
+    :action ["Zoom"]}
+   {:command :curve-view.add-control-point
+    :action ["Add Control Point"]}
+   {:command :curve-view.delete-control-point
+    :action ["Delete Control Point"]}]
+  {:inherited-context :editor.camera/scene-camera-orthographic})
 
 ; Line shader
 
@@ -248,10 +262,10 @@
     (and (<= (.x min-p) (.x p) (.x max-p))
          (<= (.y min-p) (.y p) (.y max-p)))))
 
-(defn- reset-controller! [controller op-seq]
+(defn- reset-controller! [controller]
   (g/transact
+    {:undoable false}
     (concat
-      (g/operation-sequence op-seq)
       (g/set-property controller :start nil)
       (g/set-property controller :current nil)
       (g/set-property controller :op-seq nil)
@@ -263,21 +277,40 @@
         op-seq (g/node-value self :op-seq)
         handle (g/node-value self :handle)
         sub-selection (g/node-value self :sub-selection)
+        mouse-binding-command (when (= :mouse-pressed (:type action))
+                                (mouse-binding/command-for-action ::curve-view-camera
+                                                                  (assoc action :type :press)))
         ^Point3d cursor-pos (:world-pos action)]
     (case (:type action)
       :mouse-pressed (let [handled? (when-let [[handle data] (g/node-value self :curve-handle)]
-                                      (if (and (= 2 (:click-count action))
-                                               (or (= handle :control-point) (= handle :curve)))
+                                      (if-let [edit-command (cond
+                                                              (and (= handle :control-point)
+                                                                   (= mouse-binding-command :curve-view.delete-control-point))
+                                                              :curve-view.delete-control-point
+
+                                                              (and (= handle :curve)
+                                                                   (= mouse-binding-command :curve-view.add-control-point))
+                                                              :curve-view.add-control-point
+
+                                                              (and (= 2 (:click-count action))
+                                                                   (= handle :control-point))
+                                                              :curve-view.delete-control-point
+
+                                                              (and (= 2 (:click-count action))
+                                                                   (= handle :curve))
+                                                              :curve-view.add-control-point)]
                                         (do
                                           (g/transact
                                             (concat
                                               (g/operation-sequence op-seq)
-                                              (case handle
-                                                :control-point
+                                              (case edit-command
+                                                :curve-view.delete-control-point
                                                 (let [[nid property id] data]
-                                                  (g/update-property nid property types/geom-delete [id]))
+                                                  [(g/update-property nid property types/geom-delete [id])
+                                                   (g/non-undoable
+                                                     (g/set-property self :handle :curve-click))])
 
-                                                :curve
+                                                :curve-view.add-control-point
                                                 (let [[nid property ^Point3d p] data
                                                       p [(.x p) (.y p) (.z p)]
                                                       new-curve (-> (g/node-value nid property)
@@ -285,12 +318,13 @@
                                                       id (iv/iv-added-id (:points new-curve))
                                                       select-fn (g/node-value self :select-fn)]
                                                   (select-fn [[nid property id]] op-seq)
-                                                  (g/set-property nid property new-curve)))))
-                                          (reset-controller! self op-seq)
+                                                  [(g/set-property nid property new-curve)
+                                                   (g/non-undoable
+                                                     (g/set-property self :handle :curve-click))]))))
                                           true)
                                         (when (or (= handle :control-point) (= handle :tangent))
                                           (let [op-seq (gensym)
-                                                sel-mods? (some #(get action %) selection/toggle-modifiers)]
+                                                sel-mods? (some (:modifiers action) selection/toggle-modifiers)]
                                             (when (not sel-mods?)
                                               (when (and (= handle :control-point)
                                                          (not (contains? (set sub-selection) data)))
@@ -298,8 +332,8 @@
                                                       sub-selection [data]]
                                                   (select-fn sub-selection op-seq)))
                                               (g/transact
+                                                {:undoable false}
                                                 (concat
-                                                  (g/operation-sequence op-seq)
                                                   (g/set-property self :op-seq op-seq)
                                                   (g/set-property self :start cursor-pos)
                                                   (g/set-property self :current cursor-pos)
@@ -309,7 +343,7 @@
                                               true)))))]
                        (if handled? nil action))
       :mouse-released (do
-                        (reset-controller! self op-seq)
+                        (reset-controller! self)
                         (if handle
                           nil
                           action))
@@ -323,9 +357,11 @@
                                                                  (update ids [nid prop] (fn [v] (conj (or v []) idx))))
                                                                {} sub-selection)]
                                       (g/transact
+                                        {:undoable false}
+                                        (g/set-property self :current cursor-pos))
+                                      (g/transact
                                         (concat
                                           (g/operation-sequence op-seq)
-                                          (g/set-property self :current cursor-pos)
                                           (for [[[nid prop] ids] selected-ids
                                                 :let [curve (g/node-value nid prop evaluation-context)]]
                                             (g/set-property nid prop (types/geom-transform curve ids trans)))))
@@ -520,6 +556,7 @@
   (output cp-renderables g/Any :cached produce-cp-renderables)
   (output picking-selection g/Any :cached produce-picking-selection)
   (output selected-tool-renderables g/Any :cached (g/fnk [] {}))
+  (output mouse-binding-context g/Keyword (g/constantly ::curve-view-camera))
   (output sub-selection-map g/Any :cached (g/fnk [sub-selection]
                                             (sub-selection->map sub-selection)))
   (output aabb AABB :cached produce-aabb)
@@ -635,7 +672,9 @@
      view-id))
   ([app-view graph ^Parent parent ^ListView list ^AnchorPane view localization opts _reloading?]
    (let [[node-id] (g/tx-nodes-added
-                     (g/transact (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{} :updatable-states (atom {})]
+                     (g/transact
+                       {:undoable false}
+                       (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{} :updatable-states (atom {})]
                                                       controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
                                                       background background/Background
@@ -689,11 +728,15 @@
                                    (call [this item]
                                      (let [hidden-curves (g/node-value node-id :hidden-curves)]
                                        (doto (SimpleBooleanProperty. (not (contains? hidden-curves (:keyword item))))
-                                         (ui/observe (fn [observable old new]
+                                         (ui/observe (fn [_observable _old new]
                                                        (let [kw (:keyword item)]
                                                          (if new
-                                                           (g/update-property! node-id :hidden-curves disj kw)
-                                                           (g/update-property! node-id :hidden-curves conj kw)))))))))]
+                                                           (g/transact
+                                                             {:undoable false}
+                                                             (g/update-property node-id :hidden-curves disj kw))
+                                                           (g/transact
+                                                             {:undoable false}
+                                                             (g/update-property node-id :hidden-curves conj kw))))))))))]
            (let [items (ui/selection list)]
              (ui/observe-list list items (fn [_ values] (on-list-selection app-view values))))
            (doto (.getSelectionModel list)

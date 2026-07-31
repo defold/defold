@@ -34,9 +34,9 @@ public class GamepadBuilderTest {
         return new File(System.getProperty("user.dir"), path).getCanonicalFile();
     }
 
-    private static boolean hasMapping(GamepadMapsRuntime maps, String device, boolean hasGuid) {
+    private static boolean hasMapping(GamepadMapsRuntime maps, String device, boolean hasRawMapping) {
         for (GamepadMapRuntime mapping : maps.getMappingsList()) {
-            if (mapping.getDevice().equals(device) && mapping.hasGuid() == hasGuid) {
+            if (mapping.getDevice().equals(device) && mapping.hasRawMapping() == hasRawMapping) {
                 return true;
             }
         }
@@ -74,6 +74,31 @@ public class GamepadBuilderTest {
                     hasMapping(maps, "Wireless Controller", false));
             assertTrue("Expected a converted mapping from gamecontrollerdb.txt with a GUID.",
                     hasMapping(maps, "Nintendo Switch Pro Controller", true));
+        } finally {
+            output.delete();
+        }
+    }
+
+    @Test
+    public void testMainBuildsXboxDefaultGamepads() throws Exception {
+        File defaultGamepads = repoFile("../../engine/engine/content/builtins/input/default.gamepads");
+        File gamecontrollerdb = repoFile("../../engine/engine/content/builtins/input/gamecontrollerdb.txt");
+        File output = File.createTempFile("default-gamepads-xbox", ".gamepadsc");
+        output.deleteOnExit();
+
+        try {
+            GamepadBuilder.main(new String[] {
+                    defaultGamepads.getAbsolutePath(),
+                    gamecontrollerdb.getAbsolutePath(),
+                    output.getAbsolutePath(),
+                    "x86_64-xbone"
+            });
+
+            GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(Files.readAllBytes(output.toPath()));
+            assertEquals(1, maps.getMappingsCount());
+            assertNull(firstMappingWithoutControls(maps));
+            assertTrue("Expected the legacy default.gamepads Xbox mapping.",
+                    hasMapping(maps, "Xbox One Controller", false));
         } finally {
             output.delete();
         }
@@ -133,4 +158,5 @@ public class GamepadBuilderTest {
             gamecontrollerdb.delete();
         }
     }
+
 }

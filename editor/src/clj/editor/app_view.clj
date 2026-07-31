@@ -23,6 +23,7 @@
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
+            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -47,6 +48,7 @@
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.game-project :as game-project]
+            [editor.geom :as geom]
             [editor.git :as git]
             [editor.github :as github]
             [editor.graph-util :as gu]
@@ -60,7 +62,9 @@
             [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
+            [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.pipeline :as pipeline]
@@ -84,6 +88,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
+            [editor.updater :as updater]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -120,6 +125,7 @@
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
+           [javax.vecmath Point3d]
            [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
@@ -344,7 +350,7 @@
                   {:outline-pane outline-pane-desc}
                   {})
           :desc {:fx/type ext-with-split-pane-props
-                 :desc {:fx/type fxui/ext-value :value right-split}
+                 :desc {:fx/type ui/ext-value :value right-split}
                  :props {:items (or (coll/not-empty
                                       (coll/into-> active-sidebar []
                                         (remove g/error-value?)
@@ -381,10 +387,12 @@
   (input sub-selections-by-resource-node g/Any)
   (input debugger-sidebar-panes g/Any)
   (input debugger-execution-locations g/Any)
+  (input scene-visibility g/NodeID)
 
   (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
+  (output scene-view-ids g/Any :cached (gu/passthrough scene-view-ids))
   (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
   (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
   (output active-tab-pane TabPane (g/fnk [^Tab active-tab ^SplitPane editor-tabs-split]
@@ -481,9 +489,15 @@
              ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
              properties-view (g/node-value app-view :properties-view evaluation-context)
+             scene-visibility (g/node-value app-view :scene-visibility evaluation-context)
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
              new-view-node-id (some-> new-active-tab editor-tab/view-node-id)
-
+             should-load-scene-visibility (and is-in-active-tab-pane
+                                               (not= old-active-tab new-active-tab)
+                                               (= :scene (some-> new-active-tab editor-tab/view-type-id)))
+             path-key (when should-load-scene-visibility
+                        (resource/resource->proj-path
+                          (resource-node/resource basis new-resource-node-id)))
              tx-data
              (when (and is-in-active-tab-pane
                         (not= old-active-tab new-active-tab))
@@ -498,36 +512,53 @@
                      (disconnect-sources basis app-view :active-scene)))))]
 
     (when (coll/not-empty tx-data)
-      (g/transact tx-data)
+      (g/transact
+        {:undoable false}
+        tx-data)
       (ui/user-data! app-scene ::ui/refresh-requested? true))
 
     ;; The remaining steps should always be performed, even if we didn't end up
     ;; updating the graph connections.
     (recent-files/save-tab-selections! prefs app-view)
 
+    ;; Update scene-visibility settings
+    (when should-load-scene-visibility
+      (scene-visibility/load-settings! scene-visibility prefs path-key))
+
     (g/let-ec [active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
       (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]
         (apply-tab-pane-active-style! tab-pane (= active-tab-pane tab-pane))))))
 
 (handler/defhandler :scene.select-move-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :move)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :move)))
 
 (handler/defhandler :scene.select-scale-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :scale)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :scale)))
 
 (handler/defhandler :scene.select-rotate-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :rotate)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
   (run [app-view localization scene-visibility]
-    (when-let [btn (scene-visibility/toggle-button app-view)]
-      (scene-visibility/show-settings! (g/node-value app-view :keymap) localization btn scene-visibility)))
+    (g/let-ec [btn (scene-visibility/toggle-button app-view evaluation-context)
+               keymap (g/node-value app-view :keymap evaluation-context)]
+      (when btn
+        (scene-visibility/show-settings! keymap localization btn scene-visibility))))
   (state [app-view scene-visibility evaluation-context]
-    (when-let [btn (scene-visibility/toggle-button app-view)]
-      (scene-visibility/sync-filter-button-style! app-view scene-visibility evaluation-context)
+    (when-let [btn (scene-visibility/toggle-button app-view evaluation-context)]
+      (scene-visibility/sync-filter-button-style! btn scene-visibility evaluation-context)
       (settings-popup/settings-visible? btn))))
 
 (defn- get-settings-button [^Tab tab button-id]
@@ -733,9 +764,12 @@
   (run [workspace prefs app-view localization]
     (prefs-dialog/open! prefs localization)
     (workspace/update-build-settings! workspace prefs)
+    (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
       (when-not (= new-keymap (g/raw-property-value (g/now) app-view :keymap))
-        (g/set-property! app-view :keymap new-keymap)))
+        (g/transact
+          {:undoable false}
+          (g/set-property app-view :keymap new-keymap))))
     (ui/invalidate-menubar-item! ::file)))
 
 (defn- collect-resources [{:keys [children] :as resource}]
@@ -898,10 +932,28 @@
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
-  (let [render-reload-progress! (make-render-task-progress :resource-sync)]
-    (disk/async-reload! render-reload-progress! workspace moved-files changes-view
-                        (fn [_success]
-                          (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))
+  (if-not (.isDirectory (workspace/project-directory workspace))
+    (g/let-ec [^Stage stage (g/node-value app-view :stage evaluation-context)
+               localization (g/node-value app-view :localization evaluation-context)]
+      (dialogs/make-info-dialog
+        localization
+        {:title (localization/message "dialog.project-directory-unavailable.title")
+         :icon :icon/triangle-error
+         :header (localization/message "dialog.project-directory-unavailable.header")
+         :content {:wrap-text true
+                   :text (localization/message "dialog.project-directory-unavailable.content")}
+         :buttons [{:text (localization/message "dialog.button.quit")
+                    :cancel-button true
+                    :default-button true}]})
+      (.setOnCloseRequest stage nil)
+      (.close stage))
+    (disk/async-reload!
+      (make-render-task-progress :resource-sync)
+      workspace
+      moved-files
+      changes-view
+      (fn [_success]
+        (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)))))
 
 (defn handle-application-focused! [app-view changes-view workspace prefs]
   (when (and (disk-availability/available?)
@@ -920,7 +972,7 @@
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
 
-(defn- launch-engine! [engine-descriptor project-directory prefs debug?]
+(defn- launch-engine! [engine-descriptor project-directory prefs debug focus]
   (try
     (report-build-launch-progress! (localization/message "progress.launching-engine"))
     (let [engine (engine/install-engine! project-directory engine-descriptor)
@@ -929,8 +981,8 @@
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
                              (let [last-instance? (or (= count 1) (= instance-index count))
-                                   instance-debug? (and debug? last-instance?)
-                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug? instance-index)
+                                   instance-debug (and debug last-instance?)
+                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! instance-index))]
                                (when (not last-instance?)
@@ -976,11 +1028,11 @@
       (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
-(defn- reboot-engine! [target web-server debug?]
+(defn- reboot-engine! [target web-server debug focus]
   (try
     (report-build-launch-progress!
       (localization/message "progress.rebooting-engine" {"engine" (targets/target-message target)}))
-    (engine/reboot! target (local-url target web-server) debug?)
+    (engine/reboot! target (local-url target web-server) debug focus)
     (report-build-launch-progress!
       (localization/message "progress.rebooted-engine" {"engine" (targets/target-message target)}))
     target
@@ -1003,11 +1055,11 @@
 (defn- on-service-url-found [prefs target]
   (engine/apply-simulated-resolution! prefs target))
 
-(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
+(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug focus]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
                              (targets/kill-launched-targets!)
-                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug?)
+                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
@@ -1030,7 +1082,7 @@
         (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
           (console/set-log-service-stream log-stream)
-          (reboot-engine! selected-target web-server debug?))
+          (reboot-engine! selected-target web-server debug focus))
 
         :else
         (do
@@ -1045,7 +1097,7 @@
               ;; running to keep engine process
               ;; from halting because stdout/err is
               ;; not consumed.
-              (reboot-engine! selected-target web-server debug?))
+              (reboot-engine! selected-target web-server debug focus))
             (launch-new-engine!))))
       (catch SocketTimeoutException e
         (debug-view/show-connect-failed-info! e (project/workspace project)))
@@ -1439,7 +1491,7 @@
       (workspace/save-build-cache! workspace))
     (nil? error)))
 
-(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
+(defn- build-handler [project workspace prefs web-server build-errors-view main-stage tool-tab-pane launch focus]
   (let [project-directory (workspace/project-directory workspace)
         main-scene (.getScene ^Stage main-stage)
         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
@@ -1456,16 +1508,21 @@
                     :old-artifact-map (workspace/artifact-map workspace))
       (fn [{:keys [engine] :as build-results}]
         (when (handle-build-results! workspace render-build-error! build-results)
-          (when (or engine skip-engine)
+          (when (and launch (or engine skip-engine))
             (show-console! main-scene tool-tab-pane)
-            (launch-built-project! project engine project-directory prefs web-server false)))
+            (launch-built-project! project engine project-directory prefs web-server false focus)))
         build-results))))
+
+(handler/defhandler :project.compile :global
+  (enabled? [] (not (build-in-progress?)))
+  (run [project workspace prefs web-server build-errors-view main-stage tool-tab-pane]
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane false true)))
 
 (handler/defhandler :project.build :global
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
+  (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane user-data]
     (debug-view/detach! debug-view)
-    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
+    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true (get user-data :focus true))))
 
 (handler/defhandler :run.set-instance-count :global
   (options [prefs user-data]
@@ -1511,7 +1568,7 @@
       (fn [{:keys [engine] :as build-results}]
         (when (handle-build-results! workspace render-build-error! build-results)
           (when (or engine skip-engine)
-            (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
+            (when-let [target (launch-built-project! project engine project-directory prefs web-server true true)]
               (when (nil? (debug-view/current-session debug-view))
                 (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
@@ -1570,7 +1627,7 @@
               (dialogs/make-confirmation-dialog localization clean-build-dialog-info))
       (debug-view/detach! debug-view)
       (workspace/clear-build-cache! workspace)
-      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane))))
+      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane true true))))
 
 (defn- start-new-log-pipe!
   ^PipedOutputStream []
@@ -2003,6 +2060,8 @@
                menu-items/separator
                {:label (localization/message "command.help.open-documentation")
                 :command :help.open-documentation}
+               {:label (localization/message "command.help.open-release-notes")
+                :command :help.open-release-notes}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
                {:label (localization/message "command.help.open-editor-server")
@@ -2127,6 +2186,7 @@
           (let [notifications (workspace/notifications workspace evaluation-context)
                 notification-id ::editor-scripts-changed]
             (g/transact
+              {:undoable false}
               (if reload-needed
                 (notifications/show
                   notifications
@@ -2164,13 +2224,14 @@
     (refresh-scene-view! view-id dt))
   (scene-cache/prune-context! nil))
 
-(defn- dispose-scene-views! [app-view]
-  (doseq [view-id (g/node-value app-view :scene-view-ids)]
-    (try
-      (scene/dispose-scene-view! view-id)
-      (catch Throwable error
-        (error-reporting/report-exception! error))))
-  (scene-cache/drop-context! nil))
+(defn- save-scene-camera-prefs! [prefs view resource]
+  (g/let-ec [camera (some-> (:basis evaluation-context)
+                            (scene/view->camera view)
+                            (g/node-value :local-camera evaluation-context))
+             path-key (resource/resource->proj-path resource)]
+    (when (and camera path-key)
+      (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
+                                (camera/camera->prefs-value camera)))))
 
 (let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
       getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
@@ -2236,7 +2297,7 @@
 (defn- refresh-right-split! [app-view]
   (g/let-ec [right-split (g/node-value app-view :right-split evaluation-context)
              right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
-    (fxui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
+    (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
@@ -2246,16 +2307,20 @@
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
     (let [keymap (keymap/from-prefs prefs)
-          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
-                                                                     :stage stage
-                                                                     :scene app-scene
-                                                                     :editor-tabs-split editor-tabs-split
-                                                                     :right-split right-split
-                                                                     :tool-tab-pane tool-tab-pane
-                                                                     :active-tool :move
-                                                                     :manip-space :world
-                                                                     :keymap keymap
-                                                                     :localization localization))))]
+          app-view (first
+                     (g/tx-nodes-added
+                       (g/transact
+                         {:undoable false}
+                         (g/make-node view-graph AppView
+                                      :stage stage
+                                      :scene app-scene
+                                      :editor-tabs-split editor-tabs-split
+                                      :right-split right-split
+                                      :tool-tab-pane tool-tab-pane
+                                      :active-tool :move
+                                      :manip-space :world
+                                      :keymap keymap
+                                      :localization localization))))]
       (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)
@@ -2263,7 +2328,32 @@
                     (handle-focus-owner-change! app-view prefs new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
-      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
+      (ui/on-closed! stage (fn [_]
+                             (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
+                                        scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
+                               (doseq [view-id scene-view-ids]
+                                 (try
+                                   (when-let [resource (:resource (get open-views view-id))]
+                                     (save-scene-camera-prefs! prefs view-id resource))
+                                   (scene/dispose-scene-view! view-id)
+                                   (catch Throwable error
+                                     (error-reporting/report-exception! error)))))
+                             (scene-cache/drop-context! nil)))
+
+      (error-reporting/init-disabled-functionality-notifier!
+        (fn notify-disabled-functionality! []
+          (notifications/show!
+            (workspace/notifications (project/workspace project))
+            {:id ::disabled-functionality
+             :type :warning
+             :message (localization/message "notification.disabled-functionality")
+             :actions [{:message (localization/message "notification.disabled-functionality.action.enable")
+                        :on-action ui/enable-disabled-functionality!}
+                       {:message (localization/message "notification.disabled-functionality.action.restart")
+                        :on-action #(ui/execute-command
+                                      (ui/contexts (ui/main-scene) true)
+                                      :app.restart
+                                      nil)}]})))
 
       (let [prev-localization-bundle (volatile! nil)
             reload-editor-scripts-notification-updater (make-reload-editor-scripts-notification-updater project)
@@ -2309,6 +2399,38 @@
 
 (declare open-resource!)
 
+(defn- default-camera-projection [project resource resource-node]
+  (let [ext (some-> resource resource/resource-type :ext)]
+    (case ext
+      ("model" "mesh" "gltf" "glb")
+      :perspective
+
+      ("png" "jpg" "jpeg" "atlas" "tilesource" "tileset" "tilegrid" "tilemap" "gui" "font" "sprite" "label")
+      :orthographic
+
+      "collisionobject"
+      (g/let-ec [game-project (project/get-resource-node project "/game.project" evaluation-context)
+                 physics-type (game-project/get-setting game-project ["physics" "type"] evaluation-context)]
+        (if (= "2D" physics-type)
+          :orthographic
+          :perspective))
+
+      (g/let-ec [scene (g/node-value resource-node :scene evaluation-context)]
+        (letfn [(has-depth? [node]
+                  (let [aabb (:aabb node)
+                        ^Point3d extent (when aabb (geom/aabb-extent aabb))]
+                    (if (and extent
+                             (pos? (.z extent))
+                             (contains? node :renderable)
+                             (not (contains? (get-in node [:renderable :tags]) :camera)))
+                      true
+                      (boolean (some has-depth? (:children node))))))]
+          (if (and scene
+                   (not (g/error? scene))
+                   (has-depth? scene))
+            :perspective
+            :orthographic))))))
+
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
         project (project/get-project basis resource-node)
@@ -2325,9 +2447,13 @@
               (.setContent tab-content)
               (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
               (editor-tab/set-view-type! view-type))
-        view-graph (g/make-graph! :history false :volatility 2)
+        view-graph (g/make-graph! :volatility 2)
         select-fn (partial select app-view)
         open-resource-fn (partial open-resource! app-view prefs localization project)
+        camera-opts (when (= :scene (:id view-type))
+                      (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
+                        {:camera stored-camera}
+                        {:default-camera-projection (default-camera-projection project resource resource-node)}))
         opts (merge opts
                     (get (:view-opts resource-type) (:id view-type))
                     {:app-view app-view
@@ -2337,12 +2463,19 @@
                      :project project
                      :workspace workspace
                      :localization localization
-                     :tab tab})
+                     :tab tab}
+                    camera-opts)
         make-view-fn (:make-view-fn view-type)
+        undo-stack-revisions-before (g/undo-stack-revisions)
         view (make-view-fn view-graph parent resource-node opts)]
+    (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+            (format "The %s view-type :make-view-fn created undo steps for '%s'."
+                    (:id view-type)
+                    (resource/proj-path resource)))
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs resource view-type)
     (g/transact
+      {:undoable false}
       (concat
         (view/connect-resource-node view resource-node)
         (g/connect app-view :selected-node-properties view :selected-node-properties)
@@ -2359,7 +2492,12 @@
                                     (recent-files/add! prefs resource view-type))))
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler event
-                          (recent-files/add! prefs resource view-type)
+                          (let [basis (g/now)
+                                resource (resource-node/resource basis resource-node)]
+                            (recent-files/add! prefs resource view-type)
+                            (when (= :scene (:id view-type))
+                              (save-scene-camera-prefs! prefs view resource)))
+
                           ;; The menu refresh can occur after the view graph is
                           ;; deleted but before the tab controls lose input
                           ;; focus, causing handlers to evaluate against deleted
@@ -2562,6 +2700,7 @@
           tab-pane-tabs (.getTabs tab-pane)
           new-tab (make-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts)]
       (g/transact
+        {:undoable false}
         (select app-view resource-node [select-node]))
       (when select-tab
         (select-editor-tab!
@@ -2578,6 +2717,64 @@
    (-> (g/with-auto-evaluation-context evaluation-context
          (make-open-resource-plan app-view prefs project resource opts evaluation-context))
        (perform-open-resource-plan! localization))))
+
+(def ^:private release-notes-resource-delay
+  (delay (io/resource (str "release-notes/" (system/defold-version) ".json"))))
+
+(defn- bundled-release-notes-json [url]
+  (try
+    (with-open [reader (io/reader url)]
+      (updater/release-notes-markdown (json/read reader :key-fn keyword)))
+    (catch Exception e
+      (log/warn :message "Failed to read bundled release notes"
+                :url (str url)
+                :exception e)
+      nil)))
+
+(ui/defc release-notes-dialog
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}]}
+  [{:keys [project localization-state content result-fn]}]
+  {:fx/type dialogs/dialog-stage
+   :showing true
+   :on-close-request (fn [_] (result-fn false))
+   :title (localization-state (localization/message "release-notes-dialog.title"))
+   :size :large
+   :width 1000
+   :header {:fx/type fxui/legacy-label
+            :variant :header
+            :text (localization-state (localization/message "release-notes-dialog.header"
+                                                            {"version" (system/defold-version)}))}
+   :content {:fx/type markdown/view
+             :content content
+             :project project
+             :stylesheets [(str (io/resource "editor.css"))]
+             :root-props {:style-class "md-page-root"}}
+   :footer {:fx/type dialogs/dialog-buttons
+            :children [{:fx/type fxui/legacy-button
+                        :text (localization-state (localization/message "release-notes-dialog.button.close"))
+                        :cancel-button true
+                        :on-action (fn [_] (result-fn false))}]}})
+
+(defn show-release-notes-dialog!
+  "Shows the running version's bundled release notes in a dialog. No-op when no
+  notes shipped. Must be called on the JavaFX application thread."
+  [localization project]
+  (when-let [url @release-notes-resource-delay]
+    (when-let [content (bundled-release-notes-json url)]
+      (fxui/show-stateless-dialog-and-await-result!
+        (fn [result-fn]
+          {:fx/type release-notes-dialog
+           :result-fn result-fn
+           :localization localization
+           :content content
+           :project project})))))
+
+(handler/defhandler :help.open-release-notes :global
+  (enabled? [] @release-notes-resource-delay)
+  (run [localization project]
+    (show-release-notes-dialog! localization project)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)
@@ -3108,17 +3305,26 @@
                              image-view ^ImageView (.getGraphic tooltip)]
                          (when-not (.getImage image-view)
                            (let [resource-node (project/get-resource-node project resource)
-                                 view-graph (g/make-graph! :history false :volatility 2)
+                                 view-graph (g/make-graph! :volatility 2)
                                  select-fn (partial select app-view)
                                  opts (assoc ((:id view-type) (:view-opts resource-type))
                                         :app-view app-view
                                         :select-fn select-fn
                                         :project project
                                         :workspace workspace)
+                                 undo-stack-revisions-before (g/undo-stack-revisions)
                                  preview (make-preview-fn view-graph resource-node opts 256 256)]
+                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                     (format "The %s view-type :make-preview-fn created undo steps for '%s'."
+                                             (:id view-type)
+                                             (resource/proj-path resource)))
                              (.setImage image-view ^Image (g/node-value preview :image))
                              (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
                                (dispose-preview-fn preview))
+                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                     (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
+                                             (:id view-type)
+                                             (resource/proj-path resource)))
                              (g/delete-graph! view-graph)))))}))))
 
 (def ^:private open-assets-term-prefs-key [:open-assets :term])
@@ -3298,7 +3504,10 @@
     (future/io
       (try
         (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
-          (let [lib-results (library/fetch! (workspace/project-directory workspace) library-uris render-fetch-progress!)
+          (let [lib-results (library/fetch!
+                              (workspace/project-directory workspace)
+                              library-uris
+                              render-fetch-progress!)
                 render-install-progress! (make-render-task-progress :resource-sync)]
             (render-install-progress! (progress/make (localization/message "progress.installing-updated-libraries")))
             (ui/run-now (workspace/set-project-dependencies! workspace lib-results))

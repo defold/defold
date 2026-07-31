@@ -32,6 +32,7 @@
             [cljfx.fx.password-field :as fx.password-field]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
+            [cljfx.fx.slider :as fx.slider]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.svg-path :as fx.svg-path]
@@ -45,7 +46,6 @@
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
             [clojure.string :as string]
-            [dynamo.graph :as g]
             [editor.color-dropper :as color-dropper]
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
@@ -70,8 +70,8 @@
            [javafx.event Event EventHandler]
            [javafx.geometry Bounds Insets]
            [javafx.scene Node Parent]
-           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane TextInputControl Tooltip]
-           [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.scene.control ChoiceBox ComboBoxBase Control ControlHelper ListView MenuButton ScrollPane Slider TextInputControl Tooltip]
+           [javafx.scene.control.skin ScrollPaneSkin SliderSkin]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
            [javafx.scene.layout Region StackPane]
            [javafx.scene.paint Color]
@@ -84,15 +84,6 @@
 (defn event->window
   ^Window [^Event event]
   (.getWindow (.getScene ^Node (.getSource event))))
-
-(def ext-value
-  "Extension lifecycle that returns value on `:value` key"
-  (reify fx.lifecycle/Lifecycle
-    (create [_ desc _]
-      (:value desc))
-    (advance [_ _ desc _]
-      (:value desc))
-    (delete [_ _ _])))
 
 (defn identity-aware-observable-list-mutator [get-list-fn]
   (let [set-all! #(.setAll ^ObservableList (get-list-fn %1) ^Collection %2)]
@@ -149,6 +140,34 @@
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created focus-when-on-scene!
    :desc desc})
+
+(def ^{:arglists '([props])} slider
+  "Slider component with a guard for JavaFX SliderSkin drag events that did not start on the thumb."
+  (let [drag-start-guard-prop
+        (fx/make-binding-prop
+          (fn bind-drag-start-guard [^Slider slider _]
+            ;; The event handlers need the ^EventHandler hints: without them, every
+            ;; interop call site coerces the fn into a fresh adapter, and the filters
+            ;; can no longer be removed.
+            (let [thumb-pressed (volatile! false)
+                  ^EventHandler on-thumb-pressed  (fn on-thumb-pressed [_] (vreset! thumb-pressed true))
+                  ^EventHandler on-thumb-released (fn on-thumb-released [_] (vreset! thumb-pressed false))
+                  ^EventHandler on-thumb-dragged  (fn on-thumb-dragged [^Event event] (when-not @thumb-pressed (.consume event)))]
+              (.setSkin slider (SliderSkin. slider))
+              (when-let [^Node thumb (.lookup slider ".thumb")]
+                (doto thumb
+                  (.addEventFilter MouseEvent/MOUSE_PRESSED on-thumb-pressed)
+                  (.addEventFilter MouseEvent/MOUSE_RELEASED on-thumb-released)
+                  (.addEventFilter MouseEvent/MOUSE_DRAGGED on-thumb-dragged))
+                #(doto thumb
+                   (.removeEventFilter MouseEvent/MOUSE_PRESSED on-thumb-pressed)
+                   (.removeEventFilter MouseEvent/MOUSE_RELEASED on-thumb-released)
+                   (.removeEventFilter MouseEvent/MOUSE_DRAGGED on-thumb-dragged)))))
+          fx.lifecycle/scalar)]
+    (fn slider [props]
+      (assoc props
+        :fx/type fx.slider/lifecycle
+        drag-start-guard-prop true))))
 
 (def ext-with-advance-events
   "Extension lifecycle that notifies all listeners even during advancing
@@ -215,9 +234,6 @@
             {})
    :desc scroll-pane-desc})
 
-(def child-instance-meta
-  {`fx.component/instance #(-> % :child fx.component/instance)})
-
 (def ext-map-event-handler
   "Extension lifecycle that injects a map-event handler into wrapped desc
 
@@ -235,40 +251,6 @@
       (fx.lifecycle/advance fx.lifecycle/dynamic component (assoc desc key (:fx.opt/map-event-handler opts)) opts))
     (delete [_ component opts]
       (fx.lifecycle/delete fx.lifecycle/dynamic component opts))))
-
-(def ext-memo
-  "Extension lifecycle similar to react's useMemo hook
-
-  The result of invoking :fn with :args will be memoized in the cljfx tree and
-  supplied as a value at :key to the child :desc
-
-  Expected props (all required):
-    :fn      function that will be invoked to produce a memoized value
-    :args    a vector of args to the function
-    :key     a key that will be used to assoc memoized value into a child desc
-    :desc    description of the underlying component"
-  (reify fx.lifecycle/Lifecycle
-    (create [_ {:keys [fn args key desc]} opts]
-      (let [value (apply fn args)]
-        (with-meta {:fn fn
-                    :args args
-                    :value value
-                    :child (fx.lifecycle/create fx.lifecycle/dynamic (assoc desc key value) opts)}
-                   child-instance-meta)))
-    (advance [_ component {:keys [fn args key desc]} opts]
-      (if (and (= (:fn component) fn)
-               (= (:args component) args))
-        (update component :child #(fx.lifecycle/advance
-                                    fx.lifecycle/dynamic
-                                    %
-                                    (assoc desc key (:value component))
-                                    opts))
-        (let [value (apply fn args)]
-          (-> component
-              (assoc :fn fn :args args :value value)
-              (update :child #(fx.lifecycle/advance fx.lifecycle/dynamic % (assoc desc key value) opts))))))
-    (delete [_ component opts]
-      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
 
 (defn make-event-filter-prop
   "Creates a prop-config that will add event filter for specified `event-type`
@@ -337,7 +319,7 @@
       (with-meta
         {:desc desc
          :child (fx.lifecycle/create lifecycle desc opts)}
-        child-instance-meta))
+        ui/child-instance-meta))
     (advance [_ component desc opts]
       (if (= desc (:desc component))
         component
@@ -358,7 +340,7 @@
       (with-meta
         {:desc desc
          :child (fx.lifecycle/create fx.lifecycle/dynamic desc opts)}
-        child-instance-meta))
+        ui/child-instance-meta))
     (advance [_ component {:keys [desc]} opts]
       (if (identical? desc (:desc component))
         component
@@ -427,6 +409,15 @@
     (mount-renderer-and-await-result! state-atom renderer)))
 
 (defn show-stateless-dialog-and-await-result!
+  "Creates a dialog, shows it and blocks the current thread until the dialog
+  delivers a result, then returns it
+
+  Args:
+    desc-fn    required, 1-argument fn that receives a `result-fn` and returns
+               an fx description of a dialog stage.
+
+  The dialog completes by calling `result-fn` with the result value, which
+  closes the stage and makes this fn return that value."
   [desc-fn]
   (let [event-loop-key (Object.)
         result-promise (promise)
@@ -467,7 +458,7 @@
                         owner
 
                         :else
-                        {:fx/type ext-value
+                        {:fx/type ui/ext-value
                          :value owner}))
         (util/provide-defaults
           :resizable false
@@ -981,16 +972,14 @@
           props
           (if-let [style-class (padding->style-class padding)]
             (-> props (dissoc :padding) (add-style-classes style-class))
-            (if (number? padding)
-              props
-              (throw (AssertionError. (str "Invalid padding: " padding))))))))))
+            props))))))
 
 (defn grid
   "Grid pane
 
   Supports all :grid-pane props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -1004,7 +993,7 @@
 
   Supports all :h-box props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -1018,7 +1007,7 @@
 
   Supports all :v-box props, plus:
     :alignment    additionally supports :top, :left, :right and :bottom
-    :padding      either :none, :small, :medium, :large or number
+    :padding      additionally supports :none, :small, :medium and :large
     :spacing      either :none, :small, :medium, :large or number"
   [props]
   (-> props
@@ -1392,7 +1381,7 @@
     (str (f v))))
 
 (defn- value-field-impl-stringify-step [props]
-  {:fx/type ext-memo
+  {:fx/type ui/ext-memo
    :fn stringify-value
    :args [(:to-string props str) (-> props :state :value)]
    :key :text
@@ -1490,55 +1479,66 @@
     :on-value-changed      value change callback
     :ignore-alpha          whether the view should ignore the alpha, default
                            false
-    :color-dropper-view    node id of a color dropper component, enables color
-                           dropper if provided
+    :color-dropper         whether to show the color dropper, default true
     :prefs                 if provided, loads/persists custom colors
     :color                 either :warning or :error"
-  [{:keys [value on-value-changed ignore-alpha color-dropper-view prefs editable]
-    :or {editable true}
+  [{:keys [value on-value-changed ignore-alpha color-dropper prefs editable on-dropper-activated on-dropper-deactivated]
+    :or {color-dropper true
+         editable true}
     :as props}]
-  (-> props
-      (dissoc :value :on-value-changed :ignore-alpha :color-dropper-view :prefs :editable)
-      (assoc
-        :fx/type horizontal
-        :style-class "ext-color-picker"
-        :children [(cond->
-                     {:fx/type value-field
-                      :style-class "ext-color-picker-field"
-                      :h-box/hgrow :always
-                      :to-string (fn/partial color->web-string ignore-alpha)
-                      :to-value (fn/partial web-string->color ignore-alpha)
-                      :on-invalid-value on-color-picker-invalid-value
-                      :editable editable
-                      :value value
-                      :on-value-changed on-value-changed}
-                     (and color-dropper-view editable)
-                     (assoc
-                       :hover-overlay
-                       {:fx/type hover-overlay
-                        :alignment :right
-                        :padding 4
-                        :content
-                        (cond->
-                          {:fx/type fx.pane/lifecycle
-                           :style-class "color-dropper-icon"
-                           :children [{:fx/type ui/image-icon
-                                       :path "icons/32/Icons_M_03_colorpicker.png"
-                                       :size 16.0}]
-                           :on-mouse-pressed on-color-dropper-mouse-pressed}
-                          on-value-changed
-                          (assoc :on-mouse-clicked #(color-dropper/activate! color-dropper-view on-value-changed %)))}))
-                   (cond-> {:fx/type fx.color-picker/lifecycle
-                            :focus-traversable false
-                            :disable (not editable)
-                            :style-class "ext-color-picker-icon"
-                            :on-shown handle-color-picker-shown
-                            :on-hidden handle-color-picker-hidden}
-                           value (assoc :value value)
-                           on-value-changed (assoc :on-value-changed on-value-changed)
-                           prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
-                                        :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))])
-      resolve-input-color))
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [^Node node]
+                 (ui/user-data! node ::color-dropper-key (color-dropper/make-color-dropper!)))
+   :on-deleted (fn [^Node node]
+                 (when-let [color-dropper (ui/user-data node ::color-dropper-key)]
+                   (color-dropper/deactivate! color-dropper)
+                   (ui/user-data! node ::color-dropper-key nil)))
+   :desc
+   (-> props
+       (dissoc :value :on-value-changed :ignore-alpha :color-dropper :prefs :editable :on-dropper-activated :on-dropper-deactivated)
+       (assoc
+         :fx/type horizontal
+         :style-class "ext-color-picker"
+         :children [(cond->
+                      {:fx/type value-field
+                       :style-class "ext-color-picker-field"
+                       :h-box/hgrow :always
+                       :to-string (fn/partial color->web-string ignore-alpha)
+                       :to-value (fn/partial web-string->color ignore-alpha)
+                       :on-invalid-value on-color-picker-invalid-value
+                       :editable editable
+                       :value value
+                       :on-value-changed on-value-changed}
+                      (and color-dropper on-value-changed editable)
+                      (assoc
+                        :hover-overlay
+                        {:fx/type hover-overlay
+                         :alignment :right
+                         :padding 4
+                         :content
+                         {:fx/type fx.pane/lifecycle
+                          :style-class "color-dropper-icon"
+                          :children [{:fx/type ui/image-icon
+                                      :path "icons/32/Icons_M_03_colorpicker.png"
+                                      :size 16.0}]
+                          :on-mouse-pressed on-color-dropper-mouse-pressed
+                          :on-mouse-clicked (fn [^MouseEvent event]
+                                              (let [source (.getSource event)]
+                                                (when (instance? Node source)
+                                                  (when-let [node (ui/closest-node-with-style "ext-color-picker" source)]
+                                                    (when-let [color-dropper (ui/user-data node ::color-dropper-key)]
+                                                      (color-dropper/activate! color-dropper on-value-changed on-dropper-activated on-dropper-deactivated event))))))}}))
+                    (cond-> {:fx/type fx.color-picker/lifecycle
+                             :focus-traversable false
+                             :disable (not editable)
+                             :style-class "ext-color-picker-icon"
+                             :on-shown handle-color-picker-shown
+                             :on-hidden handle-color-picker-hidden}
+                            value (assoc :value value)
+                            on-value-changed (assoc :on-value-changed on-value-changed)
+                            prefs (assoc :custom-colors (prefs/get prefs saved-colors-prefs-path)
+                                         :on-custom-colors-changed #(prefs/set! prefs saved-colors-prefs-path (mapv color->web-string %))))])
+       resolve-input-color)})
 
 (def ^:private ext-with-expanded-scroll-pane-content-props
   (fx/make-ext-with-props
@@ -1592,41 +1592,6 @@
                     (prepend-style-classes "ext-scroll-pane")
                     (util/provide-defaults :fit-to-width true))}})
 
-(defmacro defc
-  "Define a composed component
-
-  Requires attr-map with :compose vector that contains a flat list of extension
-  lifecycles that requires :desc, and passes extra props to the desc — but
-  without the :desc specified. The resulting component is a composition of such
-  lifecycles
-
-  Example:
-    (fxui/defc stateful-text-field
-      {:compose [{:fx/type fx/ext-state
-                  :initial-state \"\"}]}
-      [{:keys [state swap-state]}]
-      {:fx/type fxui/text-field
-       :text state
-       :on-text-changed #(swap-state (constantly %)})"
-  [name attr-map & fn-tail]
-  (let [{:keys [compose]} attr-map]
-    (assert (vector? compose) "defc requires the attr-map to define a :compose key")
-    `(do
-       ~@(let [n (count compose)]
-           (loop [i (dec n)
-                  acc-name (if (zero? n) name (symbol (str name "$phase-" n)))
-                  acc [`(defn ~acc-name ~@fn-tail)]]
-             (if (neg? i)
-               acc
-               (let [def-name (if (zero? i) name (symbol (str name "$phase-" i)))]
-                 (recur
-                   (dec i)
-                   def-name
-                   (let [ext (compose i)]
-                     (conj acc
-                           `(defn ~def-name [~'props]
-                              ~(assoc ext :desc `(assoc ~'props :fx/type ~acc-name)))))))))))))
-
 (defn paragraph
   "Resizable label with word-wrapping
 
@@ -1667,7 +1632,7 @@
                     :message message
                     :child component
                     :object object}
-                   child-instance-meta)))
+                   ui/child-instance-meta)))
     (advance [_ component {:keys [localization message desc object-fn]} opts]
       (let [component (update component :child #(fx.lifecycle/advance fx.lifecycle/dynamic % desc opts))
             object (cond-> (fx.component/instance component) object-fn object-fn)
@@ -1686,19 +1651,6 @@
     (delete [_ component opts]
       (localization/unlocalize! (fx/instance component) (:localization component))
       (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
-
-(defn- advance-user-data-component! [target user-data user-data! key desc]
-  (let [component (user-data target key)]
-    (cond
-      (and component desc) (user-data! target key (fx/advance-component component desc))
-      component (do (fx/delete-component component) (user-data! target key nil))
-      desc (user-data! target key (fx/create-component desc)))))
-
-(defn advance-graph-user-data-component! [view-node key desc]
-  (advance-user-data-component! view-node g/user-data g/user-data! key desc))
-
-(defn advance-ui-user-data-component! [javafx-node key desc]
-  (advance-user-data-component! javafx-node ui/user-data ui/user-data! key desc))
 
 (def ext-error-boundary
   "Extension lifecycle that captures all lifecycle errors
@@ -1720,7 +1672,7 @@
               {:child (fx.lifecycle/create fx.lifecycle/dynamic (assoc (:catch this-desc) :exception e :caught true) opts)
                :exception e
                :desc desc}))
-          child-instance-meta)))
+          ui/child-instance-meta)))
     (advance [this component this-desc opts]
       (let [desc (:desc this-desc)]
         (if-let [e (:exception component)]
@@ -1736,7 +1688,7 @@
                 {:child (fx.lifecycle/create fx.lifecycle/dynamic (assoc (:catch this-desc) :exception e :caught true) opts)
                  :exception e
                  :desc desc}
-                child-instance-meta))))))
+                ui/child-instance-meta))))))
     (delete [_ component opts]
       (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
 

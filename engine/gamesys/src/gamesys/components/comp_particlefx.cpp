@@ -601,8 +601,6 @@ namespace dmGameSystem
 
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
-        ParticleFXWorld* pfx_world = (ParticleFXWorld*)params.m_UserData;
-
         for (uint32_t i = 0; i < params.m_NumEntries; ++i)
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];

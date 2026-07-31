@@ -328,6 +328,7 @@ namespace dmPlatform
         glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
+        glfwWindowHint(GLFW_FOCUS_ON_SHOW, params.m_FocusOnShow ? GLFW_TRUE : GLFW_FALSE);
         glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
         window->m_FullscreenWindowed = 0;
 
@@ -349,7 +350,7 @@ namespace dmPlatform
 
         if (res == WINDOW_RESULT_OK)
         {
-            if (!params.m_Hidden)
+            if (!params.m_Hidden && params.m_FocusOnShow)
             {
                 FocusWindowNative(window);
             }
@@ -358,7 +359,7 @@ namespace dmPlatform
 
             const bool windowed = glfwGetWindowMonitor(window->m_Window) == NULL && !window->m_FullscreenWindowed;
 
-            if (!params.m_Hidden && window->m_FullscreenWindowed)
+            if (!params.m_Hidden && params.m_FocusOnShow && window->m_FullscreenWindowed)
             {
                 SetWindowedFullscreenFocusNative(window, true);
             }
@@ -405,6 +406,8 @@ namespace dmPlatform
             window->m_HighDPI                 = params.m_HighDPI;
             window->m_Samples                 = params.m_Samples;
             window->m_WindowOpened            = 1;
+
+            InstallWindowCloseHandlerNative(window);
         }
 
         return res;
@@ -417,12 +420,13 @@ namespace dmPlatform
 
     void CloseWindow(HWindow window)
     {
+        UninstallWindowCloseHandlerNative(window);
         glfwDestroyWindow(window->m_Window);
         if (window->m_AuxWindow)
             glfwDestroyWindow(window->m_AuxWindow);
     }
 
-    void PollEvents(HWindow window)
+    void PollEvents(HWindow)
     {
         glfwPollEvents();
     }

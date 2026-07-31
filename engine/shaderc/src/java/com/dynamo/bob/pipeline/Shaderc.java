@@ -226,7 +226,8 @@ public class Shaderc {
     public enum ShaderCompilerPlatform {
         SHADER_COMPILER_PLATFORM_DEFAULT(0),
         SHADER_COMPILER_PLATFORM_MACOS(1),
-        SHADER_COMPILER_PLATFORM_IOS(2);
+        SHADER_COMPILER_PLATFORM_IOS(2),
+        SHADER_COMPILER_PLATFORM_XBONE(3);
         private final int value;
         private ShaderCompilerPlatform(int value) {
             this.value = value;
@@ -253,6 +254,9 @@ public class Shaderc {
         public byte no420PackExtension = 0;
         public byte glslEmitUboAsPlainUniforms = 0;
         public byte glslEs = 0;
+        public String externalCompilerPath;
+        public String externalCompilerArgs;
+        public String rootSignatureOverride;
     };
     public static class ResourceType {
         public BaseType baseType = BaseType.BASE_TYPE_UNKNOWN;

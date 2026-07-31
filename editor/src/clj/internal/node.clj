@@ -16,21 +16,28 @@
   (:require [clojure.pprint :as pp]
             [clojure.set :as set]
             [clojure.string :as str]
-            [internal.util :as util]
             [internal.cache :as c]
-            [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
+            [internal.graph.types :as gt]
+            [internal.util :as util]
             [plumbing.core :as pc]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
+            [util.defonce :as defonce]
             [util.fn :as fn])
-  (:import [internal.graph.error_values ErrorValue]
-           [schema.core Maybe ConditionalSchema]
-           [java.lang.ref WeakReference]))
+  (:import [clojure.lang IDeref IPersistentMap Named]
+           [internal.graph.error_values ErrorValue]
+           [java.lang.ref WeakReference]
+           [schema.core ConditionalSchema Maybe]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:dynamic *check-schemas* (get *compiler-options* :defold/check-schemas (and *assert* (not (Boolean/getBoolean "defold.schema.check.disable")))))
+
+(defmacro when-check-schemas [& body]
+  (when *check-schemas*
+    `(when ~`*check-schemas* ; Inner check to support disabling the schema check post compile-time.
+       ~@body)))
 
 (defn trace-expr [node-id label evaluation-context label-type deferred-expr]
   (if-let [tracer (:tracer evaluation-context)]
@@ -61,18 +68,18 @@
   ([evaluation-context-sym expr dry-expr]
    `(if-not (:dry-run ~evaluation-context-sym) ~expr ~dry-expr)))
 
-(prefer-method pp/code-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
-(prefer-method pp/simple-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
+(prefer-method pp/code-dispatch IPersistentMap IDeref)
+(prefer-method pp/simple-dispatch IPersistentMap IDeref)
 
-(defprotocol Ref
+(defonce/protocol Ref
   (ref-key [this]))
 
 (defn ref? [x] (and x (extends? Ref (class x))))
 
-(defprotocol Type)
+(defonce/protocol Type)
 
 (defn- type? [x] (and (extends? Type (class x)) x))
-(defn- named? [x] (instance? clojure.lang.Named x))
+(defn- named? [x] (instance? Named x))
 
 ;;; ----------------------------------------
 ;;; Node type definition
@@ -87,15 +94,15 @@
 (def ^:private unjammable?         (partial has-flag? :unjammable))
 (def ^:private explicit?           (partial has-flag? :explicit))
 
-(defprotocol NodeType)
+(defonce/protocol NodeType)
 
 (defn node-type-deref? [x] (satisfies? NodeType x))
 
-(defrecord NodeTypeRef [k]
+(defonce/record NodeTypeRef [k]
   Ref
   (ref-key [this] k)
 
-  clojure.lang.IDeref
+  IDeref
   (deref [this]
     (node-type-resolve k)))
 
@@ -105,7 +112,7 @@
 (defn inherits? [^NodeTypeRef node-type ^NodeTypeRef node-supertype]
   (isa? (:key @node-type) (:key @node-supertype)))
 
-(defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior declared-property]
+(defonce/record NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior declared-property]
   NodeType
   Type)
 
@@ -128,7 +135,7 @@
 (defn input-dependencies       [nt]        (some-> nt deref :input-dependencies))
 (defn property-display-order   [nt]        (some-> nt deref :property-display-order))
 (defn cascade-deletes          [nt]        (some-> nt deref :cascade-deletes))
-(defn behavior                 [nt label]  (some-> nt deref (get-in [:behavior label])))
+(defn behavior                 [nt label]  (some-> nt deref :behavior (get label)))
 (defn property-behavior        [nt label]  (some-> nt deref (get-in [:property-behavior label])))
 (defn declared-property-labels [nt]        (some-> nt deref :declared-property))
 
@@ -149,6 +156,15 @@
   "Beware, more expensive than you might think."
   [nt]
   (into {} (filter (comp (declared-property-labels nt) key)) (all-properties nt)))
+
+(defn property-statics
+  [nt label]
+  (into {}
+        (keep (fn [[property-label property-info]]
+                (let [static-value (get (:statics property-info) label ::not-found)]
+                  (when-not (identical? ::not-found static-value)
+                    (pair property-label static-value)))))
+        (all-properties nt)))
 
 (defn abstract-output-labels [nt]
   (into #{}
@@ -210,12 +226,12 @@
 ;;; ----------------------------------------
 ;;; Value type definition
 
-(defprotocol ValueType
+(defonce/protocol ValueType
   (dispatch-value [this])
   (schema [this] "Returns a schema.core/Schema that can conform values of this type")
   (form [this] "Returns a Clojure form for producing the schema"))
 
-(defrecord SchemaType [dispatch-value schema]
+(defonce/record SchemaType [dispatch-value schema]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] schema)
@@ -223,7 +239,7 @@
 
   Type)
 
-(defrecord ClassType [dispatch-value ^Class class]
+(defonce/record ClassType [dispatch-value ^Class class]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] class)
@@ -231,7 +247,7 @@
 
   Type)
 
-(defrecord ProtocolType [dispatch-value schema form]
+(defonce/record ProtocolType [dispatch-value schema form]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] schema)
@@ -248,11 +264,11 @@
 
 (defn- value-type-registry [] @value-type-registry-ref)
 
-(defrecord ValueTypeRef [k]
+(defonce/record ValueTypeRef [k]
   Ref
   (ref-key [this] k)
 
-  clojure.lang.IDeref
+  IDeref
   (deref [this]
     (value-type-resolve k)))
 
@@ -288,7 +304,7 @@
   ;; TODO(save-value-cleanup): Figure out why we have so much wrapping from (default ...) declarations.
   (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {}) util/var-get-recursive))
 
-(defn- defaults-raw [node-type-deref]
+(defn- node-type-deref-defaults-raw [node-type-deref]
   (assert (satisfies? NodeType node-type-deref))
   (let [declared-property-labels (:declared-property node-type-deref)]
     (into {}
@@ -298,14 +314,64 @@
                           (prop-info-default prop-info)))))
           (:property node-type-deref))))
 
-(def defaults
-  "Return a map of default values for the node type."
-  (comp (fn/memoize defaults-raw) deref))
+(def ^{:private true
+       :arglists '([node-type-deref])}
+  node-type-deref-defaults
+  (fn/memoize node-type-deref-defaults-raw))
+
+(defn defaults
+  "Return a map of {prop-kw default-value} for the node-type. The map includes
+  all declared properties, not only the ones with (default ...) clauses."
+  [node-type]
+  (node-type-deref-defaults @node-type))
+
+(defn- node-type-deref-ordered-property-setter-infos-raw [node-type-deref]
+  {:pre [(node-type-deref? node-type-deref)]}
+  ;; :property-order-decl is not merged by the merge-supertypes function, so we
+  ;; compile a declaration-order that includes inherited properties ourselves.
+  (let [prop-kws-in-declaration-order
+        (reduce (fn [prop-kws supertype]
+                  (into prop-kws
+                        (remove (set prop-kws))
+                        (:property-order-decl @supertype)))
+                (:property-order-decl node-type-deref)
+                (:supertypes node-type-deref))
+
+        prop-kw->prop-info (:property node-type-deref)
+        prop-kw->default-value (node-type-deref-defaults node-type-deref)]
+
+    (coll/into-> prop-kws-in-declaration-order []
+      (keep (fn [prop-kw]
+              (when (some-> prop-kw prop-kw->prop-info :setter :fn)
+                (let [default-value (prop-kw->default-value prop-kw)]
+                  (pair prop-kw default-value))))))))
+
+(def ^{:private true
+       :arglists '([node-type-deref])}
+  node-type-deref-ordered-property-setter-infos
+  (fn/memoize node-type-deref-ordered-property-setter-infos-raw))
+
+(defn ordered-property-setter-infos
+  "Return a vector of property-setter-infos that can be used to invoke property
+  setters during construction. The property-setter-infos are listed in the
+  order the properties are declared in the defnode expression. Each element is a
+  pair of [prop-kw default-value]."
+  [node-type]
+  (node-type-deref-ordered-property-setter-infos @node-type))
 
 ;;; ----------------------------------------
 ;;; Construction support
 
-(defrecord NodeImpl [_node-id node-type]
+(defn throw-clear-property-disallowed-exception! [node-type property-label]
+  (throw
+    (ex-info
+      (format "Not possible to clear property %s of node-type %s since the node is not an override."
+              property-label
+              (:k node-type))
+      {:label property-label
+       :node-type node-type})))
+
+(defonce/record NodeImpl [_node-id node-type]
   gt/Node
   (node-id [_] _node-id)
 
@@ -339,10 +405,7 @@
 
   gt/OverrideNode
   (clear-property [this basis property]
-    (throw (ex-info (str "Not possible to clear property " property
-                         " of node type " (:name @node-type)
-                         " since the node is not an override")
-                    {:label property :node-type node-type})))
+    (throw-clear-property-disallowed-exception! node-type property))
 
   (original [this]
     nil)
@@ -352,24 +415,6 @@
 
   (override-id [this]
     nil))
-
-(defn- args-without-properties [node-type-ref args]
-  (set/difference
-    (util/key-set args)
-    (util/key-set (:property (deref node-type-ref)))))
-
-(defn construct
-  [node-type-ref args]
-  (assert (and node-type-ref (deref node-type-ref)))
-  (assert (or (nil? args) (map? args)))
-  (assert (empty? (args-without-properties node-type-ref args))
-          (str "You have given values for properties "
-               (args-without-properties node-type-ref args)
-               ", but those don't exist on nodes of type "
-               (:k node-type-ref)))
-  (coll/merge
-    (->NodeImpl nil node-type-ref)
-    args))
 
 ;;; ----------------------------------------
 ;;; Evaluating outputs
@@ -500,21 +545,24 @@
   ;; nil values.
   (:schema property-schema)) ; Maybe -> Declared
 
-(defn- warn-declared-schema [node-id label node-type-name value declared-schema error]
-  (println "Schema validation failed for output" label "on" node-type-name node-id)
-  (println "Output value:" (pr-str value))
+(defn- warn-declared-schema-impl [value declared-schema error]
+  (println "Value:" (pr-str value))
   (println "Should match:" (s/explain declared-schema))
   (println "But:" (pr-str error)))
 
 (defn warn-output-schema [node-id label node-type-name value output-schema error]
   (when-not *suppress-schema-warnings*
     (let [declared-schema (output-schema->declared-schema output-schema)]
-      (warn-declared-schema node-id label node-type-name value declared-schema error))))
+      (println "Schema validation failed for output" label "on" node-type-name node-id)
+      (warn-declared-schema-impl value declared-schema error))))
 
 (defn warn-property-schema [node-id label node-type-name value output-schema error]
   (when-not *suppress-schema-warnings*
     (let [declared-schema (property-schema->declared-schema output-schema)]
-      (warn-declared-schema node-id label node-type-name value declared-schema error))))
+      (if node-id
+        (println "Schema validation failed for property" label "on" node-type-name node-id)
+        (println "Schema validation failed for property" label "default in" node-type-name))
+      (warn-declared-schema-impl value declared-schema error))))
 
 ;;; ----------------------------------------
 ;; Type checking
@@ -555,6 +603,71 @@
           (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
           (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
           (and (instance? ConditionalSchema input-schema) (some #(type-compatible? output-schema %) (map second (:preds-and-schemas input-schema))))))))
+
+(defn validate-property-value-impl [node-type-deref node-id property-label property-value]
+  (let [property-label->prop-info (:property node-type-deref)
+        {:keys [flags value-type]} (property-label->prop-info property-label)
+        element-type (some-> value-type deref schema)
+        value-type (when element-type
+                     (s/maybe (if (contains? flags :collection)
+                                [element-type]
+                                element-type)))
+        validation-error (some-> value-type (s/check property-value))]
+    (when validation-error
+      (let [node-type-name (:name node-type-deref)]
+        (warn-property-schema node-id property-label node-type-name property-value value-type validation-error)
+        (throw
+          (ex-info
+            "SCHEMA-VALIDATION"
+            {:node-id node-id
+             :type node-type-name
+             :property property-label
+             :expected value-type
+             :actual property-value
+             :validation-error validation-error}))))))
+
+(defmacro validate-property-value [node-type-ref node-id property-label property-value]
+  `(when-check-schemas
+     (validate-property-value-impl (deref ~node-type-ref) ~node-id ~property-label ~property-value)))
+
+(defn validate-property-labels-impl [node-type-deref property-values]
+  (let [unknown-property-labels
+        (set/difference
+          (util/key-set property-values)
+          (util/key-set (:property node-type-deref)))]
+
+    (assert (coll/empty? unknown-property-labels)
+            (str "You have given values for properties "
+                 unknown-property-labels
+                 ", but those don't exist on nodes of type "
+                 (:name node-type-deref)))))
+
+(defmacro validate-property-labels [node-type-ref property-values]
+  (when *assert*
+    `(when *assert*
+       (validate-property-labels-impl (deref ~node-type-ref) ~property-values))))
+
+(defn validate-property-values-impl [node-type-deref node-id property-values]
+  (coll/reduce-kv-> property-values nil
+    (fn [_ property-label property-value]
+      (validate-property-value-impl node-type-deref node-id property-label property-value))))
+
+(defmacro validate-property-values [node-type-ref node-id property-values]
+  `(when-check-schemas
+     (validate-property-values-impl (deref ~node-type-ref) ~node-id ~property-values)))
+
+;;; ----------------------------------------
+;;; Construction
+
+(defn construct
+  [node-type-ref args]
+  (assert (and node-type-ref (deref node-type-ref)))
+  (assert (or (nil? args) (map? args)))
+  (validate-property-labels node-type-ref args)
+  (validate-property-values node-type-ref (:_node-id args) args)
+  (coll/merge
+    (->NodeImpl nil node-type-ref)
+    args))
 
 ;;; ----------------------------------------
 ;;; Node type implementation
@@ -700,6 +813,18 @@
         collisions (set/intersection inputs properties)]
     (assert (empty? collisions) (str "inputs and properties can not be overloaded (problematic fields: " (str/join "," (map #(str "'" (name %) "'") collisions)) ")")))
   description)
+
+(defn verify-property-defaults-impl
+  [description]
+  (doseq [[property-label prop-info] (:property description)]
+    (when-some [property-default-value (prop-info-default prop-info)]
+      (validate-property-value-impl description nil property-label property-default-value)))
+  description)
+
+(defmacro verify-property-defaults
+  [description]
+  `(when-check-schemas
+     (verify-property-defaults-impl ~description)))
 
 (defn- invert-map
   [m]
@@ -887,6 +1012,10 @@
   (assert-symbol "dynamic" label) ; "dynamic" argument is for debug printing
   {:dynamics {(keyword label) {:fn (maybe-macroexpand forms)}}})
 
+(defmethod process-property-form 'static [[_ label form]]
+  (assert-symbol "static" label)
+  {:statics {(keyword label) form}})
+
 (defmethod process-property-form 'value [[_ form]]
   {:value {:fn (maybe-macroexpand form)}})
 
@@ -918,7 +1047,7 @@
         register-type-info (:register-type-info propdef)
         propdef (dissoc propdef :register-type-info)
         prop-value-fn (-> propdef :value :fn)
-        outdef (cond-> (dissoc propdef :setter :dynamics :value :default)
+        outdef (cond-> (dissoc propdef :setter :dynamics :statics :value :default)
 
                        (some? prop-value-fn)
                        (assoc :fn prop-value-fn)
@@ -1598,8 +1727,8 @@
          (let [~node-id-sym (gt/node-id ~node-sym)]
            ~(check-jammed-form description label node-sym node-id-sym label-sym evaluation-context-sym
               (apply-default-property-shortcut-form description label node-sym node-id-sym label-sym evaluation-context-sym
-                (mark-in-production-form node-id-sym label-sym evaluation-context-sym
-                  (check-caches-form description label node-id-sym label-sym evaluation-context-sym
+                (check-caches-form description label node-id-sym label-sym evaluation-context-sym
+                  (mark-in-production-form node-id-sym label-sym evaluation-context-sym
                     (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym tracer-label-type
                       (gather-arguments-form description label node-sym node-id-sym evaluation-context-sym arguments-sym
                         (call-production-function-form description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym
@@ -1648,14 +1777,18 @@
           evaluation-context-sym 'evaluation-context
           value-map-sym 'value-map
           node-id-sym 'node-id
+          result-sym 'result
           display-order-sym 'display-order]
       `(fn [~node-sym ~label-sym ~evaluation-context-sym]
-         (let [~node-id-sym (gt/node-id ~node-sym)
-               ~display-order-sym (property-display-order (gt/node-type ~node-sym))
-               ~value-map-sym ~(apply merge {}
-                                      (for [[p _] (remove (comp intrinsic-properties key) props)]
-                                        {p (property-value-exprs description p node-sym node-id-sym evaluation-context-sym (get props p))}))]
-           ~(check-dry-run-form evaluation-context-sym (assemble-properties-map-form node-id-sym value-map-sym display-order-sym)))))))
+         (let [~node-id-sym (gt/node-id ~node-sym)]
+           ~(check-caches-form description :_declared-properties node-id-sym label-sym evaluation-context-sym
+              (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :output
+                `(let [~display-order-sym (property-display-order (gt/node-type ~node-sym))
+                       ~value-map-sym ~(apply merge {}
+                                              (for [[p _] (remove (comp intrinsic-properties key) props)]
+                                                {p (property-value-exprs description p node-sym node-id-sym evaluation-context-sym (get props p))}))
+                       ~result-sym ~(check-dry-run-form evaluation-context-sym (assemble-properties-map-form node-id-sym value-map-sym display-order-sym))]
+                   ~(cache-result-form description :_declared-properties node-id-sym label-sym evaluation-context-sym result-sym result-sym)))))))))
 
 (defn- node-input-value-function-form
   [description input]
@@ -1678,7 +1811,7 @@
 ;;; ----------------------------------------
 ;;; Overrides
 
-(defrecord OverrideNode [override-id node-id node-type original-id properties]
+(defonce/record OverrideNode [override-id node-id node-type original-id properties]
   gt/Node
   (node-id [this] node-id)
   (node-type [this] node-type)
@@ -1700,82 +1833,105 @@
     (let [basis (:basis evaluation-context)]
       (cond
         (= :_node-id output)
-        node-id
+        (trace-expr-result node-id output evaluation-context :raw-property node-id)
 
         (or (= :_declared-properties output)
             (= :_properties output))
-        (let [beh (behavior node-type output)
-              props ((:fn beh) this output evaluation-context)
-              original (gt/node-by-id-at basis original-id)
-              orig-props (:properties (gt/produce-value original output evaluation-context))
-              declared? (partial contains? (all-properties node-type))]
-          (when-not (:dry-run evaluation-context)
-            (let [;; Values for undeclared properties must be manually propagated from the original.
-                  props-with-inherited-override-values
-                  (if (= :_declared-properties output)
-                    (:properties props)
-                    (reduce-kv (fn [props prop-kw orig-prop]
-                                 (if (and (::propagate? orig-prop)
-                                          (= original-id (:node-id orig-prop))
-                                          (not (declared? prop-kw)))
-                                   (update props prop-kw assoc :value (:value orig-prop) ::propagate? true)
-                                   props))
-                               (:properties props)
-                               orig-props))
+        (trace-expr
+          node-id
+          output
+          evaluation-context
+          :output
+          (fn []
+            (let [tracer (:tracer evaluation-context)
 
-                  ;; Overrides of undeclared properties must be manually applied.
-                  props-with-override-values
-                  (if (= :_declared-properties output)
-                    props-with-inherited-override-values
-                    (reduce-kv (fn [props prop-kw override-value]
-                                 (if (declared? prop-kw)
-                                   props
-                                   (let [prop-type (get-in props [prop-kw :type])
-                                         prop-schema (prop-type->schema prop-type)
-                                         compatible-value? (comp nil? (partial s/check prop-schema))]
-                                     (if (compatible-value? override-value)
-                                       (update props prop-kw assoc :value override-value ::propagate? true)
-                                       props))))
-                               props-with-inherited-override-values
-                               properties))
+                  evaluation-context
+                  (if-not tracer
+                    evaluation-context
+                    (assoc evaluation-context
+                      :tracer
+                      (fn [state traced-node-id output-type traced-label]
+                        (when-not (and (= :output output-type)
+                                       (= node-id traced-node-id)
+                                       (= output traced-label))
+                          (tracer state traced-node-id output-type traced-label)))))
 
-                  ;; Assoc :original-value from original property entries.
-                  ;; If your produced property does not make use of the
-                  ;; properties map of the node you're evaluating :_properties
-                  ;; on, it must set :assoc-original-value? to true in the
-                  ;; produced property to set the :original-value here.
-                  props-with-overrides-and-original-values
-                  (reduce-kv (fn [props prop-kw orig-prop]
-                               (let [prop (get props prop-kw)
+                  beh (behavior node-type output)
+                  original (gt/node-by-id-at basis original-id)
+                  orig-props (:properties (gt/produce-value original output evaluation-context))
+                  props ((:fn beh) this output evaluation-context)
+                  declared? (partial contains? (all-properties node-type))]
 
-                                     assoc-original-value
-                                     (cond
-                                       (nil? prop)
-                                       false
+              (when-not (:dry-run evaluation-context)
+                (let [;; Values for undeclared properties must be manually
+                      ;; propagated from the original.
+                      props-with-inherited-override-values
+                      (if (= :_declared-properties output)
+                        (:properties props)
+                        (reduce-kv (fn [props prop-kw orig-prop]
+                                     (if (and (::propagate? orig-prop)
+                                              (= original-id (:node-id orig-prop))
+                                              (not (declared? prop-kw)))
+                                       (update props prop-kw assoc :value (:value orig-prop) ::propagate? true)
+                                       props))
+                                   (:properties props)
+                                   orig-props))
 
-                                       (contains? properties prop-kw)
-                                       (:assoc-original-value? prop true)
+                      ;; Overrides of undeclared properties must be manually
+                      ;; applied.
+                      props-with-override-values
+                      (if (= :_declared-properties output)
+                        props-with-inherited-override-values
+                        (reduce-kv (fn [props prop-kw override-value]
+                                     (if (declared? prop-kw)
+                                       props
+                                       (let [prop-type (get-in props [prop-kw :type])
+                                             prop-schema (prop-type->schema prop-type)
+                                             compatible-value? (comp nil? (partial s/check prop-schema))]
+                                         (if (compatible-value? override-value)
+                                           (update props prop-kw assoc :value override-value ::propagate? true)
+                                           props))))
+                                   props-with-inherited-override-values
+                                   properties))
 
-                                       (not (declared? prop-kw))
-                                       (:assoc-original-value? prop false)
+                      ;; Assoc :original-value from original property entries.
+                      ;; If your produced property does not make use of the
+                      ;; properties map of the node you're evaluating
+                      ;; :_properties on, it must set :assoc-original-value? to
+                      ;; true in the produced property to set the
+                      ;; :original-value here.
+                      props-with-overrides-and-original-values
+                      (reduce-kv (fn [props prop-kw orig-prop]
+                                   (let [prop (get props prop-kw)
 
-                                       :else
-                                       false)]
-                                 (if assoc-original-value
-                                   (update props prop-kw assoc :original-value (:value orig-prop))
-                                   props)))
-                             props-with-override-values
-                             orig-props)]
-              (assoc props :properties props-with-overrides-and-original-values))))
+                                         assoc-original-value
+                                         (cond
+                                           (nil? prop)
+                                           false
+
+                                           (contains? properties prop-kw)
+                                           (:assoc-original-value? prop true)
+
+                                           (not (declared? prop-kw))
+                                           (:assoc-original-value? prop false)
+
+                                           :else
+                                           false)]
+                                     (if assoc-original-value
+                                       (update props prop-kw assoc :original-value (:value orig-prop))
+                                       props)))
+                                 props-with-override-values
+                                 orig-props)]
+                  (assoc props :properties props-with-overrides-and-original-values))))))
 
         (or (has-output? node-type output)
             (has-input? node-type output))
         (let [beh (behavior node-type output)]
           ((:fn beh) this output evaluation-context))
 
-        true
+        :else
         (if (contains? (all-properties node-type) output)
-          (get properties output)
+          (trace-expr-result node-id output evaluation-context :raw-property (get properties output))
           (when-some [node (gt/node-by-id-at basis original-id)]
             (gt/produce-value node output evaluation-context))))))
 
@@ -1786,4 +1942,5 @@
   (set-original [this original-id] (assoc this :original-id original-id)))
 
 (defn make-override-node [override-id node-id node-type original-id properties]
+  (validate-property-values node-type node-id properties)
   (->OverrideNode override-id node-id node-type original-id properties))

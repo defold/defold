@@ -27,6 +27,7 @@ PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-maco
 
 SENSITIVE_OPTIONS = (
     '--github-token',
+    '--token',
     '--gcloud-service-key',
     '--notarization-password',
 )
@@ -62,22 +63,6 @@ def call(args, failonerror = True):
 
     return output
 
-
-def platform_from_host():
-    system = platform.system()
-    machine = platform.machine()
-    if system == "Linux":
-        if machine == 'aarch64':
-            return "arm64-linux"
-        else:
-            return "x86_64-linux"
-    elif system == "Darwin":
-        if machine in ['aarch64', 'arm64']:
-            return "arm64-macos"
-        else:
-            return "x86_64-macos"
-    else:
-        return "x86_64-win32"
 
 def aptget(package):
     call("sudo apt-get install -y --no-install-recommends " + package)
@@ -144,8 +129,6 @@ def get_github_token():
     return os.environ.get('SERVICES_GITHUB_TOKEN', None)
 
 def install_linux(args):
-    host_platform = platform_from_host()
-
     # # we use apt-fast to speed up apt-get downloads
     # # https://github.com/ilikenwf/apt-fast
     # call("sudo add-apt-repository ppa:apt-fast/stable")
@@ -160,16 +143,22 @@ def install_linux(args):
     call("update-alternatives --display clang")
     call("update-alternatives --display clang++")
 
-    # libtinfo needed when building wasm-web
-    if host_platform == "arm64-linux":
-        call("wget http://ports.ubuntu.com/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_arm64.deb")
-        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_arm64.deb")
+    # Legacy ncurses 5 libraries needed when building wasm-web.
+    # Ubuntu 24.04/Noble runners no longer provide these package names in apt.
+    if platform.machine() in ('aarch64', 'arm64'):
+        ncurses_url = "http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2_arm64.deb"
+        libncurses_deb = "libncurses5_6.3-2_arm64.deb"
     else:
-        call("wget http://archive.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb")
-        call("sudo apt install ./libtinfo5_6.3-2ubuntu0.1_amd64.deb")
+        ncurses_url = "http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses"
+        libtinfo_deb = "libtinfo5_6.3-2ubuntu0.2_amd64.deb"
+        libncurses_deb = "libncurses5_6.3-2ubuntu0.2_amd64.deb"
+
+    call(f"wget {ncurses_url}/{libtinfo_deb} {ncurses_url}/{libncurses_deb}")
+    call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
 
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
-    clang_version = 17
+    clang_version = 20
     clang_path = "/usr/bin"
     clang_exe = f"/usr/bin/clang-{clang_version}" # installed on the recent GA runners
 
@@ -438,10 +427,12 @@ def test_bob(channel):
     call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
-def release(channel):
+def release(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
 
     token = get_github_token()
     if token:
@@ -450,10 +441,62 @@ def release(channel):
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
 
-def build_sdk(channel):
+# Channels that generate and ship editor release notes.
+RELEASE_NOTES_CHANNELS = ("alpha", "beta", "stable")
+
+# Channels where missing notes fail the release. Alpha builds continuously off an
+# in-progress board, so it ships notes best-effort rather than blocking a build.
+MANDATORY_RELEASE_NOTES_CHANNELS = ("beta", "stable")
+
+def gen_release_notes(channel):
+    if channel not in RELEASE_NOTES_CHANNELS:
+        print("Channel '%s' does not ship release notes - skipping" % channel)
+        return
+
+    version = open("VERSION").read().strip()
+    notes_md = os.path.join("releasenotes", "%s.md" % version)
+    notes_json = os.path.join("releasenotes", "%s.json" % version)
+
+    notes_md_exists = os.path.exists(notes_md)
+    notes_json_exists = os.path.exists(notes_json)
+
+    # Manually-authored notes win: if the files are already on disk, use them
+    # as-is and don't hit the API or overwrite them.
+    if notes_md_exists or notes_json_exists:
+        if not notes_md_exists:
+            raise Exception("%s already exists, but matching %s is missing" % (notes_json, notes_md))
+        if not notes_json_exists:
+            raise Exception("%s already exists, but matching %s is missing" % (notes_md, notes_json))
+        print("%s and %s already exist - using manually-authored notes as-is" % (notes_md, notes_json))
+        return
+
+    # Run the generator. It exits non-zero if it errors or can't confirm a fix is
+    # on the channel's release branch. --use-github-compare makes that check use
+    # the GitHub API, needed because CI clones are shallow.
+    mandatory = channel in MANDATORY_RELEASE_NOTES_CHANNELS
+    call('"%s" scripts/releasenotes_github_projectv2.py --version %s --channel %s --token %s --use-github-compare generate' % (
+        sys.executable, version, channel, get_github_token()),
+        failonerror = mandatory)
+
+    notes_md_exists = os.path.exists(notes_md)
+    notes_json_exists = os.path.exists(notes_json)
+    if mandatory:
+        if not notes_md_exists:
+            raise Exception("No release notes markdown produced for %s on channel '%s'" % (version, channel))
+        if not notes_json_exists:
+            raise Exception("No release notes JSON produced for %s on channel '%s'" % (version, channel))
+    elif notes_md_exists != notes_json_exists:
+        raise Exception("Incomplete release notes produced for %s on channel '%s'; expected both %s and %s" % (
+            version, channel, notes_md, notes_json))
+    elif not notes_json_exists:
+        print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
+
+def build_sdk(channel, platform=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
+    if platform:
+        cmd_opts.append("--platform=%s" % platform)
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
@@ -496,13 +539,17 @@ def release_settings_for_branch(branch):
 def should_release_branch(branch):
     return release_settings_for_branch(branch)[1]
 
+def release_notes_required_for_branch(branch):
+    channel = release_settings_for_branch(branch)[0]
+    return channel in RELEASE_NOTES_CHANNELS
+
 def get_pull_request_target_branch():
     # The name of the base (or target) branch. Only set for pull request events.
     return os.environ.get('GITHUB_BASE_REF', '')
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, bob, test-bob, sdk, install, smoke, should-release, should-build-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
@@ -517,6 +564,7 @@ def main(argv):
     parser.add_argument("--codesign", dest="codesign", action='store_true', help="Enable code signing")
     parser.add_argument("--verbose", dest="verbose", action='store_true', help="Enable verbose build output")
     parser.add_argument("--engine-artifacts", dest="engine_artifacts", default="archived", help="Engine artifacts to include when building the editor")
+    parser.add_argument("--channel", dest="channel", help="Override the release channel derived from the branch")
     parser.add_argument("--skip-install-ext", dest="skip_install_ext", action='store_true', help="Skip install_ext before archive-editor")
     parser.add_argument("--keychain-cert", dest="keychain_cert", help="Base 64 encoded certificate to import to macOS keychain")
     parser.add_argument("--keychain-cert-pass", dest="keychain_cert_pass", help="Password for the certificate to import to macOS keychain")
@@ -559,7 +607,13 @@ def main(argv):
         print("true" if should_release_branch(branch) else "false")
         return
 
+    if args.commands == ["requires-release-notes"]:
+        print("true" if release_notes_required_for_branch(branch) else "false")
+        return
+
     channel, make_release = release_settings_for_branch(branch)
+    if args.channel:
+        channel = args.channel
 
     print(f"Using branch={branch} channel={channel} engine_artifacts={args.engine_artifacts}")
 
@@ -579,12 +633,14 @@ def main(argv):
             test_editor(channel, platform, args)
         elif command == "archive-editor":
             archive_editor2(channel, platform, args)
+        elif command == "gen-release-notes":
+            gen_release_notes(channel)
         elif command == "bob":
             build_bob(channel, branch, args)
         elif command == "test-bob":
             test_bob(channel)
         elif command == "sdk":
-            build_sdk(channel)
+            build_sdk(channel, platform)
         elif command == "smoke":
             smoke_test()
         elif command == "install":
@@ -595,7 +651,7 @@ def main(argv):
             distclean()
         elif command == "release":
             if make_release:
-                release(channel)
+                release(channel, platform)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         else:

@@ -50,6 +50,7 @@ While we try to be as vanilla as possible, on Windows we only use `git-bash`. Se
   * [Git For Windows](https://gitforwindows.org) - Installs `Git` (required), and also `git-bash`.
     * `git-bash` is currently our recommended shell for windows. ´git-bash´ can install as a Terminal add on.
       * During install, if asked, select the option to not do any CR/LF conversion.
+      * You can set this later using `git config --global core.autocrlf false`
 
 
 </p></details>
@@ -351,7 +352,7 @@ defold$ ./scripts/build.py check_sdk --verbose
   * **libcurl4-openssl-dev** - Development files and documentation for libcurl
   * **uuid-dev** - Universally Unique ID library
   * **libopenal-dev** - Software implementation of the OpenAL audio API
-  * **libncurses5** -  Needed by clang
+  * **libtinfo5** and **libncurses5** - Needed by clang and Emscripten
 
   **Tools**
   * **build-essential** - Compilers
@@ -375,6 +376,7 @@ defold$ ./scripts/build.py check_sdk --verbose
           libopenal-dev \
           libgl1-mesa-dev \
           libglw1-mesa-dev \
+          libtinfo5 \
           libncurses5 \
           openssl \
           valgrind \
@@ -387,16 +389,33 @@ Once installed, verify the installation with
 defold$ ./scripts/build.py check_sdk --verbose
 ```
 
-If you're using Ubuntu and it fails to install `libncurses5`, try:
+If you're using Ubuntu and it fails to find `libtinfo5` or `libncurses5`, enable the `universe` repository and refresh the apt package list:
 
 ```sh
-sudo ln -s /usr/lib/x86_64-linux-gnu/libtinfo.so.5 /usr/lib/libtinfo.so.5
+sudo add-apt-repository -y universe
+sudo apt-get update
 ```
 
-and:
+Then retry the install:
 
 ```sh
-sudo ln -s /usr/lib/x86_64-linux-gnu/libncurses.so.5 /usr/lib/libncurses.so.5
+sudo apt-get install libtinfo5 libncurses5
+```
+
+On Ubuntu 24.04 and newer, where the legacy package names are no longer available, install the Ubuntu 22.04 packages directly:
+
+```sh
+wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.2_amd64.deb
+wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libncurses5_6.3-2ubuntu0.2_amd64.deb
+sudo apt install ./libtinfo5_6.3-2ubuntu0.2_amd64.deb ./libncurses5_6.3-2ubuntu0.2_amd64.deb
+```
+
+For arm64 Linux:
+
+```sh
+wget http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses/libtinfo5_6.3-2_arm64.deb
+wget http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses/libncurses5_6.3-2_arm64.deb
+sudo apt install ./libtinfo5_6.3-2_arm64.deb ./libncurses5_6.3-2_arm64.deb
 ```
 
 </p></details>

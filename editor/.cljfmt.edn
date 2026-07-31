@@ -14,8 +14,10 @@
 
 {:function-arguments-indentation :cursive
  :extra-indents {cljfx.composite/props [[:inner 0]]
+                 clojure.core/assoc [[:inner 0]]
                  clojure.core.cache/defcache [[:inner 0]]
                  clojure.core/assoc! [[:inner 0]]
+                 clojure.core/cond-> [[:inner 0]]
                  clojure.core/defmulti [[:inner 0]]
                  clojure.core/defonce [[:inner 0]]
                  clojure.core/vector-of [[:inner 0]]
@@ -50,7 +52,6 @@
                  editor.file-test/with-temp-dir [[:inner 0]]
                  editor.file-test/with-temp-dir! [[:inner 0]]
                  editor.fs/maybe-silently [[:inner 0]]
-                 editor.fxui/defc [[:inner 0]]
                  editor.git-test/with-git [[:inner 0]]
                  editor.gl.shader/defshader [[:inner 0]]
                  editor.gl.vertex/defvertex [[:inner 0]]
@@ -82,6 +83,7 @@
                  editor.ui.bindings/-if [[:inner 0]]
                  editor.ui.bindings/when [[:inner 0]]
                  editor.ui.bindings/when-not [[:inner 0]]
+                 editor.ui/defc [[:inner 0]]
                  editor.ui/event-dispatcher [[:inner 0]]
                  editor.ui/event-handler [[:inner 0]]
                  editor.ui/invalidation-listener [[:inner 0]]
@@ -111,8 +113,11 @@
                  util.coll/into-> [[:inner 0]]
                  util.coll/reduce-> [[:inner 0]]
                  util.coll/reduce-kv-> [[:inner 0]]
+                 util.coll/reduce=> [[:inner 0]]
+                 util.coll/reduce-kv=> [[:inner 0]]
                  util.coll/run!-> [[:inner 0]]
                  util.coll/transform-> [[:inner 0]]
+                 util.coll/transform-non-empty-> [[:inner 0]]
                  util.debug-util/log-time [[:inner 0]]
                  util.debug-util/log-time-and-memory [[:inner 0]]
                  util.debug-util/measuring [[:inner 0]]
@@ -122,4 +127,3 @@
                  vlaaad.reveal/defstream [[:inner 0]]}
  :alias-map {g dynamo.graph
              handler editor.handler}}
-

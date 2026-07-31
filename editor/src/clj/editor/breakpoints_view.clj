@@ -39,12 +39,12 @@
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [util.coll :as coll]
             [util.fn :as fn])
   (:import [javafx.scene Node Parent]
            [javafx.scene.control TableView]
            [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
-           [javafx.scene.layout AnchorPane]
-           [javafx.util Callback]))
+           [javafx.scene.layout AnchorPane]))
 
 (set! *warn-on-reflection* true)
 
@@ -81,11 +81,18 @@
   (let [region (code-data/make-breakpoint-region lines (:row breakpoint))]
     (merge region (select-keys breakpoint [:condition :enabled]))))
 
+(defn- breakpoint-row-in-lines? [lines breakpoint]
+  (let [row (:row breakpoint)]
+    (and (<= 0 row)
+         (< row (count lines)))))
+
 (defn- update-script-regions-from-breakpoints [script-node breakpoints evaluation-context]
   (let [lines (g/node-value script-node :lines evaluation-context)
         regions (g/node-value script-node :regions evaluation-context)
         non-bp-regions (remove code-data/breakpoint-region? regions)
-        bp-regions (map (partial breakpoint->region lines) breakpoints)]
+        bp-regions (coll/into-> breakpoints []
+                     (filter (partial breakpoint-row-in-lines? lines))
+                     (map (partial breakpoint->region lines)))]
     (vec (sort (concat non-bp-regions bp-regions)))))
 
 (defn- get-breakpoints-in-script [breakpoints breakpoint]
@@ -195,7 +202,7 @@
                     (= 2 (.getClickCount e)))
            (open-resource-fn resource (inc row)))))}))
 
-(defn- column-enabled-cell-factory [project swap-state breakpoints idx]
+(defn- column-enabled-cell-factory [project breakpoints idx]
   (when-let [breakpoint (get breakpoints idx)]
     {:style-class ["enabled-cell"]
      :alignment :center
@@ -290,7 +297,7 @@
                                  (.consume me)
                                  (swap-state assoc :edited-breakpoint breakpoint))))}))))
 
-(defn- column-remove-btn-cell-factory [swap-state project breakpoints idx]
+(defn- column-remove-btn-cell-factory [project breakpoints idx]
   (when-let [breakpoint (get breakpoints idx)]
     {:alignment :center
      :graphic
@@ -360,7 +367,7 @@
       :sortable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                     :describe (fn/partial column-enabled-cell-factory project swap-state breakpoints)}}
+                     :describe (fn/partial column-enabled-cell-factory project breakpoints)}}
      {:fx/type fx.table-column/lifecycle
       :text (localization-state (localization/message "breakpoints.column.line"))
       :pref-width 50
@@ -404,9 +411,9 @@
       :sortable false
       :cell-value-factory identity
       :cell-factory {:fx/cell-type fx.table-cell/lifecycle
-                     :describe (fn/partial column-remove-btn-cell-factory swap-state project breakpoints)}}]}})
+                     :describe (fn/partial column-remove-btn-cell-factory project breakpoints)}}]}})
 
-(fxui/defc breakpoints-view
+(ui/defc breakpoints-view
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization (:context props))
               :key :localization-state}
@@ -417,7 +424,7 @@
         project (:project context)
         open-resource-fn (:open-resource-fn context)]
     {:fx/type fxui/ext-with-anchor-pane-props
-     :desc {:fx/type fxui/ext-value :value parent}
+     :desc {:fx/type ui/ext-value :value parent}
      :props {:children [(breakpoints-toolbar-view project localization-state breakpoints)
                         (breakpoints-table-view project open-resource-fn localization-state breakpoints state swap-state)]}}))
 
@@ -429,7 +436,7 @@
                  :breakpoints breakpoints
                  :open-resource-fn open-resource-fn
                  :localization localization}]
-    (fxui/advance-ui-user-data-component!
+    (ui/advance-ui-user-data-component!
       parent-view ::breakpoints
       {:fx/type breakpoints-view
        :context context
@@ -451,6 +458,7 @@
   (first
     (g/tx-nodes-added
       (g/transact
+        {:undoable false}
         (let [open-res-fn (make-open-resource-fn open-resource-fn)]
           (g/make-nodes view-graph [view [BreakpointsView :parent-view parent :prefs prefs :open-resource-fn open-res-fn]]
             (g/connect workspace :_node-id view :workspace)
@@ -470,16 +478,14 @@
 
 (handler/defhandler :breakpoints.edit-selected :breakpoints-view
   (enabled? [selection] (= (count selection) 1))
-  (run [project swap-state breakpoints selection]
-    (g/with-auto-evaluation-context evaluation-context
-      (swap-state assoc :edited-breakpoint (first selection)))))
+  (run [swap-state selection]
+    (swap-state assoc :edited-breakpoint (first selection))))
 
 (handler/defhandler :breakpoints.go-to-line :breakpoints-view
   (enabled? [selection] (= 1 (count selection)))
-  (run [project swap-state open-resource-fn selection]
-    (g/with-auto-evaluation-context evaluation-context
-      (let [{:keys [resource row]} (first selection)]
-        (open-resource-fn resource (inc row))))))
+  (run [open-resource-fn selection]
+    (let [{:keys [resource row]} (first selection)]
+      (open-resource-fn resource (inc row)))))
 
 (handler/defhandler :breakpoints.show-in-assets :breakpoints-view
   (enabled? [selection] (= 1 (count selection)))

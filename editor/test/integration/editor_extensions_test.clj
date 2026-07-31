@@ -17,6 +17,8 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.cljfx-form-view :as cljfx-form-view]
+            [editor.code.view :as code-view]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
@@ -28,6 +30,7 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.html-view :as html-view]
             [editor.library :as library]
             [editor.os :as os]
             [editor.outline-view :as outline-view]
@@ -37,7 +40,9 @@
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.scene :as scene]
             [editor.ui :as ui]
+            [editor.view :as view]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -544,7 +549,7 @@
       (is (= [1 2 3 4] (test-util/prop node :__vec4)))
 
       ;; single undo
-      (g/undo! (g/node-id->graph-id project))
+      (g/undo! :undo/global)
 
       ;; all the changes should be reverted — a single transaction!
       (test-initial-state!))))
@@ -805,6 +810,7 @@ resource exists after failed fetch: false
           :display-output! #(doto out (.append %2) (.append \newline))
           :fetch-libraries! (fn fetch-libraries! []
                               (future/io
+                                ;; Deliberately call library/fetch! directly to exercise failed fetch reporting.
                                 (let [lib-results (library/fetch!
                                                     (workspace/project-directory workspace)
                                                     (project/project-dependencies project)
@@ -874,6 +880,7 @@ editor.ui.image({image = 'foo', width = -1}) => -1 is not positive
 editor.ui.dialog({title = 'Dialog title', width = false}) => false is not a number
 editor.ui.dialog({title = 'Dialog title', height = -1}) => -1 is not positive
 editor.ui.dialog({title = 'Dialog title', resizable = 1}) => 1 is not a boolean
+editor.ui.check_box({indeterminate = 1}) => 1 is not a boolean
 editor.ui.tab({}) => {} must have the \"text\" key
 ")
 
@@ -1114,26 +1121,38 @@ POST http://localhost:23456/echo {\"y\":\"foo\",\"x\":4} as json => 200
 }
 POST http://localhost:23456/echo hello world! as string => 200
 \"hello world!\"
+GET http://localhost:23456/download as string => error ({as = \"string\", path = \"downloaded.txt\"} does not satisfy any of its requirements:
+- {as = \"string\", path = \"downloaded.txt\"} specifies mutually exclusive 'as' and 'path' options
+- {as = \"string\", path = \"downloaded.txt\"} is not nil)
+download into project => 200
+resource exists before/after: false/true
+\"downloaded content\"
+download outside project => 200
+path matches: true
 ")
 
 (deftest http-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/http_project"
-    (let [server (http-server/start!
-                   (http-server/router-handler
-                     {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
-                      "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
-                      "/" {"GET" (constantly (http-server/response 200 ""))}
-                      "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
-                      "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}})
-                   :port 23456)
-          out (StringBuilder.)]
-      (try
-        (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
-        ;; See test.editor_script: the test invokes http.request with various options and prints results
-        (run-edit-menu-test-command!)
-        (expect-script-output expected-http-test-output out)
-        (finally
-          (http-server/stop! server 0))))))
+  (test-util/with-temp-dir! outside-directory
+    (test-util/with-scratch-project "test/resources/editor_extensions/http_project"
+      (let [outside-path (path/of outside-directory "downloaded.txt")
+            server (http-server/start!
+                     (http-server/router-handler
+                       {"/redirect/foo" {"GET" (constantly (http-server/redirect "/foo"))}
+                        "/foo" {"GET" (constantly (http-server/response 200 "successfully redirected"))}
+                        "/" {"GET" (constantly (http-server/response 200 ""))}
+                        "/json" {"GET" (constantly (http-server/json-response {:a 1 :b [true]}))}
+                        "/echo" {"POST" (fn [request] (http-server/response 200 (:body request)))}
+                        "/download" {"GET" (constantly (http-server/response 200 "downloaded content"))}
+                        "/outside-path" {"GET" (constantly (http-server/response 200 (str outside-path)))}})
+                     :port 23456)
+            out (StringBuilder.)]
+        (try
+          (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+          ;; See test.editor_script: the test invokes http.request with various options and prints results
+          (run-edit-menu-test-command!)
+          (expect-script-output expected-http-test-output out)
+          (finally
+            (http-server/stop! server 0)))))))
 
 (def ^:private resource-io-test-output
   "editor.create_resources({{\"/test/config.json\", \"{\\\"test\\\": true}\"}}) => ok!
@@ -1857,6 +1876,7 @@ After transaction (edit):
   - type: gui-node-type-text
     id: text1
     nodes: 0
+Preconfigured spine node: spine_scene idle
 Transaction: set Landscape position
   position = {10, 10, 10}, can reset = false
   Landscape:position = {20, 20, 20}, can reset = true
@@ -2582,3 +2602,43 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
       (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
       (run-edit-menu-test-command!)
       (expect-script-output expected-localization-output out))))
+
+(deftest editor-script-active-view-commands-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/active_view_project"
+    (let [out (StringBuilder.)]
+      (reload-editor-scripts! project :display-output! #(doto out (.append %2) (.append \newline)))
+      (run!
+        (fn [[proj-path view-node-type view-node-args label]]
+          (let [resource-node (test-util/resource-node project proj-path)
+                view-graph (test-util/make-view-graph!)
+                view-node (first (g/take-node-ids view-graph 1))]
+            (g/transact
+              {:undoable false}
+              (concat
+                (g/add-node (apply g/construct view-node-type :_node-id view-node view-node-args))
+                (view/connect-resource-node view-node resource-node)
+                (g/set-property app-view :active-view view-node)))
+            (let [command-contexts (g/with-auto-evaluation-context evaluation-context
+                                     (handler/eval-contexts
+                                       [(handler/->context :global {:app-view app-view})]
+                                       false
+                                       evaluation-context))
+                  handler+context (->> (handler/realize-menu :editor.app-view/view-end)
+                                       (e/keep :command)
+                                       (e/filter handler/synthetic-command?)
+                                       (e/keep #(handler/active % command-contexts {}))
+                                       (coll/first-where #(= label (handler/label %))))]
+              (assert handler+context "Test bug: undefined test command")
+              (is (handler/enabled? handler+context))
+              @(handler/run handler+context))))
+        [["/main/main.script" code-view/CodeEditorView [:gutter-view (code-view/->CodeEditorGutterView)] "Inspect Active Code View"]
+         ["/main/main.collection" scene/SceneView [] "Inspect Active Scene View"]
+         ["/README.md" html-view/HtmlViewNode [] "Inspect Active HTML View"]
+         ["/game.project" cljfx-form-view/CljfxFormView [] "Inspect Active Form View"]])
+      (expect-script-output
+        "type=code resource=/main/main.script dirty=false
+type=scene resource=/main/main.collection dirty=false
+type=html resource=/README.md dirty=false
+type=form resource=/game.project dirty=false
+"
+        out))))

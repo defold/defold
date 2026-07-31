@@ -20,10 +20,13 @@
             [cljfx.fx.text-area :as fx.text-area]
             [clojure.set :as set]
             [clojure.spec.alpha :as s]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.background :as background]
             [editor.camera :as c]
             [editor.colors :as colors]
+            [editor.defold-project :as project]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.geom :as geom]
@@ -38,6 +41,7 @@
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.math :as math]
+            [editor.mouse-binding :as mouse-binding]
             [editor.os :as os]
             [editor.pose :as pose]
             [editor.properties :as properties]
@@ -63,6 +67,7 @@
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
+            [util.http-server :as http-server]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.glu GLU]
@@ -70,6 +75,7 @@
            [editor.pose Pose]
            [editor.types AABB Camera Rect Region]
            [java.awt.image BufferedImage]
+           [java.io ByteArrayOutputStream]
            [java.lang Math Runnable]
            [java.nio IntBuffer]
            [javafx.beans.value ChangeListener]
@@ -81,6 +87,7 @@
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout AnchorPane Pane]
            [javafx.stage Window]
+           [javax.imageio ImageIO]
            [javax.vecmath Matrix4d Point3d Quat4d Tuple3d Vector3d]
            [sun.awt.image IntegerComponentRaster]))
 
@@ -1051,7 +1058,7 @@
       {"command" (localization/message "command.scene.stop")
        "shortcut" (keymap/display-text keymap :scene.stop "none")})))
 
-(fxui/defc close-preview-button
+(ui/defc close-preview-button
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
               :key :localization-state}]}
@@ -1101,12 +1108,10 @@
    :anchor-pane/right camera-inset-margin})
 
 (defn- animation-preview-anchor-props [camera viewport anim-data]
-  (let [[sx sy _] (c/scale-factor camera viewport)
-        offset texture-set/animation-preview-offset
+  (let [offset texture-set/animation-preview-offset
         image-width (double (:width anim-data))
         image-height (double (:height anim-data))
-        scaled-width (/ image-width sx)
-        scaled-height (/ image-height sy)
+        [scaled-width scaled-height] (texture-set/animation-preview-size camera viewport image-width image-height)
         x0 offset
         y0 (- (double (:bottom viewport)) offset)
         x1 (+ x0 scaled-width)
@@ -1122,7 +1127,7 @@
             (:preview-anim-data updatable)))
         active-updatable-ids))
 
-(fxui/defc error-overlay
+(ui/defc error-overlay
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state error]}]
   {:fx/type fx.text-area/lifecycle
@@ -1296,6 +1301,7 @@
   (input picking-rect Rect)
   (input tool-info-text g/Str)
   (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
+  (input mouse-binding-context g/Keyword)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input updatables g/Any)
@@ -1329,6 +1335,8 @@
   (output displayed-node-properties g/Any :cached
           (g/fnk [selected-node-properties preview-overrides]
             (displayed-node-properties selected-node-properties preview-overrides))))
+
+(node-types/register-node-type-name! SceneView "scene")
 
 (defn cursor
   "Maps inconsistent cursor types across platforms.
@@ -1381,11 +1389,11 @@
             (ui/set-cursor image-view (cursor cursor-type)))))
       (when-let [overlay-anchor-pane (g/raw-property-value* basis node :overlay-anchor-pane)]
         (let [overlay-anchor-pane-props (g/node-value node-id :overlay-anchor-pane-props)]
-          (fxui/advance-graph-user-data-component!
+          (ui/advance-graph-user-data-component!
             node-id :overlay-anchor-pane
             {:fx/type fxui/ext-with-anchor-pane-props
              :props overlay-anchor-pane-props
-             :desc {:fx/type fxui/ext-value
+             :desc {:fx/type ui/ext-value
                     :value overlay-anchor-pane}}))))))
 
 (defn- supports-camera-inset-drawable? [node-id]
@@ -1411,8 +1419,9 @@
           (scene-cache/drop-context! gl)
           (.glFinish gl))
         (.destroy camera-inset-drawable)))
-    (fxui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
+    (ui/advance-graph-user-data-component! node-id :overlay-anchor-pane nil)
     (g/transact
+      {:undoable false}
       (concat
         (g/set-property node-id :drawable nil)
         (g/set-property node-id :picking-drawable nil)
@@ -1438,6 +1447,7 @@
                         (if (= play-mode :playing) :idle :playing)
                         :playing)]
     (g/transact
+      {:undoable false}
       (concat
         (g/set-property view-id :play-mode new-play-mode)
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
@@ -1458,6 +1468,7 @@
     ;; Force a redraw on next refresh without requiring input.
     (ui/user-data! image-view ::last-frame-version nil))
   (g/transact
+    {:undoable false}
     (concat
       (g/set-property view-id :play-mode :idle)
       (g/set-property view-id :active-updatable-ids [])
@@ -1511,6 +1522,23 @@
   (let [framing-info (g/with-auto-evaluation-context evaluation-context
                        (selection-framing-info view-node-id evaluation-context))]
     (apply-framing-info! framing-info animate?)))
+
+(defn- frame-preview! [view-node-id]
+  (g/let-ec [framing-info (selection-framing-info view-node-id evaluation-context)
+             viewport (g/node-value view-node-id :viewport evaluation-context)
+             [viewport-width viewport-height] (vp-dims viewport)]
+    (apply-framing-info!
+      (update framing-info :end-camera
+              (fn [camera]
+                (if-not (= :orthographic (:type camera))
+                  camera
+                  (let [fov-x (/ (:fov-x camera) c/orthographic-framing-margin)
+                        fov-y (/ (:fov-y camera) c/orthographic-framing-margin)]
+                    (assoc camera
+                      ;; Add a one-pixel margin on each side to avoid edge clipping.
+                      :fov-x (+ fov-x (* 2.0 (/ fov-x viewport-width)))
+                      :fov-y (+ fov-y (* 2.0 (/ fov-y viewport-height))))))))
+      false)))
 
 (handler/defhandler :scene.frame-selection :global
   (active? [app-view evaluation-context]
@@ -1615,7 +1643,9 @@
 
 (defn- set-manip-space! [app-view manip-space]
   (assert (contains? #{:local :world} manip-space))
-  (g/set-property! app-view :manip-space manip-space))
+  (g/transact
+    {:undoable false}
+    (g/set-property app-view :manip-space manip-space)))
 
 (handler/defhandler :scene.set-manipulator-space :global
   (label [user-data]
@@ -1701,6 +1731,33 @@
               ((g/node-value node-id label) node-id input-state action user-data)))
           action input-handlers))
 
+(defn input-dispatch-context [view-id]
+  (g/with-auto-evaluation-context evaluation-context
+    {:input-handlers (g/sources-of (:basis evaluation-context) view-id :input-handlers)
+     :user-data (g/node-value view-id :selected-tool-renderables evaluation-context)
+     :mouse-binding-context (g/node-value view-id :mouse-binding-context evaluation-context)}))
+
+(defn dispatch-input-action [{:keys [input-handlers user-data mouse-binding-context]} input-state action]
+  (let [input-state (i/update-input-state input-state action)
+        action (if (and mouse-binding-context
+                        (#{:mouse-pressed :mouse-moved} (:type action)))
+                 (let [binding-action (assoc action :type :drag)
+                       command (mouse-binding/command-for-action mouse-binding-context binding-action)]
+                   (cond-> action
+                     command (assoc :mouse-binding-command command)))
+                 action)]
+    (dispatch-input input-handlers input-state action user-data)
+    input-state))
+
+(defn update-tick-handlers [view-id input-state dt]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [update-tick-handlers (g/sources-of (:basis evaluation-context) view-id :update-tick-handlers)]
+      (reduce (fn [input-state [node-id label]]
+                (when input-state
+                  ((g/node-value node-id label evaluation-context) node-id input-state dt)))
+              input-state
+              update-tick-handlers))))
+
 (defn- update-updatables
   [updatable-states play-mode active-updatables dt]
   (let [context {:dt (if (= play-mode :playing) dt 0)}]
@@ -1715,10 +1772,9 @@
 
 (defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
   (let [action-queue (g/user-data view-id ::input-action-queue)
-        [render-mode tool-user-data play-mode active-updatables updatable-states]
+        [render-mode play-mode active-updatables updatable-states]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value view-id :render-mode evaluation-context)
-           (g/node-value view-id :selected-tool-renderables evaluation-context) ; TODO: for what actions do we need selected tool renderables?
            (g/node-value view-id :play-mode evaluation-context)
            (g/node-value view-id :active-updatables evaluation-context)
            (g/node-value view-id :updatable-states evaluation-context)])
@@ -1735,29 +1791,22 @@
                             (and has-active-updatables (= :playing play-mode)))
                         inc)]
     (profiler/profile "input-dispatch" -1
-      (let [input-handlers (g/sources-of view-id :input-handlers)]
+      (let [input-dispatch-context (input-dispatch-context view-id)]
         (g/user-data! view-id ::input-state
-                      (reduce (fn [input-state action]
-                                (let [input-state (i/update-input-state input-state action)]
-                                  (dispatch-input input-handlers input-state action tool-user-data)
-                                  input-state))
+                      (reduce (partial dispatch-input-action input-dispatch-context)
                               (g/user-data view-id ::input-state)
                               action-queue))
         (when (some #(#{:mouse-pressed :mouse-released} (:type %)) action-queue)
           (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true))))
     (profiler/profile "update-tick" -1
-      (g/with-auto-evaluation-context evaluation-context
-        (let [update-tick-handlers (g/sources-of (:basis evaluation-context) view-id :update-tick-handlers)
-              input-state (g/user-data view-id ::input-state)]
-          (reduce (fn [input-state [node-id label]]
-                    (when input-state
-                      ((g/node-value node-id label evaluation-context) node-id input-state dt)))
-                  input-state update-tick-handlers))))
+      (update-tick-handlers view-id (g/user-data view-id ::input-state) dt))
     (when (seq action-queue)
       (g/user-data! view-id ::input-action-queue [])
       (g/user-data-swap! view-id ::input-state assoc :scroll-delta [0.0 0.0]))
     (when has-active-updatables
-      (g/set-property! view-id :updatable-states new-updatable-states))
+      (g/transact
+        {:undoable false}
+        (g/set-property view-id :updatable-states new-updatable-states)))
     (profiler/profile "render" -1
       (when (not= last-frame-version frame-version)
         (gl/with-drawable-as-current drawable
@@ -1771,12 +1820,15 @@
             (ui/user-data! image-view ::last-frame-version frame-version)
             (scene-cache/prune-context! gl)
             (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
-    ;; call frame-selection if it's the very first aabb change for the scene
+    ;; Call frame-selection if it's the very first aabb change for the scene, unless
+    ;; we restored a camera from prefs and should preserve it through initial load.
     (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
+          preserve-initial-camera (ui/user-data image-view ::preserve-initial-camera)
           [scene-aabb reframing-info]
           (g/with-auto-evaluation-context evaluation-context
             (let [scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
-                  reframing-info (when (and prev-aabb
+                  reframing-info (when (and (not preserve-initial-camera)
+                                            prev-aabb
                                             (geom/predefined-aabb? prev-aabb)
                                             (not (geom/predefined-aabb? scene-aabb)))
                                    (aabb-framing-info view-id scene-aabb evaluation-context))]
@@ -1784,6 +1836,9 @@
                     reframing-info)))]
 
       (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
+      (when (and preserve-initial-camera
+                 (not (geom/predefined-aabb? scene-aabb)))
+        (ui/user-data! image-view ::preserve-initial-camera false))
       (when reframing-info
         (apply-framing-info! reframing-info true)))
     (let [new-image (scene-async/image @async-copy-state-atom)]
@@ -1869,6 +1924,7 @@
                       (.consume e))
                     (g/user-data-swap! view-id ::input-action-queue conj action)
                     (g/transact
+                      {:undoable false}
                       (concat
                         (when screen-x
                           (g/set-property view-id :cursor-pos [x y]))
@@ -1891,9 +1947,11 @@
     ;; NOTE: Preserve a strong ref to prevent GC from collecting the weakly referenced ChangeLIstener
     (.put (.getProperties parent) ::window-focused-property window-focused-property)
     (doto parent
-      (ui/on-mouse! (fn [type _]
+      (ui/on-mouse! (fn [type _event]
                       (cond (= type :exit)
-                            (g/set-property! view-id :cursor-pos nil))))
+                            (g/transact
+                              {:undoable false}
+                              (g/set-property view-id :cursor-pos nil)))))
       (.setOnMousePressed event-handler)
       (.setOnMouseReleased event-handler)
       (.setOnMouseClicked event-handler)
@@ -1941,7 +1999,9 @@
                      (proxy-super layoutInArea ^Node image-view 0.0 0.0 width height 0.0 HPos/CENTER VPos/CENTER)
                      (when (and (> width 0) (> height 0))
                        (let [viewport (types/->Region 0 width 0 height)]
-                         (g/transact (g/set-property view-id :viewport viewport))
+                         (g/transact
+                           {:undoable false}
+                           (g/set-property view-id :viewport viewport))
                          (if-let [view-id (ui/user-data image-view ::view-id)]
                            (when-some [drawable ^GLOffscreenAutoDrawable (g/node-value view-id :drawable)]
                              (doto drawable
@@ -1957,23 +2017,32 @@
                              (ui/on-closed! (:tab opts) (fn [_]
                                                           (ui/kill-event-dispatch! this)
                                                           (dispose-scene-view! view-id)))
-                            (if camera-inset-drawable
-                              (g/set-properties! view-id
-                                                :drawable drawable
-                                                :picking-drawable picking-drawable
-                                                :camera-inset-drawable camera-inset-drawable
-                                                :async-copy-state (atom (scene-async/make-async-copy-state width height)))
-                              (g/set-properties! view-id
-                                                :drawable drawable
-                                                :picking-drawable picking-drawable
-                                                :async-copy-state (atom (scene-async/make-async-copy-state width height))))
-                             (frame-selection! view-id false)))))
+                             (when (:camera opts)
+                               (ui/user-data! image-view ::preserve-initial-camera true))
+                             (if camera-inset-drawable
+                               (g/transact
+                                 {:undoable false}
+                                 (g/set-properties view-id
+                                   :drawable drawable
+                                   :picking-drawable picking-drawable
+                                   :camera-inset-drawable camera-inset-drawable
+                                   :async-copy-state (atom (scene-async/make-async-copy-state width height))))
+                               (g/transact
+                                 {:undoable false}
+                                 (g/set-properties view-id
+                                   :drawable drawable
+                                   :picking-drawable picking-drawable
+                                   :async-copy-state (atom (scene-async/make-async-copy-state width height)))))
+                             (when-not (:camera opts)
+                               (frame-selection! view-id false))))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))
                    (proxy-super layoutChildren))))]
     (.setFocusTraversable pane true)
     (.add (.getChildren pane) image-view)
-    (g/set-property! view-id :image-view image-view)
+    (g/transact
+      {:undoable false}
+      (g/set-property view-id :image-view image-view))
     pane))
 
 (defn- make-scene-view-pane [view-id opts]
@@ -1987,15 +2056,23 @@
                                           (let [key-event ^KeyEvent event]
                                             (when (and (.isShortcutDown key-event)
                                                        (= "t" (.getText key-event)))
-                                              (g/update-property! view-id :render-mode render-mode-transitions))))))
+                                              (g/transact
+                                                {:undoable false}
+                                                (g/update-property view-id :render-mode render-mode-transitions)))))))
     scene-view-pane))
 
 (defn- make-scene-view [scene-graph ^Parent parent opts]
-  (let [view-id (g/make-node! scene-graph SceneView :updatable-states {} :app-view (:app-view opts))
+  (let [view-id (first
+                  (g/tx-nodes-added
+                    (g/transact
+                      {:undoable false}
+                      (g/make-node scene-graph SceneView :updatable-states {} :app-view (:app-view opts)))))
         scene-view-pane (make-scene-view-pane view-id opts)]
     (ui/children! parent [scene-view-pane])
     (ui/with-controls scene-view-pane [overlay-anchor-pane]
-      (g/set-property! view-id :overlay-anchor-pane overlay-anchor-pane))
+      (g/transact
+        {:undoable false}
+        (g/set-property view-id :overlay-anchor-pane overlay-anchor-pane)))
     view-id))
 
 (g/defnk produce-frame [all-renderables ^Region viewport pass->render-args ^GLAutoDrawable drawable]
@@ -2007,6 +2084,13 @@
             buf-image (read-to-buffered-image cached-buf-img-ref w h)]
         (scene-cache/prune-context! gl)
         buf-image))))
+
+(g/defnk produce-preview-renderables [aux-render-data scene-render-data]
+  (:renderables
+    (merge-render-datas
+      {:renderables (select-keys (:renderables aux-render-data) [pass/background])}
+      {}
+      scene-render-data)))
 
 (g/defnode PreviewView
   (inherits view/WorkbenchView)
@@ -2022,6 +2106,7 @@
 
   (input input-handlers Runnable :array)
   (input update-tick-handlers Runnable :array)
+  (input mouse-binding-context g/Keyword)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
   (input localization g/Any)
@@ -2044,18 +2129,22 @@
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
   (output frame BufferedImage produce-frame)
-  (output all-renderables pass/RenderData :cached (g/fnk [scene-render-data] (:renderables (merge-render-datas {} {} scene-render-data))))
+  (output all-renderables pass/RenderData :cached produce-preview-renderables)
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output displayed-node-properties g/Any :cached
           (g/fnk [selected-node-properties preview-overrides]
             (displayed-node-properties selected-node-properties preview-overrides))))
 
 (defn make-preview-view [graph width height]
-  (g/make-node! graph PreviewView
-                :width width
-                :height height
-                :drawable (gl/offscreen-drawable width height)
-                :picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size)))
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node graph PreviewView
+                     :width width
+                     :height height
+                     :drawable (gl/offscreen-drawable width height)
+                     :picking-drawable (gl/offscreen-drawable picking-drawable-size picking-drawable-size))))))
 
 (defmulti attach-grid
   (fn [grid-node-type grid-node-id view-id resource-node camera]
@@ -2094,7 +2183,8 @@
                                                                                    (g/operation-sequence op-seq)
                                                                                    (g/operation-label (localization/message "operation.select"))
                                                                                    (select-fn selection))))]
-                   camera          [c/CameraController :local-camera (or (:camera opts) (c/make-camera :orthographic identity {:fov-x 1000 :fov-y 1000}))
+                   camera          [c/CameraController :local-camera (or (:camera opts)
+                                                                         (c/default-scene-camera prefs (:default-camera-projection opts)))
                                                        :image-view (g/node-value view-id :image-view)
                                                        :prefs prefs]
                    grid            (grid-type :prefs prefs)
@@ -2113,7 +2203,8 @@
                   (g/connect view-id         :scene-aabb                    camera          :scene-aabb)
                   (g/connect view-id         :viewport                      camera          :viewport)
 
-                  (g/connect app-view-id     :selected-node-ids             view-id         :selection)
+                  (when (:inherit-selection opts true)
+                    (g/connect app-view-id   :selected-node-ids             view-id         :selection))
                   (g/connect app-view-id     :active-view                   view-id         :active-view)
                   (g/connect app-view-id     :active-tool                   view-id         :active-tool)
                   (g/connect app-view-id     :manip-space                   view-id         :manip-space)
@@ -2124,6 +2215,7 @@
                   (g/connect app-view-id     :keymap                        camera          :keymap)
 
                   (g/connect tool-controller :input-handler                 view-id         :input-handlers)
+                  (g/connect tool-controller :mouse-binding-context         view-id         :mouse-binding-context)
                   (g/connect tool-controller :info-text                     view-id         :tool-info-text)
                   (g/connect tool-controller :renderables                   view-id         :tool-renderables)
                   (g/connect tool-controller :preview-overrides             view-id         :preview-overrides)
@@ -2157,6 +2249,7 @@
 (defn make-view [graph ^Parent parent resource-node opts]
   (let [view-id (make-scene-view graph parent opts)]
     (g/transact
+      {:undoable false}
       (setup-view view-id resource-node opts))
     view-id))
 
@@ -2166,16 +2259,30 @@
                  (assoc :manual-refresh? true)
                  (dissoc :grid))]
     (g/transact
+      {:undoable false}
       (setup-view view-id resource-node opts))
-    (frame-selection! view-id false)
+    (frame-preview! view-id)
     view-id))
 
-(defn dispose-preview [node-id]
-  (when-some [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
-    (gl/with-drawable-as-current drawable
-      (scene-cache/drop-context! gl))
-    (.destroy drawable)
-    (g/set-property! node-id :drawable nil)))
+(defn- dispose-preview
+  ([node-id]
+   (g/with-auto-evaluation-context evaluation-context
+     (dispose-preview node-id evaluation-context)))
+  ([node-id evaluation-context]
+   (when-some [^GLAutoDrawable drawable (g/node-value node-id :drawable evaluation-context)]
+     (gl/with-drawable-as-current drawable
+       (scene-cache/drop-context! gl))
+     (.destroy drawable)
+     (g/transact
+       {:undoable false}
+       (g/set-property node-id :drawable nil)))
+   (when-some [^GLAutoDrawable picking-drawable (g/node-value node-id :picking-drawable evaluation-context)]
+     (gl/with-drawable-as-current picking-drawable
+       (scene-cache/drop-context! gl))
+     (.destroy picking-drawable)
+     (g/transact
+       {:undoable false}
+       (g/set-property node-id :picking-drawable nil)))))
 
 (defn- focus-view! [view-id _opts done-fn]
   (if-some [^ImageView image-view (g/node-value view-id :image-view)]
@@ -2241,8 +2348,9 @@
             (dynamic edit-type (g/constantly {:type types/Vec3 :precision 0.1}))
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
             (set (fn [_evaluation-context self _old-value new-value]
-                   (when (some? new-value)
-                     (g/set-property self :scale (non-zeroify-scale new-value))))))
+                   (when-let [non-zero-scale (some-> new-value non-zeroify-scale)]
+                     (when (not= new-value non-zero-scale)
+                       (g/set-property self :scale non-zero-scale))))))
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
@@ -2310,3 +2418,81 @@
 
 (defmethod scene-tools/manip-scale ::SceneNode [node-id ^Vector3d delta manip-phase initial-evaluation-context]
   (manip-scale-scene-node node-id delta manip-phase initial-evaluation-context))
+
+(defn- render-preview-response [project app-view request]
+  (g/let-ec [params (coll/into-> (string/split (:query request "") #"&") {}
+                      (map
+                        (fn [s]
+                          (let [[k v] (string/split s #"=" 2)]
+                            [(keyword k) (or v "")]))))
+             width (or (some-> (:width params) parse-long)
+                       (g/node-value project :display-width evaluation-context))
+             height (or (some-> (:height params) parse-long)
+                        (g/node-value project :display-height evaluation-context))
+             _ (when-not (and (<= 1 width 4096) (<= 1 height 4096))
+                 (throw (http-server/error (http-server/response 400 "Invalid dimensions\n"))))
+             workspace (project/workspace project evaluation-context)
+             resource (or (workspace/find-resource (:basis evaluation-context) workspace (str "/" (:path (:path-params request))))
+                          (throw (http-server/error http-server/not-found)))
+             resource-type (resource/lookup-resource-type (:basis evaluation-context) workspace resource)
+             resource-node (or (project/get-resource-node project resource evaluation-context)
+                               (throw (http-server/error (http-server/response 422 "Resource is not loaded\n"))))
+             view-type (or (coll/first-where #(= :scene (:id %)) (:view-types resource-type))
+                           (throw (http-server/error (http-server/response 422 "Resource does not support previews\n"))))
+             make-preview-fn (:make-preview-fn view-type)]
+    (let [view-graph (g/make-graph! :volatility 2)]
+      (try
+        (let [opts (assoc (:scene (:view-opts resource-type))
+                     :app-view app-view
+                     :camera (c/make-camera :orthographic identity {:fov-x width :fov-y height})
+                     :select-fn (fn [_selection _op-seq])
+                     :inherit-selection false
+                     :project project
+                     :workspace workspace)
+              undo-stack-revisions-before (g/undo-stack-revisions)
+              preview (make-preview-fn view-graph resource-node opts width height)]
+          (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                  (format "The %s view-type :make-preview-fn created undo steps for '%s'."
+                          (:id view-type)
+                          (resource/proj-path resource)))
+          (g/with-auto-evaluation-context evaluation-context
+            (try
+              (let [out (ByteArrayOutputStream.)
+                    ^BufferedImage frame (g/node-value preview :frame evaluation-context)
+                    flipped-frame (BufferedImage. (.getWidth frame) (.getHeight frame) (.getType frame))
+                    graphics (.createGraphics flipped-frame)]
+                (try
+                  (.drawImage graphics frame 0 (.getHeight frame) (.getWidth frame) (- (.getHeight frame)) nil)
+                  (finally
+                    (.dispose graphics)))
+                (ImageIO/write flipped-frame "png" out)
+                (http-server/response 200 {"content-type" "image/png"} (.toByteArray out)))
+              (finally
+                (dispose-preview preview evaluation-context)
+                (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                        (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
+                                (:id view-type)
+                                (resource/proj-path resource)))))))
+        (finally
+          (g/delete-graph! view-graph))))))
+
+(defn routes [project app-view]
+  {"/preview/{*path}"
+   {"GET" (with-meta
+            (bound-fn [request]
+              @(fx/on-fx-thread
+                 (render-preview-response project app-view request)))
+            {:openapi
+             {:summary "Render scene resource as PNG"
+              :parameters [{:name "path"
+                            :in "path"
+                            :required true
+                            :description "Project path"
+                            :schema {:type "string"}}
+                           {:name "width"
+                            :in "query"
+                            :schema {:type "integer"}}
+                           {:name "height"
+                            :in "query"
+                            :schema {:type "integer"}}]
+              :responses {"200" {:content {"image/png" {}}}}}})}})

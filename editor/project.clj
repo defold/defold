@@ -88,7 +88,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.8"
+                     [cljfx "1.10.10"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -161,8 +161,8 @@
 
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
-                      "-Ddefold.library.connectTimeoutMillis=2000"
-                      "-Ddefold.library.hostProbeTimeoutMillis=5000"
+                      "-Ddefold.library.connectTimeoutMillis=10000"
+                      "-Ddefold.library.hostProbeTimeoutMillis=10000"
                       "-Dfile.encoding=UTF-8"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
@@ -344,8 +344,8 @@
                                 :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.2.0.zip"
                                                     "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/13.0.0.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.2.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.5.1.zip"
-                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.7.0.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.5.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.7.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"

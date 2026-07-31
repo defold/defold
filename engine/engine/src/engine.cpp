@@ -450,6 +450,8 @@ namespace dmEngine
         m_AccumFrameTime = 0;
         m_PreviousFrameTime = dmTime::GetMonotonicTime();
         m_HttpCache = 0;
+        m_DependenciesJsonResource = 0;
+        m_DependenciesJsonSize = 0;
         m_ContextRegistry = ContextRegistryCreate();
         dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
     }
@@ -620,6 +622,10 @@ namespace dmEngine
             dmConfigFile::Delete(engine->m_Config);
         }
 
+        free(engine->m_DependenciesJsonResource);
+        engine->m_DependenciesJsonResource = 0;
+        engine->m_DependenciesJsonSize = 0;
+
         delete engine;
     }
 
@@ -785,10 +791,40 @@ namespace dmEngine
         ctx->m_BufferSize -= nwritten;
     }
 
+    static void LoadDependencyJson(HEngine engine)
+    {
+        void* resource = 0;
+        uint32_t resource_size = 0;
+        dmResource::Result result = dmResource::GetRaw(engine->m_Factory, "/.internal/dependencies.json", &resource, &resource_size);
+        if (result == dmResource::RESULT_OK)
+        {
+            engine->m_DependenciesJsonResource = resource;
+            engine->m_DependenciesJsonSize = resource_size;
+        }
+    }
+
     static void CrashHandlerCallback(void* ctx, char* buffer, uint32_t buffersize)
     {
         HEngine engine = (HEngine)ctx;
-        if (engine->m_SharedScriptContext) {
+
+        if (engine->m_DependenciesJsonResource && buffersize > 0)
+        {
+            uint32_t dependencies_json_size = dmMath::Min(engine->m_DependenciesJsonSize, buffersize - 1);
+            memcpy(buffer, engine->m_DependenciesJsonResource, dependencies_json_size);
+            buffer += dependencies_json_size;
+            buffersize -= dependencies_json_size;
+            *buffer = 0;
+
+            if (buffersize > 1)
+            {
+                *buffer++ = '\n';
+                --buffersize;
+                *buffer = 0;
+            }
+        }
+
+        if (engine->m_SharedScriptContext)
+        {
             LuaCallstackCtx ctx;
             ctx.m_First = true;
             ctx.m_Buffer = buffer;
@@ -1193,6 +1229,7 @@ namespace dmEngine
         window_params.m_Title                   = instance_index ? window_title : project_title;
         window_params.m_Fullscreen              = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
+        window_params.m_FocusOnShow             = (bool) dmConfigFile::GetInt(engine->m_Config, "display.focus_on_show", 1);
         window_params.m_BackgroundColor         = clear_color;
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 #if defined(__EMSCRIPTEN__)
@@ -1295,6 +1332,7 @@ namespace dmEngine
         {
             return false;
         }
+        LoadDependencyJson(engine);
 
         dmScript::ClearLuaRefCount(); // Reset the debug counter to 0
 
@@ -2594,7 +2632,11 @@ void dmEngineInitialize()
     dmEngineSetRenderEnabled(1);
 #endif
 
-    dmEngine::PlatformInitialize();
+    if (!dmEngine::PlatformInitialize())
+    {
+        dmLogError("Failed to initialize engine for target platform.");
+        return;
+    }
 
     dmThread::SetThreadName(dmThread::GetCurrentThread(), "engine_main");
 

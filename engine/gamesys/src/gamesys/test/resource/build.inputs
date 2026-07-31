@@ -2,6 +2,7 @@
 /resource/booster_on_sfx.wav
 /resource/create_sound_data.go
 /resource/create_texture.go
+/resource/create_texture_async_from_coroutine.go
 /resource/font.font
 /resource/label.go
 /resource/layer_guitar_a.ogg

@@ -473,7 +473,7 @@ nodes {
   spine_scene: "first_spinescene"
   spine_default_animation: "first_animation"
   spine_skin: "first_skin"
-  custom_type: 405028931
+  custom_type_name: "Spine"
   enabled: true
   visible: true
   material: "first_material"
@@ -1037,7 +1037,7 @@ layouts {
     spine_scene: "second_spinescene"
     spine_default_animation: "second_animation"
     spine_skin: "second_skin"
-    custom_type: 405028931
+    custom_type_name: "Spine"
     enabled: false
     visible: false
     material: "second_material"

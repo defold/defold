@@ -37,6 +37,7 @@
 #include <string.h>
 
 #include <dlib/dstrings.h>
+#include <dlib/log.h>
 #include <dlib/memory.h>
 #include <dlib/time.h>
 #include <dlib/path.h>
@@ -915,6 +916,34 @@ TEST_F(ResourceFolderTest, TestCreateTextureFromScript)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+// Verify that resource.create_texture_async() keeps its callback and upload buffer alive after
+// the coroutine that created the request has finished and has been garbage collected.
+TEST_F(ResourceFolderTest, TestCreateTextureAsyncFromCoroutine)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobContext      = m_JobContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    null_context->m_UseAsyncTextureLoad   = 1;
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture_async_from_coroutine.goc", dmHashString64("/create_texture_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done"));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
 TEST_F(ResourceFolderTest, TestCreateSoundDataFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
@@ -1409,6 +1438,120 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
     lua_pop(L, 1);
 }
 
+TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    const char* go_path = "/collection_proxy/script_load_api.goc";
+    dmhash_t go_hash = dmHashString64("/go");
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool callback1_ready = false;
+    bool callback2_error = false;
+    for (uint32_t i = 0; i < 64; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmGameObject::PostUpdate(m_Register);
+
+        lua_getglobal(L, "cp_script_load1_ready");
+        callback1_ready = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        
+        lua_getglobal(L, "cp_script_load2_error");
+        callback2_error = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+    }
+
+    ASSERT_TRUE(callback1_ready);
+    ASSERT_TRUE(callback2_error);
+
+    lua_getglobal(L, "cp_script_load_legacy_posted");
+    ASSERT_TRUE(lua_toboolean(L, -1) != 0);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_script_load1_error");
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_script_load1_loading_count");
+    ASSERT_GE((int)lua_tointeger(L, -1), 1);
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "cp_script_load1_last_progress");
+    ASSERT_NEAR(1.0f, (float)lua_tonumber(L, -1), 0.01f);
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, go, true);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+}
+
+// Uses script_load_cancel_requester.script
+TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadDeleteProxyWhileLoading)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    dmGameObject::HInstance proxy_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_proxy.goc", dmHashString64("/proxy"));
+    ASSERT_NE((void*)0, proxy_go);
+
+    dmGameObject::HInstance requester_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_requester.goc", dmHashString64("/requester"));
+    ASSERT_NE((void*)0, requester_go);
+
+    // Let the requester script start collectionproxy.load() against the proxy object.
+    // The requester must stay alive after the proxy is deleted, otherwise script instance
+    // cleanup would hide a leaked callback reference owned by the requester.
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+
+    // assert that the init function of script_load_cancel_requester.script
+    // has run successfully
+    lua_getglobal(L, "cp_script_load_cancel_started");
+    ASSERT_TRUE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    // assert that the proxy started loading
+    lua_getglobal(L, "cp_script_load_cancel_loading");
+    ASSERT_TRUE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, proxy_go, true);
+    // Flush the delete before another update can complete the preloader normally.
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PostUpdate(m_Register);
+
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+    }
+
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
+    // The script stores a weak reference to the callback. If the engine still
+    // holds m_AsyncLoadAndInitCallbackRef, the callback value remain reachable
+    // after GC.
+    lua_getglobal(L, "cp_script_load_cancel_refs");
+    ASSERT_TRUE(lua_istable(L, -1));
+    lua_getfield(L, -1, "callback");
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+
+    // assert that the proxy did not finish loading
+    lua_getglobal(L, "cp_script_load_cancel_ready");
+    ASSERT_FALSE(lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    // assert that no error occurred
+    lua_getglobal(L, "cp_script_load_cancel_error");
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, requester_go, true);
+    UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
+}
+
 TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadInitialize)
 {
     const char* go_path = "/collection_proxy/set_collection_cpp_cycle_proxy.goc";
@@ -1522,6 +1665,16 @@ class GamesysErrorLogCapture;
 static void CaptureGamesysErrorLog(LogSeverity severity, const char* domain, const char* formatted_string);
 static GamesysErrorLogCapture* g_GamesysErrorLogCapture = 0;
 
+static bool WaitForGamesysErrorLogCapture()
+{
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 5000000;
+    while (dmLog::GetPendingLogCount() != 0 && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    return dmLog::GetPendingLogCount() == 0;
+}
+
 class GamesysErrorLogCapture
 {
 public:
@@ -1530,6 +1683,8 @@ public:
         assert(g_GamesysErrorLogCapture == 0);
         g_GamesysErrorLogCapture = this;
         dmLogRegisterListener(CaptureGamesysErrorLog);
+        WaitForGamesysErrorLogCapture();
+        m_Output.SetSize(0);
     }
 
     ~GamesysErrorLogCapture()
@@ -1548,22 +1703,43 @@ public:
 
     bool Empty() const
     {
-        return m_Output.Size() == 0;
+        return WaitForGamesysErrorLogCapture() && m_Output.Size() == 0;
     }
 
     bool Contains(const char* needle)
     {
-        if (m_Output.Size() == 0 || m_Output[m_Output.Size() - 1] != '\0')
+        WaitForGamesysErrorLogCapture();
+        return strstr(Output(), needle) != 0;
+    }
+
+    const char* Output()
+    {
+        WaitForGamesysErrorLogCapture();
+        if (m_Output.Size() == 0)
+        {
+            return "";
+        }
+        if (m_Output[m_Output.Size() - 1] != '\0')
         {
             m_Output.OffsetCapacity(1);
             m_Output.Push('\0');
         }
-        return strstr(m_Output.Begin(), needle) != 0;
+        return m_Output.Begin();
     }
 
 private:
     dmArray<char> m_Output;
 };
+
+static bool GamesysErrorLogCaptureEmpty(GamesysErrorLogCapture& log_capture)
+{
+    bool empty = log_capture.Empty();
+    if (!empty)
+    {
+        printf("Unexpected GAMESYS error log output:\n%s", log_capture.Output());
+    }
+    return empty;
+}
 
 static void CaptureGamesysErrorLog(LogSeverity severity, const char* domain, const char* formatted_string)
 {
@@ -2272,7 +2448,7 @@ TEST_F(SpriteTest, SetImageThenPlayAnimationDoesNotLogErrors)
         ASSERT_EQ(atlas_b, GetHashProperty(go, sprite_comp_id, image_prop_id, &tex1_options));
         ASSERT_EQ(animation_b, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, atlas_resource);
@@ -2306,7 +2482,7 @@ TEST_F(SpriteTest, SetImageKeepsSharedAnimationWithoutLogging)
         RenderCollection(m_RenderContext, m_Collection);
 
         ASSERT_EQ(shared_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, image_resource);
@@ -2350,7 +2526,7 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstAnimationWithoutLogging)
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         ASSERT_EQ(new_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, image_resource);
@@ -2398,7 +2574,7 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstTrimmedAnimationWithoutLogging)
 
         ASSERT_EQ(fallback_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
         ASSERT_EQ(0u, dmGameSystem::GetSpriteComponentAnimationIndex(sprite_component));
-        ASSERT_TRUE(log_capture.Empty());
+        ASSERT_TRUE(GamesysErrorLogCaptureEmpty(log_capture));
     }
 
     dmResource::Release(m_Factory, image_resource);
@@ -2452,6 +2628,26 @@ TEST_F(ParticleFxTest, PlayAnim)
 {
     // Spawn one go with a script that will initiate animations on the above sprites
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    bool tests_done = false;
+    WaitForTestsDone(100, true, &tests_done);
+
+    if (!tests_done)
+    {
+        dmLogError("The playback didn't finish");
+    }
+    ASSERT_TRUE(tests_done);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verify that particlefx.play() can capture and invoke an emitter callback when called from a coroutine.
+// The callback must be read from the coroutine's Lua stack; reading it from the main thread's stack
+// causes coroutine.resume() to fail with an unrelated value as its error object.
+TEST_F(ParticleFxTest, PlayAnimFromCoroutine)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play_from_coroutine.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     bool tests_done = false;
@@ -9111,6 +9307,20 @@ TEST_F(SysTest, LoadBufferASync)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verify that sys.load_buffer_async() keeps its callback alive after the coroutine that created
+// the request has finished and has been garbage collected.
+TEST_F(SysTest, LoadBufferAsyncFromCoroutine)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async_from_coroutine.goc", dmHashString64("/load_buffer_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done", 3));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
 
 TEST_F(ShaderTest, Compute)
@@ -9941,6 +10151,94 @@ TEST_F(GuiTest, PerPropertyPrecedence)
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompGuiUnregisterGetPropertyFn(test_prop_hash));
     
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiCustomPropertiesFromDDF)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/valid_gui.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0x0, gui_component);
+
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "custom_props");
+    ASSERT_NE(dmGui::INVALID_HANDLE, node);
+
+    dmGui::CustomProperty property = {};
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("component", property.m_String);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(GuiTest, GuiCustomPropertiesFromLayoutDDF)
+{
+    dmRender::HDisplayProfiles display_profiles = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/display_profiles/gui_layout_no_auto.display_profilesc", (void**)&display_profiles));
+    dmGui::SetDisplayProfiles(m_GuiContext, display_profiles);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/custom_properties_layout.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
+    ASSERT_NE((void*)0x0, gui_component);
+
+    dmGui::HNode node = dmGui::GetNodeById(gui_component->m_Scene, "custom_props_layout");
+    ASSERT_NE(dmGui::INVALID_HANDLE, node);
+
+    dmGui::CustomProperty property = {};
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("default", property.m_String);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(1.0f, property.m_Number, EPSILON);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_TRUE(property.m_Boolean);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_VEC3(Vector3(1.0f, 2.0f, 3.0f), property.m_Vector3);
+
+    gui_component->m_Scene->m_ApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Landscape"));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("landscape", property.m_String);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(2.0f, property.m_Number, EPSILON);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_FALSE(property.m_Boolean);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_VEC3(Vector3(4.0f, 5.0f, 6.0f), property.m_Vector3);
+
+    gui_component->m_Scene->m_ApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Portrait"));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
+    ASSERT_STREQ("default", property.m_String);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_number"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_NUMBER, property.m_Type);
+    ASSERT_NEAR(1.0f, property.m_Number, EPSILON);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_boolean"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN, property.m_Type);
+    ASSERT_TRUE(property.m_Boolean);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_vector3"), &property));
+    ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
+    ASSERT_VEC3(Vector3(1.0f, 2.0f, 3.0f), property.m_Vector3);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGui::SetDisplayProfiles(m_GuiContext, 0);
+    dmResource::Release(m_Factory, display_profiles);
 }
 
 extern "C" void dmExportedSymbols();

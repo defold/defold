@@ -25,7 +25,7 @@
 #include "dlib/mutex.h"
 #include "dlib/thread.h"
 #include "dlib/time.h"
-#include <dlib/profile.h>
+#include "dlib/profile.h"
 
 #include <assert.h>
 #include <stdio.h>

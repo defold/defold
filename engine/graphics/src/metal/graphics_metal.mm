@@ -749,6 +749,154 @@ namespace dmGraphics
         return t;
     }
 
+    static MTL::Texture* CreateMainDepthStencilTexture(MetalContext* context, uint32_t width, uint32_t height)
+    {
+        MTL::TextureDescriptor* desc = MTL::TextureDescriptor::texture2DDescriptor(
+            MTL::PixelFormatDepth32Float_Stencil8,
+            width,
+            height,
+            false
+        );
+
+        desc->setStorageMode(MTL::StorageModePrivate);
+        desc->setUsage(MTL::TextureUsageRenderTarget);
+        MTL::Texture* texture = context->m_Device->newTexture(desc);
+        return texture;
+    }
+
+    static void SetMainRenderTargetSize(MetalContext* context, uint32_t width, uint32_t height)
+    {
+        context->m_BaseContext.m_Width  = width;
+        context->m_BaseContext.m_Height = height;
+        context->m_MainScissor = {0, 0, width, height};
+
+        MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
+        main_rt->m_Scissor = {0, 0, width, height};
+        main_rt->m_ColorTextureParams[0].m_Width = width;
+        main_rt->m_ColorTextureParams[0].m_Height = height;
+        main_rt->m_Base.m_ColorTextureParams[0].m_Width = width;
+        main_rt->m_Base.m_ColorTextureParams[0].m_Height = height;
+        main_rt->m_DepthStencilTextureParams.m_Width = width;
+        main_rt->m_DepthStencilTextureParams.m_Height = height;
+        main_rt->m_Base.m_DepthStencilTextureParams.m_Width = width;
+        main_rt->m_Base.m_DepthStencilTextureParams.m_Height = height;
+        context->m_ScissorChanged = true;
+    }
+
+#if defined(DM_PLATFORM_IOS)
+    static UIView* ResolveNativeView(MetalContext* context)
+    {
+        UIView* native_view = (UIView*) dmGraphics::GetNativeiOSUIView();
+        if (!native_view)
+        {
+            UIWindow* native_window = (UIWindow*) dmGraphics::GetNativeiOSUIWindow();
+            native_view = native_window.rootViewController.view;
+        }
+        if (native_view && context)
+        {
+            context->m_View = native_view;
+        }
+        return native_view;
+    }
+
+    static bool GetDrawableSizeFromView(UIView* view, uint32_t* width, uint32_t* height)
+    {
+        if (!view)
+        {
+            return false;
+        }
+
+        CGSize view_size = view.bounds.size;
+        CGFloat scale = view.contentScaleFactor;
+        if (view_size.width <= 0.0f || view_size.height <= 0.0f)
+        {
+            view_size = [UIScreen mainScreen].bounds.size;
+            scale = [UIScreen mainScreen].scale;
+        }
+
+        const uint32_t view_width = (uint32_t)(view_size.width * scale + 0.5f);
+        const uint32_t view_height = (uint32_t)(view_size.height * scale + 0.5f);
+        if (view_width == 0 || view_height == 0)
+        {
+            return false;
+        }
+
+        *width = view_width;
+        *height = view_height;
+        return true;
+    }
+#endif
+
+    static void GetDrawableSize(MetalContext* context, uint32_t* width, uint32_t* height)
+    {
+        *width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+        *height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+
+#if defined(DM_PLATFORM_IOS)
+        if (*width == 0 || *height == 0)
+        {
+            UIView* native_view = ResolveNativeView(context);
+            GetDrawableSizeFromView(native_view, width, height);
+        }
+#endif
+
+        if (*width == 0)
+        {
+            *width = context->m_BaseContext.m_Width;
+        }
+        if (*height == 0)
+        {
+            *height = context->m_BaseContext.m_Height;
+        }
+        if (*width == 0)
+        {
+            *width = 1;
+        }
+        if (*height == 0)
+        {
+            *height = 1;
+        }
+    }
+
+#if defined(DM_PLATFORM_IOS)
+    static void ResizeMainFramebufferResources(MetalContext* context, uint32_t width, uint32_t height)
+    {
+        if (context->m_MainDepthStencilTexture &&
+            context->m_MainDepthStencilTexture->width() == width &&
+            context->m_MainDepthStencilTexture->height() == height)
+        {
+            SetMainRenderTargetSize(context, width, height);
+            return;
+        }
+
+        if (context->m_MainDepthStencilTexture)
+        {
+            context->m_MainDepthStencilTexture->release();
+        }
+        context->m_MainDepthStencilTexture = CreateMainDepthStencilTexture(context, width, height);
+
+        if (context->m_MSAASampleCount > 1)
+        {
+            for (uint32_t i = 0; i < context->m_NumFramesInFlight; ++i)
+            {
+                MetalFrameResource& frame = context->m_FrameResources[i];
+                if (frame.m_MSAAColorTexture)
+                {
+                    frame.m_MSAAColorTexture->release();
+                }
+                if (frame.m_MSAADepthTexture)
+                {
+                    frame.m_MSAADepthTexture->release();
+                }
+                frame.m_MSAAColorTexture = CreateMSAATexture(context, width, height, MTL::PixelFormatBGRA8Unorm, context->m_MSAASampleCount);
+                frame.m_MSAADepthTexture = CreateMSAATexture(context, width, height, MTL::PixelFormatDepth32Float_Stencil8, context->m_MSAASampleCount);
+            }
+        }
+
+        SetMainRenderTargetSize(context, width, height);
+    }
+#endif
+
     static inline bool MetalFormatHasDepth(MTL::PixelFormat fmt)
     {
         switch (fmt)
@@ -1175,13 +1323,15 @@ namespace dmGraphics
 
         SetupSupportedTextureFormats(context);
 
-        uint32_t window_width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
-        uint32_t window_height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+        uint32_t window_width = 0;
+        uint32_t window_height = 0;
+#if defined(DM_PLATFORM_IOS)
+        UIView* native_view = ResolveNativeView(context);
+        context->m_View = native_view;
+#endif
+        GetDrawableSize(context, &window_width, &window_height);
 
-        context->m_MainScissor = {0, 0, window_width, window_height};
-        MetalRenderTarget* main_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
-        main_rt->m_Scissor = {0, 0, window_width, window_height};
-        context->m_ScissorChanged = true;
+        SetMainRenderTargetSize(context, window_width, window_height);
         context->m_PolygonOffsetFactor = 0.0f;
         context->m_PolygonOffsetUnits  = 0.0f;
         context->m_PolygonOffsetChanged = true;
@@ -1324,8 +1474,11 @@ namespace dmGraphics
 #endif
 
 #if defined(DM_PLATFORM_IOS)
-        UIView* native_view = (UIView*) dmGraphics::GetNativeiOSUIView();
-        context->m_View     = native_view;
+        if (!native_view)
+        {
+            dmLogError("Unable to initialize Metal graphics adapter: missing native iOS view.");
+            return false;
+        }
         context->m_Layer.frame = native_view.bounds;
         [native_view.layer addSublayer:context->m_Layer];
 #else
@@ -1336,17 +1489,7 @@ namespace dmGraphics
         [native_view setWantsLayer:YES];
 #endif
 
-        MTL::TextureDescriptor* depthDesc = MTL::TextureDescriptor::texture2DDescriptor(
-            MTL::PixelFormatDepth32Float_Stencil8,
-            window_width,
-            window_height,
-            false
-        );
-
-        depthDesc->setStorageMode(MTL::StorageModePrivate);
-        depthDesc->setUsage(MTL::TextureUsageRenderTarget);
-        context->m_MainDepthStencilTexture = context->m_Device->newTexture(depthDesc);
-        depthDesc->release();
+        context->m_MainDepthStencilTexture = CreateMainDepthStencilTexture(context, window_width, window_height);
 
         return true;
     }
@@ -1621,6 +1764,23 @@ namespace dmGraphics
         MetalFrameResource& frame = GetCurrentFrameResource(context);
         assert(!frame.m_InFlight);
 
+#if defined(DM_PLATFORM_IOS)
+        UIView* native_view = ResolveNativeView(context);
+        if (native_view)
+        {
+            uint32_t drawable_width = 0;
+            uint32_t drawable_height = 0;
+            GetDrawableSize(context, &drawable_width, &drawable_height);
+            context->m_Layer.frame = native_view.bounds;
+            context->m_Layer.drawableSize = CGSizeMake(drawable_width, drawable_height);
+            if (context->m_Layer.superlayer != native_view.layer)
+            {
+                [context->m_Layer removeFromSuperlayer];
+                [native_view.layer addSublayer:context->m_Layer];
+            }
+        }
+#endif
+
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
         frame.m_Drawable = (__bridge CA::MetalDrawable*)[context->m_Layer nextDrawable];
         if (frame.m_Drawable)
@@ -1649,11 +1809,17 @@ namespace dmGraphics
         MetalTexture* color_tex = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureColor[0]);
         MetalTexture* ds_tex    = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
 
+        const uint32_t drawable_width = frame.m_Drawable->texture()->width();
+        const uint32_t drawable_height = frame.m_Drawable->texture()->height();
+#if defined(DM_PLATFORM_IOS)
+        ResizeMainFramebufferResources(context, drawable_width, drawable_height);
+#endif
+
         color_tex->m_Texture    = frame.m_Drawable->texture();
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
 
-        rt->m_ColorTextureParams[0].m_Width  = frame.m_Drawable->texture()->width();
-        rt->m_ColorTextureParams[0].m_Height = frame.m_Drawable->texture()->height();
+        rt->m_ColorTextureParams[0].m_Width  = drawable_width;
+        rt->m_ColorTextureParams[0].m_Height = drawable_height;
         rt->m_Base.m_ColorTextureParams[0].m_Width  = rt->m_ColorTextureParams[0].m_Width;
         rt->m_Base.m_ColorTextureParams[0].m_Height = rt->m_ColorTextureParams[0].m_Height;
     }
@@ -2416,6 +2582,38 @@ namespace dmGraphics
         return dmMath::Max((uint32_t) program->m_BaseProgram.m_MaxBinding, (uint32_t) program->m_BaseProgram.m_MaxSet);
     }
 
+    static const ShaderResourceBinding* GetVertexShaderInputForStream(const MetalProgram* program, const VertexDeclaration::Stream& stream)
+    {
+        const dmArray<ShaderResourceBinding>& inputs = program->m_BaseProgram.m_ShaderMeta.m_Inputs;
+
+        for (uint32_t i = 0; i < inputs.Size(); ++i)
+        {
+            const ShaderResourceBinding& input = inputs[i];
+            if ((input.m_StageFlags & SHADER_STAGE_FLAG_VERTEX) != 0 && input.m_NameHash == stream.m_NameHash)
+            {
+                return &input;
+            }
+        }
+
+        return 0;
+    }
+
+    static uint32_t GetMatrixVertexInputColumnCount(const ShaderResourceBinding* input)
+    {
+        if (!input || input->m_Type.m_UseTypeIndex)
+        {
+            return 0;
+        }
+
+        switch (input->m_Type.m_ShaderType)
+        {
+            case ShaderDesc::SHADER_TYPE_MAT2: return 2;
+            case ShaderDesc::SHADER_TYPE_MAT3: return 3;
+            case ShaderDesc::SHADER_TYPE_MAT4: return 4;
+            default:                           return 0;
+        }
+    }
+
     static bool CreatePipeline(MetalContext* context, MetalRenderTarget* rt, const PipelineState pipeline_state,  MetalProgram* program, VertexDeclaration** vertexDeclaration, uint32_t vertexDeclarationCount, MetalPipeline* pipeline)
     {
         MTL::VertexDescriptor* vertex_desc = MTL::VertexDescriptor::alloc()->init();
@@ -2430,14 +2628,29 @@ namespace dmGraphics
             for (uint32_t s = 0; s < vd->m_StreamCount; ++s)
             {
                 const VertexDeclaration::Stream& stream = vd->m_Streams[s];
+                const ShaderResourceBinding* vertex_input = GetVertexShaderInputForStream(program, stream);
+                const uint32_t matrix_column_count = GetMatrixVertexInputColumnCount(vertex_input);
+                const uint32_t column_count = matrix_column_count > 0 ? matrix_column_count : 1;
+                const uint32_t column_size = matrix_column_count > 0 ? matrix_column_count : stream.m_Size;
 
-                // Use the shader location (stream.m_Location) as the attribute index
-                uint32_t attrIndex = stream.m_Location;
-                MTL::VertexAttributeDescriptor* attr = vertex_desc->attributes()->object(attrIndex);
+                if (matrix_column_count > 0 && stream.m_Size != matrix_column_count * matrix_column_count)
+                {
+                    dmLogError("Invalid vertex stream size %u for matrix attribute '%s'", stream.m_Size, dmHashReverseSafe64(stream.m_NameHash));
+                    continue;
+                }
 
-                attr->setFormat(ConvertVertexFormat(stream.m_Type, stream.m_Size, stream.m_Normalize));
-                attr->setOffset(stream.m_Offset);
-                attr->setBufferIndex(buffer_index + vx_buffer_start_ix);
+                // Metal represents a matrix stage input as one vector attribute per
+                // column at consecutive locations. The vertex data is column-major,
+                // so advance by one column for both the location and byte offset.
+                for (uint32_t column = 0; column < column_count; ++column)
+                {
+                    uint32_t attr_index = stream.m_Location + column;
+                    MTL::VertexAttributeDescriptor* attr = vertex_desc->attributes()->object(attr_index);
+
+                    attr->setFormat(ConvertVertexFormat(stream.m_Type, column_size, stream.m_Normalize));
+                    attr->setOffset(stream.m_Offset + column * column_size * GetTypeSize(stream.m_Type));
+                    attr->setBufferIndex(buffer_index + vx_buffer_start_ix);
+                }
             }
 
             // One layout per vertex buffer
@@ -3735,7 +3948,6 @@ namespace dmGraphics
         }
 
         texture->m_Texture = context->m_Device->newTexture(desc);
-        desc->release();
         texture->m_Destroyed = 0;
 
         texture->m_Base.m_Width       = params.m_Width;
@@ -3790,6 +4002,7 @@ namespace dmGraphics
             case TEXTURE_TYPE_TEXTURE_CUBE:
                 desc->setTextureType(MTL::TextureTypeCube);
                 tex_depth = 1;
+                tex_layer_count = dmMath::Max((uint8_t) GetLayerCount(TEXTURE_TYPE_CUBE_MAP), tex_layer_count);
                 tex_array_length = 1;
                 break;
             default:
@@ -3819,6 +4032,7 @@ namespace dmGraphics
         texture->m_Base.m_Depth       = tex_depth;
         texture->m_Base.m_Format      = params.m_Format;
         texture->m_Base.m_MipMapCount = tex_mip_count;
+        texture->m_Base.m_PageCount   = tex_layer_count;
         texture->m_LayerCount         = tex_layer_count;
         SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture));
     }
@@ -4067,6 +4281,12 @@ namespace dmGraphics
     {
         MetalTexture* tex = new MetalTexture;
         memset(tex, 0, sizeof(MetalTexture));
+        uint8_t layer_count = params.m_LayerCount;
+        if (params.m_Type == TEXTURE_TYPE_CUBE_MAP || params.m_Type == TEXTURE_TYPE_TEXTURE_CUBE)
+        {
+            layer_count = (uint8_t) GetLayerCount(TEXTURE_TYPE_CUBE_MAP);
+        }
+
         tex->m_Base.m_Type           = params.m_Type;
         tex->m_Base.m_Format         = TEXTURE_FORMAT_RGBA;
         tex->m_Base.m_Width          = params.m_Width;
@@ -4074,12 +4294,12 @@ namespace dmGraphics
         tex->m_Base.m_Depth          = dmMath::Max((uint16_t)1, params.m_Depth);
         tex->m_Base.m_MipMapCount    = params.m_MipMapCount;
         tex->m_Base.m_UsageHintFlags = params.m_UsageHintBits;
-        tex->m_Base.m_PageCount      = params.m_LayerCount;
+        tex->m_Base.m_PageCount      = layer_count;
         tex->m_Base.m_ResourceSize   = 0;
         tex->m_Base.m_Mip0ResourceSize = 0;
         tex->m_Base.m_DataState      = 0;
         tex->m_Base.m_NumTextureIds  = 1;
-        tex->m_LayerCount            = dmMath::Max((uint8_t)1, params.m_LayerCount);
+        tex->m_LayerCount            = dmMath::Max((uint8_t)1, layer_count);
 
         tex->m_Usage = GetMetalUsageFromHints(params.m_UsageHintBits);
 
@@ -4259,6 +4479,10 @@ namespace dmGraphics
         {
             return 1;
         }
+        if (texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP || texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_CUBE)
+        {
+            return dmMath::Max((uint32_t) GetLayerCount(TEXTURE_TYPE_CUBE_MAP), (uint32_t) texture->m_LayerCount);
+        }
         if (params.m_LayerCount != 0)
         {
             return params.m_LayerCount;
@@ -4278,12 +4502,14 @@ namespace dmGraphics
 
         const uint32_t target_mip = params.m_MipMap;
         const bool is_3d_texture = IsTextureType3D(texture->m_Base.m_Type);
+        const bool is_cube_texture = texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP || texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_CUBE;
         const uint32_t layerCount = GetMetalTextureUploadLayerCount(texture, params);
+        const uint32_t baseSlice = is_cube_texture ? 0 : params.m_Slice;
 
-        if (!is_3d_texture && params.m_Slice + layerCount > texture->m_LayerCount)
+        if (!is_3d_texture && baseSlice + layerCount > texture->m_LayerCount)
         {
             dmLogError("MetalCopyToTexture: upload range [%u, %u) exceeds texture layer count %u",
-                params.m_Slice, params.m_Slice + layerCount, texture->m_LayerCount);
+                baseSlice, baseSlice + layerCount, texture->m_LayerCount);
             return;
         }
 
@@ -4369,8 +4595,13 @@ namespace dmGraphics
         const uint8_t* srcBase = pixels;
 
         // Source layout assumption: pixels holds `layerCount` slices contiguous for this mip.
-        // When m_DataSize is supplied it is the stride for one uploaded slice/cube face.
-        const uint64_t srcSliceStride = params.m_DataSize ? params.m_DataSize : unpaddedSliceSize * copyDepth;
+        // Most resource paths supply m_DataSize as the stride for one slice/cube face, while
+        // resource.create_texture_async() supplies the whole Lua buffer size.
+        uint64_t srcSliceStride = params.m_DataSize ? params.m_DataSize : unpaddedSliceSize * copyDepth;
+        if (is_cube_texture && params.m_DataSize == unpaddedSliceSize * copyDepth * layerCount)
+        {
+            srcSliceStride = unpaddedSliceSize * copyDepth;
+        }
 
         for (uint32_t slice = 0; slice < layerCount; ++slice)
         {
@@ -4412,7 +4643,7 @@ namespace dmGraphics
             const MetalPlacedSubresource& p = placed[slice];
 
             // destination slice (array index or cube face index)
-            NSUInteger destSlice = is_3d_texture ? 0 : (NSUInteger)(params.m_Slice + slice);
+            NSUInteger destSlice = is_3d_texture ? 0 : (NSUInteger)(baseSlice + slice);
 
             // destination origin (subupdate offsets)
             MTL::Origin destOrigin = { (NSUInteger)params.m_X, (NSUInteger)params.m_Y, (NSUInteger)params.m_Z };

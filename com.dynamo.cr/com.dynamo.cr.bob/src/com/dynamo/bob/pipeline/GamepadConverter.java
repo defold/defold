@@ -27,8 +27,6 @@ import java.util.Map;
  */
 public final class GamepadConverter {
 
-    private static final int GUID_SIZE = 16;
-
     private static final String SDL_TYPE_AXIS = "a";
     private static final String SDL_TYPE_BUTTON = "b";
     private static final String SDL_TYPE_HAT = "h";
@@ -91,6 +89,14 @@ public final class GamepadConverter {
         CANONICAL_SDL_PACKET_BINDINGS.put("b", "b1");
         CANONICAL_SDL_PACKET_BINDINGS.put("x", "b2");
         CANONICAL_SDL_PACKET_BINDINGS.put("y", "b3");
+        CANONICAL_SDL_PACKET_BINDINGS.put("back", "b4");
+        CANONICAL_SDL_PACKET_BINDINGS.put("start", "b5");
+        CANONICAL_SDL_PACKET_BINDINGS.put("leftstick", "b6");
+        CANONICAL_SDL_PACKET_BINDINGS.put("rightstick", "b7");
+        CANONICAL_SDL_PACKET_BINDINGS.put("leftshoulder", "b8");
+        CANONICAL_SDL_PACKET_BINDINGS.put("rightshoulder", "b9");
+        CANONICAL_SDL_PACKET_BINDINGS.put("guide", "b10");
+        CANONICAL_SDL_PACKET_BINDINGS.put("misc1", "b11");
         CANONICAL_SDL_PACKET_BINDINGS.put("dpup", "h0.1");
         CANONICAL_SDL_PACKET_BINDINGS.put("dpright", "h0.2");
         CANONICAL_SDL_PACKET_BINDINGS.put("dpdown", "h0.4");
@@ -243,9 +249,10 @@ public final class GamepadConverter {
             sb.append("mappings\n");
             sb.append("{\n");
             sb.append("    device: \"").append(escapeDefoldString(mapping.name)).append("\"\n");
-            byte[] guid = parseGuidBytes(mapping.guid);
+            String guid = resolveGuidAlias(mapping.guid);
             if (guid != null) {
-                sb.append("    guid: \"").append(escapeBytes(guid)).append("\"\n");
+                String rawMapping = guid + "," + mapping.name + "," + mapping.mappings;
+                sb.append("    raw_mapping: \"").append(escapeDefoldString(rawMapping)).append("\"\n");
             }
 
             List<String> mapEntries = convertSdlMappingToDefoldMap(mapping, defoldPlatform);
@@ -354,6 +361,9 @@ public final class GamepadConverter {
                 return "switch";
             case "playstation":
                 return "playstation";
+            case "xbox":
+            case "xbone":
+                return "xbox";
             default:
                 if (normalized.endsWith("-win32")) {
                     return "windows";
@@ -379,31 +389,15 @@ public final class GamepadConverter {
                 if (normalized.endsWith("-ps4") || normalized.endsWith("-ps5")) {
                     return "playstation";
                 }
+                if (normalized.endsWith("-xbone")) {
+                    return "xbox";
+                }
                 return normalized;
         }
     }
 
     private static boolean isValidGuid(String guid) {
         return resolveGuidAlias(guid) != null;
-    }
-
-    private static byte[] parseGuidBytes(String guid) {
-        guid = resolveGuidAlias(guid);
-        if (guid == null) {
-            return null;
-        }
-
-        byte[] bytes = new byte[GUID_SIZE];
-        for (int i = 0; i < bytes.length; ++i) {
-            int hi = Character.digit(guid.charAt(i * 2), 16);
-            int lo = Character.digit(guid.charAt(i * 2 + 1), 16);
-            if (hi < 0 || lo < 0) {
-                return null;
-            }
-            bytes[i] = (byte)((hi << 4) | lo);
-        }
-
-        return bytes;
     }
 
     private static String resolveGuidAlias(String guid) {
@@ -425,10 +419,11 @@ public final class GamepadConverter {
         return convertSdlMappingToDefoldMap(mapping.mappings, usesCanonicalSdlPacketLayout(platform));
     }
 
-    // Darwin HID emits SDL logical packet order for GUID mappings; the upstream
-    // SDL row still identifies the device and logical controls, but not our packet indices.
+    // iOS exposes a canonical GameController packet. On macOS the HID layer
+    // synthesizes the physical SDL packet described by gamecontrollerdb.txt,
+    // even when GameController.framework supplies the live semantic values.
     private static boolean usesCanonicalSdlPacketLayout(String platform) {
-        return platform.equals("macos") || platform.equals("ios");
+        return platform.equals("ios");
     }
 
     // SDL's Windows XInput mappings use SDL's packet axis order:
@@ -543,53 +538,14 @@ public final class GamepadConverter {
             entries.add(part);
         }
 
-        // Step 2: build the packet bindings used by Darwin HID when runtime selects
-        // the non-legacy SDL layout for GUID mappings.
-        Map<String, String> canonicalBindings = createCanonicalSdlPacketBindings(entries);
-
-        // Step 3: preserve the SDL logical control names from the upstream row, but
+        // Step 2: preserve the SDL logical control names from the upstream row, but
         // replace physical indices with our canonical packet indices before reusing
         // the normal SDL-to-Defold map conversion.
         for (String entry : entries) {
-            result.addAll(convertSdlMappingEntriesToCanonicalPacket(entry, canonicalBindings));
+            result.addAll(convertSdlMappingEntriesToCanonicalPacket(entry, CANONICAL_SDL_PACKET_BINDINGS));
         }
 
         return result;
-    }
-
-    private static Map<String, String> createCanonicalSdlPacketBindings(List<String> sdlEntries) {
-        Map<String, String> bindings = new HashMap<>(CANONICAL_SDL_PACKET_BINDINGS);
-
-        // Face buttons, axes and dpad have fixed positions. Optional buttons are
-        // appended in the same order as AppleGamepadDriverUpdateSDL writes them,
-        // so missing controls do not shift shoulders/guide incorrectly.
-        int buttonIndex = 4;
-        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "back", buttonIndex);
-        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "start", buttonIndex);
-        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "leftstick", buttonIndex);
-        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "rightstick", buttonIndex);
-        bindings.put("leftshoulder", "b" + buttonIndex++);
-        bindings.put("rightshoulder", "b" + buttonIndex++);
-        buttonIndex = addOptionalCanonicalButton(bindings, sdlEntries, "guide", buttonIndex);
-        addOptionalCanonicalButton(bindings, sdlEntries, "misc1", buttonIndex);
-
-        return bindings;
-    }
-
-    private static int addOptionalCanonicalButton(Map<String, String> bindings, List<String> sdlEntries, String logical, int buttonIndex) {
-        if (hasSdlLogicalControl(sdlEntries, logical)) {
-            bindings.put(logical, "b" + buttonIndex++);
-        }
-        return buttonIndex;
-    }
-
-    private static boolean hasSdlLogicalControl(List<String> sdlEntries, String logical) {
-        for (String entry : sdlEntries) {
-            if (logical.equals(getSdlLogicalName(entry))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static List<String> convertSdlMappingEntriesToCanonicalPacket(String sdlEntry, Map<String, String> canonicalBindings) {
@@ -802,11 +758,4 @@ public final class GamepadConverter {
                 .replace("\t", "\\t");
     }
 
-    private static String escapeBytes(byte[] bytes) {
-        StringBuilder sb = new StringBuilder(bytes.length * 4);
-        for (byte b : bytes) {
-            sb.append(String.format("\\%03o", b & 0xff));
-        }
-        return sb.toString();
-    }
 }

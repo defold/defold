@@ -20,7 +20,7 @@
             [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
-            [support.test-support :refer [tx-nodes with-clean-system]])
+            [support.test-support :refer [cached-endpoints tx-nodes with-clean-system]])
   (:import [clojure.lang Compiler$CompilerException]))
 
 (set! *warn-on-reflection* true)
@@ -294,6 +294,13 @@
             (value (g/fnk [_this]
                           (inc (or (get _this :int-val) 0))))))
 
+(g/defnode StaticPropertyNode
+  (property static-property g/Str
+            (static custom-property {:id "static_property"
+                                     :protobuf-type :type-string})
+            (static false-value false))
+  (property ordinary-property g/Str))
+
 (g/defnode ComplexGetterFnPropertyNode
   (input a g/Any)
   (input b g/Any)
@@ -327,6 +334,19 @@
   (testing "properties can have defaults"
     (let [node (g/construct TwoPropertyNode)]
       (is (= "default value" (gt/get-property node (g/now) :a-property)))))
+
+  (testing "properties can have static attributes"
+    (is (= {:custom-property {:id "static_property"
+                              :protobuf-type :type-string}
+            :false-value false}
+           (get-in @StaticPropertyNode [:property :static-property :statics])))
+    (is (= {:static-property {:id "static_property"
+                              :protobuf-type :type-string}}
+           (g/property-statics StaticPropertyNode :custom-property)))
+    (is (= {:static-property false}
+           (g/property-statics StaticPropertyNode :false-value)))
+    (is (= {}
+           (g/property-statics StaticPropertyNode :missing))))
 
   (testing "properties are inherited"
     (let [node (g/construct InheritedPropertyNode :a-property nil :another-property nil)]
@@ -863,7 +883,12 @@
     (is (not (contains? (-> @InheritAndOverrideProperties :output :_properties :flags) :cached)))))
 
 (deftest declared-properties-is-cached
-  (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties)))
+  (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties))
+  (with-clean-system
+    (let [[node-id] (tx-nodes (g/make-node world CustomPropertiesOutput))
+          endpoint (g/endpoint node-id :_declared-properties)]
+      (g/node-value node-id :_declared-properties)
+      (is (contains? (cached-endpoints) endpoint)))))
 
 (defn- override [node-id]
   (-> (g/override node-id {})
@@ -1133,3 +1158,10 @@
                                                          (g/map->error {:severity :fatal})))))]
         (is (not (g/error? (g/node-value node-id :target))))
         (is (g/error? (:result (g/node-value node-id :target))))))))
+
+(deftest property-default-schema-validation-test
+  (binding [in/*suppress-schema-warnings* true]
+    (is (thrown-with-msg?
+          Exception #"SCHEMA-VALIDATION"
+          (g/defnode BadPropertyDefaultTestNode
+            (property keyword-property g/Keyword (default "not a keyword")))))))

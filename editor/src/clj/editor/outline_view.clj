@@ -220,8 +220,8 @@
                           active-node-id->node-id-path->expanded))))]
     ret))
 
-(fxui/defc outline-tree-view
-  {:compose [{:fx/type fxui/ext-memo
+(ui/defc outline-tree-view
+  {:compose [{:fx/type ui/ext-memo
               :fn decorate-outline
               :args [(:active-outline props)
                      (:hidden-node-outline-key-paths props)
@@ -261,11 +261,11 @@
                                         ;; sync
                                         root)}
       :desc
-      {:fx/type fxui/ext-value :value tree-view}}}))
+      {:fx/type ui/ext-value :value tree-view}}}))
 
 (def ^:private outline-message (localization/message "pane.outline"))
 
-(fxui/defc outline-pane-view
+(ui/defc outline-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state] :as props}]
   {:fx/type fxui/titled-pane
@@ -772,8 +772,10 @@
         .getSelectionModel
         .getSelectedItems
         (^[ListChangeListener] ObservableList/.addListener
-          (fn [_]
-            (g/set-property! outline-view :tree-selection (ui/selection tree-view)))))
+          (fn [_change]
+            (g/transact
+              {:undoable false}
+              (g/set-property outline-view :tree-selection (ui/selection tree-view))))))
     (doto tree-view
       (ui/customize-tree-view! {:double-click-expand true})
       (.. getSelectionModel (setSelectionMode SelectionMode/MULTIPLE))
@@ -798,6 +800,7 @@
         outline-view (first
                        (g/tx-nodes-added
                          (g/transact
+                           {:undoable false}
                            (g/make-nodes view-graph [outline-view [OutlineView
                                                                    :tree-view tree-view
                                                                    :localization localization]]
