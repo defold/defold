@@ -22,6 +22,12 @@ static void HandleGLSurfaceFailure(GlfwAndroidEglResult result)
     destroy_gl_surface(&_glfwWinAndroid);
     _glfwWinAndroid.should_recreate_surface = result == GLFW_ANDROID_EGL_RESULT_DEFERRED;
     _glfwWin.iconified = 1;
+
+    if (result == GLFW_ANDROID_EGL_RESULT_FATAL)
+    {
+        LOGE("Fatal EGL failure. Closing the window.");
+        androidDestroyWindow();
+    }
 }
 
 static GlfwAndroidEglResult CreateGLSurface()
@@ -144,6 +150,7 @@ int _glfwAndroidPlatformOpenWindow(int width, int height, const _GLFWwndconfig* 
         if (result != GLFW_ANDROID_EGL_RESULT_READY)
             return GL_FALSE;
 
+        _glfwWinAndroid.should_recreate_surface = 0;
         computeIconifiedState();
     }
 
