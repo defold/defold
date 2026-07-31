@@ -121,6 +121,7 @@ int _glfwAndroidPlatformOpenWindow(int width, int height, const _GLFWwndconfig* 
     if (_glfwWin.clientAPI == GLFW_OPENGL_API)
     {
         GlfwAndroidEglResult result;
+        uint32_t retry_count = 0;
         do
         {
             if (init_gl(&_glfwWinAndroid) == 0)
@@ -135,6 +136,8 @@ int _glfwAndroidPlatformOpenWindow(int width, int height, const _GLFWwndconfig* 
                 HandleGLSurfaceFailure(result);
                 final_gl(&_glfwWinAndroid);
             }
+            if (result == GLFW_ANDROID_EGL_RESULT_DEFERRED)
+                wait_for_egl_retry(retry_count++);
         }
         while (result == GLFW_ANDROID_EGL_RESULT_DEFERRED);
 

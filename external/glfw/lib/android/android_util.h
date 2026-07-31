@@ -69,6 +69,8 @@ GlfwAndroidEglResult make_current(_GLFWwin_android* win);
 
 GlfwAndroidEglResult update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force);
 
+void wait_for_egl_retry(uint32_t retry_count);
+
 int _glfwAndroidIsAppResumed(void);
 
 int query_gl_aux_context(_GLFWwin_android* win);

@@ -20,6 +20,9 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#define EGL_RETRY_INITIAL_DELAY_US (50 * 1000)
+#define EGL_RETRY_MAX_DELAY_US     (800 * 1000)
+
 
 static bool is_alpha_transparency_enabled()
 {
@@ -211,6 +214,21 @@ static ANativeWindow* WaitForAppAndWindow(_GLFWwin_android* win)
 
     LOGI("ENGINE THREAD: App is being destroyed. Exiting!");
     return NULL;
+}
+
+void wait_for_egl_retry(uint32_t retry_count)
+{
+    uint32_t delay_us = EGL_RETRY_INITIAL_DELAY_US;
+    while (retry_count > 0 && delay_us < EGL_RETRY_MAX_DELAY_US)
+    {
+        delay_us *= 2;
+        --retry_count;
+    }
+    if (delay_us > EGL_RETRY_MAX_DELAY_US)
+        delay_us = EGL_RETRY_MAX_DELAY_US;
+
+    LOGI("Waiting %u ms before retrying EGL initialization.", delay_us / 1000);
+    usleep(delay_us);
 }
 
 static GlfwAndroidEglResult GetEglFailureResult(const char* operation, EGLint error)
@@ -419,11 +437,15 @@ int init_gl(_GLFWwin_android* win)
     }
 
     GlfwAndroidEglResult surface_result;
+    uint32_t retry_count = 0;
     do
     {
         surface_result = CreateGLSurfaceForWindow(win, window);
         if (surface_result == GLFW_ANDROID_EGL_RESULT_DEFERRED)
+        {
+            wait_for_egl_retry(retry_count++);
             window = WaitForAppAndWindow(win);
+        }
     }
     while (surface_result == GLFW_ANDROID_EGL_RESULT_DEFERRED && window != NULL);
 
