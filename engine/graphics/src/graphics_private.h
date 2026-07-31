@@ -240,6 +240,9 @@ namespace dmGraphics
         // Render targets are not resource-backed in general (render scripts create them at runtime),
         // so RecreateGraphicsHandles walks this list to restore them in place after a lost context.
         dmArray<HRenderTarget>             m_RenderTargets;
+        // Bumped by the InvalidateGraphicsHandles dispatcher on every context loss, see
+        // GetInvalidationGeneration.
+        uint32_t                           m_InvalidationGeneration;
         uint32_t                           m_VerifyGraphicsCalls : 1;
         uint32_t                           m_PrintDeviceInfo     : 1;
     };

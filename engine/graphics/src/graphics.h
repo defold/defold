@@ -497,11 +497,16 @@ namespace dmGraphics
     const char* GetAssetTypeLiteral(AssetType type);
     bool        IsAssetHandleValid(HContext context, HAssetHandle asset_handle);
     void        InvalidateGraphicsHandles(HContext context);
-    // Recreate context-owned GPU objects (e.g. the global VAO, context uniform buffers) after a
-    // graphics context has been restored. Resource-backed objects (textures, programs, buffers,
-    // render targets) are regenerated in place by their own recreate paths; this covers only the
-    // objects that the resource layer never touches.
+    // Recreate the GPU objects the resource layer never touches after a graphics context has been
+    // restored: context-owned objects (e.g. the global VAO) and all live render targets (restored
+    // wholesale — they are not resource-backed in general and their contents are transient).
+    // Resource-backed objects (textures, programs, buffers) are regenerated in place by their own
+    // recreate paths.
     void        RecreateGraphicsHandles(HContext context);
+    // Incremented on every InvalidateGraphicsHandles (context loss). Component worlds that upload
+    // GPU objects only on changes (e.g. comp_model custom vertex attribute buffers) compare this
+    // against a cached value to know that their objects were lost and must be re-uploaded.
+    uint32_t    GetInvalidationGeneration(HContext context);
 
     /** checks if the texture format is compressed
      * @name IsFormatTranscoded

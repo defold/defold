@@ -1747,8 +1747,11 @@ TEST_F(dmGraphicsTest, ContextRestoreRecreatesGpuHandles)
     dmGraphics::HIndexBuffer  ibuffer_before = ibuffer;
     dmGraphics::HProgram      program_before = program;
 
-    // Context loss: every existing GPU object becomes invalid.
+    // Context loss: every existing GPU object becomes invalid, and the invalidation generation is
+    // bumped (component worlds use it to detect the loss, see comp_model).
+    uint32_t invalidation_generation_before = dmGraphics::GetInvalidationGeneration(m_Context);
     dmGraphics::InvalidateGraphicsHandles(m_Context);
+    ASSERT_EQ(invalidation_generation_before + 1, dmGraphics::GetInvalidationGeneration(m_Context));
     ASSERT_NE(m_NullContext->m_GpuGeneration, nt->m_GpuGeneration);
     ASSERT_NE(m_NullContext->m_GpuGeneration, vb->m_GpuGeneration);
     ASSERT_NE(m_NullContext->m_GpuGeneration, ib->m_GpuGeneration);

@@ -3083,6 +3083,14 @@ namespace dmRender
     * Rendering stays paused while the resources are being recreated and is automatically resumed once
     * the process has finished. The work is spread across frames so the application stays responsive.
     *
+    * Render targets are restored as well, including ones created at runtime with
+    * [ref:render.render_target] — their contents are transient and are re-rendered by the next frame.
+    *
+    * Resources created at runtime from memory (for example textures made with
+    * `resource.create_texture`) have no file to reload from: their handles stay valid, but the
+    * application must upload the content again itself (e.g. with `resource.set_texture`) — the
+    * finish callback is a good place to trigger that.
+    *
     * @name render.reload_resources
     * @param finish_callback [type:function(self)] Called once when all resources have been recreated.
     * @param progress_callback [type:function(self, done, total)|nil] Optional. Called every frame with
