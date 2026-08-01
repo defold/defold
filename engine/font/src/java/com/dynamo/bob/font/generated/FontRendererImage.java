@@ -30,34 +30,28 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
 
 /**
  * {@snippet lang=c :
- * struct FontTexture {
+ * struct FontRendererImage {
  *     uint8_t *m_Pixels;
- *     uint64_t m_AtlasVersion;
  *     uint32_t m_PixelCount;
- *     uint32_t m_X;
- *     uint32_t m_Y;
  *     uint32_t m_Width;
  *     uint32_t m_Height;
  *     uint32_t m_Channels;
  * }
  * }
  */
-public class FontTexture {
+public class FontRendererImage {
 
-    FontTexture() {
+    FontRendererImage() {
         // Should not be called directly
     }
 
     private static final GroupLayout $LAYOUT = MemoryLayout.structLayout(
         FontRendererFFM.C_POINTER.withName("m_Pixels"),
-        FontRendererFFM.C_LONG_LONG.withName("m_AtlasVersion"),
         FontRendererFFM.C_INT.withName("m_PixelCount"),
-        FontRendererFFM.C_INT.withName("m_X"),
-        FontRendererFFM.C_INT.withName("m_Y"),
         FontRendererFFM.C_INT.withName("m_Width"),
         FontRendererFFM.C_INT.withName("m_Height"),
         FontRendererFFM.C_INT.withName("m_Channels")
-    ).withName("FontTexture");
+    ).withName("FontRendererImage");
 
     /**
      * The layout of this struct
@@ -110,50 +104,6 @@ public class FontTexture {
         struct.set(m_Pixels$LAYOUT, m_Pixels$OFFSET, fieldValue);
     }
 
-    private static final OfLong m_AtlasVersion$LAYOUT = (OfLong)$LAYOUT.select(groupElement("m_AtlasVersion"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint64_t m_AtlasVersion
-     * }
-     */
-    public static final OfLong m_AtlasVersion$layout() {
-        return m_AtlasVersion$LAYOUT;
-    }
-
-    private static final long m_AtlasVersion$OFFSET = $LAYOUT.byteOffset(groupElement("m_AtlasVersion"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint64_t m_AtlasVersion
-     * }
-     */
-    public static final long m_AtlasVersion$offset() {
-        return m_AtlasVersion$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint64_t m_AtlasVersion
-     * }
-     */
-    public static long m_AtlasVersion(MemorySegment struct) {
-        return struct.get(m_AtlasVersion$LAYOUT, m_AtlasVersion$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint64_t m_AtlasVersion
-     * }
-     */
-    public static void m_AtlasVersion(MemorySegment struct, long fieldValue) {
-        struct.set(m_AtlasVersion$LAYOUT, m_AtlasVersion$OFFSET, fieldValue);
-    }
-
     private static final OfInt m_PixelCount$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_PixelCount"));
 
     /**
@@ -196,94 +146,6 @@ public class FontTexture {
      */
     public static void m_PixelCount(MemorySegment struct, int fieldValue) {
         struct.set(m_PixelCount$LAYOUT, m_PixelCount$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_X$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_X"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_X
-     * }
-     */
-    public static final OfInt m_X$layout() {
-        return m_X$LAYOUT;
-    }
-
-    private static final long m_X$OFFSET = $LAYOUT.byteOffset(groupElement("m_X"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_X
-     * }
-     */
-    public static final long m_X$offset() {
-        return m_X$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_X
-     * }
-     */
-    public static int m_X(MemorySegment struct) {
-        return struct.get(m_X$LAYOUT, m_X$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_X
-     * }
-     */
-    public static void m_X(MemorySegment struct, int fieldValue) {
-        struct.set(m_X$LAYOUT, m_X$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_Y$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_Y"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_Y
-     * }
-     */
-    public static final OfInt m_Y$layout() {
-        return m_Y$LAYOUT;
-    }
-
-    private static final long m_Y$OFFSET = $LAYOUT.byteOffset(groupElement("m_Y"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_Y
-     * }
-     */
-    public static final long m_Y$offset() {
-        return m_Y$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_Y
-     * }
-     */
-    public static int m_Y(MemorySegment struct) {
-        return struct.get(m_Y$LAYOUT, m_Y$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_Y
-     * }
-     */
-    public static void m_Y(MemorySegment struct, int fieldValue) {
-        struct.set(m_Y$LAYOUT, m_Y$OFFSET, fieldValue);
     }
 
     private static final OfInt m_Width$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_Width"));

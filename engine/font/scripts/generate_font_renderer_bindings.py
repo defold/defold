@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations under the License.
 
 import argparse
+import hashlib
 import pathlib
 import shutil
 import subprocess
@@ -46,6 +47,8 @@ FUNCTIONS = (
     "FontRendererMeasure",
     "FontRendererGenerateGlyph",
     "FontRendererFreeGlyph",
+    "FontRendererDecodeImage",
+    "FontRendererFreeImage",
     "FontRendererSetProperties",
     "FontRendererSetText",
     "FontRendererHash",
@@ -59,6 +62,7 @@ STRUCTS = (
     "FontRendererParams",
     "FontRendererLayout",
     "FontRendererGlyph",
+    "FontRendererImage",
     "FontRendererProperties",
     "FontTexture",
 )
@@ -78,11 +82,13 @@ CONSTANTS = (
     "FONT_RENDERER_LAYER_OUTLINE",
     "FONT_RENDERER_LAYER_SHADOW",
 )
+HEADER_HASH_PREFIX = "// Font renderer header SHA-256: "
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate Java 25 FFM bindings for the font renderer")
-    parser.add_argument("--jextract", required=True, help="Path to the Java 25 jextract executable")
+    parser.add_argument("--check", action="store_true", help="Verify that generated bindings match the header")
+    parser.add_argument("--jextract", help="Path to the Java 25 jextract executable")
     parser.add_argument("--header", required=True, type=pathlib.Path, help="Front-facing C header")
     parser.add_argument("--include-dir", required=True, type=pathlib.Path, help="C header include directory")
     parser.add_argument("--output", required=True, type=pathlib.Path, help="Java source root")
@@ -91,6 +97,29 @@ def parse_args():
 
 def main():
     args = parse_args()
+    header_hash = hashlib.sha256(args.header.read_bytes()).hexdigest()
+    generated_package = args.output.joinpath(*PACKAGE.split("."))
+    expected_files = {f"{HEADER_CLASS}.java", f"{SYMBOLS_CLASS}.java"} | {f"{struct}.java" for struct in STRUCTS}
+    if args.check:
+        stale_files = []
+        expected_hash_line = HEADER_HASH_PREFIX + header_hash
+        for filename in sorted(expected_files):
+            output_file = generated_package / filename
+            if not output_file.is_file():
+                stale_files.append(filename)
+                continue
+            hash_lines = [line for line in output_file.read_text(encoding="utf-8").splitlines()
+                          if line.startswith(HEADER_HASH_PREFIX)]
+            if hash_lines != [expected_hash_line]:
+                stale_files.append(filename)
+        if stale_files:
+            raise SystemExit(
+                "error: Font renderer FFM bindings are stale or missing: " + ", ".join(stale_files) +
+                ". Regenerate them with the generate_font_renderer_ffm target and a jextract executable.")
+        return
+    if not args.jextract:
+        raise RuntimeError("--jextract is required when generating bindings")
+
     with tempfile.TemporaryDirectory(prefix="font-renderer-jextract-") as temporary_directory:
         generated_root = pathlib.Path(temporary_directory)
         command = [
@@ -125,7 +154,7 @@ def main():
         for generated_file in generated_files:
             contents = generated_file.read_text(encoding="utf-8")
             output_file = output_package / generated_file.name
-            output_file.write_text(LICENSE + contents.rstrip() + "\n", encoding="utf-8")
+            output_file.write_text(LICENSE + HEADER_HASH_PREFIX + header_hash + "\n\n" + contents.rstrip() + "\n", encoding="utf-8")
             shutil.copymode(generated_file, output_file)
 
 

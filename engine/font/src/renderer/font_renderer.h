@@ -59,6 +59,10 @@ extern "C"
         float    m_ShadowX;
         float    m_ShadowY;
         uint32_t m_LayerMask;
+        uint32_t m_OutputBitmap;
+        uint32_t m_Antialias;
+        uint32_t m_HasOutline;
+        uint32_t m_HasShadow;
     } FontRendererParams;
 
     typedef struct FontRendererLayout
@@ -111,6 +115,15 @@ extern "C"
         uint32_t m_Channels;
     } FontTexture;
 
+    typedef struct FontRendererImage
+    {
+        uint8_t* m_Pixels;
+        uint32_t m_PixelCount;
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_Channels;
+    } FontRendererImage;
+
     DM_DLLEXPORT FontRendererResult FontRendererCreate(const char*               name,
                                                        const uint8_t*            font_bytes,
                                                        uint32_t                  font_byte_count,
@@ -131,6 +144,10 @@ extern "C"
                                                               uint32_t           codepoint,
                                                               FontRendererGlyph* glyph);
     DM_DLLEXPORT void               FontRendererFreeGlyph(FontRendererGlyph* glyph);
+    DM_DLLEXPORT FontRendererResult FontRendererDecodeImage(const uint8_t*     image_bytes,
+                                                            uint32_t           image_byte_count,
+                                                            FontRendererImage* image);
+    DM_DLLEXPORT void               FontRendererFreeImage(FontRendererImage* image);
 
     DM_DLLEXPORT FontRendererResult FontRendererSetProperties(HFontRenderer                 renderer,
                                                               const FontRendererProperties* properties);

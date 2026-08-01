@@ -99,6 +99,16 @@ TEST_F(FontTest, GenerateSdfGlyphWithShadowChannels)
     FontFreeGlyph(m_Font, &glyph);
 }
 
+TEST_F(FontTest, GlyphChannelCountMatchesOutputMode)
+{
+    ASSERT_EQ(1u, FontGetGlyphChannelCount(false, false, false, 0.0f));
+    ASSERT_EQ(1u, FontGetGlyphChannelCount(false, true, true, 0.0f));
+    ASSERT_EQ(3u, FontGetGlyphChannelCount(false, false, false, 1.0f));
+    ASSERT_EQ(1u, FontGetGlyphChannelCount(true, false, false, 1.0f));
+    ASSERT_EQ(3u, FontGetGlyphChannelCount(true, true, false, 0.0f));
+    ASSERT_EQ(3u, FontGetGlyphChannelCount(true, false, true, 0.0f));
+}
+
 TEST_F(FontTest, PackLayeredGlyphVertices)
 {
     ASSERT_EQ(96u, sizeof(FontGlyphVertex));

@@ -22,7 +22,9 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererBeginBatch;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererCreate;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererDestroy;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererDecodeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererFreeGlyph;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGenerateTexture;
@@ -43,6 +45,7 @@ import java.nio.ByteOrder;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
 import com.dynamo.bob.font.generated.FontRendererGlyph;
+import com.dynamo.bob.font.generated.FontRendererImage;
 import com.dynamo.bob.font.generated.FontRendererLayout;
 import com.dynamo.bob.font.generated.FontRendererParams;
 import com.dynamo.bob.font.generated.FontRendererProperties;
@@ -94,6 +97,10 @@ public final class FontRenderer implements AutoCloseable {
         public float shadowX;
         public float shadowY;
         public int layerMask = LAYER_FACE;
+        public boolean outputBitmap;
+        public boolean antialias = true;
+        public boolean hasOutline;
+        public boolean hasShadow;
     }
 
     public static final class Properties {
@@ -147,13 +154,14 @@ public final class FontRenderer implements AutoCloseable {
         }
     }
 
-    public static final class Vertices {
-        public final ByteBuffer vertices;
+    /** Caller-owned allocation requirements for the retained text's vertices. */
+    public static final class VertexBufferRequirements {
         public final int vertexCount;
+        public final int byteCount;
 
-        private Vertices(ByteBuffer vertices, int vertexCount) {
-            this.vertices = vertices;
+        private VertexBufferRequirements(int vertexCount, int byteCount) {
             this.vertexCount = vertexCount;
+            this.byteCount = byteCount;
         }
     }
 
@@ -182,6 +190,20 @@ public final class FontRenderer implements AutoCloseable {
         }
     }
 
+    public static final class DecodedImage {
+        public final int width;
+        public final int height;
+        public final int channels;
+        public final ByteBuffer pixels;
+
+        private DecodedImage(MemorySegment values) {
+            width = FontRendererImage.m_Width(values);
+            height = FontRendererImage.m_Height(values);
+            channels = FontRendererImage.m_Channels(values);
+            pixels = copyNativeBytes(FontRendererImage.m_Pixels(values), FontRendererImage.m_PixelCount(values));
+        }
+    }
+
     private static final class State implements Runnable {
         private MemorySegment handle;
 
@@ -200,6 +222,7 @@ public final class FontRenderer implements AutoCloseable {
 
     private final State state;
     private final Cleaner.Cleanable cleanable;
+    private long atlasVersion;
 
     /**
      * Creates a native renderer and its glyph atlas from the supplied font data.
@@ -290,6 +313,24 @@ public final class FontRenderer implements AutoCloseable {
         }
     }
 
+    /** Decodes an image through the engine image library for Bob's bitmap-font compiler. */
+    public static DecodedImage decodeImage(byte[] imageBytes) {
+        if (imageBytes == null)
+            throw new NullPointerException();
+        if (imageBytes.length == 0)
+            throw new IllegalArgumentException("Empty image");
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment result = FontRendererImage.allocate(arena);
+            checkResult(FontRendererDecodeImage(arena.allocateFrom(JAVA_BYTE, imageBytes), imageBytes.length, result),
+                    "Native image decoding failed");
+            try {
+                return new DecodedImage(result);
+            } finally {
+                FontRendererFreeImage(result);
+            }
+        }
+    }
+
     /**
      * Retains layout and rendering properties for subsequent texture and vertex generation.
      *
@@ -339,10 +380,20 @@ public final class FontRenderer implements AutoCloseable {
     /**
      * Returns a stable hash of the retained properties and text.
      *
-     * <p>Used by the Editor to reuse vertex buffers when the native renderer state is unchanged.</p>
+     * <p>Exposed as Editor API for clients that cache output derived from the retained state.</p>
      */
     public synchronized long hash() {
         return FontRendererHash(requireHandle());
+    }
+
+    /**
+     * Returns the atlas version observed during the latest texture generation.
+     *
+     * <p>Used by the Editor to skip unchanged texture-generation batches.</p>
+     */
+    public synchronized long atlasVersion() {
+        requireHandle();
+        return atlasVersion;
     }
 
     /**
@@ -365,7 +416,9 @@ public final class FontRenderer implements AutoCloseable {
             int status = FontRendererGenerateTexture(requireHandle(), knownAtlasVersion, texture);
             checkResult(status, "Native font texture generation failed");
             try {
-                return new Texture(texture);
+                Texture result = new Texture(texture);
+                atlasVersion = result.atlasVersion;
+                return result;
             } finally {
                 FontRendererFreeTexture(texture);
             }
@@ -373,17 +426,12 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     /**
-     * Shapes the retained text and returns vertices using glyphs previously populated by {@link #generateTexture}.
+     * Calculates the memory required for the retained text's native vertices.
      *
-     * <p>Used by the Editor after all glyph textures in the render batch have been generated.</p>
-     *
-     * @param worldTransform column-major 4-by-4 transform applied to every generated vertex
+     * <p>Used by the Editor to preallocate a vertex buffer for the complete render batch.</p>
+     * The returned size remains valid when only vertex attributes or transforms change.
      */
-    public synchronized Vertices getVertices(float[] worldTransform) {
-        if (worldTransform == null)
-            throw new NullPointerException("worldTransform");
-        if (worldTransform.length != 16)
-            throw new IllegalArgumentException("Invalid world transform array size");
+    public synchronized VertexBufferRequirements getVertexBufferRequirements() {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment vertexCount = arena.allocate(JAVA_INT);
             MemorySegment vertexBufferSize = arena.allocate(JAVA_INT);
@@ -394,11 +442,34 @@ public final class FontRenderer implements AutoCloseable {
             long unsignedBufferSize = Integer.toUnsignedLong(vertexBufferSize.get(JAVA_INT, 0));
             if (unsignedBufferSize > Integer.MAX_VALUE)
                 throw new IllegalStateException("Native font vertex buffer exceeds the Java buffer size limit");
-            ByteBuffer vertices = ByteBuffer.allocateDirect((int)unsignedBufferSize).order(ByteOrder.nativeOrder());
-            status = FontRendererGetVertices(requireHandle(), arena.allocateFrom(JAVA_FLOAT, worldTransform),
-                    MemorySegment.ofBuffer(vertices), vertices.capacity());
+            return new VertexBufferRequirements(count, (int)unsignedBufferSize);
+        }
+    }
+
+    /**
+     * Writes native vertices directly into a caller-provided buffer at its current position.
+     *
+     * <p>Used by the Editor after preallocating a vertex buffer for the complete render batch.</p>
+     *
+     * @param worldTransform column-major 4-by-4 transform applied by native code during vertex generation
+     * @param vertexBuffer direct destination buffer
+     * @param requirements required size previously returned by {@link #getVertexBufferRequirements()}
+     */
+    public synchronized void getVertices(float[] worldTransform, ByteBuffer vertexBuffer, VertexBufferRequirements requirements) {
+        if (worldTransform == null || vertexBuffer == null || requirements == null)
+            throw new NullPointerException();
+        if (worldTransform.length != 16)
+            throw new IllegalArgumentException("Invalid world transform array size");
+        if (!vertexBuffer.isDirect())
+            throw new IllegalArgumentException("Native font vertex buffer must be direct");
+        if (vertexBuffer.remaining() < requirements.byteCount)
+            throw new IllegalArgumentException("Native font vertex buffer is too small");
+
+        try (Arena arena = Arena.ofConfined()) {
+            int status = FontRendererGetVertices(requireHandle(), arena.allocateFrom(JAVA_FLOAT, worldTransform),
+                    MemorySegment.ofBuffer(vertexBuffer), requirements.byteCount);
             checkResult(status, "Native font vertex generation failed");
-            return new Vertices(vertices, count);
+            vertexBuffer.position(vertexBuffer.position() + requirements.byteCount);
         }
     }
 
@@ -433,6 +504,10 @@ public final class FontRenderer implements AutoCloseable {
         FontRendererParams.m_ShadowX(values, params.shadowX);
         FontRendererParams.m_ShadowY(values, params.shadowY);
         FontRendererParams.m_LayerMask(values, params.layerMask);
+        FontRendererParams.m_OutputBitmap(values, flag(params.outputBitmap));
+        FontRendererParams.m_Antialias(values, flag(params.antialias));
+        FontRendererParams.m_HasOutline(values, flag(params.hasOutline));
+        FontRendererParams.m_HasShadow(values, flag(params.hasShadow));
     }
 
     private static int flag(boolean value) {

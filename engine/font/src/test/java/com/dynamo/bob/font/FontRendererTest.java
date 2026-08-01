@@ -39,6 +39,24 @@ public class FontRendererTest {
     };
     private static final float[] WHITE = {1.0f, 1.0f, 1.0f, 1.0f};
 
+    private static final class TestVertices {
+        private final ByteBuffer vertices;
+        private final int vertexCount;
+
+        private TestVertices(ByteBuffer vertices, int vertexCount) {
+            this.vertices = vertices;
+            this.vertexCount = vertexCount;
+        }
+    }
+
+    private static TestVertices getVertices(FontRenderer renderer, float[] worldTransform) {
+        FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
+        ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
+        renderer.getVertices(worldTransform, vertices, requirements);
+        vertices.flip();
+        return new TestVertices(vertices, requirements.vertexCount);
+    }
+
     private static FontRenderer createRenderer(float size) throws Exception {
         return createRenderer(size, 512, 512);
     }
@@ -80,7 +98,8 @@ public class FontRendererTest {
             renderer.setText("Ag");
             renderer.beginBatch();
             FontRenderer.Texture firstTexture = renderer.generateTexture(0);
-            FontRenderer.Vertices firstVertices = renderer.getVertices(IDENTITY);
+            assertEquals(firstTexture.atlasVersion, renderer.atlasVersion());
+            TestVertices firstVertices = getVertices(renderer, IDENTITY);
             assertEquals(12, firstVertices.vertexCount);
             assertEquals(firstVertices.vertexCount * VERTEX_STRIDE, firstVertices.vertices.remaining());
             assertNotNull(firstTexture.pixels);
@@ -89,8 +108,19 @@ public class FontRendererTest {
             assertEquals(512, firstTexture.width);
             assertEquals(512, firstTexture.height);
 
+            FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
+            ByteBuffer combinedVertices = ByteBuffer.allocateDirect(requirements.byteCount + Long.BYTES).order(ByteOrder.nativeOrder());
+            combinedVertices.putLong(0x123456789abcdef0L);
+            renderer.getVertices(IDENTITY, combinedVertices, requirements);
+            assertEquals(Long.BYTES + requirements.byteCount, combinedVertices.position());
+            assertEquals(0x123456789abcdef0L, combinedVertices.getLong(0));
+            ByteBuffer appendedVertices = combinedVertices.duplicate().order(ByteOrder.nativeOrder());
+            appendedVertices.limit(combinedVertices.position());
+            appendedVertices.position(Long.BYTES);
+            assertEquals(firstVertices.vertices, appendedVertices);
+
             FontRenderer.Texture currentTexture = renderer.generateTexture(firstTexture.atlasVersion);
-            FontRenderer.Vertices currentVertices = renderer.getVertices(IDENTITY);
+            TestVertices currentVertices = getVertices(renderer, IDENTITY);
             assertEquals(firstTexture.atlasVersion, currentTexture.atlasVersion);
             assertNull(currentTexture.pixels);
             assertEquals(firstVertices.vertices, currentVertices.vertices);
@@ -98,14 +128,14 @@ public class FontRendererTest {
             float[] translatedTransform = IDENTITY.clone();
             translatedTransform[12] = 10.0f;
             translatedTransform[13] = -5.0f;
-            FontRenderer.Vertices translatedVertices = renderer.getVertices(translatedTransform);
+            TestVertices translatedVertices = getVertices(renderer, translatedTransform);
             ByteBuffer original = firstVertices.vertices.duplicate().order(ByteOrder.nativeOrder());
             ByteBuffer translated = translatedVertices.vertices.duplicate().order(ByteOrder.nativeOrder());
             assertEquals(original.getFloat(0) + 10.0f, translated.getFloat(0), 0.001f);
             assertEquals(original.getFloat(4) - 5.0f, translated.getFloat(4), 0.001f);
 
             renderer.setText("");
-            FontRenderer.Vertices emptyVertices = renderer.getVertices(IDENTITY);
+            TestVertices emptyVertices = getVertices(renderer, IDENTITY);
             assertEquals(0, emptyVertices.vertexCount);
             assertEquals(0, emptyVertices.vertices.remaining());
         }
@@ -123,7 +153,7 @@ public class FontRendererTest {
             renderer.setText("A\nA\nA");
             renderer.beginBatch();
             FontRenderer.Texture texture = renderer.generateTexture(0);
-            FontRenderer.Vertices top = renderer.getVertices(IDENTITY);
+            TestVertices top = getVertices(renderer, IDENTITY);
             assertEquals(18, top.vertexCount);
             ByteBuffer vertices = top.vertices.duplicate().order(ByteOrder.nativeOrder());
             float firstLineY = vertices.getFloat(4);
@@ -133,9 +163,9 @@ public class FontRendererTest {
 
             assertNotNull(texture.pixels);
             renderer.setProperties(properties(boxHeight, leading, 1));
-            FontRenderer.Vertices middle = renderer.getVertices(IDENTITY);
+            TestVertices middle = getVertices(renderer, IDENTITY);
             renderer.setProperties(properties(boxHeight, leading, 2));
-            FontRenderer.Vertices bottom = renderer.getVertices(IDENTITY);
+            TestVertices bottom = getVertices(renderer, IDENTITY);
             float middleFirstLineY = middle.vertices.duplicate().order(ByteOrder.nativeOrder()).getFloat(4);
             float bottomFirstLineY = bottom.vertices.duplicate().order(ByteOrder.nativeOrder()).getFloat(4);
             assertEquals((layout.height - boxHeight) * 0.5f, middleFirstLineY - firstLineY, 0.001f);
@@ -163,7 +193,7 @@ public class FontRendererTest {
             assertTrue(incrementalTexture.y + incrementalTexture.height <= 512);
             assertEquals(incrementalTexture.width * incrementalTexture.height * incrementalTexture.channels,
                     incrementalTexture.pixels.remaining());
-            assertEquals(6, renderer.getVertices(IDENTITY).vertexCount);
+            assertEquals(6, getVertices(renderer, IDENTITY).vertexCount);
         }
     }
 
@@ -175,20 +205,20 @@ public class FontRendererTest {
             renderer.beginBatch();
             FontRenderer.Texture initialTexture = renderer.generateTexture(0);
             assertNotNull(initialTexture.pixels);
-            assertEquals(6, renderer.getVertices(IDENTITY).vertexCount);
+            assertEquals(6, getVertices(renderer, IDENTITY).vertexCount);
 
             renderer.setText("W");
             renderer.beginBatch();
             FontRenderer.Texture replacementTexture = renderer.generateTexture(initialTexture.atlasVersion);
             assertTrue(replacementTexture.atlasVersion > initialTexture.atlasVersion);
             assertNotNull(replacementTexture.pixels);
-            assertEquals(6, renderer.getVertices(IDENTITY).vertexCount);
+            assertEquals(6, getVertices(renderer, IDENTITY).vertexCount);
 
             renderer.setText(".");
             renderer.beginBatch();
             FontRenderer.Texture restoredTexture = renderer.generateTexture(replacementTexture.atlasVersion);
             assertNotNull(restoredTexture.pixels);
-            assertEquals(6, renderer.getVertices(IDENTITY).vertexCount);
+            assertEquals(6, getVertices(renderer, IDENTITY).vertexCount);
         }
     }
 
@@ -216,6 +246,25 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testVertexBufferRequirementsSurviveAttributeChanges() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            renderer.setProperties(properties(100.0f, 1.0f, 0));
+            renderer.setText("Hello");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+
+            FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
+            FontRenderer.Properties changedProperties = properties(100.0f, 1.0f, 0);
+            changedProperties.faceColor = new float[] {0.5f, 0.25f, 0.75f, 1.0f};
+            renderer.setProperties(changedProperties);
+
+            ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
+            renderer.getVertices(IDENTITY, vertices, requirements);
+            assertEquals(requirements.byteCount, vertices.position());
+        }
+    }
+
+    @Test
     public void testGenerateGlyph() throws Exception {
         try (FontRenderer renderer = createRenderer(32.0f)) {
             FontRenderer.GeneratedGlyph glyph = renderer.generateGlyph('A');
@@ -233,7 +282,7 @@ public class FontRendererTest {
             renderer.setText("ABC");
             renderer.beginBatch();
             FontRenderer.Texture texture = renderer.generateTexture(0);
-            FontRenderer.Vertices vertices = renderer.getVertices(IDENTITY);
+            TestVertices vertices = getVertices(renderer, IDENTITY);
             assertNotNull(texture.pixels);
             assertEquals(0, vertices.vertexCount);
             assertEquals(0, vertices.vertices.remaining());

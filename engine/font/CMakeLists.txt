@@ -60,7 +60,7 @@ if(FONT_RENDERER_IS_DESKTOP)
   defold_target_skip_sanitizer(fontc_shared)
   target_include_directories(fontc_shared PRIVATE "${FONT_SRC_DIR}" "${FONT_RENDERER_SRC_DIR}")
   target_compile_definitions(fontc_shared PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
-  defold_target_link_libraries(fontc_shared "${TARGET_PLATFORM}" font_skribidi profile_null)
+  defold_target_link_libraries(fontc_shared "${TARGET_PLATFORM}" font_skribidi image profile_null)
   defold_codesign_target(fontc_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   set(FONT_RENDERER_JAR "${CMAKE_CURRENT_BINARY_DIR}/fontrenderer.jar")
@@ -70,16 +70,19 @@ if(FONT_RENDERER_IS_DESKTOP)
   set(FONT_RENDERER_GENERATED_JAVA_PACKAGE "${FONT_RENDERER_GENERATED_JAVA_ROOT}/com/dynamo/bob/font/generated")
   set(FONT_RENDERER_BINDING_GENERATOR "${FONT_ROOT}/scripts/generate_font_renderer_bindings.py")
   set(DEFOLD_JEXTRACT_EXECUTABLE "jextract" CACHE FILEPATH "Java 25 jextract executable")
-  set(FONT_RENDERER_JAVA
-    "${FONT_RENDERER_JAVA_ROOT}/com/dynamo/bob/font/BMFont.java"
-    "${FONT_RENDERER_JAVA_ROOT}/com/dynamo/bob/font/FontRenderer.java"
+  set(FONT_RENDERER_GENERATED_JAVA
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererFFM.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererSymbols.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererGlyph.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererImage.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererLayout.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererParams.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererProperties.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontTexture.java")
+  set(FONT_RENDERER_JAVA
+    "${FONT_RENDERER_JAVA_ROOT}/com/dynamo/bob/font/BMFont.java"
+    "${FONT_RENDERER_JAVA_ROOT}/com/dynamo/bob/font/FontRenderer.java"
+    ${FONT_RENDERER_GENERATED_JAVA})
   add_custom_target(generate_font_renderer_ffm
     COMMAND "${Python3_EXECUTABLE}" "${FONT_RENDERER_BINDING_GENERATOR}"
             --jextract "${DEFOLD_JEXTRACT_EXECUTABLE}"
@@ -88,6 +91,20 @@ if(FONT_RENDERER_IS_DESKTOP)
             --output "${FONT_RENDERER_GENERATED_JAVA_ROOT}"
     DEPENDS "${FONT_RENDERER_SRC_DIR}/font_renderer.h" "${FONT_RENDERER_BINDING_GENERATOR}"
     COMMENT "Generating Java 25 FFM bindings for font_renderer.h")
+  # Generated bindings are committed. Normal builds only verify their embedded
+  # header hash so jextract is needed solely when regenerating them explicitly.
+  set(FONT_RENDERER_BINDINGS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/font-renderer-bindings.stamp")
+  add_custom_command(
+    OUTPUT "${FONT_RENDERER_BINDINGS_STAMP}"
+    COMMAND "${Python3_EXECUTABLE}" "${FONT_RENDERER_BINDING_GENERATOR}"
+            --check
+            --header "${FONT_RENDERER_SRC_DIR}/font_renderer.h"
+            --include-dir "${FONT_ROOT}/../dlib/src"
+            --output "${FONT_RENDERER_GENERATED_JAVA_ROOT}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${FONT_RENDERER_BINDINGS_STAMP}"
+    DEPENDS "${FONT_RENDERER_SRC_DIR}/font_renderer.h" "${FONT_RENDERER_BINDING_GENERATOR}" ${FONT_RENDERER_GENERATED_JAVA}
+    COMMENT "Verifying Java 25 FFM bindings for font_renderer.h")
+  add_custom_target(verify_font_renderer_ffm DEPENDS "${FONT_RENDERER_BINDINGS_STAMP}")
   add_custom_command(
     OUTPUT "${FONT_RENDERER_JAR}"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${FONT_RENDERER_CLASSES_DIR}"
@@ -98,6 +115,7 @@ if(FONT_RENDERER_IS_DESKTOP)
     DEPENDS "${FONT_RENDERER_JAVA}"
     COMMENT "Packaging fontrenderer.jar")
   add_custom_target(font_renderer_jar ALL DEPENDS "${FONT_RENDERER_JAR}")
+  add_dependencies(font_renderer_jar verify_font_renderer_ffm)
 
   defold_install_targets(TARGETS fontc_shared
           LIBRARY DESTINATION lib/${TARGET_PLATFORM}

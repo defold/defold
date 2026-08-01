@@ -18,7 +18,6 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.font :as font]
-            [editor.pipeline.font-gen :as font-gen]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -112,8 +111,8 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/fonts/score.font")]
       (g/clear-system-cache!)
-      (with-redefs [font-gen/generate (fn [& _]
-                                        (throw (AssertionError. "font-map should not be generated for build-targets")))]
+      (with-redefs [font/compile-font (fn [& _]
+                                       (throw (AssertionError. "font-map should not be generated for build-targets")))]
         (let [build-targets (g/node-value node-id :build-targets)]
           (when (is (not (g/error? build-targets)))
             (is (some? (coll/some #(get-in % [:user-data :pb-map :glyph-bank]) build-targets)))))))))

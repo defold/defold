@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.font
-  (:require [clojure.string :as s]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as s]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.camera :as camera]
@@ -29,8 +30,6 @@
             [editor.localization :as localization]
             [editor.material :as material]
             [editor.pipeline :as pipeline]
-            [editor.pipeline.font-gen :as font-gen]
-            [editor.pipeline.fontc :as fontc]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -42,7 +41,7 @@
             [schema.core :as schema]
             [service.log :as log]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob.font BMFont Fontc FontRenderer FontRenderer$Layout FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$Vertices]
+  (:import [com.dynamo.bob.font BMFont Fontc Fontc$EditorFontMap FontRenderer FontRenderer$Layout FontRenderer$Params FontRenderer$Properties FontRenderer$Texture FontRenderer$VertexBufferRequirements]
            [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
@@ -56,6 +55,51 @@
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
+
+(def ^String default-characters-string (String. Fontc/ASCII_7BIT))
+
+(defn- attach-glyph-cell-dimensions [glyphs ^ints glyph-cell-widths ^ints glyph-cell-heights]
+  (let [glyph-count (count glyphs)]
+    (loop [glyph-index 0
+           result (transient [])]
+      (if (= glyph-index glyph-count)
+        (persistent! result)
+        (recur (inc glyph-index)
+               (conj! result
+                      (assoc (glyphs glyph-index)
+                             :glyph-cell-wh {:width (aget glyph-cell-widths glyph-index)
+                                             :height (aget glyph-cell-heights glyph-index)})))))))
+
+(defn- bitmap-resource-entry [font-resource-map]
+  (reduce-kv (fn [_ path resource]
+               (reduced [path resource]))
+             nil
+             font-resource-map))
+
+(defn compile-font [font-desc font-resource font-resource-map]
+  (let [font-desc-pb (protobuf/map->pb Font$FontDesc font-desc)
+        ^Fontc$EditorFontMap editor-font-map
+        (with-open [font-stream (io/input-stream font-resource)]
+          (if-let [[bitmap-path bitmap-resource] (bitmap-resource-entry font-resource-map)]
+            (with-open [bitmap-stream (io/input-stream bitmap-resource)]
+              (.compileForEditor (Fontc.) font-stream font-desc-pb bitmap-path bitmap-stream))
+            (.compileForEditor (Fontc.) font-stream font-desc-pb nil nil)))
+        font-map (protobuf/pb->map-with-defaults (.-fontMap editor-font-map))
+        glyph-bank (protobuf/pb->map-with-defaults (.-glyphBank editor-font-map))
+        glyphs (attach-glyph-cell-dimensions (:glyphs glyph-bank)
+                                             (.-glyphCellWidths editor-font-map)
+                                             (.-glyphCellHeights editor-font-map))]
+    (merge font-map
+           (assoc glyph-bank :glyphs glyphs))))
+
+(defn- compile-glyph-bank
+  ^Font$GlyphBank [font-desc font-resource font-resource-map]
+  (let [font-desc-pb (protobuf/map->pb Font$FontDesc font-desc)]
+    (with-open [font-stream (io/input-stream font-resource)]
+      (if-let [[bitmap-path bitmap-resource] (bitmap-resource-entry font-resource-map)]
+        (with-open [bitmap-stream (io/input-stream bitmap-resource)]
+          (.compileForEditorBuild (Fontc.) font-stream font-desc-pb bitmap-path bitmap-stream))
+        (.compileForEditorBuild (Fontc.) font-stream font-desc-pb nil nil)))))
 
 (def ^:private layer-mask-face 0x1)
 (def ^:private layer-mask-outline 0x2)
@@ -556,7 +600,9 @@
 (declare glyph-channels->data-format)
 
 (defn- make-native-atlas-state [_gl _params]
-  (volatile! 0))
+  (volatile! {:atlas-version 0
+              :atlas-key nil
+              :entry-requirements nil}))
 
 (defn- update-native-atlas-state [_gl atlas-state _params]
   atlas-state)
@@ -586,8 +632,8 @@
                 (.-m02 matrix) (.-m12 matrix) (.-m22 matrix) (.-m32 matrix)
                 (.-m03 matrix) (.-m13 matrix) (.-m23 matrix) (.-m33 matrix)]))
 
-(defn- set-native-renderer-state!
-  [^FontRenderer native-renderer font-map entry]
+(defn- make-native-entry-state
+  [font-map entry]
   (let [text-layout (:text-layout entry)
         alpha (double (:alpha font-map 1.0))
         outline-alpha (double (:outline-alpha font-map 1.0))
@@ -595,84 +641,138 @@
         align (case (:align entry :center) :left 0 :center 1 :right 2)
         box-height (:box-height entry)
         vertical-align (case (:vertical-align entry :top) :top 0 :middle 1 :bottom 2)
+        line-break (:line-break text-layout)
+        width (float (:layout-width text-layout))
+        height (float (or box-height (:max-ascent text-layout)))
+        leading (float (:text-leading text-layout))
+        tracking (float (:text-tracking text-layout))
+        vertical-align (int (if box-height vertical-align 0))
+        face-color (mapv #(float (* alpha %)) (:color entry))
+        outline-color (mapv float (update (:outline entry) 3 #(* outline-alpha %)))
+        shadow-color (mapv float (update (:shadow entry) 3 #(* shadow-alpha %)))
+        sdf-scale (float (effective-sdf-scale (double (:sdf-screen-scale entry 0.0))
+                                               (:world-transform entry)))
+        text (get-in entry [:text-layout :text])
+        transform (matrix->float-array (entry-transform entry))
         properties (FontRenderer$Properties.)]
-    (set! (.-lineBreak properties) ^boolean (:line-break text-layout))
-    (set! (.-width properties) (float (:layout-width text-layout)))
+    (set! (.-lineBreak properties) ^boolean line-break)
+    (set! (.-width properties) width)
     ;; GUI and label entries use the same node box and vertical alignment as
     ;; runtime. Other editor previews retain their existing baseline-relative
     ;; entry transform.
-    (set! (.-height properties) (float (or box-height (:max-ascent text-layout))))
-    (set! (.-leading properties) (float (:text-leading text-layout)))
-    (set! (.-tracking properties) (float (:text-tracking text-layout)))
+    (set! (.-height properties) height)
+    (set! (.-leading properties) leading)
+    (set! (.-tracking properties) tracking)
     (set! (.-align properties) (int align))
-    (set! (.-verticalAlign properties) (int (if box-height vertical-align 0)))
-    (set! (.-faceColor properties) (float-array (mapv #(* alpha %) (:color entry))))
-    (set! (.-outlineColor properties) (float-array (update (:outline entry) 3 #(* outline-alpha %))))
-    (set! (.-shadowColor properties) (float-array (update (:shadow entry) 3 #(* shadow-alpha %))))
-    (set! (.-sdfScale properties)
-          (float (effective-sdf-scale (double (:sdf-screen-scale entry 0.0))
-                                      (:world-transform entry))))
-    (.setProperties native-renderer properties)
-    (.setText native-renderer ^String (get-in entry [:text-layout :text]))))
+    (set! (.-verticalAlign properties) vertical-align)
+    (set! (.-faceColor properties) (float-array face-color))
+    (set! (.-outlineColor properties) (float-array outline-color))
+    (set! (.-shadowColor properties) (float-array shadow-color))
+    (set! (.-sdfScale properties) sdf-scale)
+    {:properties properties
+     :text text
+     :transform transform
+     :atlas-key [line-break width tracking text]
+     :state-key [line-break width height leading tracking align vertical-align
+                 face-color outline-color shadow-color sdf-scale text]}))
+
+(defn- apply-native-entry-state!
+  [^FontRenderer native-renderer native-entry-state]
+  (.setProperties native-renderer ^FontRenderer$Properties (:properties native-entry-state))
+  (.setText native-renderer ^String (:text native-entry-state)))
 
 (defn- generate-native-texture!
-  [^GL2 gl {:keys [font-map native-renderer texture]} entry atlas-version]
-  (set-native-renderer-state! native-renderer font-map entry)
+  [^GL2 gl ^FontRenderer native-renderer texture ^long known-atlas-version]
   (let [^FontRenderer$Texture generated-texture
-        (.generateTexture ^FontRenderer native-renderer (long @atlas-version))]
+        (.generateTexture native-renderer known-atlas-version)]
     (when-let [^ByteBuffer pixels (.-pixels generated-texture)]
       (texture/update-sub-image! texture gl 0 pixels
                                  (glyph-channels->data-format (.-channels generated-texture))
                                  (.-x generated-texture) (.-y generated-texture)
                                  (.-width generated-texture) (.-height generated-texture)))
-    (vreset! atlas-version (.-atlasVersion generated-texture))
-    (.hash ^FontRenderer native-renderer)))
+    (.-atlasVersion generated-texture)))
 
 (defn- prepare-native-render-batch!
-  [^GL2 gl {:keys [native-renderer] :as font-data} text-entries atlas-version]
-  (.beginBatch ^FontRenderer native-renderer)
-  (let [entry-signatures
-        (mapv (fn [entry]
-                [(generate-native-texture! gl font-data entry atlas-version)
-                 (vec (matrix->float-array (entry-transform entry)))])
-              text-entries)]
-    [native-renderer (long @atlas-version) entry-signatures]))
-
-(defn- get-native-vertices
-  ^FontRenderer$Vertices [font-data entry]
-  (let [{:keys [font-map native-renderer]} font-data]
-    (set-native-renderer-state! native-renderer font-map entry)
-    (.getVertices ^FontRenderer native-renderer (matrix->float-array (entry-transform entry)))))
+  [^GL2 gl ^FontRenderer native-renderer texture native-entry-states atlas-state]
+  (let [atlas-key (mapv :atlas-key native-entry-states)
+        previous-state @atlas-state
+        known-atlas-version (:atlas-version previous-state)
+        current-atlas-version (.atlasVersion ^FontRenderer native-renderer)
+        atlas-unchanged (and (= atlas-key (:atlas-key previous-state))
+                             (= known-atlas-version current-atlas-version))
+        [atlas-version entry-requirements]
+        (if atlas-unchanged
+          [known-atlas-version (:entry-requirements previous-state)]
+          (do
+            (.beginBatch ^FontRenderer native-renderer)
+            (reduce (fn [[atlas-version entry-requirements] native-entry-state]
+                      (apply-native-entry-state! native-renderer native-entry-state)
+                      (let [atlas-version (generate-native-texture! gl native-renderer texture atlas-version)
+                            requirement (.getVertexBufferRequirements ^FontRenderer native-renderer)]
+                        [atlas-version (conj entry-requirements requirement)]))
+                    [known-atlas-version []]
+                    native-entry-states)))
+        vertex-key (mapv (fn [native-entry-state]
+                           [(:state-key native-entry-state)
+                            (vec (:transform native-entry-state))])
+                         native-entry-states)]
+    (vreset! atlas-state {:atlas-version atlas-version
+                          :atlas-key atlas-key
+                          :entry-requirements entry-requirements})
+    [[native-renderer atlas-version vertex-key] entry-requirements]))
 
 (defn- gen-native-vertex-buffer
-  [font-data text-entries]
-  (let [results (mapv #(get-native-vertices font-data %) text-entries)
-        vertex-count (transduce (map #(.-vertexCount ^FontRenderer$Vertices %)) + results)
-        byte-buffer (vtx/make-buf (* vertex-count (:size NativeFontVertex)))]
-    (run! (fn [^FontRenderer$Vertices result]
-            (let [^ByteBuffer vertices (.-vertices result)]
-              (.put byte-buffer (.duplicate vertices))))
-          results)
-    (.flip byte-buffer)
-    (vtx/wrap-vertex-buffer NativeFontVertex :static byte-buffer)))
+  [^FontRenderer native-renderer native-entry-states entry-requirements ^VertexBuffer vertex-buffer]
+  (let [vertex-buffer-size
+        (transduce (map (fn [requirements]
+                          (.-byteCount ^FontRenderer$VertexBufferRequirements requirements)))
+                   +
+                   entry-requirements)
+        ^ByteBuffer existing-byte-buffer (when vertex-buffer
+                                           (vtx/buf vertex-buffer))
+        reuse-buffer (and existing-byte-buffer
+                          (>= (.capacity existing-byte-buffer) vertex-buffer-size))
+        ^ByteBuffer byte-buffer (if reuse-buffer
+                                  (doto existing-byte-buffer
+                                    (.clear))
+                                  (vtx/make-buf vertex-buffer-size))]
+    (dotimes [entry-index (count native-entry-states)]
+      (let [native-entry-state (native-entry-states entry-index)
+            requirements (entry-requirements entry-index)]
+        (apply-native-entry-state! native-renderer native-entry-state)
+        (.getVertices ^FontRenderer native-renderer
+                      ^floats (:transform native-entry-state)
+                      byte-buffer
+                      ^FontRenderer$VertexBufferRequirements requirements)))
+    (if reuse-buffer
+      (vtx/flip! vertex-buffer)
+      (do
+        (.flip byte-buffer)
+        (vtx/wrap-vertex-buffer NativeFontVertex :static byte-buffer)))))
 
-(defonce/type NativeVertexBufferRequest [font-data text-entries signature]
+(defonce/type NativeVertexBufferRequest [native-renderer native-entry-states entry-requirements vertex-key]
   Object
   (equals [this other]
     (or (identical? this other)
         (let [^NativeVertexBufferRequest other other]
           (and (instance? NativeVertexBufferRequest other)
-               (= signature (.-signature other))))))
+               (= vertex-key (.-vertex-key other))))))
   (hashCode [_]
-    (hash signature)))
+    (hash vertex-key)))
 
 (defn- make-native-vb
   [_gl ^NativeVertexBufferRequest request]
-  (gen-native-vertex-buffer (.-font-data request) (.-text-entries request)))
+  (gen-native-vertex-buffer (.-native-renderer request)
+                            (.-native-entry-states request)
+                            (.-entry-requirements request)
+                            nil))
 
 (defn- update-native-vb
-  [_gl _vertex-buffer ^NativeVertexBufferRequest request]
-  (make-native-vb nil request))
+  [_gl vertex-buffer ^NativeVertexBufferRequest request]
+  (gen-native-vertex-buffer (.-native-renderer request)
+                            (.-native-entry-states request)
+                            (.-entry-requirements request)
+                            vertex-buffer))
 
 (defn- destroy-native-vbs
   [_gl _vertex-buffers _]
@@ -687,9 +787,10 @@
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
          native-renderer (:native-renderer font-map)]
      (if native-renderer
-       (let [atlas-version (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)]
-         (prepare-native-render-batch! gl (assoc font-data :native-renderer native-renderer) text-entries atlas-version)
-         (gen-native-vertex-buffer (assoc font-data :native-renderer native-renderer) text-entries))
+       (let [native-entry-states (mapv #(make-native-entry-state font-map %) text-entries)
+             atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
+             [_ entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
+         (gen-native-vertex-buffer native-renderer native-entry-states entry-requirements nil))
        (let [vbuf (make-vbuf type text-entries (:layer-mask font-map))
              glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
                                                       (select-keys font-data [:font-map :texture]))]
@@ -702,11 +803,11 @@
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
          native-renderer (get-in font-data [:font-map :native-renderer])]
      (if native-renderer
-       (let [atlas-version (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
-             font-data (assoc font-data :native-renderer native-renderer)
-             signature (prepare-native-render-batch! gl font-data text-entries atlas-version)]
+       (let [native-entry-states (mapv #(make-native-entry-state (:font-map font-data) %) text-entries)
+             atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
+             [vertex-key entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
          (scene-cache/request-object! ::native-vb [request-id (:type font-data)] gl
-                                      (NativeVertexBufferRequest. font-data text-entries signature)))
+                                      (NativeVertexBufferRequest. native-renderer native-entry-states entry-requirements vertex-key)))
        (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
                                                       (select-keys font-data [:font-map :texture]))
              layer-count (count-layers-in-mask (:layer-mask (:font-map font-data)))]
@@ -729,18 +830,18 @@
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
         text-layout (:text-layout user-data)
-        vertex-buffer (gen-vertex-buffer gl
-                                         user-data
-                                         [{:text-layout text-layout
-                                           :align :left
-                                           :offset [0.0 0.0]
-                                           :world-transform (doto (Matrix4d.) (.setIdentity))
-                                           :color (colors/alpha colors/defold-white-light 1.0)
-                                           :outline (colors/alpha colors/mid-grey 1.0)
-                                           :shadow [0.0 0.0 0.0 1.0]}]
-                                         render-args)
+        vertex-buffer (request-vertex-buffer gl
+                                              (:node-id user-data)
+                                              user-data
+                                              [{:text-layout text-layout
+                                                :align :left
+                                                :offset [0.0 0.0]
+                                                :world-transform (doto (Matrix4d.) (.setIdentity))
+                                                :color (colors/alpha colors/defold-white-light 1.0)
+                                                :outline (colors/alpha colors/mid-grey 1.0)
+                                                :shadow [0.0 0.0 0.0 1.0]}]
+                                              render-args)
         material-shader (:shader user-data)
-        type (:type user-data)
         vcount (count vertex-buffer)]
     (when (> vcount 0)
       (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)
@@ -767,7 +868,8 @@
                                   :tags #{:font}
                                   :batch-key gpu-texture
                                   :select-batch-key _node-id
-                                  :user-data {:type type
+                                  :user-data {:node-id _node-id
+                                              :type type
                                               :texture gpu-texture
                                               :font-map font-map
                                               :shader material-shader
@@ -825,7 +927,12 @@
     (set! (.-layerMask params) (int (:layer-mask font-map)))
     (FontRenderer. (resource/proj-path font) (resource/resource->bytes font) params)))
 
-(defn- make-font-map [_node-id font type pb-msg font-resource-resolver]
+(defn- font-compilation-error [node-id font ^Exception error]
+  (let [message (.getMessage error)]
+    (log/error :msg (str "Failed to generate bitmap from Font. " message) :exception error)
+    (g/->error node-id :font :fatal font (localization/message "error.font-bitmap-generation-failed" {"error" message}))))
+
+(defn- make-font-map [_node-id font type pb-msg font-resource-map]
   (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font font-message)
                                       (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font font-message)
                                       (validation/prop-error :fatal _node-id :cache-width validation/prop-negative? (:cache-width pb-msg) cache-width-message)
@@ -844,33 +951,25 @@
                              (not-empty))]
         (g/error-aggregate errors))
       (try
-        (let [font-map (font-gen/generate pb-msg font font-resource-resolver)]
+        (let [font-map (compile-font pb-msg font font-resource-map)]
           (cond-> font-map
             (= :distance-field type) (assoc :native-renderer (make-native-renderer font pb-msg font-map))))
         (catch Exception error
-          (let [message (.getMessage error)]
-            (log/error :msg (str "Failed to generate bitmap from Font. " message) :exception error)
-            (g/->error _node-id :font :fatal font (localization/message "error.font-bitmap-generation-failed" {"error" message})))))))
-
-(defn- make-font-resource-resolver [font resource-map]
-  (let [base-path (resource/parent-proj-path (resource/proj-path font))]
-    (fn [path]
-      (let [proj-path (str base-path "/" path)]
-        (get resource-map proj-path)))))
+          (font-compilation-error _node-id font error)))))
 
 (g/defnk produce-font-map [_node-id font type font-resource-map save-value]
   ;; TODO(save-value-cleanup): make-font-map expects all values to be present.
   (let [font-desc (protobuf/inject-defaults Font$FontDesc save-value)]
-    (make-font-map _node-id font type font-desc (make-font-resource-resolver font font-resource-map))))
+    (make-font-map _node-id font type font-desc font-resource-map)))
 
 (defn- build-glyph-bank [resource _dep-resources user-data]
-  (let [{:keys [font-desc font font-resource-map type digest-ignored/node-id]} user-data
-        font-map (make-font-map node-id font type font-desc (make-font-resource-resolver font font-resource-map))]
-    (g/precluding-errors
-      [font-map]
-      (let [compressed-font-map (font-gen/compress font-map)]
-        {:resource resource
-         :content (protobuf/map->bytes Font$GlyphBank compressed-font-map)}))))
+  (let [{:keys [font-desc font font-resource-map digest-ignored/node-id]} user-data]
+    (try
+      {:resource resource
+       :content (protobuf/pb->bytes
+                  (compile-glyph-bank font-desc font font-resource-map))}
+      (catch Exception error
+        (font-compilation-error node-id font error)))))
 
 (defn- make-glyph-bank-build-target [workspace node-id user-data]
   (bt/with-content-hash
@@ -889,7 +988,6 @@
             font-desc-pb (protobuf/map->pb Font$FontDesc font-desc)
             workspace (resource/workspace resource)
             output-format (:output-format font-desc)
-            type (font-type font output-format)
             is-distance-field (= :type-distance-field output-format)
             pb-map (cond-> (protobuf/make-map-without-defaults Font$FontMap
                              :material material
@@ -933,7 +1031,6 @@
                                            :font font
                                            :font-resource-map font-resource-map
                                            :digest-ignored/node-id _node-id
-                                           :type type
                                            :source-sha1s source-sha1s})]
             [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap
                (assoc pb-map :glyph-bank (:resource glyph-bank-build-target))
@@ -1148,7 +1245,7 @@
                    ;; to the printable ASCII characters.
                    (when (and (= "" new-value)
                               (properties/user-edit? self :characters evaluation-context))
-                     (g/set-property self :characters fontc/default-characters-string))))
+                     (g/set-property self :characters default-characters-string))))
             (dynamic label (properties/label-dynamic :font :characters))
             (dynamic tooltip (properties/tooltip-dynamic :font :characters)))
   (property all-chars g/Bool (default (protobuf/default Font$FontDesc :all-chars))
@@ -1225,7 +1322,7 @@
   (let [explicit-characters
         (if (pos? (count characters))
           characters
-          fontc/default-characters-string)
+          default-characters-string)
 
         distinct-extra-characters
         (when (pos? (count extra-characters))
