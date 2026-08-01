@@ -97,7 +97,8 @@ def parse_args():
 
 def main():
     args = parse_args()
-    header_hash = hashlib.sha256(args.header.read_bytes()).hexdigest()
+    header_bytes = args.header.read_bytes().replace(b"\r\n", b"\n")
+    header_hash = hashlib.sha256(header_bytes).hexdigest()
     generated_package = args.output.joinpath(*PACKAGE.split("."))
     expected_files = {f"{HEADER_CLASS}.java", f"{SYMBOLS_CLASS}.java"} | {f"{struct}.java" for struct in STRUCTS}
     if args.check:

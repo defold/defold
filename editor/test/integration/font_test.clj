@@ -18,7 +18,7 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.font :as font]
-            [editor.game-project :as game-project]
+            [editor.form :as form]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -31,7 +31,8 @@
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
 
 (defn- prop! [node-id label val]
-  (g/transact (g/set-property node-id label val)))
+  (g/transact {:undoable false}
+    (g/set-property node-id label val)))
 
 (deftest effective-sdf-scale-test
   (let [effective-sdf-scale (ns-resolve 'editor.font 'effective-sdf-scale)
@@ -65,11 +66,13 @@
           app-manifest (test-util/resource-node project "/app_manifest/default.appmanifest")]
       (is (true? (g/node-value app-manifest :loaded)))
       (is (false? (font-map-uses-text-shaping? font-node)))
-      (game-project/set-setting! game-project
-                                 ["native_extension" "app_manifest"]
-                                 (g/node-value app-manifest :resource))
+      (g/transact {:undoable false}
+        (form/set-value (:form-ops (g/node-value game-project :form-data))
+                        ["native_extension" "app_manifest"]
+                        (g/node-value app-manifest :resource)))
       (is (false? (font-map-uses-text-shaping? font-node)))
-      (g/set-property! app-manifest :use-font-layout true)
+      (g/transact {:undoable false}
+        (g/set-property app-manifest :use-font-layout true))
       (is (true? (font-map-uses-text-shaping? font-node))))))
 
 (deftest load-material-render-data
