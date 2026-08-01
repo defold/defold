@@ -17,10 +17,12 @@
             [dynamo.graph :as g]
             [schema.core :as s]
             [editor.geom :refer [clamper]]
+            [editor.resource :as resource]
             [editor.types :as types]
             [editor.pipeline.tex-gen :as tex-gen]
             [service.log :as log])
-  (:import [editor.types Rect Image]
+  (:import [com.dynamo.bob.pipeline TexcLibraryJni]
+           [editor.types Rect Image]
            [java.awt Color]
            [java.awt.image BufferedImage]
            [javax.imageio ImageIO]))
@@ -45,18 +47,25 @@
 
 (defn read-size
   [source]
-  (with-open [source-stream (io/input-stream source)
-              image-stream (ImageIO/createImageInputStream source-stream)]
-    (let [readers (ImageIO/getImageReaders image-stream)]
-      (if (.hasNext readers)
-        (let [^javax.imageio.ImageReader reader (.next readers)]
-          (try
-            (.setInput reader image-stream true true)
-            {:width (.getWidth reader 0)
-             :height (.getHeight reader 0)}
-            (finally
-              (.dispose reader))))
-        (throw (ex-info "No matching ImageReader" {}))))))
+  (if (and (resource/resource? source)
+           (= "hdr" (resource/type-ext source)))
+    (let [info (TexcLibraryJni/GetImageInfo (resource/resource->bytes source))]
+      (if info
+        {:width (.-width info)
+         :height (.-height info)}
+        (throw (ex-info "Unable to read HDR image metadata" {}))))
+    (with-open [source-stream (io/input-stream source)
+                image-stream (ImageIO/createImageInputStream source-stream)]
+      (let [readers (ImageIO/getImageReaders image-stream)]
+        (if (.hasNext readers)
+          (let [^javax.imageio.ImageReader reader (.next readers)]
+            (try
+              (.setInput reader image-stream true true)
+              {:width (.getWidth reader 0)
+               :height (.getHeight reader 0)}
+              (finally
+                (.dispose reader))))
+          (throw (ex-info "No matching ImageReader" {})))))))
 
 (defmacro with-graphics
   [binding & body]

@@ -85,6 +85,25 @@
               :digest-ignored/error-node-id error-node-id
               :digest-ignored/error-label error-label}})))
 
+(defn- resource-bytes-gen-fn
+  [{:keys [digest-ignored/error-label digest-ignored/error-node-id resource]}]
+  (resource-io/with-error-translation resource error-node-id error-label
+    (resource/resource->bytes resource)))
+
+(defn make-resource-bytes-generator
+  [resource error-node-id error-label]
+  {:post [(or (g/error-value? %)
+              (content-generator? %))]}
+  (let [sha1 (resource-io/with-error-translation resource error-node-id error-label
+               (resource/resource->path-inclusive-sha1-hex resource))]
+    (if (g/error-value? sha1)
+      sha1
+      {:f resource-bytes-gen-fn
+       :sha1 sha1
+       :args {:resource resource
+              :digest-ignored/error-node-id error-node-id
+              :digest-ignored/error-label error-label}})))
+
 ;; -----------------------------------------------------------------------------
 ;; TextureRequestData
 ;; -----------------------------------------------------------------------------
@@ -137,6 +156,10 @@
         content
 
         (instance? BufferedImage content)
+        (let [texture-image (tex-gen/make-preview-texture-image content texture-profile flip-y)]
+          [(texture/texture-image->texture-request-data texture-image data-version)])
+
+        (bytes? content)
         (let [texture-image (tex-gen/make-preview-texture-image content texture-profile flip-y)]
           [(texture/texture-image->texture-request-data texture-image data-version)])
 

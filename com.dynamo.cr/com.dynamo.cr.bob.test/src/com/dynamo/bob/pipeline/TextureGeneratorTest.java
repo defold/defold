@@ -169,6 +169,15 @@ public class TextureGeneratorTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testHDRImageInfo() throws IOException {
+        TexcLibraryJni.ImageInfo info = TexcLibraryJni.GetImageInfo(getFile("/hdr_2x2.hdr"));
+
+        assertNotNull(info);
+        assertEquals(2, info.width);
+        assertEquals(2, info.height);
+    }
+
+    @Test
     public void testHDRDefaultRGBA32F() throws TextureGeneratorException, IOException {
         TextureGenerator.GenerateResult result = TextureGenerator.generate(getFile("/hdr_2x2.hdr"), null, false, EnumSet.noneOf(FlipAxis.class));
 

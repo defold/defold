@@ -224,8 +224,6 @@
 (def texture-profiles-unsupported-formats
   #{:texture-format-rgb16f
     :texture-format-rgb32f
-    :texture-format-rgba16f
-    :texture-format-rgba32f
     :texture-format-r16f
     :texture-format-rg16f
     :texture-format-r32f

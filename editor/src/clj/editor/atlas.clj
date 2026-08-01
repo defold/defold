@@ -283,7 +283,7 @@
                              (validate-image-resource _node-id maybe-image-resource)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
-                                  :ext image/exts})))
+                                  :ext image/buffered-image-exts})))
 
   (input id-counts NameCounts)
   (input maybe-image-resource resource/Resource)
@@ -968,7 +968,7 @@
 
 (defn- add-images-handler [app-view workspace project parent accept-fn] ; parent = new parent of images
   (when-some [image-resources (seq (resource-dialog/make workspace project
-                                                         {:ext image/exts
+                                                         {:ext image/buffered-image-exts
                                                           :title (localization/message "dialog.add-atlas-images.title")
                                                           :selection :multiple
                                                           :accept-fn accept-fn}))]
@@ -1179,7 +1179,7 @@
           parent (or (handler/adapt-single selection AtlasAnimation evaluation-context)
                      (some #(core/scope-of-type basis % AtlasAnimation) selection)
                      root-id)
-          image-resources (e/filter image/image-resource? resources)]
+          image-resources (e/filter image/buffered-image-resource? resources)]
       (g/eager-tx-data
         (create-dropped-images parent image-resources evaluation-context)))))
 
