@@ -28,7 +28,11 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [integration.test-util :as test-util])
-  (:import [javax.vecmath Point3d]))
+  (:import [javafx.scene Group]
+           [javafx.scene.control ContextMenu]
+           [javax.vecmath Point3d]))
+
+(set! *warn-on-reflection* true)
 
 (defn- action [type x y button modifiers]
   {:type type
@@ -60,6 +64,14 @@
   (test-util/open-scene-view! project app-view path width height
                                {:grid tile-map/TileMapGrid
                                 :tool-controller tile-map/TileMapController}))
+
+(defn- make-curve-view! [app-view]
+  (let [view-graph (test-util/make-view-graph!)
+        view (curve-view/make-view! app-view view-graph nil nil test-util/localization {} false)]
+    (g/transact
+      {:undoable false}
+      (g/set-property view :viewport (types/->Region 0 128 0 128)))
+    view))
 
 (defn- refresh-selection! [view]
   (g/node-value view :all-renderables)
@@ -286,7 +298,9 @@
         (refresh-selection! view)
         (is camera-controller)
         ;; Put the camera into 3D (perspective) mode.
-        (g/set-property! camera-controller :local-camera (camera/make-camera :perspective))
+        (g/transact
+          {:undoable false}
+          (g/set-property camera-controller :local-camera (camera/make-camera :perspective)))
         (reduce
           (partial dispatch-action! view)
           (input/make-input-state)
@@ -348,8 +362,7 @@
           {::camera/scene-camera-orthographic
            {:scene.camera.pan
             {:bindings [{:button :primary :modifiers #{:shift}}]}}})
-        (let [view (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
-                     (g/set-property! :viewport (types/->Region 0 128 0 128)))]
+        (let [view (make-curve-view! app-view)]
           (run-persisted-override-pan-test! view {:button :primary :modifiers #{:shift}}))))))
 
 (deftest disallowed-curve-view-camera-bindings-are-ignored
@@ -368,12 +381,14 @@
          {:command :scene.camera.free-look
           :action ["Free Look"]
           :binding {:button :primary :modifiers #{:control}}}])
-      (let [view (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
-                   (g/set-property! :viewport (types/->Region 0 128 0 128)))
+      (let [view (make-curve-view! app-view)
             camera-controller (camera-controller view)
-            initial-camera (g/node-value view :camera)]
+            initial-camera (g/node-value view :camera)
+            tool-picking-rect (selection/calc-picking-rect [64.0 64.0 0.0] [64.0 64.0 0.0])]
         (is camera-controller)
-        (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [64.0 64.0 0.0] [64.0 64.0 0.0]))
+        (g/transact
+          {:undoable false}
+          (g/set-property view :tool-picking-rect tool-picking-rect))
         (doseq [{:keys [name button modifiers expected-movement]}
                 [{:name "orbit"
                   :button :primary
@@ -467,7 +482,7 @@
             ;; live scene/window we don't have here. The object is selected just before
             ;; the menu shows, so stub the menu with a no-op ContextMenu and assert the
             ;; selection.
-            menu-stub (ui/run-now (proxy [javafx.scene.control.ContextMenu] []
+            menu-stub (ui/run-now (proxy [ContextMenu] []
                                     (show [_node _x _y] nil)))]
         ;; The root scene node is selected initially, not the game object.
         (is (test-util/selected? app-view resource-node))
@@ -478,7 +493,7 @@
             [(action :mouse-moved 64.0 64.0 :secondary [])
              (action :mouse-pressed 64.0 64.0 :secondary [])
              (assoc (action :mouse-released 64.0 64.0 :secondary [])
-                    :target (javafx.scene.Group.))]))
+               :target (Group.))]))
         (is (test-util/selected? app-view go-node)
             "Right-clicking the object should select it before showing the context menu.")))))
 

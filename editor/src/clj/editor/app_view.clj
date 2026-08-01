@@ -48,6 +48,7 @@
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.game-project :as game-project]
+            [editor.geom :as geom]
             [editor.git :as git]
             [editor.github :as github]
             [editor.graph-util :as gu]
@@ -124,6 +125,7 @@
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
+           [javax.vecmath Point3d]
            [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
@@ -385,6 +387,7 @@
   (input sub-selections-by-resource-node g/Any)
   (input debugger-sidebar-panes g/Any)
   (input debugger-execution-locations g/Any)
+  (input scene-visibility g/NodeID)
 
   (output open-sidebar-panes g/Any :cached (g/fnk [open-sidebar-panes] (into {} open-sidebar-panes)))
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
@@ -486,9 +489,15 @@
              ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
              properties-view (g/node-value app-view :properties-view evaluation-context)
+             scene-visibility (g/node-value app-view :scene-visibility evaluation-context)
              new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
              new-view-node-id (some-> new-active-tab editor-tab/view-node-id)
-
+             should-load-scene-visibility (and is-in-active-tab-pane
+                                               (not= old-active-tab new-active-tab)
+                                               (= :scene (some-> new-active-tab editor-tab/view-type-id)))
+             path-key (when should-load-scene-visibility
+                        (resource/resource->proj-path
+                          (resource-node/resource basis new-resource-node-id)))
              tx-data
              (when (and is-in-active-tab-pane
                         (not= old-active-tab new-active-tab))
@@ -503,36 +512,53 @@
                      (disconnect-sources basis app-view :active-scene)))))]
 
     (when (coll/not-empty tx-data)
-      (g/transact tx-data)
+      (g/transact
+        {:undoable false}
+        tx-data)
       (ui/user-data! app-scene ::ui/refresh-requested? true))
 
     ;; The remaining steps should always be performed, even if we didn't end up
     ;; updating the graph connections.
     (recent-files/save-tab-selections! prefs app-view)
 
+    ;; Update scene-visibility settings
+    (when should-load-scene-visibility
+      (scene-visibility/load-settings! scene-visibility prefs path-key))
+
     (g/let-ec [active-tab-pane (g/node-value app-view :active-tab-pane evaluation-context)]
       (doseq [^TabPane tab-pane (.getItems editor-tabs-split)]
         (apply-tab-pane-active-style! tab-pane (= active-tab-pane tab-pane))))))
 
 (handler/defhandler :scene.select-move-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :move)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :move)))
 
 (handler/defhandler :scene.select-scale-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :scale)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :scale)))
 
 (handler/defhandler :scene.select-rotate-tool :workbench
-  (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
+  (run [app-view]
+    (g/transact
+      {:undoable false}
+      (g/set-property app-view :active-tool :rotate)))
   (state [app-view evaluation-context] (= (g/node-value app-view :active-tool evaluation-context) :rotate)))
 
 (handler/defhandler :scene.visibility.show-settings :workbench
   (run [app-view localization scene-visibility]
-    (when-let [btn (scene-visibility/toggle-button app-view)]
-      (scene-visibility/show-settings! (g/node-value app-view :keymap) localization btn scene-visibility)))
+    (g/let-ec [btn (scene-visibility/toggle-button app-view evaluation-context)
+               keymap (g/node-value app-view :keymap evaluation-context)]
+      (when btn
+        (scene-visibility/show-settings! keymap localization btn scene-visibility))))
   (state [app-view scene-visibility evaluation-context]
-    (when-let [btn (scene-visibility/toggle-button app-view)]
-      (scene-visibility/sync-filter-button-style! app-view scene-visibility evaluation-context)
+    (when-let [btn (scene-visibility/toggle-button app-view evaluation-context)]
+      (scene-visibility/sync-filter-button-style! btn scene-visibility evaluation-context)
       (settings-popup/settings-visible? btn))))
 
 (defn- get-settings-button [^Tab tab button-id]
@@ -741,7 +767,9 @@
     (mouse-binding/set-user-overrides! (prefs/get prefs [:window :mouse-bindings]))
     (let [new-keymap (keymap/from-prefs prefs)]
       (when-not (= new-keymap (g/raw-property-value (g/now) app-view :keymap))
-        (g/set-property! app-view :keymap new-keymap)))
+        (g/transact
+          {:undoable false}
+          (g/set-property app-view :keymap new-keymap))))
     (ui/invalidate-menubar-item! ::file)))
 
 (defn- collect-resources [{:keys [children] :as resource}]
@@ -2158,6 +2186,7 @@
           (let [notifications (workspace/notifications workspace evaluation-context)
                 notification-id ::editor-scripts-changed]
             (g/transact
+              {:undoable false}
               (if reload-needed
                 (notifications/show
                   notifications
@@ -2195,13 +2224,14 @@
     (refresh-scene-view! view-id dt))
   (scene-cache/prune-context! nil))
 
-(defn- dispose-scene-views! [app-view]
-  (doseq [view-id (g/node-value app-view :scene-view-ids)]
-    (try
-      (scene/dispose-scene-view! view-id)
-      (catch Throwable error
-        (error-reporting/report-exception! error))))
-  (scene-cache/drop-context! nil))
+(defn- save-scene-camera-prefs! [prefs view resource]
+  (g/let-ec [camera (some-> (:basis evaluation-context)
+                            (scene/view->camera view)
+                            (g/node-value :local-camera evaluation-context))
+             path-key (resource/resource->proj-path resource)]
+    (when (and camera path-key)
+      (prefs/set-pref-entry-in! prefs [:scene :resource-settings] path-key [:camera]
+                                (camera/camera->prefs-value camera)))))
 
 (let [TabHeaderSkin (Class/forName "javafx.scene.control.skin.TabPaneSkin$TabHeaderSkin")
       getTab (.getDeclaredMethod TabHeaderSkin "getTab" (into-array Class []))]
@@ -2277,16 +2307,20 @@
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
     (let [keymap (keymap/from-prefs prefs)
-          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
-                                                                     :stage stage
-                                                                     :scene app-scene
-                                                                     :editor-tabs-split editor-tabs-split
-                                                                     :right-split right-split
-                                                                     :tool-tab-pane tool-tab-pane
-                                                                     :active-tool :move
-                                                                     :manip-space :world
-                                                                     :keymap keymap
-                                                                     :localization localization))))]
+          app-view (first
+                     (g/tx-nodes-added
+                       (g/transact
+                         {:undoable false}
+                         (g/make-node view-graph AppView
+                                      :stage stage
+                                      :scene app-scene
+                                      :editor-tabs-split editor-tabs-split
+                                      :right-split right-split
+                                      :tool-tab-pane tool-tab-pane
+                                      :active-tool :move
+                                      :manip-space :world
+                                      :keymap keymap
+                                      :localization localization))))]
       (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)
@@ -2294,7 +2328,17 @@
                     (handle-focus-owner-change! app-view prefs new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
-      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
+      (ui/on-closed! stage (fn [_]
+                             (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
+                                        scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
+                               (doseq [view-id scene-view-ids]
+                                 (try
+                                   (when-let [resource (:resource (get open-views view-id))]
+                                     (save-scene-camera-prefs! prefs view-id resource))
+                                   (scene/dispose-scene-view! view-id)
+                                   (catch Throwable error
+                                     (error-reporting/report-exception! error)))))
+                             (scene-cache/drop-context! nil)))
 
       (error-reporting/init-disabled-functionality-notifier!
         (fn notify-disabled-functionality! []
@@ -2355,6 +2399,38 @@
 
 (declare open-resource!)
 
+(defn- default-camera-projection [project resource resource-node]
+  (let [ext (some-> resource resource/resource-type :ext)]
+    (case ext
+      ("model" "mesh" "gltf" "glb")
+      :perspective
+
+      ("png" "jpg" "jpeg" "atlas" "tilesource" "tileset" "tilegrid" "tilemap" "gui" "font" "sprite" "label")
+      :orthographic
+
+      "collisionobject"
+      (g/let-ec [game-project (project/get-resource-node project "/game.project" evaluation-context)
+                 physics-type (game-project/get-setting game-project ["physics" "type"] evaluation-context)]
+        (if (= "2D" physics-type)
+          :orthographic
+          :perspective))
+
+      (g/let-ec [scene (g/node-value resource-node :scene evaluation-context)]
+        (letfn [(has-depth? [node]
+                  (let [aabb (:aabb node)
+                        ^Point3d extent (when aabb (geom/aabb-extent aabb))]
+                    (if (and extent
+                             (pos? (.z extent))
+                             (contains? node :renderable)
+                             (not (contains? (get-in node [:renderable :tags]) :camera)))
+                      true
+                      (boolean (some has-depth? (:children node))))))]
+          (if (and scene
+                   (not (g/error? scene))
+                   (has-depth? scene))
+            :perspective
+            :orthographic))))))
+
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
         project (project/get-project basis resource-node)
@@ -2371,9 +2447,13 @@
               (.setContent tab-content)
               (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
               (editor-tab/set-view-type! view-type))
-        view-graph (g/make-graph! :history false :volatility 2)
+        view-graph (g/make-graph! :volatility 2)
         select-fn (partial select app-view)
         open-resource-fn (partial open-resource! app-view prefs localization project)
+        camera-opts (when (= :scene (:id view-type))
+                      (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
+                        {:camera stored-camera}
+                        {:default-camera-projection (default-camera-projection project resource resource-node)}))
         opts (merge opts
                     (get (:view-opts resource-type) (:id view-type))
                     {:app-view app-view
@@ -2383,12 +2463,19 @@
                      :project project
                      :workspace workspace
                      :localization localization
-                     :tab tab})
+                     :tab tab}
+                    camera-opts)
         make-view-fn (:make-view-fn view-type)
+        undo-stack-revisions-before (g/undo-stack-revisions)
         view (make-view-fn view-graph parent resource-node opts)]
+    (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+            (format "The %s view-type :make-view-fn created undo steps for '%s'."
+                    (:id view-type)
+                    (resource/proj-path resource)))
     (assert (g/node-instance? view/WorkbenchView view))
     (recent-files/add! prefs resource view-type)
     (g/transact
+      {:undoable false}
       (concat
         (view/connect-resource-node view resource-node)
         (g/connect app-view :selected-node-properties view :selected-node-properties)
@@ -2405,7 +2492,12 @@
                                     (recent-files/add! prefs resource view-type))))
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler event
-                          (recent-files/add! prefs resource view-type)
+                          (let [basis (g/now)
+                                resource (resource-node/resource basis resource-node)]
+                            (recent-files/add! prefs resource view-type)
+                            (when (= :scene (:id view-type))
+                              (save-scene-camera-prefs! prefs view resource)))
+
                           ;; The menu refresh can occur after the view graph is
                           ;; deleted but before the tab controls lose input
                           ;; focus, causing handlers to evaluate against deleted
@@ -2608,6 +2700,7 @@
           tab-pane-tabs (.getTabs tab-pane)
           new-tab (make-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts)]
       (g/transact
+        {:undoable false}
         (select app-view resource-node [select-node]))
       (when select-tab
         (select-editor-tab!
@@ -3212,17 +3305,26 @@
                              image-view ^ImageView (.getGraphic tooltip)]
                          (when-not (.getImage image-view)
                            (let [resource-node (project/get-resource-node project resource)
-                                 view-graph (g/make-graph! :history false :volatility 2)
+                                 view-graph (g/make-graph! :volatility 2)
                                  select-fn (partial select app-view)
                                  opts (assoc ((:id view-type) (:view-opts resource-type))
                                         :app-view app-view
                                         :select-fn select-fn
                                         :project project
                                         :workspace workspace)
+                                 undo-stack-revisions-before (g/undo-stack-revisions)
                                  preview (make-preview-fn view-graph resource-node opts 256 256)]
+                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                     (format "The %s view-type :make-preview-fn created undo steps for '%s'."
+                                             (:id view-type)
+                                             (resource/proj-path resource)))
                              (.setImage image-view ^Image (g/node-value preview :image))
                              (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
                                (dispose-preview-fn preview))
+                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                     (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
+                                             (:id view-type)
+                                             (resource/proj-path resource)))
                              (g/delete-graph! view-graph)))))}))))
 
 (def ^:private open-assets-term-prefs-key [:open-assets :term])

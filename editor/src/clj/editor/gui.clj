@@ -4764,7 +4764,7 @@
 
 ;; SDK api
 (defn register-node-tree-attachment-node-type [workspace node-type]
-  (concat
+  (g/non-undoable
     ;; add the node type to gui scene's :nodes list (node tree root)
     (attachment/register workspace GuiSceneNode :nodes :add {node-type add-attachment-to-gui-scene-node})
     ;; add the node type to gui node's :nodes list (branches)
@@ -5140,7 +5140,7 @@
   (apply update resource-types (:ext pb-def) f args))
 
 (defn- update-gui-resource-type-tx-data [workspace f & args]
-  (concat
+  (g/non-undoable
     (apply g/update-property workspace :resource-types update-gui-resource-type-map f args)
     (apply g/update-property workspace :resource-types-non-editable update-gui-resource-type-map f args)))
 
