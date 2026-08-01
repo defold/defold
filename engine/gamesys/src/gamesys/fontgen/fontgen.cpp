@@ -27,7 +27,7 @@
 
 #include <dlib/jobsystem.h>
 #include <dlib/set.h>
-#include <font/glyph_gen.h>
+#include <font/internal/glyph_gen.h>
 #include <resource/resource.h>
 
 #include "fontgen.h"

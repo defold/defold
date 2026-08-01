@@ -15,7 +15,8 @@ set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/text_layout.h")
 set(FONT_RENDERER_PUBLIC_HEADERS
-  "${FONT_RENDERER_SRC_DIR}/font_renderer.h"
+  "${FONT_RENDERER_SRC_DIR}/font_renderer.h")
+set(FONT_RENDERER_INTERNAL_HEADERS
   "${FONT_RENDERER_SRC_DIR}/glyph_gen.h"
   "${FONT_RENDERER_SRC_DIR}/glyph_vertex.h")
 set(FONT_DEPENDENCIES dlib)
@@ -138,6 +139,11 @@ defold_add_sdk_headers_target(font_renderer_sdk_headers
   SOURCE_ROOT "${FONT_RENDERER_SRC_DIR}"
   FILES ${FONT_RENDERER_PUBLIC_HEADERS}
   DEPENDS font)
+defold_add_sdk_headers_target(font_renderer_internal_sdk_headers
+  DESTINATION include/font/internal
+  SOURCE_ROOT "${FONT_RENDERER_SRC_DIR}"
+  FILES ${FONT_RENDERER_INTERNAL_HEADERS}
+  DEPENDS font)
 defold_add_sdk_headers_target(font_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk
   SOURCE_ROOT "${FONT_SRC_DIR}/dmsdk"
@@ -146,6 +152,7 @@ defold_add_sdk_headers_target(font_dmsdk_sdk_headers
 set(FONT_SDK_HEADER_TARGETS
   font_public_sdk_headers
   font_renderer_sdk_headers
+  font_renderer_internal_sdk_headers
   font_dmsdk_sdk_headers
   dlib_sdk_headers)
 add_custom_target(font_sdk_headers
@@ -157,6 +164,7 @@ install(FILES
   "${FONT_SRC_DIR}/text_layout.h"
   DESTINATION include/font)
 install(FILES ${FONT_RENDERER_PUBLIC_HEADERS} DESTINATION include/font)
+install(FILES ${FONT_RENDERER_INTERNAL_HEADERS} DESTINATION include/font/internal)
 install(DIRECTORY "${FONT_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
 if(BUILD_TESTS)

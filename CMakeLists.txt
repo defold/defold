@@ -227,7 +227,7 @@ if(EXISTS "${DEFOLD_HOME}/.defold-platforms")
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOME}/.defold-platforms")
 endif()
 set(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
-foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared)
+foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared fontc_shared)
   if(TARGET ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_COPY_COMMANDS

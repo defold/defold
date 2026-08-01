@@ -415,22 +415,36 @@
 (defn- font-map->glyphs [font-map]
   (into {} (map (fn [g] [(:character g) g])) (:glyphs font-map)))
 
+(defonce/record NativeRendererSpec [name font-bytes render-params measure-params])
+
+(defn- create-native-renderer
+  ^FontRenderer [^NativeRendererSpec renderer-spec]
+  (FontRenderer. (.-name renderer-spec)
+                 (.-font-bytes renderer-spec)
+                 (.-render-params renderer-spec)))
+
+(defn- create-native-measure-renderer
+  ^FontRenderer [^NativeRendererSpec renderer-spec]
+  (FontRenderer. (.-name renderer-spec)
+                 (.-font-bytes renderer-spec)
+                 (.-measure-params renderer-spec)))
+
 (defn- native-layout-text
   [font-map text line-break? max-width text-tracking text-leading]
-  (let [^FontRenderer renderer (:native-renderer font-map)
-        line-height (+ ^double (:max-descent font-map) ^double (:max-ascent font-map))
-        pixel-tracking (* line-height text-tracking)
-        ^FontRenderer$Layout layout (.measure renderer text line-break? (float max-width) (float text-leading) (float pixel-tracking))]
-    {:width (double (.-width layout))
-     :height (double (.-height layout))
-     :line-count (long (.-lineCount layout))
-     :max-ascent (double (.-maxAscent layout))
-     :max-descent (double (.-maxDescent layout))
-     :text text
-     :line-break line-break?
-     :layout-width max-width
-     :text-tracking pixel-tracking
-     :text-leading text-leading}))
+  (let [line-height (+ ^double (:max-descent font-map) ^double (:max-ascent font-map))
+        pixel-tracking (* line-height text-tracking)]
+    (with-open [renderer (create-native-measure-renderer (:native-renderer-spec font-map))]
+      (let [^FontRenderer$Layout layout (.measure renderer text line-break? (float max-width) (float text-leading) (float pixel-tracking))]
+        {:width (double (.-width layout))
+         :height (double (.-height layout))
+         :line-count (long (.-lineCount layout))
+         :max-ascent (double (.-maxAscent layout))
+         :max-descent (double (.-maxDescent layout))
+         :text text
+         :line-break line-break?
+         :layout-width max-width
+         :text-tracking pixel-tracking
+         :text-leading text-leading}))))
 
 (defn measure
   ([font-map text]
@@ -438,7 +452,7 @@
   ([font-map text line-break? max-width text-tracking text-leading]
    (if (or (nil? font-map) (nil? text) (empty? text))
      [0 0]
-     (if (:native-renderer font-map)
+     (if (:native-renderer-spec font-map)
        (let [{:keys [width height]} (native-layout-text font-map text line-break? max-width text-tracking text-leading)]
          [width height])
        (let [glyphs (font-map->glyphs font-map)
@@ -452,7 +466,7 @@
 (g/deftype FontData {:type     schema/Keyword
                      :font-map schema/Any
                      :texture  schema/Any
-                     :native-renderer schema/Any})
+                     :native-renderer-spec schema/Any})
 
 (defn- place-glyph [glyph-cache glyph]
   (let [placed-glyph (glyph-cache glyph)]
@@ -471,7 +485,7 @@
                      :text-leading text-leading}]
     (if (or (nil? font-map) (nil? text))
       text-layout
-      (if (:native-renderer font-map)
+      (if (:native-renderer-spec font-map)
         (native-layout-text font-map text line-break? max-width text-tracking text-leading)
         (let [glyphs (font-map->glyphs font-map)
               line-height (+ (:max-descent font-map) (:max-ascent font-map))
@@ -598,6 +612,21 @@
     (fill-vertex-buffer-quads vbuf text-entries font-map is-distance-field put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask font-offset alpha outline-alpha shadow-alpha)))
 
 (declare glyph-channels->data-format)
+
+(defn- update-native-renderer
+  [_gl ^FontRenderer native-renderer renderer-spec]
+  (.close native-renderer)
+  (create-native-renderer renderer-spec))
+
+(defn- make-native-renderer
+  [_gl renderer-spec]
+  (create-native-renderer renderer-spec))
+
+(defn- destroy-native-renderers
+  [_gl native-renderers _renderer-specs]
+  (run! #(.close ^FontRenderer %) native-renderers))
+
+(scene-cache/register-object-cache! ::native-renderers make-native-renderer update-native-renderer destroy-native-renderers)
 
 (defn- make-native-atlas-state [_gl _params]
   (volatile! {:atlas-version 0
@@ -785,9 +814,10 @@
    (gen-vertex-buffer gl font-data text-entries nil))
   ([^GL2 gl {:keys [type font-map] :as font-data} text-entries render-args]
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
-         native-renderer (:native-renderer font-map)]
-     (if native-renderer
-       (let [native-entry-states (mapv #(make-native-entry-state font-map %) text-entries)
+         native-renderer-spec (:native-renderer-spec font-map)]
+     (if native-renderer-spec
+       (let [native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
+             native-entry-states (mapv #(make-native-entry-state font-map %) text-entries)
              atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
              [_ entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
          (gen-native-vertex-buffer native-renderer native-entry-states entry-requirements nil))
@@ -801,9 +831,10 @@
    (request-vertex-buffer gl request-id font-data text-entries nil))
   ([^GL2 gl request-id font-data text-entries render-args]
    (let [text-entries (add-sdf-screen-scale render-args font-data text-entries)
-         native-renderer (get-in font-data [:font-map :native-renderer])]
-     (if native-renderer
-       (let [native-entry-states (mapv #(make-native-entry-state (:font-map font-data) %) text-entries)
+         native-renderer-spec (get-in font-data [:font-map :native-renderer-spec])]
+     (if native-renderer-spec
+       (let [native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
+             native-entry-states (mapv #(make-native-entry-state (:font-map font-data) %) text-entries)
              atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
              [vertex-key entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
          (scene-cache/request-object! ::native-vb [request-id (:type font-data)] gl
@@ -900,9 +931,10 @@
     :cache-height cache-height
     :render-mode render-mode))
 
-(defn- make-native-renderer
-  ^FontRenderer [font font-desc font-map]
-  (let [params (FontRenderer$Params.)
+(defn- make-native-renderer-spec
+  ^NativeRendererSpec [font font-desc font-map]
+  (let [render-params (FontRenderer$Params.)
+        measure-params (FontRenderer$Params.)
         shadow-blur (double (if (and (pos? ^double (:shadow-alpha font-desc))
                                      (pos? ^double (:alpha font-desc)))
                               (:shadow-blur font-desc)
@@ -911,21 +943,27 @@
         sdf-padding (+ (double FontRenderer/DEFAULT_SDF_BASE_PADDING)
                        outline-width
                        shadow-blur)]
-    (set! (.-size params) (float (:size font-desc)))
-    (set! (.-cacheWidth params) (int (:cache-width font-map)))
-    (set! (.-cacheHeight params) (int (:cache-height font-map)))
-    (set! (.-cacheCellPadding params) (int (:glyph-padding font-map)))
-    (set! (.-sdfSpread params) (float sdf-padding))
-    (set! (.-sdfOutline params) (float (native-sdf-limit sdf-padding outline-width)))
-    (set! (.-sdfShadow params) (float (if (zero? shadow-blur)
-                                       1.0
-                                       (native-sdf-limit sdf-padding shadow-blur))))
-    (set! (.-outlineWidth params) (float outline-width))
-    (set! (.-shadowBlur params) (float shadow-blur))
-    (set! (.-shadowX params) (float (:shadow-x font-desc)))
-    (set! (.-shadowY params) (float (:shadow-y font-desc)))
-    (set! (.-layerMask params) (int (:layer-mask font-map)))
-    (FontRenderer. (resource/proj-path font) (resource/resource->bytes font) params)))
+    (set! (.-size render-params) (float (:size font-desc)))
+    (set! (.-cacheWidth render-params) (int (:cache-width font-map)))
+    (set! (.-cacheHeight render-params) (int (:cache-height font-map)))
+    (set! (.-cacheCellPadding render-params) (int (:glyph-padding font-map)))
+    (set! (.-sdfSpread render-params) (float sdf-padding))
+    (set! (.-sdfOutline render-params) (float (native-sdf-limit sdf-padding outline-width)))
+    (set! (.-sdfShadow render-params) (float (if (zero? shadow-blur)
+                                              1.0
+                                              (native-sdf-limit sdf-padding shadow-blur))))
+    (set! (.-outlineWidth render-params) (float outline-width))
+    (set! (.-shadowBlur render-params) (float shadow-blur))
+    (set! (.-shadowX render-params) (float (:shadow-x font-desc)))
+    (set! (.-shadowY render-params) (float (:shadow-y font-desc)))
+    (set! (.-layerMask render-params) (int (:layer-mask font-map)))
+    (set! (.-size measure-params) (.-size render-params))
+    (set! (.-cacheWidth measure-params) 1)
+    (set! (.-cacheHeight measure-params) 1)
+    (->NativeRendererSpec (resource/proj-path font)
+                          (resource/resource->bytes font)
+                          render-params
+                          measure-params)))
 
 (defn- font-compilation-error [node-id font ^Exception error]
   (let [message (.getMessage error)]
@@ -953,7 +991,7 @@
       (try
         (let [font-map (compile-font pb-msg font font-resource-map)]
           (cond-> font-map
-            (= :distance-field type) (assoc :native-renderer (make-native-renderer font pb-msg font-map))))
+            (= :distance-field type) (assoc :native-renderer-spec (make-native-renderer-spec font pb-msg font-map))))
         (catch Exception error
           (font-compilation-error _node-id font error)))))
 
@@ -1286,7 +1324,7 @@
                                             {:type type
                                              :texture gpu-texture
                                              :font-map font-map
-                                             :native-renderer (:native-renderer font-map)}))
+                                             :native-renderer-spec (:native-renderer-spec font-map)}))
   (output preview-text g/Str :cached produce-preview-text))
 
 (defn load-font [_project self resource font-desc]

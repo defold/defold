@@ -27,7 +27,7 @@
 #include "render/font/font_renderer_private.h"
 
 #include <dmsdk/font/text_layout.h>
-#include <font/glyph_vertex.h>
+#include <font/internal/glyph_vertex.h>
 #include <font/text_layout.h>
 
 namespace dmRender

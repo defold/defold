@@ -70,7 +70,7 @@
           distance-field-font (workspace/find-resource workspace "/editor1/test.font")]
       (test-util/with-prop [node-id :font distance-field-font]
         (let [text-data (g/node-value node-id :text-data)]
-          (is (some? (get-in text-data [:font-data :font-map :native-renderer])))
+          (is (some? (get-in text-data [:font-data :font-map :native-renderer-spec])))
           (is (= {:box-height 32.0
                   :offset [-64.0 -16.0 0.0]
                   :vertical-align :middle}

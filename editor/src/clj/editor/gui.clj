@@ -2286,7 +2286,7 @@
                                        (nil? font-data)
                                        text-data
 
-                                       (get-in font-data [:font-map :native-renderer])
+                                       (get-in font-data [:font-map :native-renderer-spec])
                                        (assoc text-data
                                               :box-height (second manual-size)
                                               :offset (pivot-offset pivot manual-size)
