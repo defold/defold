@@ -30,7 +30,7 @@ defold_add_executable(test_font_skribidi "${FONT_TEST_ROOT}/test_font.cpp")
 target_compile_definitions(test_font_skribidi PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
 font_configure_test(test_font_skribidi font_skribidi)
 
-if(FONT_RENDERER_IS_DESKTOP)
+if(FONT_RENDERER_IS_DESKTOP AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   set(FONT_RENDERER_TEST_JAVA "${FONT_TEST_ROOT}/java/com/dynamo/bob/font/FontRendererTest.java")
   set(FONT_RENDERER_TEST_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/font-renderer-test-classes")
   set(FONT_RENDERER_TEST_JAR "${CMAKE_CURRENT_BINARY_DIR}/font-renderer-tests.jar")
