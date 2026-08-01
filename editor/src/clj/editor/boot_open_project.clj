@@ -448,11 +448,11 @@
           ;; The first time a given editor version is opened, surface its bundled
           ;; release notes (once per version; the set tracks every opened version).
           (let [version (system/defold-version)
-                opened (prefs/get prefs [:opened-versions])]
+                opened (prefs/get prefs [:versioning :opened-versions])]
             (when (and version (not (contains? opened version)))
               (ui/run-later
                 (app-view/show-release-notes-dialog! localization project))
-              (prefs/set! prefs [:opened-versions] (conj opened version))))
+              (prefs/set! prefs [:versioning :opened-versions] (conj opened version))))
 
           (breakpoints-view/restore-breakpoints! project prefs)
 

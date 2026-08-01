@@ -18,6 +18,7 @@
             [clojure.string :as string]
             [editor.connection-properties :refer [connection-properties]]
             [editor.localization :as localization]
+            [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -178,14 +179,16 @@
 (def ^:private ^File update-sha1-file
   (io/file support-dir "update.sha1"))
 
-(defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir launcher-path protected-dirs]
+(defn- make-updater [channel editor-sha1 downloaded-sha1 prefs platform install-dir launcher-path protected-dirs]
   {:channel channel
    :platform platform
    :install-dir install-dir
    :launcher-path launcher-path
    :editor-sha1 editor-sha1
+   :prefs prefs
    :protected-dirs protected-dirs
    :state-atom (atom {:downloaded-sha1 downloaded-sha1
+                      :skipped-sha1 (get (prefs/get prefs [:versioning :skipped-update-sha1s]) channel)
                       :server-sha1 editor-sha1})})
 
 (defn add-progress-watch
@@ -211,7 +214,8 @@
 
 (defn add-state-watch
   "Adds watch that gets notified immediately + whenever result of
-  `can-download-update?` or `can-install-update?` may change.
+  `can-download-update?`, `update-advertised?` or `can-install-update?` may
+  change.
   `f` will receive updater as an argument. Unsubscribe by passing same `f` to
   `remove-state-watch`"
   [updater f]
@@ -227,6 +231,9 @@
 (defn remove-state-watch [updater f]
   (remove-watch (:state-atom updater) [:state f]))
 
+(defn current-update-sha1 [updater]
+  (:server-sha1 @(:state-atom updater)))
+
 (defn can-download-update? [updater]
   (let [{:keys [state-atom editor-sha1]} updater
         {:keys [downloaded-sha1 server-sha1 current-download installed-sha1]} @state-atom]
@@ -236,13 +243,24 @@
               downloaded-sha1
               editor-sha1))))
 
+(defn update-advertised? [updater]
+  (let [{:keys [server-sha1 skipped-sha1]} @(:state-atom updater)]
+    (and (can-download-update? updater)
+         (not= skipped-sha1 server-sha1))))
+
+(defn skip-update! [updater sha1]
+  (prefs/update! (:prefs updater) [:versioning :skipped-update-sha1s] assoc (:channel updater) sha1)
+  (swap! (:state-atom updater) assoc :skipped-sha1 sha1))
+
 (defn release-notes
-  "Returns {:markdown <string> :versions <newest-first version strings>}, or nil
-  if there's nothing to show for the current update."
+  "Returns {:markdown <string> :sha1 <the update these notes describe>
+  :versions <newest-first version strings>}, or nil if there's nothing to show
+  for the current update."
   [updater]
   (let [state @(:state-atom updater)
-        slots (:release-notes state)]
-    (when (and (= (:release-notes-sha state) (:server-sha1 state))
+        slots (:release-notes state)
+        server-sha1 (:server-sha1 state)]
+    (when (and (= (:release-notes-sha state) server-sha1)
                (not (coll/empty? slots)))
       {:markdown (coll/join-to-string
                    "\n\n---\n\n"
@@ -252,6 +270,7 @@
                               (str "# Defold " version
                                    "\n\n_Failed to download these release notes._")))
                           slots))
+       :sha1 server-sha1
        :versions (mapv :version slots)})))
 
 (defn can-install-update? [updater]
@@ -498,7 +517,7 @@
 (defn start!
   "Starts a timer that polls for updates periodically, returns updater which can be passed
   to other public functions in this namespace"
-  []
+  [prefs]
   (let [channel (system/defold-channel)
         sha1 (system/defold-editor-sha1)
         platform (Platform/getHostPlatform)
@@ -527,5 +546,5 @@
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
         nil)
-      (doto (make-updater channel sha1 downloaded-sha1 platform install-dir launcher-path protected-dirs)
+      (doto (make-updater channel sha1 downloaded-sha1 prefs platform install-dir launcher-path protected-dirs)
         (start-timer! initial-update-delay update-delay)))))

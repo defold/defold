@@ -29,11 +29,11 @@
   (fn [updater]
     (ui/run-later
       (let [can-install (updater/can-install-update? updater)
-            can-download (updater/can-download-update? updater)]
-        (ui/visible! link (or can-install can-download))
+            advertised (updater/update-advertised? updater)]
+        (ui/visible! link (or can-install advertised))
         (cond
           can-install (localization/localize! link localization (localization/message "updater.button.restart-to-update"))
-          can-download (localization/localize! link localization (localization/message "updater.button.update-available")))))))
+          advertised (localization/localize! link localization (localization/message "updater.button.update-available")))))))
 
 (defn- install! [^Stage stage updater localization]
   (try
@@ -53,20 +53,22 @@
   {:compose [{:fx/type fx/ext-watcher
               :ref (:localization props)
               :key :localization-state}]}
-  [{:keys [project localization-state content versions result-fn]}]
+  [{:keys [project localization-state release-notes result-fn]}]
   {:fx/type dialogs/dialog-stage
    :showing true
-   :on-close-request (fn [_] (result-fn false))
+   :on-close-request (fn [_] (result-fn :later))
    :title (localization-state (localization/message "updater.release-notes-dialog.title"))
    :size :large
    :width 800
    :header {:fx/type fxui/legacy-label
             :variant :header
-            :text (localization-state (localization/message "updater.release-notes-dialog.header"
-                                                            {"count" (count versions)
-                                                             "version" (first versions)}))}
+            :text (let [versions (:versions release-notes)]
+                    (localization-state
+                      (localization/message "updater.release-notes-dialog.header"
+                                            {"count" (count versions)
+                                             "version" (first versions)})))}
    :content {:fx/type markdown/view
-             :content content
+             :content (:markdown release-notes)
              :project project
              :stylesheets [(str (io/resource "editor.css"))]
              :root-props {:style-class "md-page-root"}}
@@ -74,34 +76,41 @@
             :children [{:fx/type fxui/legacy-button
                         :text (localization-state (localization/message "updater.release-notes-dialog.button.later"))
                         :cancel-button true
-                        :on-action (fn [_] (result-fn false))}
+                        :on-action (fn [_] (result-fn :later))}
+                       {:fx/type fxui/legacy-button
+                        :text (localization-state (localization/message "updater.dialog.button.skip-version"))
+                        :on-action (fn [_] (result-fn :skip))}
                        {:fx/type fxui/legacy-button
                         :text (localization-state (localization/message "updater.release-notes-dialog.button.update-now"))
                         :variant :primary
                         :default-button true
-                        :on-action (fn [_] (result-fn true))}]}})
+                        :on-action (fn [_] (result-fn :update))}]}})
 
 (defn- show-release-notes-update-dialog!
   "Shows the release notes dialog, blocking the current thread until the user
-  dismisses it. Must be called on the JavaFX application thread. Returns true if
-  the user chose to update now, false otherwise."
-  [content versions project localization]
+  dismisses it. Must be called on the JavaFX application thread. Returns the
+  user's choice as :skip, :later, or :update."
+  [project localization release-notes]
   (fxui/show-stateless-dialog-and-await-result!
     (fn [result-fn]
       {:fx/type release-notes-update-dialog
        :result-fn result-fn
        :localization localization
-       :content content
-       :versions versions
+       :release-notes release-notes
        :project project})))
 
 (defn- prompt-and-download! [stage project updater localization download-confirmed]
-  (if-let [{:keys [markdown versions]} (updater/release-notes updater)]
-    (when (show-release-notes-update-dialog! markdown versions project localization)
-      (updater/download-and-extract! updater))
-    (when (or download-confirmed
-              (dialogs/make-download-update-dialog stage localization))
-      (updater/download-and-extract! updater))))
+  (let [release-notes (updater/release-notes updater)
+        sha1 (or (:sha1 release-notes) (updater/current-update-sha1 updater))
+        choice (if release-notes
+                 (show-release-notes-update-dialog! project localization release-notes)
+                 (if download-confirmed
+                   :update
+                   (dialogs/make-download-update-dialog stage localization)))]
+    (case choice
+      :skip (updater/skip-update! updater sha1)
+      :later nil
+      :update (updater/download-and-extract! updater))))
 
 (defn init! [^Stage stage link project updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]
@@ -114,14 +123,16 @@
     (ui/on-action! link
       (fn [_]
         (let [can-install (updater/can-install-update? updater)
-              can-download (updater/can-download-update? updater)
-              can-get-new (and can-download (updater/platform-supported? updater))]
+              advertised (updater/update-advertised? updater)
+              can-get-new (and advertised (updater/platform-supported? updater))]
           (cond
             (and can-install can-get-new)
-            (case (dialogs/make-download-update-or-restart-dialog stage localization)
-              :cancel nil
-              :download (prompt-and-download! stage project updater localization true)
-              :restart (install-and-restart!))
+            (let [sha1 (updater/current-update-sha1 updater)]
+              (case (dialogs/make-download-update-or-restart-dialog stage localization)
+                :cancel nil
+                :skip (updater/skip-update! updater sha1)
+                :download (prompt-and-download! stage project updater localization true)
+                :restart (install-and-restart!)))
 
             can-get-new
             (prompt-and-download! stage project updater localization false)
@@ -143,7 +154,7 @@
 
             ;; A newer version exists, but newer releases no longer support this
             ;; platform, so there's nothing to download.
-            can-download
+            advertised
             (dialogs/make-platform-no-longer-supported-dialog stage localization)))))
     (updater/add-progress-watch updater render-progress!)
     (updater/add-state-watch updater link-fn)

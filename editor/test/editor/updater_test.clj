@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [editor.fs :as fs]
+            [editor.prefs :as prefs]
             [editor.updater :as updater]
             [util.http-server :as http-server])
   (:import [ch.qos.logback.classic Level Logger]
@@ -73,15 +74,25 @@
   ^ServerWithHandler [channel sha]
   (http-server/start! (make-resource-handler channel sha) :port test-port))
 
-(defn make-updater [channel sha1]
-  (#'updater/make-updater
-    channel
-    sha1
-    sha1
-    (Platform/getHostPlatform)
-    (io/file ".")
-    (io/file "no-launcher")
-    []))
+(defn- make-temp-prefs []
+  (prefs/make :scopes {:global (fs/create-temp-file! "updater-test" ".editor_settings")}
+              :schemas [:default]))
+
+(defn make-updater
+  ([channel editor-sha1]
+   (make-updater channel editor-sha1 editor-sha1 (make-temp-prefs)))
+  ([channel editor-sha1 prefs]
+   (make-updater channel editor-sha1 editor-sha1 prefs))
+  ([channel editor-sha1 downloaded-sha1 prefs]
+   (#'updater/make-updater
+     channel
+     editor-sha1
+     downloaded-sha1
+     prefs
+     (Platform/getHostPlatform)
+     (io/file ".")
+     (io/file "no-launcher")
+     [])))
 
 (deftest no-update-on-client-when-no-update-on-server
   (with-open [_ (start-update-server! "test" "1")]
@@ -124,6 +135,7 @@
                     "test"
                     "1"
                     "1"
+                    (make-temp-prefs)
                     Platform/WasmWeb
                     (io/file ".")
                     (io/file "no-launcher")
@@ -163,6 +175,70 @@
       (finally
         (.cancel timer)
         (.purge timer)))))
+
+(deftest skipped-update-persists
+  (let [prefs-file (fs/create-temp-file! "updater-test" ".editor_settings")
+        first-prefs (prefs/make :scopes {:global prefs-file}
+                                :schemas [:default])
+        first-updater (make-updater "alpha" "A" first-prefs)]
+    (swap! (:state-atom first-updater) assoc :server-sha1 "B")
+    (updater/skip-update! first-updater "B")
+    (prefs/sync!)
+    (let [second-prefs (prefs/make :scopes {:global prefs-file}
+                                   :schemas [:default])
+          second-updater (make-updater "alpha" "A" second-prefs)]
+      (swap! (:state-atom second-updater) assoc :server-sha1 "B")
+      (is (= {"alpha" "B"}
+             (prefs/get second-prefs [:versioning :skipped-update-sha1s])))
+      (is (false? (updater/update-advertised? second-updater))))))
+
+(deftest skipped-updates-are-scoped-by-channel
+  (let [prefs (make-temp-prefs)
+        alpha-updater (make-updater "alpha" "A" prefs)
+        beta-updater (make-updater "beta" "A" prefs)]
+    (swap! (:state-atom alpha-updater) assoc :server-sha1 "B")
+    (swap! (:state-atom beta-updater) assoc :server-sha1 "B")
+    (updater/skip-update! alpha-updater "B")
+    (is (= {"alpha" "B"}
+           (prefs/get prefs [:versioning :skipped-update-sha1s])))
+    (is (false? (updater/update-advertised? alpha-updater)))
+    (is (true? (updater/update-advertised? beta-updater)))
+    (updater/skip-update! beta-updater "B")
+    (is (= {"alpha" "B" "beta" "B"}
+           (prefs/get prefs [:versioning :skipped-update-sha1s])))
+    (is (false? (updater/update-advertised? beta-updater)))))
+
+(deftest skipped-update-remains-hidden-after-same-sha-check
+  (with-open [_ (start-update-server! "test" "B")]
+    (with-redefs [updater/fetch-release-notes! (constantly nil)]
+      (let [updater (make-updater "test" "A")]
+        (#'updater/check! updater)
+        (updater/skip-update! updater "B")
+        (#'updater/check! updater)
+        (is (false? (updater/update-advertised? updater)))))))
+
+(deftest new-update-is-visible-after-skipping-previous-sha
+  (let [updater (make-updater "test" "A")]
+    (with-redefs [updater/fetch-release-notes! (constantly nil)]
+      (with-open [_ (start-update-server! "test" "B")]
+        (#'updater/check! updater)
+        (updater/skip-update! updater "B")
+        (is (false? (updater/update-advertised? updater))))
+      (with-open [_ (start-update-server! "test" "C")]
+        (#'updater/check! updater)
+        (is (true? (updater/update-advertised? updater)))))))
+
+(deftest skipping-new-update-preserves-downloaded-update
+  (let [prefs (make-temp-prefs)
+        updater (make-updater "alpha" "A" "B" prefs)]
+    (swap! (:state-atom updater) assoc :server-sha1 "C")
+    (is (true? (updater/can-install-update? updater)))
+    (is (true? (updater/update-advertised? updater)))
+    (updater/skip-update! updater "C")
+    (is (true? (updater/can-install-update? updater)))
+    (is (false? (updater/update-advertised? updater)))
+    ;; Skipping only withdraws the offer; the update stays downloadable.
+    (is (true? (updater/can-download-update? updater)))))
 
 (deftest version-string-test
   (are [in out] (= out (#'updater/version-string? in))
