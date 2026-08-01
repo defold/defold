@@ -326,6 +326,47 @@ public class FontTest {
     }
 
     @Test
+    public void testCompileForEditorDistanceFieldReturnsMetadataOnly() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("Ag ")
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
+            .build();
+
+        EditorFontMap editorFontMap;
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            editorFontMap = new Fontc().compileForEditor(input, fontDesc, null, null);
+        }
+        Fontc fontc = new Fontc();
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            fontc.compile(input, fontDesc, false);
+        }
+
+        GlyphBank glyphBank = editorFontMap.glyphBank;
+        GlyphBank compiledGlyphBank = fontc.getGlyphBank();
+        assertEquals(0, glyphBank.getGlyphData().size());
+        assertEquals(compiledGlyphBank.getCacheWidth(), glyphBank.getCacheWidth());
+        assertEquals(compiledGlyphBank.getCacheHeight(), glyphBank.getCacheHeight());
+        assertEquals(compiledGlyphBank.getCacheCellWidth(), glyphBank.getCacheCellWidth());
+        assertEquals(compiledGlyphBank.getCacheCellHeight(), glyphBank.getCacheCellHeight());
+        assertEquals(compiledGlyphBank.getGlyphsCount(), glyphBank.getGlyphsCount());
+        for (int i = 0; i < glyphBank.getGlyphsCount(); ++i) {
+            Glyph glyph = glyphBank.getGlyphs(i);
+            Glyph compiledGlyph = compiledGlyphBank.getGlyphs(i);
+            assertEquals(compiledGlyph.getCharacter(), glyph.getCharacter());
+            assertEquals(compiledGlyph.getWidth(), glyph.getWidth(), 0.0f);
+            assertEquals(compiledGlyph.getAdvance(), glyph.getAdvance(), 0.0f);
+            assertEquals(compiledGlyph.getLeftBearing(), glyph.getLeftBearing(), 0.0f);
+            assertEquals(compiledGlyph.getAscent(), glyph.getAscent());
+            assertEquals(compiledGlyph.getDescent(), glyph.getDescent());
+            assertEquals(0, glyph.getGlyphDataOffset());
+            assertEquals(0, glyph.getGlyphDataSize());
+        }
+    }
+
+    @Test
     public void testNativeDistanceFieldSingleChannelGlyphBank() throws Exception {
         FontDesc fontDesc = FontDesc.newBuilder()
             .setFont("Tuffy.ttf")

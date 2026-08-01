@@ -432,19 +432,20 @@
 (defn- native-layout-text
   [font-map text line-break? max-width text-tracking text-leading]
   (let [line-height (+ ^double (:max-descent font-map) ^double (:max-ascent font-map))
-        pixel-tracking (* line-height text-tracking)]
-    (with-open [renderer (create-native-measure-renderer (:native-renderer-spec font-map))]
-      (let [^FontRenderer$Layout layout (.measure renderer text line-break? (float max-width) (float text-leading) (float pixel-tracking))]
-        {:width (double (.-width layout))
-         :height (double (.-height layout))
-         :line-count (long (.-lineCount layout))
-         :max-ascent (double (.-maxAscent layout))
-         :max-descent (double (.-maxDescent layout))
-         :text text
-         :line-break line-break?
-         :layout-width max-width
-         :text-tracking pixel-tracking
-         :text-leading text-leading}))))
+        pixel-tracking (* line-height text-tracking)
+        ^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
+        ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
+        ^FontRenderer$Layout layout (.measure renderer text line-break? (float max-width) (float text-leading) (float pixel-tracking))]
+    {:width (double (.-width layout))
+     :height (double (.-height layout))
+     :line-count (long (.-lineCount layout))
+     :max-ascent (double (.-maxAscent layout))
+     :max-descent (double (.-maxDescent layout))
+     :text text
+     :line-break line-break?
+     :layout-width max-width
+     :text-tracking pixel-tracking
+     :text-leading text-leading}))
 
 (defn measure
   ([font-map text]
@@ -615,8 +616,9 @@
 
 (defn- update-native-renderer
   [_gl ^FontRenderer native-renderer renderer-spec]
-  (.close native-renderer)
-  (create-native-renderer renderer-spec))
+  (let [updated-native-renderer (create-native-renderer renderer-spec)]
+    (.close native-renderer)
+    updated-native-renderer))
 
 (defn- make-native-renderer
   [_gl renderer-spec]
@@ -627,6 +629,18 @@
   (run! #(.close ^FontRenderer %) native-renderers))
 
 (scene-cache/register-object-cache! ::native-renderers make-native-renderer update-native-renderer destroy-native-renderers)
+
+(defn- update-native-measure-renderer
+  [_context ^FontRenderer native-renderer renderer-spec]
+  (let [updated-native-renderer (create-native-measure-renderer renderer-spec)]
+    (.close native-renderer)
+    updated-native-renderer))
+
+(defn- make-native-measure-renderer
+  [_context renderer-spec]
+  (create-native-measure-renderer renderer-spec))
+
+(scene-cache/register-object-cache! ::native-measure-renderers make-native-measure-renderer update-native-measure-renderer destroy-native-renderers)
 
 (defn- make-native-atlas-state [_gl _params]
   (volatile! {:atlas-version 0
@@ -960,10 +974,12 @@
     (set! (.-size measure-params) (.-size render-params))
     (set! (.-cacheWidth measure-params) 1)
     (set! (.-cacheHeight measure-params) 1)
-    (->NativeRendererSpec (resource/proj-path font)
-                          (resource/resource->bytes font)
-                          render-params
-                          measure-params)))
+    (let [name (resource/proj-path font)
+          font-bytes (resource/resource->bytes font)]
+      (->NativeRendererSpec name
+                            font-bytes
+                            render-params
+                            measure-params))))
 
 (defn- font-compilation-error [node-id font ^Exception error]
   (let [message (.getMessage error)]

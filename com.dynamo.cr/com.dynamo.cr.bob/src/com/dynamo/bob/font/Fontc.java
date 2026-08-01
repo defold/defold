@@ -62,7 +62,7 @@ public class Fontc {
             ASCII_7BIT[i - start] = (char)i;
     }
 
-    /** Complete uncompressed font output returned by {@link #compileForEditor} for Editor previews. */
+    /** Font metadata and optional uncompressed glyph output returned by {@link #compileForEditor} for Editor previews. */
     public static final class EditorFontMap {
         public final FontMap fontMap;
         public final GlyphBank glyphBank;
@@ -207,7 +207,7 @@ public class Fontc {
         glyphBankBuilder.setMaxAscent(maxAscent).setMaxDescent(maxDescent);
     }
 
-    private void buildNativeTTF(FontRenderer renderer) throws IOException {
+    private void buildNativeTTF(FontRenderer renderer, boolean copyPixels) throws IOException {
         ArrayList<Integer> characters = getRequestedCharacters();
         int count = fontDesc.getAllChars() ? 0x10FFFF : characters.size();
         float maxAdvance = 0.0f;
@@ -216,7 +216,7 @@ public class Fontc {
             int codePoint = fontDesc.getAllChars() ? i : characters.get(i);
             GeneratedGlyph generated;
             try {
-                generated = renderer.generateGlyph(codePoint);
+                generated = copyPixels ? renderer.generateGlyph(codePoint) : renderer.generateGlyphMetrics(codePoint);
             } catch (RuntimeException e) {
                 throw new IOException(String.format("Native glyph generation failed for U+%04X: %s", codePoint, e.getMessage()), e);
             }
@@ -277,7 +277,7 @@ public class Fontc {
         return output;
     }
 
-    private void generateGlyphData(boolean preview, String bitmapPath, InputStream bitmapStream, boolean compressGlyphData) throws IOException, TextureGeneratorException {
+    private void generateGlyphBank(boolean preview, String bitmapPath, InputStream bitmapStream, boolean compressGlyphData, boolean includeGlyphData) throws IOException, TextureGeneratorException {
         DecodedImage bitmapImage = null;
         int channels;
         if (bmfont != null) {
@@ -328,22 +328,24 @@ public class Fontc {
         int dataOffset = 0;
         for (int i = 0; i < includeCount; ++i) {
             Glyph glyph = glyphs.get(i);
-            byte[] uncompressed = makeCellBytes(glyph, bitmapImage, channels);
-            byte[] bytes = uncompressed;
-            if (compressGlyphData && uncompressed.length > 0) {
-                Texc.Buffer compressed = TexcLibraryJni.CompressBuffer(uncompressed);
-                boolean useCompressed = compressed.isCompressed && compressed.data.length < uncompressed.length;
-                data.write(useCompressed ? 1 : 0);
-                bytes = useCompressed ? compressed.data : uncompressed;
+            if (includeGlyphData) {
+                byte[] uncompressed = makeCellBytes(glyph, bitmapImage, channels);
+                byte[] bytes = uncompressed;
+                if (compressGlyphData && uncompressed.length > 0) {
+                    Texc.Buffer compressed = TexcLibraryJni.CompressBuffer(uncompressed);
+                    boolean useCompressed = compressed.isCompressed && compressed.data.length < uncompressed.length;
+                    data.write(useCompressed ? 1 : 0);
+                    bytes = useCompressed ? compressed.data : uncompressed;
+                }
+                try {
+                    data.write(bytes);
+                } catch (IOException e) {
+                    throw new TextureGeneratorException("Failed to generate font texture: " + e.getMessage());
+                }
+                glyph.dataOffset = dataOffset;
+                glyph.dataSize = bytes.length + (compressGlyphData && uncompressed.length > 0 ? 1 : 0);
+                dataOffset += glyph.dataSize;
             }
-            try {
-                data.write(bytes);
-            } catch (IOException e) {
-                throw new TextureGeneratorException("Failed to generate font texture: " + e.getMessage());
-            }
-            glyph.dataOffset = dataOffset;
-            glyph.dataSize = bytes.length + (compressGlyphData && uncompressed.length > 0 ? 1 : 0);
-            dataOffset += glyph.dataSize;
         }
         if (glyphs.isEmpty())
             throw new IOException("No character glyphs were included! Maybe turn on 'all_chars'?");
@@ -370,7 +372,7 @@ public class Fontc {
 
     /** Compiles a TrueType or OpenType font. The caller retains ownership of {@code fontStream}. */
     public void compile(InputStream fontStream, FontDesc fontDesc, boolean preview) throws TextureGeneratorException, IOException {
-        compile(fontStream, fontDesc, preview, null, null, true);
+        compile(fontStream, fontDesc, preview, null, null, true, false);
     }
 
     /**
@@ -378,10 +380,10 @@ public class Fontc {
      * The caller retains ownership of both streams.
      */
     public void compile(InputStream fontStream, FontDesc fontDesc, boolean preview, String bitmapPath, InputStream bitmapStream) throws TextureGeneratorException, IOException {
-        compile(fontStream, fontDesc, preview, bitmapPath, bitmapStream, true);
+        compile(fontStream, fontDesc, preview, bitmapPath, bitmapStream, true, false);
     }
 
-    private void compile(InputStream fontStream, FontDesc fontDesc, boolean preview, String bitmapPath, InputStream bitmapStream, boolean compressGlyphData) throws TextureGeneratorException, IOException {
+    private void compile(InputStream fontStream, FontDesc fontDesc, boolean preview, String bitmapPath, InputStream bitmapStream, boolean compressGlyphData, boolean metadataOnly) throws TextureGeneratorException, IOException {
         if ((bitmapPath == null) != (bitmapStream == null))
             throw new IllegalArgumentException("BMFont image path and stream must both be supplied");
         boolean bitmapFont = isBitmapFont(fontDesc);
@@ -393,7 +395,7 @@ public class Fontc {
         glyphBankBuilder = GlyphBank.newBuilder().setImageFormat(fontDesc.getOutputFormat());
         if (bitmapFont) {
             buildBMFont(fontStream);
-            generateGlyphData(preview, bitmapPath, bitmapStream, compressGlyphData);
+            generateGlyphBank(preview, bitmapPath, bitmapStream, compressGlyphData, true);
             return;
         }
 
@@ -412,23 +414,25 @@ public class Fontc {
         params.hasOutline = fontDesc.getOutlineWidth() > 0.0f && fontDesc.getOutlineAlpha() > 0.0f;
         params.hasShadow = fontDesc.getShadowAlpha() > 0.0f;
         try (FontRenderer renderer = new FontRenderer(fontDesc.getFont(), fontBytes, params)) {
-            buildNativeTTF(renderer);
+            buildNativeTTF(renderer, !metadataOnly);
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             glyphBankBuilder.setSdfSpread(nativePadding)
                 .setSdfOutline(calculateNativeSdfLimit(nativePadding, fontDesc.getOutlineWidth()))
                 .setSdfShadow(fontDesc.getShadowBlur() == 0 ? 1.0f : calculateNativeSdfLimit(nativePadding, fontDesc.getShadowBlur()));
         }
-        generateGlyphData(preview, null, null, compressGlyphData);
+        generateGlyphBank(preview, null, null, compressGlyphData, !metadataOnly);
     }
 
     /**
-     * Public Editor API for compiling a font into the uncompressed representation used by Editor previews.
+     * Public Editor API for compiling a font representation used by Editor previews.
+     * Native distance-field previews return glyph metadata without the unused pixel payload.
      * All font-derived values are calculated here.
      * The caller retains ownership of both streams. The bitmap arguments must both be null for non-BMFont input.
      */
     public EditorFontMap compileForEditor(InputStream fontStream, FontDesc fontDesc, String bitmapPath, InputStream bitmapStream) throws TextureGeneratorException, IOException {
-        compile(fontStream, fontDesc, false, bitmapPath, bitmapStream, false);
+        boolean metadataOnly = fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD && !isBitmapFont(fontDesc);
+        compile(fontStream, fontDesc, false, bitmapPath, bitmapStream, false, metadataOnly);
         GlyphBank glyphBank = getGlyphBank();
         int count = glyphBank.getGlyphsCount();
         int[] widths = new int[count];
@@ -458,7 +462,7 @@ public class Fontc {
      * The caller retains ownership of both streams. The bitmap arguments must both be null for non-BMFont input.
      */
     public GlyphBank compileForEditorBuild(InputStream fontStream, FontDesc fontDesc, String bitmapPath, InputStream bitmapStream) throws TextureGeneratorException, IOException {
-        compile(fontStream, fontDesc, false, bitmapPath, bitmapStream, true);
+        compile(fontStream, fontDesc, false, bitmapPath, bitmapStream, true, false);
         return getGlyphBank();
     }
 

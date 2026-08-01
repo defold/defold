@@ -50,7 +50,7 @@ defold_target_link_libraries(font_skribidi "${TARGET_PLATFORM}" SCOPE PUBLIC ${F
 set_target_properties(font_skribidi PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
 
 set(FONT_RENDERER_IS_DESKTOP OFF)
-if(TARGET_PLATFORM MATCHES "macos|linux|win32$")
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(macos|linux)$|^x86_64-win32$")
   set(FONT_RENDERER_IS_DESKTOP ON)
 endif()
 

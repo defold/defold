@@ -177,7 +177,7 @@ public final class FontRenderer implements AutoCloseable {
         public final float descent;
         public final ByteBuffer pixels;
 
-        private GeneratedGlyph(MemorySegment values) {
+        private GeneratedGlyph(MemorySegment values, boolean copyPixels) {
             glyphIndex = FontRendererGlyph.m_GlyphIndex(values);
             width = FontRendererGlyph.m_Width(values);
             height = FontRendererGlyph.m_Height(values);
@@ -186,7 +186,7 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontRendererGlyph.m_LeftBearing(values);
             ascent = FontRendererGlyph.m_Ascent(values);
             descent = FontRendererGlyph.m_Descent(values);
-            pixels = copyNativeBytes(FontRendererGlyph.m_Pixels(values), FontRendererGlyph.m_PixelCount(values));
+            pixels = copyPixels ? copyNativeBytes(FontRendererGlyph.m_Pixels(values), FontRendererGlyph.m_PixelCount(values)) : null;
         }
     }
 
@@ -298,7 +298,15 @@ public final class FontRenderer implements AutoCloseable {
      * @return copied glyph bitmap and metrics
      * @throws IllegalArgumentException if {@code codepoint} is not a valid Unicode codepoint
      */
-    public synchronized GeneratedGlyph generateGlyph(int codepoint) {
+    public GeneratedGlyph generateGlyph(int codepoint) {
+        return generateGlyph(codepoint, true);
+    }
+
+    GeneratedGlyph generateGlyphMetrics(int codepoint) {
+        return generateGlyph(codepoint, false);
+    }
+
+    private synchronized GeneratedGlyph generateGlyph(int codepoint, boolean copyPixels) {
         if (!Character.isValidCodePoint(codepoint))
             throw new IllegalArgumentException("Invalid Unicode codepoint");
         try (Arena arena = Arena.ofConfined()) {
@@ -306,7 +314,7 @@ public final class FontRenderer implements AutoCloseable {
             int status = FontRendererGenerateGlyph(requireHandle(), codepoint, result);
             checkResult(status, "Native glyph generation failed");
             try {
-                return new GeneratedGlyph(result);
+                return new GeneratedGlyph(result, copyPixels);
             } finally {
                 FontRendererFreeGlyph(result);
             }
