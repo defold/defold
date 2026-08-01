@@ -18,11 +18,13 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.font :as font]
+            [editor.game-project :as game-project]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
-  (:import [com.dynamo.render.proto Font$FontDesc]
+  (:import [com.dynamo.bob.font FontRenderer$Params]
+           [com.dynamo.render.proto Font$FontDesc]
            [javax.vecmath Matrix4d]))
 
 (defn- prop [node-id label]
@@ -50,6 +52,25 @@
     (is (= 0.75 (native-sdf-limit 3.0 0.0)))
     (is (< (native-sdf-limit 6.0 2.0)
            (native-sdf-limit 6.0 1.0)))))
+
+(defn- font-map-uses-text-shaping? [font-node]
+  (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
+                                                    [:native-renderer-spec :render-params])]
+    (.-useTextShaping render-params)))
+
+(deftest app-manifest-layout-selection
+  (test-util/with-loaded-project
+    (let [game-project (test-util/resource-node project "/game.project")
+          font-node (test-util/resource-node project "/editor1/test.font")
+          app-manifest (test-util/resource-node project "/app_manifest/default.appmanifest")]
+      (is (true? (g/node-value app-manifest :loaded)))
+      (is (false? (font-map-uses-text-shaping? font-node)))
+      (game-project/set-setting! game-project
+                                 ["native_extension" "app_manifest"]
+                                 (g/node-value app-manifest :resource))
+      (is (false? (font-map-uses-text-shaping? font-node)))
+      (g/set-property! app-manifest :use-font-layout true)
+      (is (true? (font-map-uses-text-shaping? font-node))))))
 
 (deftest load-material-render-data
   (test-util/with-loaded-project

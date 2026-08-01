@@ -58,12 +58,20 @@ public class FontRendererTest {
     }
 
     private static FontRenderer createRenderer(float size) throws Exception {
-        return createRenderer(size, 512, 512);
+        return createRenderer(size, 512, 512, false);
     }
 
     private static FontRenderer createRenderer(float size, int cacheWidth, int cacheHeight) throws Exception {
+        return createRenderer(size, cacheWidth, cacheHeight, false);
+    }
+
+    private static FontRenderer createRenderer(float size, int cacheWidth, int cacheHeight, boolean useTextShaping) throws Exception {
+        return createRenderer("/NotoSans-Regular.ttf", size, cacheWidth, cacheHeight, useTextShaping);
+    }
+
+    private static FontRenderer createRenderer(String fontResource, float size, int cacheWidth, int cacheHeight, boolean useTextShaping) throws Exception {
         byte[] fontBytes;
-        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+        try (InputStream input = FontRendererTest.class.getResourceAsStream(fontResource)) {
             assertNotNull(input);
             fontBytes = input.readAllBytes();
         }
@@ -71,7 +79,37 @@ public class FontRendererTest {
         params.size = size;
         params.cacheWidth = cacheWidth;
         params.cacheHeight = cacheHeight;
-        return new FontRenderer("NotoSans-Regular.ttf", fontBytes, params);
+        params.useTextShaping = useTextShaping;
+        return new FontRenderer(fontResource, fontBytes, params);
+    }
+
+    @Test
+    public void testLayoutSelection() throws Exception {
+        try (FontRenderer legacy = createRenderer(32.0f, 512, 512, false);
+             FontRenderer skribidi = createRenderer(32.0f, 512, 512, true)) {
+            float legacyWidth = legacy.measure("AV", false, 0.0f, 1.0f, 0.0f).width;
+            float skribidiWidth = skribidi.measure("AV", false, 0.0f, 1.0f, 0.0f).width;
+            assertTrue(skribidiWidth < legacyWidth);
+        }
+    }
+
+    @Test
+    public void testArabicTextShaping() throws Exception {
+        try (FontRenderer legacy = createRenderer("/NotoSansArabic-Regular.ttf", 32.0f, 512, 512, false);
+             FontRenderer skribidi = createRenderer("/NotoSansArabic-Regular.ttf", 32.0f, 512, 512, true)) {
+            FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
+            legacy.setProperties(properties);
+            skribidi.setProperties(properties);
+            legacy.setText("لكن");
+            skribidi.setText("لكن");
+            legacy.beginBatch();
+            skribidi.beginBatch();
+            FontRenderer.Texture legacyTexture = legacy.generateTexture(0);
+            FontRenderer.Texture skribidiTexture = skribidi.generateTexture(0);
+            assertTrue(!legacyTexture.pixels.equals(skribidiTexture.pixels));
+            assertEquals(18, getVertices(legacy, IDENTITY).vertexCount);
+            assertEquals(24, getVertices(skribidi, IDENTITY).vertexCount);
+        }
     }
 
     private static FontRenderer.Properties properties(float height, float leading, int verticalAlign) {

@@ -101,6 +101,7 @@ public final class FontRenderer implements AutoCloseable {
         public boolean antialias = true;
         public boolean hasOutline;
         public boolean hasShadow;
+        public boolean useTextShaping;
     }
 
     public static final class Properties {
@@ -516,6 +517,7 @@ public final class FontRenderer implements AutoCloseable {
         FontRendererParams.m_Antialias(values, flag(params.antialias));
         FontRendererParams.m_HasOutline(values, flag(params.hasOutline));
         FontRendererParams.m_HasShadow(values, flag(params.hasShadow));
+        FontRendererParams.m_UseTextShaping(values, flag(params.useTextShaping));
     }
 
     private static int flag(boolean value) {

@@ -24,6 +24,7 @@
 #include <dlib/vmath.h>
 #include <dmsdk/font/fontcollection.h>
 #include <dmsdk/font/text_layout.h>
+#include <text_layout.h>
 
 #include "glyph_gen.h"
 #include "glyph_vertex.h"
@@ -33,7 +34,7 @@ using dmVMath::Matrix4;
 using dmVMath::Vector4;
 
 static_assert(sizeof(void*) == 8, "The font renderer FFM ABI requires a 64-bit target");
-static_assert(sizeof(FontRendererParams) == 72, "Unexpected FontRendererParams ABI layout");
+static_assert(sizeof(FontRendererParams) == 76, "Unexpected FontRendererParams ABI layout");
 static_assert(sizeof(FontRendererLayout) == 20, "Unexpected FontRendererLayout ABI layout");
 static_assert(sizeof(FontRendererGlyph) == 48, "Unexpected FontRendererGlyph ABI layout");
 static_assert(offsetof(FontRendererGlyph, m_Pixels) == 32, "Unexpected FontRendererGlyph ABI layout");
@@ -122,7 +123,13 @@ struct FontRendererContext
     bool                   m_Antialias;
     bool                   m_HasOutline;
     bool                   m_HasShadow;
+    bool                   m_UseTextShaping;
 };
+
+static uint32_t GetGlyphImageY(const FontRendererContext* session, uint32_t cell_y, const FontGlyph& glyph)
+{
+    return cell_y + session->m_CellPadding + session->m_CellMaxAscent - (int32_t)glyph.m_Ascent;
+}
 
 static void DestroySession(FontRendererContext* session)
 {
@@ -148,7 +155,7 @@ static bool RebuildAtlas(FontRendererContext* session)
         const CachedGlyph& cached = session->m_Glyphs[i];
         const uint32_t     cell_x = (i % columns) * session->m_CellWidth;
         const uint32_t     cell_y = (i / columns) * session->m_CellHeight;
-        const uint32_t     image_y = cell_y + session->m_CellPadding + session->m_CellMaxAscent - (uint16_t)cached.m_Glyph.m_Ascent;
+        const uint32_t     image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
         const uint32_t     width = cached.m_Glyph.m_Bitmap.m_Width;
         const uint32_t     height = cached.m_Glyph.m_Bitmap.m_Height;
         if (cell_x + session->m_CellPadding + width > session->m_AtlasWidth || image_y + height > session->m_AtlasHeight)
@@ -161,7 +168,7 @@ static bool RebuildAtlas(FontRendererContext* session)
         CachedGlyph&   cached = session->m_Glyphs[i];
         const uint32_t cell_x = (i % columns) * session->m_CellWidth;
         const uint32_t cell_y = (i / columns) * session->m_CellHeight;
-        const uint32_t image_y = cell_y + session->m_CellPadding + session->m_CellMaxAscent - (uint16_t)cached.m_Glyph.m_Ascent;
+        const uint32_t image_y = GetGlyphImageY(session, cell_y, cached.m_Glyph);
         const uint32_t width = cached.m_Glyph.m_Bitmap.m_Width;
         const uint32_t height = cached.m_Glyph.m_Bitmap.m_Height;
         const uint32_t row_bytes = width * session->m_Channels;
@@ -186,7 +193,7 @@ static bool WriteGlyphToAtlas(FontRendererContext* session, CachedGlyph* cached,
     const uint32_t cell_x = (glyph_index % columns) * session->m_CellWidth;
     const uint32_t cell_y = (glyph_index / columns) * session->m_CellHeight;
     const uint32_t image_x = cell_x + session->m_CellPadding;
-    const uint32_t image_y = cell_y + session->m_CellPadding + session->m_CellMaxAscent - (uint16_t)cached->m_Glyph.m_Ascent;
+    const uint32_t image_y = GetGlyphImageY(session, cell_y, cached->m_Glyph);
     const uint32_t width = cached->m_Glyph.m_Bitmap.m_Width;
     const uint32_t height = cached->m_Glyph.m_Bitmap.m_Height;
     const uint32_t row_bytes = width * session->m_Channels;
@@ -255,10 +262,11 @@ static bool UpdateCellMetrics(FontRendererContext* session)
         const FontGlyph& glyph = session->m_Glyphs[i].m_Glyph;
         const uint64_t   glyph_cell_width = (uint64_t)glyph.m_Bitmap.m_Width + (uint32_t)session->m_CellPadding * 2;
         cell_width = dmMath::Max(cell_width, glyph_cell_width);
-        if (glyph.m_Ascent < 0.0f || glyph.m_Descent < 0.0f)
+        if (glyph.m_Ascent < INT16_MIN || glyph.m_Ascent > INT16_MAX ||
+            glyph.m_Descent < INT16_MIN || glyph.m_Descent > INT16_MAX)
             return false;
-        cell_max_ascent = dmMath::Max(cell_max_ascent, (uint32_t)glyph.m_Ascent);
-        cell_max_descent = dmMath::Max(cell_max_descent, (uint32_t)glyph.m_Descent);
+        cell_max_ascent = dmMath::Max(cell_max_ascent, (uint32_t)dmMath::Max(0, (int32_t)glyph.m_Ascent));
+        cell_max_descent = dmMath::Max(cell_max_descent, (uint32_t)dmMath::Max(0, (int32_t)glyph.m_Descent));
     }
     const uint64_t cell_height = dmMath::Max((uint64_t)1, (uint64_t)cell_max_ascent + cell_max_descent + (uint32_t)session->m_CellPadding * 2);
     if (cell_width > UINT16_MAX || cell_height > UINT16_MAX || cell_max_ascent > UINT16_MAX)
@@ -344,7 +352,7 @@ static CachedGlyph* GetOrCreateGlyph(FontRendererContext* session, HFont font, u
             ++session->m_AtlasVersion;
             AddDirtyRect(texture_update,
                          cached_glyph->m_X + session->m_CellPadding,
-                         cached_glyph->m_Y + session->m_CellPadding + session->m_CellMaxAscent - (uint16_t)cached_glyph->m_Glyph.m_Ascent,
+                         GetGlyphImageY(session, cached_glyph->m_Y, cached_glyph->m_Glyph),
                          cached_glyph->m_Glyph.m_Bitmap.m_Width,
                          cached_glyph->m_Glyph.m_Bitmap.m_Height);
         }
@@ -392,6 +400,8 @@ static TextResult CreateLayout(FontRendererContext* session, const uint32_t* cod
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
     settings.m_LineBreak = line_break;
+    if (!session->m_UseTextShaping)
+        return TextLayoutLegacyCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout);
     return TextLayoutCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout);
 }
 
@@ -465,7 +475,6 @@ FontRendererResult FontRendererCreate(const char*               name,
         DestroySession(session);
         return FONT_RENDERER_RESULT_FONT_ERROR;
     }
-
     session->m_Size = params->m_Size;
     session->m_AtlasWidth = params->m_AtlasWidth;
     session->m_AtlasHeight = params->m_AtlasHeight;
@@ -484,6 +493,7 @@ FontRendererResult FontRendererCreate(const char*               name,
     session->m_Antialias = params->m_Antialias != 0;
     session->m_HasOutline = params->m_HasOutline != 0;
     session->m_HasShadow = params->m_HasShadow != 0;
+    session->m_UseTextShaping = params->m_UseTextShaping != 0;
     session->m_Channels = channels;
     session->m_Atlas = (uint8_t*)calloc((size_t)params->m_AtlasWidth * params->m_AtlasHeight, session->m_Channels);
     if (!session->m_Atlas)

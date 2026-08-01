@@ -946,7 +946,7 @@
     :render-mode render-mode))
 
 (defn- make-native-renderer-spec
-  ^NativeRendererSpec [font font-desc font-map]
+  ^NativeRendererSpec [font font-desc font-map use-font-layout]
   (let [render-params (FontRenderer$Params.)
         measure-params (FontRenderer$Params.)
         shadow-blur (double (if (and (pos? ^double (:shadow-alpha font-desc))
@@ -971,9 +971,11 @@
     (set! (.-shadowX render-params) (float (:shadow-x font-desc)))
     (set! (.-shadowY render-params) (float (:shadow-y font-desc)))
     (set! (.-layerMask render-params) (int (:layer-mask font-map)))
+    (set! (.-useTextShaping render-params) (boolean use-font-layout))
     (set! (.-size measure-params) (.-size render-params))
     (set! (.-cacheWidth measure-params) 1)
     (set! (.-cacheHeight measure-params) 1)
+    (set! (.-useTextShaping measure-params) (.-useTextShaping render-params))
     (let [name (resource/proj-path font)
           font-bytes (resource/resource->bytes font)]
       (->NativeRendererSpec name
@@ -986,7 +988,7 @@
     (log/error :msg (str "Failed to generate bitmap from Font. " message) :exception error)
     (g/->error node-id :font :fatal font (localization/message "error.font-bitmap-generation-failed" {"error" message}))))
 
-(defn- make-font-map [_node-id font type pb-msg font-resource-map]
+(defn- make-font-map [_node-id font type pb-msg font-resource-map use-font-layout]
   (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font font-message)
                                       (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font font-message)
                                       (validation/prop-error :fatal _node-id :cache-width validation/prop-negative? (:cache-width pb-msg) cache-width-message)
@@ -1007,14 +1009,14 @@
       (try
         (let [font-map (compile-font pb-msg font font-resource-map)]
           (cond-> font-map
-            (= :distance-field type) (assoc :native-renderer-spec (make-native-renderer-spec font pb-msg font-map))))
+            (= :distance-field type) (assoc :native-renderer-spec (make-native-renderer-spec font pb-msg font-map use-font-layout))))
         (catch Exception error
           (font-compilation-error _node-id font error)))))
 
-(g/defnk produce-font-map [_node-id font type font-resource-map save-value]
+(g/defnk produce-font-map [_node-id font type font-resource-map save-value use-font-layout]
   ;; TODO(save-value-cleanup): make-font-map expects all values to be present.
   (let [font-desc (protobuf/inject-defaults Font$FontDesc save-value)]
-    (make-font-map _node-id font type font-desc font-resource-map)))
+    (make-font-map _node-id font type font-desc font-resource-map use-font-layout)))
 
 (defn- build-glyph-bank [resource _dep-resources user-data]
   (let [{:keys [font-desc font font-resource-map digest-ignored/node-id]} user-data]
@@ -1314,6 +1316,7 @@
   (input material-samplers [g/KeywordMap])
   (input material-shader ShaderLifecycle)
   (input font-resource-map g/Any)
+  (input use-font-layout g/Bool)
 
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
@@ -1343,28 +1346,30 @@
                                              :native-renderer-spec (:native-renderer-spec font-map)}))
   (output preview-text g/Str :cached produce-preview-text))
 
-(defn load-font [_project self resource font-desc]
+(defn load-font [project self resource font-desc]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
   (let [basis (g/now)
         resolve-resource #(workspace/resolve-resource basis resource %)]
-    (gu/set-properties-from-pb-map self Font$FontDesc font-desc
-      font (resolve-resource :font)
-      material (resolve-resource :material)
-      size :size
-      antialias (protobuf/int->boolean :antialias)
-      alpha :alpha
-      outline-alpha :outline-alpha
-      outline-width :outline-width
-      shadow-alpha :shadow-alpha
-      shadow-blur :shadow-blur
-      shadow-x :shadow-x
-      shadow-y :shadow-y
-      characters :characters
-      output-format :output-format
-      all-chars :all-chars
-      cache-width :cache-width
-      cache-height :cache-height
-      render-mode :render-mode)))
+    (into
+      [(g/connect project :use-font-layout self :use-font-layout)]
+      (gu/set-properties-from-pb-map self Font$FontDesc font-desc
+        font (resolve-resource :font)
+        material (resolve-resource :material)
+        size :size
+        antialias (protobuf/int->boolean :antialias)
+        alpha :alpha
+        outline-alpha :outline-alpha
+        outline-width :outline-width
+        shadow-alpha :shadow-alpha
+        shadow-blur :shadow-blur
+        shadow-x :shadow-x
+        shadow-y :shadow-y
+        characters :characters
+        output-format :output-format
+        all-chars :all-chars
+        cache-width :cache-width
+        cache-height :cache-height
+        render-mode :render-mode))))
 
 (defn sanitize-font [{:keys [characters extra-characters] :as font-desc}]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.

@@ -63,6 +63,7 @@ extern "C"
         uint32_t m_Antialias;
         uint32_t m_HasOutline;
         uint32_t m_HasShadow;
+        uint32_t m_UseTextShaping;
     } FontRendererParams;
 
     typedef struct FontRendererLayout

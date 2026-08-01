@@ -954,6 +954,7 @@
         (g/connect script-intelligence :build-errors game-project :build-errors)
         (g/connect game-project :display-profiles-data project :display-profiles)
         (g/connect game-project :texture-profiles-data project :texture-profiles)
+        (g/connect game-project :use-font-layout project :use-font-layout)
         (g/connect game-project :settings-map project :settings)))))
 
 (defn load-project!
@@ -1591,6 +1592,7 @@
   (input settings g/Any :substitute nil)
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
+  (input use-font-layout g/Bool)
   (input collision-group-nodes g/Any :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
   (input dependencies g/Any)
@@ -1624,6 +1626,7 @@
                                                                  (not (resource/read-only? resource))))))
                                                    save-data)))
   (output settings g/Any (g/fnk [settings] (or settings gpc/default-settings)))
+  (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
   (output display-width g/Num (g/fnk [settings]
                                  (double (or (get settings ["display" "width"]) 0))))
   (output display-height g/Num (g/fnk [settings]
