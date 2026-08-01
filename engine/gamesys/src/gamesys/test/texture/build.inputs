@@ -1,4 +1,6 @@
 /texture/default.texture_profiles
 /texture/blank_4096_png.png
+/texture/hdr_rgba16f.hdr
+/texture/hdr_rgba32f.hdr
 /texture/valid_png.png
 /texture/valid_png_128.png

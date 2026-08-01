@@ -30,6 +30,7 @@
 #include "gamesys/resources/res_font_private.h"
 #include "gamesys/resources/res_material.h"
 #include "gamesys/resources/res_render_target.h"
+#include "gamesys/resources/res_texture.h"
 #include "gamesys/resources/res_ttf.h"
 #include "gamesys/resources/res_textureset.h"
 
@@ -371,12 +372,83 @@ TEST_P(ResourceTest, TestPreloadAsync)
 }
 
 class TextureSetResourceTest : public ResourceTest { public: TextureSetResourceTest() { SetContentFolder("textureset"); } };
+class TextureResourceTest : public ResourceTest { public: TextureResourceTest() { SetContentFolder("texture"); } };
 class RenderResourceTest : public ResourceTest { public: RenderResourceTest() { SetContentFolder("render"); } };
 class DataResourceTest : public ResourceTest { public: DataResourceTest() { SetContentFolder("data"); } };
 class LightResourceTest : public ResourceTest { public: LightResourceTest() { SetContentFolder("light"); } };
 class ResourceFolderTest : public ResourceTest { public: ResourceFolderTest() { SetContentFolder("resource"); } };
 class GuiResourceTest : public ResourceTest { public: GuiResourceTest() { SetContentFolder("gui"); } };
 class MaterialResourceTest : public ResourceTest { public: MaterialResourceTest() { SetContentFolder("material"); } };
+
+static dmGraphics::Texture* GetTextureBase(dmGraphics::HContext context, dmGraphics::HTexture texture)
+{
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*)context;
+    return dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(null_context->m_BaseContext.m_AssetHandleContainer, texture);
+}
+
+TEST_F(TextureResourceTest, FloatTextureResources)
+{
+    ASSERT_EQ(64u, dmGraphics::GetTextureFormatBitsPerPixel(dmGraphics::TEXTURE_FORMAT_RGBA16F));
+    ASSERT_EQ(128u, dmGraphics::GetTextureFormatBitsPerPixel(dmGraphics::TEXTURE_FORMAT_RGBA32F));
+
+    dmGameSystem::TextureResource* texture_16f = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba16f.texturec", (void**)&texture_16f));
+    ASSERT_NE((dmGameSystem::TextureResource*)0, texture_16f);
+
+    dmGraphics::Texture* texture_16f_base = GetTextureBase(m_GraphicsContext, texture_16f->m_Texture);
+    ASSERT_NE((dmGraphics::Texture*)0, texture_16f_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA16F, texture_16f_base->m_Format);
+    ASSERT_EQ(2u, dmGraphics::GetTextureWidth(m_GraphicsContext, texture_16f->m_Texture));
+    ASSERT_EQ(2u, dmGraphics::GetTextureHeight(m_GraphicsContext, texture_16f->m_Texture));
+    ASSERT_EQ(2u, dmGraphics::GetTextureMipmapCount(m_GraphicsContext, texture_16f->m_Texture));
+    dmResource::Release(m_Factory, texture_16f);
+
+    dmGameSystem::TextureResource* texture_32f = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba32f.texturec", (void**)&texture_32f));
+    ASSERT_NE((dmGameSystem::TextureResource*)0, texture_32f);
+
+    dmGraphics::Texture* texture_32f_base = GetTextureBase(m_GraphicsContext, texture_32f->m_Texture);
+    ASSERT_NE((dmGraphics::Texture*)0, texture_32f_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA32F, texture_32f_base->m_Format);
+    ASSERT_EQ(2u, dmGraphics::GetTextureWidth(m_GraphicsContext, texture_32f->m_Texture));
+    ASSERT_EQ(2u, dmGraphics::GetTextureHeight(m_GraphicsContext, texture_32f->m_Texture));
+    ASSERT_EQ(1u, dmGraphics::GetTextureMipmapCount(m_GraphicsContext, texture_32f->m_Texture));
+    dmResource::Release(m_Factory, texture_32f);
+}
+
+TEST_F(TextureResourceTest, FloatTextureSelectsSupportedAlternative)
+{
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*)m_GraphicsContext;
+    null_context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F);
+
+    dmGameSystem::TextureResource* texture = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba16f.texturec", (void**)&texture));
+    ASSERT_NE((dmGameSystem::TextureResource*)0, texture);
+
+    dmGraphics::Texture* texture_base = GetTextureBase(m_GraphicsContext, texture->m_Texture);
+    ASSERT_NE((dmGraphics::Texture*)0, texture_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA32F, texture_base->m_Format);
+    ASSERT_EQ(2u, dmGraphics::GetTextureMipmapCount(m_GraphicsContext, texture->m_Texture));
+    dmResource::Release(m_Factory, texture);
+}
+
+TEST_F(TextureResourceTest, UnsupportedFloatTextureUsesBlankFallback)
+{
+    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*)m_GraphicsContext;
+    null_context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F);
+    null_context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_RGBA32F);
+
+    dmGameSystem::TextureResource* texture = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/texture/hdr_rgba16f.texturec", (void**)&texture));
+    ASSERT_NE((dmGameSystem::TextureResource*)0, texture);
+
+    dmGraphics::Texture* texture_base = GetTextureBase(m_GraphicsContext, texture->m_Texture);
+    ASSERT_NE((dmGraphics::Texture*)0, texture_base);
+    ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGBA, texture_base->m_Format);
+    ASSERT_EQ(1u, dmGraphics::GetTextureWidth(m_GraphicsContext, texture->m_Texture));
+    ASSERT_EQ(1u, dmGraphics::GetTextureHeight(m_GraphicsContext, texture->m_Texture));
+    dmResource::Release(m_Factory, texture);
+}
 
 TEST_F(TextureSetResourceTest, TestReloadTextureSet)
 {

@@ -2237,11 +2237,16 @@ TEST_F(dmGraphicsTest, TestCloseCallback)
 TEST_F(dmGraphicsTest, TestTextureSupport)
 {
     ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_LUMINANCE));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA16F));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA32F));
     ASSERT_FALSE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
 }
 
 TEST_F(dmGraphicsTest, TestTextureFormatBPP)
 {
+    ASSERT_EQ(64u, dmGraphics::GetTextureFormatBitsPerPixel(dmGraphics::TEXTURE_FORMAT_RGBA16F));
+    ASSERT_EQ(128u, dmGraphics::GetTextureFormatBitsPerPixel(dmGraphics::TEXTURE_FORMAT_RGBA32F));
+
     for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_COUNT; ++i)
     {
         dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) i;
