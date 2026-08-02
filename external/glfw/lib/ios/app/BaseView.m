@@ -63,7 +63,7 @@ NSString *const FAKE_STRING = @"Abcd";
     g_BaseView = self;
     if ((self = [super initWithFrame:frame]))
     {
-        displayLink = [[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)];
+        displayLink = [[[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)] retain];
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
         displayLink.frameInterval = 1;
 
@@ -549,13 +549,19 @@ NSString *const FAKE_STRING = @"Abcd";
     backingHeight = height;
 }
 
+- (void)invalidateDisplayLink
+{
+    if (displayLink)
+    {
+        [displayLink invalidate];
+        [displayLink release];
+        displayLink = nil;
+    }
+}
+
 - (void)dealloc
 {
-    if (displayLink != 0)
-    {
-        [displayLink release];
-    }
-
+    [self invalidateDisplayLink];
     [self teardownView];
 
     [super dealloc];

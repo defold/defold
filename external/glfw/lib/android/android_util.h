@@ -50,6 +50,14 @@ struct InputEvent
     int64_t m_EventTime;
 };
 
+typedef enum GlfwAndroidEglResult
+{
+    GLFW_ANDROID_EGL_RESULT_FATAL         = -1,
+    GLFW_ANDROID_EGL_RESULT_DEFERRED      = 0,
+    GLFW_ANDROID_EGL_RESULT_READY         = 1,
+    GLFW_ANDROID_EGL_RESULT_RETRY_ALLOC   = 2,
+} GlfwAndroidEglResult;
+
 /* Prefer host-injected external_window; fall back to NativeActivity window. */
 ANativeWindow* _glfwAndroidGetActiveNativeWindow(_GLFWwin_android* win);
 
@@ -57,13 +65,31 @@ int init_gl(_GLFWwin_android* win);
 
 void final_gl(_GLFWwin_android* win);
 
-void create_gl_surface(_GLFWwin_android* win);
+GlfwAndroidEglResult create_gl_surface(_GLFWwin_android* win);
 
 void destroy_gl_surface(_GLFWwin_android* win);
 
-void make_current(_GLFWwin_android* win);
+GlfwAndroidEglResult make_current(_GLFWwin_android* win);
 
-void update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force);
+GlfwAndroidEglResult update_width_height_info(_GLFWwin* win, _GLFWwin_android* win_android, int force);
+
+void wait_for_egl_retry(uint32_t retry_count);
+
+int is_egl_result_retryable(GlfwAndroidEglResult result);
+
+GlfwAndroidEglResult limit_egl_failure_retries(_GLFWwin_android* win, GlfwAndroidEglResult result);
+
+void reset_egl_failure_retries(_GLFWwin_android* win);
+
+int _glfwAndroidIsAppResumed(void);
+
+/** Non-zero when host injected an external ANativeWindow (embed mode). */
+int _glfwAndroidIsEmbedHost(void);
+/** Clears embed-host flag after terminate. */
+void _glfwAndroidClearEmbedHost(void);
+/** Embed hide_app sticky iconify; survives computeIconifiedState until cleared. */
+void _glfwAndroidSetEmbedUserIconified(int iconified);
+int _glfwAndroidIsEmbedUserIconified(void);
 
 int query_gl_aux_context(_GLFWwin_android* win);
 
@@ -82,14 +108,6 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
 // returns 1 if we the window/surface was ok
 // returns 0 if we the window/surface was bad
 int32_t _glfwAndroidVerifySurfaceError(EGLint error);
-
-/** Non-zero when host injected an external ANativeWindow (embed mode). */
-int _glfwAndroidIsEmbedHost(void);
-/** Clears embed-host flag after terminate. */
-void _glfwAndroidClearEmbedHost(void);
-/** Embed hide_app sticky iconify; survives computeIconifiedState until cleared. */
-void _glfwAndroidSetEmbedUserIconified(int iconified);
-int _glfwAndroidIsEmbedUserIconified(void);
 
 // From spinlock.h (we really should keep a C interface there as well!)
 
