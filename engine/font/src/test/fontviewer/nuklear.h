@@ -15595,7 +15595,7 @@ static int stbtt_BakeFontBitmap_internal(unsigned char *data, int offset,  /*  f
    f.userdata = NULL;
    if (!stbtt_InitFont(&f, data, offset))
       return -1;
-   STBTT_memset(pixels, 0, pw*ph); /*  background of 0 around pixels */
+   STBTT_memset(pixels, 0, (size_t)pw*ph); /*  background of 0 around pixels */
    x=y=1;
    bottom_y = 1;
 
@@ -15754,7 +15754,7 @@ STBTT_DEF int stbtt_PackBegin(stbtt_pack_context *spc, unsigned char *pixels, in
    stbrp_init_target(context, pw-padding, ph-padding, nodes, num_nodes);
 
    if (pixels)
-      STBTT_memset(pixels, 0, pw*ph); /*  background of 0 around pixels */
+      STBTT_memset(pixels, 0, (size_t)pw*ph); /*  background of 0 around pixels */
 
    return 1;
 }
