@@ -81,8 +81,11 @@
     "font"
     "font_skribidi"
     "gamesys"
+    "gamesys_gui"
+    "gamesys_gui_null"
     "gamesys_model"
     "gamesys_model_null"
+    "gamesys_particle"
     "gamesys_rig"
     "gamesys_rig_null"
     "graphics"
@@ -97,6 +100,8 @@
     "graphics_vulkan"
     "graphics_webgpu"
     "graphics_webgpu_wagyu"
+    "gui"
+    "gui_null"
     "hid"
     "hid_null"
     "image"
@@ -112,6 +117,7 @@
     "mbedtls_noasan"
     "model"
     "particle"
+    "particle_null"
     "physics"
     "physics_2d"
     "physics_2d_defold"
@@ -498,6 +504,24 @@
       (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo"])
       (libs-toggles all-platforms ["sound_null"]))))
 
+(def gui-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["gamesys_gui" "gui"])
+      (libs-toggles all-platforms ["gamesys_gui_null" "gui_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeGui" "ResourceTypeGuiScript" "ComponentTypeGui"]))))
+
+(def particle-fx-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["gamesys_particle" "particle"])
+      (libs-toggles all-platforms ["particle_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeParticleFX" "ComponentTypeParticleFX" "ScriptLibParticleFX"]))))
+
+(def tilemap-setting
+  (make-check-box-setting
+    (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeTileMap" "ComponentTypeTileMap" "ScriptLibTileMap"])))
+
 (def sound-decoder-wav-setting
   (make-check-box-setting
     (concat
@@ -868,6 +892,24 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-setting))
             (set (setting-property-setter sound-setting)))
+  (property exclude-gui g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-gui))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-gui))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter gui-setting))
+            (set (setting-property-setter gui-setting)))
+  (property exclude-particle-fx g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-particle-fx))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-particle-fx))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter particle-fx-setting))
+            (set (setting-property-setter particle-fx-setting)))
+  (property exclude-tilemap g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-tilemap))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-tilemap))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter tilemap-setting))
+            (set (setting-property-setter tilemap-setting)))
   (property exclude-sound-decoder-wav g/Any
             (dynamic label (properties/label-dynamic :appmanifest :exclude-sound-decoder-wav))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-sound-decoder-wav))

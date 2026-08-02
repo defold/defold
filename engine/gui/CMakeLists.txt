@@ -19,7 +19,6 @@ set(GUI_DEPENDENCIES
   gameobject
   hid
   lua
-  particle
   render
   rig
   script

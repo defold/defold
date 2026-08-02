@@ -1020,6 +1020,41 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompTileGridIterPropertiesGetNext;
     }
 
+    static dmGameObject::Result CompTileMapTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
+    {
+        TilemapContext* tilemap_context = new TilemapContext;
+        HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
+        tilemap_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
+        tilemap_context->m_MaxTilemapCount = dmConfigFile::GetInt(ctx->m_Config, "tilemap.max_count", 16);
+        tilemap_context->m_MaxTileCount = dmConfigFile::GetInt(ctx->m_Config, "tilemap.max_tile_count", 2048);
+
+        dmGameObject::ComponentTypeSetPrio(type, 1200);
+        dmGameObject::ComponentTypeSetContext(type, tilemap_context);
+        dmGameObject::ComponentTypeSetHasUserData(type, true);
+        dmGameObject::ComponentTypeSetReadsTransforms(type, true);
+        dmGameObject::ComponentTypeSetNewWorldFn(type, CompTileGridNewWorld);
+        dmGameObject::ComponentTypeSetDeleteWorldFn(type, CompTileGridDeleteWorld);
+        dmGameObject::ComponentTypeSetCreateFn(type, CompTileGridCreate);
+        dmGameObject::ComponentTypeSetDestroyFn(type, CompTileGridDestroy);
+        dmGameObject::ComponentTypeSetAddToUpdateFn(type, CompTileGridAddToUpdate);
+        dmGameObject::ComponentTypeSetGetFn(type, CompTileGridGetComponent);
+        dmGameObject::ComponentTypeSetLateUpdateFn(type, CompTileGridLateUpdate);
+        dmGameObject::ComponentTypeSetRenderFn(type, CompTileGridRender);
+        dmGameObject::ComponentTypeSetOnMessageFn(type, CompTileGridOnMessage);
+        dmGameObject::ComponentTypeSetOnReloadFn(type, CompTileGridOnReload);
+        dmGameObject::ComponentTypeSetGetPropertyFn(type, CompTileGridGetProperty);
+        dmGameObject::ComponentTypeSetSetPropertyFn(type, CompTileGridSetProperty);
+        dmGameObject::ComponentTypeSetPropertyIteratorFn(type, CompTileGridIterProperties);
+        return dmGameObject::RESULT_OK;
+    }
+
+    static dmGameObject::Result CompTileMapTypeDestroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
+    {
+        TilemapContext* tilemap_context = (TilemapContext*) dmGameObject::ComponentTypeGetContext(type);
+        delete tilemap_context;
+        return dmGameObject::RESULT_OK;
+    }
+
     // For tests
     void GetTileGridWorldRenderBuffers(void* tilegrid_world, dmRender::HBufferedRenderBuffer* vx_buffer)
     {
@@ -1027,3 +1062,5 @@ namespace dmGameSystem
         *vx_buffer = world->m_VertexBuffer;
     }
 }
+
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeTileMap, "tilemapc", dmGameSystem::CompTileMapTypeCreate, dmGameSystem::CompTileMapTypeDestroy);

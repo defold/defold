@@ -24,8 +24,6 @@
 #include "gamesys_private.h"
 
 #include "scripts/script_label.h"
-#include "scripts/script_particlefx.h"
-#include "scripts/script_tilemap.h"
 #include "scripts/script_physics.h"
 #include "scripts/script_sound.h"
 #include "scripts/script_sprite.h"
@@ -552,8 +550,6 @@ namespace dmGameSystem
 
         ScriptBufferRegister(context);
         ScriptLabelRegister(context);
-        ScriptParticleFXRegister(context);
-        ScriptTileMapRegister(context);
         ScriptPhysicsRegister(context);
         ScriptFactoryRegister(context);
         ScriptCollectionFactoryRegister(context);

@@ -52,12 +52,12 @@ def build(bld):
     profile_lib = ['PROFILE_NULL', 'PROFILEREXT_NULL']
 
     resource_type_symbols = ['ResourceTypeGameObject', 'ResourceTypeCollection', 'ResourceTypeScript', 'ResourceTypeLua',
-                             'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
+                             'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript', 'ResourceTypeParticleFX', 'ResourceTypeTileMap',
                              'ResourceProviderFile', 'ResourceProviderArchive',
                              'ResourceTypeOgg','ResourceTypeOpus', 'ResourceTypeWav', 'ResourceTypeFont', 'ResourceTypeTTF',
                              'ResourceTypeLight']
-    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound', 'ComponentTypeLight']
-    exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull', 'ScriptModelExt']
+    component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh', 'ComponentTypeSound', 'ComponentTypeLight', 'ComponentTypeParticleFX', 'ComponentTypeTileMap']
+    exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull', 'ScriptModelExt', 'ScriptLibParticleFX', 'ScriptLibTileMap']
 
     bld.add_group()
 

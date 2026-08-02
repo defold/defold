@@ -18,7 +18,15 @@ def build(bld):
                         includes = '. .. ../../proto',
                         use = 'TESTMAIN DDF DLIB PLATFORM_NULL GRAPHICS_NULL PROFILE_NULL SOCKET PLATFORM_THREAD particle',
                         proto_gen_py = True,
-                        source = bld.path.ant_glob(['*.particlefx', '*.cpp']),
+                        source = bld.path.ant_glob(['*.particlefx', '*.cpp'], excl=['test_particle_null.cpp']),
                         target = 'test_particle')
 
     test_particle.install_path = None
+
+    test_particle_null = bld(features = 'cxx cprogram test',
+                             includes = '. .. ../../proto',
+                             use = 'DDF DLIB particle_null',
+                             source = 'test_particle_null.cpp',
+                             target = 'test_particle_null')
+
+    test_particle_null.install_path = None

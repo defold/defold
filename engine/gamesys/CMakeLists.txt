@@ -29,6 +29,29 @@ set(GAMESYS_DEPENDENCIES
     script
     sound
     $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+set(GAMESYS_GUI_DEPENDENCIES
+    ddf
+    dlib
+    font
+    gameobject
+    gui
+    input
+    particle
+    render
+    resource
+    script
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
+set(GAMESYS_GUI_NULL_DEPENDENCIES
+    dlib)
+set(GAMESYS_PARTICLE_DEPENDENCIES
+    ddf
+    dlib
+    gameobject
+    particle
+    render
+    resource
+    script
+    $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 set(GAMESYS_MODEL_DEPENDENCIES
     gameobject
     gui
@@ -148,8 +171,15 @@ set(GS_SOURCES ${GS_TOP_LEVEL} ${GS_RESOURCES} ${GS_COMPONENTS})
 list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_model\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_model_pbr\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_model_null\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_gui\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_gui_null\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_model\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_model_null\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/res_gui\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/res_gui_script\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/comp_particlefx\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/res_particlefx\\.cpp$")
+list(FILTER GS_SOURCES EXCLUDE REGEX "/script_particlefx\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_rig_scene\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/res_rig_scene_null\\.cpp$")
 list(FILTER GS_SOURCES EXCLUDE REGEX "/script_model\\.cpp$")
@@ -194,6 +224,49 @@ foreach(_gamesys_dependency IN ITEMS
   endif()
 endforeach()
 defold_target_link_libraries(gamesys "${TARGET_PLATFORM}" SCOPE PUBLIC ${GAMESYS_DEPENDENCIES})
+
+# ========= gamesys_gui =========
+defold_add_library(gamesys_gui STATIC
+    "${GS_SRC_DIR}/resources/res_gui.cpp"
+    "${GS_SRC_DIR}/resources/res_gui_script.cpp"
+    "${GS_SRC_DIR}/components/comp_gui.cpp")
+target_include_directories(gamesys_gui PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}" "${GS_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}")
+foreach(_gamesys_gui_dependency IN ITEMS
+    gamesys_proto_headers
+    graphics_proto_header
+    input_proto_headers
+    particle_proto_headers
+    render_proto_headers)
+  if(TARGET ${_gamesys_gui_dependency})
+    add_dependencies(gamesys_gui ${_gamesys_gui_dependency})
+  endif()
+endforeach()
+defold_target_link_libraries(gamesys_gui "${TARGET_PLATFORM}" SCOPE PUBLIC ${GAMESYS_GUI_DEPENDENCIES})
+set_target_properties(gamesys_gui PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
+
+defold_add_library(gamesys_gui_null STATIC
+    "${GS_SRC_DIR}/components/comp_gui_null.cpp")
+target_include_directories(gamesys_gui_null PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}")
+defold_target_link_libraries(gamesys_gui_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${GAMESYS_GUI_NULL_DEPENDENCIES})
+set_target_properties(gamesys_gui_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
+
+# ========= gamesys_particle =========
+defold_add_library(gamesys_particle STATIC
+    "${GS_SRC_DIR}/resources/res_particlefx.cpp"
+    "${GS_SRC_DIR}/components/comp_particlefx.cpp"
+    "${GS_SRC_DIR}/scripts/script_particlefx.cpp")
+target_include_directories(gamesys_particle PUBLIC "${GS_SRC_DIR}" "${GS_DMSDK_SRC_DIR}" "${GS_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}")
+foreach(_gamesys_particle_dependency IN ITEMS
+    gamesys_proto_headers
+    graphics_proto_header
+    particle_proto_headers
+    render_proto_headers)
+  if(TARGET ${_gamesys_particle_dependency})
+    add_dependencies(gamesys_particle ${_gamesys_particle_dependency})
+  endif()
+endforeach()
+defold_target_link_libraries(gamesys_particle "${TARGET_PLATFORM}" SCOPE PUBLIC ${GAMESYS_PARTICLE_DEPENDENCIES})
+set_target_properties(gamesys_particle PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
 
 # ========= gamesys_model =========
 set(GS_MODEL_PROTO "${GS_PROTO_DIR}/model_ddf.proto")
@@ -305,7 +378,7 @@ endif()
 defold_target_link_libraries(script_box2d_defold "${TARGET_PLATFORM}" SCOPE PUBLIC ${SCRIPT_BOX2D_DEPENDENCIES})
 set_target_properties(script_box2d_defold PROPERTIES DEFOLD_SDK_HEADERS_TARGET gamesys_sdk_headers)
 
-foreach(_target IN ITEMS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold)
+foreach(_target IN ITEMS gamesys gamesys_gui gamesys_gui_null gamesys_particle gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold)
     add_dependencies(${_target} gamesys_proto_cpp)
     target_include_directories(${_target} PUBLIC "${GS_GENERATED_INCLUDE_DIR}")
 endforeach()
@@ -327,7 +400,7 @@ if (TARGET_PLATFORM MATCHES "armv7-android|arm64-android")
 endif()
 
 # ========= Install =========
-defold_install_targets(TARGETS gamesys gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold
+defold_install_targets(TARGETS gamesys gamesys_gui gamesys_gui_null gamesys_particle gamesys_model gamesys_model_null gamesys_rig gamesys_rig_null script_box2d script_box2d_defold
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
