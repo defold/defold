@@ -82,6 +82,26 @@
       (is (false? (proj-path-patterns-pred "/aba")))
       (is (true? (proj-path-patterns-pred "/ab/a"))))))
 
+(defn- fake-resource [path-str]
+  (reify resource/Resource
+    (proj-path [_] path-str)))
+
+(deftest hidden-path-segment?-test
+  (testing "No dot-prefixed segments"
+    (is (not (resource/hidden-path-segment? (fake-resource "/foo/bar.lua")))))
+
+  (testing "Dot-prefixed file"
+    (is (resource/hidden-path-segment? (fake-resource "/.DS_Store"))))
+
+  (testing "Dot-prefixed directory"
+    (is (resource/hidden-path-segment? (fake-resource "/.vscode/settings.json"))))
+
+  (testing "Dot-prefixed directory nested deeper in the path"
+    (is (resource/hidden-path-segment? (fake-resource "/foo/.idea/workspace.xml"))))
+
+  (testing "A dot in the middle of a segment does not count as hidden"
+    (is (not (resource/hidden-path-segment? (fake-resource "/foo.bar/baz.lua"))))))
+
 (defn- set-file-lines! [file lines]
   (if (nil? lines)
     (fs/delete-file! file)
