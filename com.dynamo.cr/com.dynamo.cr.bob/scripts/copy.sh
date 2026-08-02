@@ -149,6 +149,13 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/shaderc_shared.dll lib/x8
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libshaderc_shared.dylib lib/x86_64-macos/libshaderc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libshaderc_shared.dylib lib/arm64-macos/libshaderc_shared.dylib
 
+# FONTC Shared
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libfontc_shared.so lib/x86_64-linux/libfontc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libfontc_shared.so lib/arm64-linux/libfontc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/fontc_shared.dll lib/x86_64-win32/fontc_shared.dll
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libfontc_shared.dylib lib/x86_64-macos/libfontc_shared.dylib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libfontc_shared.dylib lib/arm64-macos/libfontc_shared.dylib
+
 fi
 
 cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar

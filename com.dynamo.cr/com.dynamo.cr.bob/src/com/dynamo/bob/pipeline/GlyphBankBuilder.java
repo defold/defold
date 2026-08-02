@@ -22,6 +22,8 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.util.Locale;
 
+import org.apache.commons.io.FilenameUtils;
+
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
@@ -46,7 +48,7 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
         } catch (BMFontFormatException e) {
             throw new IOException(e.getMessage(), e);
         }
-        return bmfont.page.get(0);
+        return FilenameUtils.getName(bmfont.page.get(0));
     }
 
     @Override
