@@ -32,7 +32,7 @@ function(gui_configure_target target)
   target_compile_definitions(${target} PRIVATE "DLIB_LOG_DOMAIN=\"GUI\"")
   foreach(_gui_dependency IN ITEMS
       graphics_proto_header
-      particle_proto_headers
+      particle_sdk_headers
       rig_proto_headers
       render_proto_headers)
     if(TARGET ${_gui_dependency})
