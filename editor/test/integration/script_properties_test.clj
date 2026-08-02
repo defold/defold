@@ -233,7 +233,7 @@
 (def ^:private atlas-resource-property? (partial resource-kind-property? "atlas"))
 (def ^:private material-resource-property? (partial resource-kind-property? "material"))
 (def ^:private texture-resource-property? (partial resource-kind-property? "texture"))
-(def ^:private texture-resource-exts [".cubemap" ".jpeg" ".jpg" ".png" ".render_target"])
+(def ^:private texture-resource-exts [".cubemap" ".hdr" ".jpeg" ".jpg" ".png" ".render_target"])
 
 (defn- resource-not-found-message [property resource]
   (localization/message "error.property-resource-not-found"
