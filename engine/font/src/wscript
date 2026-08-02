@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+from build_constants import TargetOS
 from waf_dynamo import dmsdk_add_files
 
 def options(opt):
@@ -12,18 +13,24 @@ def build(bld):
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
+    font_sources = bld.path.ant_glob(['*.cpp'], excl=['font_null.cpp', 'font_win32.cpp'])
+    if bld.env['TARGET_OS'] == TargetOS.MACOS:
+        font_sources.append(bld.path.find_resource('font_darwin.mm'))
+    else:
+        font_sources.append(bld.path.find_resource('font_null.cpp'))
+
     bld.stlib(features          = 'cxx',
                 includes        = ['.', '..'],
                 target          = 'font',
                 defines         = [],
-                source          = bld.path.ant_glob(['*.cpp']))
+                source          = font_sources)
 
     bld.stlib(features          = 'cxx',
                 includes        = ['.', '..'],
                 target          = 'font_skribidi',
                 defines         = ['FONT_USE_HARFBUZZ',
                                    'FONT_USE_SKRIBIDI'],
-                source          = bld.path.ant_glob(['*.cpp']))
+                source          = font_sources)
 
     bld.install_files('${PREFIX}/include/font', 'font.h')
     bld.install_files('${PREFIX}/include/font', 'fontcollection.h')

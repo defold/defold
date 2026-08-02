@@ -1,9 +1,14 @@
 /resource/default.texture_profiles
 /resource/booster_on_sfx.wav
 /resource/create_sound_data.go
+/resource/create_font.go
+/resource/font_valid.ttf
+/resource/gui_font_valid.ttf
 /resource/create_texture.go
 /resource/create_texture_async_from_coroutine.go
 /resource/font.font
+/resource/font_valid_font.font
+/resource/gui_font_valid_font.font
 /resource/label.go
 /resource/layer_guitar_a.ogg
 /resource/model.go

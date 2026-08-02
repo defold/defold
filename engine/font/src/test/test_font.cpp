@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include <math.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -1041,6 +1042,73 @@ TEST_F(FontTest, TextArabic)
 
 //     const uint32_t  max_num_lines = 16;
 //     TextLine        lines[max_num_lines];
+
+#if defined(DM_PLATFORM_MACOS)
+struct SystemFontIteratorContext
+{
+    uint32_t m_Count;
+    bool     m_FoundArialItalic;
+    bool     m_Valid;
+};
+
+static bool SystemFontIterator(const FontSystemFont* font, void* context)
+{
+    SystemFontIteratorContext* ctx = (SystemFontIteratorContext*)context;
+    ctx->m_Valid = ctx->m_Valid && font->m_Family && font->m_Path && font->m_Family[0] && font->m_Path[0] == '/' &&
+                   (font->m_Style == FONT_STYLE_NORMAL || font->m_Style == FONT_STYLE_ITALIC) &&
+                   font->m_Weight >= FONT_WEIGHT_NORMAL && font->m_Weight <= FONT_WEIGHT_ULTRABLACK;
+    ++ctx->m_Count;
+    if (strcmp(font->m_Family, "Arial") == 0 && font->m_Weight == FONT_WEIGHT_NORMAL && font->m_Style == FONT_STYLE_ITALIC)
+        ctx->m_FoundArialItalic = true;
+    return true;
+}
+
+static bool StopSystemFontIterator(const FontSystemFont* font, void* context)
+{
+    (void)font;
+    uint32_t* count = (uint32_t*)context;
+    ++*count;
+    return false;
+}
+
+TEST(SystemFont, ResolveStandaloneTrueType)
+{
+    char path[2048];
+    ASSERT_EQ(FONT_RESULT_OK, FontFindSystemFont("Arial", FONT_WEIGHT_NORMAL, FONT_STYLE_ITALIC, path, sizeof(path)));
+    ASSERT_NE((const char*)0, strstr(path, ".ttf"));
+    HFont font = FontLoadSystemFont("Arial", FONT_WEIGHT_NORMAL, FONT_STYLE_ITALIC);
+    ASSERT_NE((HFont)0, font);
+    FontDestroy(font);
+
+    ASSERT_EQ(FONT_RESULT_OK, FontFindSystemFont("Arial", FONT_WEIGHT_BOLD, FONT_STYLE_NORMAL, path, sizeof(path)));
+    ASSERT_NE((const char*)0, strstr(path, ".ttf"));
+}
+
+TEST(SystemFont, RejectMissingAndCollections)
+{
+    char path[2048];
+    ASSERT_EQ(FONT_RESULT_ERROR, FontFindSystemFont("Defold Definitely Missing Font", FONT_WEIGHT_NORMAL, FONT_STYLE_NORMAL, path, sizeof(path)));
+    ASSERT_EQ(FONT_RESULT_NOT_SUPPORTED, FontFindSystemFont("Helvetica", FONT_WEIGHT_NORMAL, FONT_STYLE_NORMAL, path, sizeof(path)));
+    ASSERT_EQ(FONT_RESULT_ERROR, FontFindSystemFont("Arial", (FontWeight)-1, FONT_STYLE_NORMAL, path, sizeof(path)));
+    ASSERT_EQ(FONT_RESULT_ERROR, FontFindSystemFont("Arial", FONT_WEIGHT_ULTRABLACK, FONT_STYLE_NORMAL, path, sizeof(path)));
+    ASSERT_EQ(FONT_RESULT_ERROR, FontFindSystemFont("Arial", FONT_WEIGHT_NORMAL, (FontStyle)-1, path, sizeof(path)));
+    ASSERT_EQ((HFont)0, FontLoadSystemFont("Defold Definitely Missing Font", FONT_WEIGHT_NORMAL, FONT_STYLE_NORMAL));
+}
+
+TEST(SystemFont, IterateSystemFonts)
+{
+    SystemFontIteratorContext context = { 0, false, true };
+    ASSERT_EQ(FONT_RESULT_OK, FontIterateSystemFonts(SystemFontIterator, &context));
+    ASSERT_GT(context.m_Count, 0u);
+    ASSERT_TRUE(context.m_Valid);
+    ASSERT_TRUE(context.m_FoundArialItalic);
+
+    uint32_t stopped_count = 0;
+    ASSERT_EQ(FONT_RESULT_OK, FontIterateSystemFonts(StopSystemFontIterator, &stopped_count));
+    ASSERT_EQ(1u, stopped_count);
+    ASSERT_EQ(FONT_RESULT_ERROR, FontIterateSystemFonts(0, 0));
+}
+#endif
 
 //     dmArray<uint32_t> codepoints;
 //     TextToCodePoints(g_TextLorem, codepoints);

@@ -42,7 +42,7 @@
             [schema.core :as schema]
             [service.log :as log])
   (:import [com.dynamo.bob.font BMFont Fontc]
-           [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$GlyphBank]
+           [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$FontWeight Font$GlyphBank]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -67,6 +67,7 @@
 (def ^:private cache-height-message (properties/label-message :font :cache-height))
 (def ^:private cache-width-message (properties/label-message :font :cache-width))
 (def ^:private font-message (properties/label-message :font :font))
+(def ^:private family-message (properties/label-message :font :family))
 (def ^:private material-message (properties/label-message :material))
 (def ^:private outline-alpha-message (properties/label-message :font :outline-alpha))
 (def ^:private outline-width-message (properties/label-message :font :outline-width))
@@ -593,11 +594,15 @@
                                   :passes [pass/transparent]}))))
 
 (g/defnk produce-save-value
-  [font material size antialias alpha outline-alpha outline-width
+  [font system-font family weight style material size antialias alpha outline-alpha outline-width
    shadow-alpha shadow-blur shadow-x shadow-y characters output-format
    all-chars cache-width cache-height render-mode]
   (protobuf/make-map-without-defaults Font$FontDesc
     :font (resource/resource->proj-path font)
+    :system-font system-font
+    :family family
+    :weight weight
+    :style style
     :material (resource/resource->proj-path material)
     :size size
     :antialias (protobuf/boolean->int antialias)
@@ -616,10 +621,12 @@
     :render-mode render-mode))
 
 (defn- make-font-map [_node-id font type pb-msg font-resource-resolver]
-  (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font font-message)
-                                      (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font font-message)
-                                      (validation/prop-error :fatal _node-id :cache-width validation/prop-negative? (:cache-width pb-msg) cache-width-message)
+  (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :cache-width validation/prop-negative? (:cache-width pb-msg) cache-width-message)
                                       (validation/prop-error :fatal _node-id :cache-height validation/prop-negative? (:cache-height pb-msg) cache-height-message)]
+
+                                     (when-not (:system-font pb-msg)
+                                       [(validation/prop-error :fatal _node-id :font validation/prop-nil? font font-message)
+                                        (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font font-message)])
 
                                      (when (or (= type :defold) (= type :distance-field))
                                        [(validation/prop-error :fatal _node-id :size validation/prop-zero-or-below? (:size pb-msg) size-message)
@@ -636,15 +643,19 @@
       (try
         (font-gen/generate pb-msg font font-resource-resolver)
         (catch Exception error
-          (let [message (.getMessage error)]
+          (let [message (.getMessage error)
+                property (if (:system-font pb-msg) :family :font)
+                value (if (:system-font pb-msg) (:family pb-msg) font)]
             (log/error :msg (str "Failed to generate bitmap from Font. " message) :exception error)
-            (g/->error _node-id :font :fatal font (localization/message "error.font-bitmap-generation-failed" {"error" message})))))))
+            (g/->error _node-id property :fatal value (localization/message "error.font-bitmap-generation-failed" {"error" message})))))))
 
 (defn- make-font-resource-resolver [font resource-map]
-  (let [base-path (resource/parent-proj-path (resource/proj-path font))]
-    (fn [path]
-      (let [proj-path (str base-path "/" path)]
-        (get resource-map proj-path)))))
+  (if font
+    (let [base-path (resource/parent-proj-path (resource/proj-path font))]
+      (fn [path]
+        (let [proj-path (str base-path "/" path)]
+          (get resource-map proj-path))))
+    (constantly nil)))
 
 (g/defnk produce-font-map [_node-id font type font-resource-map save-value]
   ;; TODO(save-value-cleanup): make-font-map expects all values to be present.
@@ -703,12 +714,18 @@
                                     :sdf-spread (Fontc/GetFontMapSdfSpread font-desc-pb)
                                     :sdf-outline (Fontc/GetFontMapSdfOutline font-desc-pb)
                                     :sdf-shadow (Fontc/GetFontMapSdfShadow font-desc-pb))))]
-        (if (and runtime-generation-build-target
-                 ;; Currently, only distance field fonts can be runtime-generated.
-                 is-distance-field)
+        (cond
+          (:system-font font-desc)
+          [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap
+             (assoc pb-map :family (:family font-desc) :weight (:weight font-desc) :style (:style font-desc))
+             dep-build-targets)]
+
+          (and runtime-generation-build-target is-distance-field)
           [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap
              (assoc pb-map :font (:resource runtime-generation-build-target))
              (conj dep-build-targets runtime-generation-build-target))]
+
+          :else
           (let [source-sha1s (into (sorted-map)
                                    (comp (filter #(and (some? %) (resource/exists? %)))
                                          (map (juxt resource/proj-path
@@ -824,16 +841,42 @@
 (g/defnode FontNode
   (inherits resource-node/ResourceNode)
 
-  (property font resource/Resource ; Required protobuf field.
+  (property system-font g/Bool (default (protobuf/default Font$FontDesc :system-font))
+            (dynamic label (properties/label-dynamic :font :system-font))
+            (dynamic tooltip (properties/tooltip-dynamic :font :system-font)))
+
+  (property family g/Str (default (protobuf/default Font$FontDesc :family))
+            (dynamic visible (gu/passthrough system-font))
+            (dynamic error (g/fnk [_node-id family system-font]
+                             (when system-font
+                               (validation/prop-error :fatal _node-id :family validation/prop-empty? family family-message))))
+            (dynamic label (properties/label-dynamic :font :family))
+            (dynamic tooltip (properties/tooltip-dynamic :font :family)))
+
+  (property weight g/Keyword (default (protobuf/default Font$FontDesc :weight))
+            (dynamic visible (gu/passthrough system-font))
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontWeight)))
+            (dynamic label (properties/label-dynamic :font :weight))
+            (dynamic tooltip (properties/tooltip-dynamic :font :weight)))
+
+  (property style g/Str (default (protobuf/default Font$FontDesc :style))
+            (dynamic visible (gu/passthrough system-font))
+            (dynamic edit-type (g/constantly (properties/->choicebox ["Normal" "Italic"])))
+            (dynamic label (properties/label-dynamic :font :style))
+            (dynamic tooltip (properties/tooltip-dynamic :font :style)))
+
+  (property font resource/Resource
             (value (gu/passthrough font-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :font-resource]
                                             [:font-resource-map :font-resource-map]
                                             [:runtime-generation-build-target :runtime-generation-build-target])))
-            (dynamic error (g/fnk [_node-id font-resource]
-                             (or (validation/prop-error :fatal _node-id :font validation/prop-nil? font-resource font-message)
-                                 (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource font-message))))
+            (dynamic read-only? (gu/passthrough system-font))
+            (dynamic error (g/fnk [_node-id font-resource system-font]
+                             (when-not system-font
+                               (or (validation/prop-error :fatal _node-id :font validation/prop-nil? font-resource font-message)
+                                   (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource font-message)))))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext font-file-extensions}))
@@ -856,6 +899,9 @@
                           :ext ["material"]})))
 
   (property output-format g/Keyword (default (protobuf/default Font$FontDesc :output-format))
+            (dynamic error (g/fnk [_node-id output-format system-font]
+                             (when (and system-font (not= :type-distance-field output-format))
+                               (g/->error _node-id :output-format :fatal output-format "System fonts require Distance Field output."))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat)))
             (dynamic label (properties/label-dynamic :font :output-format))
             (dynamic tooltip (properties/tooltip-dynamic :font :output-format)))
@@ -982,9 +1028,15 @@
 (defn load-font [_project self resource font-desc]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
   (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+        resolve-resource #(workspace/resolve-resource basis resource %)
+        resolve-optional-resource #(when-not (s/blank? %)
+                                     (resolve-resource %))]
     (gu/set-properties-from-pb-map self Font$FontDesc font-desc
-      font (resolve-resource :font)
+      font (resolve-optional-resource :font)
+      system-font :system-font
+      family :family
+      weight :weight
+      style :style
       material (resolve-resource :material)
       size :size
       antialias (protobuf/int->boolean :antialias)

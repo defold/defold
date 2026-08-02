@@ -20,10 +20,31 @@ enum FontRenderMode
     MODE_MULTI_LAYER  = 1 [(displayName) = "Multi Layer"];
 }
 
+// Public API. Values mirror skb_weight_t.
+enum FontWeight
+{
+    WEIGHT_NORMAL      = 0 [(displayName) = "Normal"];
+    WEIGHT_THIN        = 1 [(displayName) = "Thin"];
+    WEIGHT_EXTRALIGHT  = 2 [(displayName) = "Extra Light"];
+    WEIGHT_ULTRALIGHT  = 3 [(displayName) = "Ultra Light"];
+    WEIGHT_LIGHT       = 4 [(displayName) = "Light"];
+    WEIGHT_REGULAR     = 5 [(displayName) = "Regular"];
+    WEIGHT_MEDIUM      = 6 [(displayName) = "Medium"];
+    WEIGHT_DEMIBOLD    = 7 [(displayName) = "Demi Bold"];
+    WEIGHT_SEMIBOLD    = 8 [(displayName) = "Semi Bold"];
+    WEIGHT_BOLD        = 9 [(displayName) = "Bold"];
+    WEIGHT_EXTRABOLD   = 10 [(displayName) = "Extra Bold"];
+    WEIGHT_ULTRABOLD   = 11 [(displayName) = "Ultra Bold"];
+    WEIGHT_BLACK       = 12 [(displayName) = "Black"];
+    WEIGHT_HEAVY       = 13 [(displayName) = "Heavy"];
+    WEIGHT_EXTRABLACK  = 14 [(displayName) = "Extra Black"];
+    WEIGHT_ULTRABLACK  = 15 [(displayName) = "Ultra Black"];
+}
+
 // Source format only
 message FontDesc
 {
-    required string font = 1 [(resource)=true];
+    optional string font = 1 [default = "", (resource)=true];
     required string material = 2 [(resource)=true];
     required uint32 size = 3;
     optional uint32 antialias = 4 [default = 1];
@@ -42,6 +63,10 @@ message FontDesc
     optional uint32 cache_height = 16 [default = 0];
     optional FontRenderMode render_mode = 17 [default = MODE_SINGLE_LAYER];
     optional string characters = 18 [default = ""];
+    optional bool system_font = 19 [default = false];
+    optional string family = 20 [default = ""];
+    optional string style = 21 [default = "Normal"];
+    optional FontWeight weight = 22 [default = WEIGHT_NORMAL];
 }
 
 // Used at runtime
@@ -124,4 +149,7 @@ message FontMap
     optional float sdf_outline    = 21 [default = 0.0];
     optional float sdf_shadow     = 22 [default = 0.0];
     optional uint32 padding       = 23 [default = 0];
+    optional string family        = 24 [default = ""];
+    optional string style         = 25 [default = "Normal"];
+    optional FontWeight weight    = 26 [default = WEIGHT_NORMAL];
 }

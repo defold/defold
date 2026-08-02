@@ -27,8 +27,10 @@
     (io/input-stream (resource-resolver resource-path))))
 
 (defn generate [font-desc font-resource resolver]
-  (when font-resource
-    (fontc/compile-font font-desc font-resource (make-input-stream-resolver resolver))))
+  (if (:system-font font-desc)
+    (fontc/compile-system-font font-desc)
+    (when font-resource
+      (fontc/compile-font font-desc font-resource (make-input-stream-resolver resolver)))))
 
 (defn- data-size
   ^long [^ByteBuffer byte-buffer]

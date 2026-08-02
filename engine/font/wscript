@@ -9,6 +9,7 @@ blddir = 'build'
 import waf_dynamo
 import waflib.Options
 import TestContext
+from build_constants import TargetOS
 
 test_context = None
 
@@ -26,6 +27,8 @@ def configure(conf):
     conf.recurse('src')
     conf.env.append_value('INCLUDES', "default/src")
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="FONT"')
+    if conf.env['TARGET_OS'] == TargetOS.MACOS:
+        conf.env.append_value('LINKFLAGS', ['-framework', 'CoreText'])
 
 def build(bld):
     global test_context

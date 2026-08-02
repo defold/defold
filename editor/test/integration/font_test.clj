@@ -23,7 +23,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
-  (:import [com.dynamo.render.proto Font$FontDesc]))
+  (:import [com.dynamo.render.proto Font$FontDesc]
+           [java.awt GraphicsEnvironment]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -96,6 +97,31 @@
         (let [build-targets (g/node-value node-id :build-targets)]
           (when (is (not (g/error? build-targets)))
             (is (some? (coll/some #(get-in % [:user-data :pb-map :glyph-bank]) build-targets)))))))))
+
+(deftest authored-system-font
+  (test-util/with-loaded-project
+    (let [available-families (set (.getAvailableFontFamilyNames (GraphicsEnvironment/getLocalGraphicsEnvironment)))]
+      (when (contains? available-families "Arial")
+        (let [node-id (test-util/resource-node project "/fonts/score.font")]
+          (g/transact [(g/set-property node-id :system-font true)
+                       (g/set-property node-id :family "Arial")
+                       (g/set-property node-id :weight :weight-bold)
+                       (g/set-property node-id :style "Italic")
+                       (g/set-property node-id :output-format :type-distance-field)])
+          (let [save-value (g/node-value node-id :save-value)
+                font-map (g/node-value node-id :font-map)
+                build-target (first (g/node-value node-id :build-targets))
+                pb-map (get-in build-target [:user-data :pb-map])]
+            (is (:system-font save-value))
+            (is (= "Arial" (:family save-value)))
+            (is (= :weight-bold (:weight save-value)))
+            (is (= "Italic" (:style save-value)))
+            (is (seq (:glyphs font-map)))
+            (is (= "Arial" (:family pb-map)))
+            (is (= :weight-bold (:weight pb-map)))
+            (is (= "Italic" (:style pb-map)))
+            (is (nil? (:font pb-map)))
+            (is (nil? (:glyph-bank pb-map)))))))))
 
 (deftest validation
   (test-util/with-loaded-project

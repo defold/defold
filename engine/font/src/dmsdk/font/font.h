@@ -58,6 +58,89 @@ enum FontType
 };
 
 /*#
+ * FontStyle
+ * @enum
+ * @name FontStyle
+ * @member FONT_STYLE_NORMAL
+ * @member FONT_STYLE_ITALIC
+ */
+enum FontStyle
+{
+    FONT_STYLE_NORMAL = 0,
+    FONT_STYLE_ITALIC,
+};
+
+/*# Font weight used when selecting a system font face
+ *
+ * The values mirror skb_weight_t. Synonymous weights remain separate values so
+ * the API can map directly to Skribidi font matching.
+ * @enum
+ * @name FontWeight
+ * @member FONT_WEIGHT_NORMAL
+ * @member FONT_WEIGHT_THIN
+ * @member FONT_WEIGHT_EXTRALIGHT
+ * @member FONT_WEIGHT_ULTRALIGHT
+ * @member FONT_WEIGHT_LIGHT
+ * @member FONT_WEIGHT_REGULAR
+ * @member FONT_WEIGHT_MEDIUM
+ * @member FONT_WEIGHT_DEMIBOLD
+ * @member FONT_WEIGHT_SEMIBOLD
+ * @member FONT_WEIGHT_BOLD
+ * @member FONT_WEIGHT_EXTRABOLD
+ * @member FONT_WEIGHT_ULTRABOLD
+ * @member FONT_WEIGHT_BLACK
+ * @member FONT_WEIGHT_HEAVY
+ * @member FONT_WEIGHT_EXTRABLACK
+ * @member FONT_WEIGHT_ULTRABLACK
+ */
+enum FontWeight
+{
+    FONT_WEIGHT_NORMAL = 0,
+    FONT_WEIGHT_THIN,
+    FONT_WEIGHT_EXTRALIGHT,
+    FONT_WEIGHT_ULTRALIGHT,
+    FONT_WEIGHT_LIGHT,
+    FONT_WEIGHT_REGULAR,
+    FONT_WEIGHT_MEDIUM,
+    FONT_WEIGHT_DEMIBOLD,
+    FONT_WEIGHT_SEMIBOLD,
+    FONT_WEIGHT_BOLD,
+    FONT_WEIGHT_EXTRABOLD,
+    FONT_WEIGHT_ULTRABOLD,
+    FONT_WEIGHT_BLACK,
+    FONT_WEIGHT_HEAVY,
+    FONT_WEIGHT_EXTRABLACK,
+    FONT_WEIGHT_ULTRABLACK,
+};
+
+/*# An installed system font face
+ *
+ * String pointers are valid only for the duration of the iterator callback.
+ * @struct
+ * @name FontSystemFont
+ * @member m_Family [type: const char*] Font family name
+ * @member m_Style [type: FontStyle] Font style
+ * @member m_Weight [type: FontWeight] Font weight
+ * @member m_Path [type: const char*] Absolute path to the standalone TrueType file
+ */
+struct FontSystemFont
+{
+    const char* m_Family;
+    FontStyle   m_Style;
+    FontWeight  m_Weight;
+    const char* m_Path;
+};
+
+/*# System font iterator callback
+ * @typedef
+ * @name FontSystemFontCallback
+ * @param font [type: const FontSystemFont*] Current system font face
+ * @param context [type: void*] User context
+ * @return continue [type: bool] Return true to continue iterating, false to stop
+ */
+typedef bool (*FontSystemFontCallback)(const FontSystemFont* font, void* context);
+
+/*#
  * FontGlyphBitmapFlags
  * @enum
  * @name FontGlyphBitmapFlags
@@ -137,6 +220,16 @@ typedef struct Font* HFont;
 HFont FontLoadFromPath(const char* path);
 
 /*#
+ * Loads an installed system font
+ * @name FontLoadSystemFont
+ * @param family [type: const char*] Font family name
+ * @param weight [type: FontWeight] Font weight
+ * @param style [type: FontStyle] Font style
+ * @return font [type: HFont] The loaded font, or null if it failed to resolve or load.
+ */
+HFont FontLoadSystemFont(const char* family, FontWeight weight, FontStyle style);
+
+/*#
  * Loads a font from memory
  * @name FontLoadFromMemory
  * @param name [type: const char*] The name of the resource. For easier debugging
@@ -146,6 +239,25 @@ HFont FontLoadFromPath(const char* path);
  * @return font [type: HFont] The loaded font, or null if it failed to load.
  */
 HFont FontLoadFromMemory(const char* name, void* data, uint32_t data_size, bool allocate);
+
+/*# Find an installed system font as a standalone TrueType file
+ * @name FontFindSystemFont
+ * @param family [type: const char*] Font family name
+ * @param weight [type: FontWeight] Font weight
+ * @param style [type: FontStyle] Font style
+ * @param path [type: char*] Output path buffer
+ * @param path_size [type: uint32_t] Output path buffer size
+ * @return result [type: FontResult] FONT_RESULT_OK if a matching .ttf file was found
+ */
+FontResult FontFindSystemFont(const char* family, FontWeight weight, FontStyle style, char* path, uint32_t path_size);
+
+/*# Iterate installed system font faces that can be loaded by FontLoadSystemFont
+ * @name FontIterateSystemFonts
+ * @param callback [type: FontSystemFontCallback] Callback invoked for each usable face
+ * @param context [type: void*] User context passed to the callback
+ * @return result [type: FontResult] FONT_RESULT_OK, FONT_RESULT_NOT_SUPPORTED, or FONT_RESULT_ERROR
+ */
+FontResult FontIterateSystemFonts(FontSystemFontCallback callback, void* context);
 
 /*#
  * Destroys a loaded font

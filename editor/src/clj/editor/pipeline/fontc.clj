@@ -14,6 +14,7 @@
 
 (ns editor.pipeline.fontc
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [util.coll :refer [pair]])
@@ -21,7 +22,7 @@
            [com.dynamo.bob.font BMFont BMFont$Char DistanceFieldGenerator Fontc]
            [com.dynamo.render.proto Font$FontDesc]
            [com.google.protobuf ByteString]
-           [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics Graphics2D RenderingHints Shape Transparency]
+           [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics Graphics2D GraphicsEnvironment RenderingHints Shape Transparency]
            [java.awt.color ColorSpace]
            [java.awt.font FontRenderContext GlyphVector]
            [java.awt.geom AffineTransform FlatteningPathIterator PathIterator Rectangle2D Area]
@@ -442,10 +443,37 @@
     antialiased-font-render-context
     plain-font-render-context))
 
-(defn- create-ttf-font ^Font [font-desc font-resource]
-  (with-open [font-stream (io/input-stream font-resource)]
-    (-> (Font/createFont Font/TRUETYPE_FONT font-stream)
-        (.deriveFont Font/PLAIN (float (:size font-desc))))))
+(defn- create-ttf-font
+  ^Font [font-desc font-resource]
+  (if (instance? Font font-resource)
+    (.deriveFont ^Font font-resource (float (:size font-desc)))
+    (with-open [font-stream (io/input-stream font-resource)]
+      (-> (Font/createFont Font/TRUETYPE_FONT font-stream)
+          (.deriveFont Font/PLAIN (float (:size font-desc)))))))
+
+(defn- create-system-font
+  ^Font [{:keys [family weight style size]}]
+  (let [available-families (into #{} (map string/lower-case) (.getAvailableFontFamilyNames (GraphicsEnvironment/getLocalGraphicsEnvironment)))
+        family-key (string/lower-case family)]
+    (when-not (contains? available-families family-key)
+      (throw (ex-info (str "System font family is not installed: " family) {:family family :weight weight :style style})))
+    (let [font-weight (if (contains? #{:weight-demibold
+                                       :weight-semibold
+                                       :weight-bold
+                                       :weight-extrabold
+                                       :weight-ultrabold
+                                       :weight-black
+                                       :weight-heavy
+                                       :weight-extrablack
+                                       :weight-ultrablack}
+                                     weight)
+                        Font/BOLD
+                        Font/PLAIN)
+          font-style (case (string/lower-case style)
+                       "normal" Font/PLAIN
+                       "italic" Font/ITALIC
+                       (throw (ex-info (str "Unsupported system font style: " style) {:family family :weight weight :style style})))]
+      (Font. family (bit-or font-weight font-style) size))))
 
 (defn- ttf-semi-glyph [^Font font antialias codepoint]
   (let [glyph-vector (.createGlyphVector font (font-render-context antialias) (Character/toChars codepoint))
@@ -800,3 +828,9 @@
 
       :else
       (throw (ex-info "Unsupported font format" {:font (resource/proj-path font-resource)})))))
+
+(defn compile-system-font [font-desc]
+  (let [font (create-system-font font-desc)]
+    (if (= (:output-format font-desc) :type-distance-field)
+      (compile-ttf-distance-field font-desc font)
+      (compile-ttf-bitmap font-desc font))))

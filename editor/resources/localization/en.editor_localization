@@ -1354,6 +1354,14 @@ property.factory.dynamic-prototype.tooltip = Allows `factory.set_prototype()` or
 
 property.font.font = Font
 property.font.font.tooltip = Selects the source font: a TrueType (`.ttf`), OpenType (`.otf`), or BMFont (`.fnt`) file.
+property.font.system-font = System Font
+property.font.system-font.tooltip = Resolves an installed font from the target operating system using **Family**, **Weight**, and **Style**. System fonts require distance-field runtime generation.
+property.font.family = Family
+property.font.family.tooltip = Installed system font family name, for example `Arial`.
+property.font.weight = Weight
+property.font.weight.tooltip = Installed system font weight, for example `Normal` or `Bold`.
+property.font.style = Style
+property.font.style.tooltip = Installed system font style, either `Normal` or `Italic`.
 property.font.texture = Texture
 property.font.texture.tooltip = The PNG glyph sheet referenced by this BMFont (`.fnt`) file. The texture must be in the same folder and match the filename declared by the BMFont.
 property.font.output-format = Output Format

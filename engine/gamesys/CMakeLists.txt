@@ -194,6 +194,9 @@ foreach(_gamesys_dependency IN ITEMS
   endif()
 endforeach()
 defold_target_link_libraries(gamesys "${TARGET_PLATFORM}" SCOPE PUBLIC ${GAMESYS_DEPENDENCIES})
+if(APPLE)
+  target_link_libraries(gamesys PUBLIC "-framework CoreText")
+endif()
 
 # ========= gamesys_model =========
 set(GS_MODEL_PROTO "${GS_PROTO_DIR}/model_ddf.proto")

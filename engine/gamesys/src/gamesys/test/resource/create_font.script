@@ -1,0 +1,89 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Licensed under the Defold License version 1.0.
+
+local function assert_error(fn)
+	local ok = pcall(fn)
+	assert(not ok)
+end
+
+function init(self)
+	local system_fonts = font.get_system_fonts()
+	assert(type(system_fonts) == "table")
+	if sys.get_sys_info().system_name == "Darwin" then
+		local found_arial_italic = false
+		for _, system_font in ipairs(system_fonts) do
+			assert(type(system_font.family) == "string" and #system_font.family > 0)
+			assert(system_font.style == "Normal" or system_font.style == "Italic")
+			assert(type(system_font.weight) == "string" and #system_font.weight > 0)
+			assert(type(system_font.path) == "string" and system_font.path:sub(1, 1) == "/")
+			if system_font.family == "Arial" and system_font.weight == "Normal" and system_font.style == "Italic" then
+				found_arial_italic = true
+			end
+		end
+		assert(found_arial_italic)
+	end
+
+	local material = "/resource/font_material_valid.materialc"
+	local base = resource.create_font("/runtime/base.fontc", {
+		path = "/resource/font_valid.ttf",
+		material = material,
+		size = 24,
+	})
+	local fallback = resource.create_font("/runtime/fallback.fontc", {
+		path = "/resource/gui_font_valid.ttf",
+		material = material,
+		cache_width = 0,
+		cache_height = 0,
+	})
+
+	assert(base == hash("/runtime/base.fontc"))
+	assert(fallback == hash("/runtime/fallback.fontc"))
+	font.add_font(base, fallback)
+	assert_error(function() font.add_font(base, fallback) end)
+	font.remove_font(base, fallback)
+	assert_error(function() font.remove_font(base, fallback) end)
+
+	assert_error(function() resource.create_font("/runtime/no_source.fontc", { material = material }) end)
+	assert_error(function()
+		resource.create_font("/runtime/two_sources.fontc", {
+			path = "/resource/font_valid.ttf",
+			family = "Arial",
+			material = material,
+		})
+	end)
+	assert_error(function()
+		resource.create_font("/runtime/style_without_family.fontc", {
+			path = "/resource/font_valid.ttf",
+			style = "Italic",
+			material = material,
+		})
+	end)
+	assert_error(function()
+		resource.create_font("/runtime/weight_without_family.fontc", {
+			path = "/resource/font_valid.ttf",
+			weight = "Bold",
+			material = material,
+		})
+	end)
+	assert_error(function()
+		resource.create_font("/runtime/invalid_weight.fontc", {
+			family = "Arial",
+			weight = "VeryBold",
+			material = material,
+		})
+	end)
+
+	if sys.get_sys_info().system_name == "Darwin" then
+		local system = resource.create_font("/runtime/system.fontc", {
+			family = "Arial",
+			weight = "Normal",
+			style = "Italic",
+			material = material,
+		})
+		resource.release(system)
+	end
+
+	resource.release(fallback)
+	resource.release(base)
+	resource_create_font_done = true
+end

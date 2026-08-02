@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdio.h>
+#include <string.h>
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/log.h>
@@ -50,7 +51,7 @@ struct CallbackContext
 };
 
 /*#
- * associates a ttf resource to a .fontc file.
+ * associates a ttf or dynamic font resource to a .fontc file.
  * @note The ttf font is loaded via the resource system. There are a few ways it can be accessed:
  *     - It was already loaded in the resource system
  *     - It is bundled via our game data
@@ -61,7 +62,7 @@ struct CallbackContext
  *
  * @name font.add_font
  * @param fontc [type:string|hash] The path to the .fontc resource
- * @param ttf [type:string|hash] The path to the .ttf resource
+ * @param source [type:string|hash] The path to the .ttf or .fontc resource
  *
  * @examples
  *
@@ -79,13 +80,24 @@ static int AddFont(lua_State* L)
     // TODO: If it's a string, pass a string to the function to allow for explicit loading of the resource
     const char* ttf_path = 0;
     dmhash_t ttf_path_hash = 0;
+    bool source_is_fontc = false;
     if (lua_isstring(L, 2))
     {
         ttf_path = luaL_checkstring(L, 2);
+        const char* ext = dmResource::GetExtFromPath(ttf_path);
+        source_is_fontc = ext && strcmp(ext, "fontc") == 0;
     }
     else
     {
         ttf_path_hash = dmScript::CheckHash(L, 2);
+        const char* reversed_path = (const char*)dmHashReverse64(ttf_path_hash, 0);
+        const char* ext = reversed_path ? dmResource::GetExtFromPath(reversed_path) : 0;
+        source_is_fontc = ext && strcmp(ext, "fontc") == 0;
+        HResourceDescriptor rd = 0;
+        dmResource::GetDescriptorByHash(g_ResourceFactory, ttf_path_hash, &rd);
+        dmResource::HResourceType fontc_type = 0;
+        dmResource::GetTypeFromExtension(g_ResourceFactory, "fontc", &fontc_type);
+        source_is_fontc = source_is_fontc || (rd && fontc_type == ResourceDescriptorGetType(rd));
     }
 
     dmGameSystem::FontResource* resource;
@@ -95,7 +107,18 @@ static int AddFont(lua_State* L)
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
-    if (ttf_path)
+    if (source_is_fontc)
+    {
+        dmGameSystem::FontResource* source = 0;
+        r = ttf_path ? dmResource::GetWithExt(g_ResourceFactory, ttf_path, "fontc", (void**)&source)
+                     : dmResource::GetWithExt(g_ResourceFactory, ttf_path_hash, EXT_HASH_FONTC, (void**)&source);
+        if (r == dmResource::RESULT_OK)
+        {
+            r = dmGameSystem::ResFontAddFontResource(g_ResourceFactory, resource, source);
+            dmResource::Release(g_ResourceFactory, source);
+        }
+    }
+    else if (ttf_path)
         r = dmGameSystem::ResFontAddFontByPath(g_ResourceFactory, resource, ttf_path);
     else
         r = dmGameSystem::ResFontAddFontByPathHash(g_ResourceFactory, resource, ttf_path_hash);
@@ -110,12 +133,12 @@ static int AddFont(lua_State* L)
 }
 
 /*#
- * associates a ttf resource to a .fontc file
- * @note The reference count will decrease for the .ttf font
+ * removes a ttf or dynamic font resource from a .fontc file
+ * @note The reference count will decrease for the source font
  *
  * @name font.remove_font
  * @param fontc [type:string|hash] The path to the .fontc resource
- * @param ttf [type:string|hash] The path to the .ttf resource
+ * @param source [type:string|hash] The path to the .ttf or .fontc resource
  *
  * @examples
  *
@@ -139,12 +162,22 @@ static int RemoveFont(lua_State* L)
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
-    r = dmGameSystem::ResFontRemoveFont(g_ResourceFactory, resource, ttf_path_hash);
+    dmGameSystem::FontResource* source = 0;
+    dmResource::Result source_result = dmResource::GetWithExt(g_ResourceFactory, ttf_path_hash, EXT_HASH_FONTC, (void**)&source);
+    if (source_result == dmResource::RESULT_OK)
+    {
+        r = dmGameSystem::ResFontRemoveFontResource(g_ResourceFactory, resource, source);
+        dmResource::Release(g_ResourceFactory, source);
+    }
+    else
+    {
+        r = dmGameSystem::ResFontRemoveFont(g_ResourceFactory, resource, ttf_path_hash);
+    }
     dmResource::Release(g_ResourceFactory, resource);
 
     if (dmResource::RESULT_OK != r)
     {
-        return DM_LUA_ERROR("Failed to add font '%s' to font collection '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
+        return DM_LUA_ERROR("Failed to remove font '%s' from font collection '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
     }
 
     return 0;
@@ -324,6 +357,103 @@ static int GetFontInfo(lua_State* L)
     return 1;
 }
 
+static const char* GetFontWeightName(FontWeight weight)
+{
+    switch (weight)
+    {
+        case FONT_WEIGHT_NORMAL:     return "Normal";
+        case FONT_WEIGHT_THIN:       return "Thin";
+        case FONT_WEIGHT_EXTRALIGHT: return "ExtraLight";
+        case FONT_WEIGHT_ULTRALIGHT: return "UltraLight";
+        case FONT_WEIGHT_LIGHT:      return "Light";
+        case FONT_WEIGHT_REGULAR:    return "Regular";
+        case FONT_WEIGHT_MEDIUM:     return "Medium";
+        case FONT_WEIGHT_DEMIBOLD:   return "DemiBold";
+        case FONT_WEIGHT_SEMIBOLD:   return "SemiBold";
+        case FONT_WEIGHT_BOLD:       return "Bold";
+        case FONT_WEIGHT_EXTRABOLD:  return "ExtraBold";
+        case FONT_WEIGHT_ULTRABOLD:  return "UltraBold";
+        case FONT_WEIGHT_BLACK:      return "Black";
+        case FONT_WEIGHT_HEAVY:      return "Heavy";
+        case FONT_WEIGHT_EXTRABLACK: return "ExtraBlack";
+        case FONT_WEIGHT_ULTRABLACK: return "UltraBlack";
+        default:                     return "Normal";
+    }
+}
+
+struct SystemFontsContext
+{
+    lua_State* m_L;
+    uint32_t   m_Count;
+};
+
+static bool PushSystemFont(const FontSystemFont* font, void* context)
+{
+    SystemFontsContext* ctx = (SystemFontsContext*)context;
+    lua_State* L = ctx->m_L;
+    DM_LUA_STACK_CHECK(L, 0);
+
+    lua_createtable(L, 0, 4);
+    lua_pushstring(L, font->m_Family);
+    lua_setfield(L, -2, "family");
+    lua_pushstring(L, font->m_Style == FONT_STYLE_ITALIC ? "Italic" : "Normal");
+    lua_setfield(L, -2, "style");
+    lua_pushstring(L, GetFontWeightName(font->m_Weight));
+    lua_setfield(L, -2, "weight");
+    lua_pushstring(L, font->m_Path);
+    lua_setfield(L, -2, "path");
+    lua_rawseti(L, -2, ++ctx->m_Count);
+    return true;
+}
+
+/*# get installed system fonts
+ *
+ * Returns the installed system font faces that can be loaded by
+ * `resource.create_font()` using their family, weight, and style. The order is
+ * platform-defined. Unsupported platforms return an empty table.
+ *
+ * @name font.get_system_fonts
+ * @return fonts [type:table] Array of system font face tables. Each item contains:
+ *
+ * `family`
+ * : [type:string] Font family name.
+ *
+ * `style`
+ * : [type:string] `Normal` or `Italic`.
+ *
+ * `weight`
+ * : [type:string] A weight accepted by `resource.create_font()`.
+ *
+ * `path`
+ * : [type:string] Absolute path to the installed standalone `.ttf` file.
+ *
+ * @examples
+ *
+ * ```lua
+ * local system_font = font.get_system_fonts()[1]
+ * if system_font then
+ *     local runtime_font = resource.create_font("/runtime/selected.fontc", {
+ *         family = system_font.family,
+ *         weight = system_font.weight,
+ *         style = system_font.style,
+ *         material = "/builtins/fonts/font-df.materialc",
+ *         size = 24,
+ *     })
+ * end
+ * ```
+ */
+static int GetSystemFonts(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    lua_newtable(L);
+    SystemFontsContext context = { L, 0 };
+    FontResult result = FontIterateSystemFonts(PushSystemFont, &context);
+    if (result != FONT_RESULT_OK && result != FONT_RESULT_NOT_SUPPORTED)
+        return luaL_error(L, "Failed to enumerate system fonts");
+    return 1;
+}
+
 
 
 
@@ -334,6 +464,7 @@ static const luaL_reg Module_methods[] =
     {"remove_font", RemoveFont},
     {"prewarm_text", PrewarmText},
     {"get_info", GetFontInfo},
+    {"get_system_fonts", GetSystemFonts},
     {0, 0}
 };
 

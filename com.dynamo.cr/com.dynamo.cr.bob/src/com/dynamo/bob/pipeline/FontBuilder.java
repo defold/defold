@@ -41,6 +41,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD)
             return false;
 
+        if (fontDesc.getSystemFont())
+            return true;
         String path = fontDesc.getFont().toLowerCase();
         return path.endsWith(".ttf");
     }
@@ -50,7 +52,18 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         FontDesc.Builder builder = getSrcBuilder(input);
         FontDesc fontDesc = builder.build();
 
-        IResource fontResource = input.getResource(fontDesc.getFont());
+        if (fontDesc.getSystemFont()) {
+            if (fontDesc.getFamily().isEmpty())
+                throw new CompileExceptionError(input, 0, "System font family must not be empty");
+            if (!fontDesc.getStyle().equals("Normal") && !fontDesc.getStyle().equals("Italic"))
+                throw new CompileExceptionError(input, 0, "System font style must be Normal or Italic");
+            if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD)
+                throw new CompileExceptionError(input, 0, "System fonts require Distance Field output");
+            if (!this.project.option("font-runtime-generation", "false").equals("true"))
+                throw new CompileExceptionError(input, 0, "System fonts require font.runtime_generation = 1");
+        }
+
+        IResource fontResource = fontDesc.getSystemFont() ? null : input.getResource(fontDesc.getFont());
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addOutput(input.changeExt(params.outExt()));
@@ -62,7 +75,11 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         createSubTask(fontDesc.getMaterial(),"material", taskBuilder);
 
         Task subTask = null;
-        if (useRuntimeGeneration(fontDesc))
+        if (fontDesc.getSystemFont())
+        {
+            // The installed font is resolved on the target OS at runtime.
+        }
+        else if (useRuntimeGeneration(fontDesc))
         {
             // input(2)
             subTask = createSubTask(fontResource, CopyBuilders.TTFBuilder.class, taskBuilder);
@@ -76,7 +93,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         }
 
         Task task = taskBuilder.build();
-        subTask.setProductOf(task);
+        if (subTask != null)
+            subTask.setProductOf(task);
         return task;
     }
 
@@ -87,7 +105,13 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
 
         BuilderUtil.checkResource(this.project, task.input(1), "material", fontDesc.getMaterial());
-        if (useRuntimeGeneration(fontDesc))
+        if (fontDesc.getSystemFont())
+        {
+            fontMapBuilder.setFamily(fontDesc.getFamily());
+            fontMapBuilder.setWeight(fontDesc.getWeight());
+            fontMapBuilder.setStyle(fontDesc.getStyle());
+        }
+        else if (useRuntimeGeneration(fontDesc))
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
             // leave glyphbank field empty, as we use that to check at runtime (to toggle runtime generation or not)

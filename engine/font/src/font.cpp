@@ -100,6 +100,14 @@ HFont FontLoadFromPath(const char* path)
     return font;
 }
 
+HFont FontLoadSystemFont(const char* family, FontWeight weight, FontStyle style)
+{
+    char path[2048];
+    if (FontFindSystemFont(family, weight, style, path, sizeof(path)) != FONT_RESULT_OK)
+        return 0;
+    return FontLoadFromPath(path);
+}
+
 uint32_t FontGetResourceSize(HFont font)
 {
     return font->m_GetResourceSize(font);

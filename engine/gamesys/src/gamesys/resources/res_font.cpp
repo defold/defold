@@ -19,6 +19,7 @@
 #include <gamesys/fontgen/fontgen.h>
 
 #include <string.h>
+#include <stdio.h>
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -35,6 +36,10 @@
 
 namespace dmGameSystem
 {
+    static_assert((int)dmRenderDDF::WEIGHT_NORMAL == (int)FONT_WEIGHT_NORMAL &&
+                  (int)dmRenderDDF::WEIGHT_ULTRABLACK == (int)FONT_WEIGHT_ULTRABLACK,
+                  "FontWeight must mirror dmRenderDDF::FontWeight");
+
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
 
@@ -315,6 +320,75 @@ namespace dmGameSystem
 
     }
 
+    static bool GetSystemFontStyle(const char* style_name, FontStyle* style)
+    {
+        if (strcmp(style_name, "Normal") == 0)
+            *style = FONT_STYLE_NORMAL;
+        else if (strcmp(style_name, "Italic") == 0)
+            *style = FONT_STYLE_ITALIC;
+        else
+            return false;
+        return true;
+    }
+
+    static dmResource::Result AcquireSystemFont(dmResource::HFactory factory, const char* family, dmRenderDDF::FontWeight ddf_weight, const char* style_name, TTFResource** resource)
+    {
+        FontStyle style;
+        if (!GetSystemFontStyle(style_name, &style))
+        {
+            dmLogError("Unsupported system font style '%s'", style_name);
+            return dmResource::RESULT_INVALID_DATA;
+        }
+        FontWeight weight = (FontWeight)ddf_weight;
+
+        char system_path[2048];
+        FontResult font_result = FontFindSystemFont(family, weight, style, system_path, sizeof(system_path));
+        if (font_result == FONT_RESULT_NOT_SUPPORTED)
+        {
+            dmLogError("System font '%s %s' did not resolve to a supported .ttf file", family, style_name);
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+        if (font_result != FONT_RESULT_OK)
+        {
+            dmLogError("Unable to resolve system font '%s %s'", family, style_name);
+            return dmResource::RESULT_RESOURCE_NOT_FOUND;
+        }
+
+        char font_key[1024];
+        dmSnPrintf(font_key, sizeof(font_key), "%s\n%d\n%d", family, (int)weight, (int)style);
+        char virtual_path[128];
+        dmSnPrintf(virtual_path, sizeof(virtual_path), "/__system_fonts/%016llx.ttf", (unsigned long long)dmHashString64(font_key));
+
+        HResourceDescriptor descriptor = 0;
+        if (dmResource::GetDescriptorByHash(factory, dmHashString64(virtual_path), &descriptor) == dmResource::RESULT_OK)
+            return dmResource::Get(factory, virtual_path, (void**)resource);
+
+        FILE* file = fopen(system_path, "rb");
+        if (!file)
+        {
+            dmLogError("Unable to read system font '%s'", system_path);
+            return dmResource::RESULT_IO_ERROR;
+        }
+        fseek(file, 0, SEEK_END);
+        long file_size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+        if (file_size <= 0)
+        {
+            fclose(file);
+            return dmResource::RESULT_IO_ERROR;
+        }
+
+        dmArray<uint8_t> data;
+        data.SetCapacity((uint32_t)file_size);
+        data.SetSize((uint32_t)file_size);
+        size_t read_count = fread(data.Begin(), 1, data.Size(), file);
+        fclose(file);
+        if (read_count != data.Size())
+            return dmResource::RESULT_IO_ERROR;
+
+        return dmResource::CreateResource(factory, virtual_path, data.Begin(), data.Size(), (void**)resource);
+    }
+
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
                                                     FontResource* font_map, const char* filename)
     {
@@ -328,10 +402,20 @@ namespace dmGameSystem
 
         if (IsDynamic(ddf))
         {
-            result = dmResource::Get(factory, ddf->m_Font, (void**) &font_map->m_TTFResource);
+            if (ddf->m_Family[0])
+                result = AcquireSystemFont(factory, ddf->m_Family, ddf->m_Weight, ddf->m_Style, &font_map->m_TTFResource);
+            else
+                result = dmResource::Get(factory, ddf->m_Font, (void**) &font_map->m_TTFResource);
             if (result != dmResource::RESULT_OK)
             {
-                dmLogError("Failed to find font '%s': %d\n", ddf->m_Font, result);
+                if (ddf->m_Family[0])
+                {
+                    dmLogError("Failed to find system font family '%s' style '%s': %d", ddf->m_Family, ddf->m_Style, result);
+                }
+                else
+                {
+                    dmLogError("Failed to find font '%s': %d", ddf->m_Font, result);
+                }
                 return result;
             }
         }
@@ -938,6 +1022,31 @@ namespace dmGameSystem
         return r;
     }
 
+    dmResource::Result ResFontAddFontResource(dmResource::HFactory factory, FontResource* resource, FontResource* source)
+    {
+        if (!resource->m_TTFResource)
+        {
+            dmLogError("Fonts can only be added to a dynamic font collection");
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
+        HFontCollection source_collection = ResFontGetFontCollection(source);
+        if (FontCollectionGetFontCount(source_collection) == 0)
+            return dmResource::RESULT_INVALID_DATA;
+
+        HFont hfont = FontCollectionGetFont(source_collection, 0);
+        TTFResource* ttfresource = ResFontGetTTFResourceFromFont(source, hfont);
+        dmhash_t ttf_hash = ResFontGetPathHashFromFont(source, hfont);
+        if (!ttfresource || !ttf_hash)
+            return dmResource::RESULT_INVALID_DATA;
+
+        dmResource::IncRef(factory, ttfresource);
+        dmResource::Result r = AddFontInternal(factory, resource, ttfresource, ttf_hash);
+        if (r == dmResource::RESULT_OK)
+            ++resource->m_Version;
+        return r;
+    }
+
     dmResource::Result ResFontRemoveFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash)
     {
         TTFResource* ttfresource = ResFontGetTTFResourceFromPathHash(font, ttf_hash);
@@ -973,6 +1082,16 @@ namespace dmGameSystem
 
         ++font->m_Version;
         return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResFontRemoveFontResource(dmResource::HFactory factory, FontResource* font, FontResource* source)
+    {
+        HFontCollection source_collection = ResFontGetFontCollection(source);
+        if (FontCollectionGetFontCount(source_collection) == 0)
+            return dmResource::RESULT_INVALID_DATA;
+        HFont hfont = FontCollectionGetFont(source_collection, 0);
+        dmhash_t ttf_hash = ResFontGetPathHashFromFont(source, hfont);
+        return ttf_hash ? ResFontRemoveFont(factory, font, ttf_hash) : dmResource::RESULT_INVALID_DATA;
     }
 
     // static void PrintGlyph(uint32_t codepoint, dmRenderDDF::GlyphBank::Glyph* glyph, FontResource* font)

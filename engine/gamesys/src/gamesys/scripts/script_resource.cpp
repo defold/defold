@@ -25,6 +25,7 @@
 #include <graphics/graphics_ddf.h>
 #include <graphics/graphics.h>
 #include <render/font/font_renderer.h>
+#include <render/font_ddf.h>
 #include <resource/resource.h>
 #include <resource/resource_util.h>
 
@@ -2573,6 +2574,178 @@ static int CreateAtlas(lua_State* L)
     return 1;
 }
 
+static const char* CheckResourcePathOrHash(lua_State* L, int index, const char* field_name)
+{
+    if (lua_isstring(L, index))
+        return lua_tostring(L, index);
+    dmhash_t path_hash = dmScript::CheckHash(L, index);
+    const char* path = (const char*)dmHashReverse64(path_hash, 0);
+    if (!path)
+        luaL_error(L, "%s hash must be reversible to a resource path", field_name);
+    return path;
+}
+
+static bool GetSystemFontWeight(const char* name, dmRenderDDF::FontWeight* weight)
+{
+    if (strcmp(name, "Normal") == 0)          *weight = dmRenderDDF::WEIGHT_NORMAL;
+    else if (strcmp(name, "Thin") == 0)       *weight = dmRenderDDF::WEIGHT_THIN;
+    else if (strcmp(name, "ExtraLight") == 0) *weight = dmRenderDDF::WEIGHT_EXTRALIGHT;
+    else if (strcmp(name, "UltraLight") == 0) *weight = dmRenderDDF::WEIGHT_ULTRALIGHT;
+    else if (strcmp(name, "Light") == 0)      *weight = dmRenderDDF::WEIGHT_LIGHT;
+    else if (strcmp(name, "Regular") == 0)    *weight = dmRenderDDF::WEIGHT_REGULAR;
+    else if (strcmp(name, "Medium") == 0)     *weight = dmRenderDDF::WEIGHT_MEDIUM;
+    else if (strcmp(name, "DemiBold") == 0)   *weight = dmRenderDDF::WEIGHT_DEMIBOLD;
+    else if (strcmp(name, "SemiBold") == 0)   *weight = dmRenderDDF::WEIGHT_SEMIBOLD;
+    else if (strcmp(name, "Bold") == 0)       *weight = dmRenderDDF::WEIGHT_BOLD;
+    else if (strcmp(name, "ExtraBold") == 0)  *weight = dmRenderDDF::WEIGHT_EXTRABOLD;
+    else if (strcmp(name, "UltraBold") == 0)  *weight = dmRenderDDF::WEIGHT_ULTRABOLD;
+    else if (strcmp(name, "Black") == 0)      *weight = dmRenderDDF::WEIGHT_BLACK;
+    else if (strcmp(name, "Heavy") == 0)      *weight = dmRenderDDF::WEIGHT_HEAVY;
+    else if (strcmp(name, "ExtraBlack") == 0) *weight = dmRenderDDF::WEIGHT_EXTRABLACK;
+    else if (strcmp(name, "UltraBlack") == 0) *weight = dmRenderDDF::WEIGHT_ULTRABLACK;
+    else return false;
+    return true;
+}
+
+/*# create a runtime-generated font resource
+ * Creates a distance-field font backed by either an existing .ttf resource or
+ * an installed system font selected by family, weight, and style.
+ *
+ * @name resource.create_font
+ * @param path [type:string|hash] unique destination path ending in .fontc
+ * @param params [type:table] font creation parameters. Specify exactly one of `path` (a bundled .ttf resource) or `family` (an installed system font family).
+ *
+ * `path`
+ * : [type:string|hash] bundled .ttf resource used as the font source
+ *
+ * `family`
+ * : [type:string] installed system font family used as the font source
+ *
+ * `style`
+ * : [type:string] optional system font style (`Normal` or `Italic`), default `Normal`
+ *
+ * `weight`
+ * : [type:string] optional system font weight matching `FontWeight`, default `Normal`
+ *
+ * `material`
+ * : [type:string|hash] optional font material, default `/builtins/fonts/font-df.materialc`
+ *
+ * `size`
+ * : [type:number] optional font size, default 24
+ *
+ * `cache_width`
+ * : [type:number] optional glyph cache width, default 0 (automatic)
+ *
+ * `cache_height`
+ * : [type:number] optional glyph cache height, default 0 (automatic)
+ * @return path [type:hash] the created font resource
+ */
+static int CreateFont(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const char* path_str = CheckResourcePathOrHash(L, 1, "path");
+    dmhash_t canonical_path_hash = 0;
+    PreCreateResource(L, path_str, "fontc", &canonical_path_hash);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    dmRenderDDF::FontMap font_ddf = {};
+    font_ddf.m_Material = "/builtins/fonts/font-df.materialc";
+    font_ddf.m_Size = 24;
+    font_ddf.m_Antialias = 1;
+    font_ddf.m_Alpha = 1.0f;
+    font_ddf.m_LayerMask = 1;
+    font_ddf.m_OutputFormat = dmRenderDDF::TYPE_DISTANCE_FIELD;
+    font_ddf.m_RenderMode = dmRenderDDF::MODE_SINGLE_LAYER;
+    font_ddf.m_Style = "Normal";
+    font_ddf.m_Weight = dmRenderDDF::WEIGHT_NORMAL;
+
+    lua_getfield(L, 2, "path");
+    bool has_font_path = !lua_isnil(L, -1);
+    if (has_font_path)
+    {
+        font_ddf.m_Font = CheckResourcePathOrHash(L, -1, "params.path");
+        const char* ext = dmResource::GetExtFromPath(font_ddf.m_Font);
+        if (!ext || strcmp(ext, "ttf") != 0)
+            return luaL_error(L, "params.path must point to a .ttf resource");
+    }
+    lua_pop(L, 1);
+
+    lua_getfield(L, 2, "family");
+    bool has_family = !lua_isnil(L, -1);
+    if (has_family)
+    {
+        font_ddf.m_Family = luaL_checkstring(L, -1);
+        has_family = font_ddf.m_Family[0] != 0;
+    }
+    lua_pop(L, 1);
+
+    if (has_font_path == has_family)
+        return luaL_error(L, "exactly one of params.path or params.family must be specified");
+
+    lua_getfield(L, 2, "style");
+    bool has_style = !lua_isnil(L, -1);
+    if (has_style)
+    {
+        font_ddf.m_Style = luaL_checkstring(L, -1);
+        if (strcmp(font_ddf.m_Style, "Normal") != 0 && strcmp(font_ddf.m_Style, "Italic") != 0)
+            return luaL_error(L, "params.style must be Normal or Italic");
+    }
+    lua_pop(L, 1);
+    if (!has_family && has_style)
+        return luaL_error(L, "params.style can only be used with params.family");
+
+    lua_getfield(L, 2, "weight");
+    bool has_weight = !lua_isnil(L, -1);
+    if (has_weight)
+    {
+        const char* weight = luaL_checkstring(L, -1);
+        if (!GetSystemFontWeight(weight, &font_ddf.m_Weight))
+            return luaL_error(L, "params.weight is not a supported font weight");
+    }
+    lua_pop(L, 1);
+    if (!has_family && has_weight)
+        return luaL_error(L, "params.weight can only be used with params.family");
+
+    lua_getfield(L, 2, "material");
+    if (!lua_isnil(L, -1))
+        font_ddf.m_Material = CheckResourcePathOrHash(L, -1, "params.material");
+    lua_pop(L, 1);
+
+    int32_t size = CheckTableInteger(L, 2, "size", font_ddf.m_Size);
+    int32_t cache_width = CheckTableInteger(L, 2, "cache_width", 0);
+    int32_t cache_height = CheckTableInteger(L, 2, "cache_height", 0);
+    font_ddf.m_Antialias = CheckTableBoolean(L, 2, "antialias", true) ? 1 : 0;
+    font_ddf.m_Alpha = CheckTableNumber(L, 2, "alpha", 1.0f);
+    font_ddf.m_OutlineAlpha = CheckTableNumber(L, 2, "outline_alpha", 0.0f);
+    font_ddf.m_OutlineWidth = CheckTableNumber(L, 2, "outline_width", 0.0f);
+    font_ddf.m_ShadowAlpha = CheckTableNumber(L, 2, "shadow_alpha", 0.0f);
+    font_ddf.m_ShadowBlur = CheckTableInteger(L, 2, "shadow_blur", 0);
+    font_ddf.m_ShadowX = CheckTableNumber(L, 2, "shadow_x", 0.0f);
+    font_ddf.m_ShadowY = CheckTableNumber(L, 2, "shadow_y", 0.0f);
+    if (size <= 0 || cache_width < 0 || cache_height < 0)
+        return luaL_error(L, "font size must be positive and cache dimensions must not be negative");
+    font_ddf.m_Size = size;
+    font_ddf.m_CacheWidth = cache_width;
+    font_ddf.m_CacheHeight = cache_height;
+
+    dmArray<uint8_t> ddf_buffer;
+    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&font_ddf, dmRenderDDF::FontMap::m_DDFDescriptor, ddf_buffer);
+    if (ddf_result != dmDDF::RESULT_OK)
+        return luaL_error(L, "unable to serialize font resource");
+
+    void* resource = 0;
+    dmResource::Result result = dmResource::CreateResource(g_ResourceModule.m_Factory, path_str, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+    if (result != dmResource::RESULT_OK)
+        return ReportPathError(L, result, canonical_path_hash);
+
+    dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
+    dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+    dmGameObject::AddDynamicResourceHash(collection, canonical_path_hash);
+    dmScript::PushHash(L, canonical_path_hash);
+    return 1;
+}
+
 /*# set atlas data
  * Sets the data for a specific atlas resource. Setting new atlas data is specified by passing in
  * a texture path for the backing texture of the atlas, a list of geometries and a list of animations
@@ -3565,6 +3738,7 @@ static const luaL_reg Module_methods[] =
     {"set",                     Set},
     {"load",                    Load},
     {"create_atlas",            CreateAtlas},
+    {"create_font",             CreateFont},
     {"create_buffer",           CreateBuffer},
     {"create_texture",          CreateTexture},
     {"create_texture_async",    CreateTextureAsync},

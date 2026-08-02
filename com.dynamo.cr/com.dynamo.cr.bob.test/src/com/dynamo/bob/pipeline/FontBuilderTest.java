@@ -25,6 +25,7 @@ import java.util.List;
 
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontWeight;
 
 import com.google.protobuf.Message;
 
@@ -69,6 +70,27 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+    }
+
+    @Test
+    public void testSystemFont() throws Exception {
+        getProject().setOption("font-runtime-generation", "true");
+
+        StringBuilder src = new StringBuilder();
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 24\n");
+        src.append("output_format: TYPE_DISTANCE_FIELD\n");
+        src.append("system_font: true\n");
+        src.append("family: \"Arial\"\n");
+        src.append("weight: WEIGHT_BOLD\n");
+        src.append("style: \"Italic\"\n");
+
+        FontMap fontMap = getFontMap(build("/system.font", src.toString()));
+        assertEquals("Arial", fontMap.getFamily());
+        assertEquals(FontWeight.WEIGHT_BOLD, fontMap.getWeight());
+        assertEquals("Italic", fontMap.getStyle());
+        assertEquals("", fontMap.getFont());
+        assertEquals("", fontMap.getGlyphBank());
     }
 
     @Test

@@ -182,6 +182,11 @@ namespace dmGameSystem
      */
     dmResource::Result ResFontAddFontByPathHash(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);
 
+    /*# add the primary font from another font collection
+     * @name ResFontAddFontResource
+     */
+    dmResource::Result ResFontAddFontResource(dmResource::HFactory factory, FontResource* font, FontResource* source);
+
     /*# remove a ttf font from a font collection
      * @name ResFontRemoveFont
      * @param factory [type: dmResource::HFactory] The factory
@@ -190,6 +195,11 @@ namespace dmGameSystem
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontRemoveFont(dmResource::HFactory factory, FontResource* font, dmhash_t ttf_hash);
+
+    /*# remove the primary font from another font collection
+     * @name ResFontRemoveFontResource
+     */
+    dmResource::Result ResFontRemoveFontResource(dmResource::HFactory factory, FontResource* font, FontResource* source);
 }
 
 #endif // DMSDK_GAMESYS_RES_FONT_H
