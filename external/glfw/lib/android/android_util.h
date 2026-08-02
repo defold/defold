@@ -87,6 +87,9 @@ int32_t _glfwAndroidVerifySurfaceError(EGLint error);
 int _glfwAndroidIsEmbedHost(void);
 /** Clears embed-host flag after terminate. */
 void _glfwAndroidClearEmbedHost(void);
+/** Embed hide_app sticky iconify; survives computeIconifiedState until cleared. */
+void _glfwAndroidSetEmbedUserIconified(int iconified);
+int _glfwAndroidIsEmbedUserIconified(void);
 
 // From spinlock.h (we really should keep a C interface there as well!)
 

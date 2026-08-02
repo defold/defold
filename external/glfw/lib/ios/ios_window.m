@@ -27,7 +27,14 @@ GLFWAPI void glfwIosSetExternalView(void* view)
 {
     UIView* next = (UIView*)view;
     if (g_ExternalView == next)
+    {
+        // Same UIView may move between UIWindows after SwiftUI remount.
+        if (next)
+            _glfwWin.window = next.window;
+        else
+            _glfwWin.window = nil;
         return;
+    }
 
     if (next)
     {
@@ -44,6 +51,8 @@ GLFWAPI void glfwIosSetExternalView(void* view)
     // directly; if the host remounts the UIView and we only update g_ExternalView,
     // the old pointer becomes dangling and crashes on isKindOfClass:.
     _glfwWin.view = next;
+    // glfwGetiOSUIWindow prefers _glfwWin.window; stale UIWindow* UAF after remount.
+    _glfwWin.window = next ? next.window : nil;
 
     if (prev)
         [prev release];
@@ -106,6 +115,16 @@ void _glfwPlatformSetWindowTitle( const char *title )
 
 void _glfwPlatformSetWindowSize( int width, int height )
 {
+    // iOS has no OS window resize API for embed hosts. Update GLFW state and
+    // notify so dmPlatform / scripts see the host UIView size.
+    if (width <= 0 || height <= 0)
+        return;
+    if (_glfwWin.width == width && _glfwWin.height == height)
+        return;
+    _glfwWin.width = width;
+    _glfwWin.height = height;
+    if (_glfwWin.windowSizeCallback)
+        _glfwWin.windowSizeCallback(width, height);
 }
 
 //========================================================================
@@ -122,6 +141,12 @@ void _glfwPlatformSetWindowPos( int x, int y )
 
 void _glfwPlatformIconifyWindow( void )
 {
+    if (_glfwIosIsEmbedHost())
+    {
+        _glfwWin.iconified = GL_TRUE;
+        if (_glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(0);
+    }
 }
 
 //========================================================================
@@ -130,6 +155,12 @@ void _glfwPlatformIconifyWindow( void )
 
 void _glfwPlatformRestoreWindow( void )
 {
+    if (_glfwIosIsEmbedHost())
+    {
+        _glfwWin.iconified = GL_FALSE;
+        if (_glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(1);
+    }
 }
 
 //========================================================================

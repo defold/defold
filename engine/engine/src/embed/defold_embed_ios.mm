@@ -101,9 +101,6 @@ DefoldEmbedHandle Defold_EmbedCreate(const DefoldEmbedConfig* config)
         dmEngineInitialize();
         g_EmbedEngineGlobalsReady = 1;
     }
-    else
-    {
-    }
 
     static char g_GraphicsAdapterArg[64];
     const char* adapter = config->graphics_adapter;
@@ -234,6 +231,8 @@ void Defold_EmbedResume(DefoldEmbedHandle handle)
     if (!state)
         return;
     state->paused = 0;
+    // Clears sticky hide_app iconify from _glfwPlatformIconifyWindow (embed).
+    glfwRestoreWindow();
 }
 
 void Defold_EmbedAttachWindow(DefoldEmbedHandle handle, struct ANativeWindow* window)

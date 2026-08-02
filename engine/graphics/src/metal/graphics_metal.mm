@@ -540,9 +540,6 @@ namespace dmGraphics
                     [context->m_Layer removeFromSuperlayer];
                     context->m_Layer = nil;
                 }
-#else
-                [context->m_Layer removeFromSuperlayer];
-                context->m_Layer = nil;
 #endif
             }
 #if defined(DM_PLATFORM_IOS)
@@ -1812,6 +1809,8 @@ namespace dmGraphics
         if (frame.m_InFlight)
         {
             dmLogWarning("MetalBeginFrame: recovering stale in-flight frame");
+            // Mid-frame interrupt (no Flip / no completion handler). The wait()
+            // above took a permit that Flip never returns — signal it back.
             if (frame.m_CommandBuffer)
             {
                 frame.m_CommandBuffer->release();
@@ -1824,6 +1823,7 @@ namespace dmGraphics
             }
             frame.m_RenderCommandEncoder = 0;
             frame.m_InFlight = 0;
+            dispatch_semaphore_signal(context->m_FrameBoundarySemaphore);
         }
 
 #if defined(DM_PLATFORM_IOS)
@@ -1971,8 +1971,13 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         if (!context->m_FrameBegun)
         {
-            // BeginFrame skipped (e.g. no drawable after host UIView reattach).
-            return;
+            // Embed BeginFrameSkip leaves m_FrameBegun clear; soft-skip only there.
+            // Standalone keeps assert (no silent return in NDEBUG).
+#if defined(DM_PLATFORM_IOS)
+            if (_glfwIosIsEmbedHost())
+                return;
+#endif
+            assert(context->m_FrameBegun);
         }
 
         FlushPendingRenderTargetClear(context, context->m_CurrentRenderTarget);
@@ -2066,8 +2071,11 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         if (!context->m_FrameBegun)
         {
-            // BeginFrame skipped (no drawable / no host window).
-            return;
+#if defined(DM_PLATFORM_IOS)
+            if (_glfwIosIsEmbedHost())
+                return;
+#endif
+            assert(context->m_FrameBegun);
         }
         MetalRenderTarget* current_rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
         assert(current_rt);
@@ -3373,7 +3381,11 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*)_context;
         if (!context->m_FrameBegun)
         {
-            return;
+#if defined(DM_PLATFORM_IOS)
+            if (_glfwIosIsEmbedHost())
+                return;
+#endif
+            assert(context->m_FrameBegun);
         }
 
         DrawSetup(context);
@@ -3412,7 +3424,11 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*)_context;
         if (!context->m_FrameBegun)
         {
-            return;
+#if defined(DM_PLATFORM_IOS)
+            if (_glfwIosIsEmbedHost())
+                return;
+#endif
+            assert(context->m_FrameBegun);
         }
 
         DrawSetup(context);

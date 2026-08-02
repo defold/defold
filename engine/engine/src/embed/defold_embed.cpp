@@ -29,6 +29,9 @@
 extern "C" {
 extern struct android_app* g_AndroidApp;
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd);
+void _glfwAndroidPlatformOnTermWindow(void);
+void _glfwAndroidPlatformOnInitWindow(void);
+void _glfwAndroidSetEmbedUserIconified(int iconified);
 void dmExportedSymbols();
 }
 
@@ -352,6 +355,8 @@ void Defold_EmbedResume(DefoldEmbedHandle handle)
     if (!state)
         return;
     state->paused = 0;
+    // Clear sticky hide_app iconify so computeIconifiedState can un-iconify.
+    _glfwAndroidSetEmbedUserIconified(0);
     _glfwAndroidHandleCommand(&state->app, APP_CMD_RESUME);
 }
 
@@ -361,13 +366,30 @@ void Defold_EmbedAttachWindow(DefoldEmbedHandle handle, struct ANativeWindow* wi
     if (!state || !window)
         return;
 
-    if (state->app.window && state->app.window != window)
+    // Same window re-attach (common from SurfaceView callbacks): do not
+    // ANativeWindow_acquire again — glfwAndroidSetExternalWindow early-returns
+    // without a matching release, which would leak a ref each call.
+    if (state->app.window == window)
+    {
+        glfwAndroidSetExternalWindow(window);
+        return;
+    }
+
+    // Different window: tear down GLES surface bound to the old native window,
+    // then rebind. (_glfwAndroidHandleCommand(INIT_WINDOW) only sets opened=1;
+    // real recreate lives in OnTerm/OnInit.)
+    if (state->app.window)
+    {
+        _glfwAndroidPlatformOnTermWindow();
         ANativeWindow_release(state->app.window);
+        state->app.window = 0;
+        glfwAndroidSetExternalWindow(0);
+    }
 
     ANativeWindow_acquire(window);
     state->app.window = window;
     glfwAndroidSetExternalWindow(window);
-    _glfwAndroidHandleCommand(&state->app, APP_CMD_INIT_WINDOW);
+    _glfwAndroidPlatformOnInitWindow();
 }
 
 void Defold_EmbedAttachView(DefoldEmbedHandle handle, void* view)
