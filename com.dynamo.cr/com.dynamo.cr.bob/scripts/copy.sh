@@ -123,6 +123,7 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-android/classes.dex lib/classes.dex
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/fontrenderer.jar lib/fontrenderer.jar
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/modelimporter.jar lib/modelimporter.jar
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/shaderc.jar lib/shaderc.jar
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/texturecompiler.jar lib/texturecompiler.jar
