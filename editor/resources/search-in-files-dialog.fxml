@@ -9,10 +9,12 @@
         <Insets bottom="12.0" left="12.0" right="12.0" top="12.0" />
     </padding>
     <Label id="search-label" />
-    <TextField id="search" />
+    <HBox spacing="8.0" alignment="CENTER_LEFT">
+        <TextField id="search" HBox.hgrow="ALWAYS" />
+        <Button id="filter-button" focusTraversable="false" mnemonicParsing="false" />
+    </HBox>
     <Label id="types-label" />
     <TextField id="types" />
-    <CheckBox id="include-libraries-check-box" />
     <TreeView id="resources-tree" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS" />
     <HBox alignment="CENTER" maxHeight="-Infinity" maxWidth="+Infinity">
         <HBox id="search-in-progress" alignment="CENTER">

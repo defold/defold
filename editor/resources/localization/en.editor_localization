@@ -241,7 +241,6 @@ dialog.target-ip.button.add = Add Target IP
 dialog.search-in-files.title = Search in Files
 dialog.search-in-files.label.search = Search pattern (* to match any string)
 dialog.search-in-files.label.types = File types to search in (comma separated)
-dialog.search-in-files.label.include-libraries = Search Inside Libraries
 dialog.search-in-files.button.keep-results = Keep Results
 
 # Target Discovery Log Dialog

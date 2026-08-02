@@ -134,18 +134,25 @@
     (is (false? (consumer-finished? consumer)))
     (is (true? (consumer-stopped? consumer)))))
 
-(defn- try-make-search-data-future [project]
+(defn- try-make-search-data-future [project resource-pred]
   (let [report-error! (fn/make-call-logger)
-        search-data-future (project-search/make-search-data-future report-error! project fn/constantly-true)]
+        search-data-future (project-search/make-search-data-future report-error! project resource-pred)]
     (deref search-data-future)
     (when (is (= [] (fn/call-logger-calls report-error!)))
       search-data-future)))
+
+(defn- search-data->proj-paths [search-data]
+  (into #{} (map (comp resource/proj-path :resource)) search-data))
+
+(defn- make-exclude-patterns-resource-pred [patterns]
+  (or (resource/compile-exclude-patterns-pred patterns)
+      fn/constantly-true))
 
 (deftest file-searcher-test
   (test-util/with-loaded-project search-project-path
     (test-util/with-ui-run-later-rebound
       (testing "All editable files are searched."
-        (when-some [search-data-future (try-make-search-data-future project)]
+        (when-some [search-data-future (try-make-search-data-future project fn/constantly-true)]
           ;; Note: This is more of a sanity-check than anything else.
           ;; As we make the search system more flexible, these assumptions might
           ;; not hold.
@@ -167,7 +174,7 @@
               consumer (make-consumer report-error!)
               start-consumer! (partial consumer-start! consumer)
               stop-consumer! consumer-stop!
-              {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)
+              {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project nil start-consumer! stop-consumer! report-error!)
               perform-search! (fn [term exts]
                                 (start-search! term exts true)
                                 (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
@@ -198,7 +205,7 @@
               consumer (make-consumer report-error!)
               start-consumer! (partial consumer-start! consumer)
               stop-consumer! consumer-stop!
-              {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)]
+              {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project nil start-consumer! stop-consumer! report-error!)]
           (start-search! "*" nil true)
           (is (true? (consumer-started? consumer)))
           (abort-search!)
@@ -210,7 +217,7 @@
               consumer (make-consumer report-error!)
               start-consumer! (partial consumer-start! consumer)
               stop-consumer! consumer-stop!
-              {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)
+              {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project nil start-consumer! stop-consumer! report-error!)
               search-string "peaNUTbutterjellytime"
               perform-search! (fn [term exts]
                                 (start-search! term exts true)
@@ -239,7 +246,7 @@
               consumer (make-consumer report-error!)
               start-consumer! (partial consumer-start! consumer)
               stop-consumer! consumer-stop!
-              {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)
+              {:keys [start-search! abort-search!]} (project-search/make-file-searcher workspace project nil start-consumer! stop-consumer! report-error!)
               perform-search! (fn [term exts include-libraries?]
                                 (start-search! term exts include-libraries?)
                                 (is (true? (test-util/block-until true? timeout-ms consumer-finished? consumer)))
@@ -276,7 +283,7 @@
                           (swap! builds inc)
                           (apply real-make-future args))]
             (let [{:keys [start-search! abort-search!]}
-                  (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)]
+                  (project-search/make-file-searcher workspace project nil start-consumer! stop-consumer! report-error!)]
               (is (= 0 @builds))
               (start-search! "return" "script" true)
               (is (= 1 @builds))
@@ -308,7 +315,7 @@
                               blocking-future)
                             (apply real-make-future args)))]
             (let [{:keys [start-search! abort-search!]}
-                  (project-search/make-file-searcher workspace project start-consumer! stop-consumer! report-error!)]
+                  (project-search/make-file-searcher workspace project nil start-consumer! stop-consumer! report-error!)]
               (start-search! "255" nil true)
               (is (true? (deref preparation-started timeout-ms false)))
               (abort-search!)
@@ -319,3 +326,46 @@
               (is (seq (consumer-consumed consumer)))
               (abort-search!)
               (is (= [] (fn/call-logger-calls report-error!))))))))))
+(deftest exclude-patterns-test
+  (test-util/with-loaded-project search-project-path
+    (test-util/with-ui-run-later-rebound
+      (when-some [all-paths (some-> (try-make-search-data-future project fn/constantly-true) deref search-data->proj-paths)]
+
+        (testing "nil patterns excludes nothing"
+          (when-some [paths (some-> (try-make-search-data-future project (make-exclude-patterns-resource-pred nil)) deref search-data->proj-paths)]
+            (is (= all-paths paths))))
+
+        (testing "empty patterns excludes nothing"
+          (when-some [paths (some-> (try-make-search-data-future project (make-exclude-patterns-resource-pred [])) deref search-data->proj-paths)]
+            (is (= all-paths paths))))
+
+        (testing "enabled pattern removes files under a matching directory"
+          (when-some [paths (some-> (try-make-search-data-future project (make-exclude-patterns-resource-pred [["scripts" true]])) deref search-data->proj-paths)]
+            (is (not-any? #(string/includes? % "scripts") paths))
+            (is (pos? (count paths)) "other files still included")))
+
+        (testing "disabled pattern excludes nothing"
+          (when-some [paths (some-> (try-make-search-data-future project (make-exclude-patterns-resource-pred [["scripts" false]])) deref search-data->proj-paths)]
+            (is (= all-paths paths))))
+
+        (testing "multiple enabled patterns each exclude matching files"
+          (when-some [paths (some-> (try-make-search-data-future project (make-exclude-patterns-resource-pred [["scripts" true] ["modules" true]])) deref search-data->proj-paths)]
+            (is (not-any? #(string/includes? % "scripts") paths))
+            (is (not-any? #(string/includes? % "modules") paths))))
+
+        (testing "mix of enabled and disabled patterns: only enabled ones filter"
+          (when-some [paths (some-> (try-make-search-data-future project (make-exclude-patterns-resource-pred [["scripts" true] ["modules" false]])) deref search-data->proj-paths)]
+            (is (not-any? #(string/includes? % "scripts") paths))
+            (is (some #(string/includes? % "modules") paths))))
+
+        (testing "pattern matching nothing leaves all files"
+          (when-some [paths (some-> (try-make-search-data-future project (make-exclude-patterns-resource-pred [["zzznomatch" true]])) deref search-data->proj-paths)]
+            (is (= all-paths paths))))
+
+        (testing "pattern matches whole path segments, not arbitrary substrings"
+          ;; Regression: /game_objects/search_test.go and
+          ;; /scripts/search_test.script both contain "test" as a substring of
+          ;; their filename, but neither has "test" as a whole path segment,
+          ;; so a "test" exclusion pattern should not remove them.
+          (when-some [paths (some-> (try-make-search-data-future project (make-exclude-patterns-resource-pred [["test" true]])) deref search-data->proj-paths)]
+            (is (= all-paths paths))))))))
