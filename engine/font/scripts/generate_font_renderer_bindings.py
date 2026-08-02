@@ -109,9 +109,11 @@ def main():
             if not output_file.is_file():
                 stale_files.append(filename)
                 continue
-            hash_lines = [line for line in output_file.read_text(encoding="utf-8").splitlines()
-                          if line.startswith(HEADER_HASH_PREFIX)]
-            if hash_lines != [expected_hash_line]:
+            output_lines = output_file.read_text(encoding="utf-8").splitlines()
+            hash_lines = [line for line in output_lines if line.startswith(HEADER_HASH_PREFIX)]
+            has_platform_dependent_long = (filename == f"{SYMBOLS_CLASS}.java" and
+                                           any(" C_LONG =" in line for line in output_lines))
+            if hash_lines != [expected_hash_line] or has_platform_dependent_long:
                 stale_files.append(filename)
         if stale_files:
             raise SystemExit(
@@ -154,6 +156,14 @@ def main():
                 stale_file.unlink()
         for generated_file in generated_files:
             contents = generated_file.read_text(encoding="utf-8")
+            if generated_file.name == f"{SYMBOLS_CLASS}.java":
+                # C long is 64-bit on Unix and 32-bit on Windows. The renderer API
+                # uses fixed-width integers, so jextract's unused helper is removed.
+                lines = contents.splitlines()
+                c_long_lines = [line for line in lines if " C_LONG =" in line]
+                if len(c_long_lines) != 1:
+                    raise RuntimeError("jextract output did not contain exactly one C_LONG declaration")
+                contents = "\n".join(line for line in lines if line != c_long_lines[0])
             output_file = output_package / generated_file.name
             output_file.write_text(LICENSE + HEADER_HASH_PREFIX + header_hash + "\n\n" + contents.rstrip() + "\n", encoding="utf-8")
             shutil.copymode(generated_file, output_file)
