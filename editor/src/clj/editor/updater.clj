@@ -122,17 +122,17 @@
 (def ^:private descending-version-order (.reversed util/natural-order))
 
 (defn- versions-to-fetch
-  "Picks which versions to show from the manifest: the ones newer than the
-  running editor, newest first, capped at `release-notes-range-limit`. Bad
-  version strings are skipped. If we don't know the current version (dev builds),
-  everything counts, so you get the most recent few."
+  "Picks which versions to show from the manifest: the running editor's own
+  version and anything newer, newest first, capped at `release-notes-range-limit`.
+  Bad version strings are skipped. If we don't know the current version (dev
+  builds), everything counts, so you get the most recent few."
   [manifest-versions current-version]
   (let [current (when (version-string? current-version) current-version)]
     (into []
           (take release-notes-range-limit)
           (sort descending-version-order
                 (e/filter #(and (version-string? %)
-                                (or (nil? current) (newer-version? % current)))
+                                (or (nil? current) (not (newer-version? current %))))
                           manifest-versions)))))
 
 (defn- fetch-json!

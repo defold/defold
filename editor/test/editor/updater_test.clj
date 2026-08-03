@@ -187,11 +187,11 @@
 
 (deftest versions-to-fetch-test
   (let [vtf #'updater/versions-to-fetch]
-    ;; only versions strictly newer than current, newest first
-    (is (= ["1.13.2" "1.13.1"]
+    ;; versions at or newer than current, newest first; older is dropped
+    (is (= ["1.13.2" "1.13.1" "1.13.0"]
            (vtf ["1.13.0" "1.13.1" "1.13.2"] "1.13.0")))
-    ;; equal version is excluded
-    (is (= [] (vtf ["1.13.0"] "1.13.0")))
+    ;; equal version is included
+    (is (= ["1.13.0"] (vtf ["1.13.0"] "1.13.0")))
     ;; nil current -> most recent N, newest first
     (is (= ["1.13.2" "1.13.1" "1.13.0"]
            (vtf ["1.13.0" "1.13.2" "1.13.1"] nil)))
