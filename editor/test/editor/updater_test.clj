@@ -17,6 +17,7 @@
             [clojure.test :refer :all]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
+            [editor.system :as system]
             [editor.updater :as updater]
             [util.http-server :as http-server])
   (:import [ch.qos.logback.classic Level Logger]
@@ -463,3 +464,72 @@
           (#'updater/check! updater)
           (#'updater/check! updater)
           (is (= 2 @fetches)))))))
+
+(defn- issue [pr-number type duplicate]
+  {:author "tester"
+   :pr_number pr-number
+   :title (str "Issue for PR " pr-number)
+   :type type
+   :url (str "https://github.com/defold/defold/pull/" pr-number)
+   :closed_issues []
+   :repository "defold"
+   :duplicate duplicate
+   :labels []
+   :body ""})
+
+(defn- notes-map [version issues]
+  {:version version :issues issues :external-link "https://forum"})
+
+(deftest release-notes-drops-issues-already-in-bundled
+  ;; the running version's slot keeps PR 2 (new since this build) and drops
+  ;; PR 1 (already in the bundled copy)
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :server-sha1 "B" :release-notes-sha "B"
+           :release-notes [{:version "9.9.9"
+                            :notes (notes-map "9.9.9" [(issue 1 "FIX" false) (issue 2 "FIX" false)])}])
+    (with-redefs [system/defold-version (constantly "9.9.9")
+                  updater/bundled-release-notes (constantly (notes-map "9.9.9" [(issue 1 "FIX" false)]))]
+      (let [md (:markdown (updater/release-notes updater))]
+        (is (re-find #"Issue for PR 2" md))
+        (is (not (re-find #"Issue for PR 1" md)))))))
+
+(deftest release-notes-shows-no-new-message-when-fully-seen
+  ;; every issue in the running version's slot is already in the bundled copy
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :server-sha1 "B" :release-notes-sha "B"
+           :release-notes [{:version "9.9.9"
+                            :notes (notes-map "9.9.9" [(issue 1 "FIX" false)])}])
+    (with-redefs [system/defold-version (constantly "9.9.9")
+                  updater/bundled-release-notes (constantly (notes-map "9.9.9" [(issue 1 "FIX" false)]))]
+      (let [md (:markdown (updater/release-notes updater))]
+        (is (re-find #"(?i)no new release notes" md))
+        (is (not (re-find #"Issue for PR 1" md)))))))
+
+(deftest release-notes-does-not-diff-newer-versions
+  ;; only the slot matching the running version is diffed; a newer version's
+  ;; slot renders in full even though it shares a PR with the bundled copy
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :server-sha1 "B" :release-notes-sha "B"
+           :release-notes [{:version "9.9.10"
+                            :notes (notes-map "9.9.10" [(issue 1 "FIX" false)])}])
+    (with-redefs [system/defold-version (constantly "9.9.9")
+                  updater/bundled-release-notes (constantly (notes-map "9.9.9" [(issue 1 "FIX" false)]))]
+      (let [md (:markdown (updater/release-notes updater))]
+        (is (re-find #"Issue for PR 1" md))))))
+
+(deftest release-notes-shows-full-notes-when-bundled-unavailable
+  ;; no bundled copy for the running version (e.g. a dev build) -> nothing to
+  ;; diff against, so the running version's own notes render in full
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :server-sha1 "B" :release-notes-sha "B"
+           :release-notes [{:version "9.9.9"
+                            :notes (notes-map "9.9.9" [(issue 1 "FIX" false) (issue 2 "FIX" false)])}])
+    (with-redefs [system/defold-version (constantly "9.9.9")
+                  updater/bundled-release-notes (constantly nil)]
+      (let [md (:markdown (updater/release-notes updater))]
+        (is (re-find #"Issue for PR 1" md))
+        (is (re-find #"Issue for PR 2" md))))))
