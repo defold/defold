@@ -81,6 +81,9 @@ namespace dmPlatform
         glfwSetWindowSize(window->m_Window, width, height);
     }
 
+    // note: on win32 and linux we need to set GLFW_SCALE_TO_MONITOR to GLFW_FALSE
+    // but this is not necessary on osx because the GLFW Cocoa backend ignores
+    // GLFW_SCALE_TO_MONITOR and treats window dimensions as logical points (https://github.com/glfw/glfw/blob/3.4/src/cocoa_window.m#L734-L757).
     void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params)
     {
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
