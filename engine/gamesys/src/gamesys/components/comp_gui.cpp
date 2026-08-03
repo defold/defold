@@ -3190,7 +3190,7 @@ namespace dmGameSystem
         }
     }
 
-    // Public function used by engine (as callback from gui system)
+    // Callback used to integrate GUI scenes with game objects
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -3203,14 +3203,14 @@ namespace dmGameSystem
         }
     }
 
-    // Public function used by engine (as callback from gui system)
+    // Callback used to integrate GUI scenes with game objects
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         return (uintptr_t)component->m_Instance;
     }
 
-    // Public function used by engine (as callback from gui system)
+    // Callback used to integrate GUI scenes with game objects
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -3664,6 +3664,11 @@ namespace dmGameSystem
         }
         gui_context->m_Worlds.SetCapacity(max_world_count);
 
+        dmGui::SetContextCallbacks(gui_context->m_GuiContext,
+                                   GuiGetURLCallback,
+                                   GuiGetUserDataCallback,
+                                   GuiResolvePathCallback,
+                                   (dmGui::GetTextMetricsCallback) GuiGetTextMetricsCallback);
         dmGui::InitializeScript(gui_context->m_ScriptContext);
 
         ComponentTypeSetPrio(type, 300);
@@ -3740,6 +3745,7 @@ namespace dmGameSystem
         g_CompGuiPropertySetters.Clear();
         g_CompGuiPropertyGetters.Clear();
 
+        dmGui::SetContextCallbacks(gui_context->m_GuiContext, 0, 0, 0, 0);
         delete gui_context;
         return dmGameObject::RESULT_OK;
     }

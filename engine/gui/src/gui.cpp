@@ -335,6 +335,18 @@ namespace dmGui
         return context;
     }
 
+    void SetContextCallbacks(HContext context,
+                             GetURLCallback get_url_callback,
+                             GetUserDataCallback get_user_data_callback,
+                             ResolvePathCallback resolve_path_callback,
+                             GetTextMetricsCallback get_text_metrics_callback)
+    {
+        context->m_GetURLCallback = get_url_callback;
+        context->m_GetUserDataCallback = get_user_data_callback;
+        context->m_ResolvePathCallback = resolve_path_callback;
+        context->m_GetTextMetricsCallback = get_text_metrics_callback;
+    }
+
     void DeleteContext(HContext context, dmScript::HContext script_context)
     {
         FinalizeScript(context->m_LuaState, script_context);

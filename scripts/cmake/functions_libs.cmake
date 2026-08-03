@@ -30,7 +30,6 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   gameobject
   gamesys
   gamesys_gui
-  gamesys_gui_null
   gamesys_particle
   gamesys_model
   gamesys_model_null

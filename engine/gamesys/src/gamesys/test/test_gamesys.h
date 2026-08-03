@@ -34,7 +34,6 @@
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
-#include "../components/comp_gui.h" // The GuiGetURLCallback et.al
 #include "../../../../graphics/src/graphics_private.h" // for unit test functions
 
 #include <dmsdk/dlib/configfile.h>
@@ -646,9 +645,6 @@ void GamesysTest<T>::SetUp()
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
     gui_params.m_HidContext = m_HidContext;
-    gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
-    gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
-    gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
     m_GuiContext = dmGui::NewContext(&gui_params);
 
     m_Register = dmGameObject::NewRegister();

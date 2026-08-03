@@ -53,6 +53,7 @@ static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str)
 }
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
+uintptr_t GetSceneUserDataCallback(dmGui::HScene scene);
 void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context);
 
@@ -88,6 +89,7 @@ public:
 
         dmGui::NewContextParams context_params;
         context_params.m_ScriptContext = m_ScriptContext;
+        context_params.m_GetUserDataCallback = GetSceneUserDataCallback;
         context_params.m_GetTextMetricsCallback = GetTextMetricsCallback;
         context_params.m_PhysicalWidth = 1;
         context_params.m_PhysicalHeight = 1;
@@ -107,6 +109,11 @@ public:
         dmPlatform::DeleteWindow(m_Window);
     }
 };
+
+uintptr_t GetSceneUserDataCallback(dmGui::HScene scene)
+{
+    return (uintptr_t)dmGui::GetSceneUserData(scene);
+}
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
 {
@@ -218,6 +225,15 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
     lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    dmScript::GetInstance(L);
+    uint32_t user_type_hash = dmScript::GetUserType(L, -1);
+    lua_pop(L, 1);
+
+    uintptr_t user_data = 0;
+    ASSERT_NE(0U, user_type_hash);
+    ASSERT_TRUE(dmScript::GetUserData(L, &user_data, user_type_hash));
+    ASSERT_EQ((uintptr_t)this, user_data);
 
     dmGui::DeleteScene(scene);
 

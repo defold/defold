@@ -82,7 +82,6 @@
     "font_skribidi"
     "gamesys"
     "gamesys_gui"
-    "gamesys_gui_null"
     "gamesys_model"
     "gamesys_model_null"
     "gamesys_particle"
@@ -508,7 +507,7 @@
   (make-check-box-setting
     (concat
       (exclude-libs-toggles all-platforms ["gamesys_gui" "gui"])
-      (libs-toggles all-platforms ["gamesys_gui_null" "gui_null"])
+      (libs-toggles all-platforms ["gui_null"])
       (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeGui" "ResourceTypeGuiScript" "ComponentTypeGui"]))))
 
 (def particle-fx-setting

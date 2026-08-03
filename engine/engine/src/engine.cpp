@@ -54,7 +54,6 @@
 #include <gamesys/gamesys.h>
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
-#include <gamesys/components/comp_gui.h> // For the URL callbacks etc
 #include <gameobject/gameobject.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h>
@@ -65,7 +64,6 @@
 #include <render/render.h>
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
-#include <particle/particle.h>
 #include <platform/window.hpp>
 #include <script/sys_ddf.h>
 #include <liveupdate/liveupdate.h>
@@ -1471,10 +1469,6 @@ namespace dmEngine
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
         gui_params.m_HidContext = engine->m_HidContext;
-        gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
-        gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
-        gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
-        gui_params.m_GetTextMetricsCallback = (void (*)(const void *, const char *, float, bool, float, float, dmGui::TextMetrics *))dmGameSystem::GuiGetTextMetricsCallback;
 
         // If an extension changes window size at extensions initialization phase, engine should read that.
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);

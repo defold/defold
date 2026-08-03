@@ -28,7 +28,6 @@
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/gamesys/resources/res_collision_object.h>
 
-#include <gui/gui.h>
 #include <input/input.h>
 #include <render/render.h>
 #include <physics/physics.h>

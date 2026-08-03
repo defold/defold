@@ -58,7 +58,6 @@ context:
                 "resource", "resource.lib", "libresource.lib",
                 "gamesys", "gamesys.lib", "libgamesys.lib",
                 "gamesys_gui", "gamesys_gui.lib", "libgamesys_gui.lib",
-                "gamesys_gui_null", "gamesys_gui_null.lib", "libgamesys_gui_null.lib",
                 "gamesys_particle", "gamesys_particle.lib", "libgamesys_particle.lib",
                 "gamesys_model", "gamesys_model.lib", "libgamesys_model.lib",
                 "gamesys_rig", "gamesys_rig.lib", "libgamesys_rig.lib",

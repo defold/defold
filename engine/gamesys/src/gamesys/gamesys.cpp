@@ -26,7 +26,6 @@
 #include <dmsdk/resource/resource.h>
 
 #include "resources/res_collection_proxy.h"
-#include "resources/res_particlefx.h"
 #include "resources/res_texture.h"
 #include "resources/res_shader_program.h"
 #include "resources/res_model.h"
@@ -36,7 +35,6 @@
 #include "resources/res_compute.h"
 #include "resources/res_collision_object.h"
 #include "resources/res_convex_shape.h"
-#include "resources/res_gui.h"
 #include "resources/res_sound.h"
 #include "resources/res_camera.h"
 #include "resources/res_input_binding.h"
@@ -59,10 +57,8 @@
 #include "components/comp_private.h"
 #include "components/comp_collection_proxy.h"
 #include "components/comp_collision_object.h"
-#include "components/comp_particlefx.h"
 #include "components/comp_model.h"
 #include "components/comp_mesh.h"
-#include "components/comp_gui.h"
 #include "components/comp_camera.h"
 #include "components/comp_factory.h"
 #include "components/comp_collection_factory.h"
