@@ -47,7 +47,17 @@
                 updater/update-url
                 (fn [archive-domain channel]
                   (format "http://localhost:%s/editor2/channels/%s/update-v4.json"
-                          test-port channel))]
+                          test-port channel))
+
+                updater/release-notes-manifest-url
+                (fn [archive-domain channel]
+                  (format "http://localhost:%s/editor2/channels/%s/release-notes/manifest.json"
+                          test-port channel))
+
+                updater/release-notes-version-url
+                (fn [archive-domain channel version]
+                  (format "http://localhost:%s/editor2/channels/%s/release-notes/%s.json"
+                          test-port channel version))]
     (f)))
 
 (use-fixtures :once error-log-level-fixture test-urls-fixture)
@@ -57,7 +67,10 @@
    (http-server/json-response {:sha1 sha1})
 
    (format "/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair (Platform/getHostPlatform)))
-   (http-server/response 200 (io/resource "test-update.zip"))})
+   (http-server/response 200 (io/resource "test-update.zip"))
+
+   (format "/editor2/channels/%s/release-notes/manifest.json" channel)
+   (http-server/json-response [])})
 
 (defn- make-resource-handler [channel sha1]
   (let [resources (make-handler-resources channel sha1)]

@@ -44,6 +44,12 @@
 (defn- update-url [archive-domain channel]
   (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
 
+(defn- release-notes-manifest-url [archive-domain channel]
+  (format (get-in connection-properties [:updater :release-notes-manifest-url-template]) archive-domain channel))
+
+(defn- release-notes-version-url [archive-domain channel version]
+  (format (get-in connection-properties [:updater :release-notes-version-url-template]) archive-domain channel version))
+
 (defn release-notes-markdown
   ^String [release-notes]
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
@@ -148,12 +154,10 @@
         nil))))
 
 (defn- fetch-manifest! [archive-domain channel]
-  (fetch-json! (format (get-in connection-properties [:updater :release-notes-manifest-url-template])
-                       archive-domain channel)))
+  (fetch-json! (release-notes-manifest-url archive-domain channel)))
 
 (defn- fetch-version-notes! [archive-domain channel version]
-  (fetch-json! (format (get-in connection-properties [:updater :release-notes-version-url-template])
-                       archive-domain channel version)))
+  (fetch-json! (release-notes-version-url archive-domain channel version)))
 
 (defn fetch-release-notes!
   "Downloads the notes to show for the available update. Reads the channel
