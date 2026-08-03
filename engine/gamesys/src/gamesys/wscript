@@ -42,15 +42,8 @@ def build(bld):
     sources = remove_from_node_list(sources, 'comp_model.cpp')
     sources = remove_from_node_list(sources, 'comp_model_pbr.cpp')
     sources = remove_from_node_list(sources, 'comp_model_null.cpp')
-    sources = remove_from_node_list(sources, 'comp_gui.cpp')
-    sources = remove_from_node_list(sources, 'comp_gui_null.cpp')
     sources = remove_from_node_list(sources, 'res_model.cpp')
     sources = remove_from_node_list(sources, 'res_model_null.cpp')
-    sources = remove_from_node_list(sources, 'res_gui.cpp')
-    sources = remove_from_node_list(sources, 'res_gui_script.cpp')
-    sources = remove_from_node_list(sources, 'comp_particlefx.cpp')
-    sources = remove_from_node_list(sources, 'res_particlefx.cpp')
-    sources = remove_from_node_list(sources, 'script_particlefx.cpp')
     sources = remove_from_node_list(sources, 'script_model.cpp')
     sources = remove_from_node_list(sources, 'res_rig_scene.cpp')
     sources = remove_from_node_list(sources, 'res_rig_scene_null.cpp')
@@ -74,29 +67,6 @@ def build(bld):
         resource.source = remove_from_node_list(resource.source, 'script_http.cpp')
     else:
         resource.source = remove_from_node_list(resource.source, 'script_http_js.cpp')
-
-    bld.stlib(features = 'cxx ddf',
-        includes = '. .. ../../src ../../proto',
-        protoc_includes = '../../proto',
-        proto_gen_py = True,
-        use = 'gamesys_proto',
-        uselib = 'LUA',
-        source = 'resources/res_gui.cpp resources/res_gui_script.cpp components/comp_gui.cpp',
-        target = 'gamesys_gui')
-
-    bld.stlib(features = 'cxx',
-        includes = '. .. ../../src ../../proto',
-        source = 'components/comp_gui_null.cpp',
-        target = 'gamesys_gui_null')
-
-    bld.stlib(features = 'cxx ddf',
-        includes = '. .. ../../src ../../proto',
-        protoc_includes = '../../proto',
-        proto_gen_py = True,
-        use = 'gamesys_proto',
-        uselib = 'LUA',
-        source = 'resources/res_particlefx.cpp components/comp_particlefx.cpp scripts/script_particlefx.cpp',
-        target = 'gamesys_particle')
 
     bld.stlib(features = 'cxx ddf',
         includes = '. .. ../../src ../../proto',

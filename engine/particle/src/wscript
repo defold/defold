@@ -29,12 +29,6 @@ def build(bld):
                          use = 'DDF DLIB SOCKET',
                          source = ['particle.cpp', particle_ddf_proto])
 
-    particle_null = bld.stlib(features = 'cxx',
-                              includes = ['.', '../proto'],
-                              target = 'particle_null',
-                              use = 'DDF DLIB',
-                              source = ['particle_null.cpp', particle_ddf_cpp])
-
     bld.add_group()
 
     # We only need this library in the editor

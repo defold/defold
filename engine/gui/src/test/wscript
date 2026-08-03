@@ -46,14 +46,6 @@ def build(bld):
                     target = 'test_gui_clipping',
                     source = 'test_gui_clipping.cpp')
 
-    particle_null_use = [lib for lib in uselib if lib != 'PARTICLE'] + ['particle_null', 'FONT', 'gui']
-    bld.program(features = 'cxx cprogram test',
-                includes = '. ..',
-                use = particle_null_use,
-                web_libs = ['library_sys.js', 'library_script.js'],
-                target = 'test_gui_particle_null',
-                source = 'test_gui_particle_null.cpp')
-
     bld.add_group()
 
     # Note that these null tests won't actually work since the tests aren't written that way.
