@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/jobsystem.h>
 #include <dlib/thread.h>
+#include <dlib/time.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
@@ -1705,7 +1706,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         if (context != 0x0)
         {
-            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+            VulkanStopAsyncProcessing(context);
 
             for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
             {
@@ -5134,6 +5135,52 @@ bail:
         return 0;
     }
 
+    static int AsyncStopBarrierCallback(HJobContext, HJob, void*, void* data)
+    {
+        int32_atomic_t* barrier_pending = (int32_atomic_t*) data;
+        dmAtomicStore32(barrier_pending, 0);
+        return 0;
+    }
+
+    void VulkanStopAsyncProcessing(VulkanContext* context)
+    {
+        if (!context->m_AsyncProcessingSupport)
+        {
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+            return;
+        }
+
+        int32_atomic_t barrier_pending;
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+
+            if (dmAtomicGet32(&context->m_DeleteContextRequested))
+            {
+                return;
+            }
+
+            dmAtomicStore32(&context->m_DeleteContextRequested, 1);
+
+            // The graphics context currently uses a single worker. A barrier
+            // job therefore runs only after all previously queued async
+            // texture jobs have returned.
+            assert(JobSystemGetWorkerCount(context->m_JobContext) == 1);
+            dmAtomicStore32(&barrier_pending, 1);
+
+            Job job = {0};
+            job.m_Process = AsyncStopBarrierCallback;
+            job.m_Data = (void*) &barrier_pending;
+
+            HJob hjob = JobSystemCreateJob(context->m_JobContext, &job);
+            JobSystemPushJob(context->m_JobContext, hjob);
+        }
+
+        while (dmAtomicGet32(&barrier_pending))
+        {
+            dmTime::Sleep(100);
+        }
+    }
+
     // Called on thread where we update (which should be the main thread)
     static void AsyncCompleteCallback(HJobContext, HJob job, JobSystemStatus status, void* _context, void* data, int result)
     {
@@ -5240,6 +5287,12 @@ bail:
         if (context->m_AsyncProcessingSupport)
         {
             DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+
+            if (dmAtomicGet32(&context->m_DeleteContextRequested))
+            {
+                return;
+            }
+
             VulkanTexture* tex = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
             PrepareTextureForUploading(context, tex, params);

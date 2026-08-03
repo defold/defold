@@ -62,6 +62,18 @@ static bool ShouldAutoExit()
     return value && value[0] != 0 && strcmp(value, "0") != 0 && !TestMainIsDebuggerAttached();
 }
 
+static bool HasArgument(const char* argument)
+{
+    for (int i = 0; i < g_AppArgc; ++i)
+    {
+        if (strcmp(g_AppArgv[i], argument) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 struct RunLoopParams
 {
     int     m_Argc;
@@ -176,6 +188,8 @@ struct ITest
 {
     virtual void Initialize(EngineCtx*) {};
     virtual void Execute(EngineCtx*) {};
+    virtual void OnGraphicsClosing(EngineCtx*) {};
+    virtual void OnGraphicsClosed(EngineCtx*) {};
 };
 
 struct EngineCtx
@@ -503,6 +517,136 @@ struct AsyncTextureUploadTest : ITest
         }
 
         CreateTextures(engine);
+    }
+};
+
+// Regression test for https://github.com/defold/defold/issues/12878.
+//
+// Verifies that VulkanCloseWindow waits for in-flight async texture uploads
+// before destroying the logical device. The worker is deliberately delayed
+// until graphics shutdown begins; without the shutdown barrier, the queued
+// upload resumes after device destruction and crashes in Vulkan. The reported
+// crash reaches vkWaitForFences, while this deterministic test may fail at an
+// earlier Vulkan call due to the same context/device lifetime race.
+struct AsyncTextureUploadShutdownTest : ITest
+{
+    int32_atomic_t             m_BlockWorker;
+    int32_atomic_t             m_WorkerStarted;
+    int32_atomic_t             m_WorkerReleased;
+    int32_atomic_t             m_WorkerDrained;
+    dmGraphics::HTexture       m_Texture;
+    dmGraphics::TextureParams  m_TextureParams;
+
+    AsyncTextureUploadShutdownTest()
+    : m_Texture(0)
+    {
+        dmAtomicStore32(&m_BlockWorker, 1);
+        dmAtomicStore32(&m_WorkerStarted, 0);
+        dmAtomicStore32(&m_WorkerReleased, 0);
+        dmAtomicStore32(&m_WorkerDrained, 0);
+    }
+
+    static int BlockWorker(HJobContext, HJob, void*, void* data)
+    {
+        AsyncTextureUploadShutdownTest* test = (AsyncTextureUploadShutdownTest*) data;
+        dmAtomicStore32(&test->m_WorkerStarted, 1);
+        while (dmAtomicGet32(&test->m_BlockWorker))
+        {
+            dmTime::Sleep(100);
+        }
+        dmAtomicStore32(&test->m_WorkerReleased, 1);
+
+        // Give the main thread enough time to destroy the Vulkan device. A
+        // correct CloseWindow implementation will wait for this job and the
+        // queued upload instead.
+        dmTime::Sleep(1000 * 1000);
+        return 0;
+    }
+
+    static int MarkWorkerDrained(HJobContext, HJob, void*, void* data)
+    {
+        AsyncTextureUploadShutdownTest* test = (AsyncTextureUploadShutdownTest*) data;
+        dmAtomicStore32(&test->m_WorkerDrained, 1);
+        return 0;
+    }
+
+    static void PushJob(HJobContext job_context, FJobProcess process, void* data)
+    {
+        Job job = {};
+        job.m_Process = process;
+        job.m_Data = data;
+        HJob hjob = JobSystemCreateJob(job_context, &job);
+        JobSystemPushJob(job_context, hjob);
+    }
+
+    static bool WaitForAtomic(int32_atomic_t* value, int32_t expected, uint64_t timeout_us)
+    {
+        uint64_t timeout = dmTime::GetMonotonicTime() + timeout_us;
+        while (dmAtomicGet32(value) != expected && dmTime::GetMonotonicTime() < timeout)
+        {
+            dmTime::Sleep(100);
+        }
+        return dmAtomicGet32(value) == expected;
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        PushJob(engine->m_JobContext, BlockWorker, this);
+        if (!WaitForAtomic(&m_WorkerStarted, 1, 5 * 1000 * 1000))
+        {
+            dmLogError("Issue #12878 reproducer: worker did not start");
+            engine->m_Failed = true;
+            engine->m_Running = 0;
+            return;
+        }
+
+        const uint32_t width = 128;
+        const uint32_t height = 128;
+
+        dmGraphics::TextureCreationParams creation_params;
+        creation_params.m_Width = width;
+        creation_params.m_Height = height;
+        creation_params.m_OriginalWidth = width;
+        creation_params.m_OriginalHeight = height;
+
+        m_TextureParams.m_DataSize = width * height * 4;
+        m_TextureParams.m_Data = new uint8_t[m_TextureParams.m_DataSize];
+        m_TextureParams.m_Width = width;
+        m_TextureParams.m_Height = height;
+        m_TextureParams.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+
+        m_Texture = dmGraphics::NewTexture(engine->m_GraphicsContext, creation_params);
+        dmGraphics::SetTextureAsync(engine->m_GraphicsContext, m_Texture, m_TextureParams, 0, 0);
+
+        // This sentinel can only run after the async texture job has returned.
+        PushJob(engine->m_JobContext, MarkWorkerDrained, this);
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        dmLogInfo("Issue #12878 reproducer: releasing worker before Vulkan teardown");
+        dmAtomicStore32(&m_BlockWorker, 0);
+
+        if (!WaitForAtomic(&m_WorkerReleased, 1, 5 * 1000 * 1000))
+        {
+            dmLogError("Issue #12878 reproducer: worker was not released");
+            engine->m_Failed = true;
+        }
+    }
+
+    void OnGraphicsClosed(EngineCtx* engine) override
+    {
+        dmLogInfo("Issue #12878 reproducer: Vulkan device destroyed; waiting for async texture job");
+        if (WaitForAtomic(&m_WorkerDrained, 1, 5 * 1000 * 1000))
+        {
+            delete[] (const uint8_t*) m_TextureParams.m_Data;
+            m_TextureParams.m_Data = 0;
+        }
+        else
+        {
+            dmLogError("Issue #12878 reproducer: worker did not drain");
+            engine->m_Failed = true;
+        }
     }
 };
 
@@ -952,17 +1096,38 @@ static void* EngineCreate(int argc, char** argv)
         return 0;
     }
 
-    //engine->m_Test = new ComputeTest();
-    //engine->m_Test = new StorageBufferTest();
-    //engine->m_Test = new ReadPixelsTest();
-    //engine->m_Test = new AsyncTextureUploadTest();
-    //engine->m_Test = new ClearBackbufferTest();
-    dmLogInfo("test_app_graphics: running ClearBackbufferTest");
-    engine->m_Test = new ClearBackbufferTest();
+    if (HasArgument("issue-12878"))
+    {
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_VULKAN)
+        {
+            dmLogError("Issue #12878 reproducer requires the Vulkan adapter");
+            engine->m_Failed = true;
+            engine->m_Test = new ClearBackbufferTest();
+        }
+        else
+        {
+            dmLogInfo("test_app_graphics: running AsyncTextureUploadShutdownTest");
+            engine->m_Test = new AsyncTextureUploadShutdownTest();
+        }
+    }
+    else
+    {
+        //engine->m_Test = new ComputeTest();
+        //engine->m_Test = new StorageBufferTest();
+        //engine->m_Test = new ReadPixelsTest();
+        //engine->m_Test = new AsyncTextureUploadTest();
+        //engine->m_Test = new ClearBackbufferTest();
+        dmLogInfo("test_app_graphics: running ClearBackbufferTest");
+        engine->m_Test = new ClearBackbufferTest();
+    }
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
     engine->m_Running = engine->m_Failed ? 0 : 1;
+    if (HasArgument("issue-12878"))
+    {
+        engine->m_Running = 0;
+    }
     engine->m_TimeStart = dmTime::GetMonotonicTime();
 
     return &g_EngineCtx;
@@ -971,7 +1136,9 @@ static void* EngineCreate(int argc, char** argv)
 static void EngineDestroy(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
+    engine->m_Test->OnGraphicsClosing(engine);
     dmGraphics::CloseWindow(engine->m_GraphicsContext);
+    engine->m_Test->OnGraphicsClosed(engine);
     dmGraphics::DeleteContext(engine->m_GraphicsContext);
     dmGraphics::Finalize();
 
