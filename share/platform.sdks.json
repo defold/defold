@@ -11,5 +11,5 @@
     "arm64-osx": ["osx", "xcode26_5"],
     "x86_64-osx": ["osx", "xcode26_5"],
     "arm64-ios": ["osx", "xcode26_5"],
-    "x86_64-ios": ["osx", "xcode26_5"]
+    "arm64_sim-ios": ["osx", "xcode26_5"]
 }

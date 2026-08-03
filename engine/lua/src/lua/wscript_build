@@ -3,7 +3,7 @@ from waflib import Options
 
 EXTRA_DEFINES = []
 
-if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
+if bld.env.PLATFORM in ('arm64-ios', 'arm64_sim-ios'):
     # Note: LUA_NO_SYSTEM is our own invention, mimicking the LJ_NO_SYSTEM
     EXTRA_DEFINES = ['LUA_NO_SYSTEM']
 

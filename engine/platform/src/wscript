@@ -52,7 +52,7 @@ def build(bld):
         else:
             if bld.env.PLATFORM in ('armv7-android', 'arm64-android', 'x86_64-android'):
                 glfw_source += ['platform_window_glfw_android.cpp']
-            elif bld.env.PLATFORM in ('x86_64-ios', 'arm64-ios'):
+            elif bld.env.PLATFORM in ('arm64-ios', 'arm64_sim-ios'):
                 glfw_source += ['platform_window_glfw_ios.mm']
 
         lib = bld.stlib(features = 'cxx c ddf',

@@ -40,7 +40,7 @@ def build(bld):
     java_runtime_flags = os.environ.get('DM_JAVA_RUNTIME_FLAGS', '')
 
     defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
-    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'arm64_sim-ios'):
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     additional_libs = []

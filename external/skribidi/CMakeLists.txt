@@ -5,8 +5,8 @@ include(functions)
 include(functions_sdk)
 include(sdk)
 
-if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-(macos|ios)$")
-  string(REGEX REPLACE "-.*$" "" SKRIBIDI_APPLE_ARCH "${TARGET_PLATFORM}")
+if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)(_sim)?-(macos|ios)$")
+  set(SKRIBIDI_APPLE_ARCH "${CMAKE_MATCH_1}")
   set(CMAKE_OSX_ARCHITECTURES "${SKRIBIDI_APPLE_ARCH}" CACHE STRING "Skribidi Apple target architecture" FORCE)
 endif()
 

@@ -358,7 +358,7 @@
   (testing "Metal-only iOS includes Metal and excludes OpenGL/Vulkan"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :metal)]
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
-      (doseq [platform [:arm64-ios :x86_64-ios]]
+      (doseq [platform [:arm64-ios :arm64_sim-ios]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_metal"} (:libs context)))
           (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
@@ -374,7 +374,7 @@
   (testing "Vulkan-only iOS keeps the simulator OpenGL fallback"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :vulkan)
           arm64-context (get-in manifest [:platforms :arm64-ios :context])
-          simulator-context (get-in manifest [:platforms :x86_64-ios :context])]
+          simulator-context (get-in manifest [:platforms :arm64_sim-ios :context])]
       (is (= :vulkan (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
       (is (some #{"graphics_vulkan"} (:libs arm64-context)))
       (is (some #{"MoltenVK"} (:libs arm64-context)))

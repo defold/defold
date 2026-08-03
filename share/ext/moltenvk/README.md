@@ -71,13 +71,3 @@ You need to fetch the external dependencies
     lipo -thin arm64 lib/arm64-ios/libMoltenVK.a -o lib/arm64-ios/libMoltenVK.a
     lipo -info lib/arm64-ios/libMoltenVK.a
     tar czvf moltenvk-1474891-arm64-ios.tar.gz lib
-
-## x86_64-ios
-
-    make iossim
-    rm -rf lib
-    mkdir -p lib/x86_64-ios/
-    cp ./Package/Release/MoltenVK/static/MoltenVK.xcframework/ios-arm64_x86_64-simulator/libMoltenVK.a lib/x86_64-ios
-    lipo -thin x86_64 lib/x86_64-ios/libMoltenVK.a -o lib/x86_64-ios/libMoltenVK.a
-    lipo -info lib/x86_64-ios/libMoltenVK.a
-    tar czvf moltenvk-1474891-x86_64-ios.tar.gz lib

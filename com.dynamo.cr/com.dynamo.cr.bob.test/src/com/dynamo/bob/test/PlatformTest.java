@@ -38,7 +38,7 @@ public class PlatformTest {
         testPlatformGet(Platform.X86_64Win32);
         testPlatformGet(Platform.X86_64MacOS);
         testPlatformGet(Platform.Arm64MacOS);
-        testPlatformGet(Platform.X86_64Ios);
+        testPlatformGet(Platform.Arm64IosSim);
         testPlatformGet(Platform.Arm64Ios);
         testPlatformGet(Platform.X86_64Linux);
         testPlatformGet(Platform.Arm64Linux);
@@ -57,7 +57,7 @@ public class PlatformTest {
         assertTrue(Platform.get("arm64-macos").getOsID() == PlatformProfile.OS.OS_ID_OSX);
 
         assertTrue(Platform.get("arm64-ios").getOsID() == PlatformProfile.OS.OS_ID_IOS);
-        assertTrue(Platform.get("x86_64-ios").getOsID() == PlatformProfile.OS.OS_ID_IOS);
+        assertTrue(Platform.get("arm64_sim-ios").getOsID() == PlatformProfile.OS.OS_ID_IOS);
 
         assertTrue(Platform.get("armv7-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
         assertTrue(Platform.get("arm64-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
@@ -89,7 +89,7 @@ public class PlatformTest {
 
         assertTrue(Platform.X86Win32.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.X86_64MacOS.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
-        assertTrue(Platform.X86_64Ios.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.Arm64IosSim.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.X86_64Linux.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.Arm64Android.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.WasmWeb.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
@@ -102,7 +102,7 @@ public class PlatformTest {
         assertTrue(Platform.X86_64MacOS.matchesOS(PlatformProfile.OS.OS_ID_OSX));
 
         assertTrue(Platform.Arm64Ios.matchesOS(PlatformProfile.OS.OS_ID_IOS));
-        assertTrue(Platform.X86_64Ios.matchesOS(PlatformProfile.OS.OS_ID_IOS));
+        assertTrue(Platform.Arm64IosSim.matchesOS(PlatformProfile.OS.OS_ID_IOS));
 
         assertTrue(Platform.Arm64Linux.matchesOS(PlatformProfile.OS.OS_ID_LINUX));
         assertTrue(Platform.X86_64Linux.matchesOS(PlatformProfile.OS.OS_ID_LINUX));

@@ -15,7 +15,7 @@ platforms:
             libs: [record_null, sound_null, hid_null, liveupdate_null, graphics_transcoder_null, profile_null, profilerext_null]
             frameworks: []
             linkFlags: []
-    x86_64-ios:
+    arm64_sim-ios:
         context:
             excludeLibs: [record, vpx, sound, tremolo, hid, liveupdate, graphics_transcoder_basisu, basis_transcoder, profile, profilerext, profiler_remotery, profiler_js]
             excludeSymbols: [DefaultSoundDevice, AudioDecoderWav, AudioDecoderStbVorbis, AudioDecoderTremolo, ProfilerBasic, ProfilerRemotery, ProfilerJS]

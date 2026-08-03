@@ -222,11 +222,15 @@ function cmi_setup_cc() {
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
+            # NOTE: Clang picks up MACOSX_DEPLOYMENT_TARGET from the environment (e.g. set by
+            # a preceding macOS host-tool build) and it conflicts with the iOS version flags
+            unset MACOSX_DEPLOYMENT_TARGET
             export CPPFLAGS="-arch arm64 -isysroot ${IOS_SDK_ROOT}"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch arm64 -isysroot ${IOS_SDK_ROOT}"
             export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} "
+            export LDFLAGS="-arch arm64 -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -isysroot ${IOS_SDK_ROOT}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
             export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
@@ -236,16 +240,20 @@ function cmi_setup_cc() {
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
 
-        x86_64-ios)
+        arm64_sim-ios)
             [ ! -e "${IOS_SIMULATOR_SDK_ROOT}" ] && echo "No SDK found at ${IOS_SIMULATOR_SDK_ROOT}" && exit 1
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-            export CPPFLAGS="-arch x86_64 -target x86_64-apple-darwin19 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -target x86_64-apple-darwin19 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
-            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} "
+            # NOTE: Clang picks up MACOSX_DEPLOYMENT_TARGET from the environment (e.g. set by
+            # a preceding macOS host-tool build) and it conflicts with the iOS version flags
+            unset MACOSX_DEPLOYMENT_TARGET
+            export CPPFLAGS="-arch arm64 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
+            # NOTE: -mios-simulator-version-min makes clang/ld tag the objects with the
+            # IOSSIMULATOR platform, required to link and install on Apple Silicon runtimes
+            export CXXFLAGS="${CXXFLAGS} -mios-simulator-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch arm64 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
+            export CFLAGS="${CPPFLAGS} -mios-simulator-version-min=${IOS_MIN_SDK_VERSION} "
+            export LDFLAGS="-arch arm64 -mios-simulator-version-min=${IOS_MIN_SDK_VERSION} -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
             export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
@@ -436,7 +444,7 @@ function cmi() {
             cmi_cross $1 arm-linux
             ;;
 
-        arm64-ios|x86_64-ios|armv7-android|arm64-android|wasm-web|wasm_pthread-web)
+        arm64-ios|arm64_sim-ios|armv7-android|arm64-android|wasm-web|wasm_pthread-web)
             cmi_cross $1 arm-ios
             ;;
 

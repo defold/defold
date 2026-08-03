@@ -24,7 +24,7 @@ function usage() {
     echo " * x86_64-linux"
     echo " * arm64-linux"
     echo " * arm64-ios"
-    echo " * x86_64-ios"
+    echo " * arm64_sim-ios"
     echo " * armv7-android"
     echo " * arm64-android"
     echo " * x86_64-android"

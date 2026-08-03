@@ -34,7 +34,7 @@ mkdir -p libexec/arm64-macos
 # mkdir -p libexec/x86-win32
 mkdir -p libexec/x86_64-win32
 mkdir -p libexec/arm64-ios
-mkdir -p libexec/x86_64-ios
+mkdir -p libexec/arm64_sim-ios
 # mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
 mkdir -p libexec/x86_64-android
@@ -199,8 +199,8 @@ copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
 # copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
 copy arm64-ios/stripped/dmengine arm64-ios/dmengine
 copy arm64-ios/stripped/dmengine_release arm64-ios/dmengine_release
-copy x86_64-ios/stripped/dmengine x86_64-ios/dmengine
-copy x86_64-ios/stripped/dmengine_release x86_64-ios/dmengine_release
+copy arm64_sim-ios/stripped/dmengine arm64_sim-ios/dmengine
+copy arm64_sim-ios/stripped/dmengine_release arm64_sim-ios/dmengine_release
 # copy armv7-android/stripped/libdmengine.so armv7-android/libdmengine.so
 # copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
 copy arm64-android/stripped/libdmengine.so arm64-android/libdmengine.so # TODO only valid once arm64-android CI target is present --jbnn

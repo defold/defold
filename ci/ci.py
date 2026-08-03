@@ -257,7 +257,7 @@ def build_engine(channel, platform, args):
     if platform in ('x86_64-macos',
                     'arm64-macos',
                     'arm64-ios',
-                    'x86_64-ios',
+                    'arm64_sim-ios',
                     'wasm-web',
                     'wasm_pthread-web',
                     'arm64-linux',

@@ -40,3 +40,9 @@ platforms:
             excludeLibs: ["engine", "engine_service", "profile", "profilerext", "profiler_remotery"]
             libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null"]
             excludeSymbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
+
+    arm64_sim-ios:
+        context:
+            excludeLibs: ["engine", "engine_service", "profile", "profilerext", "profiler_remotery"]
+            libs: ["engine_release", "engine_service_null", "profile_null", "profilerext_null"]
+            excludeSymbols: ['ProfilerExt', 'ProfilerBasic', 'ProfilerRemotery']
