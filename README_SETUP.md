@@ -4,7 +4,7 @@
 
 This guide focuses on the tool and platform sdk installation.
 
-Build instructions for the engine are found here [here](/editor/README_BUILD.md)).
+(Build instructions for the engine are found here [here](/README_BUILD.md)).
 
 At the very minimum, you need to install the SDK for your host platform (Windows, macOS or Linux)
 
