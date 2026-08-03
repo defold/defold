@@ -43,7 +43,7 @@ jobs:
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 }, # v4.3.4
       { name: 'Set up Google Cloud SDK', uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db, with: { version: 'latest' } }, # v3.0.1
       {
         name: 'Setup dotnet',
@@ -97,7 +97,7 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 }, # v4.3.4
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -141,7 +141,7 @@ jobs:
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 }, # v4.3.4
       { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984, with: {version: '4.0.6'}}, # v16
       { name: 'Verify emsdk',
         run: 'emcc -v && export | grep EM'
@@ -177,7 +177,7 @@ jobs:
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 }, # v4.3.4
       {
         name: 'Set up Android SDK',
         uses: defold/github-actions-common/.github/actions/android@8f32dd1cabf08f349200dd0135d07afc233fc322, # untagged pinned SHA
@@ -214,7 +214,7 @@ jobs:
       { name: 'Cache lein installation and Maven dependencies for docs', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: "editor/build/lein\neditor/.m2/repository", key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-${{ hashFiles('editor/scripts/lein', 'editor/project.clj', 'editor/profiles.clj') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-maven-docs-\n${{ runner.os }}-lein-maven-docs-\n${{ runner.os }}-${{ matrix.platform || 'default' }}-lein-docs-\n${{ runner.os }}-lein-docs-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 }, # v4.3.4
       {
         name: 'Setup dotnet',
         id: setup_dotnet,
@@ -252,7 +252,7 @@ jobs:
       { name: 'Cache Defold downloads', uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
+      { name: 'Install CMake', uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 }, # v4.3.4
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -281,7 +281,7 @@ jobs:
       { name: 'Cache Defold downloads', if: *should_build_switch, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', if: *should_build_switch, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', if: *should_build_switch, uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', if: *should_build_switch, uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
+      { name: 'Install CMake', if: *should_build_switch, uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 }, # v4.3.4
       { name: 'Install dependencies', if: *should_build_switch, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -312,7 +312,7 @@ jobs:
       { name: 'Cache Defold downloads', if: *should_build_ps, uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae, with: { path: '~/.dcache', key: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-${{ hashFiles('build_tools/sdk.py') }}", restore-keys: "${{ runner.os }}-${{ matrix.platform || 'default' }}-dcache-\n${{ runner.os }}-dcache-" } }, # v5.0.5
       { name: 'Install Python', if: *should_build_ps, uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405, with: { python-version: 3.13} }, # v6.2.0
       { name: 'Install Java', if: *should_build_ps, uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v5.2.0
-      { name: 'Install CMake', if: *should_build_ps, uses: lukka/get-cmake@e6906078ebd1ccb8ce51ab4626ac46a1b5a517e3 }, # v4.3.4
+      { name: 'Install CMake', if: *should_build_ps, uses: lukka/get-cmake@4a7d025fc60f00db0c7b44ebf783d19b52444830 }, # v4.3.4
       { name: 'Install dependencies', if: *should_build_ps, shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
