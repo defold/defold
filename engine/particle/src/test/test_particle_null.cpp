@@ -24,6 +24,7 @@ namespace dmGameSystem
     dmParticle::FetchResourcesResult FetchResourcesCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data);
 }
 
+// Verify that particle_null safely implements the particle API used by GUI without creating particle data.
 TEST(dmParticleNull, EmptyContext)
 {
     dmParticle::HParticleContext context = dmParticle::CreateContext(64, 1024);

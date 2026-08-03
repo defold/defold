@@ -226,6 +226,7 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
+    // Verify that a GUI script instance exposes its scene user data through META_TABLE_GET_USER_DATA.
     dmScript::GetInstance(L);
     uint32_t user_type_hash = dmScript::GetUserType(L, -1);
     lua_pop(L, 1);

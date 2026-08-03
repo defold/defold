@@ -522,6 +522,8 @@ TEST_F(ScriptTest, TestInstanceCallback)
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
+    // Verify that the original GO lookup and the typed overload resolve the same instance,
+    // while an unrelated script instance type is rejected.
     dmScript::GetInstance(L);
     uint32_t script_instance_type_hash = dmScript::GetUserType(L, -1);
     lua_pop(L, 1);

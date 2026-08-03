@@ -42,6 +42,7 @@ static void GetTextMetrics(const void*, const char*, float, bool, float, float, 
     out_metrics->m_MaxDescent = 0.0f;
 }
 
+// Verify that GUI can create and update a scene when linked against particle_null.
 TEST(dmGuiParticleNull, EmptyScene)
 {
     dmScript::ContextParams script_context_params = {};
