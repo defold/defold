@@ -2052,6 +2052,7 @@ static void LogFrameBufferError(GLenum status)
             glGenVertexArrays(1, &handle);
             context->m_GlobalVAO = AddNewGLHandle(context, handle);
         }
+        context->m_BoundVAO = 0;
 
         SetSwapInterval(_context, params.m_SwapInterval);
 
@@ -2557,8 +2558,19 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLContext* context = (OpenGLContext*) _context;
 
+        // We only ever use one global VAO, so rebinding it for every vertex declaration is a
+        // no-op that still costs a GL call per draw. Some drivers (and the Android emulator's
+        // GLES translation layer) log every redundant bind, which is expensive on its own.
         if (glBindVertexArray)
-            glBindVertexArray(GetGLHandle(context, context->m_GlobalVAO));
+        {
+            GLuint vao = GetGLHandle(context, context->m_GlobalVAO);
+            if (vao != context->m_BoundVAO)
+            {
+                glBindVertexArray(vao);
+                CHECK_GL_ERROR;
+                context->m_BoundVAO = vao;
+            }
+        }
 
         if (context->m_ModificationVersion != vertex_declaration->m_ModificationVersion || vertex_declaration->m_BoundForProgram != program)
         {
@@ -5502,6 +5514,8 @@ static void LogFrameBufferError(GLenum status)
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_GLHandlesData.m_Mutex);
         // Set all handles to 0. It indicates that handles not valid.
         memset(context->m_GLHandlesData.m_AllGLHandles.Begin(), 0, (context->m_GLHandlesData.m_AllGLHandles.End() - context->m_GLHandlesData.m_AllGLHandles.Begin()) * sizeof(uint32_t));
+        // The VAO binding belongs to the lost context, so force the next bind through.
+        context->m_BoundVAO = 0;
     }
 
     static void OpenGLGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
