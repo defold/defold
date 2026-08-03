@@ -86,6 +86,20 @@ void ResourceTypeSetRecreateFn(HResourceType type, FResourceRecreate fn)
     type->m_RecreateFunction = fn;
 }
 
+void ResourceTypeSetGraphicsRestoreOrder(HResourceType type, ResourceGraphicsRestoreOrder order)
+{
+    type->m_GraphicsRestoreOrder    = (uint8_t) order;
+    type->m_HasGraphicsRestoreOrder = 1;
+}
+
+bool ResourceTypeGetGraphicsRestoreOrder(HResourceType type, uint8_t* out_order)
+{
+    if (!type->m_HasGraphicsRestoreOrder)
+        return false;
+    *out_order = type->m_GraphicsRestoreOrder;
+    return true;
+}
+
 void ResourceTypeSetStreaming(HResourceType type, uint32_t preload_size)
 {
     type->m_PreloadSize = preload_size;

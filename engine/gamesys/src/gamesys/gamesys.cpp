@@ -173,6 +173,29 @@ namespace dmGameSystem
 
 #undef REGISTER_RESOURCE_TYPE
 
+        // Opt the GPU-backed types into recreation after a graphics context restore
+        // (render.reload_resources). Types not listed here either own no GPU objects, are
+        // restored elsewhere (render targets — by RecreateGraphicsHandles; font glyph caches —
+        // by the font system), or must keep their handles unswapped (materials). Extensions
+        // opt their own types in the same way from their type register functions.
+#define SET_GRAPHICS_RESTORE_ORDER(extension, order)\
+    {\
+        HResourceType type;\
+        if (ResourceGetTypeFromExtension(factory, extension, &type) == RESOURCE_RESULT_OK)\
+        {\
+            ResourceTypeSetGraphicsRestoreOrder(type, order);\
+        }\
+    }\
+
+        SET_GRAPHICS_RESTORE_ORDER("texturec", RESOURCE_GRAPHICS_RESTORE_ORDER_TEXTURES);
+        SET_GRAPHICS_RESTORE_ORDER("spc",      RESOURCE_GRAPHICS_RESTORE_ORDER_PROGRAMS);
+        SET_GRAPHICS_RESTORE_ORDER("computec", RESOURCE_GRAPHICS_RESTORE_ORDER_PROGRAMS);
+        SET_GRAPHICS_RESTORE_ORDER("bufferc",  RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS);
+        SET_GRAPHICS_RESTORE_ORDER("meshc",    RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS);
+        SET_GRAPHICS_RESTORE_ORDER("modelc",   RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS);
+
+#undef SET_GRAPHICS_RESTORE_ORDER
+
         return e;
     }
 

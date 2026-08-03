@@ -1374,6 +1374,17 @@ namespace dmGraphics
     uint32_t GetMaxTextureSize(HContext context);
 
     /*#
+     * Returns how many times the graphics context has been lost (and its GPU objects invalidated),
+     * e.g. a lost WebGL context on HTML5. Systems that upload GPU objects only when their content
+     * changes can compare this against a cached value to detect that their objects were wiped and
+     * must be re-uploaded (resource-backed objects are restored by `render.reload_resources`).
+     * @name GetInvalidationGeneration
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @return generation [type:uint32_t] Number of context invalidations so far
+     */
+    uint32_t GetInvalidationGeneration(HContext context);
+
+    /*#
      * Return the width of the opened window, if any.
      * @name GetWindowWidth
      * @param context [type:dmGraphics::HContext] Graphics context

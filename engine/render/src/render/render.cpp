@@ -161,6 +161,8 @@ namespace dmRender
         context->m_ScriptWorld = dmScript::NewScriptWorld(context->m_ScriptContext);
         context->m_CallbackInfo = 0x0;
         context->m_ResourceReload = 0x0;
+        context->m_ContextEventListener = 0x0;
+        context->m_ContextEventListenerUserData = 0x0;
 
         context->m_DebugRenderer.m_RenderContext = 0;
         if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0) {
@@ -1380,39 +1382,6 @@ namespace dmRender
     // (ResourceReloadItem / ResourceReloadState are defined near NewRenderContext above.)
     // ---------------------------------------------------------------------------------------------
 
-    // Classifies a resource type (by its extension hash) into a recreation-order bucket, or returns -1
-    // if it is not a GPU-backed resource we recreate. Rendering stays paused until the whole worklist
-    // is processed, so the order only matters for recreate functions that read a sibling asset's GL
-    // state: materials read their (relinked) program, so programs (bucket 1) must precede them. We
-    // intentionally exclude materialc and fontc: a material owns no GPU object of its own and only
-    // references a program/textures (recreated in their own buckets), and swapping its HMaterial would
-    // invalidate handles cached by components (e.g. gui); font glyph-cache textures are built at
-    // runtime, not from resource bytes, so they are out of scope.
-    static int GetReloadBucket(dmhash_t ext_hash)
-    {
-        static const dmhash_t h_texturec = dmHashString64("texturec");
-        static const dmhash_t h_spc      = dmHashString64("spc");
-        static const dmhash_t h_computec = dmHashString64("computec");
-        static const dmhash_t h_bufferc  = dmHashString64("bufferc");
-        static const dmhash_t h_meshc    = dmHashString64("meshc");
-        static const dmhash_t h_modelc   = dmHashString64("modelc");
-
-        if (ext_hash == h_texturec)      return 0; // leaf textures
-        if (ext_hash == h_spc)           return 1; // shader programs (needed by materials/draws)
-        if (ext_hash == h_computec)      return 1; // compute programs
-        if (ext_hash == h_bufferc)       return 2; // vertex/index buffers
-        if (ext_hash == h_meshc)         return 2;
-        if (ext_hash == h_modelc)        return 2; // model vertex/index buffers (in-place restore, see ResModelRecreate)
-
-        // NOTE: render_targetc is intentionally NOT recreated here. Its recreate path (Delete+New)
-        // would allocate a brand-new HRenderTarget and new attachment HTextures, breaking the
-        // handle-stability guarantee this feature relies on. Instead, ALL render targets — resource-
-        // backed and runtime-created (render.render_target) alike — are restored in place by
-        // RecreateGraphicsHandles at the start of the reload: their contents are transient
-        // (re-rendered every frame), so only the FBO + attachment storage need regenerating.
-        return -1;
-    }
-
     static bool CollectResourceHashCallback(const dmResource::IteratorResource& resource, void* user_ctx)
     {
         dmArray<dmhash_t>* hashes = (dmArray<dmhash_t>*) user_ctx;
@@ -1439,8 +1408,16 @@ namespace dmRender
         for (uint32_t i = 0; i < all_hashes.Size(); ++i)
         {
             dmhash_t name_hash = all_hashes[i];
-            int bucket = GetReloadBucket(dmResource::GetResourceTypeExtensionHash(factory, name_hash));
-            if (bucket < 0)
+            // A type takes part in the reload by opting in with ResourceTypeSetGraphicsRestoreOrder
+            // (the engine types register their buckets in dmGameSystem::RegisterResourceTypes,
+            // extensions do the same for theirs). Rendering stays paused until the whole worklist is
+            // processed, so the bucket order only matters for recreate functions that read a sibling
+            // asset's GL state. Notable non-participants: materialc/fontc own no re-readable GPU
+            // bytes (and swapping a material's HMaterial would break handles cached by components);
+            // render targets — resource-backed and runtime-created alike — are restored in place by
+            // RecreateGraphicsHandles at the start of the reload, since their contents are transient.
+            uint8_t bucket;
+            if (!dmResource::GetResourceTypeGraphicsRestoreOrder(factory, name_hash, &bucket))
             {
                 continue;
             }
@@ -1531,6 +1508,13 @@ namespace dmRender
         // re-uploads need the compressed-texture formats back, and the VAO regeneration below routes
         // through an extension on WebGL1) and regenerates the global VAO.
         dmGraphics::RecreateGraphicsHandles(context->m_GraphicsContext);
+
+        // The context is safe to use from here on — tell the engine (which forwards to extensions
+        // owning private GPU state) before the resource worklist starts re-uploading content.
+        if (context->m_ContextEventListener)
+        {
+            context->m_ContextEventListener(context->m_ContextEventListenerUserData, CONTEXT_RESTORED);
+        }
         return true;
     }
 
@@ -1608,6 +1592,12 @@ namespace dmRender
         {
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
+            if (render_context->m_ContextEventListener)
+            {
+                render_context->m_ContextEventListener(render_context->m_ContextEventListenerUserData, CONTEXT_LOST);
+            }
+            // NOTE: the matching CONTEXT_RESTORED is dispatched from StartResourceReload once the
+            // context is actually safe to use again, not at the raw platform restore event.
         }
         if (render_context->m_CallbackInfo != 0x0)
         {
@@ -1628,6 +1618,12 @@ namespace dmRender
             (void)ret;
             dmScript::TeardownCallback(cbk);
         }
+    }
+
+    void SetRenderContextEventListener(HRenderContext context, RenderContextEventListener listener, void* user_data)
+    {
+        context->m_ContextEventListener = listener;
+        context->m_ContextEventListenerUserData = user_data;
     }
 
     void SetRenderPause(HRenderContext context, uint8_t is_paused)

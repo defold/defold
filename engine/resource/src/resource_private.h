@@ -74,6 +74,10 @@ struct ResourceType
     dmhash_t            m_ExtensionHash;
     const char*         m_Extension; // The suffix, without the '.'
     void*               m_Context;
+    // Recreation bucket for graphics context restore (render.reload_resources); only
+    // meaningful when m_HasGraphicsRestoreOrder is set. See ResourceTypeSetGraphicsRestoreOrder.
+    uint8_t             m_GraphicsRestoreOrder;
+    uint8_t             m_HasGraphicsRestoreOrder : 1;
     FResourcePreload    m_PreloadFunction;
     FResourceCreate     m_CreateFunction;
     FResourcePostCreate m_PostCreateFunction;

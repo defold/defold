@@ -173,6 +173,17 @@ TEST(RecreateByHashTest, RecreateByHash)
     ASSERT_FALSE(dmResource::IsResourceCreatedFromMemory(factory, name_hash));
     ASSERT_FALSE(dmResource::IsResourceCreatedFromMemory(factory, dmHashString64("does/not/exist")));
 
+    // Types take part in the context-restore worklist only after opting in with
+    // ResourceTypeSetGraphicsRestoreOrder (the mechanism extensions use for their own types).
+    uint8_t restore_order = 0xFF;
+    ASSERT_FALSE(dmResource::GetResourceTypeGraphicsRestoreOrder(factory, name_hash, &restore_order));
+    HResourceType foo_type;
+    ASSERT_EQ(RESOURCE_RESULT_OK, ResourceGetTypeFromExtension(factory, "foo", &foo_type));
+    ResourceTypeSetGraphicsRestoreOrder(foo_type, RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS);
+    ASSERT_TRUE(dmResource::GetResourceTypeGraphicsRestoreOrder(factory, name_hash, &restore_order));
+    ASSERT_EQ((uint8_t) RESOURCE_GRAPHICS_RESTORE_ORDER_BUFFERS, restore_order);
+    ASSERT_FALSE(dmResource::GetResourceTypeGraphicsRestoreOrder(factory, dmHashString64("does/not/exist"), &restore_order));
+
     // A resource created directly from an in-memory buffer IS flagged: it has no byte source in
     // any mount, so the reload worklist must skip it (recreate-by-hash can never succeed).
     const char* memory_resource_name = "/__testcreatedfrommemory__.foo";

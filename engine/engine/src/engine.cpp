@@ -315,6 +315,20 @@ namespace dmEngine
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
 
+    // Forwards graphics context loss/restore to extensions owning private GPU state (outside the
+    // engine's asset handles): CONTEXT_LOST right after rendering was paused; CONTEXT_RESTORED at
+    // the safe point where the context is usable again (see SetRenderContextEventListener).
+    static void OnRenderContextEvent(void* user_data, dmRender::RenderContextEvent event_type)
+    {
+        Engine* engine = (Engine*)user_data;
+        ScopedExtensionParams params(engine);
+
+        dmExtension::Event event;
+        event.m_Event = event_type == dmRender::CONTEXT_LOST ? EXTENSION_EVENT_ID_GRAPHICS_CONTEXT_LOST
+                                                             : EXTENSION_EVENT_ID_GRAPHICS_CONTEXT_RESTORED;
+        dmExtension::DispatchEvent( params, &event );
+    }
+
     static void SetupComponentCreateContext(HEngine engine, dmGameObject::ComponentTypeCreateCtx& component_create_ctx, dmGameObject::ComponentTypeCreateCtxImpl& component_create_ctx_impl)
     {
         component_create_ctx_impl.m_ContextRegistry = engine->m_ContextRegistry;
@@ -1428,6 +1442,7 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
+        dmRender::SetRenderContextEventListener(engine->m_RenderContext, OnRenderContextEvent, engine);
         PopulateContextRegistry(engine, engine->m_SharedScriptContext ? engine->m_SharedScriptContext : engine->m_GOScriptContext);
 
         dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);

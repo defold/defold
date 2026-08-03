@@ -62,6 +62,14 @@ typedef enum ExtensionResult
  *
  * EVENT_ID_ICONIFYAPP and EVENT_ID_DEICONIFYAPP only available on [icon:osx] [icon:windows] [icon:linux]
  *
+ * EXTENSION_EVENT_ID_GRAPHICS_CONTEXT_LOST is sent when the graphics context has been lost (e.g. a
+ * lost WebGL context on [icon:html5]): every GPU object is invalid and no graphics calls should be
+ * made. EXTENSION_EVENT_ID_GRAPHICS_CONTEXT_RESTORED is sent when the context is usable again —
+ * context-level state (extensions, render targets) has been restored and it is safe to create and
+ * upload GPU objects; extensions owning private GPU state (outside the engine's asset handles)
+ * should recreate it here. Note that resource-backed engine objects are still being recreated by
+ * `render.reload_resources` at this point.
+ *
  * @enum
  * @name ExtensionEventID
  * @member EXTENSION_EVENT_ID_ACTIVATEAPP
@@ -70,6 +78,8 @@ typedef enum ExtensionResult
  * @member EXTENSION_EVENT_ID_DEICONIFYAPP
  * @member EXTENSION_EVENT_ID_ENGINE_INITIALIZED
  * @member EXTENSION_EVENT_ID_ENGINE_DELETE
+ * @member EXTENSION_EVENT_ID_GRAPHICS_CONTEXT_LOST
+ * @member EXTENSION_EVENT_ID_GRAPHICS_CONTEXT_RESTORED
  *
  */
 typedef enum ExtensionEventID
@@ -80,6 +90,8 @@ typedef enum ExtensionEventID
     EXTENSION_EVENT_ID_DEICONIFYAPP,
     EXTENSION_EVENT_ID_ENGINE_INITIALIZED,
     EXTENSION_EVENT_ID_ENGINE_DELETE,
+    EXTENSION_EVENT_ID_GRAPHICS_CONTEXT_LOST,
+    EXTENSION_EVENT_ID_GRAPHICS_CONTEXT_RESTORED,
 } ExtensionEventID;
 
 /*# extra callback type

@@ -503,10 +503,8 @@ namespace dmGraphics
     // Resource-backed objects (textures, programs, buffers) are regenerated in place by their own
     // recreate paths.
     void        RecreateGraphicsHandles(HContext context);
-    // Incremented on every InvalidateGraphicsHandles (context loss). Component worlds that upload
-    // GPU objects only on changes (e.g. comp_model custom vertex attribute buffers) compare this
-    // against a cached value to know that their objects were lost and must be re-uploaded.
-    uint32_t    GetInvalidationGeneration(HContext context);
+    // GetInvalidationGeneration (bumped by InvalidateGraphicsHandles) is declared in the dmsdk
+    // header: extensions use it the same way comp_model does for its custom attribute buffers.
 
     /** checks if the texture format is compressed
      * @name IsFormatTranscoded

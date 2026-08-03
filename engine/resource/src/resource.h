@@ -242,6 +242,17 @@ namespace dmResource
     bool IsResourceCreatedFromMemory(HFactory factory, dmhash_t name_hash);
 
     /**
+     * Get the graphics restore order (recreation bucket) of an already loaded resource's type,
+     * see ResourceTypeSetGraphicsRestoreOrder. Used by the render reload driver to build the
+     * recreation worklist after a graphics context restore.
+     * @param factory Resource factory
+     * @param name_hash Hashed canonical name of the resource
+     * @param out_order (out) The recreation bucket, set on success
+     * @return true if the resource is loaded and its type has opted into graphics restore
+     */
+    bool GetResourceTypeGraphicsRestoreOrder(HFactory factory, dmhash_t name_hash, uint8_t* out_order);
+
+    /**
      * Get type for resource
      * @param factory Factory handle
      * @param resource Resource

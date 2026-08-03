@@ -1355,6 +1355,17 @@ bool IsResourceCreatedFromMemory(HFactory factory, dmhash_t name_hash)
     return rd != 0x0 && rd->m_CreatedFromMemory;
 }
 
+bool GetResourceTypeGraphicsRestoreOrder(HFactory factory, dmhash_t name_hash, uint8_t* out_order)
+{
+    dmMutex::ScopedLock lk(factory->m_LoadMutex);
+    ResourceDescriptor* rd = factory->m_Resources->Get(name_hash);
+    if (rd == 0x0)
+    {
+        return false;
+    }
+    return ResourceTypeGetGraphicsRestoreOrder((ResourceType*) rd->m_ResourceType, out_order);
+}
+
 Result SetResource(HFactory factory, uint64_t hashed_name, void* data, uint32_t datasize)
 {
     DM_PROFILE(__FUNCTION__);

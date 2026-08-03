@@ -65,6 +65,10 @@ namespace dmRender
         CacheGlyph*                 m_Cache;        // The data (i.e. the pool)
         uint16_t*                   m_CacheIndices; // Indices into the cache array
         uint32_t                    m_CacheCursor;
+        // Last seen dmGraphics::GetInvalidationGeneration value; a mismatch means the graphics
+        // context was lost, so the cache texture storage and the glyph bookkeeping must be reset
+        // (the cached glyph pixels are gone from the GPU).
+        uint32_t                    m_ObservedInvalidationGeneration;
 
         FGlyphCacheMiss         m_OnGlyphCacheMiss;
         void*                   m_OnGlyphCacheMissContext;

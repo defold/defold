@@ -269,6 +269,17 @@ namespace dmRender
     bool IsRenderPaused(HRenderContext context);
 
     /**
+     * Native listener for graphics context loss/restore, used by the engine to forward the events
+     * to extensions. CONTEXT_LOST is dispatched right after rendering has been paused and the
+     * graphics handles invalidated. CONTEXT_RESTORED is dispatched at the point where the context
+     * is safe to use again — after the context-level objects (extensions, VAO, render targets)
+     * have been recreated at the start of a resource reload — NOT at the raw platform restore
+     * event (the GPU objects are still dead there).
+     */
+    typedef void (*RenderContextEventListener)(void* user_data, RenderContextEvent event);
+    void SetRenderContextEventListener(HRenderContext context, RenderContextEventListener listener, void* user_data);
+
+    /**
      * Start recreating, in chunks across frames, all GPU resources that were created from resource
      * files (textures, shaders, buffers, meshes, render targets). Intended to be called from a render
      * script after a graphics context has been restored (e.g. WebGL context restore on HTML5).

@@ -357,6 +357,10 @@ namespace dmRender
         HComputeProgram             m_ComputeProgram;
         dmMessage::HSocket          m_Socket;
 
+        // See SetRenderContextEventListener (render.h)
+        RenderContextEventListener  m_ContextEventListener;
+        void*                       m_ContextEventListenerUserData;
+
         uint32_t                    m_LightBufferDirtyStart;
         uint32_t                    m_LightBufferDirtyEnd;
         uint32_t                    m_LightBufferInfoWriteStart;

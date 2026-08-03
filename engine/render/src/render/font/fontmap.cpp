@@ -241,6 +241,7 @@ namespace dmRender
         }
 
         font_map->m_GraphicsContext = graphics_context;
+        font_map->m_ObservedInvalidationGeneration = dmGraphics::GetInvalidationGeneration(graphics_context);
         RecreateTexture(font_map, font_map->m_GraphicsContext, font_map->m_CacheWidth, font_map->m_CacheHeight);
         return true;
     }
@@ -585,6 +586,17 @@ namespace dmRender
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
         bool texture_too_small = IsTextureTooSmall(font_map);
         bool update_cache = font_map->m_IsCacheSizeDirty || texture_too_small;
+
+        // A lost graphics context wiped both the cache texture storage and the cached glyph
+        // pixels; the glyphs are only ever uploaded via sub-updates on cache misses, so the
+        // bookkeeping must be reset too — ResetCache re-allocates the storage and makes every
+        // glyph re-upload lazily as it is drawn again.
+        uint32_t invalidation_generation = dmGraphics::GetInvalidationGeneration(font_map->m_GraphicsContext);
+        if (invalidation_generation != font_map->m_ObservedInvalidationGeneration)
+        {
+            font_map->m_ObservedInvalidationGeneration = invalidation_generation;
+            update_cache = true;
+        }
 
         if (update_cache)
         {
