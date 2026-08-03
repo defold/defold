@@ -68,7 +68,10 @@
         issue->summary (fn [{:keys [title type]}]
                          ;; the summary wraps in the disclosure header; links and
                          ;; author go in the body
-                         (format "<strong>%s</strong>: %s" type title))
+                         (let [type (if (= "BREAKING CHANGE" type)
+                                      (format "<span class=\"error\">%s</span>" type)
+                                      type)]
+                           (format "<strong>%s</strong>: %s" type title)))
         issue->body (fn [{:keys [author body pr_number url] :as issue}]
                       (let [closed (issue->closed-issues issue)
                             meta (str (when (pos? (count closed)) (str "Closes " closed ". "))
