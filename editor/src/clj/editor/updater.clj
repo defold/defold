@@ -236,6 +236,32 @@
               downloaded-sha1
               editor-sha1))))
 
+(defn- bundled-release-notes [version]
+  (when-let [url (io/resource (str "release-notes/" version ".json"))]
+    (try
+      (with-open [reader (io/reader url)]
+        (json/read reader :key-fn keyword))
+      (catch Exception _
+        nil))))
+
+(defn- slot-markdown [current-version {:keys [version notes]}]
+  (cond
+    (not notes)
+    (str "# Defold " version "\n\n_Failed to download these release notes._")
+
+    (= version current-version)
+    (let [bundled (bundled-release-notes version)
+          diffed (if-not bundled
+                   notes
+                   (let [seen (into #{} (map :url) (:issues bundled))]
+                     (update notes :issues (fn [issues] (into [] (remove (comp seen :url)) issues)))))]
+      (if (coll/empty? (:issues diffed))
+        (str "# Defold " version "\n\n_No new release notes since your current build._")
+        (release-notes-markdown diffed)))
+
+    :else
+    (release-notes-markdown notes)))
+
 (defn release-notes
   "Returns {:markdown <string> :versions <newest-first version strings>}, or nil
   if there's nothing to show for the current update."
@@ -244,15 +270,9 @@
         slots (:release-notes state)]
     (when (and (= (:release-notes-sha state) (:server-sha1 state))
                (not (coll/empty? slots)))
-      {:markdown (coll/join-to-string
-                   "\n\n---\n\n"
-                   (e/map (fn [{:keys [version notes]}]
-                            (if notes
-                              (release-notes-markdown notes)
-                              (str "# Defold " version
-                                   "\n\n_Failed to download these release notes._")))
-                          slots))
-       :versions (mapv :version slots)})))
+      (let [current-version (system/defold-version)]
+        {:markdown (coll/join-to-string "\n\n---\n\n" (e/map #(slot-markdown current-version %) slots))
+         :versions (mapv :version slots)}))))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
