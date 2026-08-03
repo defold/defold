@@ -125,11 +125,13 @@
           pre-text (g/node-value node-id :preview-text)
           no-break (s/replace pre-text " " "")
           [w h] (font/measure font-map pre-text true (:cache-width font-map) 0 1)
-          [ew eh] (font/measure font-map no-break true (:cache-width font-map) 0 1)]
+          [ew eh] (font/measure font-map no-break true (:cache-width font-map) 0 1)
+          text-layout (font/layout-text font-map pre-text false 0 0.125 1)]
       (is (.contains pre-text " "))
       (is (not (.contains no-break " ")))
       (is (< w ew))
-      (is (< eh h)))))
+      (is (< eh h))
+      (is (= 0.125 (:text-tracking text-layout))))))
 
 (deftest build-targets-do-not-generate-font-map
   (test-util/with-loaded-project

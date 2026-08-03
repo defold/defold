@@ -431,11 +431,9 @@
 
 (defn- native-layout-text
   [font-map text line-break? max-width text-tracking text-leading]
-  (let [line-height (+ ^double (:max-descent font-map) ^double (:max-ascent font-map))
-        pixel-tracking (* line-height text-tracking)
-        ^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
+  (let [^NativeRendererSpec renderer-spec (:native-renderer-spec font-map)
         ^FontRenderer renderer (scene-cache/request-object! ::native-measure-renderers renderer-spec nil renderer-spec)
-        ^FontRenderer$Layout layout (.measure renderer text line-break? (float max-width) (float text-leading) (float pixel-tracking))]
+        ^FontRenderer$Layout layout (.measure renderer text line-break? (float max-width) (float text-leading) (float text-tracking))]
     {:width (double (.-width layout))
      :height (double (.-height layout))
      :line-count (long (.-lineCount layout))
@@ -444,7 +442,7 @@
      :text text
      :line-break line-break?
      :layout-width max-width
-     :text-tracking pixel-tracking
+     :text-tracking text-tracking
      :text-leading text-leading}))
 
 (defn measure
