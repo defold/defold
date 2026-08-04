@@ -397,8 +397,8 @@
          :style-class "md-table"
          :column-constraints (vec (repeat cols
                                           {:fx/type fx.column-constraints/lifecycle
-                                           :min-width 75
-                                           :hgrow :sometimes}))
+                                           :min-width 100
+                                           :max-width 1000}))
          :children views}))))
 
 (defn- construct-image [src base-resource]
