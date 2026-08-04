@@ -125,22 +125,24 @@ set(ENGINE_BUILTINS_COMPILED_DIR "${ENGINE_BUILTINS_WORK_ROOT}/build/default/bui
 set(ENGINE_BUILTINS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/content/builtins.stamp")
 defold_get_graphics_symbols(ENGINE_GRAPHICS_SYMBOLS "${TARGET_PLATFORM}")
 set(ENGINE_SHADER_OUTPUT_ARGS)
-# App manifests can relink Apple engines to GL/GLES even when the default
-# CMake graphics symbols only include Vulkan/Metal-capable adapters.
+# Builtin content is embedded into engine.lib before extender/app-manifest
+# relinking happens, so include shader languages for adapters that a platform
+# can select later even if they are not in the default engine symbol set.
 if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR "GraphicsAdapterOpenGLES" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output glsl)
 endif()
-# App manifests can also relink Apple engines to Vulkan/MoltenVK.
 if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS
-    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios)$")
+    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|x86_64-ios|arm64-ios|x86_64-win32|x86-win32|x86_64-linux|arm64-linux|armv7-android|arm64-android)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output spirv)
 endif()
-if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+if("GraphicsAdapterWebGPU" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output wgsl)
 endif()
-if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS)
+if("GraphicsAdapterDX12" IN_LIST ENGINE_GRAPHICS_SYMBOLS
+    OR TARGET_PLATFORM MATCHES "^(x86_64-win32)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output hlsl)
 endif()
 if("GraphicsAdapterMetal" IN_LIST ENGINE_GRAPHICS_SYMBOLS
@@ -367,14 +369,16 @@ endif()
 
 set(ENGINE_RESOURCE_SYMBOLS
   ResourceTypeGameObject ResourceTypeCollection ResourceTypeScript ResourceTypeLua
-  ResourceTypeAnim ResourceTypeAnimationSet ResourceTypeGui ResourceTypeGuiScript
+  ResourceTypeAnim ResourceTypeAnimationSet ResourceTypeGui ResourceTypeGuiScript ResourceTypeParticleFX ResourceTypeTileMap
   ResourceTypeOgg ResourceTypeOpus ResourceTypeWav ResourceTypeFont ResourceTypeTTF
   ResourceProviderFile ResourceProviderArchive ResourceProviderZip ResourceTypeLight)
 set(ENGINE_COMPONENT_SYMBOLS
-  ComponentTypeAnim ComponentTypeScript ComponentTypeGui ComponentTypeMesh ComponentTypeSound ComponentTypeLight)
+  ComponentTypeAnim ComponentTypeScript ComponentTypeGui ComponentTypeMesh ComponentTypeSound ComponentTypeLight
+  ComponentTypeParticleFX ComponentTypeTileMap)
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont)
+  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptLibParticleFX ScriptLibTileMap)
 if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)
 elseif(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
@@ -504,6 +508,8 @@ defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 set(ENGINE_HEADLESS_SYMBOLS
   LiveUpdateExt
   ScriptTypesExt
+  ScriptLibParticleFX
+  ScriptLibTileMap
   GraphicsAdapterNull
   ${ENGINE_PROFILE_SYMBOLS}
   ${ENGINE_RESOURCE_SYMBOLS}
