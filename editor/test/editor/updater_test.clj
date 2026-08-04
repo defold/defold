@@ -49,12 +49,12 @@
                           test-port channel))
 
                 updater/release-notes-manifest-url
-                (fn [archive-domain channel]
+                (fn [_archive-domain channel]
                   (format "http://localhost:%s/editor2/channels/%s/release-notes/manifest.json"
                           test-port channel))
 
                 updater/release-notes-version-url
-                (fn [archive-domain channel version]
+                (fn [_archive-domain channel version]
                   (format "http://localhost:%s/editor2/channels/%s/release-notes/%s.json"
                           test-port channel version))]
     (f)))
