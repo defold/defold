@@ -113,6 +113,13 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
     "${DEFOLD_HOME}/engine/texc/src/*"
     "${DEFOLD_HOME}/engine/modelc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/modelc/src/*"
+    "${DEFOLD_HOME}/engine/ddf/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/ddf/src/*"
+    "${DEFOLD_HOME}/engine/platform/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/platform/src/*"
+    "${DEFOLD_HOME}/engine/graphics/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/graphics/proto/*"
+    "${DEFOLD_HOME}/engine/graphics/src/*"
     "${DEFOLD_HOME}/engine/font/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/font/src/*"
     "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt"
@@ -178,6 +185,9 @@ set(DEFOLD_HOST_LIBS
   jni
   texc
   modelc
+  ddf
+  platform
+  graphics
   font
   shaderc)
 set(DEFOLD_TARGET_LIBS ${DEFOLD_ENGINE_LIBS})

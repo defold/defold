@@ -60,6 +60,9 @@ set_target_properties(font_skribidi PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sd
 defold_add_library(font_render STATIC ${FONT_RENDER_SOURCES})
 target_include_directories(font_render PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}")
 target_compile_definitions(font_render PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
+if(TARGET graphics_proto_header)
+  add_dependencies(font_render graphics_proto_header)
+endif()
 defold_target_link_libraries(font_render "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_RENDER_DEPENDENCIES})
 
 set(FONT_RENDERER_IS_DESKTOP OFF)
