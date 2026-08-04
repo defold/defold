@@ -3125,7 +3125,26 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language);
+    #define SHADERDESC_ENUM_TO_STR_CASE(x) case ShaderDesc::x: return #x;
+
+    static const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language)
+    {
+        switch(language)
+        {
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM430);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM330);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_WGSL);
+            default:break;
+        }
+        return "<unknown ShaderDesc::Language>";
+    }
+
+    #undef SHADERDESC_ENUM_TO_STR_CASE
 
     static const char* GetShaderVariantName(const ShaderDesc::Shader* shader)
     {
