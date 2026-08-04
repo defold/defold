@@ -124,6 +124,8 @@ set(ENGINE_TEST_SYMBOLS
   ProfilerExt
   GraphicsAdapterNull
   ScriptModelExt
+  ScriptLibParticleFX
+  ScriptLibTileMap
   ${ENGINE_RESOURCE_SYMBOLS}
   ${ENGINE_COMPONENT_SYMBOLS})
 set(ENGINE_TEST_EXPORTS_CPP "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_test_engine.cpp")

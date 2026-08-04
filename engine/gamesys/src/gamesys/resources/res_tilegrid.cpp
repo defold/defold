@@ -246,4 +246,24 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    static ResourceResult RegisterResourceTypeTileMap(HResourceTypeContext ctx, HResourceType type)
+    {
+        void* physics_context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
+        if (!physics_context)
+        {
+            dmLogError("Missing resource context for 'tilemapc'");
+            return RESOURCE_RESULT_INVAL;
+        }
+        return (ResourceResult) dmResource::SetupType(ctx,
+                                                      type,
+                                                      physics_context,
+                                                      ResTileGridPreload,
+                                                      ResTileGridCreate,
+                                                      0,
+                                                      ResTileGridDestroy,
+                                                      ResTileGridRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeTileMap, "tilemapc", dmGameSystem::RegisterResourceTypeTileMap, 0);
