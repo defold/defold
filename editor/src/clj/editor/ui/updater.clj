@@ -112,6 +112,65 @@
       :later nil
       :update (updater/download-and-extract! updater))))
 
+(defn- handle-update-check! [stage project updater install-and-restart! localization ignore-skip]
+  (let [can-install (updater/can-install-update? updater)
+        update-exists (if ignore-skip
+                        (updater/can-download-update? updater)
+                        (updater/update-advertised? updater))
+        can-get-new (and update-exists (updater/platform-supported? updater))]
+    (cond
+      (and can-install can-get-new)
+      (let [sha1 (updater/current-update-sha1 updater)]
+        (case (dialogs/make-download-update-or-restart-dialog stage localization)
+          :cancel nil
+          :skip (updater/skip-update! updater sha1)
+          :download (prompt-and-download! stage project updater localization true)
+          :restart (install-and-restart!)))
+
+      can-get-new
+      (prompt-and-download! stage project updater localization false)
+
+      can-install
+      (when (dialogs/make-confirmation-dialog
+              localization
+              {:title (localization/message "updater.dialog.title")
+               :icon :icon/circle-question
+               :header (localization/message "updater.dialog.header")
+               :buttons [{:text (localization/message "updater.dialog.button.not-now")
+                          :cancel-button true
+                          :result false}
+                         {:text (localization/message "updater.dialog.button.install-and-restart")
+                          :default-button true
+                          :result true}]
+               :owner stage})
+        (install-and-restart!))
+
+      ;; A newer version exists, but newer releases no longer support this
+      ;; platform, so there's nothing to download.
+      update-exists
+      (dialogs/make-platform-no-longer-supported-dialog stage localization)
+
+      :else
+      (dialogs/make-info-dialog
+        localization
+        {:title (localization/message "updater.up-to-date-dialog.title")
+         :icon :icon/circle-info
+         :owner stage
+         :header (localization/message "updater.up-to-date-dialog.header")}))))
+
+(defn check-for-updates! [stage project updater install-and-restart! localization]
+  (future
+    (let [checked? (updater/check! updater)]
+      (ui/run-later
+        (if checked?
+          (handle-update-check! stage project updater install-and-restart! localization true)
+          (dialogs/make-info-dialog
+            localization
+            {:title (localization/message "updater.check-failed-dialog.title")
+             :icon :icon/triangle-error
+             :owner stage
+             :header (localization/message "updater.check-failed-dialog.header")}))))))
+
 (defn init! [^Stage stage link project updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]
     (ui/on-closing! stage
@@ -121,41 +180,7 @@
         true))
     (localization/localize! link localization (localization/message "updater.button.update-available"))
     (ui/on-action! link
-      (fn [_]
-        (let [can-install (updater/can-install-update? updater)
-              advertised (updater/update-advertised? updater)
-              can-get-new (and advertised (updater/platform-supported? updater))]
-          (cond
-            (and can-install can-get-new)
-            (let [sha1 (updater/current-update-sha1 updater)]
-              (case (dialogs/make-download-update-or-restart-dialog stage localization)
-                :cancel nil
-                :skip (updater/skip-update! updater sha1)
-                :download (prompt-and-download! stage project updater localization true)
-                :restart (install-and-restart!)))
-
-            can-get-new
-            (prompt-and-download! stage project updater localization false)
-
-            can-install
-            (when (dialogs/make-confirmation-dialog
-                    localization
-                    {:title (localization/message "updater.dialog.title")
-                     :icon :icon/circle-question
-                     :header (localization/message "updater.dialog.header")
-                     :buttons [{:text (localization/message "updater.dialog.button.not-now")
-                                :cancel-button true
-                                :result false}
-                               {:text (localization/message "updater.dialog.button.install-and-restart")
-                                :default-button true
-                                :result true}]
-                     :owner stage})
-              (install-and-restart!))
-
-            ;; A newer version exists, but newer releases no longer support this
-            ;; platform, so there's nothing to download.
-            advertised
-            (dialogs/make-platform-no-longer-supported-dialog stage localization)))))
+      (fn [_] (handle-update-check! stage project updater install-and-restart! localization false)))
     (updater/add-progress-watch updater render-progress!)
     (updater/add-state-watch updater link-fn)
     (.addEventHandler stage

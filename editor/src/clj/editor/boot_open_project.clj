@@ -386,6 +386,7 @@
                          :workspace           (g/node-value project :workspace)
                          :outline-view        outline-view
                          :web-server          web-server
+                         :updater             updater
                          :build-errors-view   build-errors-view
                          :console-view        console-view
                          :scene-visibility    scene-visibility

@@ -29,7 +29,7 @@
             [util.net :as net])
   (:import [com.defold.editor Editor]
            [com.dynamo.bob Platform]
-           [java.io ByteArrayOutputStream File IOException]
+           [java.io ByteArrayOutputStream File]
            [java.nio.file Files CopyOption StandardCopyOption]
            [java.nio.file.attribute FileAttribute]
            [java.util Timer TimerTask]
@@ -494,7 +494,11 @@
       (doseq [^File file backup-files]
         (.delete file)))))
 
-(defn- check! [updater]
+(defn check!
+  "Checks for updates immediately. Returns true if the check completed (even
+  if no update was found), or false if it failed, e.g. a network error or a
+  malformed response."
+  [updater]
   (let [{:keys [channel state-atom]} updater
         archive-domain (system/defold-archive-domain)
         url (update-url archive-domain channel)]
@@ -526,11 +530,13 @@
                        :release-notes slots
                        :release-notes-sha update-sha1
                        :release-notes-complete? (and (not (coll/empty? slots))
-                                                     (coll/every? :notes slots))))))))
-      (catch IOException e
+                                                     (coll/every? :notes slots)))))))
+        true)
+      (catch Exception e
         ;; Disabled during tests to minimize log spam.
         (when-not (Boolean/getBoolean "defold.tests")
-          (log/warn :message "Update check failed" :exception e))))))
+          (log/warn :message "Update check failed" :exception e))
+        false))))
 
 (defn- make-check-for-update-task ^TimerTask [^Timer timer updater update-delay]
   (proxy [TimerTask] []

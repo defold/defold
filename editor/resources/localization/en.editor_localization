@@ -130,6 +130,10 @@ updater.release-notes-dialog.title = Update Available
 updater.release-notes-dialog.header = Defold Release Summary - What''s New{count, plural, =1{ in {version}} other{}}
 updater.release-notes-dialog.button.later = Maybe Later
 updater.release-notes-dialog.button.update-now = Update Now
+updater.up-to-date-dialog.title = No Updates Available
+updater.up-to-date-dialog.header = You''re running the latest version of Defold
+updater.check-failed-dialog.title = Check Failed
+updater.check-failed-dialog.header = Could not check for updates. Please check your internet connection and try again.
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
 release-notes-dialog.title = Release Notes
@@ -1057,6 +1061,7 @@ command.help.report-suggestion = Report Suggestion
 command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
 command.help.open-release-notes = Release Notes
+command.help.check-for-updates = Check for Updates
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert

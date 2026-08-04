@@ -88,6 +88,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
+            [editor.ui.updater :as ui.updater]
             [editor.updater :as updater]
             [editor.view :as view]
             [editor.workspace :as workspace]
@@ -2062,6 +2063,8 @@
                 :command :help.open-documentation}
                {:label (localization/message "command.help.open-release-notes")
                 :command :help.open-release-notes}
+               {:label (localization/message "command.help.check-for-updates")
+                :command :help.check-for-updates}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
                {:label (localization/message "command.help.open-editor-server")
@@ -2775,6 +2778,18 @@
   (enabled? [] @release-notes-resource-delay)
   (run [localization project]
     (show-release-notes-dialog! localization project)))
+
+(handler/defhandler :help.check-for-updates :global
+  (enabled? [updater] (some? updater))
+  (run [updater project app-view changes-view main-stage localization]
+    (ui.updater/check-for-updates!
+      main-stage project updater
+      (fn []
+        (async-save! app-view changes-view project project/dirty-save-data
+                     (fn [successful? _render-reload-progress! _render-save-progress!]
+                       (when successful?
+                         (ui.updater/install-and-restart! main-stage updater localization)))))
+      localization)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [basis (:basis evaluation-context)
