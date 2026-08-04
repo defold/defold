@@ -172,21 +172,26 @@
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
 
-(def ^:private ^File update-dir
-  (io/file support-dir "update"))
+(def ^:private ^File updates-dir
+  (io/file support-dir "updates"))
 
-(def ^:private ^File update-sha1-file
-  (io/file support-dir "update.sha1"))
+(defn- channel-update-paths [channel]
+  (let [channel-dir (io/file updates-dir channel)]
+    {:update-dir (io/file channel-dir "bundle")
+     :update-sha1-file (io/file channel-dir "sha1")}))
 
 (defn- make-updater [channel editor-sha1 downloaded-sha1 platform install-dir launcher-path protected-dirs]
-  {:channel channel
-   :platform platform
-   :install-dir install-dir
-   :launcher-path launcher-path
-   :editor-sha1 editor-sha1
-   :protected-dirs protected-dirs
-   :state-atom (atom {:downloaded-sha1 downloaded-sha1
-                      :server-sha1 editor-sha1})})
+  (let [{:keys [update-dir update-sha1-file]} (channel-update-paths channel)]
+    {:channel channel
+     :platform platform
+     :install-dir install-dir
+     :launcher-path launcher-path
+     :editor-sha1 editor-sha1
+     :protected-dirs protected-dirs
+     :update-dir update-dir
+     :update-sha1-file update-sha1-file
+     :state-atom (atom {:downloaded-sha1 downloaded-sha1
+                        :server-sha1 editor-sha1})}))
 
 (defn add-progress-watch
   "Adds a watch that gets notified on download and extraction progress of
@@ -291,7 +296,7 @@
   (not (zero? (bit-and unix-mode execute-permission-flag))))
 
 (defn- extract! [updater ^File zip-file server-sha1 track-extract-progress! cancelled-atom]
-  (let [{:keys [state-atom]} updater
+  (let [{:keys [state-atom update-dir update-sha1-file]} updater
         {:keys [downloaded-sha1]} @state-atom]
     (when (some? downloaded-sha1)
       (log/info :message "Removing previously downloaded update")
@@ -332,8 +337,8 @@
 
 (defn download-and-extract!
   "Asynchronously downloads newest zip distribution to temporary directory,
-  extracts it to `{support-dir}/update` and creates `{support-dir}/update.sha1`
-  file containing downloaded update's sha1
+  extracts it to `{support-dir}/updates/{channel}/bundle` and creates
+  `{support-dir}/updates/{channel}/sha1` file containing downloaded update's sha1
 
   Returns future that eventually will contain boolean indicating the success of
   operation"
@@ -404,7 +409,7 @@
   "Installs previously downloaded update"
   [updater]
   {:pre [(can-install-update? updater)]}
-  (let [{:keys [install-dir state-atom]} updater
+  (let [{:keys [install-dir state-atom ^File update-dir update-sha1-file]} updater
         {:keys [current-download downloaded-sha1]} @state-atom]
     (when (some? current-download)
       (reset! (:cancelled-derefable current-download) true)
@@ -519,13 +524,14 @@
                             "win32" "./Defold.exe"
                             "linux" "./Defold"
                             "macos" "./Contents/MacOS/Defold"))
-        downloaded-sha1 (when (.exists update-sha1-file)
-                          (slurp update-sha1-file))
         initial-update-delay 1000
         update-delay 3600000]
     (if (or (string/blank? channel) (string/blank? sha1))
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
         nil)
-      (doto (make-updater channel sha1 downloaded-sha1 platform install-dir launcher-path protected-dirs)
-        (start-timer! initial-update-delay update-delay)))))
+      (let [^File update-sha1-file (:update-sha1-file (channel-update-paths channel))
+            downloaded-sha1 (when (.exists update-sha1-file)
+                              (slurp update-sha1-file))]
+        (doto (make-updater channel sha1 downloaded-sha1 platform install-dir launcher-path protected-dirs)
+          (start-timer! initial-update-delay update-delay))))))
