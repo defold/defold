@@ -24,14 +24,15 @@
 #include <dlib/utf8.h>
 
 #include <graphics/graphics.h>
+#include <font/internal/glyph_vertex.h>
 
 namespace dmRender
 {
     enum RenderLayerMask
     {
-        FACE    = 0x1,
+        FACE = 0x1,
         OUTLINE = 0x2,
-        SHADOW  = 0x4
+        SHADOW = 0x4
     };
 
     ///////////////////////////////////////////////////////////////////////////////
@@ -41,10 +42,14 @@ namespace dmRender
     {
         switch (align)
         {
-            case TEXT_ALIGN_LEFT:   return 0.0f;
-            case TEXT_ALIGN_RIGHT:  return width;
-            case TEXT_ALIGN_CENTER: return width * 0.5f;
-            default:                return 0.0f;
+            case TEXT_ALIGN_LEFT:
+                return 0.0f;
+            case TEXT_ALIGN_RIGHT:
+                return width;
+            case TEXT_ALIGN_CENTER:
+                return width * 0.5f;
+            default:
+                return 0.0f;
         }
     }
 
@@ -64,6 +69,16 @@ namespace dmRender
                 return height - ascent;
         }
     }
-}
+
+    uint32_t CreateFontVertexData(HFontMap         font_map,
+                                  uint32_t         frame,
+                                  const char*      text,
+                                  const TextEntry& text_entry,
+                                  float            sdf_scale,
+                                  float            recip_w,
+                                  float            recip_h,
+                                  FontGlyphVertex* vertices,
+                                  uint32_t         max_vertices);
+} // namespace dmRender
 
 #endif // #ifndef DM_FONT_RENDERER_PRIVATE_H

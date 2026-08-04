@@ -43,6 +43,7 @@
 #include "fontviewer_macos.h"
 
 #include <font.h>
+#include <font_render.h>
 #include <glyph_gen.h>
 #include <glyph_vertex.h>
 #include <text_layout.h>
@@ -1519,22 +1520,13 @@ static bool CreateGraphicsResources(Viewer* viewer)
                                                          viewer->m_Vertices.Size() * sizeof(FontGlyphVertex),
                                                          viewer->m_Vertices.Begin(),
                                                          dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-    dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(viewer->m_Context);
-    dmGraphics::AddVertexStream(streams, "position", 3, dmGraphics::TYPE_FLOAT, false);
-    dmGraphics::AddVertexStream(streams, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
-    dmGraphics::AddVertexStream(streams, "face_color", 4, dmGraphics::TYPE_FLOAT, false);
-    dmGraphics::AddVertexStream(streams, "outline_color", 4, dmGraphics::TYPE_FLOAT, false);
-    dmGraphics::AddVertexStream(streams, "shadow_color", 4, dmGraphics::TYPE_FLOAT, false);
-    dmGraphics::AddVertexStream(streams, "sdf_params", 4, dmGraphics::TYPE_FLOAT, false);
-    dmGraphics::AddVertexStream(streams, "layer_mask", 3, dmGraphics::TYPE_FLOAT, false);
-    viewer->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(viewer->m_Context, streams, sizeof(FontGlyphVertex));
-    dmGraphics::DeleteVertexStreamDeclaration(streams);
+    viewer->m_VertexDeclaration = FontCreateGlyphVertexDeclaration(viewer->m_Context);
 
     viewer->m_ColorVertexBuffer = dmGraphics::NewVertexBuffer(viewer->m_Context,
                                                               viewer->m_ColorVertices.Size() * sizeof(ColorVertex),
                                                               viewer->m_ColorVertices.Begin(),
                                                               dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-    streams = dmGraphics::NewVertexStreamDeclaration(viewer->m_Context);
+    dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(viewer->m_Context);
     dmGraphics::AddVertexStream(streams, "position", 4, dmGraphics::TYPE_FLOAT, false);
     dmGraphics::AddVertexStream(streams, "color", 4, dmGraphics::TYPE_FLOAT, false);
     viewer->m_ColorVertexDeclaration = dmGraphics::NewVertexDeclaration(viewer->m_Context, streams, sizeof(ColorVertex));

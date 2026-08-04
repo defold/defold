@@ -19,21 +19,21 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererBeginBatch;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererCreate;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererDestroy;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererDecodeImage;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererFreeGlyph;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererFreeImage;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererFreeTexture;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGenerateGlyph;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGenerateTexture;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGetVertexBufferSize;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererGetVertices;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererHash;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererMeasure;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererSetProperties;
-import static com.dynamo.bob.font.generated.FontRendererFFM.FontRendererSetText;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcBeginBatch;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcCreate;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDestroy;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcDecodeImage;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeGlyph;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertexBufferSize;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertices;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcHash;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasure;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetProperties;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcSetText;
 
 import java.io.File;
 import java.lang.foreign.Arena;
@@ -44,12 +44,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
-import com.dynamo.bob.font.generated.FontRendererGlyph;
-import com.dynamo.bob.font.generated.FontRendererImage;
-import com.dynamo.bob.font.generated.FontRendererLayout;
-import com.dynamo.bob.font.generated.FontRendererParams;
-import com.dynamo.bob.font.generated.FontRendererProperties;
-import com.dynamo.bob.font.generated.FontTexture;
+import com.dynamo.bob.font.generated.FontcGlyph;
+import com.dynamo.bob.font.generated.FontcImage;
+import com.dynamo.bob.font.generated.FontcLayout;
+import com.dynamo.bob.font.generated.FontcParams;
+import com.dynamo.bob.font.generated.FontcProperties;
+import com.dynamo.bob.font.generated.FontcTexture;
 
 /**
  * Java 25 FFM wrapper around the native Defold font renderer.
@@ -126,11 +126,11 @@ public final class FontRenderer implements AutoCloseable {
         public final float maxDescent;
 
         private Layout(MemorySegment values) {
-            width = FontRendererLayout.m_Width(values);
-            height = FontRendererLayout.m_Height(values);
-            lineCount = FontRendererLayout.m_LineCount(values);
-            maxAscent = FontRendererLayout.m_MaxAscent(values);
-            maxDescent = FontRendererLayout.m_MaxDescent(values);
+            width = FontcLayout.m_Width(values);
+            height = FontcLayout.m_Height(values);
+            lineCount = FontcLayout.m_LineCount(values);
+            maxAscent = FontcLayout.m_MaxAscent(values);
+            maxDescent = FontcLayout.m_MaxDescent(values);
         }
     }
 
@@ -144,14 +144,14 @@ public final class FontRenderer implements AutoCloseable {
         public final ByteBuffer pixels;
 
         private Texture(MemorySegment values) {
-            atlasVersion = FontTexture.m_AtlasVersion(values);
-            x = FontTexture.m_X(values);
-            y = FontTexture.m_Y(values);
-            width = FontTexture.m_Width(values);
-            height = FontTexture.m_Height(values);
-            channels = FontTexture.m_Channels(values);
-            int pixelCount = FontTexture.m_PixelCount(values);
-            pixels = pixelCount == 0 ? null : copyNativeBytes(FontTexture.m_Pixels(values), pixelCount);
+            atlasVersion = FontcTexture.m_AtlasVersion(values);
+            x = FontcTexture.m_X(values);
+            y = FontcTexture.m_Y(values);
+            width = FontcTexture.m_Width(values);
+            height = FontcTexture.m_Height(values);
+            channels = FontcTexture.m_Channels(values);
+            int pixelCount = FontcTexture.m_PixelCount(values);
+            pixels = pixelCount == 0 ? null : copyNativeBytes(FontcTexture.m_Pixels(values), pixelCount);
         }
     }
 
@@ -179,15 +179,15 @@ public final class FontRenderer implements AutoCloseable {
         public final ByteBuffer pixels;
 
         private GeneratedGlyph(MemorySegment values, boolean copyPixels) {
-            glyphIndex = FontRendererGlyph.m_GlyphIndex(values);
-            width = FontRendererGlyph.m_Width(values);
-            height = FontRendererGlyph.m_Height(values);
-            channels = FontRendererGlyph.m_Channels(values);
-            advance = FontRendererGlyph.m_Advance(values);
-            leftBearing = FontRendererGlyph.m_LeftBearing(values);
-            ascent = FontRendererGlyph.m_Ascent(values);
-            descent = FontRendererGlyph.m_Descent(values);
-            pixels = copyPixels ? copyNativeBytes(FontRendererGlyph.m_Pixels(values), FontRendererGlyph.m_PixelCount(values)) : null;
+            glyphIndex = FontcGlyph.m_GlyphIndex(values);
+            width = FontcGlyph.m_Width(values);
+            height = FontcGlyph.m_Height(values);
+            channels = FontcGlyph.m_Channels(values);
+            advance = FontcGlyph.m_Advance(values);
+            leftBearing = FontcGlyph.m_LeftBearing(values);
+            ascent = FontcGlyph.m_Ascent(values);
+            descent = FontcGlyph.m_Descent(values);
+            pixels = copyPixels ? copyNativeBytes(FontcGlyph.m_Pixels(values), FontcGlyph.m_PixelCount(values)) : null;
         }
     }
 
@@ -198,10 +198,10 @@ public final class FontRenderer implements AutoCloseable {
         public final ByteBuffer pixels;
 
         private DecodedImage(MemorySegment values) {
-            width = FontRendererImage.m_Width(values);
-            height = FontRendererImage.m_Height(values);
-            channels = FontRendererImage.m_Channels(values);
-            pixels = copyNativeBytes(FontRendererImage.m_Pixels(values), FontRendererImage.m_PixelCount(values));
+            width = FontcImage.m_Width(values);
+            height = FontcImage.m_Height(values);
+            channels = FontcImage.m_Channels(values);
+            pixels = copyNativeBytes(FontcImage.m_Pixels(values), FontcImage.m_PixelCount(values));
         }
     }
 
@@ -215,7 +215,7 @@ public final class FontRenderer implements AutoCloseable {
         @Override
         public void run() {
             if (!handle.equals(MemorySegment.NULL)) {
-                FontRendererDestroy(handle);
+                FontcDestroy(handle);
                 handle = MemorySegment.NULL;
             }
         }
@@ -248,10 +248,10 @@ public final class FontRenderer implements AutoCloseable {
 
         MemorySegment handle;
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativeParams = FontRendererParams.allocate(arena);
+            MemorySegment nativeParams = FontcParams.allocate(arena);
             writeParams(nativeParams, params);
             MemorySegment handlePointer = arena.allocate(FontRendererFFM.HFontRenderer);
-            int result = FontRendererCreate(arena.allocateFrom(name),
+            int result = FontcCreate(arena.allocateFrom(name),
                     arena.allocateFrom(JAVA_BYTE, fontBytes), fontBytes.length, nativeParams, handlePointer);
             if (result != FontRendererFFM.FONT_RENDERER_RESULT_OK())
                 throw new IllegalArgumentException("Unable to create native font renderer for " + name +
@@ -281,8 +281,8 @@ public final class FontRenderer implements AutoCloseable {
             throw new NullPointerException("text");
         int[] codepoints = text.codePoints().toArray();
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment result = FontRendererLayout.allocate(arena);
-            int status = FontRendererMeasure(requireHandle(), arena.allocateFrom(JAVA_INT, codepoints),
+            MemorySegment result = FontcLayout.allocate(arena);
+            int status = FontcMeasure(requireHandle(), arena.allocateFrom(JAVA_INT, codepoints),
                     codepoints.length, flag(lineBreak), width, leading, tracking, result);
             checkResult(status, "Native text shaping failed");
             return new Layout(result);
@@ -311,13 +311,13 @@ public final class FontRenderer implements AutoCloseable {
         if (!Character.isValidCodePoint(codepoint))
             throw new IllegalArgumentException("Invalid Unicode codepoint");
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment result = FontRendererGlyph.allocate(arena);
-            int status = FontRendererGenerateGlyph(requireHandle(), codepoint, result);
+            MemorySegment result = FontcGlyph.allocate(arena);
+            int status = FontcGenerateGlyph(requireHandle(), codepoint, result);
             checkResult(status, "Native glyph generation failed");
             try {
                 return new GeneratedGlyph(result, copyPixels);
             } finally {
-                FontRendererFreeGlyph(result);
+                FontcFreeGlyph(result);
             }
         }
     }
@@ -329,13 +329,13 @@ public final class FontRenderer implements AutoCloseable {
         if (imageBytes.length == 0)
             throw new IllegalArgumentException("Empty image");
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment result = FontRendererImage.allocate(arena);
-            checkResult(FontRendererDecodeImage(arena.allocateFrom(JAVA_BYTE, imageBytes), imageBytes.length, result),
+            MemorySegment result = FontcImage.allocate(arena);
+            checkResult(FontcDecodeImage(arena.allocateFrom(JAVA_BYTE, imageBytes), imageBytes.length, result),
                     "Native image decoding failed");
             try {
                 return new DecodedImage(result);
             } finally {
-                FontRendererFreeImage(result);
+                FontcFreeImage(result);
             }
         }
     }
@@ -353,19 +353,19 @@ public final class FontRenderer implements AutoCloseable {
             throw new IllegalArgumentException("Invalid color array size");
 
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment values = FontRendererProperties.allocate(arena);
-            FontRendererProperties.m_FaceColor(values, arena.allocateFrom(JAVA_FLOAT, properties.faceColor));
-            FontRendererProperties.m_OutlineColor(values, arena.allocateFrom(JAVA_FLOAT, properties.outlineColor));
-            FontRendererProperties.m_ShadowColor(values, arena.allocateFrom(JAVA_FLOAT, properties.shadowColor));
-            FontRendererProperties.m_Width(values, properties.width);
-            FontRendererProperties.m_Height(values, properties.height);
-            FontRendererProperties.m_Leading(values, properties.leading);
-            FontRendererProperties.m_Tracking(values, properties.tracking);
-            FontRendererProperties.m_SdfScale(values, properties.sdfScale);
-            FontRendererProperties.m_LineBreak(values, flag(properties.lineBreak));
-            FontRendererProperties.m_Align(values, properties.align);
-            FontRendererProperties.m_VerticalAlign(values, properties.verticalAlign);
-            checkResult(FontRendererSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
+            MemorySegment values = FontcProperties.allocate(arena);
+            FontcProperties.m_FaceColor(values, arena.allocateFrom(JAVA_FLOAT, properties.faceColor));
+            FontcProperties.m_OutlineColor(values, arena.allocateFrom(JAVA_FLOAT, properties.outlineColor));
+            FontcProperties.m_ShadowColor(values, arena.allocateFrom(JAVA_FLOAT, properties.shadowColor));
+            FontcProperties.m_Width(values, properties.width);
+            FontcProperties.m_Height(values, properties.height);
+            FontcProperties.m_Leading(values, properties.leading);
+            FontcProperties.m_Tracking(values, properties.tracking);
+            FontcProperties.m_SdfScale(values, properties.sdfScale);
+            FontcProperties.m_LineBreak(values, flag(properties.lineBreak));
+            FontcProperties.m_Align(values, properties.align);
+            FontcProperties.m_VerticalAlign(values, properties.verticalAlign);
+            checkResult(FontcSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
         }
     }
 
@@ -381,7 +381,7 @@ public final class FontRenderer implements AutoCloseable {
             throw new NullPointerException("text");
         int[] codepoints = text.codePoints().toArray();
         try (Arena arena = Arena.ofConfined()) {
-            checkResult(FontRendererSetText(requireHandle(), arena.allocateFrom(JAVA_INT, codepoints), codepoints.length),
+            checkResult(FontcSetText(requireHandle(), arena.allocateFrom(JAVA_INT, codepoints), codepoints.length),
                     "Unable to set native font renderer text");
         }
     }
@@ -392,7 +392,7 @@ public final class FontRenderer implements AutoCloseable {
      * <p>Exposed as Editor API for clients that cache output derived from the retained state.</p>
      */
     public synchronized long hash() {
-        return FontRendererHash(requireHandle());
+        return FontcHash(requireHandle());
     }
 
     /**
@@ -411,7 +411,7 @@ public final class FontRenderer implements AutoCloseable {
      * <p>Used by the Editor before generating textures for all text entries in a render batch.</p>
      */
     public synchronized void beginBatch() {
-        checkResult(FontRendererBeginBatch(requireHandle()), "Unable to begin native font render batch");
+        checkResult(FontcBeginBatch(requireHandle()), "Unable to begin native font render batch");
     }
 
     /**
@@ -421,15 +421,15 @@ public final class FontRenderer implements AutoCloseable {
      */
     public synchronized Texture generateTexture(long knownAtlasVersion) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment texture = FontTexture.allocate(arena);
-            int status = FontRendererGenerateTexture(requireHandle(), knownAtlasVersion, texture);
+            MemorySegment texture = FontcTexture.allocate(arena);
+            int status = FontcGenerateTexture(requireHandle(), knownAtlasVersion, texture);
             checkResult(status, "Native font texture generation failed");
             try {
                 Texture result = new Texture(texture);
                 atlasVersion = result.atlasVersion;
                 return result;
             } finally {
-                FontRendererFreeTexture(texture);
+                FontcFreeTexture(texture);
             }
         }
     }
@@ -444,7 +444,7 @@ public final class FontRenderer implements AutoCloseable {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment vertexCount = arena.allocate(JAVA_INT);
             MemorySegment vertexBufferSize = arena.allocate(JAVA_INT);
-            int status = FontRendererGetVertexBufferSize(requireHandle(), vertexCount, vertexBufferSize);
+            int status = FontcGetVertexBufferSize(requireHandle(), vertexCount, vertexBufferSize);
             checkResult(status, "Unable to calculate native font vertex buffer size");
 
             int count = vertexCount.get(JAVA_INT, 0);
@@ -475,7 +475,7 @@ public final class FontRenderer implements AutoCloseable {
             throw new IllegalArgumentException("Native font vertex buffer is too small");
 
         try (Arena arena = Arena.ofConfined()) {
-            int status = FontRendererGetVertices(requireHandle(), arena.allocateFrom(JAVA_FLOAT, worldTransform),
+            int status = FontcGetVertices(requireHandle(), arena.allocateFrom(JAVA_FLOAT, worldTransform),
                     MemorySegment.ofBuffer(vertexBuffer), requirements.byteCount);
             checkResult(status, "Native font vertex generation failed");
             vertexBuffer.position(vertexBuffer.position() + requirements.byteCount);
@@ -499,25 +499,25 @@ public final class FontRenderer implements AutoCloseable {
     }
 
     private static void writeParams(MemorySegment values, Params params) {
-        FontRendererParams.m_Size(values, params.size);
-        FontRendererParams.m_AtlasWidth(values, params.cacheWidth);
-        FontRendererParams.m_AtlasHeight(values, params.cacheHeight);
-        FontRendererParams.m_CellPadding(values, params.cacheCellPadding);
-        FontRendererParams.m_SdfBasePadding(values, params.sdfBasePadding);
-        FontRendererParams.m_SdfEdgeValue(values, params.sdfEdgeValue);
-        FontRendererParams.m_SdfSpread(values, params.sdfSpread);
-        FontRendererParams.m_SdfOutline(values, params.sdfOutline);
-        FontRendererParams.m_SdfShadow(values, params.sdfShadow);
-        FontRendererParams.m_OutlineWidth(values, params.outlineWidth);
-        FontRendererParams.m_ShadowBlur(values, params.shadowBlur);
-        FontRendererParams.m_ShadowX(values, params.shadowX);
-        FontRendererParams.m_ShadowY(values, params.shadowY);
-        FontRendererParams.m_LayerMask(values, params.layerMask);
-        FontRendererParams.m_OutputBitmap(values, flag(params.outputBitmap));
-        FontRendererParams.m_Antialias(values, flag(params.antialias));
-        FontRendererParams.m_HasOutline(values, flag(params.hasOutline));
-        FontRendererParams.m_HasShadow(values, flag(params.hasShadow));
-        FontRendererParams.m_UseTextShaping(values, flag(params.useTextShaping));
+        FontcParams.m_Size(values, params.size);
+        FontcParams.m_AtlasWidth(values, params.cacheWidth);
+        FontcParams.m_AtlasHeight(values, params.cacheHeight);
+        FontcParams.m_CellPadding(values, params.cacheCellPadding);
+        FontcParams.m_SdfBasePadding(values, params.sdfBasePadding);
+        FontcParams.m_SdfEdgeValue(values, params.sdfEdgeValue);
+        FontcParams.m_SdfSpread(values, params.sdfSpread);
+        FontcParams.m_SdfOutline(values, params.sdfOutline);
+        FontcParams.m_SdfShadow(values, params.sdfShadow);
+        FontcParams.m_OutlineWidth(values, params.outlineWidth);
+        FontcParams.m_ShadowBlur(values, params.shadowBlur);
+        FontcParams.m_ShadowX(values, params.shadowX);
+        FontcParams.m_ShadowY(values, params.shadowY);
+        FontcParams.m_LayerMask(values, params.layerMask);
+        FontcParams.m_OutputBitmap(values, flag(params.outputBitmap));
+        FontcParams.m_Antialias(values, flag(params.antialias));
+        FontcParams.m_HasOutline(values, flag(params.hasOutline));
+        FontcParams.m_HasShadow(values, flag(params.hasShadow));
+        FontcParams.m_UseTextShaping(values, flag(params.useTextShaping));
     }
 
     private static int flag(boolean value) {

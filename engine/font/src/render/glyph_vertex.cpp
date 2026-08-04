@@ -20,6 +20,10 @@ using dmVMath::Vector4;
 
 #define HAS_LAYER(mask, layer) (((mask) & (layer)) == (layer))
 
+// A glyph has one six-vertex quad for each possible layer: shadow, outline, and face.
+static const uint32_t FONT_GLYPH_VERTICES_PER_QUAD = 6;
+static const uint32_t FONT_GLYPH_MAX_LAYER_COUNT = 3;
+
 static void SetPosition(float* position, const Vector4& value)
 {
     position[0] = value[0];
@@ -53,6 +57,8 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
                            bool                    metrics_from_ttf,
                            FontGlyphVertex*        vertices)
 {
+    assert(layer_count > 0 && layer_count <= FONT_GLYPH_MAX_LAYER_COUNT);
+
     float glyph_width;
     float glyph_descent;
     float glyph_ascent;
@@ -139,7 +145,7 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
     if (HAS_LAYER(layer_mask, FONT_RENDER_LAYER_OUTLINE))
     {
         const uint32_t outline_index = vertex_index + vertex_layer_stride * (layer_count - 2);
-        for (uint32_t i = 0; i < 6; ++i)
+        for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
         {
             vertices[outline_index + i] = vertices[face_index + i];
             SET_MASK(vertices[outline_index + i], 0, 1, 0)
@@ -149,7 +155,7 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
     if (HAS_LAYER(layer_mask, FONT_RENDER_LAYER_SHADOW))
     {
         const uint32_t shadow_index = vertex_index;
-        for (uint32_t i = 0; i < 6; ++i)
+        for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
             vertices[shadow_index + i] = vertices[face_index + i];
 
         FontGlyphVertex& shadow_1 = vertices[shadow_index + 0];
@@ -164,14 +170,14 @@ void FontPackGlyphVertices(FontGlyph*              glyph,
         SetPosition(shadow_6.m_Position, transform * Vector4(local_x + glyph_left_bearing + shadow_x + glyph_width, y + glyph_ascent + shadow_y, 0, 1));
         shadow_4 = shadow_3;
         shadow_5 = shadow_2;
-        for (uint32_t i = 0; i < 6; ++i)
+        for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
         {
             SET_MASK(vertices[shadow_index + i], 0, 0, 1)
         }
     }
 
     const uint8_t one_layer = layer_count == 1 ? 1 : 0;
-    for (uint32_t i = 0; i < 6; ++i)
+    for (uint32_t i = 0; i < FONT_GLYPH_VERTICES_PER_QUAD; ++i)
     {
         SET_MASK(vertices[face_index + i], 1, one_layer, one_layer)
     }

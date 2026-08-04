@@ -39,9 +39,6 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    struct FontRenderBackend;
-    typedef FontRenderBackend* HFontRenderBackend;
-
 #define DEBUG_3D_NAME "_debug3d"
 
     struct Sampler
@@ -187,20 +184,19 @@ namespace dmRender
     {
         dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
-        dmGraphics::HVertexBuffer           m_VertexBuffer;
-        void*                               m_ClientBuffer;
-        dmGraphics::HVertexDeclaration      m_VertexDecl;
-        HFontRenderBackend                  m_FontRenderBackend;
-        uint32_t                            m_RenderObjectIndex;
-        uint32_t                            m_VertexIndex;
-        uint32_t                            m_MaxVertexCount;
-        uint32_t                            m_VerticesFlushed;
-        dmArray<char>                       m_TextBuffer;
+        dmArray<uint8_t>                        m_ClientBuffer;
+        dmGraphics::HVertexBuffer               m_VertexBuffer;
+        dmGraphics::HVertexDeclaration          m_VertexDecl;
+        uint32_t                                m_RenderObjectIndex;
+        uint32_t                                m_VertexIndex;
+        uint32_t                                m_MaxVertexCount;
+        uint32_t                                m_VerticesFlushed;
+        dmArray<char>                           m_TextBuffer;
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
-        dmArray<TextEntry>                  m_TextEntries;
-        uint32_t                            m_TextEntriesFlushed;
-        uint32_t                            m_Frame;
-        uint32_t                            m_PreviousFrame;
+        dmArray<TextEntry> m_TextEntries;
+        uint32_t           m_TextEntriesFlushed;
+        uint32_t           m_Frame;
+        uint32_t           m_PreviousFrame;
     };
 
     struct RenderScriptContext

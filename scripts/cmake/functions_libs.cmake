@@ -26,6 +26,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   engine_service_null
   extension
   font
+  font_render
   font_skribidi
   gameobject
   gamesys
@@ -83,7 +84,6 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   record
   record_null
   render
-  render_font_default
   resource
   rig
   rig_null

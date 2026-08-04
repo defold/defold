@@ -16,7 +16,8 @@ function(font_configure_test target font_target)
     testmain
     dlib
     profile_null
-    ${font_target})
+    ${font_target}
+    font_render)
   defold_target_link_socket(${target} "${TARGET_PLATFORM}" PRIVATE)
   defold_register_test_target(${target} ON "${FONT_ROOT}"
     STAGE_FILES
@@ -120,7 +121,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
   set_target_properties(fontviewer PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
   target_include_directories(fontviewer PRIVATE
     "${FONT_SRC_DIR}"
-    "${FONT_RENDERER_SRC_DIR}"
+    "${FONT_RENDER_SRC_DIR}"
     "${FONT_ROOT}"
     "${FONTVIEWER_GENERATED_DIR}"
     "${GRAPHICS_SRC_DIR}"
@@ -131,7 +132,8 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     ddf
     dlib
     profile_null
-    font_skribidi)
+    font_skribidi
+    font_render)
   set(WITH_OPENGL ON)
   defold_target_link_graphics(fontviewer "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_platform(fontviewer "${TARGET_PLATFORM}" SCOPE PRIVATE)

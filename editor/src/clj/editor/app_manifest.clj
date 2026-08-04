@@ -131,7 +131,6 @@
     "record"
     "record_null"
     "render"
-    "render_font_default"
     "resource"
     "rig"
     "rig_null"

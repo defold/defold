@@ -9,17 +9,22 @@ add_compile_definitions(DLIB_LOG_DOMAIN="FONT")
 
 set(FONT_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(FONT_SRC_DIR "${FONT_ROOT}/src")
-set(FONT_RENDERER_SRC_DIR "${FONT_SRC_DIR}/renderer")
+set(FONT_RENDER_SRC_DIR "${FONT_SRC_DIR}/render")
+set(FONTC_SRC_DIR "${FONT_SRC_DIR}/fontc")
 set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/font.h"
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/text_layout.h")
-set(FONT_RENDERER_PUBLIC_HEADERS
-  "${FONT_RENDERER_SRC_DIR}/font_renderer.h")
-set(FONT_RENDERER_INTERNAL_HEADERS
-  "${FONT_RENDERER_SRC_DIR}/glyph_gen.h"
-  "${FONT_RENDERER_SRC_DIR}/glyph_vertex.h")
+set(FONT_RENDER_PUBLIC_HEADERS
+  "${FONT_RENDER_SRC_DIR}/font_render.h")
+set(FONT_INTERNAL_HEADERS
+  "${FONT_RENDER_SRC_DIR}/glyph_gen.h")
+set(FONT_RENDER_INTERNAL_HEADERS
+  "${FONT_RENDER_SRC_DIR}/glyph_vertex.h")
 set(FONT_DEPENDENCIES dlib)
+set(FONT_RENDER_DEPENDENCIES
+  dlib
+  graphics)
 set(FONT_SKRIBIDI_DEPENDENCIES
   dlib
   harfbuzz
@@ -32,22 +37,30 @@ file(GLOB_RECURSE FONT_DMSDK_HEADERS CONFIGURE_DEPENDS
 
 file(GLOB FONT_SOURCES CONFIGURE_DEPENDS "${FONT_SRC_DIR}/*.cpp")
 list(APPEND FONT_SOURCES
-  "${FONT_RENDERER_SRC_DIR}/glyph_gen.cpp"
-  "${FONT_RENDERER_SRC_DIR}/glyph_vertex.cpp")
+  "${FONT_RENDER_SRC_DIR}/glyph_gen.cpp")
+
+set(FONT_RENDER_SOURCES
+  "${FONT_RENDER_SRC_DIR}/font_render.cpp"
+  "${FONT_RENDER_SRC_DIR}/glyph_vertex.cpp")
 
 defold_add_library(font STATIC ${FONT_SOURCES})
-target_include_directories(font PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDERER_SRC_DIR}" "${FONT_ROOT}")
+target_include_directories(font PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}")
 target_compile_definitions(font PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
 defold_target_link_libraries(font "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_DEPENDENCIES})
 
 defold_add_library(font_skribidi STATIC ${FONT_SOURCES})
-target_include_directories(font_skribidi PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDERER_SRC_DIR}" "${FONT_ROOT}")
+target_include_directories(font_skribidi PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}")
 target_compile_definitions(font_skribidi PRIVATE
   "DLIB_LOG_DOMAIN=\"FONT\""
   FONT_USE_HARFBUZZ
   FONT_USE_SKRIBIDI)
 defold_target_link_libraries(font_skribidi "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_SKRIBIDI_DEPENDENCIES})
 set_target_properties(font_skribidi PROPERTIES DEFOLD_SDK_HEADERS_TARGET font_sdk_headers)
+
+defold_add_library(font_render STATIC ${FONT_RENDER_SOURCES})
+target_include_directories(font_render PUBLIC "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONT_ROOT}")
+target_compile_definitions(font_render PRIVATE "DLIB_LOG_DOMAIN=\"FONT\"")
+defold_target_link_libraries(font_render "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_RENDER_DEPENDENCIES})
 
 set(FONT_RENDERER_IS_DESKTOP OFF)
 if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(macos|linux)$|^x86_64-win32$")
@@ -57,11 +70,13 @@ endif()
 if(FONT_RENDERER_IS_DESKTOP)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
-  add_library(fontc_shared SHARED "${FONT_RENDERER_SRC_DIR}/font_renderer.cpp")
+  add_library(fontc_shared SHARED "${FONTC_SRC_DIR}/fontc.cpp")
   defold_target_skip_sanitizer(fontc_shared)
-  target_include_directories(fontc_shared PRIVATE "${FONT_SRC_DIR}" "${FONT_RENDERER_SRC_DIR}")
-  target_compile_definitions(fontc_shared PRIVATE FONT_USE_HARFBUZZ FONT_USE_SKRIBIDI)
-  defold_target_link_libraries(fontc_shared "${TARGET_PLATFORM}" font_skribidi image profile_null)
+  target_include_directories(fontc_shared PRIVATE "${FONT_SRC_DIR}" "${FONT_RENDER_SRC_DIR}" "${FONTC_SRC_DIR}")
+  target_compile_definitions(fontc_shared PRIVATE
+    FONT_USE_HARFBUZZ
+    FONT_USE_SKRIBIDI)
+  defold_target_link_libraries(fontc_shared "${TARGET_PLATFORM}" font_skribidi font_render image profile_null)
   defold_codesign_target(fontc_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   set(FONT_RENDERER_JAR "${CMAKE_CURRENT_BINARY_DIR}/fontrenderer.jar")
@@ -74,12 +89,12 @@ if(FONT_RENDERER_IS_DESKTOP)
   set(FONT_RENDERER_GENERATED_JAVA
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererFFM.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererSymbols.java"
-    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererGlyph.java"
-    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererImage.java"
-    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererLayout.java"
-    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererParams.java"
-    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererProperties.java"
-    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontTexture.java")
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcGlyph.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcImage.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcLayout.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcParams.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcProperties.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcTexture.java")
   set(FONT_RENDERER_JAVA
     "${FONT_RENDERER_JAVA_ROOT}/com/dynamo/bob/font/BMFont.java"
     "${FONT_RENDERER_JAVA_ROOT}/com/dynamo/bob/font/FontRenderer.java"
@@ -87,11 +102,11 @@ if(FONT_RENDERER_IS_DESKTOP)
   add_custom_target(generate_font_renderer_ffm
     COMMAND "${Python3_EXECUTABLE}" "${FONT_RENDERER_BINDING_GENERATOR}"
             --jextract "${DEFOLD_JEXTRACT_EXECUTABLE}"
-            --header "${FONT_RENDERER_SRC_DIR}/font_renderer.h"
+            --header "${FONTC_SRC_DIR}/fontc.h"
             --include-dir "${FONT_ROOT}/../dlib/src"
             --output "${FONT_RENDERER_GENERATED_JAVA_ROOT}"
-    DEPENDS "${FONT_RENDERER_SRC_DIR}/font_renderer.h" "${FONT_RENDERER_BINDING_GENERATOR}"
-    COMMENT "Generating Java 25 FFM bindings for font_renderer.h")
+    DEPENDS "${FONTC_SRC_DIR}/fontc.h" "${FONT_RENDERER_BINDING_GENERATOR}"
+    COMMENT "Generating Java 25 FFM bindings for fontc.h")
   # Generated bindings are committed. Normal builds only verify their embedded
   # header hash so jextract is needed solely when regenerating them explicitly.
   set(FONT_RENDERER_BINDINGS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/font-renderer-bindings.stamp")
@@ -99,12 +114,12 @@ if(FONT_RENDERER_IS_DESKTOP)
     OUTPUT "${FONT_RENDERER_BINDINGS_STAMP}"
     COMMAND "${Python3_EXECUTABLE}" "${FONT_RENDERER_BINDING_GENERATOR}"
             --check
-            --header "${FONT_RENDERER_SRC_DIR}/font_renderer.h"
+            --header "${FONTC_SRC_DIR}/fontc.h"
             --include-dir "${FONT_ROOT}/../dlib/src"
             --output "${FONT_RENDERER_GENERATED_JAVA_ROOT}"
     COMMAND "${CMAKE_COMMAND}" -E touch "${FONT_RENDERER_BINDINGS_STAMP}"
-    DEPENDS "${FONT_RENDERER_SRC_DIR}/font_renderer.h" "${FONT_RENDERER_BINDING_GENERATOR}" ${FONT_RENDERER_GENERATED_JAVA}
-    COMMENT "Verifying Java 25 FFM bindings for font_renderer.h")
+    DEPENDS "${FONTC_SRC_DIR}/fontc.h" "${FONT_RENDERER_BINDING_GENERATOR}" ${FONT_RENDERER_GENERATED_JAVA}
+    COMMENT "Verifying Java 25 FFM bindings for fontc.h")
   add_custom_target(verify_font_renderer_ffm DEPENDS "${FONT_RENDERER_BINDINGS_STAMP}")
   add_custom_command(
     OUTPUT "${FONT_RENDERER_JAR}"
@@ -124,7 +139,7 @@ if(FONT_RENDERER_IS_DESKTOP)
   install(FILES "${FONT_RENDERER_JAR}" DESTINATION share/java)
 endif()
 
-defold_install_targets(TARGETS font font_skribidi
+defold_install_targets(TARGETS font font_skribidi font_render
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
@@ -134,16 +149,21 @@ defold_add_sdk_headers_target(font_public_sdk_headers
   SOURCE_ROOT "${FONT_SRC_DIR}"
   FILES ${FONT_PUBLIC_HEADERS}
   DEPENDS font)
-defold_add_sdk_headers_target(font_renderer_sdk_headers
+defold_add_sdk_headers_target(font_render_sdk_headers
   DESTINATION include/font
-  SOURCE_ROOT "${FONT_RENDERER_SRC_DIR}"
-  FILES ${FONT_RENDERER_PUBLIC_HEADERS}
-  DEPENDS font)
-defold_add_sdk_headers_target(font_renderer_internal_sdk_headers
+  SOURCE_ROOT "${FONT_RENDER_SRC_DIR}"
+  FILES ${FONT_RENDER_PUBLIC_HEADERS}
+  DEPENDS font_render)
+defold_add_sdk_headers_target(font_internal_sdk_headers
   DESTINATION include/font/internal
-  SOURCE_ROOT "${FONT_RENDERER_SRC_DIR}"
-  FILES ${FONT_RENDERER_INTERNAL_HEADERS}
+  SOURCE_ROOT "${FONT_RENDER_SRC_DIR}"
+  FILES ${FONT_INTERNAL_HEADERS}
   DEPENDS font)
+defold_add_sdk_headers_target(font_render_internal_sdk_headers
+  DESTINATION include/font/internal
+  SOURCE_ROOT "${FONT_RENDER_SRC_DIR}"
+  FILES ${FONT_RENDER_INTERNAL_HEADERS}
+  DEPENDS font_render)
 defold_add_sdk_headers_target(font_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk
   SOURCE_ROOT "${FONT_SRC_DIR}/dmsdk"
@@ -151,10 +171,12 @@ defold_add_sdk_headers_target(font_dmsdk_sdk_headers
   DEPENDS font)
 set(FONT_SDK_HEADER_TARGETS
   font_public_sdk_headers
-  font_renderer_sdk_headers
-  font_renderer_internal_sdk_headers
+  font_render_sdk_headers
+  font_internal_sdk_headers
+  font_render_internal_sdk_headers
   font_dmsdk_sdk_headers
-  dlib_sdk_headers)
+  dlib_sdk_headers
+  graphics_sdk_headers)
 add_custom_target(font_sdk_headers
   DEPENDS ${FONT_SDK_HEADER_TARGETS})
 
@@ -163,8 +185,9 @@ install(FILES
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/text_layout.h"
   DESTINATION include/font)
-install(FILES ${FONT_RENDERER_PUBLIC_HEADERS} DESTINATION include/font)
-install(FILES ${FONT_RENDERER_INTERNAL_HEADERS} DESTINATION include/font/internal)
+install(FILES ${FONT_RENDER_PUBLIC_HEADERS} DESTINATION include/font)
+install(FILES ${FONT_INTERNAL_HEADERS} DESTINATION include/font/internal)
+install(FILES ${FONT_RENDER_INTERNAL_HEADERS} DESTINATION include/font/internal)
 install(DIRECTORY "${FONT_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
 if(BUILD_TESTS)
