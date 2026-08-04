@@ -43,6 +43,12 @@
 (defn- update-url [archive-domain channel]
   (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
 
+(defn- release-notes-manifest-url [archive-domain channel]
+  (format (get-in connection-properties [:updater :release-notes-manifest-url-template]) archive-domain channel))
+
+(defn- release-notes-version-url [archive-domain channel version]
+  (format (get-in connection-properties [:updater :release-notes-version-url-template]) archive-domain channel version))
+
 (defn release-notes-markdown
   ^String [release-notes]
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
@@ -122,17 +128,17 @@
 (def ^:private descending-version-order (.reversed util/natural-order))
 
 (defn- versions-to-fetch
-  "Picks which versions to show from the manifest: the ones newer than the
-  running editor, newest first, capped at `release-notes-range-limit`. Bad
-  version strings are skipped. If we don't know the current version (dev builds),
-  everything counts, so you get the most recent few."
+  "Picks which versions to show from the manifest: the running editor's own
+  version and anything newer, newest first, capped at `release-notes-range-limit`.
+  Bad version strings are skipped. If we don't know the current version (dev
+  builds), everything counts, so you get the most recent few."
   [manifest-versions current-version]
   (let [current (when (version-string? current-version) current-version)]
     (into []
           (take release-notes-range-limit)
           (sort descending-version-order
                 (e/filter #(and (version-string? %)
-                                (or (nil? current) (newer-version? % current)))
+                                (or (nil? current) (not (newer-version? current %))))
                           manifest-versions)))))
 
 (defn- fetch-json!
@@ -147,12 +153,10 @@
         nil))))
 
 (defn- fetch-manifest! [archive-domain channel]
-  (fetch-json! (format (get-in connection-properties [:updater :release-notes-manifest-url-template])
-                       archive-domain channel)))
+  (fetch-json! (release-notes-manifest-url archive-domain channel)))
 
 (defn- fetch-version-notes! [archive-domain channel version]
-  (fetch-json! (format (get-in connection-properties [:updater :release-notes-version-url-template])
-                       archive-domain channel version)))
+  (fetch-json! (release-notes-version-url archive-domain channel version)))
 
 (defn fetch-release-notes!
   "Downloads the notes to show for the available update. Reads the channel

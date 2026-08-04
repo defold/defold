@@ -46,7 +46,17 @@
                 updater/update-url
                 (fn [archive-domain channel]
                   (format "http://localhost:%s/editor2/channels/%s/update-v4.json"
-                          test-port channel))]
+                          test-port channel))
+
+                updater/release-notes-manifest-url
+                (fn [_archive-domain channel]
+                  (format "http://localhost:%s/editor2/channels/%s/release-notes/manifest.json"
+                          test-port channel))
+
+                updater/release-notes-version-url
+                (fn [_archive-domain channel version]
+                  (format "http://localhost:%s/editor2/channels/%s/release-notes/%s.json"
+                          test-port channel version))]
     (f)))
 
 (defn- test-support-dir-fixture [f]
@@ -62,7 +72,10 @@
    (http-server/json-response {:sha1 sha1})
 
    (format "/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair (Platform/getHostPlatform)))
-   (http-server/response 200 (io/resource "test-update.zip"))})
+   (http-server/response 200 (io/resource "test-update.zip"))
+
+   (format "/editor2/channels/%s/release-notes/manifest.json" channel)
+   (http-server/json-response [])})
 
 (defn- make-resource-handler [channel sha1]
   (let [resources (make-handler-resources channel sha1)]
@@ -265,11 +278,11 @@
 
 (deftest versions-to-fetch-test
   (let [vtf #'updater/versions-to-fetch]
-    ;; only versions strictly newer than current, newest first
-    (is (= ["1.13.2" "1.13.1"]
+    ;; versions at or newer than current, newest first; older is dropped
+    (is (= ["1.13.2" "1.13.1" "1.13.0"]
            (vtf ["1.13.0" "1.13.1" "1.13.2"] "1.13.0")))
-    ;; equal version is excluded
-    (is (= [] (vtf ["1.13.0"] "1.13.0")))
+    ;; equal version is included
+    (is (= ["1.13.0"] (vtf ["1.13.0"] "1.13.0")))
     ;; nil current -> most recent N, newest first
     (is (= ["1.13.2" "1.13.1" "1.13.0"]
            (vtf ["1.13.0" "1.13.2" "1.13.1"] nil)))
