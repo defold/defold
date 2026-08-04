@@ -102,6 +102,21 @@ function resolvedResult() {
     };
 }
 
+function deferredResult() {
+    let onResolved = null;
+    let onRejected = null;
+    return {
+        promise: {
+            then: (resolved, rejected) => {
+                onResolved = resolved;
+                onRejected = rejected;
+            }
+        },
+        resolve: () => onResolved(),
+        reject: () => onRejected()
+    };
+}
+
 function makeAudioContext(options = {}) {
     const contexts = [];
     class FakeAudioContext {
@@ -116,6 +131,7 @@ function makeAudioContext(options = {}) {
             this.destination = {};
             this.onstatechange = null;
             this.startedBuffers = 0;
+            this.resumeCalls = 0;
             this.sources = [];
             this.closed = false;
             contexts.push(this);
@@ -148,8 +164,12 @@ function makeAudioContext(options = {}) {
             return source;
         }
         resume() {
+            this.resumeCalls++;
             if (options.throwOnResume) {
                 throw new Error("Audio resume failed");
+            }
+            if (options.resumeResult) {
+                return options.resumeResult;
             }
             this.state = "running";
             if (this.onstatechange) {
@@ -308,6 +328,43 @@ function testResumeFailureAndClosedContextFallBack() {
     assert.strictEqual(warnings.length, 1);
 }
 
+function testStaleResumeResultDoesNotAffectRecoveredContext() {
+    resetEnvironment();
+    const staleResume = deferredResult();
+    const StaleAudioContext = makeAudioContext({
+        initialState: "suspended",
+        resumeResult: staleResume.promise
+    });
+    global.AudioContext = StaleAudioContext;
+    global.LibrarySoundDevice.dmDeviceJSOpen(4);
+    global.DefoldSoundDevice.TryResumeAudio();
+
+    const staleContext = StaleAudioContext.contexts[0];
+    staleContext.state = "closed";
+    staleContext.onstatechange();
+
+    const recoveredResume = deferredResult();
+    const RecoveredAudioContext = makeAudioContext({
+        initialState: "suspended",
+        resumeResult: recoveredResume.promise
+    });
+    global.AudioContext = RecoveredAudioContext;
+    global.DefoldSoundDevice.TryResumeAudio();
+
+    const recoveredContext = RecoveredAudioContext.contexts[0];
+    assert.strictEqual(global._dmJSDeviceShared.resumePending, true);
+    staleResume.reject();
+    assert.strictEqual(global._dmJSDeviceShared.resumePending, true);
+
+    advanceTime(2000);
+    assert.strictEqual(recoveredContext.resumeCalls, 1);
+
+    recoveredContext.state = "running";
+    recoveredContext.onstatechange();
+    recoveredResume.resolve();
+    assert.strictEqual(global._dmJSDeviceShared.resumePending, false);
+}
+
 function testSharedContextAndCleanup() {
     resetEnvironment();
     const FakeAudioContext = makeAudioContext();
@@ -342,6 +399,7 @@ testInteractionAndDeviceChangeRecoverImmediately();
 testQueueFailureFallsBackAndRecovers();
 testSuspendCancelsQueuedSourcesBeforeRecovery();
 testResumeFailureAndClosedContextFallBack();
+testStaleResumeResultDoesNotAffectRecoveredContext();
 testSharedContextAndCleanup();
 
 process.stdout.write("HTML5 sound device tests passed\n");
