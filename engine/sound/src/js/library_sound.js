@@ -41,6 +41,7 @@ var LibrarySoundDevice =
         NotifyContextStateChanged: function(shared) {
             var audioCtx = shared.audioCtx;
             var running = audioCtx !== undefined && audioCtx.state == "running";
+            // Retries can report the same state repeatedly. Reset device queues only on a real transition.
             if (running != shared.contextRunning) {
                 shared.contextRunning = running;
                 DefoldSoundDevice.ForEachDevice(shared, function(device) {
@@ -70,6 +71,7 @@ var LibrarySoundDevice =
             }
 
             var audioCtx = shared.audioCtx;
+            // Detach the failed context first so every device immediately switches to silent clocking.
             shared.audioCtx = undefined;
             shared.resumePending = false;
             if (audioCtx !== undefined) {
@@ -102,9 +104,11 @@ var LibrarySoundDevice =
 
             var audioCtx;
             try {
+                // The default sample rate varies by output device and can be lower than 44100 Hz.
                 audioCtx = new audioCtxCtor({ sampleRate: 48000 });
             } catch (e) {
                 try {
+                    // Some browsers do not support requesting a sample rate in the constructor.
                     audioCtx = new audioCtxCtor();
                 } catch (fallbackError) {
                     return undefined;
@@ -142,6 +146,7 @@ var LibrarySoundDevice =
                 try {
                     var resumeResult = audioCtx.resume();
                     if (resumeResult && resumeResult.then) {
+                        // Interaction may supersede an earlier pending resume. Ignore results from stale attempts.
                         var resumeAttempt = ++shared.resumeAttempt;
                         shared.resumePending = true;
                         resumeResult.then(function() {
@@ -185,6 +190,7 @@ var LibrarySoundDevice =
             }
 
             shared.retryTimer = root.setTimeout(function() {
+                // One shared timer services every Defold sound device on the page.
                 shared.retryTimer = null;
                 if (!DefoldSoundDevice.HasDevices(shared)) {
                     return;
@@ -252,6 +258,7 @@ var LibrarySoundDevice =
 
         var id = shared.count++;
         var audioCtx = DefoldSoundDevice.TryCreateAudioContext(shared);
+        // Keep this rate for the device lifetime. A recovered Web Audio context resamples if necessary.
         var sampleRate = audioCtx !== undefined ? audioCtx.sampleRate : 48000;
         if (audioCtx === undefined) {
             DefoldSoundDevice.WarnSilentFallback(shared);
@@ -295,8 +302,10 @@ var LibrarySoundDevice =
                 var now = DefoldSoundDevice.Now();
                 var audioTime = running && shared.audioCtx !== undefined ? (shared.audioCtx.currentTime || 0) : 0;
                 if (!running) {
+                    // The native mixer keeps advancing silently, so queued Web Audio must not replay on recovery.
                     this._cancelActiveSources();
                 }
+                // Change clocks without resetting native sound instances or their logical playback position.
                 this._resetQueueDecay(audioTime);
                 this.creatingTime = now;
                 this.lastTimeInSuspendedState = now;
@@ -324,6 +333,7 @@ var LibrarySoundDevice =
             },
             _trackActiveSource: function(source) {
                 var device = this;
+                // Keep scheduled sources only so context transitions and device close can cancel them.
                 this.activeSources.push(source);
                 source.onended = function() {
                     var index = device.activeSources.indexOf(source);
@@ -334,6 +344,7 @@ var LibrarySoundDevice =
             },
             _queueSilently: function(bufferDuration) {
                 var suspendedTime = this._getCurrentSuspendedTime();
+                // After an idle gap, start at wall-clock time instead of extending an expired queue.
                 this.suspendedBufferedTo = Math.max(this.suspendedBufferedTo, suspendedTime) + bufferDuration;
                 this.ignoreNextUnderrun = true;
             },
@@ -570,6 +581,7 @@ var LibrarySoundDevice =
                     this.bufferedTo += frame_count;
                 } catch (e) {
                     DefoldSoundDevice.HandleAudioFailure(shared, audioCtx);
+                    // Account for the failed real buffer once so native playback continues at the same rate.
                     this._queueSilently(len);
                 }
             },
@@ -622,6 +634,7 @@ var LibrarySoundDevice =
             return;
         }
 
+        // The context and recovery hooks are shared, so release them only after the final device closes.
         if (shared.retryTimer !== null && root.clearTimeout) {
             root.clearTimeout(shared.retryTimer);
             shared.retryTimer = null;
