@@ -369,11 +369,11 @@
      :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
                 :result :cancel}
-               {:text (localization/message "updater.dialog.button.skip-newer-version")
+               {:text (localization/message "updater.dialog.button.skip-newer-release")
                 :result :skip}
                {:text (localization/message "updater.dialog.button.install-and-restart")
                 :result :restart}
-               {:text (localization/message "updater.dialog.button.download-newer-version")
+               {:text (localization/message "updater.dialog.button.download-newer-release")
                 :result :download}]}))
 
 (defn make-platform-no-longer-supported-dialog [^Stage owner localization]
@@ -402,7 +402,7 @@
      :buttons [{:text (localization/message "updater.dialog.button.not-now")
                 :cancel-button true
                 :result :later}
-               {:text (localization/message "updater.dialog.button.skip-version")
+               {:text (localization/message "updater.dialog.button.skip-release")
                 :result :skip}
                {:text (localization/message "updater.dialog.button.download")
                 :default-button true

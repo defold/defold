@@ -123,7 +123,7 @@ updater.dialog.header = Установить Загруженное Обновл
 updater.dialog.button.not-now = Не Сейчас
 updater.dialog.button.download = Загрузить Обновление
 updater.dialog.button.install-and-restart = Установить и Перезапустить
-updater.dialog.button.download-newer-version = Загрузить Более Новую Версию
+updater.dialog.button.download-newer-release = Загрузить Более Новую Версию
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
 

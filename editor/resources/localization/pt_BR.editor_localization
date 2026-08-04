@@ -123,7 +123,7 @@ updater.dialog.header = Instalar a atualização baixada e reiniciar?
 updater.dialog.button.not-now = Agora Não
 updater.dialog.button.download = Baixar Atualização
 updater.dialog.button.install-and-restart = Instalar e Reiniciar
-updater.dialog.button.download-newer-version = Baixar Versão Mais Recente
+updater.dialog.button.download-newer-release = Baixar Versão Mais Recente
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
 

@@ -120,7 +120,7 @@ updater.dialog.header = 安装已下载的更新并重启？
 updater.dialog.button.not-now = 稍后​​​​​
 updater.dialog.button.download = 下载更新
 updater.dialog.button.install-and-restart = 安装并重启
-updater.dialog.button.download-newer-version = 下载新版本
+updater.dialog.button.download-newer-release = 下载新版本
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
 
