@@ -15,7 +15,7 @@
 #ifndef DM_FONT_RENDER_H
 #define DM_FONT_RENDER_H
 
-#include <graphics/graphics.h>
+#include <dmsdk/graphics/graphics.h>
 
 /**
  * Creates a graphics vertex declaration matching FontGlyphVertex.
