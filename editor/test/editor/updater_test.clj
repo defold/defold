@@ -16,6 +16,7 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [editor.fs :as fs]
+            [editor.system :as system]
             [editor.updater :as updater]
             [util.http-server :as http-server])
   (:import [ch.qos.logback.classic Level Logger]
@@ -307,16 +308,16 @@
     (is (= ["1.13.2" "1.13.1" "1.13.0"]
            (mapv :version (#'updater/fetch-release-notes! "d" "test"))))))
 
-(deftest fetch-release-notes-keeps-failed-slots
-  ;; a version whose file fails stays as a slot with nil notes, in order
+(deftest fetch-release-notes-keeps-failed-entries
+  ;; a version whose file fails stays as an entry with nil notes, in order
   (with-redefs [updater/fetch-manifest! (fn [_ _] ["1.14.0" "1.13.0"])
                 updater/fetch-version-notes! (fn [_ _ v]
                                                (when (= v "1.14.0")
                                                  {:version v :issues []}))]
-    (let [slots (#'updater/fetch-release-notes! "d" "test")]
-      (is (= ["1.14.0" "1.13.0"] (mapv :version slots)))
-      (is (some? (:notes (first slots))))
-      (is (nil? (:notes (second slots)))))))
+    (let [entries (#'updater/fetch-release-notes! "d" "test")]
+      (is (= ["1.14.0" "1.13.0"] (mapv :version entries)))
+      (is (some? (:notes (first entries))))
+      (is (nil? (:notes (second entries)))))))
 
 (deftest fetch-release-notes-nil-when-manifest-fails
   (with-redefs [updater/fetch-manifest! (fn [_ _] nil)]
@@ -378,7 +379,7 @@
     (is (nil? (updater/release-notes updater)))))
 
 (deftest check-retries-when-selection-empty
-  ;; manifest present but nothing newer than the running editor -> empty slots,
+  ;; manifest present but nothing newer than the running editor -> empty entries,
   ;; which must NOT count as complete, so the next check retries
   (with-open [_ (start-update-server! "test" "2")]
     (let [fetches (atom 0)]
@@ -389,3 +390,65 @@
           (#'updater/check! updater)
           (#'updater/check! updater)
           (is (= 2 @fetches)))))))
+
+(defn- issue [pr-number type duplicate]
+  {:author "tester"
+   :pr_number pr-number
+   :title (str "Issue for PR " pr-number)
+   :type type
+   :url (str "https://github.com/defold/defold/pull/" pr-number)
+   :closed_issues []
+   :repository "defold"
+   :duplicate duplicate
+   :labels []
+   :body ""})
+
+(defn- notes-map [version issues]
+  {:version version :issues issues :external-link "https://forum"})
+
+(deftest release-notes-drops-issues-already-in-bundled
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :server-sha1 "B" :release-notes-sha "B"
+           :release-notes [{:version "9.9.9"
+                            :notes (notes-map "9.9.9" [(issue 1 "FIX" false) (issue 2 "FIX" false)])}])
+    (with-redefs [system/defold-version (constantly "9.9.9")
+                  updater/bundled-release-notes (constantly (notes-map "9.9.9" [(issue 1 "FIX" false)]))]
+      (let [md (:markdown (updater/release-notes updater))]
+        (is (re-find #"Issue for PR 2" md))
+        (is (not (re-find #"Issue for PR 1" md)))))))
+
+(deftest release-notes-shows-no-new-message-when-fully-seen
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :server-sha1 "B" :release-notes-sha "B"
+           :release-notes [{:version "9.9.9"
+                            :notes (notes-map "9.9.9" [(issue 1 "FIX" false)])}])
+    (with-redefs [system/defold-version (constantly "9.9.9")
+                  updater/bundled-release-notes (constantly (notes-map "9.9.9" [(issue 1 "FIX" false)]))]
+      (let [md (:markdown (updater/release-notes updater))]
+        (is (re-find #"(?i)no new release notes" md))
+        (is (not (re-find #"Issue for PR 1" md)))))))
+
+(deftest release-notes-does-not-diff-newer-versions
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :server-sha1 "B" :release-notes-sha "B"
+           :release-notes [{:version "9.9.10"
+                            :notes (notes-map "9.9.10" [(issue 1 "FIX" false)])}])
+    (with-redefs [system/defold-version (constantly "9.9.9")
+                  updater/bundled-release-notes (constantly (notes-map "9.9.9" [(issue 1 "FIX" false)]))]
+      (let [md (:markdown (updater/release-notes updater))]
+        (is (re-find #"Issue for PR 1" md))))))
+
+(deftest release-notes-shows-full-notes-when-bundled-unavailable
+  (let [updater (make-updater "test" "1")]
+    (swap! (:state-atom updater) assoc
+           :server-sha1 "B" :release-notes-sha "B"
+           :release-notes [{:version "9.9.9"
+                            :notes (notes-map "9.9.9" [(issue 1 "FIX" false) (issue 2 "FIX" false)])}])
+    (with-redefs [system/defold-version (constantly "9.9.9")
+                  updater/bundled-release-notes (constantly nil)]
+      (let [md (:markdown (updater/release-notes updater))]
+        (is (re-find #"Issue for PR 1" md))
+        (is (re-find #"Issue for PR 2" md))))))

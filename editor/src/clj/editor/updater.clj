@@ -245,23 +245,43 @@
               downloaded-sha1
               editor-sha1))))
 
+(defn- bundled-release-notes [version]
+  (when-let [url (io/resource (str "release-notes/" version ".json"))]
+    (try
+      (with-open [reader (io/reader url)]
+        (json/read reader :key-fn keyword))
+      (catch Exception _
+        nil))))
+
+(defn- entry-markdown [current-version {:keys [version notes]}]
+  (cond
+    (not notes)
+    (str "# Defold " version "\n\n_Failed to download these release notes._")
+
+    (= version current-version)
+    (let [bundled (bundled-release-notes version)
+          diffed (if-not bundled
+                   notes
+                   (let [seen (into #{} (map :url) (:issues bundled))]
+                     (update notes :issues (fn [issues] (into [] (remove (comp seen :url)) issues)))))]
+      (if (coll/empty? (:issues diffed))
+        (str "# Defold " version "\n\n_No new release notes since your current build._")
+        (release-notes-markdown diffed)))
+
+    :else
+    (release-notes-markdown notes)))
+
 (defn release-notes
   "Returns {:markdown <string> :versions <newest-first version strings>}, or nil
   if there's nothing to show for the current update."
   [updater]
   (let [state @(:state-atom updater)
-        slots (:release-notes state)]
+        entries (:release-notes state)]
     (when (and (= (:release-notes-sha state) (:server-sha1 state))
-               (not (coll/empty? slots)))
-      {:markdown (coll/join-to-string
-                   "\n\n---\n\n"
-                   (e/map (fn [{:keys [version notes]}]
-                            (if notes
-                              (release-notes-markdown notes)
-                              (str "# Defold " version
-                                   "\n\n_Failed to download these release notes._")))
-                          slots))
-       :versions (mapv :version slots)})))
+               (not (coll/empty? entries)))
+      (let [current-version (system/defold-version)]
+        {:markdown (coll/join-to-string "\n\n---\n\n" (e/map #(entry-markdown current-version %) entries))
+         :versions (mapv :version entries)}))))
 
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
@@ -475,16 +495,16 @@
             :else
             (do
               (log/info :message "New version found" :sha1 update-sha1)
-              (when-some [slots (fetch-release-notes! archive-domain channel)]
+              (when-some [entries (fetch-release-notes! archive-domain channel)]
                 ;; Remember which update these notes are for, so a failed fetch
                 ;; for a newer one can't keep showing stale notes. "Complete"
                 ;; means we got notes for every version; an empty or partial
                 ;; result stays incomplete so the next check retries it.
                 (swap! state-atom assoc
-                       :release-notes slots
+                       :release-notes entries
                        :release-notes-sha update-sha1
-                       :release-notes-complete? (and (not (coll/empty? slots))
-                                                     (coll/every? :notes slots))))))))
+                       :release-notes-complete? (and (not (coll/empty? entries))
+                                                     (coll/every? :notes entries))))))))
       (catch IOException e
         ;; Disabled during tests to minimize log spam.
         (when-not (Boolean/getBoolean "defold.tests")
