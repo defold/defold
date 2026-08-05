@@ -25,6 +25,12 @@
 (defn- insert-lines [lines cursor-ranges inserted-lines]
   (#'data/insert-lines-seqs indent-level-pattern "    " script/lua-grammar lines cursor-ranges nil (layout-info lines) (repeat inserted-lines)))
 
+(defn- reindent [lines]
+  (let [last-row (dec (count lines))
+        cursor-range (data/->CursorRange (data/->Cursor 0 0)
+                                         (data/->Cursor last-row (count (lines last-row))))]
+    (:lines (data/reindent indent-level-pattern indent-string script/lua-grammar lines [cursor-range] nil (layout-info lines)))))
+
 (def ^:private xform-test-lines->lines
   (map #(string/replace % #"\|" "")))
 
@@ -153,6 +159,50 @@
 
     [""
      ""]
+    ["local pos = vmath.vector3("
+     "    1, 2, 3)|"]
+    ["local pos = vmath.vector3("
+     "    1, 2, 3)"
+     "|"]
+
+    [""
+     ""]
+    ["if pos.x > 0 then"
+     "    local pos = vmath.vector3("
+     "        1, 2, 3)|"]
+    ["if pos.x > 0 then"
+     "    local pos = vmath.vector3("
+     "        1, 2, 3)"
+     "    |"]
+
+    [""
+     ""]
+    ["local pos = vmath.vector3(1, 2, 3)|"]
+    ["local pos = vmath.vector3(1, 2, 3)"
+     "|"]
+
+    [""
+     ""]
+    ["local text = \"(\"|"]
+    ["local text = \"(\""
+     "|"]
+
+    [""
+     ""]
+    ["print(pos) -- )|"]
+    ["print(pos) -- )"
+     "|"]
+
+    [""
+     ""]
+    ["local pos = vmath.vector3("
+     "    1, 2, 3) -- close call|"]
+    ["local pos = vmath.vector3("
+     "    1, 2, 3) -- close call"
+     "|"]
+
+    [""
+     ""]
     ["local opts = {|"]
     ["local opts = {"
      "    |"]
@@ -233,3 +283,19 @@
     ["    s = 'will end something'|"]
     ["    s = 'will end something'"
      "    |"]))
+
+(deftest reindent-parentheses-closed-after-content-test
+  (is (= ["local pos = vmath.vector3("
+          "    1, 2, 3)"
+          "print(pos)"
+          "if pos.x > 0 then"
+          "    print(\"a\")"
+          "end"
+          "print(\"done\")"]
+         (reindent ["local pos = vmath.vector3("
+                    "    1, 2, 3)"
+                    "    print(pos)"
+                    "    if pos.x > 0 then"
+                    "        print(\"a\")"
+                    "    end"
+                    "    print(\"done\")"]))))

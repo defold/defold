@@ -35,7 +35,6 @@
 
 (g/deftype Modules [String])
 
-
 ;; Lua block open/close keywords for indentation
 (def lua-open-keywords #{"do" "then" "function" "else" "repeat"})
 (def lua-close-keywords #{"end" "until"})
@@ -49,49 +48,46 @@
 ;; - Skips trailing inline comments (-- outside of string)
 ;; - After cleaning, checks for:
 ;;     * Ending with `{` (equivalent to (\{\s*)$)
+;;     * An unmatched opening parenthesis
 ;;     * Presence of open block keywords (else, function, then, do, repeat)
 ;;       not followed by closing keywords (end, until)
-(defn lua-opens-block? [^String line]
+(defn- lua-line-indentation-info [^String line]
   (let [len (.length line)]
     (if (or (zero? len)
             (.startsWith (clojure.string/triml line) "--"))
-      false
+      [#{} nil nil 0]
       (loop [i 0
              token (StringBuilder.)
              in-quote nil
              escaped false
-             skip-rest false
+             first-non-space nil
              last-non-space nil
+             parenthesis-balance 0
              tokens #{}]
         (if (>= i len)
           (let [tokens (if (pos? (.length token)) (conj tokens (.toString token)) tokens)]
-            (or (= last-non-space \{)
-                (and (some lua-open-keywords tokens)
-                     (not (some lua-close-keywords tokens)))))
+            [tokens first-non-space last-non-space parenthesis-balance])
           (let [ch (.charAt line (long i))]
             (cond
-              skip-rest
-              (recur (inc i) token in-quote false true last-non-space tokens)
-
               in-quote
               (cond
-                escaped (recur (inc i) token in-quote false skip-rest last-non-space tokens)
-                (= ch \\) (recur (inc i) token in-quote true skip-rest last-non-space tokens)
-                (= ch (.charValue ^Character in-quote)) (recur (inc i) token nil false skip-rest last-non-space tokens)
-                :else (recur (inc i) token in-quote false skip-rest last-non-space tokens))
+                escaped (recur (inc i) token in-quote false first-non-space last-non-space parenthesis-balance tokens)
+                (= ch \\) (recur (inc i) token in-quote true first-non-space last-non-space parenthesis-balance tokens)
+                (= ch (.charValue ^Character in-quote)) (recur (inc i) token nil false first-non-space last-non-space parenthesis-balance tokens)
+                :else (recur (inc i) token in-quote false first-non-space last-non-space parenthesis-balance tokens))
 
               ;; Inline comment
               (and (= ch \-) (< (inc i) len) (= (.charAt line (inc i)) \-))
-              (recur len token in-quote false true last-non-space tokens)
+              (recur len token in-quote false first-non-space last-non-space parenthesis-balance tokens)
 
               ;; Start of quote
               (or (= ch \") (= ch \'))
-              (recur (inc i) token ch false skip-rest last-non-space tokens)
+              (recur (inc i) token ch false (or first-non-space ch) last-non-space parenthesis-balance tokens)
 
               ;; Word character
               (or (Character/isLetter ch) (Character/isDigit ch) (= ch \_))
               (do (.append token ch)
-                  (recur (inc i) token in-quote false skip-rest ch tokens))
+                  (recur (inc i) token in-quote false (or first-non-space ch) ch parenthesis-balance tokens))
 
               ;; Non-word character
               :else
@@ -100,9 +96,26 @@
                                (.setLength token 0)
                                (conj tokens tok))
                              tokens)]
-                (recur (inc i) token in-quote false skip-rest
-                        (if (Character/isWhitespace ch) last-non-space ch)
-                        tokens)))))))))
+                (recur (inc i) token in-quote false
+                       (if (or first-non-space (Character/isWhitespace ch)) first-non-space ch)
+                       (if (Character/isWhitespace ch) last-non-space ch)
+                       (case ch
+                         \( (inc parenthesis-balance)
+                         \) (dec parenthesis-balance)
+                         parenthesis-balance)
+                       tokens)))))))))
+
+(defn lua-opens-block? [^String line]
+  (let [[tokens _ last-non-space parenthesis-balance] (lua-line-indentation-info line)]
+    (or (= last-non-space \{)
+        (pos? (long parenthesis-balance))
+        (and (coll/any? lua-open-keywords tokens)
+             (coll/not-any? lua-close-keywords tokens)))))
+
+(defn- lua-ends-indentation-after-line? [^String line]
+  (let [[_ first-non-space _ parenthesis-balance] (lua-line-indentation-info line)]
+    (and (neg? (long parenthesis-balance))
+         (not= \) first-non-space))))
 
 (def lua-grammar
   {:name "Lua"
@@ -110,6 +123,7 @@
    ;; indent patterns shamelessly stolen from textmate:
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
    :indent {:begin lua-opens-block?
+            :end-after lua-ends-indentation-after-line?
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :line-comment "--"
    :auto-insert {:characters {\" \"

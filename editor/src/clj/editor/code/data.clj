@@ -1935,15 +1935,20 @@
               (not= regions regions')
               (assoc :regions regions')))))
 
+(defn- indentation-rule-matches? [rule ^String line]
+  (and (some? line)
+       (if (fn? rule)
+         (boolean (rule line))
+         (some? (some-> rule (re-find line))))))
+
 (defn- begins-indentation? [grammar ^String line]
-  (when (some? line)
-    (let [begin? (:begin (:indent grammar))]
-      (cond
-        (fn? begin?) (begin? line)
-        :else (re-find begin? line)))))
+  (indentation-rule-matches? (:begin (:indent grammar)) line))
 
 (defn- ends-indentation? [grammar ^String line]
-  (and (some? line) (some? (some-> grammar :indent :end (re-find line)))))
+  (indentation-rule-matches? (:end (:indent grammar)) line))
+
+(defn- ends-indentation-after-line? [grammar ^String line]
+  (indentation-rule-matches? (:end-after (:indent grammar)) line))
 
 (defn typing-deindents-line? [grammar lines cursor-ranges typed]
   (if (not= 1 (count cursor-ranges))
@@ -2070,29 +2075,11 @@
           indent-level)))))
 
 (defn- indent-level
-  ^long [^long prev-line-indent-level prev-line-begin? line-end?]
-  (if (and line-end? prev-line-begin?)
-    ;; function foo()
-    ;; end|
-    prev-line-indent-level
-
-    (if line-end?
-      ;; function foo()
-      ;;     ...
-      ;;     ...
-      ;;     end|
-      (dec prev-line-indent-level)
-
-      (if prev-line-begin?
-        ;; function foo()
-        ;; |
-        (inc prev-line-indent-level)
-
-        ;; function foo()
-        ;;     ...
-        ;;     ...
-        ;; |
-        prev-line-indent-level))))
+  ^long [^long prev-line-indent-level prev-line-begin? prev-line-end-after? line-end?]
+  (cond-> prev-line-indent-level
+    prev-line-begin? inc
+    prev-line-end-after? dec
+    line-end? dec))
 
 (defn- indent-line
   ^String [unindented-line indent-string ^long indent-level]
@@ -2147,15 +2134,18 @@
         start-line (get lines start-row)]
     (loop [row (inc start-row)
            prev-line-begin? (begins-indentation? grammar start-line)
+           prev-line-end-after? (ends-indentation-after-line? grammar start-line)
            prev-line-indent-level (parse-indent-level indent-level-pattern start-line)]
       (if (< queried-row row)
         prev-line-indent-level
         (let [line (lines row)
               line-begin? (begins-indentation? grammar line)
+              line-end-after? (ends-indentation-after-line? grammar line)
               line-end? (ends-indentation? grammar line)
-              line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
+              line-indent-level (indent-level prev-line-indent-level prev-line-begin? prev-line-end-after? line-end?)]
           (recur (inc row)
                  line-begin?
+                 line-end-after?
                  line-indent-level))))))
 
 (defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions]
@@ -2171,16 +2161,18 @@
                                           (loop [row start-row
                                                  prev-line-indent-level (find-indent-level indent-level-pattern grammar lines prev-row)
                                                  prev-line-begin? (begins-indentation? grammar (get lines prev-row))
+                                                 prev-line-end-after? (ends-indentation-after-line? grammar (get lines prev-row))
                                                  splices (transient [])]
                                             (if (<= end-row row)
                                               (persistent! splices)
                                               (let [next-row (inc row)
                                                     line (lines row)
                                                     line-begin? (begins-indentation? grammar line)
+                                                    line-end-after? (ends-indentation-after-line? grammar line)
                                                     line-end? (ends-indentation? grammar line)
-                                                    line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
+                                                    line-indent-level (indent-level prev-line-indent-level prev-line-begin? prev-line-end-after? line-end?)]
                                                 (if (contains? @fixed-rows row)
-                                                  (recur next-row line-indent-level line-begin? splices)
+                                                  (recur next-row line-indent-level line-begin? line-end-after? splices)
                                                   (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
                                                         typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
                                                         line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
@@ -2210,7 +2202,7 @@
                                                                   splices
                                                                   (conj! splices [line-cursor-range [indented-line]]))]
                                                     (vswap! fixed-rows conj row)
-                                                    (recur next-row line-indent-level line-begin? splices)))))))))
+                                                    (recur next-row line-indent-level line-begin? line-end-after? splices)))))))))
                               affected-cursor-ranges))))
 
 (defn- transform-indentation [rows lines cursor-ranges regions line-fn]
