@@ -315,6 +315,9 @@
 (defn can-install-update? [updater]
   (some? (:downloaded-sha1 @(:state-atom updater))))
 
+(defn download-in-progress? [updater]
+  (some? (:current-download @(:state-atom updater))))
+
 (defn platform-supported? [updater]
   (contains? #{Platform/X86_64Linux
                Platform/Arm64MacOS

@@ -134,6 +134,8 @@ updater.up-to-date-dialog.title = No Updates Available
 updater.up-to-date-dialog.header = You''re running the latest version of Defold
 updater.check-failed-dialog.title = Check Failed
 updater.check-failed-dialog.header = Could not check for updates. Please check your internet connection and try again.
+updater.download-in-progress-dialog.title = Update in Progress
+updater.download-in-progress-dialog.header = Defold is already downloading an update
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
 release-notes-dialog.title = Release Notes

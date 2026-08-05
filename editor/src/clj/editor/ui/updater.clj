@@ -149,6 +149,14 @@
       update-exists
       (dialogs/make-platform-no-longer-supported-dialog stage localization)
 
+      (updater/download-in-progress? updater)
+      (dialogs/make-info-dialog
+        localization
+        {:title (localization/message "updater.download-in-progress-dialog.title")
+         :icon :icon/circle-info
+         :owner stage
+         :header (localization/message "updater.download-in-progress-dialog.header")})
+
       :else
       (dialogs/make-info-dialog
         localization
@@ -160,18 +168,22 @@
 (defn check-for-updates! [stage project updater install-and-restart! localization]
   (when (updater/begin-manual-update-check! updater)
     (future
-      (ui/run-later
-        (try
-          (if (updater/check! updater)
-            (handle-update-check! stage project updater install-and-restart! localization true)
-            (dialogs/make-info-dialog
-              localization
-              {:title (localization/message "updater.check-failed-dialog.title")
-               :icon :icon/triangle-error
-               :owner stage
-               :header (localization/message "updater.check-failed-dialog.header")}))
-          (finally
-            (updater/end-manual-update-check! updater)))))))
+      (let [checked? (try
+                       (updater/check! updater)
+                       (catch Throwable _
+                         false))]
+        (ui/run-later
+          (try
+            (if checked?
+              (handle-update-check! stage project updater install-and-restart! localization true)
+              (dialogs/make-info-dialog
+                localization
+                {:title (localization/message "updater.check-failed-dialog.title")
+                 :icon :icon/triangle-error
+                 :owner stage
+                 :header (localization/message "updater.check-failed-dialog.header")}))
+            (finally
+              (updater/end-manual-update-check! updater))))))))
 
 (defn init! [^Stage stage link project updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]
