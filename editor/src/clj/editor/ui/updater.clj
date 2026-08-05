@@ -168,13 +168,10 @@
 (defn check-for-updates! [stage project updater install-and-restart! localization]
   (when (updater/begin-manual-update-check! updater)
     (future
-      (let [checked? (try
-                       (updater/check! updater)
-                       (catch Throwable _
-                         false))]
+      (let [checked (updater/check! updater)]
         (ui/run-later
           (try
-            (if checked?
+            (if checked
               (handle-update-check! stage project updater install-and-restart! localization true)
               (dialogs/make-info-dialog
                 localization
