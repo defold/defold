@@ -308,16 +308,16 @@
     (is (= ["1.13.2" "1.13.1" "1.13.0"]
            (mapv :version (#'updater/fetch-release-notes! "d" "test"))))))
 
-(deftest fetch-release-notes-keeps-failed-slots
-  ;; a version whose file fails stays as a slot with nil notes, in order
+(deftest fetch-release-notes-keeps-failed-entries
+  ;; a version whose file fails stays as an entry with nil notes, in order
   (with-redefs [updater/fetch-manifest! (fn [_ _] ["1.14.0" "1.13.0"])
                 updater/fetch-version-notes! (fn [_ _ v]
                                                (when (= v "1.14.0")
                                                  {:version v :issues []}))]
-    (let [slots (#'updater/fetch-release-notes! "d" "test")]
-      (is (= ["1.14.0" "1.13.0"] (mapv :version slots)))
-      (is (some? (:notes (first slots))))
-      (is (nil? (:notes (second slots)))))))
+    (let [entries (#'updater/fetch-release-notes! "d" "test")]
+      (is (= ["1.14.0" "1.13.0"] (mapv :version entries)))
+      (is (some? (:notes (first entries))))
+      (is (nil? (:notes (second entries)))))))
 
 (deftest fetch-release-notes-nil-when-manifest-fails
   (with-redefs [updater/fetch-manifest! (fn [_ _] nil)]
@@ -379,7 +379,7 @@
     (is (nil? (updater/release-notes updater)))))
 
 (deftest check-retries-when-selection-empty
-  ;; manifest present but nothing newer than the running editor -> empty slots,
+  ;; manifest present but nothing newer than the running editor -> empty entries,
   ;; which must NOT count as complete, so the next check retries
   (with-open [_ (start-update-server! "test" "2")]
     (let [fetches (atom 0)]
@@ -407,8 +407,6 @@
   {:version version :issues issues :external-link "https://forum"})
 
 (deftest release-notes-drops-issues-already-in-bundled
-  ;; the running version's slot keeps PR 2 (new since this build) and drops
-  ;; PR 1 (already in the bundled copy)
   (let [updater (make-updater "test" "1")]
     (swap! (:state-atom updater) assoc
            :server-sha1 "B" :release-notes-sha "B"
@@ -421,7 +419,6 @@
         (is (not (re-find #"Issue for PR 1" md)))))))
 
 (deftest release-notes-shows-no-new-message-when-fully-seen
-  ;; every issue in the running version's slot is already in the bundled copy
   (let [updater (make-updater "test" "1")]
     (swap! (:state-atom updater) assoc
            :server-sha1 "B" :release-notes-sha "B"
@@ -434,8 +431,6 @@
         (is (not (re-find #"Issue for PR 1" md)))))))
 
 (deftest release-notes-does-not-diff-newer-versions
-  ;; only the slot matching the running version is diffed; a newer version's
-  ;; slot renders in full even though it shares a PR with the bundled copy
   (let [updater (make-updater "test" "1")]
     (swap! (:state-atom updater) assoc
            :server-sha1 "B" :release-notes-sha "B"
@@ -447,8 +442,6 @@
         (is (re-find #"Issue for PR 1" md))))))
 
 (deftest release-notes-shows-full-notes-when-bundled-unavailable
-  ;; no bundled copy for the running version (e.g. a dev build) -> nothing to
-  ;; diff against, so the running version's own notes render in full
   (let [updater (make-updater "test" "1")]
     (swap! (:state-atom updater) assoc
            :server-sha1 "B" :release-notes-sha "B"
