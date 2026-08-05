@@ -129,6 +129,14 @@
       can-get-new
       (prompt-and-download! stage project updater localization false)
 
+      (updater/download-in-progress? updater)
+      (dialogs/make-info-dialog
+        localization
+        {:title (localization/message "updater.download-in-progress-dialog.title")
+         :icon :icon/circle-info
+         :owner stage
+         :header (localization/message "updater.download-in-progress-dialog.header")})
+
       can-install
       (when (dialogs/make-confirmation-dialog
               localization
@@ -148,14 +156,6 @@
       ;; platform, so there's nothing to download.
       update-exists
       (dialogs/make-platform-no-longer-supported-dialog stage localization)
-
-      (updater/download-in-progress? updater)
-      (dialogs/make-info-dialog
-        localization
-        {:title (localization/message "updater.download-in-progress-dialog.title")
-         :icon :icon/circle-info
-         :owner stage
-         :header (localization/message "updater.download-in-progress-dialog.header")})
 
       :else
       (dialogs/make-info-dialog
