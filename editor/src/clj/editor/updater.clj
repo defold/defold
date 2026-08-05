@@ -150,7 +150,7 @@
       (net/download! url out :read-timeout 10000 :connect-timeout 5000)
       (json/read-str (.toString out "UTF-8") :key-fn keyword)
       (catch Exception e
-        (log/warn :message "Failed to fetch release notes resource" :url url :exception e)
+        (log/warn :message "Failed to fetch resource" :url url :exception e)
         nil))))
 
 (defn- fetch-manifest! [archive-domain channel]
