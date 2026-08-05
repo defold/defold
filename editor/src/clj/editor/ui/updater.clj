@@ -101,14 +101,14 @@
 
 (defn- prompt-and-download! [stage project updater localization download-confirmed]
   (let [release-notes (updater/release-notes updater)
-        sha1 (or (:sha1 release-notes) (updater/current-update-sha1 updater))
         choice (if release-notes
                  (show-release-notes-update-dialog! project localization release-notes)
                  (if download-confirmed
                    :update
                    (dialogs/make-download-update-dialog stage localization)))]
     (case choice
-      :skip (updater/skip-update! updater sha1)
+      :skip (updater/skip-update! updater (or (:sha1 release-notes)
+                                             (updater/current-update-sha1 updater)))
       :later nil
       :update (updater/download-and-extract! updater))))
 
@@ -120,12 +120,11 @@
         can-get-new (and update-exists (updater/platform-supported? updater))]
     (cond
       (and can-install can-get-new)
-      (let [sha1 (updater/current-update-sha1 updater)]
-        (case (dialogs/make-download-update-or-restart-dialog stage localization)
-          :cancel nil
-          :skip (updater/skip-update! updater sha1)
-          :download (prompt-and-download! stage project updater localization true)
-          :restart (install-and-restart!)))
+      (case (dialogs/make-download-update-or-restart-dialog stage localization)
+        :cancel nil
+        :skip (updater/skip-update! updater (updater/current-update-sha1 updater))
+        :download (prompt-and-download! stage project updater localization true)
+        :restart (install-and-restart!))
 
       can-get-new
       (prompt-and-download! stage project updater localization false)
@@ -160,16 +159,15 @@
 
 (defn check-for-updates! [stage project updater install-and-restart! localization]
   (future
-    (let [checked? (updater/check! updater)]
-      (ui/run-later
-        (if checked?
-          (handle-update-check! stage project updater install-and-restart! localization true)
-          (dialogs/make-info-dialog
-            localization
-            {:title (localization/message "updater.check-failed-dialog.title")
-             :icon :icon/triangle-error
-             :owner stage
-             :header (localization/message "updater.check-failed-dialog.header")}))))))
+    (ui/run-later
+      (if (updater/check! updater)
+        (handle-update-check! stage project updater install-and-restart! localization true)
+        (dialogs/make-info-dialog
+          localization
+          {:title (localization/message "updater.check-failed-dialog.title")
+           :icon :icon/triangle-error
+           :owner stage
+           :header (localization/message "updater.check-failed-dialog.header")})))))
 
 (defn init! [^Stage stage link project updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]

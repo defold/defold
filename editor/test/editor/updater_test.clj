@@ -107,25 +107,20 @@
   (prefs/make :scopes {:global (fs/create-temp-file! "updater-test" ".editor_settings")}
               :schemas [:default]))
 
-(defn make-updater
-  ([channel editor-sha1]
-   (make-updater channel editor-sha1 editor-sha1 (make-temp-prefs)))
-  ([channel editor-sha1 prefs]
-   (make-updater channel editor-sha1 editor-sha1 prefs))
-  ([channel editor-sha1 downloaded-sha1 prefs]
-   (#'updater/make-updater
-     channel
-     editor-sha1
-     downloaded-sha1
-     prefs
-     (Platform/getHostPlatform)
-     (io/file ".")
-     (io/file "no-launcher")
-     [])))
+(defn make-updater [channel editor-sha1 downloaded-sha1 prefs]
+  (#'updater/make-updater
+    channel
+    editor-sha1
+    downloaded-sha1
+    prefs
+    (Platform/getHostPlatform)
+    (io/file ".")
+    (io/file "no-launcher")
+    []))
 
 (deftest no-update-on-client-when-no-update-on-server
   (with-open [_ (start-update-server! "test" "1")]
-    (let [updater (make-updater "test" "1")]
+    (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
       (#'updater/check! updater)
       (is (false? (updater/can-download-update? updater)))
       (#'updater/check! updater)
@@ -133,19 +128,19 @@
 
 (deftest has-update-on-client-when-has-update-on-server
   (with-open [_ (start-update-server! "test" "2")]
-    (let [updater (make-updater "test" "1")]
+    (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
       (#'updater/check! updater)
       (is (true? (updater/can-download-update? updater))))))
 
 (deftest no-update-on-client-when-server-has-update-on-different-channel
   (with-open [_ (start-update-server! "alpha" "2")]
-    (let [updater (make-updater "beta" "1")]
+    (let [updater (make-updater "beta" "1" "1" (make-temp-prefs))]
       (#'updater/check! updater)
       (is (false? (updater/can-download-update? updater))))))
 
 (deftest can-download-and-extract-update
   (with-open [_ (start-update-server! "test" "2")]
-    (let [updater (make-updater "test" "1")
+    (let [updater (make-updater "test" "1" "1" (make-temp-prefs))
           ^File update-sha1-file (:update-sha1-file updater)
           ^File update-dir (:update-dir updater)]
       (fs/delete-directory! update-dir)
@@ -233,7 +228,7 @@
       (is (false? @(updater/download-and-extract! updater))))))
 
 (deftest client-has-update-after-check-when-update-appears-on-server
-  (let [updater (make-updater "test" "1")]
+  (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
     (with-open [_ (start-update-server! "test" "1")]
       (#'updater/check! updater)
       (is (false? (updater/can-download-update? updater))))
@@ -242,7 +237,7 @@
       (is (true? (updater/can-download-update? updater))))))
 
 (deftest no-new-update-is-reported-after-extracting
-  (let [updater (make-updater "test" "1")]
+  (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
     (with-open [_ (start-update-server! "test" "2")]
       (#'updater/check! updater)
       (is (true? (updater/can-download-update? updater)))
@@ -251,7 +246,7 @@
       (is (false? (updater/can-download-update? updater))))))
 
 (deftest update-timer-performs-checks-automatically
-  (let [updater (make-updater "test" "1")
+  (let [updater (make-updater "test" "1" "1" (make-temp-prefs))
         timer ^Timer (#'updater/start-timer! updater 10 10)]
     (try
       (with-open [_ (start-update-server! "test" "1")]
@@ -268,13 +263,13 @@
   (let [prefs-file (fs/create-temp-file! "updater-test" ".editor_settings")
         first-prefs (prefs/make :scopes {:global prefs-file}
                                 :schemas [:default])
-        first-updater (make-updater "alpha" "A" first-prefs)]
+        first-updater (make-updater "alpha" "A" "A" first-prefs)]
     (swap! (:state-atom first-updater) assoc :server-sha1 "B")
     (updater/skip-update! first-updater "B")
     (prefs/sync!)
     (let [second-prefs (prefs/make :scopes {:global prefs-file}
                                    :schemas [:default])
-          second-updater (make-updater "alpha" "A" second-prefs)]
+          second-updater (make-updater "alpha" "A" "A" second-prefs)]
       (swap! (:state-atom second-updater) assoc :server-sha1 "B")
       (is (= {"alpha" "B"}
              (prefs/get second-prefs [:versioning :skipped-update-sha1s])))
@@ -282,8 +277,8 @@
 
 (deftest skipped-updates-are-scoped-by-channel
   (let [prefs (make-temp-prefs)
-        alpha-updater (make-updater "alpha" "A" prefs)
-        beta-updater (make-updater "beta" "A" prefs)]
+        alpha-updater (make-updater "alpha" "A" "A" prefs)
+        beta-updater (make-updater "beta" "A" "A" prefs)]
     (swap! (:state-atom alpha-updater) assoc :server-sha1 "B")
     (swap! (:state-atom beta-updater) assoc :server-sha1 "B")
     (updater/skip-update! alpha-updater "B")
@@ -299,14 +294,14 @@
 (deftest skipped-update-remains-hidden-after-same-sha-check
   (with-open [_ (start-update-server! "test" "B")]
     (with-redefs [updater/fetch-release-notes! (constantly nil)]
-      (let [updater (make-updater "test" "A")]
+      (let [updater (make-updater "test" "A" "A" (make-temp-prefs))]
         (#'updater/check! updater)
         (updater/skip-update! updater "B")
         (#'updater/check! updater)
         (is (false? (updater/update-advertised? updater)))))))
 
 (deftest new-update-is-visible-after-skipping-previous-sha
-  (let [updater (make-updater "test" "A")]
+  (let [updater (make-updater "test" "A" "A" (make-temp-prefs))]
     (with-redefs [updater/fetch-release-notes! (constantly nil)]
       (with-open [_ (start-update-server! "test" "B")]
         (#'updater/check! updater)
@@ -403,7 +398,7 @@
                     updater/fetch-version-notes! (fn [_ _ v]
                                                    (swap! fetches inc)
                                                    {:version v :issues []})]
-        (let [updater (make-updater "test" "1")]
+        (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
           (#'updater/check! updater)
           (#'updater/check! updater)
           (is (= 1 @fetches)))))))
@@ -416,13 +411,13 @@
                     updater/fetch-version-notes! (fn [_ _ _]
                                                    (swap! fetches inc)
                                                    nil)]
-        (let [updater (make-updater "test" "1")]
+        (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
           (#'updater/check! updater)
           (#'updater/check! updater)
           (is (= 2 @fetches)))))))
 
 (deftest release-notes-renders-missing-version-in-place
-  (let [updater (make-updater "test" "1")]
+  (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
     (swap! (:state-atom updater) assoc
            :server-sha1 "B"
            :release-notes-sha "B"
@@ -441,7 +436,7 @@
 (deftest release-notes-not-shown-for-superseded-update
   ;; notes fetched for one update must not render once :server-sha1 moves on
   ;; (e.g. a newer update appears but its notes fetch failed)
-  (let [updater (make-updater "test" "1")]
+  (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
     (swap! (:state-atom updater) assoc
            :server-sha1 "B"
            :release-notes-sha "A"
@@ -458,7 +453,7 @@
       (with-redefs [updater/fetch-manifest! (fn [_ _]
                                               (swap! fetches inc)
                                               [])]
-        (let [updater (make-updater "test" "1")]
+        (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
           (#'updater/check! updater)
           (#'updater/check! updater)
           (is (= 2 @fetches)))))))

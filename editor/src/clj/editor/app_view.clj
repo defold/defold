@@ -2780,14 +2780,14 @@
     (show-release-notes-dialog! localization project)))
 
 (handler/defhandler :help.check-for-updates :global
-  (enabled? [updater] (some? updater))
+  (enabled? [updater] updater)
   (run [updater project app-view changes-view main-stage localization]
     (ui.updater/check-for-updates!
       main-stage project updater
       (fn []
         (async-save! app-view changes-view project project/dirty-save-data
-                     (fn [successful? _render-reload-progress! _render-save-progress!]
-                       (when successful?
+                     (fn [successful _render-reload-progress! _render-save-progress!]
+                       (when successful
                          (ui.updater/install-and-restart! main-stage updater localization)))))
       localization)))
 
