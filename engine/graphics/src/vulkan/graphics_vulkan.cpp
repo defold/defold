@@ -5152,6 +5152,9 @@ bail:
 
         int32_atomic_t barrier_pending;
         {
+            // Serialize shutdown with VulkanSetTextureAsync(). If an upload
+            // wins this lock, its job is queued before the barrier; if shutdown
+            // wins, the delete flag prevents jobs from being queued after it.
             DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
 
             if (dmAtomicGet32(&context->m_DeleteContextRequested))

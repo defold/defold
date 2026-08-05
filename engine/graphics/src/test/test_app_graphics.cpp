@@ -636,8 +636,8 @@ struct AsyncTextureUploadShutdownTest : ITest
 
     void OnGraphicsClosed(EngineCtx* engine) override
     {
-        dmLogInfo("Issue #12878 reproducer: Vulkan device destroyed; waiting for async texture job");
-        if (WaitForAtomic(&m_WorkerDrained, 1, 5 * 1000 * 1000))
+        dmLogInfo("Issue #12878 reproducer: Vulkan device destroyed; verifying async texture job drained");
+        if (dmAtomicGet32(&m_WorkerDrained))
         {
             delete[] (const uint8_t*) m_TextureParams.m_Data;
             m_TextureParams.m_Data = 0;
