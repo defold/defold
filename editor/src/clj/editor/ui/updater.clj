@@ -158,16 +158,20 @@
          :header (localization/message "updater.up-to-date-dialog.header")}))))
 
 (defn check-for-updates! [stage project updater install-and-restart! localization]
-  (future
-    (ui/run-later
-      (if (updater/check! updater)
-        (handle-update-check! stage project updater install-and-restart! localization true)
-        (dialogs/make-info-dialog
-          localization
-          {:title (localization/message "updater.check-failed-dialog.title")
-           :icon :icon/triangle-error
-           :owner stage
-           :header (localization/message "updater.check-failed-dialog.header")})))))
+  (when (updater/begin-manual-update-check! updater)
+    (future
+      (ui/run-later
+        (try
+          (if (updater/check! updater)
+            (handle-update-check! stage project updater install-and-restart! localization true)
+            (dialogs/make-info-dialog
+              localization
+              {:title (localization/message "updater.check-failed-dialog.title")
+               :icon :icon/triangle-error
+               :owner stage
+               :header (localization/message "updater.check-failed-dialog.header")}))
+          (finally
+            (updater/end-manual-update-check! updater)))))))
 
 (defn init! [^Stage stage link project updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]

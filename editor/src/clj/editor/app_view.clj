@@ -2780,7 +2780,9 @@
     (show-release-notes-dialog! localization project)))
 
 (handler/defhandler :help.check-for-updates :global
-  (enabled? [updater] updater)
+  (enabled? [updater]
+    (and updater
+         (not (updater/manual-update-check-in-progress? updater))))
   (run [updater project main-stage localization]
     (ui.updater/check-for-updates!
       main-stage project updater
