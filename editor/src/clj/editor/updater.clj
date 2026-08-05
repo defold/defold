@@ -244,7 +244,7 @@
   (:server-sha1 @(:state-atom updater)))
 
 (defn manual-update-check-in-progress? [updater]
-  (true? (:manual-update-check-in-progress @(:state-atom updater))))
+  (:manual-update-check-in-progress @(:state-atom updater)))
 
 (defn begin-manual-update-check! [updater]
   (let [[old-state] (swap-vals! (:state-atom updater) assoc :manual-update-check-in-progress true)]

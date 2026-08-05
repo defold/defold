@@ -91,8 +91,8 @@
                  :properties
                  {:opened-versions {:type :set :item {:type :string}}
                   :skipped-update-sha1s {:type :object-of
-                                          :key {:type :string}
-                                          :val {:type :string}}}}
+                                         :key {:type :string}
+                                         :val {:type :string}}}}
     :asset-browser {:type :object
                     :properties
                     {:track-active-tab {:type :boolean}}}

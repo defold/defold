@@ -122,21 +122,21 @@
 (deftest no-update-on-client-when-no-update-on-server
   (with-open [_ (start-update-server! "test" "1")]
     (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
-      (#'updater/check! updater)
+      (updater/check! updater)
       (is (false? (updater/can-download-update? updater)))
-      (#'updater/check! updater)
+      (updater/check! updater)
       (is (false? (updater/can-download-update? updater))))))
 
 (deftest has-update-on-client-when-has-update-on-server
   (with-open [_ (start-update-server! "test" "2")]
     (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
-      (#'updater/check! updater)
+      (updater/check! updater)
       (is (true? (updater/can-download-update? updater))))))
 
 (deftest no-update-on-client-when-server-has-update-on-different-channel
   (with-open [_ (start-update-server! "alpha" "2")]
     (let [updater (make-updater "beta" "1" "1" (make-temp-prefs))]
-      (#'updater/check! updater)
+      (updater/check! updater)
       (is (false? (updater/can-download-update? updater))))))
 
 (deftest can-download-and-extract-update
@@ -146,7 +146,7 @@
           ^File update-dir (:update-dir updater)]
       (fs/delete-directory! update-dir)
       (fs/delete! update-sha1-file)
-      (#'updater/check! updater)
+      (updater/check! updater)
       @(updater/download-and-extract! updater)
       (is (.exists update-dir))
       (is (.exists update-sha1-file))
@@ -169,8 +169,8 @@
       (fs/delete-directory! beta-dir)
       (fs/delete! beta-sha1-file)
       (try
-        (#'updater/check! alpha-updater)
-        (#'updater/check! beta-updater)
+        (updater/check! alpha-updater)
+        (updater/check! beta-updater)
         (is (true? (updater/can-download-update? alpha-updater)))
         (is (true? (updater/can-download-update? beta-updater)))
 
@@ -224,26 +224,26 @@
                     (io/file ".")
                     (io/file "no-launcher")
                     [])]
-      (#'updater/check! updater)
+      (updater/check! updater)
       (is (true? (updater/can-download-update? updater)))
       (is (false? @(updater/download-and-extract! updater))))))
 
 (deftest client-has-update-after-check-when-update-appears-on-server
   (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
     (with-open [_ (start-update-server! "test" "1")]
-      (#'updater/check! updater)
+      (updater/check! updater)
       (is (false? (updater/can-download-update? updater))))
     (with-open [_ (start-update-server! "test" "2")]
-      (#'updater/check! updater)
+      (updater/check! updater)
       (is (true? (updater/can-download-update? updater))))))
 
 (deftest no-new-update-is-reported-after-extracting
   (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
     (with-open [_ (start-update-server! "test" "2")]
-      (#'updater/check! updater)
+      (updater/check! updater)
       (is (true? (updater/can-download-update? updater)))
       @(updater/download-and-extract! updater)
-      (#'updater/check! updater)
+      (updater/check! updater)
       (is (false? (updater/can-download-update? updater))))))
 
 (deftest update-timer-performs-checks-automatically
@@ -296,20 +296,20 @@
   (with-open [_ (start-update-server! "test" "B")]
     (with-redefs [updater/fetch-release-notes! (constantly nil)]
       (let [updater (make-updater "test" "A" "A" (make-temp-prefs))]
-        (#'updater/check! updater)
+        (updater/check! updater)
         (updater/skip-update! updater "B")
-        (#'updater/check! updater)
+        (updater/check! updater)
         (is (false? (updater/update-advertised? updater)))))))
 
 (deftest new-update-is-visible-after-skipping-previous-sha
   (let [updater (make-updater "test" "A" "A" (make-temp-prefs))]
     (with-redefs [updater/fetch-release-notes! (constantly nil)]
       (with-open [_ (start-update-server! "test" "B")]
-        (#'updater/check! updater)
+        (updater/check! updater)
         (updater/skip-update! updater "B")
         (is (false? (updater/update-advertised? updater))))
       (with-open [_ (start-update-server! "test" "C")]
-        (#'updater/check! updater)
+        (updater/check! updater)
         (is (true? (updater/update-advertised? updater)))))))
 
 (deftest skipping-new-update-preserves-downloaded-update
@@ -400,8 +400,8 @@
                                                    (swap! fetches inc)
                                                    {:version v :issues []})]
         (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
-          (#'updater/check! updater)
-          (#'updater/check! updater)
+          (updater/check! updater)
+          (updater/check! updater)
           (is (= 1 @fetches)))))))
 
 (deftest check-retries-when-incomplete
@@ -413,8 +413,8 @@
                                                    (swap! fetches inc)
                                                    nil)]
         (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
-          (#'updater/check! updater)
-          (#'updater/check! updater)
+          (updater/check! updater)
+          (updater/check! updater)
           (is (= 2 @fetches)))))))
 
 (deftest release-notes-renders-missing-version-in-place
@@ -455,8 +455,8 @@
                                               (swap! fetches inc)
                                               [])]
         (let [updater (make-updater "test" "1" "1" (make-temp-prefs))]
-          (#'updater/check! updater)
-          (#'updater/check! updater)
+          (updater/check! updater)
+          (updater/check! updater)
           (is (= 2 @fetches)))))))
 
 (defn- issue [pr-number type duplicate]

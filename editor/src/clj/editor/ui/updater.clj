@@ -108,7 +108,7 @@
                    (dialogs/make-download-update-dialog stage localization)))]
     (case choice
       :skip (updater/skip-update! updater (or (:sha1 release-notes)
-                                             (updater/current-update-sha1 updater)))
+                                              (updater/current-update-sha1 updater)))
       :later nil
       :update (updater/download-and-extract! updater))))
 
