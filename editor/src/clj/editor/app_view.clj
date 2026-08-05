@@ -2781,14 +2781,10 @@
 
 (handler/defhandler :help.check-for-updates :global
   (enabled? [updater] updater)
-  (run [updater project app-view changes-view main-stage localization]
+  (run [updater project main-stage localization]
     (ui.updater/check-for-updates!
       main-stage project updater
-      (fn []
-        (async-save! app-view changes-view project project/dirty-save-data
-                     (fn [successful _render-reload-progress! _render-save-progress!]
-                       (when successful
-                         (ui.updater/install-and-restart! main-stage updater localization)))))
+      (ui/user-data main-stage ::ui.updater/install-and-restart!)
       localization)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]

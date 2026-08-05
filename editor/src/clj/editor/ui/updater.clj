@@ -171,6 +171,7 @@
 
 (defn init! [^Stage stage link project updater install-and-restart! render-progress! localization]
   (let [link-fn (make-link-fn link localization)]
+    (ui/user-data! stage ::install-and-restart! install-and-restart!)
     (ui/on-closing! stage
       (fn [_]
         (when (updater/can-install-update? updater)
