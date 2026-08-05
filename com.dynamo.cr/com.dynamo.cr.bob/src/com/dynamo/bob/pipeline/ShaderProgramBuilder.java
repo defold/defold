@@ -377,6 +377,7 @@ public class ShaderProgramBuilder extends Builder {
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
         resourceBindingBuilder.setStageFlags(res.stageFlags);
+        resourceBindingBuilder.setPushConstant(res.isPushConstant);
 
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);

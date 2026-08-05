@@ -78,6 +78,7 @@ struct ShaderResourceJNI {
     jfieldID binding;
     jfieldID set;
     jfieldID stageFlags;
+    jfieldID isPushConstant;
 };
 struct ShaderReflectionJNI {
     jclass cls;
