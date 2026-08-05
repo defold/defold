@@ -44,6 +44,12 @@
 (defn- update-url [archive-domain channel]
   (format (get-in connection-properties [:updater :update-url-template]) archive-domain channel))
 
+(defn- release-notes-manifest-url [archive-domain channel]
+  (format (get-in connection-properties [:updater :release-notes-manifest-url-template]) archive-domain channel))
+
+(defn- release-notes-version-url [archive-domain channel version]
+  (format (get-in connection-properties [:updater :release-notes-version-url-template]) archive-domain channel version))
+
 (defn release-notes-markdown
   ^String [release-notes]
   (let [issue-types ["BREAKING CHANGE" "NEW" "FIX"]
@@ -123,17 +129,17 @@
 (def ^:private descending-version-order (.reversed util/natural-order))
 
 (defn- versions-to-fetch
-  "Picks which versions to show from the manifest: the ones newer than the
-  running editor, newest first, capped at `release-notes-range-limit`. Bad
-  version strings are skipped. If we don't know the current version (dev builds),
-  everything counts, so you get the most recent few."
+  "Picks which versions to show from the manifest: the running editor's own
+  version and anything newer, newest first, capped at `release-notes-range-limit`.
+  Bad version strings are skipped. If we don't know the current version (dev
+  builds), everything counts, so you get the most recent few."
   [manifest-versions current-version]
   (let [current (when (version-string? current-version) current-version)]
     (into []
           (take release-notes-range-limit)
           (sort descending-version-order
                 (e/filter #(and (version-string? %)
-                                (or (nil? current) (newer-version? % current)))
+                                (or (nil? current) (not (newer-version? current %))))
                           manifest-versions)))))
 
 (defn- fetch-json!
@@ -148,12 +154,10 @@
         nil))))
 
 (defn- fetch-manifest! [archive-domain channel]
-  (fetch-json! (format (get-in connection-properties [:updater :release-notes-manifest-url-template])
-                       archive-domain channel)))
+  (fetch-json! (release-notes-manifest-url archive-domain channel)))
 
 (defn- fetch-version-notes! [archive-domain channel version]
-  (fetch-json! (format (get-in connection-properties [:updater :release-notes-version-url-template])
-                       archive-domain channel version)))
+  (fetch-json! (release-notes-version-url archive-domain channel version)))
 
 (defn fetch-release-notes!
   "Downloads the notes to show for the available update. Reads the channel
@@ -173,23 +177,28 @@
 (def ^:private ^File support-dir
   (.getCanonicalFile (.toFile (Editor/getSupportPath))))
 
-(def ^:private ^File update-dir
-  (io/file support-dir "update"))
+(def ^:private ^File updates-dir
+  (io/file support-dir "updates"))
 
-(def ^:private ^File update-sha1-file
-  (io/file support-dir "update.sha1"))
+(defn- channel-update-paths [channel]
+  (let [channel-dir (io/file updates-dir channel)]
+    {:update-dir (io/file channel-dir "bundle")
+     :update-sha1-file (io/file channel-dir "sha1")}))
 
 (defn- make-updater [channel editor-sha1 downloaded-sha1 prefs platform install-dir launcher-path protected-dirs]
-  {:channel channel
-   :platform platform
-   :install-dir install-dir
-   :launcher-path launcher-path
-   :editor-sha1 editor-sha1
-   :prefs prefs
-   :protected-dirs protected-dirs
-   :state-atom (atom {:downloaded-sha1 downloaded-sha1
-                      :skipped-sha1 (get (prefs/get prefs [:versioning :skipped-update-sha1s]) channel)
-                      :server-sha1 editor-sha1})})
+  (let [{:keys [update-dir update-sha1-file]} (channel-update-paths channel)]
+    {:channel channel
+     :platform platform
+     :install-dir install-dir
+     :launcher-path launcher-path
+     :editor-sha1 editor-sha1
+     :prefs prefs
+     :protected-dirs protected-dirs
+     :update-dir update-dir
+     :update-sha1-file update-sha1-file
+     :state-atom (atom {:downloaded-sha1 downloaded-sha1
+                        :skipped-sha1 (get (prefs/get prefs [:versioning :skipped-update-sha1s]) channel)
+                        :server-sha1 editor-sha1})}))
 
 (defn add-progress-watch
   "Adds a watch that gets notified on download and extraction progress of
@@ -310,7 +319,7 @@
   (not (zero? (bit-and unix-mode execute-permission-flag))))
 
 (defn- extract! [updater ^File zip-file server-sha1 track-extract-progress! cancelled-atom]
-  (let [{:keys [state-atom]} updater
+  (let [{:keys [state-atom update-dir update-sha1-file]} updater
         {:keys [downloaded-sha1]} @state-atom]
     (when (some? downloaded-sha1)
       (log/info :message "Removing previously downloaded update")
@@ -351,8 +360,8 @@
 
 (defn download-and-extract!
   "Asynchronously downloads newest zip distribution to temporary directory,
-  extracts it to `{support-dir}/update` and creates `{support-dir}/update.sha1`
-  file containing downloaded update's sha1
+  extracts it to `{support-dir}/updates/{channel}/bundle` and creates
+  `{support-dir}/updates/{channel}/sha1` file containing downloaded update's sha1
 
   Returns future that eventually will contain boolean indicating the success of
   operation"
@@ -423,7 +432,7 @@
   "Installs previously downloaded update"
   [updater]
   {:pre [(can-install-update? updater)]}
-  (let [{:keys [install-dir state-atom]} updater
+  (let [{:keys [install-dir state-atom ^File update-dir update-sha1-file]} updater
         {:keys [current-download downloaded-sha1]} @state-atom]
     (when (some? current-download)
       (reset! (:cancelled-derefable current-download) true)
@@ -544,13 +553,14 @@
                             "win32" "./Defold.exe"
                             "linux" "./Defold"
                             "macos" "./Contents/MacOS/Defold"))
-        downloaded-sha1 (when (.exists update-sha1-file)
-                          (slurp update-sha1-file))
         initial-update-delay 1000
         update-delay 3600000]
     (if (or (string/blank? channel) (string/blank? sha1))
       (do
         (log/info :message "Automatic updates disabled" :channel channel :sha1 sha1)
         nil)
-      (doto (make-updater channel sha1 downloaded-sha1 prefs platform install-dir launcher-path protected-dirs)
-        (start-timer! initial-update-delay update-delay)))))
+      (let [^File update-sha1-file (:update-sha1-file (channel-update-paths channel))
+            downloaded-sha1 (when (.exists update-sha1-file)
+                              (slurp update-sha1-file))]
+        (doto (make-updater channel sha1 downloaded-sha1 prefs platform install-dir launcher-path protected-dirs)
+          (start-timer! initial-update-delay update-delay))))))

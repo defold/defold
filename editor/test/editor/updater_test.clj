@@ -47,20 +47,45 @@
                 updater/update-url
                 (fn [archive-domain channel]
                   (format "http://localhost:%s/editor2/channels/%s/update-v4.json"
-                          test-port channel))]
+                          test-port channel))
+
+                updater/release-notes-manifest-url
+                (fn [_archive-domain channel]
+                  (format "http://localhost:%s/editor2/channels/%s/release-notes/manifest.json"
+                          test-port channel))
+
+                updater/release-notes-version-url
+                (fn [_archive-domain channel version]
+                  (format "http://localhost:%s/editor2/channels/%s/release-notes/%s.json"
+                          test-port channel version))]
     (f)))
 
-(use-fixtures :once error-log-level-fixture test-urls-fixture)
+(defn- test-support-dir-fixture [f]
+  (let [^File temp-updates-dir (fs/create-temp-directory! "updater-test-updates")]
+    (with-redefs [updater/updates-dir temp-updates-dir]
+      (f))
+    (fs/delete-directory! temp-updates-dir)))
+
+(use-fixtures :once error-log-level-fixture test-urls-fixture test-support-dir-fixture)
 
 (defn make-handler-resources [channel sha1]
   {(format "/editor2/channels/%s/update-v4.json" channel)
    (http-server/json-response {:sha1 sha1})
 
    (format "/archive/%s/%s/editor2/Defold-%s.zip" sha1 channel (.getPair (Platform/getHostPlatform)))
-   (http-server/response 200 (io/resource "test-update.zip"))})
+   (http-server/response 200 (io/resource "test-update.zip"))
+
+   (format "/editor2/channels/%s/release-notes/manifest.json" channel)
+   (http-server/json-response [])})
 
 (defn- make-resource-handler [channel sha1]
   (let [resources (make-handler-resources channel sha1)]
+    (fn [request]
+      (get resources (:path request) http-server/not-found))))
+
+(defn- make-multi-channel-resource-handler [channel->sha1]
+  (let [resources (apply merge (map (fn [[channel sha1]] (make-handler-resources channel sha1))
+                                     channel->sha1))]
     (fn [request]
       (get resources (:path request) http-server/not-found))))
 
@@ -73,6 +98,10 @@
 (defn- start-update-server!
   ^ServerWithHandler [channel sha]
   (http-server/start! (make-resource-handler channel sha) :port test-port))
+
+(defn- start-multi-channel-update-server!
+  ^ServerWithHandler [channel->sha1]
+  (http-server/start! (make-multi-channel-resource-handler channel->sha1) :port test-port))
 
 (defn- make-temp-prefs []
   (prefs/make :scopes {:global (fs/create-temp-file! "updater-test" ".editor_settings")}
@@ -117,8 +146,8 @@
 (deftest can-download-and-extract-update
   (with-open [_ (start-update-server! "test" "2")]
     (let [updater (make-updater "test" "1")
-          ^File update-sha1-file @#'updater/update-sha1-file
-          ^File update-dir @#'updater/update-dir]
+          ^File update-sha1-file (:update-sha1-file updater)
+          ^File update-dir (:update-dir updater)]
       (fs/delete-directory! update-dir)
       (fs/delete! update-sha1-file)
       (#'updater/check! updater)
@@ -128,6 +157,65 @@
       (is (= #{"extracted-file.txt"} (list-files update-dir)))
       (fs/delete-directory! update-dir)
       (fs/delete! update-sha1-file))))
+
+(deftest channel-downloads-do-not-clobber-each-other
+  (with-open [_ (start-multi-channel-update-server! {"alpha" "A2" "beta" "B2"})]
+    (let [alpha-install-dir (fs/create-temp-directory! "updater-test-install")
+          alpha-updater (assoc (make-updater "alpha" "A1" nil (make-temp-prefs))
+                          :install-dir alpha-install-dir)
+          beta-updater (make-updater "beta" "B1" nil (make-temp-prefs))
+          ^File alpha-dir (:update-dir alpha-updater)
+          ^File alpha-sha1-file (:update-sha1-file alpha-updater)
+          ^File beta-dir (:update-dir beta-updater)
+          ^File beta-sha1-file (:update-sha1-file beta-updater)]
+      (fs/delete-directory! alpha-dir)
+      (fs/delete! alpha-sha1-file)
+      (fs/delete-directory! beta-dir)
+      (fs/delete! beta-sha1-file)
+      (try
+        (#'updater/check! alpha-updater)
+        (#'updater/check! beta-updater)
+        (is (true? (updater/can-download-update? alpha-updater)))
+        (is (true? (updater/can-download-update? beta-updater)))
+
+        @(updater/download-and-extract! alpha-updater)
+        (is (true? (updater/can-install-update? alpha-updater)))
+        (is (false? (updater/can-install-update? beta-updater)))
+        (is (.exists alpha-dir))
+        (is (.exists alpha-sha1-file))
+        (is (= "A2" (slurp alpha-sha1-file)))
+        (is (not (.exists beta-dir)))
+        (is (not (.exists beta-sha1-file)))
+
+        @(updater/download-and-extract! beta-updater)
+        (is (true? (updater/can-install-update? beta-updater)))
+        (is (.exists beta-dir))
+        (is (.exists beta-sha1-file))
+        (is (= "B2" (slurp beta-sha1-file)))
+
+        ;; downloading beta didn't touch alpha's already-extracted bundle
+        (is (.exists alpha-dir))
+        (is (= "A2" (slurp alpha-sha1-file)))
+        (is (= #{"extracted-file.txt"} (list-files alpha-dir)))
+        (is (= #{"extracted-file.txt"} (list-files beta-dir)))
+
+        (updater/install! alpha-updater)
+        (is (= #{"extracted-file.txt"} (list-files alpha-install-dir)))
+        (is (false? (updater/can-install-update? alpha-updater)))
+        (is (not (.exists alpha-dir)))
+        (is (not (.exists alpha-sha1-file)))
+
+        ;; installing alpha didn't touch beta's still-pending download
+        (is (true? (updater/can-install-update? beta-updater)))
+        (is (.exists beta-dir))
+        (is (.exists beta-sha1-file))
+        (is (= "B2" (slurp beta-sha1-file)))
+        (finally
+          (fs/delete-directory! alpha-dir)
+          (fs/delete! alpha-sha1-file)
+          (fs/delete-directory! beta-dir)
+          (fs/delete! beta-sha1-file)
+          (fs/delete-directory! alpha-install-dir))))))
 
 (deftest throws-if-zip-is-missing-on-server
   (with-open [_ (start-update-server! "test" "2")]
@@ -263,11 +351,11 @@
 
 (deftest versions-to-fetch-test
   (let [vtf #'updater/versions-to-fetch]
-    ;; only versions strictly newer than current, newest first
-    (is (= ["1.13.2" "1.13.1"]
+    ;; versions at or newer than current, newest first; older is dropped
+    (is (= ["1.13.2" "1.13.1" "1.13.0"]
            (vtf ["1.13.0" "1.13.1" "1.13.2"] "1.13.0")))
-    ;; equal version is excluded
-    (is (= [] (vtf ["1.13.0"] "1.13.0")))
+    ;; equal version is included
+    (is (= ["1.13.0"] (vtf ["1.13.0"] "1.13.0")))
     ;; nil current -> most recent N, newest first
     (is (= ["1.13.2" "1.13.1" "1.13.0"]
            (vtf ["1.13.0" "1.13.2" "1.13.1"] nil)))

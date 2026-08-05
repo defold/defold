@@ -24,8 +24,6 @@
 #include "gamesys_private.h"
 
 #include "scripts/script_label.h"
-#include "scripts/script_particlefx.h"
-#include "scripts/script_tilemap.h"
 #include "scripts/script_physics.h"
 #include "scripts/script_sound.h"
 #include "scripts/script_sprite.h"
@@ -36,8 +34,6 @@
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
 #include "scripts/script_sys_gamesys.h"
-#include "components/comp_gui.h"
-
 #include <dmsdk/gamesys/script.h>
 #include <gameobject/script.h>
 
@@ -51,13 +47,20 @@ namespace dmScript {
     static inline dmGameObject::HInstance GetGOInstance(lua_State* L)
     {
         dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-        if (instance == 0) {
-            dmGui::HScene scene = dmGui::GetSceneFromLua(L);
-            if (scene != 0) {
-                instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
-            }
+        if (instance != 0)
+        {
+            return instance;
         }
-        return instance;
+
+        dmScript::GetInstance(L);
+        uint32_t user_type_hash = dmScript::GetUserType(L, -1);
+        lua_pop(L, 1);
+
+        if (user_type_hash != 0)
+        {
+            return dmGameObject::GetInstanceFromLua(L, user_type_hash);
+        }
+        return 0;
     }
 
     dmGameObject::HInstance CheckGOInstance(lua_State* L) {
@@ -552,8 +555,6 @@ namespace dmGameSystem
 
         ScriptBufferRegister(context);
         ScriptLabelRegister(context);
-        ScriptParticleFXRegister(context);
-        ScriptTileMapRegister(context);
         ScriptPhysicsRegister(context);
         ScriptFactoryRegister(context);
         ScriptCollectionFactoryRegister(context);
