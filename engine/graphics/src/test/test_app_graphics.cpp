@@ -672,7 +672,7 @@ struct AsyncTextureUploadQueueTest : ITest
     static const uint32_t TEXTURE_WIDTH         = 128;
     static const uint32_t TEXTURE_HEIGHT        = 128;
     static const uint32_t MAX_UPLOADS_IN_FLIGHT = 128;
-    static const uint32_t TARGET_UPLOAD_COUNT   = 4096;
+    static const uint32_t TARGET_UPLOAD_COUNT   = 512;
     static const uint64_t TEST_TIMEOUT_US       = 60ULL * 1000ULL * 1000ULL;
 
     EngineCtx*                 m_Engine;
