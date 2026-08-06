@@ -684,6 +684,7 @@ namespace dmGraphics
             res = TransitionImageLayout(vk_device,
                 context->m_LogicalDevice.m_CommandPool,
                 context->m_LogicalDevice.m_GraphicsQueue,
+                context->m_LogicalDevice.m_QueueMutex,
                 depth_stencil_texture_out,
                 vk_aspect_flags,
                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
@@ -1889,7 +1890,10 @@ bail:
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores    = &renderFinishedSemaphore;
 
-        res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_LogicalDevice.m_QueueMutex);
+            res = vkQueueSubmit(context->m_LogicalDevice.m_GraphicsQueue, 1, &submitInfo, currentFrame.m_SubmitFence);
+        }
         CHECK_VK_ERROR(res);
 
         // Present the swapchain image
@@ -1913,7 +1917,10 @@ bail:
             presentInfo.pNext = &present_id_info;
         }
 
-        res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
+        {
+            DM_MUTEX_SCOPED_LOCK(context->m_LogicalDevice.m_QueueMutex);
+            res = vkQueuePresentKHR(context->m_LogicalDevice.m_PresentQueue, &presentInfo);
+        }
         if ((res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR) && present_id != 0)
         {
             context->m_SwapChain->m_LastPresentId = present_id;
@@ -2719,6 +2726,7 @@ bail:
             VkResult res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                 context->m_LogicalDevice.m_CommandPool,
                 context->m_LogicalDevice.m_GraphicsQueue,
+                context->m_LogicalDevice.m_QueueMutex,
                 texture,
                 VK_IMAGE_ASPECT_COLOR_BIT,
                 image_layout);
@@ -4333,6 +4341,7 @@ bail:
                 res = TransitionImageLayout(context->m_LogicalDevice.m_Device,
                     context->m_LogicalDevice.m_CommandPool,
                     context->m_LogicalDevice.m_GraphicsQueue,
+                    context->m_LogicalDevice.m_QueueMutex,
                     new_texture_color,
                     VK_IMAGE_ASPECT_COLOR_BIT,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -4726,6 +4735,7 @@ bail:
         res = SubmitCommandBuffer(
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_GraphicsQueue,
+            context->m_LogicalDevice.m_QueueMutex,
             vk_command_buffer,
             &submit_fence);
         CHECK_VK_ERROR(res);
@@ -5112,13 +5122,13 @@ bail:
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
             VkFence fence;
-            VkResult res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, cmd_buffer, &fence);
+            VkResult res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, context->m_LogicalDevice.m_QueueMutex, cmd_buffer, &fence);
             CHECK_VK_ERROR(res);
 
             if (!is_memoryless)
             {
                 // We wait for the fence here so we don't keep a bunch of large buffers around.
-                // Waiting for the fence should be fine here anyway, since we have commited the work on a different queue than the "main" graphics queue
+                // Queue submission is serialized with the main graphics thread, but the wait itself does not need the queue mutex.
                 vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
                 vkDestroyFence(context->m_LogicalDevice.m_Device, fence, NULL);
                 DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
@@ -5451,7 +5461,7 @@ bail:
             1);
 
         VkFence fence;
-        res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, vk_command_buffer, &fence);
+        res = SubmitCommandBuffer(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_GraphicsQueue, context->m_LogicalDevice.m_QueueMutex, vk_command_buffer, &fence);
         CHECK_VK_ERROR(res);
 
         // Wait for the copy command to finish

@@ -519,6 +519,7 @@ namespace dmGraphics
     VkResult TransitionImageLayout(VkDevice vk_device,
         VkCommandPool vk_command_pool,
         VkQueue vk_queue,
+        dmMutex::HMutex vk_queue_mutex,
         VulkanTexture* texture,
         VkImageAspectFlags vk_image_aspect,
         VkImageLayout vk_to_layout,
@@ -530,7 +531,7 @@ namespace dmGraphics
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
         VkFence fence;
-        SubmitCommandBuffer(vk_device, vk_queue, vk_command_buffer, &fence);
+        SubmitCommandBuffer(vk_device, vk_queue, vk_queue_mutex, vk_command_buffer, &fence);
 
         // Wait for the copy command to finish
         vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
@@ -648,7 +649,7 @@ namespace dmGraphics
         return cmd_buffer;
     }
 
-    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, VkCommandBuffer cmd, VkFence* fence_out)
+    VkResult SubmitCommandBuffer(VkDevice vk_device, VkQueue queue, dmMutex::HMutex queue_mutex, VkCommandBuffer cmd, VkFence* fence_out)
     {
         VkResult res = vkEndCommandBuffer(cmd);
         if (res != VK_SUCCESS)
@@ -665,7 +666,10 @@ namespace dmGraphics
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &cmd;
 
-        res = vkQueueSubmit(queue, 1, &submit_info, fence);
+        {
+            DM_MUTEX_SCOPED_LOCK(queue_mutex);
+            res = vkQueueSubmit(queue, 1, &submit_info, fence);
+        }
         if (res != VK_SUCCESS)
         {
             return res;
@@ -1583,6 +1587,7 @@ bail:
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
         vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
+        dmMutex::Delete(device->m_QueueMutex);
         memset(device, 0, sizeof(*device));
     }
 
@@ -1732,6 +1737,7 @@ bail:
         {
             vkGetDeviceQueue(logicalDeviceOut->m_Device, queueFamily.m_GraphicsQueueIx, 0, &logicalDeviceOut->m_GraphicsQueue);
             vkGetDeviceQueue(logicalDeviceOut->m_Device, queueFamily.m_PresentQueueIx, 0, &logicalDeviceOut->m_PresentQueue);
+            logicalDeviceOut->m_QueueMutex = dmMutex::New();
 
             // Create command pool
             VkCommandPoolCreateInfo vk_create_pool_info;
