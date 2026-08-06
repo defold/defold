@@ -124,10 +124,18 @@ updater.dialog.button.not-now = Not Now
 updater.dialog.button.download = Download Update
 updater.dialog.button.install-and-restart = Install and Restart
 updater.dialog.button.download-newer-version = Download Newer Version
+updater.dialog.button.skip-version = Skip This Version
+updater.dialog.button.skip-newer-version = Skip Newer Version
 updater.release-notes-dialog.title = Update Available
 updater.release-notes-dialog.header = Defold Release Summary - What''s New{count, plural, =1{ in {version}} other{}}
 updater.release-notes-dialog.button.later = Maybe Later
 updater.release-notes-dialog.button.update-now = Update Now
+updater.up-to-date-dialog.title = No Updates Available
+updater.up-to-date-dialog.header = You''re running the latest version of Defold
+updater.check-failed-dialog.title = Check Failed
+updater.check-failed-dialog.header = Could not check for updates. Please try again later.
+updater.download-in-progress-dialog.title = Update in Progress
+updater.download-in-progress-dialog.header = Defold is already downloading an update
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
 release-notes-dialog.title = Release Notes
@@ -1055,6 +1063,7 @@ command.help.report-suggestion = Report Suggestion
 command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
 command.help.open-release-notes = Release Notes
+command.help.check-for-updates = Check for Updates
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
