@@ -162,13 +162,15 @@
 (s/def ::document-symbol boolean?)
 (s/def ::hover boolean?)
 (s/def ::rename boolean?)
+(s/def ::formatting boolean?)
 (s/def ::capabilities (s/keys :req-un [::text-document-sync
                                        ::pull-diagnostics
                                        ::goto-definition
                                        ::find-references
                                        ::document-symbol
                                        ::hover
-                                       ::rename]
+                                       ::rename
+                                       ::formatting]
                               :opt-un [::completion]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
@@ -224,7 +226,8 @@
                                                       documentSymbolProvider
                                                       completionProvider
                                                       hoverProvider
-                                                      renameProvider]}]
+                                                      renameProvider
+                                                      documentFormattingProvider]}]
   (cond-> {:text-document-sync (cond
                                  (nil? textDocumentSync)
                                  {:change :none :open-close false}
@@ -257,7 +260,10 @@
                     (map? hoverProvider))
            :rename (and (map? renameProvider)
                         (let [prepare (:prepareProvider renameProvider)]
-                          (and (boolean? prepare) prepare)))}
+                          (and (boolean? prepare) prepare)))
+           :formatting (if (boolean? documentFormattingProvider)
+                         documentFormattingProvider
+                         (map? documentFormattingProvider))}
           completionProvider
           (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
                               :trigger-characters (set (:triggerCharacters completionProvider))})))
@@ -393,7 +399,8 @@
                                                :contentFormat [:markdown :plaintext]}
                                        :rename {:dynamicRegistration false
                                                 :prepareSupport true
-                                                :honorsChangeAnnotations false}}
+                                                :honorsChangeAnnotations false}
+                                       :formatting {:dynamicRegistration false}}
                         :completion {:dynamicRegistration false
                                      :completionItem {:snippetSupport true
                                                       :commitCharactersSupport true
@@ -856,3 +863,23 @@
                                          (mapv (fn [{:keys [cursor-range value]}]
                                                  (coll/pair cursor-range (util/split-lines value)))))))))
              (into {}))))))
+
+(defn formatting
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_formatting"
+  [resource indent-type]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/formatting"
+      {:textDocument {:uri (resource-uri resource)}
+       :options {:tabSize (data/indent-type->tab-spaces indent-type)
+                 :insertSpaces (not= :tabs indent-type)}})
+    (bound-fn [result _project]
+      (if (nil? result)
+        {:formatted false}
+        {:formatted true
+         :edits (->> result
+                     (mapv text-edit:lsp->editor)
+                     (sort-by :cursor-range)
+                     (mapv (fn [{:keys [cursor-range value]}]
+                             (coll/pair cursor-range (util/split-lines value)))))}))))

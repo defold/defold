@@ -3052,6 +3052,47 @@
        :actions [{:message (localization/message "notification.lsp.language-server-missing.action.about")
                   :on-action #(ui/open-url "https://forum.defold.com/t/linting-in-the-code-editor/72465")}]})))
 
+(handler/defhandler :code.format-document :code-view
+  (active? [editable] editable)
+  (enabled? [view-node evaluation-context]
+    (let [resource-node (get-property view-node :resource-node evaluation-context)]
+      (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
+  (run [view-node]
+    (g/let-ec [resource-node (get-property view-node :resource-node evaluation-context)
+               lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+               resource (g/node-value resource-node :resource evaluation-context)
+               indent-type (get-property view-node :indent-type evaluation-context)
+               lines (get-property view-node :lines evaluation-context)]
+      (if-not (lsp/has-language-servers-running-for-language? lsp (resource/language resource))
+        (show-no-language-server-for-resource-language-notification! resource)
+        (lsp/format-document!
+          lsp resource indent-type
+          (fn [{:keys [formatted edits] :as response}]
+            (ui/run-later
+              ;; A nil response means no server matched the request, or it timed out.
+              (when response
+                (if-not formatted
+                  ;; The server could not format the document, e.g. a syntax error.
+                  (notifications/show!
+                    (workspace/notifications (resource/workspace resource))
+                    {:type :warning
+                     :id [::formatting-failed (resource/proj-path resource)]
+                     :message (localization/message "notification.lsp.formatting-failed.prompt")})
+                  (g/with-auto-evaluation-context evaluation-context
+                    (let [current (get-property view-node :lines evaluation-context)]
+                      ;; The edits describe the lines we sent, so drop the
+                      ;; response if the document moved on while we waited.
+                      (when (= current lines)
+                        (let [line-edits (data/format-document-edits current (second (first edits)))]
+                          (when (coll/not-empty line-edits)
+                            (set-properties! view-node nil
+                                             (data/apply-edits
+                                               current
+                                               (get-property view-node :regions evaluation-context)
+                                               (get-property view-node :cursor-ranges evaluation-context)
+                                               line-edits
+                                               (get-property view-node :layout evaluation-context)))))))))))))))))
+
 (handler/defhandler :code.goto-definition :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
@@ -3602,6 +3643,7 @@
    {:command :code.toggle-comment :label (localization/message "command.code.toggle-comment")}
    {:command :code.reindent :label (localization/message "command.code.reindent-lines")}
    {:command :code.convert-indentation :expand true}
+   {:command :code.format-document :label (localization/message "command.code.format-document")}
    {:label :separator}
    {:command :code.sort-lines :user-data :case-insensitive}
    {:command :code.sort-lines :user-data :case-sensitive}
