@@ -650,6 +650,178 @@ struct AsyncTextureUploadShutdownTest : ITest
     }
 };
 
+// Regression/stress test for:
+// https://github.com/defold/defold/issues/12898
+// https://github.com/defold/defold/issues/12902
+//
+// Keeps the Vulkan upload worker busy while the main thread continuously
+// submits and presents frames. Both paths currently use the same VkQueue, so
+// this test exercises the missing external queue synchronization reported as
+// either a driver crash in AsyncProcessCallback or a GPU fence that never
+// signals. Run with the Vulkan validation layers enabled to also catch Vulkan
+// thread-safety violations on platforms where the driver tolerates the race.
+struct AsyncTextureUploadQueueTest : ITest
+{
+    struct UploadSlot
+    {
+        AsyncTextureUploadQueueTest* m_Test;
+        dmGraphics::HTexture         m_Texture;
+        bool                         m_Pending;
+    };
+
+    static const uint32_t TEXTURE_WIDTH         = 128;
+    static const uint32_t TEXTURE_HEIGHT        = 128;
+    static const uint32_t MAX_UPLOADS_IN_FLIGHT = 128;
+    static const uint32_t TARGET_UPLOAD_COUNT   = 4096;
+    static const uint64_t TEST_TIMEOUT_US       = 60ULL * 1000ULL * 1000ULL;
+
+    EngineCtx*                 m_Engine;
+    dmArray<UploadSlot>        m_Uploads;
+    dmGraphics::TextureParams  m_TextureParams;
+    uint8_t*                   m_TextureData;
+    uint32_t                   m_SubmittedCount;
+    uint32_t                   m_CompletedCount;
+    uint64_t                   m_StartTime;
+    bool                       m_CallbackFailed;
+
+    AsyncTextureUploadQueueTest()
+    : m_Engine(0)
+    , m_TextureData(0)
+    , m_SubmittedCount(0)
+    , m_CompletedCount(0)
+    , m_StartTime(0)
+    , m_CallbackFailed(false)
+    {
+    }
+
+    static void UploadComplete(dmGraphics::HTexture texture, void* user_data)
+    {
+        UploadSlot* slot = (UploadSlot*) user_data;
+        AsyncTextureUploadQueueTest* test = slot->m_Test;
+
+        if (!slot->m_Pending || slot->m_Texture != texture)
+        {
+            dmLogError("Async texture queue test: unexpected upload callback");
+            test->m_CallbackFailed = true;
+            return;
+        }
+
+        slot->m_Pending = false;
+        test->m_CompletedCount++;
+
+        uint32_t status = dmGraphics::GetTextureStatusFlags(test->m_Engine->m_GraphicsContext, texture);
+        if (status & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        {
+            dmLogError("Async texture queue test: texture is still pending in its completion callback");
+            test->m_CallbackFailed = true;
+        }
+    }
+
+    void SubmitUploads()
+    {
+        for (uint32_t i = 0; i < m_Uploads.Size() && m_SubmittedCount < TARGET_UPLOAD_COUNT; ++i)
+        {
+            UploadSlot& slot = m_Uploads[i];
+            if (slot.m_Pending)
+            {
+                continue;
+            }
+
+            slot.m_Pending = true;
+            dmGraphics::SetTextureAsync(m_Engine->m_GraphicsContext, slot.m_Texture, m_TextureParams, UploadComplete, &slot);
+            m_SubmittedCount++;
+        }
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        m_Engine = engine;
+        m_StartTime = dmTime::GetMonotonicTime();
+
+        const uint32_t texture_data_size = TEXTURE_WIDTH * TEXTURE_HEIGHT * 4;
+        m_TextureData = new uint8_t[texture_data_size];
+        for (uint32_t i = 0; i < texture_data_size; ++i)
+        {
+            m_TextureData[i] = (uint8_t) i;
+        }
+
+        m_TextureParams.m_DataSize = texture_data_size;
+        m_TextureParams.m_Data     = m_TextureData;
+        m_TextureParams.m_Width    = TEXTURE_WIDTH;
+        m_TextureParams.m_Height   = TEXTURE_HEIGHT;
+        m_TextureParams.m_Format   = dmGraphics::TEXTURE_FORMAT_RGBA;
+
+        m_Uploads.SetCapacity(MAX_UPLOADS_IN_FLIGHT);
+        m_Uploads.SetSize(MAX_UPLOADS_IN_FLIGHT);
+
+        dmGraphics::TextureCreationParams creation_params;
+        creation_params.m_Width          = TEXTURE_WIDTH;
+        creation_params.m_Height         = TEXTURE_HEIGHT;
+        creation_params.m_OriginalWidth  = TEXTURE_WIDTH;
+        creation_params.m_OriginalHeight = TEXTURE_HEIGHT;
+        creation_params.m_MipMapCount    = 1;
+
+        for (uint32_t i = 0; i < m_Uploads.Size(); ++i)
+        {
+            UploadSlot& slot = m_Uploads[i];
+            slot.m_Test    = this;
+            slot.m_Texture = dmGraphics::NewTexture(engine->m_GraphicsContext, creation_params);
+            slot.m_Pending = false;
+        }
+
+        SubmitUploads();
+        dmLogInfo("Async texture queue test: submitted %u initial uploads", m_SubmittedCount);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+            26, 51, 77, 255, 1.0f, 0);
+
+        if (m_CallbackFailed)
+        {
+            engine->m_Failed = true;
+            engine->m_Running = 0;
+            return;
+        }
+
+        SubmitUploads();
+
+        if (m_SubmittedCount == TARGET_UPLOAD_COUNT && m_CompletedCount == TARGET_UPLOAD_COUNT)
+        {
+            dmLogInfo("Async texture queue test: completed all %u uploads", m_CompletedCount);
+            engine->m_Running = 0;
+            return;
+        }
+
+        if (dmTime::GetMonotonicTime() - m_StartTime > TEST_TIMEOUT_US)
+        {
+            dmLogError("Async texture queue test timed out: submitted=%u completed=%u",
+                m_SubmittedCount, m_CompletedCount);
+            engine->m_Failed = true;
+            engine->m_Running = 0;
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_SubmittedCount == m_CompletedCount)
+        {
+            for (uint32_t i = 0; i < m_Uploads.Size(); ++i)
+            {
+                dmGraphics::DeleteTexture(engine->m_GraphicsContext, m_Uploads[i].m_Texture);
+                m_Uploads[i].m_Texture = 0;
+            }
+        }
+    }
+
+    void OnGraphicsClosed(EngineCtx*) override
+    {
+        delete[] m_TextureData;
+        m_TextureData = 0;
+    }
+};
+
 struct ComputeTest : ITest
 {
     dmGraphics::HProgram         m_Program;
@@ -1110,6 +1282,20 @@ static void* EngineCreate(int argc, char** argv)
             engine->m_Test = new AsyncTextureUploadShutdownTest();
         }
     }
+    else if (HasArgument("issue-12898-12902"))
+    {
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_VULKAN)
+        {
+            dmLogError("Issues #12898/#12902 reproducer requires the Vulkan adapter");
+            engine->m_Failed = true;
+            engine->m_Test = new ClearBackbufferTest();
+        }
+        else
+        {
+            dmLogInfo("test_app_graphics: running AsyncTextureUploadQueueTest");
+            engine->m_Test = new AsyncTextureUploadQueueTest();
+        }
+    }
     else
     {
         //engine->m_Test = new ComputeTest();
@@ -1179,7 +1365,7 @@ static UpdateResult EngineUpdate(void* _engine)
 
     dmGraphics::Flip(engine->m_GraphicsContext);
 
-    if (ShouldAutoExit() && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
+    if (ShouldAutoExit() && !HasArgument("issue-12898-12902") && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
     {
         return RESULT_EXIT;
     }
