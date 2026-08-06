@@ -3083,7 +3083,7 @@
                       ;; The edits describe the lines we sent, so drop the
                       ;; response if the document moved on while we waited.
                       (when (= current lines)
-                        (let [line-edits (data/format-document-edits current (second (first edits)))]
+                        (let [line-edits (data/format-document-edits current edits)]
                           (when (coll/not-empty line-edits)
                             (set-properties! view-node nil
                                              (data/apply-edits

@@ -3339,16 +3339,12 @@
                                                 (dissoc ::cursor))))
                                     new-regions))))
 
-(defn format-document-edits
+(defn- document-replacement-edits
   "Diff a whole-document replacement into minimal per-line edits
 
-  Language servers answer textDocument/formatting with a single edit spanning
-  the entire document. Splicing that directly would move every cursor to the
-  end of the file and delete every region inside it, so we diff instead and
-  only splice the lines that actually changed.
-
-  Returns ascending cursor-range/replacement-lines pairs for apply-edits, empty
-  if the document is already formatted."
+  Splicing the replacement in one go would move every cursor to the end of the
+  file and delete every region inside it, so we diff instead and only splice the
+  lines that actually changed."
   [lines replacement-lines]
   (let [{:keys [right-lines edits]} (diff/find-edits (coll/join-to-string "\n" lines)
                                                      (coll/join-to-string "\n" replacement-lines))
@@ -3398,6 +3394,22 @@
                         [(pair (->CursorRange (row->cursor begin-row)
                                               (row->cursor end-row))
                                new-lines)])))))))))
+
+(defn format-document-edits
+  "Turn a textDocument/formatting response into edits that keep cursors in place
+
+  Servers usually answer with a single edit spanning the entire document, which
+  we diff so only the lines that actually changed get spliced. Anything else is
+  already minimal and passes through untouched."
+  [lines edits]
+  (let [[cursor-range replacement-lines] (when (= 1 (count edits))
+                                           (first edits))]
+    (if (and cursor-range
+             (cursor-equals? (cursor-range-start cursor-range) (->Cursor 0 0))
+             (cursor-before-or-same? (document-end-cursor lines)
+                                     (cursor-range-end cursor-range)))
+      (document-replacement-edits lines replacement-lines)
+      edits)))
 
 (defn apply-edits
   ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements]
