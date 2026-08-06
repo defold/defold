@@ -4758,13 +4758,15 @@ bail:
             return;
         }
 
-        TextureFormat format_orig   = params.m_Format;
-        uint8_t tex_layer_count     = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
-        uint16_t tex_depth          = dmMath::Max(texture->m_Base.m_Depth, params.m_Depth);
-        uint8_t tex_bpp             = GetTextureFormatBitsPerPixel(params.m_Format);
-        size_t tex_data_size_bpp    = params.m_DataSize * tex_layer_count * 8; // Convert into bits
-        void*  tex_data_ptr         = (void*)params.m_Data;
-        VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
+        TextureFormat format_orig       = params.m_Format;
+        uint16_t params_depth           = dmMath::Max((uint16_t) 1, params.m_Depth);
+        uint8_t params_layer_count      = dmMath::Max((uint8_t) 1, params.m_LayerCount);
+        uint8_t tex_layer_count         = dmMath::Max(texture->m_LayerCount, params_layer_count);
+        uint16_t tex_depth              = dmMath::Max(texture->m_Base.m_Depth, params_depth);
+        uint8_t tex_bpp                 = GetTextureFormatBitsPerPixel(params.m_Format);
+        size_t tex_data_size_bpp        = params.m_DataSize * tex_layer_count * 8; // Convert into bits
+        void*  tex_data_ptr             = (void*)params.m_Data;
+        VkFormat vk_format              = GetVulkanFormatFromTextureFormat(params.m_Format);
 
         if (vk_format == VK_FORMAT_UNDEFINED)
         {
@@ -4812,13 +4814,13 @@ bail:
             if (texture->m_Format != vk_format ||
                 texture->m_Base.m_Width != params.m_Width ||
                 texture->m_Base.m_Height != params.m_Height ||
-                (IsTextureType3D(texture->m_Base.m_Type) && (texture->m_Base.m_Depth != params.m_Depth)))
+                (IsTextureType3D(texture->m_Base.m_Type) && (texture->m_Base.m_Depth != params_depth)))
             {
                 DestroyResourceDeferred(context, texture);
                 texture->m_Format = vk_format;
                 texture->m_Base.m_Width  = params.m_Width;
                 texture->m_Base.m_Height = params.m_Height;
-                texture->m_Base.m_Depth  = params.m_Depth;
+                texture->m_Base.m_Depth  = params_depth;
 
                 // Note:
                 // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
@@ -5195,18 +5197,20 @@ bail:
     static void PrepareTextureForUploading(VulkanContext* context, VulkanTexture* texture, const TextureParams& params)
     {
         VkFormat vk_format = GetVulkanFormatFromTextureFormat(params.m_Format);
+        uint16_t params_depth      = dmMath::Max((uint16_t) 1, params.m_Depth);
+        uint8_t params_layer_count = dmMath::Max((uint8_t) 1, params.m_LayerCount);
         if (!params.m_SubUpdate && params.m_MipMap == 0)
         {
             if (texture->m_Format != vk_format ||
                 texture->m_Base.m_Width != params.m_Width ||
                 texture->m_Base.m_Height != params.m_Height ||
-                (IsTextureType3D(texture->m_Base.m_Type) && (texture->m_Base.m_Depth != params.m_Depth)))
+                (IsTextureType3D(texture->m_Base.m_Type) && (texture->m_Base.m_Depth != params_depth)))
             {
                 DestroyResourceDeferred(context, texture);
                 texture->m_Format = vk_format;
                 texture->m_Base.m_Width  = params.m_Width;
                 texture->m_Base.m_Height = params.m_Height;
-                texture->m_Base.m_Depth  = params.m_Depth;
+                texture->m_Base.m_Depth  = params_depth;
 
                 // Note:
                 // If the texture has requested mipmaps and we need to recreate the texture, make sure to allocate enough mipmaps.
@@ -5228,8 +5232,8 @@ bail:
             VkImageUsageFlags vk_usage_flags        = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             VkFormatFeatureFlags vk_format_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
             VkMemoryPropertyFlags vk_memory_type    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-            uint16_t tex_depth                      = dmMath::Max(texture->m_Base.m_Depth, params.m_Depth);
-            uint8_t tex_layer_count                 = dmMath::Max(texture->m_LayerCount, params.m_LayerCount);
+            uint16_t tex_depth                      = dmMath::Max(texture->m_Base.m_Depth, params_depth);
+            uint8_t tex_layer_count                 = dmMath::Max(texture->m_LayerCount, params_layer_count);
             TextureFormat format_orig               = params.m_Format;
             if (format_orig == TEXTURE_FORMAT_RGB)
             {

@@ -74,6 +74,24 @@ static bool HasArgument(const char* argument)
     return false;
 }
 
+static uint32_t GetEnvUInt(const char* name, uint32_t default_value)
+{
+    const char* value = getenv(name);
+    if (value == 0x0 || value[0] == 0)
+    {
+        return default_value;
+    }
+
+    char* end = 0x0;
+    unsigned long result = strtoul(value, &end, 10);
+    if (end == value || result == 0)
+    {
+        return default_value;
+    }
+
+    return (uint32_t) result;
+}
+
 struct RunLoopParams
 {
     int     m_Argc;
@@ -669,11 +687,12 @@ struct AsyncTextureUploadQueueTest : ITest
         bool                         m_Pending;
     };
 
-    static const uint32_t TEXTURE_WIDTH         = 128;
-    static const uint32_t TEXTURE_HEIGHT        = 128;
-    static const uint32_t MAX_UPLOADS_IN_FLIGHT = 128;
-    static const uint32_t TARGET_UPLOAD_COUNT   = 512;
-    static const uint64_t TEST_TIMEOUT_US       = 60ULL * 1000ULL * 1000ULL;
+    static const uint32_t DEFAULT_TEXTURE_WIDTH         = 128;
+    static const uint32_t DEFAULT_TEXTURE_HEIGHT        = 128;
+    static const uint32_t DEFAULT_MAX_UPLOADS_IN_FLIGHT = 128;
+    static const uint32_t DEFAULT_TARGET_UPLOAD_COUNT   = 512*5;
+    static const uint32_t DEFAULT_TEST_TIMEOUT_S        = 60*2;
+    static const uint64_t PROGRESS_LOG_INTERVAL_US      = 1000ULL * 1000ULL;
 
     EngineCtx*                 m_Engine;
     dmArray<UploadSlot>        m_Uploads;
@@ -682,6 +701,12 @@ struct AsyncTextureUploadQueueTest : ITest
     uint32_t                   m_SubmittedCount;
     uint32_t                   m_CompletedCount;
     uint64_t                   m_StartTime;
+    uint64_t                   m_LastProgressTime;
+    uint32_t                   m_TextureWidth;
+    uint32_t                   m_TextureHeight;
+    uint32_t                   m_MaxUploadsInFlight;
+    uint32_t                   m_TargetUploadCount;
+    uint64_t                   m_TestTimeoutUs;
     bool                       m_CallbackFailed;
 
     AsyncTextureUploadQueueTest()
@@ -690,6 +715,12 @@ struct AsyncTextureUploadQueueTest : ITest
     , m_SubmittedCount(0)
     , m_CompletedCount(0)
     , m_StartTime(0)
+    , m_LastProgressTime(0)
+    , m_TextureWidth(DEFAULT_TEXTURE_WIDTH)
+    , m_TextureHeight(DEFAULT_TEXTURE_HEIGHT)
+    , m_MaxUploadsInFlight(DEFAULT_MAX_UPLOADS_IN_FLIGHT)
+    , m_TargetUploadCount(DEFAULT_TARGET_UPLOAD_COUNT)
+    , m_TestTimeoutUs((uint64_t) DEFAULT_TEST_TIMEOUT_S * 1000ULL * 1000ULL)
     , m_CallbackFailed(false)
     {
     }
@@ -719,7 +750,7 @@ struct AsyncTextureUploadQueueTest : ITest
 
     void SubmitUploads()
     {
-        for (uint32_t i = 0; i < m_Uploads.Size() && m_SubmittedCount < TARGET_UPLOAD_COUNT; ++i)
+        for (uint32_t i = 0; i < m_Uploads.Size() && m_SubmittedCount < m_TargetUploadCount; ++i)
         {
             UploadSlot& slot = m_Uploads[i];
             if (slot.m_Pending)
@@ -737,8 +768,33 @@ struct AsyncTextureUploadQueueTest : ITest
     {
         m_Engine = engine;
         m_StartTime = dmTime::GetMonotonicTime();
+        m_LastProgressTime = m_StartTime;
+        m_TextureWidth       = GetEnvUInt("DEFOLD_ASYNC_TEXTURE_WIDTH", DEFAULT_TEXTURE_WIDTH);
+        m_TextureHeight      = GetEnvUInt("DEFOLD_ASYNC_TEXTURE_HEIGHT", DEFAULT_TEXTURE_HEIGHT);
+        m_MaxUploadsInFlight = GetEnvUInt("DEFOLD_ASYNC_TEXTURE_IN_FLIGHT", DEFAULT_MAX_UPLOADS_IN_FLIGHT);
+        m_TargetUploadCount  = GetEnvUInt("DEFOLD_ASYNC_TEXTURE_UPLOADS", DEFAULT_TARGET_UPLOAD_COUNT);
+        m_TestTimeoutUs      = (uint64_t) GetEnvUInt("DEFOLD_ASYNC_TEXTURE_TIMEOUT_S", DEFAULT_TEST_TIMEOUT_S) * 1000ULL * 1000ULL;
 
-        const uint32_t texture_data_size = TEXTURE_WIDTH * TEXTURE_HEIGHT * 4;
+        if (m_TextureWidth > 0xffff || m_TextureHeight > 0xffff)
+        {
+            dmLogError("Async texture queue test dimensions are too large: %ux%u", m_TextureWidth, m_TextureHeight);
+            engine->m_Failed = true;
+            return;
+        }
+
+        const uint64_t texture_data_size_64 = (uint64_t) m_TextureWidth * m_TextureHeight * 4;
+        if (texture_data_size_64 > 0xffffffffULL)
+        {
+            dmLogError("Async texture queue test texture data is too large: %llu bytes", (unsigned long long) texture_data_size_64);
+            engine->m_Failed = true;
+            return;
+        }
+
+        dmLogInfo("Async texture queue test: %ux%u RGBA, %u in flight, %u total uploads, %u s timeout",
+            m_TextureWidth, m_TextureHeight, m_MaxUploadsInFlight, m_TargetUploadCount,
+            (uint32_t) (m_TestTimeoutUs / (1000ULL * 1000ULL)));
+
+        const uint32_t texture_data_size = (uint32_t) texture_data_size_64;
         m_TextureData = new uint8_t[texture_data_size];
         for (uint32_t i = 0; i < texture_data_size; ++i)
         {
@@ -747,18 +803,18 @@ struct AsyncTextureUploadQueueTest : ITest
 
         m_TextureParams.m_DataSize = texture_data_size;
         m_TextureParams.m_Data     = m_TextureData;
-        m_TextureParams.m_Width    = TEXTURE_WIDTH;
-        m_TextureParams.m_Height   = TEXTURE_HEIGHT;
+        m_TextureParams.m_Width    = (uint16_t) m_TextureWidth;
+        m_TextureParams.m_Height   = (uint16_t) m_TextureHeight;
         m_TextureParams.m_Format   = dmGraphics::TEXTURE_FORMAT_RGBA;
 
-        m_Uploads.SetCapacity(MAX_UPLOADS_IN_FLIGHT);
-        m_Uploads.SetSize(MAX_UPLOADS_IN_FLIGHT);
+        m_Uploads.SetCapacity(m_MaxUploadsInFlight);
+        m_Uploads.SetSize(m_MaxUploadsInFlight);
 
         dmGraphics::TextureCreationParams creation_params;
-        creation_params.m_Width          = TEXTURE_WIDTH;
-        creation_params.m_Height         = TEXTURE_HEIGHT;
-        creation_params.m_OriginalWidth  = TEXTURE_WIDTH;
-        creation_params.m_OriginalHeight = TEXTURE_HEIGHT;
+        creation_params.m_Width          = (uint16_t) m_TextureWidth;
+        creation_params.m_Height         = (uint16_t) m_TextureHeight;
+        creation_params.m_OriginalWidth  = (uint16_t) m_TextureWidth;
+        creation_params.m_OriginalHeight = (uint16_t) m_TextureHeight;
         creation_params.m_MipMapCount    = 1;
 
         for (uint32_t i = 0; i < m_Uploads.Size(); ++i)
@@ -787,14 +843,24 @@ struct AsyncTextureUploadQueueTest : ITest
 
         SubmitUploads();
 
-        if (m_SubmittedCount == TARGET_UPLOAD_COUNT && m_CompletedCount == TARGET_UPLOAD_COUNT)
+        uint64_t now = dmTime::GetMonotonicTime();
+        if (now - m_LastProgressTime >= PROGRESS_LOG_INTERVAL_US)
+        {
+            uint32_t in_flight = m_SubmittedCount - m_CompletedCount;
+            dmLogInfo("Async texture queue test: progress %u/%u completed, %u submitted, %u in flight, %u s elapsed",
+                m_CompletedCount, m_TargetUploadCount, m_SubmittedCount, in_flight,
+                (uint32_t) ((now - m_StartTime) / (1000ULL * 1000ULL)));
+            m_LastProgressTime = now;
+        }
+
+        if (m_SubmittedCount == m_TargetUploadCount && m_CompletedCount == m_TargetUploadCount)
         {
             dmLogInfo("Async texture queue test: completed all %u uploads", m_CompletedCount);
             engine->m_Running = 0;
             return;
         }
 
-        if (dmTime::GetMonotonicTime() - m_StartTime > TEST_TIMEOUT_US)
+        if (now - m_StartTime > m_TestTimeoutUs)
         {
             dmLogError("Async texture queue test timed out: submitted=%u completed=%u",
                 m_SubmittedCount, m_CompletedCount);
@@ -1252,9 +1318,9 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_VerifyGraphicsCalls     = 1;
-#if defined(DM_VULKAN_VALIDATION)
+//#if defined(DM_VULKAN_VALIDATION)
     graphics_context_params.m_UseValidationLayers     = 1;
-#endif
+//#endif
     graphics_context_params.m_Window                  = engine->m_Window;
     graphics_context_params.m_Width                   = 512;
     graphics_context_params.m_Height                  = 512;

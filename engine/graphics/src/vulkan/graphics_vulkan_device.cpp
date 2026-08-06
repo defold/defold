@@ -19,6 +19,10 @@
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
 
+#ifndef DM_VULKAN_QUEUE_MUTEX_ENABLED
+#define DM_VULKAN_QUEUE_MUTEX_ENABLED 1
+#endif
+
 namespace dmGraphics
 {
     void InitializeVulkanTexture(VulkanTexture* t)
@@ -650,13 +654,17 @@ namespace dmGraphics
 
     VkResult QueueSubmit(LogicalDevice* logical_device, uint32_t submit_count, const VkSubmitInfo* submit_info, VkFence fence)
     {
+#if DM_VULKAN_QUEUE_MUTEX_ENABLED
         DM_MUTEX_SCOPED_LOCK(logical_device->m_QueueMutex);
+#endif
         return vkQueueSubmit(logical_device->m_GraphicsQueue, submit_count, submit_info, fence);
     }
 
     VkResult QueuePresent(LogicalDevice* logical_device, const VkPresentInfoKHR* present_info)
     {
+#if DM_VULKAN_QUEUE_MUTEX_ENABLED
         DM_MUTEX_SCOPED_LOCK(logical_device->m_QueueMutex);
+#endif
         return vkQueuePresentKHR(logical_device->m_PresentQueue, present_info);
     }
 
@@ -1768,6 +1776,9 @@ bail:
             if (res == VK_SUCCESS)
             {
                 logicalDeviceOut->m_QueueMutex = dmMutex::New();
+#if !DM_VULKAN_QUEUE_MUTEX_ENABLED
+                dmLogWarning("Vulkan queue submit/present mutex disabled by DM_VULKAN_QUEUE_MUTEX_ENABLED=0");
+#endif
             }
         }
 
