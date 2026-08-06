@@ -25,6 +25,17 @@
 namespace dmGraphics
 {
     static VkDebugUtilsMessengerEXT g_vk_debug_callback_handle = 0x0;
+    static int32_atomic_t g_vk_queue_validation_error_count;
+
+    void ResetQueueValidationErrorCount()
+    {
+        dmAtomicStore32(&g_vk_queue_validation_error_count, 0);
+    }
+
+    uint32_t GetQueueValidationErrorCount()
+    {
+        return (uint32_t) dmAtomicGet32(&g_vk_queue_validation_error_count);
+    }
 
     static void GetExtensions(dmArray<VkExtensionProperties>& extensions)
     {
@@ -92,6 +103,12 @@ namespace dmGraphics
             {
                 return VK_FALSE;
             }
+        }
+
+        if ((messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) &&
+            callbackData->pMessage && strstr(callbackData->pMessage, "VkQueue"))
+        {
+            dmAtomicIncrement32(&g_vk_queue_validation_error_count);
         }
 
         dmLogInfo("Validation Layer: %s", callbackData->pMessage);

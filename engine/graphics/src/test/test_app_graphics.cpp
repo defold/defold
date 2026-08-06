@@ -33,6 +33,10 @@
 
 #include "test_app_graphics_assets.h"
 
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+    #include "vulkan/graphics_vulkan_private.h"
+#endif
+
 #if __has_include("test_app_graphics_assets_vendor.h")
     #define DM_TEST_APP_GRAPHICS_HAS_VENDOR_ASSETS 1
     #include "test_app_graphics_assets_vendor.h"
@@ -650,6 +654,246 @@ struct AsyncTextureUploadShutdownTest : ITest
     }
 };
 
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+// Regression test for https://github.com/defold/defold/issues/12902.
+//
+// The first upload is queued while the test owns the logical device's queue
+// mutex. A sentinel job queued behind the upload must remain blocked until the
+// mutex is released. The remaining uploads are released immediately before a
+// frame is submitted to create real contention between the worker and render
+// threads. Vulkan validation errors involving VkQueue are reported as test
+// failures when validation layers are enabled.
+struct AsyncQueueSubmissionTest : ITest
+{
+    struct Texture
+    {
+        dmGraphics::HTexture m_Texture;
+        uint8_t*             m_Data;
+    };
+
+    static const uint32_t TEXTURE_COUNT = 256;
+    static const uint32_t TEXTURE_WIDTH = 64;
+    static const uint32_t TEXTURE_HEIGHT = 64;
+
+    dmArray<Texture> m_Textures;
+    int32_atomic_t   m_CompletedUploads;
+    int32_atomic_t   m_SentinelReached;
+    int32_atomic_t   m_BlockStressWorker;
+    int32_atomic_t   m_StressWorkerStarted;
+    bool             m_StressWorkerReleased;
+    bool             m_SerializationFailed;
+    bool             m_CleanedUp;
+    uint64_t         m_Deadline;
+
+    AsyncQueueSubmissionTest()
+    : m_StressWorkerReleased(false)
+    , m_SerializationFailed(false)
+    , m_CleanedUp(false)
+    , m_Deadline(0)
+    {
+        dmAtomicStore32(&m_CompletedUploads, 0);
+        dmAtomicStore32(&m_SentinelReached, 0);
+        dmAtomicStore32(&m_BlockStressWorker, 1);
+        dmAtomicStore32(&m_StressWorkerStarted, 0);
+    }
+
+    static void UploadComplete(dmGraphics::HTexture, void* user_data)
+    {
+        AsyncQueueSubmissionTest* test = (AsyncQueueSubmissionTest*) user_data;
+        dmAtomicIncrement32(&test->m_CompletedUploads);
+    }
+
+    static int MarkSentinel(HJobContext, HJob, void*, void* data)
+    {
+        AsyncQueueSubmissionTest* test = (AsyncQueueSubmissionTest*) data;
+        dmAtomicStore32(&test->m_SentinelReached, 1);
+        return 0;
+    }
+
+    static int BlockStressWorker(HJobContext, HJob, void*, void* data)
+    {
+        AsyncQueueSubmissionTest* test = (AsyncQueueSubmissionTest*) data;
+        dmAtomicStore32(&test->m_StressWorkerStarted, 1);
+        while (dmAtomicGet32(&test->m_BlockStressWorker))
+        {
+            dmTime::Sleep(100);
+        }
+        return 0;
+    }
+
+    static void PushJob(HJobContext job_context, FJobProcess process, void* data)
+    {
+        Job job = {};
+        job.m_Process = process;
+        job.m_Data = data;
+        HJob hjob = JobSystemCreateJob(job_context, &job);
+        JobSystemPushJob(job_context, hjob);
+    }
+
+    static bool WaitForAtomic(int32_atomic_t* value, int32_t expected, uint64_t timeout_us)
+    {
+        uint64_t timeout = dmTime::GetMonotonicTime() + timeout_us;
+        while (dmAtomicGet32(value) != expected && dmTime::GetMonotonicTime() < timeout)
+        {
+            dmTime::Sleep(100);
+        }
+        return dmAtomicGet32(value) == expected;
+    }
+
+    void QueueTexture(EngineCtx* engine)
+    {
+        dmGraphics::TextureCreationParams creation_params;
+        creation_params.m_Width = TEXTURE_WIDTH;
+        creation_params.m_Height = TEXTURE_HEIGHT;
+        creation_params.m_OriginalWidth = TEXTURE_WIDTH;
+        creation_params.m_OriginalHeight = TEXTURE_HEIGHT;
+
+        dmGraphics::TextureParams params;
+        params.m_DataSize = TEXTURE_WIDTH * TEXTURE_HEIGHT;
+        params.m_Data = new uint8_t[params.m_DataSize];
+        params.m_Width = TEXTURE_WIDTH;
+        params.m_Height = TEXTURE_HEIGHT;
+        params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+        memset((void*) params.m_Data, (uint8_t) m_Textures.Size(), params.m_DataSize);
+
+        Texture texture = {};
+        texture.m_Texture = dmGraphics::NewTexture(engine->m_GraphicsContext, creation_params);
+        texture.m_Data = (uint8_t*) params.m_Data;
+        m_Textures.Push(texture);
+
+        dmGraphics::SetTextureAsync(engine->m_GraphicsContext, texture.m_Texture, params, UploadComplete, this);
+    }
+
+    void Cleanup(EngineCtx* engine)
+    {
+        if (m_CleanedUp)
+        {
+            return;
+        }
+
+        for (uint32_t i = 0; i < m_Textures.Size(); ++i)
+        {
+            dmGraphics::DeleteTexture(engine->m_GraphicsContext, m_Textures[i].m_Texture);
+            delete[] m_Textures[i].m_Data;
+        }
+        m_Textures.SetSize(0);
+        m_CleanedUp = true;
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
+        if (!context->m_AsyncProcessingSupport)
+        {
+            dmLogError("Issue #12902 reproducer requires Vulkan async processing support");
+            engine->m_Failed = true;
+            return;
+        }
+
+        dmGraphics::ResetQueueValidationErrorCount();
+        m_Textures.SetCapacity(TEXTURE_COUNT);
+
+        dmMutex::Lock(context->m_LogicalDevice.m_QueueMutex);
+        QueueTexture(engine);
+        PushJob(engine->m_JobContext, MarkSentinel, this);
+
+        if (WaitForAtomic(&m_SentinelReached, 1, 1000 * 1000))
+        {
+            dmLogError("Issue #12902 reproducer: async upload bypassed the held queue mutex");
+            m_SerializationFailed = true;
+        }
+        dmMutex::Unlock(context->m_LogicalDevice.m_QueueMutex);
+
+        if (!WaitForAtomic(&m_SentinelReached, 1, 5 * 1000 * 1000))
+        {
+            dmLogError("Issue #12902 reproducer: async upload did not resume after releasing the queue mutex");
+            m_SerializationFailed = true;
+        }
+
+        PushJob(engine->m_JobContext, BlockStressWorker, this);
+        if (!WaitForAtomic(&m_StressWorkerStarted, 1, 5 * 1000 * 1000))
+        {
+            dmLogError("Issue #12902 reproducer: stress worker did not start");
+            m_SerializationFailed = true;
+        }
+
+        while (m_Textures.Size() < TEXTURE_COUNT)
+        {
+            QueueTexture(engine);
+        }
+        m_Deadline = dmTime::GetMonotonicTime() + 30 * 1000 * 1000;
+
+#if defined(DM_VULKAN_VALIDATION)
+        dmLogInfo("Issue #12902 reproducer: Vulkan validation is enabled");
+#else
+        dmLogWarning("Issue #12902 reproducer: Vulkan validation is disabled; running mutex and driver-crash checks only");
+#endif
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        if (m_SerializationFailed)
+        {
+            engine->m_Failed = true;
+        }
+
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+            0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0);
+
+        if (!m_StressWorkerReleased)
+        {
+            dmAtomicStore32(&m_BlockStressWorker, 0);
+            m_StressWorkerReleased = true;
+        }
+
+        if ((uint32_t) dmAtomicGet32(&m_CompletedUploads) == TEXTURE_COUNT)
+        {
+            uint32_t validation_errors = dmGraphics::GetQueueValidationErrorCount();
+            if (validation_errors != 0)
+            {
+                dmLogError("Issue #12902 reproducer: Vulkan reported %u VkQueue validation error(s)", validation_errors);
+                engine->m_Failed = true;
+            }
+            if (m_SerializationFailed)
+            {
+                engine->m_Failed = true;
+            }
+
+            Cleanup(engine);
+            engine->m_Running = 0;
+        }
+        else if (dmTime::GetMonotonicTime() >= m_Deadline)
+        {
+            dmLogError("Issue #12902 reproducer: timed out after completing %d of %u uploads",
+                dmAtomicGet32(&m_CompletedUploads), TEXTURE_COUNT);
+            engine->m_Failed = true;
+            engine->m_Running = 0;
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        dmAtomicStore32(&m_BlockStressWorker, 0);
+        if ((uint32_t) dmAtomicGet32(&m_CompletedUploads) == TEXTURE_COUNT)
+        {
+            Cleanup(engine);
+        }
+    }
+
+    void OnGraphicsClosed(EngineCtx*) override
+    {
+        if (!m_CleanedUp)
+        {
+            for (uint32_t i = 0; i < m_Textures.Size(); ++i)
+            {
+                delete[] m_Textures[i].m_Data;
+            }
+            m_Textures.SetSize(0);
+        }
+    }
+};
+#endif
+
 struct ComputeTest : ITest
 {
     dmGraphics::HProgram         m_Program;
@@ -1110,6 +1354,26 @@ static void* EngineCreate(int argc, char** argv)
             engine->m_Test = new AsyncTextureUploadShutdownTest();
         }
     }
+    else if (HasArgument("issue-12902"))
+    {
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_VULKAN)
+        {
+            dmLogError("Issue #12902 reproducer requires the Vulkan adapter");
+            engine->m_Failed = true;
+            engine->m_Test = new ClearBackbufferTest();
+        }
+        else
+        {
+            dmLogInfo("test_app_graphics: running AsyncQueueSubmissionTest");
+            engine->m_Test = new AsyncQueueSubmissionTest();
+        }
+#else
+        dmLogError("Issue #12902 reproducer was built without the Vulkan adapter");
+        engine->m_Failed = true;
+        engine->m_Test = new ClearBackbufferTest();
+#endif
+    }
     else
     {
         //engine->m_Test = new ComputeTest();
@@ -1179,7 +1443,7 @@ static UpdateResult EngineUpdate(void* _engine)
 
     dmGraphics::Flip(engine->m_GraphicsContext);
 
-    if (ShouldAutoExit() && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
+    if (ShouldAutoExit() && !HasArgument("issue-12902") && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
     {
         return RESULT_EXIT;
     }

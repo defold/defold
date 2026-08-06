@@ -545,6 +545,8 @@ namespace dmGraphics
         // Req. Validation Layer Extensions, i.e "VK_EXT_DEBUG_UTILS_EXTENSION_NAME"
         const char** validationLayerExtensions, uint16_t validationLayerExtensionCount);
     void     DestroyInstance(VkInstance* vkInstance);
+    void     ResetQueueValidationErrorCount();
+    uint32_t GetQueueValidationErrorCount();
 
     // Implemented in graphics_vulkan.cpp
     VkResult CreateMainFrameBuffers(VulkanContext* context);
