@@ -419,9 +419,12 @@
             (when-let [{:keys [resource-node resource-node-type]} (get open-views active-view)]
               [resource-node resource-node-type])))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
-  (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
+  (output open-resource-nodes g/Any :cached (g/fnk [open-views] (into [] (keep :resource-node) (vals open-views))))
+  ;; NOTE: Empty rather than nil when nothing is selected. Command contexts with a nil
+  ;; selection stop the context chain in handler/eval-contexts, which leaves a
+  ;; context menu opened over a tab without a resource with nothing to show.
   (output selected-node-ids g/Any (g/fnk [selected-node-ids-by-resource-node active-resource-node]
-                                    (get selected-node-ids-by-resource-node active-resource-node)))
+                                    (get selected-node-ids-by-resource-node active-resource-node [])))
   (output selected-node-properties g/Any (g/fnk [selected-node-properties-by-resource-node active-resource-node]
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
@@ -430,13 +433,14 @@
                                             (let [tab-panes (.getItems editor-tabs-split)]
                                               (update-quick-help-pane editor-tabs-split keymap localization)
 
+                                              ;; Only resource-backed tabs derive their title here. Other
+                                              ;; tabs keep the title they were created with.
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (editor-tab/view-node-id tab)
-                                                            resource (:resource (get open-views view))
-                                                            dirty (contains? open-dirty-views view)
-                                                            title (tab-title resource dirty)]]
-                                                (ui/text! tab title)))))
+                                                            resource (:resource (get open-views view))]
+                                                      :when resource]
+                                                (ui/text! tab (tab-title resource (contains? open-dirty-views view)))))))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection evaluation-context]
@@ -2434,85 +2438,132 @@
             :perspective
             :orthographic))))))
 
-(defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
-  (let [basis (g/now)
-        project (project/get-project basis resource-node)
-        resource (resource-node/resource basis resource-node)
-        workspace (resource/workspace resource)
-        resource-type (resource/lookup-resource-type basis workspace resource)
+(defn make-editor-tab!
+  "Creates an editor tab from a tab specification, adds it to `tabs`, and returns
+  the Tab. This is the resource-independent part of opening an editor tab: it
+  creates the view graph, connects the resulting WorkbenchView to the AppView,
+  and disposes the view graph when the tab closes.
+
+  The tab specification is a map with:
+    `:title` - required, tab label, a localization message or a string
+    `:tooltip` - required, tab tooltip, a localization message or a string
+    `:icon` - optional, Node shown as the tab graphic
+    `:style-classes` - optional, collection of style class names
+    `:instance-key` - optional, caller-supplied value identifying this logical
+                      tab among all editor tabs. Opening the same key reuses the
+                      existing tab; omitting it always creates a new tab.
+                      See open-editor-tab!
+    `:view-type` - optional, view-type map. See workspace/register-view-type
+    `:wrap-content-fn` - optional, (fn [parent]) returning the tab content
+                         wrapping the view parent
+    `:make-view-fn` - required, (fn [view-graph parent opts]) returning a
+                      view/WorkbenchView created in the supplied graph
+    `:connect-view-fn` - optional, (fn [view-node-id]) returning transaction
+                         data applied together with the AppView connections
+    `:on-closed-fn` - optional, (fn [view-node-id]) called when the tab closes,
+                      before the view graph is disposed
+
+  `opts` is passed on to `:make-view-fn` with the AppView and the Tab added."
+  [app-view localization ^ObservableList tabs tab-spec opts]
+  (let [{:keys [icon instance-key style-classes title tooltip view-type
+                connect-view-fn make-view-fn on-closed-fn wrap-content-fn]} tab-spec
         parent (AnchorPane.)
-        tab-content (if (resource/read-only? resource)
-                      (doto (VBox.)
-                        (ui/children! [(make-info-box! localization)
-                                       (doto parent (VBox/setVgrow Priority/ALWAYS))]))
-                      parent)
-        tab (doto (Tab. (tab-title resource false))
-              (.setContent tab-content)
-              (.setTooltip (Tooltip. (or (resource/proj-path resource) "unknown")))
-              (editor-tab/set-view-type! view-type))
+        tab (doto (Tab.)
+              (localization/localize! localization title)
+              (.setContent (if wrap-content-fn
+                             (wrap-content-fn parent)
+                             parent))
+              (.setTooltip (doto (Tooltip.) (localization/localize! localization tooltip)))
+              (.setGraphic icon)
+              (editor-tab/set-view-type! view-type)
+              (editor-tab/set-instance-key! instance-key))
         view-graph (g/make-graph! :volatility 2)
-        select-fn (partial select app-view)
-        open-resource-fn (partial open-resource! app-view prefs localization project)
-        camera-opts (when (= :scene (:id view-type))
-                      (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
-                        {:camera stored-camera}
-                        {:default-camera-projection (default-camera-projection project resource resource-node)}))
-        opts (merge opts
-                    (get (:view-opts resource-type) (:id view-type))
-                    {:app-view app-view
-                     :select-fn select-fn
-                     :open-resource-fn open-resource-fn
-                     :prefs prefs
-                     :project project
-                     :workspace workspace
-                     :localization localization
-                     :tab tab}
-                    camera-opts)
-        make-view-fn (:make-view-fn view-type)
         undo-stack-revisions-before (g/undo-stack-revisions)
-        view (make-view-fn view-graph parent resource-node opts)]
+        view (make-view-fn view-graph parent (assoc opts :app-view app-view :tab tab))]
     (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
-            (format "The %s view-type :make-view-fn created undo steps for '%s'."
-                    (:id view-type)
-                    (resource/proj-path resource)))
+            (format "The editor tab :make-view-fn created undo steps for '%s'."
+                    (.getText tab)))
     (assert (g/node-instance? view/WorkbenchView view))
-    (recent-files/add! prefs resource view-type)
     (g/transact
       {:undoable false}
       (concat
-        (view/connect-resource-node view resource-node)
+        (when connect-view-fn
+          (connect-view-fn view))
         (g/connect app-view :selected-node-properties view :selected-node-properties)
         (g/connect view :view-data app-view :open-views)
         (g/connect view :view-dirty app-view :open-dirty-views)
         (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
     (editor-tab/set-view-node-id! tab view)
     (.add tabs tab)
-    (.setGraphic tab (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
-    (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
+    (ui/add-styles! tab style-classes)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
-    (.setOnSelectionChanged tab (ui/event-handler event
-                                  (when (.isSelected tab)
-                                    (recent-files/add! prefs resource view-type))))
-    (let [close-handler (.getOnClosed tab)]
-      (.setOnClosed tab (ui/event-handler event
-                          (let [basis (g/now)
-                                resource (resource-node/resource basis resource-node)]
-                            (recent-files/add! prefs resource view-type)
-                            (when (= :scene (:id view-type))
-                              (save-scene-camera-prefs! prefs view resource)))
+    (ui/on-closed! tab
+                   (fn [_event]
+                     (when on-closed-fn
+                       (on-closed-fn view))
 
-                          ;; The menu refresh can occur after the view graph is
-                          ;; deleted but before the tab controls lose input
-                          ;; focus, causing handlers to evaluate against deleted
-                          ;; graph nodes. Using run-later here prevents this.
-                          (ui/run-later
-                            (doto tab
-                              (editor-tab/set-view-type! nil)
-                              (editor-tab/set-view-node-id! nil))
-                            (g/delete-graph! view-graph))
-                          (when close-handler
-                            (.handle close-handler event)))))
+                     ;; The menu refresh can occur after the view graph is
+                     ;; deleted but before the tab controls lose input focus,
+                     ;; causing handlers to evaluate against deleted graph
+                     ;; nodes. Using run-later here prevents this.
+                     (ui/run-later
+                       (doto tab
+                         (editor-tab/set-view-type! nil)
+                         (editor-tab/set-view-node-id! nil))
+                       (g/delete-graph! view-graph))))
     tab))
+
+(defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
+  (let [basis (g/now)
+        project (project/get-project basis resource-node)
+        resource (resource-node/resource basis resource-node)
+        workspace (resource/workspace resource)
+        resource-type (resource/lookup-resource-type basis workspace resource)
+
+        camera-opts (when (= :scene (:id view-type))
+                      (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
+                        {:camera stored-camera}
+                        {:default-camera-projection (default-camera-projection project resource resource-node)}))
+
+        view-opts (merge opts
+                         (get (:view-opts resource-type) (:id view-type))
+                         {:select-fn (partial select app-view)
+                          :open-resource-fn (partial open-resource! app-view prefs localization project)
+                          :prefs prefs
+                          :project project
+                          :workspace workspace
+                          :localization localization}
+                         camera-opts)
+
+        tab-spec {:title (tab-title resource false)
+                  :tooltip (or (resource/proj-path resource) "unknown")
+                  :icon (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16)
+                  :style-classes (resource/style-classes resource)
+                  :view-type view-type
+
+                  :wrap-content-fn (when (resource/read-only? resource)
+                                     (fn wrap-read-only-content [^Node parent]
+                                       (doto (VBox.)
+                                         (ui/children! [(make-info-box! localization)
+                                                        (doto parent (VBox/setVgrow Priority/ALWAYS))]))))
+
+                  :make-view-fn (fn make-resource-view [view-graph parent view-opts]
+                                  ((:make-view-fn view-type) view-graph parent resource-node view-opts))
+
+                  :connect-view-fn (fn connect-view [view]
+                                     (view/connect-resource-node view resource-node))
+
+                  :on-closed-fn (fn on-resource-tab-closed [view]
+                                  (let [resource (resource-node/resource (g/now) resource-node)]
+                                    (recent-files/add! prefs resource view-type)
+                                    (when (= :scene (:id view-type))
+                                      (save-scene-camera-prefs! prefs view resource))))}]
+    (recent-files/add! prefs resource view-type)
+    (let [^Tab tab (make-editor-tab! app-view localization tabs tab-spec view-opts)]
+      (.setOnSelectionChanged tab (ui/event-handler event
+                                    (when (.isSelected tab)
+                                      (recent-files/add! prefs resource view-type))))
+      tab)))
 
 (defn- substitute-args [tmpl args]
   (reduce (fn [tmpl [key val]]
@@ -2546,6 +2597,28 @@
        (do
          (.requestFocus tab-pane)
          (done-fn))))))
+
+(defn open-editor-tab!
+  "Opens an editor tab of the registered tab type identified by `type-id`,
+  selecting the tab that is already open when its instance key matches. Returns
+  the Tab. Must be called on the JavaFX application thread.
+
+  `opts` is handed to the tab type and on to its view. See
+  editor-tab/register-type!."
+  [app-view localization type-id opts]
+  (let [make-tab-spec-fn (:make-tab-spec-fn (editor-tab/resolve-type type-id))
+        tab-spec (make-tab-spec-fn opts)
+        instance-key (:instance-key tab-spec)
+        ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
+        existing-tab (when instance-key
+                       (->> (.getItems editor-tabs-split)
+                            (e/mapcat TabPane/.getTabs)
+                            (coll/first-where #(= instance-key (editor-tab/instance-key %)))))
+        tab (or existing-tab
+                (let [^TabPane tab-pane (g/node-value app-view :active-tab-pane)]
+                  (make-editor-tab! app-view localization (.getTabs tab-pane) tab-spec opts)))]
+    (select-editor-tab! tab opts)
+    tab))
 
 (defn make-open-resource-plan
   [app-view prefs project resource opts evaluation-context]
