@@ -2808,37 +2808,28 @@
                     :exception e)
           nil)))))
 
-(g/defnk produce-release-notes-desc [content parent project]
-  {:fx/type fxui/ext-with-anchor-pane-props
-   :desc {:fx/type ui/ext-value :value parent}
-   :props {:children [{:fx/type markdown/view
-                       :anchor-pane/top 0
-                       :anchor-pane/right 0
-                       :anchor-pane/bottom 0
-                       :anchor-pane/left 0
-                       :root-props {:style-class "md-page-root"}
-                       :style-class "md-page-scroll-pane"
-                       :content content
-                       :project project}]}})
-
 (g/defnode ReleaseNotesView
-  (inherits view/NonResourceWorkbenchView)
-  (property parent g/Any)
-  (property content g/Str)
-  (input project g/NodeID)
-  (output desc g/Any :cached produce-release-notes-desc))
+  (inherits view/NonResourceWorkbenchView))
 
 (defn- make-release-notes-view [view-graph parent {:keys [content project ^Tab tab]}]
   (let [view (first
                (g/tx-nodes-added
                  (g/transact
                    {:undoable false}
-                   (g/make-nodes view-graph [view [ReleaseNotesView
-                                                   :parent parent
-                                                   :content content]]
-                     (g/connect project :_node-id view :project)))))]
-    ;; The notes never change while the tab is open, so this renders once.
-    (ui/advance-graph-user-data-component! view :view (g/node-value view :desc))
+                   (g/make-node view-graph ReleaseNotesView))))]
+    (ui/advance-graph-user-data-component!
+      view :view
+      {:fx/type fxui/ext-with-anchor-pane-props
+       :desc {:fx/type ui/ext-value :value parent}
+       :props {:children [{:fx/type markdown/view
+                           :anchor-pane/top 0
+                           :anchor-pane/right 0
+                           :anchor-pane/bottom 0
+                           :anchor-pane/left 0
+                           :root-props {:style-class "md-page-root"}
+                           :style-class "md-page-scroll-pane"
+                           :content content
+                           :project project}]}})
     (ui/on-closed! tab (fn [_event] (ui/advance-graph-user-data-component! view :view nil)))
     view))
 
@@ -2852,11 +2843,7 @@
                         :style-classes #{"resource"}
                         :make-view-fn #'make-release-notes-view})})
 
-(defn open-release-notes-tab!
-  "Opens the running version's bundled release notes in an editor tab, selecting
-  the tab when it is already open. No-op when the build ships no notes. Must be
-  called on the JavaFX application thread."
-  [app-view localization project]
+(defn open-release-notes-tab! [app-view localization project]
   (when-let [content @release-notes-markdown-delay]
     (open-editor-tab! app-view localization ::release-notes
                       {:content content
