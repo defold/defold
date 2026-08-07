@@ -2794,63 +2794,65 @@
          (make-open-resource-plan app-view prefs project resource opts evaluation-context))
        (perform-open-resource-plan! localization))))
 
-(def ^:private release-notes-resource-delay
-  (delay (io/resource (str "release-notes/" (system/defold-version) ".json"))))
+(def ^:private release-notes-markdown-delay
+  "Markdown for the running version's bundled release notes, or nil when the
+  build ships none or they cannot be read."
+  (delay
+    (when-let [url (io/resource (str "release-notes/" (system/defold-version) ".json"))]
+      (try
+        (with-open [reader (io/reader url)]
+          (updater/release-notes-markdown (json/read reader :key-fn keyword)))
+        (catch Exception e
+          (log/warn :message "Failed to read bundled release notes"
+                    :url (str url)
+                    :exception e)
+          nil)))))
 
-(defn- bundled-release-notes-json [url]
-  (try
-    (with-open [reader (io/reader url)]
-      (updater/release-notes-markdown (json/read reader :key-fn keyword)))
-    (catch Exception e
-      (log/warn :message "Failed to read bundled release notes"
-                :url (str url)
-                :exception e)
-      nil)))
+(g/defnode ReleaseNotesView
+  (inherits view/NonResourceWorkbenchView))
 
-(ui/defc release-notes-dialog
-  {:compose [{:fx/type fx/ext-watcher
-              :ref (:localization props)
-              :key :localization-state}]}
-  [{:keys [project localization-state content result-fn]}]
-  {:fx/type dialogs/dialog-stage
-   :showing true
-   :on-close-request (fn [_] (result-fn false))
-   :title (localization-state (localization/message "release-notes-dialog.title"))
-   :size :large
-   :width 1000
-   :header {:fx/type fxui/legacy-label
-            :variant :header
-            :text (localization-state (localization/message "release-notes-dialog.header"
-                                                            {"version" (system/defold-version)}))}
-   :content {:fx/type markdown/view
-             :content content
-             :project project
-             :stylesheets [(str (io/resource "editor.css"))]
-             :root-props {:style-class "md-page-root"}}
-   :footer {:fx/type dialogs/dialog-buttons
-            :children [{:fx/type fxui/legacy-button
-                        :text (localization-state (localization/message "release-notes-dialog.button.close"))
-                        :cancel-button true
-                        :on-action (fn [_] (result-fn false))}]}})
+(defn- make-release-notes-view [view-graph parent {:keys [content project ^Tab tab]}]
+  (let [view (first
+               (g/tx-nodes-added
+                 (g/transact
+                   {:undoable false}
+                   (g/make-node view-graph ReleaseNotesView))))]
+    (ui/advance-graph-user-data-component!
+      view :view
+      {:fx/type fxui/ext-with-anchor-pane-props
+       :desc {:fx/type ui/ext-value :value parent}
+       :props {:children [{:fx/type markdown/view
+                           :anchor-pane/top 0
+                           :anchor-pane/right 0
+                           :anchor-pane/bottom 0
+                           :anchor-pane/left 0
+                           :root-props {:style-class "md-page-root"}
+                           :style-class "md-page-scroll-pane"
+                           :content content
+                           :project project}]}})
+    (ui/on-closed! tab (fn [_event] (ui/advance-graph-user-data-component! view :view nil)))
+    view))
 
-(defn show-release-notes-dialog!
-  "Shows the running version's bundled release notes in a dialog. No-op when no
-  notes shipped. Must be called on the JavaFX application thread."
-  [localization project]
-  (when-let [url @release-notes-resource-delay]
-    (when-let [content (bundled-release-notes-json url)]
-      (fxui/show-stateless-dialog-and-await-result!
-        (fn [result-fn]
-          {:fx/type release-notes-dialog
-           :result-fn result-fn
-           :localization localization
-           :content content
-           :project project})))))
+(editor-tab/register-type! ::release-notes
+  {:make-tab-spec-fn (fn make-release-notes-tab-spec [_opts]
+                       {:instance-key ::release-notes
+                        :title (localization/message "release-notes-tab.title")
+                        :tooltip (localization/message "release-notes-tab.tooltip"
+                                                       {"version" (system/defold-version)})
+                        :icon (icons/get-image-view "icons/64/Icons_29-AT-Unknown.png" 16)
+                        :style-classes #{"resource"}
+                        :make-view-fn #'make-release-notes-view})})
+
+(defn open-release-notes-tab! [app-view localization project]
+  (when-let [content @release-notes-markdown-delay]
+    (open-editor-tab! app-view localization ::release-notes
+                      {:content content
+                       :project project})))
 
 (handler/defhandler :help.open-release-notes :global
-  (enabled? [] @release-notes-resource-delay)
-  (run [localization project]
-    (show-release-notes-dialog! localization project)))
+  (enabled? [] @release-notes-markdown-delay)
+  (run [app-view localization project]
+    (open-release-notes-tab! app-view localization project)))
 
 (handler/defhandler :help.check-for-updates :global
   (enabled? [updater]

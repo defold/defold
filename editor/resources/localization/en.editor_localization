@@ -138,9 +138,8 @@ updater.download-in-progress-dialog.title = Update in Progress
 updater.download-in-progress-dialog.header = Defold is already downloading an update
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
-release-notes-dialog.title = Release Notes
-release-notes-dialog.header = Defold Release Summary - What''s New in {version}
-release-notes-dialog.button.close = Close
+release-notes-tab.title = Release Notes
+release-notes-tab.tooltip = Defold Release Summary - What''s New in {version}
 
 # Time
 time.vague.unknown = Unknown
