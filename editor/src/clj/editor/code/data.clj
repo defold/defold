@@ -3340,11 +3340,7 @@
                                     new-regions))))
 
 (defn- document-replacement-edits
-  "Diff a whole-document replacement into minimal per-line edits
-
-  Splicing the replacement in one go would move every cursor to the end of the
-  file and delete every region inside it, so we diff instead and only splice the
-  lines that actually changed."
+  "Diff a whole-document replacement into minimal per-line edits."
   [lines replacement-lines]
   (let [{:keys [right-lines edits]} (diff/find-edits (coll/join-to-string "\n" lines)
                                                      (coll/join-to-string "\n" replacement-lines))
@@ -3353,47 +3349,64 @@
                       (if (< row line-count)
                         (->Cursor row 0)
                         (document-end-cursor lines)))
-        trailing-newline (= "" (peek right-lines))]
-    (coll/into-> edits []
-      (mapcat (fn [{:keys [left right] :as edit}]
-                (when-not (diff/nop-edit? edit)
-                  (let [begin-row (long (:begin left))
-                        end-row (long (:end left))
-                        row-count (- end-row begin-row)
-                        new-lines (subvec right-lines (long (:begin right)) (long (:end right)))]
-                    (cond
-                      ;; Rewriting the same number of rows, so rewrite each row in
-                      ;; place. This leaves line breaks and unchanged rows alone,
-                      ;; keeping cursors and regions on the row they started on.
-                      (and (pos? row-count) (= row-count (count new-lines)))
-                      (coll/into-> (range begin-row end-row) []
-                        (keep (fn [^long row]
-                                (let [line (lines row)
-                                      new-line (new-lines (- row begin-row))]
-                                  (when (not= line new-line)
-                                    (pair (->CursorRange (->Cursor row 0)
-                                                         (->Cursor row (count line)))
-                                          [new-line]))))))
+        trailing-newline (and (< 1 (count right-lines))
+                              (= "" (peek right-lines)))
+        had-trailing-newline (and (< 1 line-count)
+                                  (= "" (peek lines)))
+        line-edits (coll/into-> edits []
+                     (mapcat (fn [{:keys [left right] :as edit}]
+                               (when-not (diff/nop-edit? edit)
+                                 (let [begin-row (long (:begin left))
+                                       end-row (long (:end left))
+                                       row-count (- end-row begin-row)
+                                       new-lines (subvec right-lines (long (:begin right)) (long (:end right)))]
+                                   (cond
+                                     ;; Rewriting the same number of rows, so rewrite each row in
+                                     ;; place. This leaves line breaks and unchanged rows alone,
+                                     ;; keeping cursors and regions on the row they started on.
+                                     (and (pos? row-count) (= row-count (count new-lines)))
+                                     (coll/into-> (range begin-row end-row) []
+                                       (keep (fn [^long row]
+                                               (let [line (lines row)
+                                                     new-line (new-lines (- row begin-row))]
+                                                 (when (not= line new-line)
+                                                   (pair (->CursorRange (->Cursor row 0)
+                                                                        (->Cursor row (count line)))
+                                                         [new-line]))))))
 
-                      ;; The row count changed, so rewrite the hunk in one go,
-                      ;; still leaving the trailing line break alone.
-                      (and (pos? row-count) (pos? (count new-lines)))
-                      (let [last-row (dec end-row)]
-                        [(pair (->CursorRange (->Cursor begin-row 0)
-                                              (->Cursor last-row (count (lines last-row))))
-                               new-lines)])
+                                     ;; The row count changed, so rewrite the hunk in one go,
+                                     ;; still leaving the trailing line break alone.
+                                     (and (pos? row-count) (pos? (count new-lines)))
+                                     (let [last-row (dec end-row)]
+                                       [(pair (->CursorRange (->Cursor begin-row 0)
+                                                             (->Cursor last-row (count (lines last-row))))
+                                              new-lines)])
 
-                      ;; Pure insert or delete, where the range has to span a line break.
-                      :else
-                      (let [appending (<= line-count begin-row)
-                            at-document-end (<= line-count end-row)
-                            new-lines (if appending (into [""] new-lines) new-lines)
-                            new-lines (if (or (not at-document-end) trailing-newline)
-                                        (conj new-lines "")
-                                        new-lines)]
-                        [(pair (->CursorRange (row->cursor begin-row)
-                                              (row->cursor end-row))
-                               new-lines)])))))))))
+                                     ;; Pure insert or delete, where the range has to span a line break.
+                                     :else
+                                     (let [appending (<= line-count begin-row)
+                                           at-document-end (<= line-count end-row)
+                                           new-lines (if appending (into [""] new-lines) new-lines)
+                                           new-lines (if (or (not at-document-end) trailing-newline)
+                                                       (conj new-lines "")
+                                                       new-lines)]
+                                       [(pair (->CursorRange (row->cursor begin-row)
+                                                             (row->cursor end-row))
+                                              new-lines)])))))))]
+    (if (or (= had-trailing-newline trailing-newline)
+            (and trailing-newline
+                 (= 1 line-count)
+                 (= "" (peek lines))))
+      line-edits
+      (conj line-edits
+            (if trailing-newline
+              (let [document-end (document-end-cursor lines)]
+                (pair (->CursorRange document-end document-end)
+                      ["" ""]))
+              (let [last-content-row (- line-count 2)]
+                (pair (->CursorRange (->Cursor last-content-row (count (lines last-content-row)))
+                                     (document-end-cursor lines))
+                      [""])))))))
 
 (defn format-document-edits
   "Turn a textDocument/formatting response into edits that keep cursors in place
@@ -3404,12 +3417,12 @@
   [lines edits]
   (let [[cursor-range replacement-lines] (when (= 1 (count edits))
                                            (first edits))]
-    (if (and cursor-range
-             (cursor-equals? (cursor-range-start cursor-range) (->Cursor 0 0))
-             (cursor-before-or-same? (document-end-cursor lines)
-                                     (cursor-range-end cursor-range)))
-      (document-replacement-edits lines replacement-lines)
-      edits)))
+    (if-not (and cursor-range
+                 (cursor-equals? (cursor-range-start cursor-range) (->Cursor 0 0))
+                 (cursor-before-or-same? (document-end-cursor lines)
+                                         (cursor-range-end cursor-range)))
+      edits
+      (document-replacement-edits lines replacement-lines))))
 
 (defn apply-edits
   ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements]

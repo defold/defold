@@ -922,8 +922,9 @@
 
 (defn format-document! [lsp resource indent-type result-callback & {:keys [timeout-ms]
                                                                     :or {timeout-ms 5000}}]
-  (if (and (resource/file-resource? resource)
-           (resource/editable? resource))
+  (if-not (and (resource/file-resource? resource)
+               (resource/editable? resource))
+    (do (result-callback nil) nil)
     (lsp (bound-fn [state]
            (let [ch (a/chan 1 (take 1))]
              (a/go (result-callback (<! ch)))
@@ -932,8 +933,7 @@
                :requests [(lsp.server/formatting resource indent-type)]
                :capabilities-pred :formatting
                :language (resource/language resource)
-               :timeout-ms timeout-ms))))
-    (do (result-callback nil) nil)))
+               :timeout-ms timeout-ms))))))
 
 (defn find-references! [lsp resource cursor result-callback & {:keys [timeout-ms]
                                                                :or {timeout-ms 3000}}]

@@ -1733,6 +1733,27 @@
                 :cursor-ranges [#code/range [[0 4] [0 4]]]}
                (key-typed ["''''"] [(c 0 3)] "'")))))))
 
+(deftest format-document-edits-test
+  (letfn [(format-lines [lines replacement-lines]
+            (:lines
+              (data/apply-edits
+                lines
+                []
+                []
+                (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]]))))]
+    (testing "preserves additions and removals of the final newline"
+      (are [lines replacement-lines]
+        (= replacement-lines (format-lines lines replacement-lines))
+        ["a"] ["a" ""]
+        ["a" ""] ["a"]
+        [""] ["" ""]
+        ["" ""] [""]))
+    (testing "preserves final-newline changes alongside line changes"
+      (are [lines replacement-lines]
+        (= replacement-lines (format-lines lines replacement-lines))
+        ["a"] ["b" ""]
+        ["a" ""] ["b"]))))
+
 (deftest apply-edits-test
   (is (= {:lines ["ab=1"]
           :cursor-ranges [#code/range [[0 2] [0 2]]] ; affected cursor moved right

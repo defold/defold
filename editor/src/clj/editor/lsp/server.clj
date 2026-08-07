@@ -875,7 +875,7 @@
        :options {:tabSize (data/indent-type->tab-spaces indent-type)
                  :insertSpaces (not= :tabs indent-type)}})
     (bound-fn [result _project]
-      (if (nil? result)
+      (if-not result
         {:formatted false}
         {:formatted true
          :edits (->> result
