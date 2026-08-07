@@ -128,6 +128,12 @@
       (lsp/rename lsp prepared-range new-name ret)
       @ret)))
 
+(defn- format-document [lsp resource indent-type]
+  (await-lsp lsp
+    (let [ret (promise)]
+      (lsp/format-document! lsp resource indent-type ret)
+      @ret)))
+
 (defn- await-until [pred]
   (async-support/eventually
     (a/go-loop []
@@ -707,3 +713,47 @@
         (is (await= {resource [[#code/range [[0 0] [0 1]] ["foo"]]]}
                     (rename lsp rename-region "foo")))
         (set-servers! lsp #{})))))
+
+(deftest format-document-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-node-lsp project)
+          resource (test-util/resource workspace "/foo.json")
+          requested-options (atom nil)
+          make-formatting-server (fn [formatting-handler]
+                                   #{{:languages #{"json"}
+                                      :launcher (make-test-server-launcher
+                                                  {"initialize" (constantly {:capabilities {:documentFormattingProvider true}})
+                                                   "initialized" (constantly nil)
+                                                   "textDocument/formatting" formatting-handler
+                                                   "shutdown" (constantly nil)
+                                                   "exit" (constantly nil)})}})]
+      (testing "the whole-document reply is converted to an editor edit"
+        (set-servers! lsp (make-formatting-server
+                            (fn [{:keys [options]} _]
+                              (reset! requested-options options)
+                              [{:range {:start {:line 0 :character 0}
+                                        :end {:line 1 :character 0}}
+                                :newText "{\n  \"asd\": 1\n}\n"}])))
+        (is (= {:formatted true
+                :edits [[#code/range [[0 0] [1 0]] ["{" "  \"asd\": 1" "}" ""]]]}
+               (format-document lsp resource :two-spaces)))
+        (testing "using the editor's indentation settings"
+          (is (= {:tabSize 2 :insertSpaces true} @requested-options))
+          (format-document lsp resource :tabs)
+          (is (= {:tabSize 4 :insertSpaces false} @requested-options))
+          (format-document lsp resource :four-spaces)
+          (is (= {:tabSize 4 :insertSpaces true} @requested-options))))
+
+      (testing "a null reply means the server could not format the document"
+        (set-servers! lsp (make-formatting-server (constantly nil)))
+        (is (= {:formatted false} (format-document lsp resource :two-spaces))))
+
+      (testing "a server without formatting support is not asked"
+        (set-servers! lsp #{{:languages #{"json"}
+                             :launcher (make-test-server-launcher
+                                         {"initialize" (constantly {:capabilities {}})
+                                          "initialized" (constantly nil)
+                                          "shutdown" (constantly nil)
+                                          "exit" (constantly nil)})}})
+        (is (nil? (format-document lsp resource :two-spaces))))
+      (set-servers! lsp #{}))))

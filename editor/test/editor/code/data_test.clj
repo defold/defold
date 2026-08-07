@@ -1754,6 +1754,60 @@
         ["a"] ["b" ""]
         ["a" ""] ["b"]))))
 
+(deftest format-document-edits-minimality-test
+  (letfn [(document-edits [lines replacement-lines]
+            (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]]))]
+    (testing "only rewrites the rows that changed"
+      (is (= [[(cr [1 0] [1 16]) ["    return 1"]]]
+             (document-edits ["local function f()" "        return 1" "end" ""]
+                             ["local function f()" "    return 1" "end" ""]))))
+    (testing "rewrites a hunk in one go when it changes the row count"
+      (is (= [[(cr [1 0] [1 5]) ["  b1()" "  b2()"]]]
+             (document-edits ["a()" "  b()" "c()" ""]
+                             ["a()" "  b1()" "  b2()" "c()" ""]))))
+    (testing "an already formatted document yields no edits"
+      (is (= [] (document-edits ["local function f()" "    return 1" "end" ""]
+                                ["local function f()" "    return 1" "end" ""]))))
+    (testing "edits that do not span the whole document pass through untouched"
+      (are [lines edits]
+        (= edits (data/format-document-edits lines edits))
+        ;; more than one edit, so the server already sent minimal edits
+        ["ab" "cd" ""] [[(cr [0 0] [0 1]) ["x"]] [(cr [1 0] [1 1]) ["y"]]]
+        ;; a single edit that stops short of the document end
+        ["ab" "cd" ""] [[(cr [0 0] [0 1]) ["x"]]]
+        ;; a single edit that does not start at the document start
+        ["ab" "cd" ""] [[(cr [0 1] [2 0]) ["x"]]]))))
+
+(deftest format-document-edits-preservation-test
+  (letfn [(format-document [lines regions cursor-ranges replacement-lines]
+            (data/apply-edits
+              lines
+              regions
+              cursor-ranges
+              (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]])))]
+    (let [lines ["local function f()" "        return 1" "end" ""]
+          replacement-lines ["local function f()" "    return 1" "end" ""]]
+      (testing "cursors outside the reindented row keep their position"
+        (is (= [(c 0 5) (c 2 1)]
+               (:cursor-ranges (format-document lines [] [(c 0 5) (c 2 1)] replacement-lines)))))
+      (testing "a cursor on the reindented row stays on that row"
+        (is (= [(c 1 12)]
+               (:cursor-ranges (format-document lines [] [(c 1 10)] replacement-lines)))))
+      (testing "breakpoints outside the reindented row survive"
+        (is (= [#code/range [[2 0] [2 3] :type :breakpoint]]
+               (:regions (format-document lines
+                                          [#code/range [[2 0] [2 3] :type :breakpoint]]
+                                          []
+                                          replacement-lines))))))
+    (testing "cursors after an inserted row move down with it"
+      (is (= [(c 2 1)]
+             (:cursor-ranges (format-document ["a()" "c()" ""] [] [(c 1 1)]
+                                              ["a()" "b()" "c()" ""])))))
+    (testing "cursors after a removed row move up with it"
+      (is (= [(c 1 1)]
+             (:cursor-ranges (format-document ["a()" "b()" "c()" ""] [] [(c 2 1)]
+                                              ["a()" "c()" ""])))))))
+
 (deftest apply-edits-test
   (is (= {:lines ["ab=1"]
           :cursor-ranges [#code/range [[0 2] [0 2]]] ; affected cursor moved right
