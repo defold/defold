@@ -1555,9 +1555,10 @@
   ;; both popup and canvas mouse events...
   (property hover-mouse-over-popup g/Bool (default false) (dynamic visible (g/constantly false)))
   ;; all displayed hovered regions
-  (output hover-showing-regions g/Any :cached (g/fnk [visible-regions hover-showing-cursor hover-showing-debug-region]
+  (output hover-showing-regions g/Any :cached (g/fnk [visible-regions hover-showing-cursor hover-showing-debug-region debugger-suspension-variables]
                                                 (when hover-showing-cursor
-                                                  (let [debug-region (when (and hover-showing-debug-region
+                                                  (let [debug-region (when (and debugger-suspension-variables
+                                                                                hover-showing-debug-region
                                                                                 (data/cursor-range-contains-exclusive? hover-showing-debug-region hover-showing-cursor))
                                                                        hover-showing-debug-region)
                                                         lsp-regions (->> visible-regions
@@ -2735,7 +2736,7 @@
                                  (when (and (= :suspended (mobdebug/state debug-session))
                                             (compare-and-set! debug-hover-eval-in-flight false true))
                                    (try
-                                     (let [ret (mobdebug/exec debug-session text 0)]
+                                     (let [ret (mobdebug/exec debug-session text (:frame-index suspension-variables 0))]
                                        (when-some [result (:result ret)]
                                          (when-some [[_ value] (first result)]
                                            (variable-hover/evaluated-region text value cursor-range))))

@@ -168,11 +168,14 @@
           frames)))
 
 (g/defnk produce-suspension-variables
-  [suspension-state debug-session]
-  (when-some [frame (-> suspension-state :stack first)]
-    (-> frame
-        (select-keys [:file :locals :upvalues])
-        (assoc :debug-session debug-session))))
+  [suspension-state debug-session selected-frame-index]
+  (when-some [frames (:stack suspension-state)]
+    (let [frame-index (or selected-frame-index 0)]
+      (when-some [frame (nth frames frame-index nil)]
+        (-> frame
+            (select-keys [:file :locals :upvalues])
+            (assoc :debug-session debug-session
+                   :frame-index frame-index))))))
 
 (g/deftype History [String])
 
@@ -184,6 +187,7 @@
 
   (property debug-session g/Any)
   (property suspension-state g/Any)
+  (property selected-frame-index g/Any)
 
   (property console-grid-pane Parent)
   (property call-stack-view ListView)
@@ -368,6 +372,11 @@
                               (when (and file line)
                                 (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
                                   (open-resource-fn file line))))
+                            (g/transact
+                              {:undoable false}
+                              (g/set-property debug-view :selected-frame-index
+                                              (when selected-frame
+                                                (first (.getSelectedIndices (.getSelectionModel call-stack-view))))))
                             (.setRoot variables-view (variable-tree/make-variables-tree-item
                                                        (:locals selected-frame)
                                                        (:upvalues selected-frame))))))
