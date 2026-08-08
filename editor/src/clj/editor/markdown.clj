@@ -310,7 +310,7 @@
       {:fx/type fx.v-box/lifecycle
        :children lis})))
 
-(def ^:private copy-icon
+(def copy-icon
   {:fx/type fx.svg-path/lifecycle
    :style-class "md-code-block-icon"
    ;; chrome-restore icon by Microsoft (CC BY 4.0)

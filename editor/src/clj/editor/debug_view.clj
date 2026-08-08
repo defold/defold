@@ -28,6 +28,7 @@
             [editor.console :as console]
             [editor.core :as core]
             [editor.debugging.mobdebug :as mobdebug]
+            [editor.debugging.variable-tree :as variable-tree]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
@@ -44,11 +45,10 @@
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
-           [editor.debugging.mobdebug LuaStructure]
            [java.nio.file Files]
            [java.util Collection]
            [javafx.scene Parent]
-           [javafx.scene.control Button ListView TextField TreeItem TreeView]
+           [javafx.scene.control Button ListView TextField TreeView]
            [javafx.scene.input KeyCode KeyEvent]
            [org.apache.commons.io FilenameUtils]))
 
@@ -137,12 +137,6 @@
              :props {:cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                     :describe describe-call-stack-cell}}}})
 
-(defn describe-variables-cell [{:keys [display-name display-value]}]
-  {:graphic {:fx/type fx.h-box/lifecycle
-             :children [{:fx/type fx.label/lifecycle :text display-name}
-                        {:fx/type fx.label/lifecycle :text " = " :style-class ["label" "equals"]}
-                        {:fx/type fx.label/lifecycle :text display-value}]}})
-
 (def ^:private ext-with-tree-view-props
   (fx/make-ext-with-props fx.tree-view/props))
 
@@ -155,7 +149,7 @@
              :desc {:fx/type ui/ext-value
                     :value variables-view}
              :props {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
-                                    :describe describe-variables-cell}}}})
+                                    :describe variable-tree/describe-variables-cell}}}})
 
 (g/defnk produce-debugger-sidebar-panes
   [debug-session suspension-state call-stack-view variables-view localization]
@@ -172,6 +166,13 @@
                              (select-keys [:file :line])
                              (assoc :type (if (zero? i) :current-line :current-frame)))))
           frames)))
+
+(g/defnk produce-suspension-variables
+  [suspension-state debug-session]
+  (when-some [frame (-> suspension-state :stack first)]
+    (-> frame
+        (select-keys [:file :locals :upvalues])
+        (assoc :debug-session debug-session))))
 
 (g/deftype History [String])
 
@@ -196,6 +197,7 @@
   (output update-available-controls g/Any :cached update-available-controls!)
   (output update-call-stack g/Any :cached update-call-stack!)
   (output execution-locations g/Any :cached produce-execution-locations)
+  (output suspension-variables g/Any :cached produce-suspension-variables)
   (output debugger-sidebar-panes g/Any :cached produce-debugger-sidebar-panes))
 
 (defn- current-stack-frame
@@ -229,6 +231,9 @@
             (= :bad-request (:error ret))
             (console/append-console-entry! :eval-error "Bad request")
 
+            (= :not-suspended (:error ret))
+            (console/append-console-entry! :eval-error "Debugger is not suspended")
+
             (string? (:error ret))
             (console/append-console-entry! :eval-error (sanitize-eval-error (:error ret)))
 
@@ -257,29 +262,6 @@
     (ui/bind-action! step-out-debugger-button :debugger.step-out)
     (ui/bind-action! step-over-debugger-button :debugger.step-over)
     (ui/bind-action! stop-debugger-button :debugger.stop)))
-
-(defn- make-variable-tree-item
-  [[name value]]
-  (let [variable {:name name
-                  :display-name (mobdebug/lua-value->identity-string name)
-                  :value value
-                  :display-value (mobdebug/lua-value->identity-string value)}
-        tree-item (TreeItem. variable)
-        children (.getChildren tree-item)]
-    (when (and (instance? LuaStructure value)
-               (pos? (count value)))
-      (.add children (TreeItem.))
-      (ui/observe-once (.expandedProperty tree-item)
-                       (fn [_ _ _]
-                         (.setAll children ^Collection (map make-variable-tree-item value)))))
-    tree-item))
-
-(defn- make-variables-tree-item
-  [locals upvalues]
-  (let [ret (TreeItem.)
-        children (.getChildren ret)]
-    (.setAll children ^Collection (map make-variable-tree-item (concat locals upvalues)))
-    ret))
 
 (defn- switch-text! [^TextField text-field text]
   (doto text-field
@@ -386,7 +368,7 @@
                               (when (and file line)
                                 (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
                                   (open-resource-fn file line))))
-                            (.setRoot variables-view (make-variables-tree-item
+                            (.setRoot variables-view (variable-tree/make-variables-tree-item
                                                        (:locals selected-frame)
                                                        (:upvalues selected-frame))))))
 
@@ -458,6 +440,7 @@
   (g/transact
     {:undoable false}
     [(g/connect debug-view :execution-locations app-view :debugger-execution-locations)
+     (g/connect debug-view :suspension-variables app-view :debugger-suspension-variables)
      (g/connect debug-view :debugger-sidebar-panes app-view :debugger-sidebar-panes)])
   debug-view)
 

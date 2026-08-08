@@ -535,18 +535,20 @@
 
 (defn exec [^DebugSession debug-session code frame]
   (with-session debug-session
-    (let [out (.out debug-session)
-          in (.in debug-session)]
-      (send-command! out (format "EXEC return %s --{stack=%s}" code frame))
-      (let [[status rest] (read-status in)]
-        (case status
-          "200" (when-let [[size] (re-match #"^OK\s+(\d+)$" rest)]
-                  (let [n (Integer/parseInt size)]
-                    {:result (decode-serialized-data debug-session (read-data in n))}))
-          "400" {:error :bad-request}
-          "401" (when-let [[size] (re-match #"^Error in Expression\s+(\d+)$" rest)]
-                  (let [n (Integer/parseInt size)]
-                    {:error (read-data in n)})))))))
+    (if-not (= :suspended (-state debug-session))
+      {:error :not-suspended}
+      (let [out (.out debug-session)
+            in (.in debug-session)]
+        (send-command! out (format "EXEC return %s --{stack=%s}" code frame))
+        (let [[status rest] (read-status in)]
+          (case status
+            "200" (when-let [[size] (re-match #"^OK\s+(\d+)$" rest)]
+                    (let [n (Integer/parseInt size)]
+                      {:result (decode-serialized-data debug-session (read-data in n))}))
+            "400" {:error :bad-request}
+            "401" (when-let [[size] (re-match #"^Error in Expression\s+(\d+)$" rest)]
+                    (let [n (Integer/parseInt size)]
+                      {:error (read-data in n)}))))))))
 
 
 ;; A note on "SETB file line condition":

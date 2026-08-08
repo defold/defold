@@ -31,6 +31,7 @@
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.tree-cell :as fx.tree-cell]
             [cljfx.fx.tree-item :as fx.tree-item]
+            [cljfx.fx.tree-view :as fx.tree-view]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as mutator]
@@ -42,6 +43,9 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
+            [editor.debugging.mobdebug :as mobdebug]
+            [editor.debugging.variable-hover :as variable-hover]
+            [editor.debugging.variable-tree :as variable-tree]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.editor-extensions.node-types :as node-types]
@@ -52,6 +56,7 @@
             [editor.keymap :as keymap]
             [editor.localization :as localization]
             [editor.lsp :as lsp]
+            [editor.lua :as lua]
             [editor.markdown :as markdown]
             [editor.menu-items :as menu-items]
             [editor.notifications :as notifications]
@@ -1544,17 +1549,24 @@
   (property hover-cursor-lsp-regions g/Any (dynamic visible (g/constantly false)))
   ;; hover regions for the showing cursor, visible
   (property hover-showing-lsp-regions g/Any (dynamic visible (g/constantly false)))
+  ;; debug variable hover region for the showing cursor, visible; resolved async while suspended
+  (property hover-showing-debug-region g/Any (dynamic visible (g/constantly false)))
   ;; we need to track if we are hovering the popup because on Windows we receive
   ;; both popup and canvas mouse events...
   (property hover-mouse-over-popup g/Bool (default false) (dynamic visible (g/constantly false)))
   ;; all displayed hovered regions
-  (output hover-showing-regions g/Any :cached (g/fnk [visible-regions hover-showing-cursor]
+  (output hover-showing-regions g/Any :cached (g/fnk [visible-regions hover-showing-cursor hover-showing-debug-region]
                                                 (when hover-showing-cursor
-                                                  (->> visible-regions
-                                                       (e/filter :hoverable)
-                                                       (e/filter #(data/cursor-range-contains-exclusive? % hover-showing-cursor))
-                                                       vec
-                                                       coll/not-empty))))
+                                                  (let [debug-region (when (and hover-showing-debug-region
+                                                                                (data/cursor-range-contains-exclusive? hover-showing-debug-region hover-showing-cursor))
+                                                                       hover-showing-debug-region)
+                                                        lsp-regions (->> visible-regions
+                                                                         (e/filter :hoverable)
+                                                                         (e/filter #(data/cursor-range-contains-exclusive? % hover-showing-cursor))
+                                                                         (e/filter #(or (nil? debug-region) (not= :hover (:type %))))
+                                                                         vec)]
+                                                    (coll/not-empty
+                                                      (cond->> lsp-regions debug-region (into [debug-region])))))))
   ;; when showing a hover, this is a region that is considered a single hovered thing
   (output hover-showing-region g/Any :cached (g/fnk [hover-showing-regions ^Cursor hover-showing-cursor]
                                                (when hover-showing-cursor
@@ -1610,6 +1622,7 @@
   (input open-views g/Any) ;; open views from app-view
   (input project g/NodeID) ;; used for completions doc popup, e.g. for opening defold:// URIs
   (input debugger-execution-locations g/Any)
+  (input debugger-suspension-variables g/Any)
   (input keymap g/Any)
 
   (output completion-context g/Any :cached produce-completion-context)
@@ -1874,7 +1887,7 @@
                     :completions-previous-combined-ids nil}))
 
 (defn- hide-hover! [view-node]
-  (set-properties! view-node nil {:hover-showing-cursor nil :hover-showing-lsp-regions nil :hover-mouse-over-popup false}))
+  (set-properties! view-node nil {:hover-showing-cursor nil :hover-showing-lsp-regions nil :hover-showing-debug-region nil :hover-mouse-over-popup false}))
 
 (defn- suggestions-shown? [view-node]
   (g/with-auto-evaluation-context evaluation-context
@@ -2692,6 +2705,54 @@
                                   {:hover-showing-lsp-regions hover-lsp-regions}))]
           (set-properties! view-node nil properties))))))
 
+;; one debug session serves all editor views; at most one hover EXEC runs
+;; against it at a time
+(defonce ^:private debug-hover-eval-in-flight (atom false))
+
+(def ^:private debug-hover-eval-excluded-words
+  "Words the expression extractor accepts but that never name a value worth a
+  debugger evaluation round-trip."
+  (reduce into #{} [lua/control-flow-keywords lua/logic-keywords lua/lua-constants]))
+
+(defn- request-debug-hover!
+  "Resolves the debug value at `request-cursor` and stores it in
+  `:hover-showing-debug-region`. Runs off the FX thread since resolution can
+  block on debugger socket round-trips."
+  [view-node request-cursor evaluation-context]
+  (when-some [suspension-variables (get-property view-node :debugger-suspension-variables evaluation-context)]
+    (let [lines (get-property view-node :lines evaluation-context)
+          node-id+type+resource (get-property view-node :node-id+type+resource evaluation-context)]
+      (future
+        (try
+          (let [proj-path (some-> node-id+type+resource (get 2) resource/proj-path)
+                expr (data/identifier-expression-at-cursor lines request-cursor)
+                region (variable-hover/variable-hover-region suspension-variables proj-path expr)
+                region (or region
+                           (when-some [{:keys [text cursor-range]} expr]
+                             (when (and (= proj-path (:file suspension-variables))
+                                        (not (contains? debug-hover-eval-excluded-words text)))
+                               (when-some [debug-session (:debug-session suspension-variables)]
+                                 (when (and (= :suspended (mobdebug/state debug-session))
+                                            (compare-and-set! debug-hover-eval-in-flight false true))
+                                   (try
+                                     (let [ret (mobdebug/exec debug-session text 0)]
+                                       (when-some [result (:result ret)]
+                                         (when-some [[_ value] (first result)]
+                                           (variable-hover/evaluated-region text value cursor-range))))
+                                     (finally
+                                       (reset! debug-hover-eval-in-flight false))))))))]
+            (ui/run-later
+              (when (g/node-exists? view-node)
+                (let [showing-cursor (get-property view-node :hover-showing-cursor)]
+                  ;; the pointer may have moved within the token while resolution ran
+                  (when (or (= request-cursor showing-cursor)
+                            (and region
+                                 showing-cursor
+                                 (data/cursor-range-contains-exclusive? region showing-cursor)))
+                    (set-properties! view-node nil {:hover-showing-debug-region region}))))))
+          (catch Throwable error
+            (error-reporting/report-exception! error)))))))
+
 (defn- refresh-hover-state! [view-node]
   (when (g/node-exists? view-node)
     (set-properties!
@@ -2699,10 +2760,16 @@
       (g/with-auto-evaluation-context evaluation-context
         (if-let [hover-cursor (when (some-> ^Canvas (get-property view-node :canvas evaluation-context) .getScene .getWindow .isFocused)
                                 (get-property view-node :hover-cursor evaluation-context))]
-          {:hover-showing-cursor hover-cursor
-           :hover-showing-lsp-regions (mapv #(assoc % :hoverable true) (get-property view-node :hover-cursor-lsp-regions evaluation-context))}
+          (do
+            (request-debug-hover! view-node hover-cursor evaluation-context)
+            {:hover-showing-cursor hover-cursor
+             :hover-showing-lsp-regions (mapv #(assoc % :hoverable true) (get-property view-node :hover-cursor-lsp-regions evaluation-context))
+             :hover-showing-debug-region (when-some [showing-region (get-property view-node :hover-showing-debug-region evaluation-context)]
+                                           (when (data/cursor-range-contains-exclusive? showing-region hover-cursor)
+                                             showing-region))})
           {:hover-showing-cursor nil
            :hover-showing-lsp-regions nil
+           :hover-showing-debug-region nil
            :hover-mouse-over-popup false})))))
 
 (defn- schedule-hover-refresh!
@@ -3650,6 +3717,7 @@
       {:undoable false}
       (concat
         (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)
+        (g/connect app-view :debugger-suspension-variables view-node :debugger-suspension-variables)
         (gu/connect-existing-outputs resource-node-type resource-node view-node
           [[:completions :completions]
            [:cursor-ranges :cursor-ranges]
@@ -3703,6 +3771,26 @@
 (defn handle-hover-popup-auto-hide! [view-node _]
   (hide-hover! view-node))
 
+(def ^:private hover-popup-content-width
+  "Max width of markdown content and min width of the debug tree in the hover
+  popup."
+  350.0)
+
+(def ^:private ext-with-hover-tree-view-props
+  (fx/make-ext-with-props fx.tree-view/props))
+
+(defn- hover-debug-tree-view [{:keys [expr-text value available-height]}]
+  {:fx/type fx.stack-pane/lifecycle
+   :style-class ["md-code-block" "debug-hover-tree-block"]
+   :children [{:fx/type ext-with-hover-tree-view-props
+               :desc {:fx/type fx/ext-instance-factory
+                      :create (fn/partial variable-tree/make-expression-tree-view
+                                          expr-text value
+                                          {:min-width hover-popup-content-width
+                                           :available-height available-height})}
+               :props {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
+                                      :describe variable-tree/describe-hover-variables-cell}}}]})
+
 (defn- hover-popup-view [props]
   (let [{:keys [canvas-repaint-info project screen-bounds
                 hover-showing-regions hover-showing-region view-node]} props
@@ -3741,22 +3829,42 @@
           :min-width 10
           :min-height 10
           :style-class "hover-background"}
-         {:fx/type markdown/view
-          :content (->> hover-showing-regions
-                        (e/mapcat
-                          (fn [region]
-                            (when (:hoverable region)
-                              (case (:type region)
-                                :diagnostic (map plaintext->markdown (:messages region))
-                                :hover [(let [{:keys [content]} region
-                                              {:keys [type value]} content]
-                                          (case type
-                                            :plaintext (plaintext->markdown value)
-                                            :markdown value))]))))
-                        (coll/join-to-string "\n\n<hr>\n\n"))
-          :project project
-          :max-width 350.0
-          :max-height max-popup-height}]}]}}))
+         (let [debug-region (coll/some #(when (= :debug-variable (:type %)) %) hover-showing-regions)
+               tree-value (when debug-region
+                            (let [value (:value debug-region)]
+                              (when (variable-tree/expandable-value? value)
+                                value)))
+               markdown-content (->> hover-showing-regions
+                                     (e/mapcat
+                                       (fn [region]
+                                         (when (:hoverable region)
+                                           (case (:type region)
+                                             :diagnostic (map plaintext->markdown (:messages region))
+                                             :hover [(let [{:keys [content]} region
+                                                           {:keys [type value]} content]
+                                                       (case type
+                                                         :plaintext (plaintext->markdown value)
+                                                         :markdown value))]
+                                             :debug-variable (when-not tree-value
+                                                               [(format "<pre>%s</pre>"
+                                                                        (string/replace (-> region :content :value)
+                                                                                        #"[&<>]" {"&" "&amp;" "<" "&lt;" ">" "&gt;"}))])))))
+                                     (coll/join-to-string "\n\n<hr>\n\n"))]
+           {:fx/type fx.v-box/lifecycle
+            :children
+            (cond-> []
+              (not (string/blank? markdown-content))
+              (conj {:fx/type markdown/view
+                     :content markdown-content
+                     :project project
+                     :max-width hover-popup-content-width
+                     :max-height max-popup-height})
+
+              (some? tree-value)
+              (conj {:fx/type hover-debug-tree-view
+                     :expr-text (:expr-text debug-region)
+                     :value tree-value
+                     :available-height max-popup-height}))})]}]}}))
 
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))

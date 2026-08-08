@@ -72,3 +72,39 @@
     }
   }
 }
+
+// insets match .md-root's padding and the padding adds .md-code-block's,
+// so the tree block frames like markdown content in the same popup
+.debug-hover-tree-block {
+  -fx-background-insets: 6px 8px;
+  -fx-padding: 16px 18px;
+}
+
+#debug-hover-variables {
+  -fx-background-color: transparent;
+  -fx-font-size: $md-font-size;
+
+  .tree-cell {
+    -fx-background-color: transparent;
+
+    .label {
+      -fx-font-family: $default-font-mono;
+      -fx-text-fill: -df-code-text;
+    }
+    .equals {
+      -fx-text-fill: -df-text-dark;
+      -fx-opacity: 0.8;
+    }
+    &:hover .label,
+    &:selected .label {
+      -fx-text-fill: -df-text-selected;
+    }
+
+    .debug-hover-copy-button {
+      visibility: hidden;
+    }
+    &:hover .debug-hover-copy-button {
+      visibility: visible;
+    }
+  }
+}

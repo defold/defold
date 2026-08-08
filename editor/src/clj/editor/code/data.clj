@@ -1065,6 +1065,48 @@
         (->CursorRange (->Cursor row start-col)
                        (->Cursor row end-col))))))
 
+(defn- extend-identifier-cursor-range-backward-across-dot
+  "If `cursor-range` is immediately preceded by a '.' that is itself preceded
+  by an identifier character, returns a cursor range whose `from` is extended
+  backward to cover that preceding identifier segment and the dot. Otherwise
+  returns `cursor-range` unchanged."
+  ^CursorRange [lines ^CursorRange cursor-range]
+  (let [from (cursor-range-start cursor-range)
+        row (.row from)
+        line (lines row)
+        dot-col (dec (.col from))]
+    (if (and (= \. (get line dot-col))
+             (identifier-character-at-index? line (dec dot-col)))
+      (let [segment-cursor-range (word-cursor-range-at-cursor lines (->Cursor row (dec dot-col)))]
+        (->CursorRange (cursor-range-start segment-cursor-range) (cursor-range-end cursor-range)))
+      cursor-range)))
+
+(defn identifier-expression-at-cursor
+  "Returns {:text \"self.field\" :cursor-range <CursorRange>} for the
+  identifier or dotted identifier chain at `cursor`, or nil when `cursor` is
+  not over an identifier character or the word begins with a digit. The range
+  extends backward across '.'-separated segments - hovering \"field\" in
+  \"self.field\" yields the whole chain - and never forward. ':' does not
+  join segments; it is a method call, not an indexable value."
+  [lines cursor]
+  (let [adjusted-cursor (adjust-cursor lines cursor)
+        row (.row adjusted-cursor)
+        col (.col adjusted-cursor)
+        line (lines row)]
+    (when (and (< col (count line))
+               (identifier-character-at-index? line col))
+      (let [word-cursor-range (word-cursor-range-at-cursor lines adjusted-cursor)
+            word-text (cursor-range-text lines word-cursor-range)]
+        (when-not (Character/isDigit (.charAt ^String word-text 0))
+          (let [expression-cursor-range
+                (loop [cursor-range word-cursor-range]
+                  (let [extended-cursor-range (extend-identifier-cursor-range-backward-across-dot lines cursor-range)]
+                    (if (= extended-cursor-range cursor-range)
+                      cursor-range
+                      (recur extended-cursor-range))))]
+            {:text (cursor-range-text lines expression-cursor-range)
+             :cursor-range expression-cursor-range}))))))
+
 (defn word-cursor-range? [lines ^CursorRange adjusted-cursor-range]
   (let [cursor (cursor-range-start adjusted-cursor-range)
         word-cursor-range (word-cursor-range-at-cursor lines cursor)]

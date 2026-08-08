@@ -1249,6 +1249,73 @@
   (is (false? (data/word-cursor-range? ["one"] (cr [0 1] [0 3]))))
   (is (false? (data/word-cursor-range? ["one"] (cr [0 0] [0 2])))))
 
+(deftest identifier-expression-at-cursor-test
+  (testing "Same range from any position inside the word"
+    (are [col]
+      (= {:text "health" :cursor-range (cr [0 0] [0 6])}
+         (data/identifier-expression-at-cursor ["health"] (->Cursor 0 col)))
+      0 3 5))
+
+  (testing "Cursor at end of line"
+    (is (nil? (data/identifier-expression-at-cursor ["health"] (->Cursor 0 6)))))
+
+  (testing "Cursor just past the word"
+    (is (nil? (data/identifier-expression-at-cursor ["health x"] (->Cursor 0 6)))))
+
+  (testing "Digit-led word rejected"
+    (are [col]
+      (nil? (data/identifier-expression-at-cursor ["123"] (->Cursor 0 col)))
+      0 1 2))
+
+  (testing "Digit inside identifier accepted"
+    (is (= {:text "x2" :cursor-range (cr [0 0] [0 2])}
+           (data/identifier-expression-at-cursor ["x2"] (->Cursor 0 1)))))
+
+  (testing "Underscore-led identifier"
+    (is (= {:text "_foo" :cursor-range (cr [0 0] [0 4])}
+           (data/identifier-expression-at-cursor ["_foo"] (->Cursor 0 0)))))
+
+  (testing "Whitespace and operators"
+    (are [col]
+      (nil? (data/identifier-expression-at-cursor ["a + b"] (->Cursor 0 col)))
+      1 2))
+
+  (testing "Empty line"
+    (is (nil? (data/identifier-expression-at-cursor [""] (->Cursor 0 0)))))
+
+  (testing "Cursor row past the last line"
+    (is (nil? (data/identifier-expression-at-cursor ["abc"] (->Cursor 5 0)))))
+
+  (testing "Dotted chain extends backward from any segment"
+    (let [line "self.weapon_popup.scale_default"]
+      (is (= {:text "self" :cursor-range (cr [0 0] [0 4])}
+             (data/identifier-expression-at-cursor [line] (->Cursor 0 1))))
+      (is (= {:text "self.weapon_popup" :cursor-range (cr [0 0] [0 17])}
+             (data/identifier-expression-at-cursor [line] (->Cursor 0 10))))
+      (is (= {:text "self.weapon_popup.scale_default" :cursor-range (cr [0 0] [0 31])}
+             (data/identifier-expression-at-cursor [line] (->Cursor 0 20))))))
+
+  (testing "Single-character segments"
+    (let [line "a.b.c"]
+      (is (= {:text "a" :cursor-range (cr [0 0] [0 1])}
+             (data/identifier-expression-at-cursor [line] (->Cursor 0 0))))
+      (is (= {:text "a.b" :cursor-range (cr [0 0] [0 3])}
+             (data/identifier-expression-at-cursor [line] (->Cursor 0 2))))
+      (is (= {:text "a.b.c" :cursor-range (cr [0 0] [0 5])}
+             (data/identifier-expression-at-cursor [line] (->Cursor 0 4))))))
+
+  (testing "Chain does not extend across a call expression"
+    (is (= {:text "x" :cursor-range (cr [0 4] [0 5])}
+           (data/identifier-expression-at-cursor ["f().x"] (->Cursor 0 4)))))
+
+  (testing "Method call ':' is not a chain separator"
+    (is (= {:text "method" :cursor-range (cr [0 5] [0 11])}
+           (data/identifier-expression-at-cursor ["self:method"] (->Cursor 0 7)))))
+
+  (testing "Multi-line input"
+    (is (= {:text "self.weapon_popup" :cursor-range (cr [1 0] [1 17])}
+           (data/identifier-expression-at-cursor ["one" "self.weapon_popup"] (->Cursor 1 10))))))
+
 (defn- find-prev-occurrence [haystack-lines needle-lines from-cursor]
   (data/find-prev-occurrence haystack-lines needle-lines from-cursor false false))
 
