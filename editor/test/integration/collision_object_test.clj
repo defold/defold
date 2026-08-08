@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
+            [editor.game-project :as game-project]
             [editor.localization :as localization]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]))
@@ -24,6 +25,18 @@
 (defn- outline-seq
   [outline]
   (map :label (tree-seq :children :children outline)))
+
+(defmacro ^:private with-physics-type
+  "Temporarily sets [physics] type on the loaded project's game.project node,
+  running body, then restoring the previously effective value even if body throws."
+  [project physics-type & body]
+  `(let [game-project# (test-util/resource-node ~project "/game.project")
+         old-value# (game-project/get-setting game-project# ["physics" "type"])]
+     (game-project/set-setting! game-project# ["physics" "type"] ~physics-type)
+     (try
+       ~@body
+       (finally
+         (game-project/set-setting! game-project# ["physics" "type"] old-value#)))))
 
 (deftest new-collision-object
   (testing "A new collision object"
@@ -46,7 +59,17 @@
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")})
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")})
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")})]
-               (outline-seq outline)))))))
+               (outline-seq outline))))
+
+      (testing "the round shape is presented as Circle under 2D physics"
+        (with-physics-type project "2D"
+          (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")
+                outline (g/node-value node-id :node-outline)
+                menu-labels (set (map :label (test-util/handler-options :edit.add-embedded-component [{:name :workbench :env {:selection [node-id] :app-view app-view}}] nil)))]
+            (is (= (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.circle")})
+                   (second (outline-seq outline))))
+            (is (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.circle")))
+            (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere"))))))))))
 
 (deftest add-shapes
   (testing "Adding a sphere"

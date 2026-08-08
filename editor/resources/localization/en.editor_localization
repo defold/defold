@@ -930,6 +930,7 @@ command.edit.add-embedded-component.variant.collection = Add Game Object
 command.edit.add-embedded-component.variant.collision-object = Add Shape
 command.edit.add-embedded-component.variant.collision-object.option.box = Box
 command.edit.add-embedded-component.variant.collision-object.option.capsule = Capsule
+command.edit.add-embedded-component.variant.collision-object.option.circle = Circle
 command.edit.add-embedded-component.variant.collision-object.option.sphere = Sphere
 command.edit.add-embedded-component.variant.game-object = Add Component
 command.edit.add-embedded-component.variant.gui.option.textures = Textures…
