@@ -17,7 +17,9 @@ static void RunPhysicsScriptTest(dmResource::HFactory factory, dmGameObject::HCo
     ASSERT_NE((void*)0, go);
 
     bool tests_done = false;
-    while (!tests_done)
+    uint32_t update_count = 0;
+    const uint32_t max_update_count = 60;
+    while (!tests_done && update_count++ < max_update_count)
     {
         ASSERT_TRUE(dmGameObject::Update(collection, update_context));
         ASSERT_TRUE(dmGameObject::PostUpdate(collection));
@@ -26,6 +28,7 @@ static void RunPhysicsScriptTest(dmResource::HFactory factory, dmGameObject::HCo
         tests_done = lua_toboolean(L, -1);
         lua_pop(L, 1);
     }
+    ASSERT_TRUE(tests_done);
 
     ASSERT_TRUE(dmGameObject::Final(collection));
 }
@@ -111,6 +114,31 @@ TEST_F(ComponentTest, Box2DChainApiTest)
     */
     RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext,
                          "/collision_object/box2d_chain_test.goc", "/box2d_chain_test");
+}
+
+TEST_F(Bullet3DComponentTest, Bullet3DApiTest)
+{
+    /* Intent: verify the native Bullet3D Lua wrappers against both rigid-body
+    ** and trigger collision objects.
+    ** Setup: one scripted dynamic body, one auxiliary dynamic body, and one
+    ** trigger backed by a btGhostObject.
+    ** Expected: world and object properties round-trip, triggers remain generic
+    ** collision objects, and deleting game objects invalidates retained handles.
+    */
+    dmGameObject::HInstance rigid_body = Spawn(m_Factory, m_Collection,
+                                               "/collision_object/bullet3d_rigid_body.goc",
+                                               dmHashString64("/bullet3d_rigid_body"), 0,
+                                               Point3(10, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, rigid_body);
+
+    dmGameObject::HInstance trigger = Spawn(m_Factory, m_Collection,
+                                            "/collision_object/bullet3d_trigger.goc",
+                                            dmHashString64("/bullet3d_trigger"), 0,
+                                            Point3(20, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, trigger);
+
+    RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext,
+                         "/collision_object/bullet3d_test.goc", "/bullet3d_test");
 }
 
 /* Physics listener */

@@ -141,6 +141,7 @@
     "rig"
     "rig_null"
     "script"
+    "script_bullet3d"
     "script_box2d"
     "script_box2d_defold"
     "sound"
@@ -573,7 +574,9 @@
         exclude-default (exclude-libs-toggles all-platforms ["physics"])
 
         ;; must use at least one of these when excluding default
-        exclude-3d (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
+        exclude-3d (concat
+                     (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision" "script_bullet3d"])
+                     (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBullet3DExt"]))
         exclude-legacy-2d (exclude-libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"])
 
         ;; must be used when excluding 2d completely:

@@ -172,6 +172,16 @@ namespace dmPhysics
         return world->m_Context;
     }
 
+    void* GetWorldContext3D(HWorld3D world)
+    {
+        return world->m_DynamicsWorld;
+    }
+
+    void* GetCollisionObjectContext3D(HCollisionObject3D collision_object)
+    {
+        return GetCollisionObject(collision_object);
+    }
+
     static void ResponseFromRayCastResult(RayCastResponse& response, btScalar inv_scale, btScalar fraction,
                         const btVector3& point, const btVector3& normal, const btCollisionObject* co)
     {
@@ -1286,8 +1296,9 @@ namespace dmPhysics
     Vector3 GetGravity3D(HWorld3D world)
     {
         HContext3D context = world->m_Context;
+        const btVector3& world_gravity = world->m_DynamicsWorld->getGravity();
         Vector3 gravity;
-        FromBt(context->m_Gravity, gravity, context->m_InvScale);
+        FromBt(world_gravity, gravity, context->m_InvScale);
         return gravity;
     }
 

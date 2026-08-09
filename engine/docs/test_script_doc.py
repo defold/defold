@@ -174,6 +174,7 @@ foobar
  * @param param_y [type:vector|vector3|vector4|matrix4|quaternion|hash|url|node|resource|buffer] DOCY
  * @param param_z [type:constant|any] DOCZ
  * @param param_b2 [type:b2World|b2Body|b2BodyType|b2Shape|b2Chain] DOCB2
+ * @param param_bullet3 [type:btDiscreteDynamicsWorld|btCollisionObject|btRigidBody] DOCBULLET3
  */
 """
         elements = script_doc.parse_document(doc).elements

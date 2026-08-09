@@ -240,6 +240,16 @@ namespace dmPhysics
         return 0;
     }
 
+    void* GetWorldContext3D(HWorld3D world)
+    {
+        return 0;
+    }
+
+    void* GetCollisionObjectContext3D(HCollisionObject3D collision_object)
+    {
+        return 0;
+    }
+
 
     void ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape)
     {

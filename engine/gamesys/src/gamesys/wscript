@@ -110,6 +110,13 @@ def build(bld):
         uselib = 'LUA',
         target = 'script_box2d_defold')
 
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto',
+        source = 'scripts/bullet3d/script_bullet3d.cpp scripts/bullet3d/script_bullet3d_world.cpp scripts/bullet3d/script_bullet3d_collision_object.cpp scripts/bullet3d/script_bullet3d_rigid_body.cpp',
+        use = 'BULLET',
+        uselib = 'LUA',
+        target = 'script_bullet3d')
+
     bld.add_group()
 
     proto_files = os.listdir('./proto/gamesys')

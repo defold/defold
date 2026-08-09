@@ -1,0 +1,849 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+
+#include <stdint.h>
+
+#include <dlib/opaque_handle_container.h>
+#include <dmsdk/dlib/hashtable.h>
+#include <gameobject/script.h>
+#include <script/script.h>
+
+#include "script_bullet3d.h"
+
+extern "C"
+{
+#include <lua/lauxlib.h>
+#include <lua/lualib.h>
+}
+
+namespace dmGameSystem
+{
+#define BULLET3D_TYPE_NAME_COLLISION_OBJECT "bullet3d_collision_object"
+
+    struct Bullet3DLuaCollisionObject
+    {
+        HOpaqueHandle m_Handle;
+    };
+
+    struct Bullet3DCollisionObjectMeta
+    {
+        dmGameObject::HCollection m_Collection;
+        dmhash_t                  m_InstanceId;
+        uint32_t                  m_InstanceGeneration;
+    };
+
+    static uint32_t                                   g_Bullet3DCollisionObjectTypeHash = 0;
+    static dmOpaqueHandleContainer<uintptr_t>         g_Bullet3DCollisionObjectHandles;
+    static dmHashTable64<HOpaqueHandle>               g_Bullet3DCollisionObjectToHandle;
+    static dmHashTable32<Bullet3DCollisionObjectMeta> g_Bullet3DCollisionObjectMeta;
+
+    static uint64_t                                   CollisionObjectPtrToKey(const btCollisionObject* collision_object)
+    {
+        return (uint64_t)(uintptr_t)collision_object;
+    }
+
+    static void EnsureCollisionObjectHandleCapacity()
+    {
+        if (g_Bullet3DCollisionObjectHandles.Full())
+        {
+            g_Bullet3DCollisionObjectHandles.Allocate(32);
+            g_Bullet3DCollisionObjectToHandle.OffsetCapacity(32);
+            g_Bullet3DCollisionObjectMeta.OffsetCapacity(32);
+        }
+    }
+
+    static void ClearCollisionObjectHandles()
+    {
+        for (uint32_t i = 0; i < g_Bullet3DCollisionObjectHandles.Capacity(); ++i)
+        {
+            if (g_Bullet3DCollisionObjectHandles.GetByIndex(i))
+            {
+                g_Bullet3DCollisionObjectHandles.Release(g_Bullet3DCollisionObjectHandles.IndexToHandle(i));
+            }
+        }
+    }
+
+    static void InvalidateCollisionObjectHandle(HOpaqueHandle handle)
+    {
+        uintptr_t* collision_object_ptr = g_Bullet3DCollisionObjectHandles.Get(handle);
+        if (!collision_object_ptr)
+        {
+            return;
+        }
+
+        uint64_t       key = CollisionObjectPtrToKey((btCollisionObject*)collision_object_ptr);
+        HOpaqueHandle* mapped_handle = g_Bullet3DCollisionObjectToHandle.Get(key);
+        if (mapped_handle && *mapped_handle == handle)
+        {
+            g_Bullet3DCollisionObjectToHandle.Erase(key);
+        }
+        g_Bullet3DCollisionObjectMeta.Erase(handle);
+        g_Bullet3DCollisionObjectHandles.Release(handle);
+    }
+
+    static Bullet3DLuaCollisionObject* CheckCollisionObjectUserdata(lua_State* L, int index)
+    {
+        return (Bullet3DLuaCollisionObject*)dmScript::CheckUserType(L, index, g_Bullet3DCollisionObjectTypeHash, "Expected user type " BULLET3D_TYPE_NAME_COLLISION_OBJECT);
+    }
+
+    static Bullet3DLuaCollisionObject* ToCollisionObjectUserdata(lua_State* L, int index)
+    {
+        return (Bullet3DLuaCollisionObject*)dmScript::ToUserType(L, index, g_Bullet3DCollisionObjectTypeHash);
+    }
+
+    static btCollisionObject* VerifyCollisionObject(lua_State* L, Bullet3DLuaCollisionObject* lua_collision_object, bool report_error, Bullet3DCollisionObjectMeta** out_meta)
+    {
+        uintptr_t*                   collision_object_ptr = g_Bullet3DCollisionObjectHandles.Get(lua_collision_object->m_Handle);
+        Bullet3DCollisionObjectMeta* meta = g_Bullet3DCollisionObjectMeta.Get(lua_collision_object->m_Handle);
+        if (!collision_object_ptr || !meta)
+        {
+            if (report_error)
+            {
+                luaL_error(L, "Invalid bullet3d collision object handle.");
+            }
+            return 0;
+        }
+
+        if (meta->m_InstanceId)
+        {
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(meta->m_Collection, meta->m_InstanceId);
+            if (!instance || dmGameObject::GetGeneration(instance) != meta->m_InstanceGeneration)
+            {
+                dmhash_t instance_id = meta->m_InstanceId;
+                InvalidateCollisionObjectHandle(lua_collision_object->m_Handle);
+                if (report_error)
+                {
+                    luaL_error(L, "Cannot get bullet3d collision object for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(instance_id));
+                }
+                return 0;
+            }
+        }
+
+        if (out_meta)
+        {
+            *out_meta = meta;
+        }
+        return (btCollisionObject*)collision_object_ptr;
+    }
+
+    btCollisionObject* ToBullet3DCollisionObject(lua_State* L, int index)
+    {
+        Bullet3DLuaCollisionObject* lua_collision_object = ToCollisionObjectUserdata(L, index);
+        return lua_collision_object ? VerifyCollisionObject(L, lua_collision_object, false, 0) : 0;
+    }
+
+    bool IsBullet3DCollisionObjectValid(lua_State* L, int index)
+    {
+        return ToBullet3DCollisionObject(L, index) != 0;
+    }
+
+    btCollisionObject* CheckBullet3DCollisionObject(lua_State* L, int index)
+    {
+        return VerifyCollisionObject(L, CheckCollisionObjectUserdata(L, index), true, 0);
+    }
+
+    static btCollisionObject* CheckCollisionObjectWithMeta(lua_State* L, int index, Bullet3DCollisionObjectMeta** out_meta)
+    {
+        return VerifyCollisionObject(L, CheckCollisionObjectUserdata(L, index), true, out_meta);
+    }
+
+    dmGameObject::HCollection GetBullet3DCollisionObjectCollection(lua_State* L, int index)
+    {
+        Bullet3DCollisionObjectMeta* meta = 0;
+        VerifyCollisionObject(L, CheckCollisionObjectUserdata(L, index), true, &meta);
+        return meta ? meta->m_Collection : 0;
+    }
+
+    void PushBullet3DCollisionObject(lua_State* L, void* collision_object_ptr, dmGameObject::HCollection collection, dmhash_t instance_id)
+    {
+        if (!collision_object_ptr)
+        {
+            lua_pushnil(L);
+            return;
+        }
+
+        btCollisionObject*      collision_object = (btCollisionObject*)collision_object_ptr;
+        dmGameObject::HInstance instance = instance_id ? dmGameObject::GetInstanceFromIdentifier(collection, instance_id) : 0;
+        uint32_t                instance_generation = instance ? dmGameObject::GetGeneration(instance) : 0;
+
+        EnsureCollisionObjectHandleCapacity();
+
+        HOpaqueHandle  handle = INVALID_OPAQUE_HANDLE;
+        uint64_t       key = CollisionObjectPtrToKey(collision_object);
+        HOpaqueHandle* existing_handle = g_Bullet3DCollisionObjectToHandle.Get(key);
+        uintptr_t*     existing_collision_object = existing_handle ? g_Bullet3DCollisionObjectHandles.Get(*existing_handle) : 0;
+        if (existing_collision_object)
+        {
+            Bullet3DCollisionObjectMeta* existing_meta = g_Bullet3DCollisionObjectMeta.Get(*existing_handle);
+            dmGameObject::HInstance      existing_instance = existing_meta && existing_meta->m_InstanceId ? dmGameObject::GetInstanceFromIdentifier(existing_meta->m_Collection, existing_meta->m_InstanceId) : 0;
+            if (!existing_meta || (existing_meta->m_InstanceId && (!existing_instance || dmGameObject::GetGeneration(existing_instance) != existing_meta->m_InstanceGeneration)))
+            {
+                InvalidateCollisionObjectHandle(*existing_handle);
+                existing_handle = 0;
+                existing_collision_object = 0;
+            }
+        }
+
+        if (existing_collision_object)
+        {
+            handle = *existing_handle;
+        }
+        else
+        {
+            if (existing_handle)
+            {
+                g_Bullet3DCollisionObjectToHandle.Erase(key);
+            }
+            handle = g_Bullet3DCollisionObjectHandles.Put((uintptr_t*)collision_object);
+            g_Bullet3DCollisionObjectToHandle.Put(key, handle);
+        }
+
+        Bullet3DCollisionObjectMeta meta = {};
+        meta.m_Collection = collection;
+        meta.m_InstanceId = instance_id;
+        meta.m_InstanceGeneration = instance_generation;
+        Bullet3DCollisionObjectMeta* existing_meta = g_Bullet3DCollisionObjectMeta.Get(handle);
+        if (existing_meta)
+        {
+            *existing_meta = meta;
+        }
+        else
+        {
+            g_Bullet3DCollisionObjectMeta.Put(handle, meta);
+        }
+
+        Bullet3DLuaCollisionObject* lua_collision_object = (Bullet3DLuaCollisionObject*)lua_newuserdata(L, sizeof(Bullet3DLuaCollisionObject));
+        lua_collision_object->m_Handle = handle;
+        luaL_getmetatable(L, BULLET3D_TYPE_NAME_COLLISION_OBJECT);
+        lua_setmetatable(L, -2);
+    }
+
+    void ScriptBullet3DInvalidateCollisionObject(void* collision_object_ptr)
+    {
+        if (!collision_object_ptr)
+        {
+            return;
+        }
+
+        HOpaqueHandle* handle = g_Bullet3DCollisionObjectToHandle.Get(CollisionObjectPtrToKey((btCollisionObject*)collision_object_ptr));
+        if (handle)
+        {
+            InvalidateCollisionObjectHandle(*handle);
+        }
+    }
+
+    static void SetWorldTransform(btCollisionObject* collision_object, Bullet3DCollisionObjectMeta* meta, const btVector3& position, const btQuaternion& rotation)
+    {
+        btTransform  transform(rotation, position);
+        btRigidBody* rigid_body = btRigidBody::upcast(collision_object);
+        if (rigid_body)
+        {
+            rigid_body->setCenterOfMassTransform(transform);
+        }
+        else
+        {
+            collision_object->setWorldTransform(transform);
+        }
+        collision_object->setInterpolationWorldTransform(transform);
+        collision_object->activate(true);
+
+        if (meta && meta->m_InstanceId)
+        {
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(meta->m_Collection, meta->m_InstanceId);
+            if (instance)
+            {
+                float                   inv_scale = GetBullet3DInvPhysicsScale();
+                dmVMath::Point3         world_position(position.getX() * inv_scale, position.getY() * inv_scale, position.getZ() * inv_scale);
+                dmVMath::Quat           world_rotation(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+                dmGameObject::HInstance parent = dmGameObject::GetParent(instance);
+                if (parent)
+                {
+                    dmVMath::Matrix4 inverse_parent = dmVMath::Inverse(dmGameObject::GetWorldMatrix(parent));
+                    dmVMath::Vector4 local_position = inverse_parent * dmVMath::Vector4(world_position);
+                    dmGameObject::SetPosition(instance, dmVMath::Point3(local_position.getXYZ()));
+                    dmGameObject::SetRotation(instance, dmVMath::Conjugate(dmGameObject::GetWorldRotation(parent)) * world_rotation);
+                }
+                else
+                {
+                    dmGameObject::SetPosition(instance, world_position);
+                    dmGameObject::SetRotation(instance, world_rotation);
+                }
+            }
+        }
+    }
+
+    static int CollisionObject_IsValid(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushboolean(L, IsBullet3DCollisionObjectValid(L, 1));
+        return 1;
+    }
+
+    static int CollisionObject_GetWorldTransform(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 2);
+        const btTransform& transform = CheckBullet3DCollisionObject(L, 1)->getWorldTransform();
+        PushBullet3DVector3(L, transform.getOrigin(), GetBullet3DInvPhysicsScale());
+        PushBullet3DQuat(L, transform.getRotation());
+        return 2;
+    }
+
+    static int CollisionObject_SetWorldTransform(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        Bullet3DCollisionObjectMeta* meta = 0;
+        btCollisionObject*           collision_object = CheckCollisionObjectWithMeta(L, 1, &meta);
+        SetWorldTransform(collision_object, meta, CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()), CheckBullet3DQuat(L, 3));
+        return 0;
+    }
+
+    static int CollisionObject_GetPosition(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        PushBullet3DVector3(L, CheckBullet3DCollisionObject(L, 1)->getWorldTransform().getOrigin(), GetBullet3DInvPhysicsScale());
+        return 1;
+    }
+
+    static int CollisionObject_SetPosition(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        Bullet3DCollisionObjectMeta* meta = 0;
+        btCollisionObject*           collision_object = CheckCollisionObjectWithMeta(L, 1, &meta);
+        const btTransform&           transform = collision_object->getWorldTransform();
+        SetWorldTransform(collision_object, meta, CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()), transform.getRotation());
+        return 0;
+    }
+
+    static int CollisionObject_GetRotation(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        PushBullet3DQuat(L, CheckBullet3DCollisionObject(L, 1)->getWorldTransform().getRotation());
+        return 1;
+    }
+
+    static int CollisionObject_SetRotation(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        Bullet3DCollisionObjectMeta* meta = 0;
+        btCollisionObject*           collision_object = CheckCollisionObjectWithMeta(L, 1, &meta);
+        SetWorldTransform(collision_object, meta, collision_object->getWorldTransform().getOrigin(), CheckBullet3DQuat(L, 2));
+        return 0;
+    }
+
+    static int CollisionObject_GetActivationState(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushinteger(L, CheckBullet3DCollisionObject(L, 1)->getActivationState());
+        return 1;
+    }
+
+    static int CollisionObject_SetActivationState(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        CheckBullet3DCollisionObject(L, 1)->setActivationState(luaL_checkinteger(L, 2));
+        return 0;
+    }
+
+    static int CollisionObject_ForceActivationState(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        CheckBullet3DCollisionObject(L, 1)->forceActivationState(luaL_checkinteger(L, 2));
+        return 0;
+    }
+
+    static int CollisionObject_Activate(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        CheckBullet3DCollisionObject(L, 1)->activate(lua_toboolean(L, 2) != 0);
+        return 0;
+    }
+
+    static int CollisionObject_IsActive(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushboolean(L, CheckBullet3DCollisionObject(L, 1)->isActive());
+        return 1;
+    }
+
+    static int CollisionObject_GetDeactivationTime(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushnumber(L, CheckBullet3DCollisionObject(L, 1)->getDeactivationTime());
+        return 1;
+    }
+
+    static int CollisionObject_SetDeactivationTime(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        CheckBullet3DCollisionObject(L, 1)->setDeactivationTime(luaL_checknumber(L, 2));
+        return 0;
+    }
+
+#define BULLET3D_NUMBER_PROPERTY(NAME, GETTER, SETTER, INPUT_SCALE, OUTPUT_SCALE) \
+    static int CollisionObject_Get##NAME(lua_State* L) \
+    { \
+        DM_LUA_STACK_CHECK(L, 1); \
+        lua_pushnumber(L, CheckBullet3DCollisionObject(L, 1)->GETTER() * (OUTPUT_SCALE)); \
+        return 1; \
+    } \
+    static int CollisionObject_Set##NAME(lua_State* L) \
+    { \
+        DM_LUA_STACK_CHECK(L, 0); \
+        CheckBullet3DCollisionObject(L, 1)->SETTER(luaL_checknumber(L, 2) * (INPUT_SCALE)); \
+        return 0; \
+    }
+
+    BULLET3D_NUMBER_PROPERTY(Friction, getFriction, setFriction, 1.0f, 1.0f)
+    BULLET3D_NUMBER_PROPERTY(Restitution, getRestitution, setRestitution, 1.0f, 1.0f)
+    BULLET3D_NUMBER_PROPERTY(ContactProcessingThreshold, getContactProcessingThreshold, setContactProcessingThreshold, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
+    BULLET3D_NUMBER_PROPERTY(CcdSweptSphereRadius, getCcdSweptSphereRadius, setCcdSweptSphereRadius, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
+    BULLET3D_NUMBER_PROPERTY(CcdMotionThreshold, getCcdMotionThreshold, setCcdMotionThreshold, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
+
+#undef BULLET3D_NUMBER_PROPERTY
+
+    static int CollisionObject_GetCollisionFlags(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushinteger(L, CheckBullet3DCollisionObject(L, 1)->getCollisionFlags());
+        return 1;
+    }
+
+    static int CollisionObject_HasCollisionFlag(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        int flag = luaL_checkinteger(L, 2);
+        lua_pushboolean(L, (CheckBullet3DCollisionObject(L, 1)->getCollisionFlags() & flag) == flag);
+        return 1;
+    }
+
+    static int CollisionObject_GetInternalType(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushinteger(L, CheckBullet3DCollisionObject(L, 1)->getInternalType());
+        return 1;
+    }
+
+#define BULLET3D_BOOL_QUERY(NAME, EXPRESSION) \
+    static int CollisionObject_##NAME(lua_State* L) \
+    { \
+        DM_LUA_STACK_CHECK(L, 1); \
+        btCollisionObject* collision_object = CheckBullet3DCollisionObject(L, 1); \
+        lua_pushboolean(L, (EXPRESSION)); \
+        return 1; \
+    }
+
+    BULLET3D_BOOL_QUERY(IsStatic, collision_object->isStaticObject())
+    BULLET3D_BOOL_QUERY(IsKinematic, collision_object->isKinematicObject())
+    BULLET3D_BOOL_QUERY(IsStaticOrKinematic, collision_object->isStaticOrKinematicObject())
+    BULLET3D_BOOL_QUERY(HasContactResponse, collision_object->hasContactResponse())
+    BULLET3D_BOOL_QUERY(IsRigidBody, btRigidBody::upcast(collision_object) != 0)
+    BULLET3D_BOOL_QUERY(IsGhostObject, collision_object->getInternalType() == btCollisionObject::CO_GHOST_OBJECT)
+
+#undef BULLET3D_BOOL_QUERY
+
+    static int CollisionObject_ToString(lua_State* L)
+    {
+        btCollisionObject* collision_object = CheckBullet3DCollisionObject(L, 1);
+        lua_pushfstring(L, "Bullet3D.%s = %p", BULLET3D_TYPE_NAME_COLLISION_OBJECT, collision_object);
+        return 1;
+    }
+
+    static int CollisionObject_Equal(lua_State* L)
+    {
+        Bullet3DLuaCollisionObject* a = ToCollisionObjectUserdata(L, 1);
+        Bullet3DLuaCollisionObject* b = ToCollisionObjectUserdata(L, 2);
+        lua_pushboolean(L, a && b && a->m_Handle == b->m_Handle);
+        return 1;
+    }
+
+    static const luaL_reg COLLISION_OBJECT_METHODS[] = {
+        { 0, 0 }
+    };
+
+    static const luaL_reg COLLISION_OBJECT_META[] = {
+        { "__tostring", CollisionObject_ToString },
+        { "__eq", CollisionObject_Equal },
+        { 0, 0 }
+    };
+
+    static const luaL_reg COLLISION_OBJECT_FUNCTIONS[] = {
+        { "is_valid", CollisionObject_IsValid },
+        { "get_world_transform", CollisionObject_GetWorldTransform },
+        { "set_world_transform", CollisionObject_SetWorldTransform },
+        { "get_position", CollisionObject_GetPosition },
+        { "set_position", CollisionObject_SetPosition },
+        { "get_rotation", CollisionObject_GetRotation },
+        { "set_rotation", CollisionObject_SetRotation },
+        { "get_activation_state", CollisionObject_GetActivationState },
+        { "set_activation_state", CollisionObject_SetActivationState },
+        { "force_activation_state", CollisionObject_ForceActivationState },
+        { "activate", CollisionObject_Activate },
+        { "is_active", CollisionObject_IsActive },
+        { "get_deactivation_time", CollisionObject_GetDeactivationTime },
+        { "set_deactivation_time", CollisionObject_SetDeactivationTime },
+        { "get_friction", CollisionObject_GetFriction },
+        { "set_friction", CollisionObject_SetFriction },
+        { "get_restitution", CollisionObject_GetRestitution },
+        { "set_restitution", CollisionObject_SetRestitution },
+        { "get_contact_processing_threshold", CollisionObject_GetContactProcessingThreshold },
+        { "set_contact_processing_threshold", CollisionObject_SetContactProcessingThreshold },
+        { "get_ccd_swept_sphere_radius", CollisionObject_GetCcdSweptSphereRadius },
+        { "set_ccd_swept_sphere_radius", CollisionObject_SetCcdSweptSphereRadius },
+        { "get_ccd_motion_threshold", CollisionObject_GetCcdMotionThreshold },
+        { "set_ccd_motion_threshold", CollisionObject_SetCcdMotionThreshold },
+        { "get_collision_flags", CollisionObject_GetCollisionFlags },
+        { "has_collision_flag", CollisionObject_HasCollisionFlag },
+        { "get_internal_type", CollisionObject_GetInternalType },
+        { "is_static", CollisionObject_IsStatic },
+        { "is_kinematic", CollisionObject_IsKinematic },
+        { "is_static_or_kinematic", CollisionObject_IsStaticOrKinematic },
+        { "has_contact_response", CollisionObject_HasContactResponse },
+        { "is_rigid_body", CollisionObject_IsRigidBody },
+        { "is_ghost_object", CollisionObject_IsGhostObject },
+        { 0, 0 }
+    };
+
+    static void SetIntegerConstant(lua_State* L, const char* name, int value)
+    {
+        lua_pushinteger(L, value);
+        lua_setfield(L, -2, name);
+    }
+
+    void ScriptBullet3DInitializeCollisionObject(lua_State* L)
+    {
+        g_Bullet3DCollisionObjectTypeHash = dmScript::RegisterUserType(L, BULLET3D_TYPE_NAME_COLLISION_OBJECT, COLLISION_OBJECT_METHODS, COLLISION_OBJECT_META);
+
+        lua_newtable(L);
+        luaL_register(L, 0, COLLISION_OBJECT_FUNCTIONS);
+
+        SetIntegerConstant(L, "ACTIVE_TAG", ACTIVE_TAG);
+        SetIntegerConstant(L, "ISLAND_SLEEPING", ISLAND_SLEEPING);
+        SetIntegerConstant(L, "WANTS_DEACTIVATION", WANTS_DEACTIVATION);
+        SetIntegerConstant(L, "DISABLE_DEACTIVATION", DISABLE_DEACTIVATION);
+        SetIntegerConstant(L, "DISABLE_SIMULATION", DISABLE_SIMULATION);
+
+        SetIntegerConstant(L, "CF_STATIC_OBJECT", btCollisionObject::CF_STATIC_OBJECT);
+        SetIntegerConstant(L, "CF_KINEMATIC_OBJECT", btCollisionObject::CF_KINEMATIC_OBJECT);
+        SetIntegerConstant(L, "CF_NO_CONTACT_RESPONSE", btCollisionObject::CF_NO_CONTACT_RESPONSE);
+        SetIntegerConstant(L, "CF_CUSTOM_MATERIAL_CALLBACK", btCollisionObject::CF_CUSTOM_MATERIAL_CALLBACK);
+        SetIntegerConstant(L, "CF_CHARACTER_OBJECT", btCollisionObject::CF_CHARACTER_OBJECT);
+        SetIntegerConstant(L, "CF_DISABLE_VISUALIZE_OBJECT", btCollisionObject::CF_DISABLE_VISUALIZE_OBJECT);
+        SetIntegerConstant(L, "CF_DISABLE_SPU_COLLISION_PROCESSING", btCollisionObject::CF_DISABLE_SPU_COLLISION_PROCESSING);
+
+        SetIntegerConstant(L, "CO_COLLISION_OBJECT", btCollisionObject::CO_COLLISION_OBJECT);
+        SetIntegerConstant(L, "CO_RIGID_BODY", btCollisionObject::CO_RIGID_BODY);
+        SetIntegerConstant(L, "CO_GHOST_OBJECT", btCollisionObject::CO_GHOST_OBJECT);
+        SetIntegerConstant(L, "CO_SOFT_BODY", btCollisionObject::CO_SOFT_BODY);
+        SetIntegerConstant(L, "CO_HF_FLUID", btCollisionObject::CO_HF_FLUID);
+
+        lua_setfield(L, -2, "collision_object");
+    }
+
+    void ScriptBullet3DFinalizeCollisionObject()
+    {
+        g_Bullet3DCollisionObjectTypeHash = 0;
+        ClearCollisionObjectHandles();
+        g_Bullet3DCollisionObjectToHandle.Clear();
+        g_Bullet3DCollisionObjectMeta.Clear();
+    }
+} // namespace dmGameSystem
+
+/*# Bullet collision object API
+ *
+ * Functions shared by rigid bodies and trigger ghost objects. Defold keeps
+ * ownership of each object's user pointer, motion state, collision shape, and
+ * world membership; those properties are intentionally not exposed here.
+ *
+ * Positions, distances, and CCD thresholds use Defold units. Rotations,
+ * coefficients, flags, activation state, and time values use Bullet values.
+ *
+ * @document
+ * @name bullet3d.collision_object
+ * @namespace bullet3d.collision_object
+ * @language Lua
+ */
+
+/*# Active simulation state
+ * @name bullet3d.collision_object.ACTIVE_TAG
+ * @constant
+ */
+/*# Sleeping simulation state
+ * @name bullet3d.collision_object.ISLAND_SLEEPING
+ * @constant
+ */
+/*# Wants-deactivation simulation state
+ * @name bullet3d.collision_object.WANTS_DEACTIVATION
+ * @constant
+ */
+/*# Disable automatic deactivation
+ * @name bullet3d.collision_object.DISABLE_DEACTIVATION
+ * @constant
+ */
+/*# Disable simulation
+ * @name bullet3d.collision_object.DISABLE_SIMULATION
+ * @constant
+ */
+
+/*# Static collision object flag
+ * @name bullet3d.collision_object.CF_STATIC_OBJECT
+ * @constant
+ */
+/*# Kinematic collision object flag
+ * @name bullet3d.collision_object.CF_KINEMATIC_OBJECT
+ * @constant
+ */
+/*# Disable contact response flag
+ * @name bullet3d.collision_object.CF_NO_CONTACT_RESPONSE
+ * @constant
+ */
+/*# Custom material callback flag
+ * @name bullet3d.collision_object.CF_CUSTOM_MATERIAL_CALLBACK
+ * @constant
+ */
+/*# Character collision object flag
+ * @name bullet3d.collision_object.CF_CHARACTER_OBJECT
+ * @constant
+ */
+/*# Disable debug visualization flag
+ * @name bullet3d.collision_object.CF_DISABLE_VISUALIZE_OBJECT
+ * @constant
+ */
+/*# Disable SPU collision processing flag
+ * @name bullet3d.collision_object.CF_DISABLE_SPU_COLLISION_PROCESSING
+ * @constant
+ */
+
+/*# Generic collision object type
+ * @name bullet3d.collision_object.CO_COLLISION_OBJECT
+ * @constant
+ */
+/*# Rigid body collision object type
+ * @name bullet3d.collision_object.CO_RIGID_BODY
+ * @constant
+ */
+/*# Ghost collision object type
+ * @name bullet3d.collision_object.CO_GHOST_OBJECT
+ * @constant
+ */
+/*# Soft body collision object type
+ * @name bullet3d.collision_object.CO_SOFT_BODY
+ * @constant
+ */
+/*# Height-field fluid collision object type
+ * @name bullet3d.collision_object.CO_HF_FLUID
+ * @constant
+ */
+
+/*# Test whether a collision object handle is valid
+ * @name bullet3d.collision_object.is_valid
+ * @param object [type:btCollisionObject] collision object
+ * @return valid [type:boolean] `true` if the native object still exists
+ */
+
+/*# Get the world transform
+ * @name bullet3d.collision_object.get_world_transform
+ * @param object [type:btCollisionObject] collision object
+ * @return position [type:vector3] world position in Defold units
+ * @return rotation [type:quaternion] world rotation
+ */
+
+/*# Set the world transform
+ *
+ * The owning game object's position and rotation are updated as well, so the
+ * transform persists when Defold synchronizes game objects into Bullet.
+ *
+ * @name bullet3d.collision_object.set_world_transform
+ * @param object [type:btCollisionObject] collision object
+ * @param position [type:vector3] world position in Defold units
+ * @param rotation [type:quaternion] world rotation
+ */
+
+/*# Get the world position
+ * @name bullet3d.collision_object.get_position
+ * @param object [type:btCollisionObject] collision object
+ * @return position [type:vector3] world position in Defold units
+ */
+
+/*# Set the world position
+ *
+ * The owning game object's position is updated as well.
+ *
+ * @name bullet3d.collision_object.set_position
+ * @param object [type:btCollisionObject] collision object
+ * @param position [type:vector3] world position in Defold units
+ */
+
+/*# Get the world rotation
+ * @name bullet3d.collision_object.get_rotation
+ * @param object [type:btCollisionObject] collision object
+ * @return rotation [type:quaternion] world rotation
+ */
+
+/*# Set the world rotation
+ *
+ * The owning game object's rotation is updated as well.
+ *
+ * @name bullet3d.collision_object.set_rotation
+ * @param object [type:btCollisionObject] collision object
+ * @param rotation [type:quaternion] world rotation
+ */
+
+/*# Get the activation state
+ * @name bullet3d.collision_object.get_activation_state
+ * @param object [type:btCollisionObject] collision object
+ * @return state [type:number] one of the activation constants
+ */
+
+/*# Set the activation state
+ * @name bullet3d.collision_object.set_activation_state
+ * @param object [type:btCollisionObject] collision object
+ * @param state [type:number] activation state
+ */
+
+/*# Force the activation state
+ * @name bullet3d.collision_object.force_activation_state
+ * @param object [type:btCollisionObject] collision object
+ * @param state [type:number] activation state
+ */
+
+/*# Activate a collision object
+ * @name bullet3d.collision_object.activate
+ * @param object [type:btCollisionObject] collision object
+ * @param [force] [type:boolean] force activation of a static or kinematic object; defaults to `false`
+ */
+
+/*# Test whether a collision object is active
+ * @name bullet3d.collision_object.is_active
+ * @param object [type:btCollisionObject] collision object
+ * @return active [type:boolean] active state
+ */
+
+/*# Get deactivation time
+ * @name bullet3d.collision_object.get_deactivation_time
+ * @param object [type:btCollisionObject] collision object
+ * @return seconds [type:number] deactivation time
+ */
+
+/*# Set deactivation time
+ * @name bullet3d.collision_object.set_deactivation_time
+ * @param object [type:btCollisionObject] collision object
+ * @param seconds [type:number] deactivation time
+ */
+
+/*# Get friction
+ * @name bullet3d.collision_object.get_friction
+ * @param object [type:btCollisionObject] collision object
+ * @return friction [type:number] friction coefficient
+ */
+
+/*# Set friction
+ * @name bullet3d.collision_object.set_friction
+ * @param object [type:btCollisionObject] collision object
+ * @param friction [type:number] friction coefficient
+ */
+
+/*# Get restitution
+ * @name bullet3d.collision_object.get_restitution
+ * @param object [type:btCollisionObject] collision object
+ * @return restitution [type:number] restitution coefficient
+ */
+
+/*# Set restitution
+ * @name bullet3d.collision_object.set_restitution
+ * @param object [type:btCollisionObject] collision object
+ * @param restitution [type:number] restitution coefficient
+ */
+
+/*# Get the contact processing threshold
+ * @name bullet3d.collision_object.get_contact_processing_threshold
+ * @param object [type:btCollisionObject] collision object
+ * @return threshold [type:number] threshold in Defold units
+ */
+
+/*# Set the contact processing threshold
+ * @name bullet3d.collision_object.set_contact_processing_threshold
+ * @param object [type:btCollisionObject] collision object
+ * @param threshold [type:number] threshold in Defold units
+ */
+
+/*# Get the CCD swept sphere radius
+ * @name bullet3d.collision_object.get_ccd_swept_sphere_radius
+ * @param object [type:btCollisionObject] collision object
+ * @return radius [type:number] radius in Defold units
+ */
+
+/*# Set the CCD swept sphere radius
+ * @name bullet3d.collision_object.set_ccd_swept_sphere_radius
+ * @param object [type:btCollisionObject] collision object
+ * @param radius [type:number] radius in Defold units
+ */
+
+/*# Get the CCD motion threshold
+ * @name bullet3d.collision_object.get_ccd_motion_threshold
+ * @param object [type:btCollisionObject] collision object
+ * @return threshold [type:number] threshold in Defold units
+ */
+
+/*# Set the CCD motion threshold
+ * @name bullet3d.collision_object.set_ccd_motion_threshold
+ * @param object [type:btCollisionObject] collision object
+ * @param threshold [type:number] threshold in Defold units
+ */
+
+/*# Get collision flags
+ * @name bullet3d.collision_object.get_collision_flags
+ * @param object [type:btCollisionObject] collision object
+ * @return flags [type:number] bit field of `CF_*` constants
+ */
+
+/*# Test a collision flag
+ * @name bullet3d.collision_object.has_collision_flag
+ * @param object [type:btCollisionObject] collision object
+ * @param flag [type:number] collision flag or mask
+ * @return set [type:boolean] `true` when all requested flag bits are set
+ */
+
+/*# Get the Bullet collision object type
+ * @name bullet3d.collision_object.get_internal_type
+ * @param object [type:btCollisionObject] collision object
+ * @return type [type:number] one of the `CO_*` constants
+ */
+
+/*# Test whether the object is static
+ * @name bullet3d.collision_object.is_static
+ * @param object [type:btCollisionObject] collision object
+ * @return static [type:boolean] static state
+ */
+
+/*# Test whether the object is kinematic
+ * @name bullet3d.collision_object.is_kinematic
+ * @param object [type:btCollisionObject] collision object
+ * @return kinematic [type:boolean] kinematic state
+ */
+
+/*# Test whether the object is static or kinematic
+ * @name bullet3d.collision_object.is_static_or_kinematic
+ * @param object [type:btCollisionObject] collision object
+ * @return result [type:boolean] static or kinematic state
+ */
+
+/*# Test whether the object responds to contacts
+ * @name bullet3d.collision_object.has_contact_response
+ * @param object [type:btCollisionObject] collision object
+ * @return result [type:boolean] contact response state
+ */
+
+/*# Test whether the object is a rigid body
+ * @name bullet3d.collision_object.is_rigid_body
+ * @param object [type:btCollisionObject] collision object
+ * @return result [type:boolean] rigid body state
+ */
+
+/*# Test whether the object is a ghost trigger
+ * @name bullet3d.collision_object.is_ghost_object
+ * @param object [type:btCollisionObject] collision object
+ * @return result [type:boolean] ghost object state
+ */

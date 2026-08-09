@@ -377,7 +377,7 @@ set(ENGINE_COMPONENT_SYMBOLS
   ComponentTypeParticleFX ComponentTypeTileMap)
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptBox2DExt ScriptBullet3DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
   ScriptLibParticleFX ScriptLibTileMap)
 if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)

@@ -40,15 +40,20 @@ DM_PROPERTY_U32(rmtp_CollisionObjectBullet3D, 0, PROFILE_PROPERTY_FRAME_RESET, "
 namespace dmGameSystem
 {
     static PhysicsAdapterFunctionTable* g_PhysicsAdapter = 0x0;
+    static ScriptBullet3DInvalidateWorldCallback g_ScriptBullet3DInvalidateWorldCallback = 0x0;
+    static ScriptBullet3DInvalidateCollisionObjectCallback g_ScriptBullet3DInvalidateCollisionObjectCallback = 0x0;
     static int g_NumPhysicsTransformsUpdated = 0;
     static bool g_CollisionOverflowWarning   = false;
     static bool g_ContactOverflowWarning     = false;
 
+    struct CollisionComponentBullet3D;
+    struct CollisionWorldBullet3D;
+
     static void InstallBullet3DPhysicsAdapter();
+    static void DeleteCollisionObject(CollisionWorldBullet3D* world, CollisionComponentBullet3D* component);
     static void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform);
     static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation);
 
-    struct CollisionComponentBullet3D;
     struct CollisionWorldBullet3D
     {
         CollisionWorld                       m_BaseWorld;
@@ -64,6 +69,34 @@ namespace dmGameSystem
         dmPhysics::HCollisionObject3D m_Object3D;
         dmPhysics::HCollisionShape3D* m_ShapeBuffer;
     };
+
+    static void InvalidateScriptBullet3DWorld(dmPhysics::HWorld3D world)
+    {
+        if (g_ScriptBullet3DInvalidateWorldCallback)
+        {
+            g_ScriptBullet3DInvalidateWorldCallback(dmPhysics::GetWorldContext3D(world));
+        }
+    }
+
+    static void InvalidateScriptBullet3DCollisionObject(dmPhysics::HCollisionObject3D collision_object)
+    {
+        if (g_ScriptBullet3DInvalidateCollisionObjectCallback)
+        {
+            g_ScriptBullet3DInvalidateCollisionObjectCallback(dmPhysics::GetCollisionObjectContext3D(collision_object));
+        }
+    }
+
+    static void DeleteCollisionObject(CollisionWorldBullet3D* world, CollisionComponentBullet3D* component)
+    {
+        if (component->m_Object3D == 0x0)
+        {
+            return;
+        }
+
+        InvalidateScriptBullet3DCollisionObject(component->m_Object3D);
+        dmPhysics::DeleteCollisionObject3D(world->m_World3D, component->m_Object3D);
+        component->m_Object3D = 0x0;
+    }
 
     static void RemoveComponentFromUpdate(CollisionWorldBullet3D* world, CollisionComponentBullet3D* component)
     {
@@ -134,6 +167,18 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
+        uint32_t num_components = world->m_Components.Size();
+        for (uint32_t i = 0; i < num_components; ++i)
+        {
+            CollisionComponentBullet3D* component = world->m_Components[i];
+            if (component->m_Object3D)
+            {
+                InvalidateScriptBullet3DCollisionObject(component->m_Object3D);
+            }
+        }
+
+        InvalidateScriptBullet3DWorld(world->m_World3D);
+
         dmPhysics::DeleteWorld3D(physics_context->m_Context, world->m_World3D);
 
         delete world;
@@ -191,7 +236,7 @@ namespace dmGameSystem
         if (collision_object != 0x0)
         {
             if (component->m_Object3D != 0x0)
-                dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
+                DeleteCollisionObject(world, component);
             component->m_Object3D = collision_object;
         }
         else
@@ -246,9 +291,7 @@ namespace dmGameSystem
 
         if (component->m_Object3D != 0)
         {
-            dmPhysics::HWorld3D physics_world = world->m_World3D;
-            dmPhysics::DeleteCollisionObject3D(physics_world, component->m_Object3D);
-            component->m_Object3D = 0;
+            DeleteCollisionObject(world, component);
         }
 
         delete component;
@@ -658,6 +701,29 @@ namespace dmGameSystem
             return dmGameObject::PROPERTY_RESULT_READ_ONLY;
         }
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    // Internal script API
+    void* CompCollisionObjectGetBullet3DWorld(dmGameObject::HComponentWorld _world)
+    {
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)_world;
+        return dmPhysics::GetWorldContext3D(world->m_World3D);
+    }
+
+    void* CompCollisionObjectGetBullet3DCollisionObject(dmGameObject::HComponent _component)
+    {
+        CollisionComponentBullet3D* component = (CollisionComponentBullet3D*)_component;
+        return dmPhysics::GetCollisionObjectContext3D(component->m_Object3D);
+    }
+
+    void CompCollisionObjectSetBullet3DInvalidateWorldCallback(ScriptBullet3DInvalidateWorldCallback callback)
+    {
+        g_ScriptBullet3DInvalidateWorldCallback = callback;
+    }
+
+    void CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(ScriptBullet3DInvalidateCollisionObjectCallback callback)
+    {
+        g_ScriptBullet3DInvalidateCollisionObjectCallback = callback;
     }
 
     // Adapter functions

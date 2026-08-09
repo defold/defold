@@ -347,6 +347,8 @@ namespace dmPhysics
      */
     void DeleteWorld2D(HContext2D context, HWorld2D world);
 
+    void* GetWorldContext3D(HWorld3D world);
+    void* GetCollisionObjectContext3D(HCollisionObject3D collision_object);
     void* GetWorldContext2D(HWorld2D world);
     void* GetCollisionObjectContext2D(HCollisionObject2D collision_object);
 

@@ -370,6 +370,7 @@ set(_COMMON_EXPORTED
   GraphicsAdapterNull
   ScriptImageExt
   ScriptMaterialExt
+  ScriptBullet3DExt
   ScriptFont
   ScriptHttp
   ScriptLibParticleFX
@@ -404,6 +405,7 @@ endif()
 set(_GS_TEST_INCLUDES
   "${GS_SRC_ROOT}"
   "${GS_PROTO_DIR}"
+  "${DEFOLD_SDK_ROOT}/include/script"
   "${_GS_EMBED_ROOT}"
   "${GS_GENERATED_INCLUDE_DIR}"
   "${CMAKE_CURRENT_BINARY_DIR}")

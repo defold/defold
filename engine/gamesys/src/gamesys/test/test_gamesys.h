@@ -20,6 +20,7 @@
 #include <dlib/buffer.h>
 #include <dlib/configfile.h>
 #include <dlib/context_registry.h>
+#include <dlib/dstrings.h>
 #include <dlib/testutil.h>
 #include <hid/hid.h>
 #include <platform/window.hpp>
@@ -322,6 +323,18 @@ public:
     ComponentTest() { SetContentFolder("collision_object"); }
     ~ComponentTest() override = default;
     const char* GetContentFolder() const override { return GamesysHasCurrentTestParam() ? GamesysContentFolderFromResourcePath(GetParam()) : m_ContentFolder; }
+};
+
+class Bullet3DComponentTest : public ScriptBaseTest
+{
+public:
+    Bullet3DComponentTest()
+    {
+        SetContentFolder("collision_object");
+        m_projectOptions.m_3D = true;
+        m_projectOptions.m_Scale = 0.1f;
+    }
+    ~Bullet3DComponentTest() override = default;
 };
 
 class ComponentFailTest : public GamesysTest<const char*>
@@ -635,11 +648,21 @@ void GamesysTest<T>::SetUp()
     dmScript::Initialize(m_ScriptContext);
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-    #ifdef DM_PHYSICS_BOX2D_V3
+    if (this->m_projectOptions.m_3D)
+    {
+        lua_pushstring(L, "bullet3d");
+    }
+#ifdef DM_PHYSICS_BOX2D_V3
+    else
+    {
         lua_pushstring(L, "box2dv3");
-    #else
+    }
+#else
+    else
+    {
         lua_pushstring(L, "box2dv2");
-    #endif
+    }
+#endif
     lua_setglobal(L, "PHYSICS");
 
     dmGui::NewContextParams gui_params;
@@ -650,7 +673,9 @@ void GamesysTest<T>::SetUp()
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
-    dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_Config);
+    char config_buffer[64];
+    dmSnPrintf(config_buffer, sizeof(config_buffer), "[physics]\nscale = %.9g\n", this->m_projectOptions.m_Scale);
+    ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(config_buffer, strlen(config_buffer), 0, 0, &m_Config));
 
     ExtensionAppParamsInitialize(&m_AppParams);
     ExtensionParamsInitialize(&m_Params);
@@ -701,7 +726,11 @@ void GamesysTest<T>::SetUp()
         m_PhysicsContextBullet3D.m_BaseContext.m_MaxCollisionObjectCount = 512;
         m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
 
-        m_PhysicsContextBullet3D.m_Context = dmPhysics::NewContext3D(dmPhysics::NewContextParams());
+        dmPhysics::NewContextParams context3DParams = dmPhysics::NewContextParams();
+        context3DParams.m_Scale = this->m_projectOptions.m_Scale;
+        context3DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
+        context3DParams.m_TriggerOverlapCapacity = this->m_projectOptions.m_TriggerOverlapCapacity;
+        m_PhysicsContextBullet3D.m_Context = dmPhysics::NewContext3D(context3DParams);
 
         physics_context = &m_PhysicsContextBullet3D.m_BaseContext;
     }

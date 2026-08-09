@@ -26,6 +26,9 @@
 
 namespace dmGameSystem
 {
+    typedef void (*ScriptBullet3DInvalidateWorldCallback)(void* world);
+    typedef void (*ScriptBullet3DInvalidateCollisionObjectCallback)(void* collision_object);
+
     dmGameObject::CreateResult   CompCollisionObjectBullet3DNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     dmGameObject::CreateResult   CompCollisionObjectBullet3DDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
     dmGameObject::CreateResult   CompCollisionObjectBullet3DCreate(const dmGameObject::ComponentCreateParams& params);
@@ -39,6 +42,12 @@ namespace dmGameSystem
     void                         CompCollisionObjectBullet3DOnReload(const dmGameObject::ComponentOnReloadParams& params);
     dmGameObject::PropertyResult CompCollisionObjectBullet3DGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
     dmGameObject::PropertyResult CompCollisionObjectBullet3DSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
+    // For script_bullet3d.cpp
+    void* CompCollisionObjectGetBullet3DWorld(dmGameObject::HComponentWorld _world);
+    void* CompCollisionObjectGetBullet3DCollisionObject(dmGameObject::HComponent _component);
+    void  CompCollisionObjectSetBullet3DInvalidateWorldCallback(ScriptBullet3DInvalidateWorldCallback callback);
+    void  CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(ScriptBullet3DInvalidateCollisionObjectCallback callback);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_BULLET3D_H
