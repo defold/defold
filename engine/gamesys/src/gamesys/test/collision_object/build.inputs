@@ -2,7 +2,10 @@
 /collision_object/box2d_chain_test.go
 /collision_object/box2d_shape_test.go
 /collision_object/box2d_world_test.go
+/collision_object/bullet3d_kinematic.go
+/collision_object/bullet3d_lifetime_test.go
 /collision_object/bullet3d_rigid_body.go
+/collision_object/bullet3d_static.go
 /collision_object/bullet3d_test.go
 /collision_object/bullet3d_trigger.go
 /collision_object/body.go

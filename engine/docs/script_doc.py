@@ -726,8 +726,7 @@ def write_lua_annotation(msg, output_file):
             for parameter in element["parameters"]:
                 parameter["types_string"] = "|".join([t for t in parameter["types"]])
                 parameter["doc"] = fixdoc(parameter["doc"])
-                if parameter["is_optional"] != True:
-                    parameter["is_optional"] = None
+                parameter["is_optional"] = parameter["is_optional"] in (True, "True")
             for rv in element["returnvalues"]:
                 rv["types_string"] = "|".join([t for t in rv["types"]])
                 rv["doc"] = fixdoc(rv["doc"])

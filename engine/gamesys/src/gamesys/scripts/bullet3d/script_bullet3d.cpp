@@ -107,7 +107,7 @@ namespace dmGameSystem
         void* world = CompCollisionObjectGetBullet3DWorld(component_world);
         if (world)
         {
-            PushBullet3DWorld(L, world);
+            PushBullet3DWorld(L, world, component_world);
         }
         else
         {
@@ -240,6 +240,13 @@ namespace dmGameSystem
  * The backend name refers to three-dimensional physics; this Defold version
  * bundles Bullet 2.77, reported by `bullet3d.get_version()`.
  *
+ * All userdata returned by this API are borrowed handles to Defold-owned
+ * objects. A collision-object or rigid-body handle becomes invalid when its
+ * collision object is deleted or reloaded. A world handle remains valid across
+ * collision-object reloads, but becomes invalid when its collection and physics
+ * world are destroyed. The corresponding `is_valid()` function is safe for
+ * checking a retained handle; every other operation rejects an invalid handle.
+ *
  * @document
  * @name bullet3d
  * @namespace bullet3d
@@ -273,7 +280,7 @@ namespace dmGameSystem
  * This function raises an error unless the collection uses 3D physics.
  *
  * @name bullet3d.get_world
- * @return world [type:btDiscreteDynamicsWorld] the world, or `nil` if the collection has no physics world
+ * @return world [type:btDiscreteDynamicsWorld|nil] the world, or `nil` if the collection has no physics world
  */
 
 /*# Get a Bullet collision object
@@ -283,7 +290,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.get_collision_object
  * @param url [type:string|hash|url] collision object component URL
- * @return object [type:btCollisionObject] the collision object, or `nil`
+ * @return object [type:btCollisionObject|nil] the collision object, or `nil`
  */
 
 /*# Get a Bullet rigid body
@@ -293,10 +300,23 @@ namespace dmGameSystem
  *
  * @name bullet3d.get_rigid_body
  * @param url [type:string|hash|url] collision object component URL
- * @return body [type:btRigidBody] the rigid body handle, or `nil`
+ * @return body [type:btRigidBody|nil] the rigid body handle, or `nil`
+ * @examples
+ *
+ * ```lua
+ * local world = bullet3d.get_world()
+ * local body = bullet3d.get_rigid_body("#collisionobject")
+ * if world and body and bullet3d.rigid_body.is_valid(body) then
+ *     bullet3d.rigid_body.apply_central_impulse(body, vmath.vector3(0, 10, 0))
+ * end
+ *
+ * -- A trigger is a collision object, not a rigid body.
+ * local trigger = bullet3d.get_collision_object("#trigger")
+ * assert(trigger and bullet3d.get_rigid_body("#trigger") == nil)
+ * ```
  */
 
 /*# Get the bundled Bullet version
  * @name bullet3d.get_version
- * @return info [type:table] fields `version`, `number`, `major`, and `minor`
+ * @return info [type:table] version fields: `version` is the string `"2.77"`, `number` is the integer `277`, `major` is `2`, and `minor` is `77`
  */

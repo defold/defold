@@ -33,7 +33,7 @@ namespace dmGameSystem
 
     static void Activate(btRigidBody* rigid_body)
     {
-        rigid_body->activate(true);
+        rigid_body->activate();
     }
 
     static int RigidBody_IsValid(lua_State* L)
@@ -52,7 +52,7 @@ namespace dmGameSystem
         dmGameObject::HCollection     collection = GetBullet3DCollisionObjectCollection(L, 1);
         uint32_t                      component_type_index = dmGameObject::GetComponentTypeIndex(collection, COLLISION_OBJECT_EXT_HASH);
         dmGameObject::HComponentWorld component_world = dmGameObject::GetWorld(collection, component_type_index);
-        PushBullet3DWorld(L, component_world ? CompCollisionObjectGetBullet3DWorld(component_world) : 0);
+        PushBullet3DWorld(L, component_world ? CompCollisionObjectGetBullet3DWorld(component_world) : 0, component_world);
         return 1;
     }
 
@@ -686,5 +686,5 @@ namespace dmGameSystem
 /*# Get the world-space AABB
  * @name bullet3d.rigid_body.get_aabb
  * @param body [type:btRigidBody] rigid body
- * @return aabb [type:table] table with `lower` and `upper` vector3 fields in Defold units
+ * @return aabb [type:table] table whose `lower` and `upper` fields are world-space vector3 bounds in Defold units
  */

@@ -45,6 +45,7 @@ namespace dmGameSystem
 
     // For script_bullet3d.cpp
     void* CompCollisionObjectGetBullet3DWorld(dmGameObject::HComponentWorld _world);
+    void  CompCollisionObjectSetBullet3DWorldGravity(dmGameObject::HComponentWorld _world, const dmVMath::Vector3& gravity);
     void* CompCollisionObjectGetBullet3DCollisionObject(dmGameObject::HComponent _component);
     void  CompCollisionObjectSetBullet3DInvalidateWorldCallback(ScriptBullet3DInvalidateWorldCallback callback);
     void  CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(ScriptBullet3DInvalidateCollisionObjectCallback callback);

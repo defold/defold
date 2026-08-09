@@ -33,7 +33,7 @@ namespace dmGameSystem
     btDiscreteDynamicsWorld*  CheckBullet3DWorld(lua_State* L, int index);
     btDiscreteDynamicsWorld*  ToBullet3DWorld(lua_State* L, int index);
     bool                      IsBullet3DWorldValid(lua_State* L, int index);
-    void                      PushBullet3DWorld(lua_State* L, void* world);
+    void                      PushBullet3DWorld(lua_State* L, void* world, void* component_world);
     void                      ScriptBullet3DInvalidateWorld(void* world);
     void                      ScriptBullet3DInitializeWorld(lua_State* L);
     void                      ScriptBullet3DFinalizeWorld();

@@ -10,6 +10,7 @@
 #include <dmsdk/dlib/hashtable.h>
 #include <script/script.h>
 
+#include "components/bullet3d/comp_collision_object_bullet3d.h"
 #include "script_bullet3d.h"
 
 extern "C"
@@ -25,6 +26,7 @@ namespace dmGameSystem
     struct Bullet3DLuaWorld
     {
         HOpaqueHandle m_Handle;
+        void*         m_ComponentWorld;
     };
 
     static uint32_t                           g_Bullet3DWorldTypeHash = 0;
@@ -110,7 +112,7 @@ namespace dmGameSystem
         return world;
     }
 
-    void PushBullet3DWorld(lua_State* L, void* world_ptr)
+    void PushBullet3DWorld(lua_State* L, void* world_ptr, void* component_world)
     {
         if (!world_ptr)
         {
@@ -140,6 +142,7 @@ namespace dmGameSystem
 
         Bullet3DLuaWorld* lua_world = (Bullet3DLuaWorld*)lua_newuserdata(L, sizeof(Bullet3DLuaWorld));
         lua_world->m_Handle = handle;
+        lua_world->m_ComponentWorld = component_world;
         luaL_getmetatable(L, BULLET3D_TYPE_NAME_WORLD);
         lua_setmetatable(L, -2);
     }
@@ -175,7 +178,9 @@ namespace dmGameSystem
     static int World_SetGravity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        CheckBullet3DWorld(L, 1)->setGravity(CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()));
+        Bullet3DLuaWorld* lua_world = CheckWorldUserdata(L, 1);
+        CheckBullet3DWorld(L, 1);
+        CompCollisionObjectSetBullet3DWorldGravity(lua_world->m_ComponentWorld, *dmScript::CheckVector3(L, 2));
         return 0;
     }
 

@@ -710,6 +710,12 @@ namespace dmGameSystem
         return dmPhysics::GetWorldContext3D(world->m_World3D);
     }
 
+    void CompCollisionObjectSetBullet3DWorldGravity(dmGameObject::HComponentWorld _world, const dmVMath::Vector3& gravity)
+    {
+        CollisionWorldBullet3D* world = (CollisionWorldBullet3D*)_world;
+        dmPhysics::SetGravity3D(world->m_World3D, gravity);
+    }
+
     void* CompCollisionObjectGetBullet3DCollisionObject(dmGameObject::HComponent _component)
     {
         CollisionComponentBullet3D* component = (CollisionComponentBullet3D*)_component;

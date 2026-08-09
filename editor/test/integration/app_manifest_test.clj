@@ -221,6 +221,8 @@
                        (app-manifest/update-setting-value setting update-fn)
                        (app-manifest/get-setting-value setting))))))))))
 
+;; Verifies the combined 2D/3D physics selection round-trips and excludes the
+;; Bullet3D script library and symbol on every platform exactly when 3D is disabled.
 (deftest physics-setting-test
   (testing "Bullet script API follows the 3D physics selection"
     (doseq [[selection exclude-bullet-script]

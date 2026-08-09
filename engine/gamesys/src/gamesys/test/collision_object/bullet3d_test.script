@@ -44,8 +44,38 @@ local function assert_quat_near(a, b, eps)
     assert_near(a.w, b.w, eps)
 end
 
+-- Verifies every exported Bullet state/type constant has its Bullet 2.77 value.
+local function test_constants()
+    local constants = {
+        { bullet3d.collision_object.ACTIVE_TAG, 1 },
+        { bullet3d.collision_object.ISLAND_SLEEPING, 2 },
+        { bullet3d.collision_object.WANTS_DEACTIVATION, 3 },
+        { bullet3d.collision_object.DISABLE_DEACTIVATION, 4 },
+        { bullet3d.collision_object.DISABLE_SIMULATION, 5 },
+        { bullet3d.collision_object.CF_STATIC_OBJECT, 1 },
+        { bullet3d.collision_object.CF_KINEMATIC_OBJECT, 2 },
+        { bullet3d.collision_object.CF_NO_CONTACT_RESPONSE, 4 },
+        { bullet3d.collision_object.CF_CUSTOM_MATERIAL_CALLBACK, 8 },
+        { bullet3d.collision_object.CF_CHARACTER_OBJECT, 16 },
+        { bullet3d.collision_object.CF_DISABLE_VISUALIZE_OBJECT, 32 },
+        { bullet3d.collision_object.CF_DISABLE_SPU_COLLISION_PROCESSING, 64 },
+        { bullet3d.collision_object.CO_COLLISION_OBJECT, 1 },
+        { bullet3d.collision_object.CO_RIGID_BODY, 2 },
+        { bullet3d.collision_object.CO_GHOST_OBJECT, 3 },
+        { bullet3d.collision_object.CO_SOFT_BODY, 4 },
+        { bullet3d.collision_object.CO_HF_FLUID, 5 },
+        { bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY, 1 },
+    }
+    for _, entry in ipairs(constants) do
+        assert(entry[1] == entry[2])
+    end
+end
+
+-- Verifies world-handle identity/string conversion, Bullet/generic gravity
+-- synchronization and restoration, and both collision-object count query names.
 local function test_world(world)
     assert(bullet3d.world.is_valid(world))
+    assert(string.find(tostring(world), "Bullet3D.bullet3d_world", 1, true))
 
     local gravity = bullet3d.world.get_gravity(world)
     bullet3d.world.set_gravity(world, vmath.vector3(1, -2, 3))
@@ -53,18 +83,42 @@ local function test_world(world)
     assert_vec3_near(physics.get_gravity(), vmath.vector3(1, -2, 3))
     bullet3d.world.set_gravity(world, gravity)
 
-	-- Spawned collision objects are queued until the collection update, so only
-	-- verify the query shape during script initialization.
-	assert(type(bullet3d.world.get_collision_object_count(world)) == "number")
+    -- Spawned collision objects are queued until the collection update, so only
+    -- verify the query shape and alias during script initialization.
+    local count = bullet3d.world.get_collision_object_count(world)
+    assert(type(count) == "number")
+    assert(bullet3d.world.get_num_collision_objects(world) == count)
 end
 
+-- Verifies dynamic collision-object transforms, material/contact/CCD properties,
+-- activation controls, structural flag queries, and Bullet native type predicates.
 local function test_collision_object(collision_object)
     assert(bullet3d.collision_object.is_valid(collision_object))
+    assert(string.find(tostring(collision_object), "Bullet3D.bullet3d_collision_object", 1, true))
+
+    -- These values come directly from the spawned fixture and independently
+    -- verify native-to-Defold transform and material conversion at scale 0.1.
+    local initial_position, initial_rotation = bullet3d.collision_object.get_world_transform(collision_object)
+    assert_vec3_near(initial_position, vmath.vector3(10, 0, 0))
+    assert_quat_near(initial_rotation, vmath.quat())
+    assert_near(bullet3d.collision_object.get_friction(collision_object), 0.1)
+    assert_near(bullet3d.collision_object.get_restitution(collision_object), 0.2)
 
     local position = vmath.vector3(10, 5, -3)
     local rotation = vmath.quat_rotation_z(0.25)
     bullet3d.collision_object.set_world_transform(collision_object, position, rotation)
     local actual_position, actual_rotation = bullet3d.collision_object.get_world_transform(collision_object)
+    assert_vec3_near(actual_position, position)
+    assert_quat_near(actual_rotation, rotation)
+
+    position = vmath.vector3(-4, 6, 8)
+    bullet3d.collision_object.set_position(collision_object, position)
+    assert_vec3_near(bullet3d.collision_object.get_position(collision_object), position)
+
+    rotation = vmath.quat_rotation_x(0.4)
+    bullet3d.collision_object.set_rotation(collision_object, rotation)
+    assert_quat_near(bullet3d.collision_object.get_rotation(collision_object), rotation)
+    actual_position, actual_rotation = bullet3d.collision_object.get_world_transform(collision_object)
     assert_vec3_near(actual_position, position)
     assert_quat_near(actual_rotation, rotation)
 
@@ -77,12 +131,29 @@ local function test_collision_object(collision_object)
     bullet3d.collision_object.set_contact_processing_threshold(collision_object, 1.25)
     assert_near(bullet3d.collision_object.get_contact_processing_threshold(collision_object), 1.25)
 
+    bullet3d.collision_object.set_activation_state(collision_object, bullet3d.collision_object.ISLAND_SLEEPING)
+    assert(bullet3d.collision_object.get_activation_state(collision_object) == bullet3d.collision_object.ISLAND_SLEEPING)
+    assert(not bullet3d.collision_object.is_active(collision_object))
     bullet3d.collision_object.activate(collision_object)
     assert(bullet3d.collision_object.is_active(collision_object))
-    assert(type(bullet3d.collision_object.get_internal_type(collision_object)) == "number")
+    bullet3d.collision_object.force_activation_state(collision_object, bullet3d.collision_object.DISABLE_DEACTIVATION)
+    assert(bullet3d.collision_object.get_activation_state(collision_object) == bullet3d.collision_object.DISABLE_DEACTIVATION)
+    bullet3d.collision_object.force_activation_state(collision_object, bullet3d.collision_object.ACTIVE_TAG)
+    bullet3d.collision_object.activate(collision_object, true)
+    assert(bullet3d.collision_object.is_active(collision_object))
+    bullet3d.collision_object.set_deactivation_time(collision_object, 1.25)
+    assert_near(bullet3d.collision_object.get_deactivation_time(collision_object), 1.25)
+
+    assert(bullet3d.collision_object.get_internal_type(collision_object) == bullet3d.collision_object.CO_RIGID_BODY)
+    assert(bullet3d.collision_object.get_collision_flags(collision_object) == 0)
+    assert(not bullet3d.collision_object.has_collision_flag(collision_object, bullet3d.collision_object.CF_STATIC_OBJECT))
+    assert(not bullet3d.collision_object.has_collision_flag(collision_object, bullet3d.collision_object.CF_KINEMATIC_OBJECT))
     assert(not bullet3d.collision_object.is_static(collision_object))
     assert(not bullet3d.collision_object.is_kinematic(collision_object))
     assert(not bullet3d.collision_object.is_static_or_kinematic(collision_object))
+    assert(bullet3d.collision_object.has_contact_response(collision_object))
+    assert(bullet3d.collision_object.is_rigid_body(collision_object))
+    assert(not bullet3d.collision_object.is_ghost_object(collision_object))
 
     bullet3d.collision_object.set_ccd_motion_threshold(collision_object, 0.75)
     assert_near(bullet3d.collision_object.get_ccd_motion_threshold(collision_object), 0.75)
@@ -90,23 +161,40 @@ local function test_collision_object(collision_object)
     assert_near(bullet3d.collision_object.get_ccd_swept_sphere_radius(collision_object), 0.5)
 end
 
+-- Verifies every rigid-body query/mutator category, including scale-sensitive
+-- transforms, thresholds, forces, torque, impulses, local-point velocity and AABB.
 local function test_rigid_body(world, rigid_body)
     assert(bullet3d.rigid_body.is_valid(rigid_body))
     assert(bullet3d.rigid_body.get_world(rigid_body) == world)
     assert_near(bullet3d.rigid_body.get_mass(rigid_body), 1.0)
+    assert_near(bullet3d.rigid_body.get_inverse_mass(rigid_body), 1.0)
+    assert_vec3_near(bullet3d.rigid_body.get_center_of_mass_position(rigid_body), vmath.vector3(10, 0, 0))
+    assert_near(bullet3d.rigid_body.get_linear_sleeping_threshold(rigid_body), 8.0)
+    assert_near(bullet3d.rigid_body.get_angular_sleeping_threshold(rigid_body), 1.0)
+
+    -- The unit-box resource is centered at x=10. Exact bounds independently
+    -- verify native-to-Defold AABB conversion at physics scale 0.1.
+    local initial_aabb = bullet3d.rigid_body.get_aabb(rigid_body)
+    assert_vec3_near(initial_aabb.lower, vmath.vector3(9, -1, -1))
+    assert_vec3_near(initial_aabb.upper, vmath.vector3(11, 1, 1))
 
     local linear_velocity = vmath.vector3(1, 2, 3)
     bullet3d.rigid_body.set_linear_velocity(rigid_body, linear_velocity)
     assert_vec3_near(bullet3d.rigid_body.get_linear_velocity(rigid_body), linear_velocity)
 
-    local angular_velocity = vmath.vector3(0.1, 0.2, 0.3)
+    local angular_velocity = vmath.vector3(0, 0, 2)
     bullet3d.rigid_body.set_angular_velocity(rigid_body, angular_velocity)
     assert_vec3_near(bullet3d.rigid_body.get_angular_velocity(rigid_body), angular_velocity)
+    assert_vec3_near(bullet3d.rigid_body.get_velocity_in_local_point(rigid_body, vmath.vector3(0, 5, 0)), vmath.vector3(-9, 2, 3))
 
     bullet3d.rigid_body.set_damping(rigid_body, 0.2, 0.3)
     local linear_damping, angular_damping = bullet3d.rigid_body.get_damping(rigid_body)
     assert_near(linear_damping, 0.2)
     assert_near(angular_damping, 0.3)
+    bullet3d.rigid_body.set_linear_damping(rigid_body, 0.4)
+    bullet3d.rigid_body.set_angular_damping(rigid_body, 0.5)
+    assert_near(bullet3d.rigid_body.get_linear_damping(rigid_body), 0.4)
+    assert_near(bullet3d.rigid_body.get_angular_damping(rigid_body), 0.5)
 
     local linear_factor = vmath.vector3(1, 0.5, 0.25)
     bullet3d.rigid_body.set_linear_factor(rigid_body, linear_factor)
@@ -116,19 +204,145 @@ local function test_rigid_body(world, rigid_body)
     bullet3d.rigid_body.set_angular_factor(rigid_body, angular_factor)
     assert_vec3_near(bullet3d.rigid_body.get_angular_factor(rigid_body), angular_factor)
 
-    assert(type(bullet3d.rigid_body.get_total_force(rigid_body)) == "userdata")
-    assert(type(bullet3d.rigid_body.get_total_torque(rigid_body)) == "userdata")
+    bullet3d.rigid_body.set_linear_factor(rigid_body, vmath.vector3(1, 1, 1))
+    bullet3d.rigid_body.set_angular_factor(rigid_body, vmath.vector3(1, 1, 1))
+
+    local original_gravity = bullet3d.rigid_body.get_gravity(rigid_body)
+    local original_flags = bullet3d.rigid_body.get_flags(rigid_body)
+    assert(original_flags == 0)
+    assert(not bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY))
+    bullet3d.rigid_body.set_flags(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY)
+    assert(bullet3d.rigid_body.get_flags(rigid_body) == bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY)
+    assert(bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY))
+    local custom_gravity = vmath.vector3(3, -4, 5)
+    bullet3d.rigid_body.set_gravity(rigid_body, custom_gravity)
+    assert_vec3_near(bullet3d.rigid_body.get_gravity(rigid_body), custom_gravity)
+    bullet3d.rigid_body.set_gravity(rigid_body, original_gravity)
+    bullet3d.rigid_body.set_flags(rigid_body, original_flags)
+    assert(bullet3d.rigid_body.get_flags(rigid_body) == 0)
+    assert(not bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY))
+    assert_vec3_near(bullet3d.rigid_body.get_gravity(rigid_body), original_gravity)
+
+    bullet3d.rigid_body.set_sleeping_thresholds(rigid_body, 2.5, 0.75)
+    assert_near(bullet3d.rigid_body.get_linear_sleeping_threshold(rigid_body), 2.5)
+    assert_near(bullet3d.rigid_body.get_angular_sleeping_threshold(rigid_body), 0.75)
+
+    local aabb = bullet3d.rigid_body.get_aabb(rigid_body)
+    assert(type(aabb) == "table")
+    assert(type(aabb.lower) == "userdata")
+    assert(type(aabb.upper) == "userdata")
+    assert(aabb.lower.x < aabb.upper.x)
+    assert(aabb.lower.y < aabb.upper.y)
+    assert(aabb.lower.z < aabb.upper.z)
+
+    bullet3d.rigid_body.clear_forces(rigid_body)
+    bullet3d.rigid_body.apply_force(rigid_body, vmath.vector3(0, 2, 0), vmath.vector3(3, 0, 0))
+    assert_vec3_near(bullet3d.rigid_body.get_total_force(rigid_body), vmath.vector3(0, 2, 0))
+    assert_vec3_near(bullet3d.rigid_body.get_total_torque(rigid_body), vmath.vector3(0, 0, 6))
+    bullet3d.rigid_body.apply_central_force(rigid_body, vmath.vector3(1, 0, 0))
+    bullet3d.rigid_body.apply_torque(rigid_body, vmath.vector3(0, 0, 4))
+    assert_vec3_near(bullet3d.rigid_body.get_total_force(rigid_body), vmath.vector3(1, 2, 0))
+    assert_vec3_near(bullet3d.rigid_body.get_total_torque(rigid_body), vmath.vector3(0, 0, 10))
     bullet3d.rigid_body.clear_forces(rigid_body)
     assert_vec3_near(bullet3d.rigid_body.get_total_force(rigid_body), vmath.vector3())
     assert_vec3_near(bullet3d.rigid_body.get_total_torque(rigid_body), vmath.vector3())
+
+    bullet3d.rigid_body.set_linear_velocity(rigid_body, vmath.vector3())
+    bullet3d.rigid_body.apply_central_impulse(rigid_body, vmath.vector3(1, 2, 3))
+    assert_vec3_near(bullet3d.rigid_body.get_linear_velocity(rigid_body), vmath.vector3(1, 2, 3))
+    bullet3d.rigid_body.set_linear_velocity(rigid_body, vmath.vector3())
+    bullet3d.rigid_body.set_angular_velocity(rigid_body, vmath.vector3())
+    bullet3d.rigid_body.apply_impulse(rigid_body, vmath.vector3(1, 0, 0), vmath.vector3(0, 1, 0))
+    assert_vec3_near(bullet3d.rigid_body.get_linear_velocity(rigid_body), vmath.vector3(1, 0, 0))
+    assert_vec3_near(bullet3d.rigid_body.get_angular_velocity(rigid_body), vmath.vector3(0, 0, -1.5))
+
+    bullet3d.rigid_body.set_angular_velocity(rigid_body, vmath.vector3())
+    bullet3d.rigid_body.apply_torque_impulse(rigid_body, vmath.vector3(0, 0, 1))
+    assert_vec3_near(bullet3d.rigid_body.get_angular_velocity(rigid_body), vmath.vector3(0, 0, 1.5))
 end
 
+-- Verifies that an in-world body with disabled world gravity keeps its custom
+-- value, then follows the world again after the flag is cleared and it is activated.
+local function test_world_gravity_flag(world, rigid_body)
+    local original_world_gravity = bullet3d.world.get_gravity(world)
+    local original_flags = bullet3d.rigid_body.get_flags(rigid_body)
+    local custom_gravity = vmath.vector3(3, -4, 5)
+
+    bullet3d.rigid_body.set_flags(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY)
+    bullet3d.rigid_body.set_gravity(rigid_body, custom_gravity)
+    bullet3d.world.set_gravity(world, vmath.vector3(6, -7, 8))
+    assert_vec3_near(bullet3d.rigid_body.get_gravity(rigid_body), custom_gravity)
+
+    bullet3d.rigid_body.set_flags(rigid_body, original_flags)
+    bullet3d.collision_object.activate(rigid_body, true)
+    bullet3d.world.set_gravity(world, original_world_gravity)
+    assert(not bullet3d.rigid_body.has_flag(rigid_body, bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY))
+    assert_vec3_near(bullet3d.rigid_body.get_gravity(rigid_body), original_world_gravity)
+end
+
+-- Verifies the true branches of static and kinematic classification, their
+-- structural flags, zero-mass rigid-body lookup, shared collision-object type,
+-- and that a waking rigid-body mutator cannot activate a static body.
+local function test_static_and_kinematic(static_url, kinematic_url)
+    local static_object = bullet3d.get_collision_object(static_url)
+    local static_body = bullet3d.get_rigid_body(static_url)
+    assert(static_object == static_body)
+    assert(bullet3d.collision_object.is_static(static_object))
+    assert(not bullet3d.collision_object.is_kinematic(static_object))
+    assert(bullet3d.collision_object.is_static_or_kinematic(static_object))
+    assert(bullet3d.collision_object.has_collision_flag(static_object, bullet3d.collision_object.CF_STATIC_OBJECT))
+    assert(bullet3d.collision_object.get_collision_flags(static_object) == bullet3d.collision_object.CF_STATIC_OBJECT)
+    assert_near(bullet3d.rigid_body.get_mass(static_body), 0)
+    assert_near(bullet3d.rigid_body.get_inverse_mass(static_body), 0)
+    bullet3d.collision_object.force_activation_state(static_body, bullet3d.collision_object.ISLAND_SLEEPING)
+    assert(not bullet3d.collision_object.is_active(static_body))
+    bullet3d.rigid_body.set_linear_velocity(static_body, vmath.vector3(1, 2, 3))
+    assert(not bullet3d.collision_object.is_active(static_body))
+
+    local kinematic_object = bullet3d.get_collision_object(kinematic_url)
+    local kinematic_body = bullet3d.get_rigid_body(kinematic_url)
+    assert(kinematic_object == kinematic_body)
+    assert(not bullet3d.collision_object.is_static(kinematic_object))
+    assert(bullet3d.collision_object.is_kinematic(kinematic_object))
+    assert(bullet3d.collision_object.is_static_or_kinematic(kinematic_object))
+    assert(bullet3d.collision_object.has_collision_flag(kinematic_object, bullet3d.collision_object.CF_KINEMATIC_OBJECT))
+    assert(bullet3d.collision_object.get_collision_flags(kinematic_object) == bullet3d.collision_object.CF_KINEMATIC_OBJECT)
+    assert_near(bullet3d.rigid_body.get_mass(kinematic_body), 0)
+    assert_near(bullet3d.rigid_body.get_inverse_mass(kinematic_body), 0)
+end
+
+-- Verifies that triggers use generic collision-object userdata backed by a ghost
+-- object, expose no contact response, and are rejected by rigid-body entry points.
+local function test_trigger(trigger_url)
+    local trigger = bullet3d.get_collision_object(trigger_url)
+    assert(trigger ~= nil)
+    assert(trigger == bullet3d.get_collision_object(trigger_url))
+    assert(bullet3d.collision_object.is_valid(trigger))
+    assert(not bullet3d.rigid_body.is_valid(trigger))
+    assert(string.find(tostring(trigger), "Bullet3D.bullet3d_collision_object", 1, true))
+    assert(bullet3d.get_rigid_body(trigger_url) == nil)
+    assert(not bullet3d.collision_object.is_rigid_body(trigger))
+    assert(bullet3d.collision_object.is_ghost_object(trigger))
+    assert(not bullet3d.collision_object.has_contact_response(trigger))
+    assert(bullet3d.collision_object.get_internal_type(trigger) == bullet3d.collision_object.CO_GHOST_OBJECT)
+    assert(bullet3d.collision_object.has_collision_flag(trigger, bullet3d.collision_object.CF_NO_CONTACT_RESPONSE))
+    assert(bullet3d.collision_object.get_collision_flags(trigger) ==
+        bullet3d.collision_object.CF_STATIC_OBJECT + bullet3d.collision_object.CF_NO_CONTACT_RESPONSE)
+    assert_error(function()
+        bullet3d.rigid_body.get_mass(trigger)
+    end)
+    return trigger
+end
+
+-- Verifies namespace/version lookup, stable handle identity and every API
+-- category before retaining dynamic and trigger handles for lifetime checks.
 function init(self)
     assert(PHYSICS == "bullet3d")
     assert(bullet3d ~= nil)
     assert(bullet3d.world ~= nil)
     assert(bullet3d.collision_object ~= nil)
     assert(bullet3d.rigid_body ~= nil)
+    test_constants()
 
     local version = bullet3d.get_version()
     assert(version.version == "2.77")
@@ -150,39 +364,34 @@ function init(self)
     assert(collision_object == bullet3d.get_collision_object(rigid_url))
     assert(rigid_body == bullet3d.get_rigid_body(rigid_url))
 
-    test_collision_object(collision_object)
     test_rigid_body(world, rigid_body)
+    test_collision_object(collision_object)
+    test_static_and_kinematic("/bullet3d_static#collisionobject", "/bullet3d_kinematic#collisionobject")
 
-    local trigger_url = "/bullet3d_trigger#collisionobject"
-    local trigger = bullet3d.get_collision_object(trigger_url)
-    assert(trigger ~= nil)
-    assert(trigger == bullet3d.get_collision_object(trigger_url))
-    assert(bullet3d.collision_object.is_valid(trigger))
-    assert(bullet3d.get_rigid_body(trigger_url) == nil)
-    assert_error(function()
-        bullet3d.rigid_body.get_mass(trigger)
-    end)
-
-    local rigid_type = bullet3d.collision_object.get_internal_type(collision_object)
-    local trigger_type = bullet3d.collision_object.get_internal_type(trigger)
-    assert(rigid_type ~= trigger_type)
+    local trigger = test_trigger("/bullet3d_trigger#collisionobject")
+    assert(bullet3d.collision_object.get_internal_type(collision_object) ~= bullet3d.collision_object.get_internal_type(trigger))
 
     self.expected_trigger_position = vmath.vector3(20, 6, -4)
     self.expected_trigger_rotation = vmath.quat_rotation_y(0.35)
     bullet3d.collision_object.set_world_transform(trigger, self.expected_trigger_position, self.expected_trigger_rotation)
 
-	self.collision_object = collision_object
-	self.rigid_body = rigid_body
-	self.trigger = trigger
-	self.world = world
+    self.collision_object = collision_object
+    self.rigid_body = rigid_body
+    self.trigger = trigger
+    self.world = world
     self.invalidation_frames = 0
     self.delete_requested = false
 end
 
+-- First verifies spawned-object counts and next-frame trigger transform persistence
+-- in Bullet and GO state, then verifies deletion invalidation and stale-handle errors.
 function update(self, dt)
-	if not self.delete_requested then
-		assert(bullet3d.world.get_collision_object_count(self.world) >= 3)
-		local position, rotation = bullet3d.collision_object.get_world_transform(self.trigger)
+    if not self.delete_requested then
+        local count = bullet3d.world.get_collision_object_count(self.world)
+        assert(count == 5)
+        assert(bullet3d.world.get_num_collision_objects(self.world) == count)
+        test_world_gravity_flag(self.world, self.rigid_body)
+        local position, rotation = bullet3d.collision_object.get_world_transform(self.trigger)
         assert_vec3_near(position, self.expected_trigger_position)
         assert_quat_near(rotation, self.expected_trigger_rotation)
         assert_vec3_near(go.get_position("/bullet3d_trigger"), self.expected_trigger_position)
