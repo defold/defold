@@ -1867,7 +1867,9 @@
          syntax-scope (syntax-scope-before-cursor view-node request-cursor evaluation-context)]
      (boolean (and (not (contains? #{"\n" "\t" " "} trigger))
                    (or (re-matches #"[a-zA-Z_]" trigger)
-                       (contains? trigger-characters trigger))
+                       (contains? trigger-characters trigger)
+                       ;; component ids may contain digits and hyphens
+                       (and (= "#" context) (re-matches #"[0-9-]" trigger)))
                    ;; "#" only triggers completions at the start of a quoted
                    ;; string, where the completion context recognizes it as a
                    ;; component id position; elsewhere it's the Lua length

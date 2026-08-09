@@ -46,6 +46,10 @@
     (let [context (completion-context "msg.post('#cam" #{"." "#"})]
       (is (= "#" (:context context)))
       (is (= "cam" (:query context)))))
+  (testing "hash query keeps digits and hyphens"
+    (let [context (completion-context "msg.post(\"#nil-2" #{"." "#"})]
+      (is (= "#" (:context context)))
+      (is (= "nil-2" (:query context)))))
   (testing "hash as the length operator is not a component id context"
     (let [context (completion-context "local n = #" #{"." "#"})]
       (is (= "" (:context context)))
