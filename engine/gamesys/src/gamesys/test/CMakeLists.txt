@@ -370,7 +370,6 @@ set(_COMMON_EXPORTED
   GraphicsAdapterNull
   ScriptImageExt
   ScriptMaterialExt
-  ScriptBullet3DExt
   ScriptFont
   ScriptHttp
   ScriptLibParticleFX
@@ -454,7 +453,9 @@ set(TEST_GS_PHYS_SOURCES
   "${GS_TEST_ROOT}/test_gamesys_physics.cpp"
 )
 set_source_files_properties("${GS_TEST_ROOT}/test_gamesys_physics.cpp" PROPERTIES OBJECT_DEPENDS "${_EMBED_HEADERS}")
-set(_TEST2_SYMBOLS ${_COMMON_EXPORTED};ScriptModelExt)
+# Only this test requires Bullet3D extension registration. Keeping its symbol
+# out of _COMMON_EXPORTED prevents unrelated test executables from requiring it.
+set(_TEST2_SYMBOLS ${_COMMON_EXPORTED};ScriptModelExt;ScriptBullet3DExt)
 set(_TEST2_EXPORTED_CPP "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_test_gamesys_physics.cpp")
 defold_create_exported_symbols_file("${_TEST2_EXPORTED_CPP}" "${_TEST2_SYMBOLS}")
 
