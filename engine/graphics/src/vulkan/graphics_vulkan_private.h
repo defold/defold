@@ -64,6 +64,7 @@ namespace dmGraphics
             VkBuffer       m_Buffer;
             VkDeviceMemory m_Memory;
             uint8_t        m_LastUsedFrame;
+            uint64_t       m_LastUsedFrameSequence;
         };
 
         Buffer             m_Base;
@@ -520,6 +521,7 @@ namespace dmGraphics
         uint32_t                        m_AndroidVulkanWindowWidth;
         uint32_t                        m_AndroidVulkanWindowHeight;
 #endif
+        uint64_t                        m_CurrentFrameSequence;
         uint32_t                        m_SwapInterval;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;

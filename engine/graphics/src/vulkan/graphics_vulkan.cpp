@@ -198,6 +198,12 @@ namespace dmGraphics
         return (HContext) g_VulkanContext;
     }
 
+    static inline void TouchResource(VulkanContext* context, DeviceBuffer* resource)
+    {
+        resource->m_Handle.m_LastUsedFrame         = context->m_CurrentFrameInFlight;
+        resource->m_Handle.m_LastUsedFrameSequence = context->m_CurrentFrameSequence;
+    }
+
     template <typename T>
     static inline void TouchResource(VulkanContext* context, T* resource)
     {
@@ -1803,6 +1809,7 @@ bail:
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[context->m_SwapChain->m_ImageIndex];
 
+        context->m_CurrentFrameSequence++;
         context->m_FrameBegun            = 1;
         context->m_MainRTBegunThisFrame  = 0;
         context->m_CurrentPipeline       = 0;
@@ -2225,6 +2232,12 @@ bail:
         return cached_pipeline;
     }
 
+    static inline bool IsDeviceBufferUsedThisFrame(VulkanContext* context, DeviceBuffer* buffer)
+    {
+        return context->m_FrameBegun &&
+            buffer->m_Handle.m_LastUsedFrameSequence == context->m_CurrentFrameSequence;
+    }
+
     static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, uint32_t offset, const void* data)
     {
         if (size == 0)
@@ -2232,13 +2245,18 @@ bail:
             return;
         }
 
-        if (offset == 0)
+        if (offset == 0 && !buffer->m_Destroyed && buffer->m_Handle.m_Buffer != VK_NULL_HANDLE)
         {
+            // A recorded Vulkan draw references mutable VkBuffer storage. Orphan the storage
+            // before a full update if commands in this frame may still read the old contents.
+        #ifdef __MACH__
             // Coherent memory writes does not seem to be properly synced on MoltenVK,
             // so for now we always mark the old buffer for destruction when updating the data.
-        #ifndef __MACH__
-            if (size != buffer->m_Base.m_Size)
+            const bool should_orphan = true;
+        #else
+            const bool should_orphan = size != buffer->m_Base.m_Size || IsDeviceBufferUsedThisFrame(context, buffer);
         #endif
+            if (should_orphan)
             {
                 DestroyResourceDeferred(context, buffer);
             }
