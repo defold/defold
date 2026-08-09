@@ -4,6 +4,13 @@
 /collision_object/box2d_world_test.go
 /collision_object/bullet3d_kinematic.go
 /collision_object/bullet3d_lifetime_test.go
+/collision_object/bullet3d_query_compound.go
+/collision_object/bullet3d_query_filtered.go
+/collision_object/bullet3d_query_hull.go
+/collision_object/bullet3d_query_kinematic.go
+/collision_object/bullet3d_query_static.go
+/collision_object/bullet3d_query_test.go
+/collision_object/bullet3d_query_trigger.go
 /collision_object/bullet3d_rigid_body.go
 /collision_object/bullet3d_static.go
 /collision_object/bullet3d_test.go

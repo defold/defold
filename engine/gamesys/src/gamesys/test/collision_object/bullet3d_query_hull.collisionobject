@@ -1,0 +1,10 @@
+collision_shape: "/collision_object/bullet3d_query_hull.convexshape"
+type: COLLISION_OBJECT_TYPE_STATIC
+mass: 0.0
+friction: 0.1
+restitution: 0.0
+group: "bullet3d_query_a"
+mask: "bullet3d_query_a"
+linear_damping: 0.0
+angular_damping: 0.0
+locked_rotation: false

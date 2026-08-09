@@ -153,6 +153,88 @@ TEST_F(Bullet3DComponentTest, Bullet3DApiTest)
                          "/collision_object/bullet3d_test.goc", "/bullet3d_test");
 }
 
+TEST_F(Bullet3DComponentTest, Bullet3DWorldQueryApiTest)
+{
+    /* Intent: verify every Bullet3D synchronous world query, collision-filter
+    ** accessor, result schema and linked inside-ray/convex-sweep use case.
+    ** Setup: an isolated separated-child compound and convex hull, static unit
+    ** boxes in two reciprocal filter groups, a trigger, a penetrating
+    ** kinematic-box/static-box pair plus an incompatible overlapping B box,
+    ** a movable box and a rotated AABB case.
+    ** Expected: overlaps, sorted/capped/closest casts, primitive and hull sweeps,
+    ** normalized contacts, enumeration, filtering, borrowed identity, scale-0.1
+    ** geometry and immediate transform queries match the exact Lua API contract.
+    */
+    dmGameObject::HInstance compound = Spawn(m_Factory, m_Collection,
+                                              "/collision_object/bullet3d_query_compound.goc",
+                                              dmHashString64("/bullet3d_query_compound"), 0,
+                                              Point3(-50, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, compound);
+
+    dmGameObject::HInstance hull = Spawn(m_Factory, m_Collection,
+                                          "/collision_object/bullet3d_query_hull.goc",
+                                          dmHashString64("/bullet3d_query_hull"), 0,
+                                          Point3(-30, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, hull);
+
+    dmGameObject::HInstance near_box = Spawn(m_Factory, m_Collection,
+                                              "/collision_object/bullet3d_query_static.goc",
+                                              dmHashString64("/bullet3d_query_near"), 0,
+                                              Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, near_box);
+
+    dmGameObject::HInstance filtered_box = Spawn(m_Factory, m_Collection,
+                                                  "/collision_object/bullet3d_query_filtered.goc",
+                                                  dmHashString64("/bullet3d_query_filtered"), 0,
+                                                  Point3(5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, filtered_box);
+
+    dmGameObject::HInstance far_box = Spawn(m_Factory, m_Collection,
+                                             "/collision_object/bullet3d_query_static.goc",
+                                             dmHashString64("/bullet3d_query_far"), 0,
+                                             Point3(10, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, far_box);
+
+    dmGameObject::HInstance trigger = Spawn(m_Factory, m_Collection,
+                                             "/collision_object/bullet3d_query_trigger.goc",
+                                             dmHashString64("/bullet3d_query_trigger"), 0,
+                                             Point3(15, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, trigger);
+
+    dmGameObject::HInstance contact_filtered = Spawn(m_Factory, m_Collection,
+                                                      "/collision_object/bullet3d_query_filtered.goc",
+                                                      dmHashString64("/bullet3d_query_contact_filtered"), 0,
+                                                      Point3(28.5f, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, contact_filtered);
+
+    dmGameObject::HInstance contact_a = Spawn(m_Factory, m_Collection,
+                                               "/collision_object/bullet3d_query_kinematic.goc",
+                                               dmHashString64("/bullet3d_query_contact_a"), 0,
+                                               Point3(30, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, contact_a);
+
+    dmGameObject::HInstance contact_b = Spawn(m_Factory, m_Collection,
+                                               "/collision_object/bullet3d_query_static.goc",
+                                               dmHashString64("/bullet3d_query_contact_b"), 0,
+                                               Point3(31.5f, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, contact_b);
+
+    dmGameObject::HInstance movable = Spawn(m_Factory, m_Collection,
+                                             "/collision_object/bullet3d_query_static.goc",
+                                             dmHashString64("/bullet3d_query_movable"), 0,
+                                             Point3(50, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, movable);
+
+    dmGameObject::HInstance rotated = Spawn(m_Factory, m_Collection,
+                                             "/collision_object/bullet3d_query_static.goc",
+                                             dmHashString64("/bullet3d_query_rotated"), 0,
+                                             Point3(70, 0, 0), Quat(0, 0, 0.38268343f, 0.92387953f), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, rotated);
+
+    RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext,
+                         "/collision_object/bullet3d_query_test.goc", "/bullet3d_query_test");
+}
+
 TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
 {
     /* Intent: verify scale-sensitive Lua inputs at the native Bullet boundary.
@@ -264,13 +346,13 @@ TEST_F(Bullet3DComponentTest, Bullet3DCollisionObjectHandleInvalidatedOnResource
 
 TEST_F(Bullet3DComponentTest, Bullet3DHandlesInvalidatedOnCollectionTeardown)
 {
-    /* Intent: exercise the native collision-object and world invalidation callbacks
-    ** during collection destruction while the Bullet3D script library is active.
-    ** Setup: a script in a secondary collection retains its world and body handles;
-    ** C++ explicitly destroys that collection before fixture teardown unregisters callbacks.
-    ** Expected: worlds from different collections compare unequal, destruction
-    ** selectively invalidates both retained secondary handles, representative
-    ** accessors raise errors, and the primary world remains valid and usable.
+    /* Intent: exercise cross-world query ownership guards and native collision-object
+    ** and world invalidation callbacks while the Bullet3D script library is active.
+    ** Setup: one primary-collection body and a secondary-collection script retain
+    ** their body/world handles while C++ explicitly destroys only the secondary.
+    ** Expected: primary-world contact queries reject the foreign body in either pair
+    ** position; destruction selectively invalidates both secondary handles, world
+    ** queries and filter accessors, while equivalent primary handles remain usable.
     */
     dmGameObject::HCollection collection = dmGameObject::NewCollection("bullet3d_lifetime_collection",
                                                                        m_Factory,
@@ -285,6 +367,12 @@ TEST_F(Bullet3DComponentTest, Bullet3DHandlesInvalidatedOnCollectionTeardown)
     ASSERT_TRUE(dmGameObject::Update(collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(collection));
 
+    dmGameObject::HInstance primary_go = Spawn(m_Factory, m_Collection,
+                                                "/collision_object/bullet3d_query_static.goc",
+                                                dmHashString64("/bullet3d_lifetime_primary"), 0,
+                                                Point3(100, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, primary_go);
+
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     lua_getglobal(L, "bullet3d_lifetime_ready");
     ASSERT_TRUE(lua_toboolean(L, -1));
@@ -298,12 +386,26 @@ TEST_F(Bullet3DComponentTest, Bullet3DHandlesInvalidatedOnCollectionTeardown)
     dmGameSystem::PushBullet3DWorld(L, primary_world, primary_component_world);
     lua_setglobal(L, "bullet3d_primary_world");
 
+    uint32_t                      primary_body_component_type = 0;
+    dmGameObject::HComponent      primary_body_component = 0;
+    dmGameObject::HComponentWorld primary_body_component_world = 0;
+    ASSERT_EQ(dmGameObject::RESULT_OK,
+              dmGameObject::GetComponent(primary_go, dmHashString64("collisionobject"), &primary_body_component_type, &primary_body_component, &primary_body_component_world));
+    btCollisionObject* primary_body = (btCollisionObject*)dmGameSystem::CompCollisionObjectGetBullet3DCollisionObject(primary_body_component);
+    ASSERT_NE((void*)0, primary_body);
+    dmGameSystem::PushBullet3DCollisionObject(L, primary_body, m_Collection, dmGameObject::GetIdentifier(primary_go));
+    lua_setglobal(L, "bullet3d_primary_body");
+
     ASSERT_TRUE(dmScriptTest::RunString(L,
                                         "assert(bullet3d.world.is_valid(bullet3d_primary_world))\n"
                                         "assert(bullet3d.world.is_valid(bullet3d_lifetime_world))\n"
                                         "assert(bullet3d_primary_world ~= bullet3d_lifetime_world)\n"
                                         "assert(bullet3d.collision_object.is_valid(bullet3d_lifetime_body))\n"
-                                        "assert(bullet3d.rigid_body.is_valid(bullet3d_lifetime_body))"));
+                                        "assert(bullet3d.rigid_body.is_valid(bullet3d_lifetime_body))\n"
+                                        "assert(bullet3d.collision_object.is_valid(bullet3d_primary_body))\n"
+                                        "assert(not pcall(bullet3d.world.contact_test, bullet3d_primary_world, bullet3d_lifetime_body))\n"
+                                        "assert(not pcall(bullet3d.world.contact_pair_test, bullet3d_primary_world, bullet3d_lifetime_body, bullet3d_primary_body))\n"
+                                        "assert(not pcall(bullet3d.world.contact_pair_test, bullet3d_primary_world, bullet3d_primary_body, bullet3d_lifetime_body))"));
 
     dmGameObject::DeleteCollection(collection);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Register));
@@ -311,10 +413,14 @@ TEST_F(Bullet3DComponentTest, Bullet3DHandlesInvalidatedOnCollectionTeardown)
     ASSERT_TRUE(dmScriptTest::RunString(L,
                                         "assert(bullet3d.world.is_valid(bullet3d_primary_world))\n"
                                         "assert(pcall(bullet3d.world.get_gravity, bullet3d_primary_world))\n"
+                                        "assert(pcall(bullet3d.world.overlap_point, bullet3d_primary_world, vmath.vector3()))\n"
                                         "assert(not bullet3d.world.is_valid(bullet3d_lifetime_world))\n"
                                         "assert(not bullet3d.collision_object.is_valid(bullet3d_lifetime_body))\n"
                                         "assert(not bullet3d.rigid_body.is_valid(bullet3d_lifetime_body))\n"
                                         "assert(not pcall(bullet3d.world.get_gravity, bullet3d_lifetime_world))\n"
+                                        "assert(not pcall(bullet3d.world.overlap_point, bullet3d_lifetime_world, vmath.vector3()))\n"
+                                        "assert(not pcall(bullet3d.collision_object.get_collision_filter_group, bullet3d_lifetime_body))\n"
+                                        "assert(not pcall(bullet3d.collision_object.get_collision_filter_mask, bullet3d_lifetime_body))\n"
                                         "assert(not pcall(bullet3d.rigid_body.get_mass, bullet3d_lifetime_body))"));
 }
 

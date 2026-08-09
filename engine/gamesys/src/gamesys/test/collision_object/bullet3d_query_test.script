@@ -1,0 +1,1034 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+
+tests_done = false
+
+local URLS = {
+    compound = "/bullet3d_query_compound#collisionobject",
+    hull = "/bullet3d_query_hull#collisionobject",
+    near = "/bullet3d_query_near#collisionobject",
+    filtered = "/bullet3d_query_filtered#collisionobject",
+    far = "/bullet3d_query_far#collisionobject",
+    trigger = "/bullet3d_query_trigger#collisionobject",
+    contact_filtered = "/bullet3d_query_contact_filtered#collisionobject",
+    contact_a = "/bullet3d_query_contact_a#collisionobject",
+    contact_b = "/bullet3d_query_contact_b#collisionobject",
+    movable = "/bullet3d_query_movable#collisionobject",
+    rotated = "/bullet3d_query_rotated#collisionobject",
+}
+
+-- Reports a trace with both compared values when a scale-sensitive numeric assertion fails.
+local function assert_near(actual, expected, epsilon, context)
+    epsilon = epsilon or 0.001
+    local difference = math.abs(actual - expected)
+    if not (difference < epsilon) then
+        error(debug.traceback(string.format("%s%f differs from %f by %f", context and context .. ": " or "", actual, expected, difference)))
+    end
+end
+
+-- Compares all three components of query positions and normals within one tolerance.
+local function assert_vec3_near(actual, expected, epsilon, context)
+    local prefix = context and context .. " " or ""
+    assert_near(actual.x, expected.x, epsilon, prefix .. "x")
+    assert_near(actual.y, expected.y, epsilon, prefix .. "y")
+    assert_near(actual.z, expected.z, epsilon, prefix .. "z")
+end
+
+-- Verifies a query rejects invalid arguments without depending on platform-specific error wording.
+local function assert_error(callback)
+    local ok = pcall(callback)
+    assert(not ok)
+end
+
+-- Finds the first overlap, cast, or enumeration item that retains the expected native object identity.
+local function find_object_item(items, object)
+    for _, item in ipairs(items) do
+        if item.object == object then
+            return item
+        end
+    end
+    return nil
+end
+
+-- Verifies that an item list does not contain the specified native object handle.
+local function assert_object_absent(items, object)
+    assert(find_object_item(items, object) == nil)
+end
+
+-- Creates the mutually compatible raw Bullet filter used by the query-a fixtures.
+local function make_filter_a(objects, include_triggers)
+    return {
+        category_bits = objects.group_a,
+        mask_bits = objects.group_a,
+        include_triggers = include_triggers,
+    }
+end
+
+-- Creates filters where exactly one side of Bullet's reciprocal category/mask test matches, so both asymmetric rejection directions are covered.
+local function make_reciprocal_mismatch_filters(objects)
+    return {
+        {
+            category_bits = objects.group_b,
+            mask_bits = objects.group_a,
+            include_triggers = true,
+        },
+        {
+            category_bits = objects.group_a,
+            mask_bits = objects.group_b,
+            include_triggers = true,
+        },
+    }
+end
+
+-- Verifies collision-filter accessors expose the native group and mask bits needed by world queries.
+local function test_collision_filter_accessors(objects)
+    objects.group_a = bullet3d.collision_object.get_collision_filter_group(objects.near)
+    objects.mask_a = bullet3d.collision_object.get_collision_filter_mask(objects.near)
+    objects.group_b = bullet3d.collision_object.get_collision_filter_group(objects.filtered)
+    objects.mask_b = bullet3d.collision_object.get_collision_filter_mask(objects.filtered)
+
+    assert(type(objects.group_a) == "number")
+    assert(type(objects.mask_a) == "number")
+    assert(type(objects.group_b) == "number")
+    assert(type(objects.mask_b) == "number")
+    assert(objects.group_a ~= 0)
+    assert(objects.group_b ~= 0)
+    assert(objects.group_a ~= objects.group_b)
+    assert(objects.mask_a == objects.group_a)
+    assert(objects.mask_b == objects.group_b)
+    assert(bullet3d.collision_object.get_collision_filter_group(objects.compound) == objects.group_a)
+    assert(bullet3d.collision_object.get_collision_filter_group(objects.hull) == objects.group_a)
+    assert(bullet3d.collision_object.get_collision_filter_group(objects.far) == objects.group_a)
+    assert(bullet3d.collision_object.get_collision_filter_group(objects.trigger) == objects.group_a)
+    assert(bullet3d.collision_object.get_collision_filter_group(objects.contact_a) == objects.group_a)
+    assert(bullet3d.collision_object.get_collision_filter_group(objects.contact_filtered) == objects.group_b)
+    assert(bullet3d.collision_object.get_collision_filter_mask(objects.contact_filtered) == objects.group_b)
+end
+
+-- Verifies complete and capped world enumeration returns each fixture as its canonical borrowed handle without duplicates.
+local function test_collision_object_enumeration(world, objects)
+    local all_objects = bullet3d.world.get_collision_objects(world)
+    local expected = {
+        objects.compound,
+        objects.hull,
+        objects.near,
+        objects.filtered,
+        objects.far,
+        objects.trigger,
+        objects.contact_filtered,
+        objects.contact_a,
+        objects.contact_b,
+        objects.movable,
+        objects.rotated,
+    }
+
+    assert(#all_objects == #expected)
+    for _, object in ipairs(expected) do
+        assert(find_object_item(all_objects, object) ~= nil)
+    end
+
+    local capped = bullet3d.world.get_collision_objects(world, 3)
+    assert(#capped == 3)
+    for index, item in ipairs(capped) do
+        assert(bullet3d.collision_object.is_valid(item.object))
+        for previous = 1, index - 1 do
+            assert(capped[previous].object ~= item.object)
+        end
+    end
+end
+
+-- Verifies AABB, point and primitive/hull overlaps, reciprocal/trigger/ignore filtering, non-vacuous caps, and rotated-box narrow-phase rejection.
+local function test_overlap_queries(world, objects)
+    local filter_a = make_filter_a(objects, false)
+    local near_aabb = {
+        lower = vmath.vector3(-1.1, -1.1, -1.1),
+        upper = vmath.vector3(1.1, 1.1, 1.1),
+    }
+    local aabb_items = bullet3d.world.overlap_aabb(world, near_aabb, filter_a, 8)
+    assert(#aabb_items == 1)
+    assert(aabb_items[1].object == objects.near)
+
+    local capped = bullet3d.world.overlap_aabb(world, {
+        lower = vmath.vector3(-2, -2, -2),
+        upper = vmath.vector3(80, 2, 2),
+    }, nil, 2)
+    assert(#capped == 2)
+
+    -- A broadphase volume containing both A and B objects rejects each one-sided reciprocal mismatch.
+    local mixed_group_aabb = {
+        lower = vmath.vector3(-2, -2, -2),
+        upper = vmath.vector3(7, 2, 2),
+    }
+    for _, mismatch_filter in ipairs(make_reciprocal_mismatch_filters(objects)) do
+        assert(#bullet3d.world.overlap_aabb(world, mixed_group_aabb, mismatch_filter, 0) == 0)
+    end
+
+    local point_items = bullet3d.world.overlap_point(world, vmath.vector3(0, 0, 0), filter_a, 8)
+    assert(#point_items == 1)
+    assert(point_items[1].object == objects.near)
+
+    -- The point lies inside both penetrating boxes, making max=1 a real cap and max=0 demonstrably unlimited.
+    local penetrating_point = vmath.vector3(30.75, 0, 0)
+    local all_point_items = bullet3d.world.overlap_point(world, penetrating_point, nil, 0)
+    assert(#all_point_items == 2)
+    assert(find_object_item(all_point_items, objects.contact_a) ~= nil)
+    assert(find_object_item(all_point_items, objects.contact_b) ~= nil)
+    assert(#bullet3d.world.overlap_point(world, penetrating_point, nil, 1) == 1)
+
+    -- This point lies inside the rotated unit box's world AABB but outside its
+    -- actual hull, proving overlap_point does not return broad-phase false positives.
+    local outside_rotated_hull = vmath.vector3(71.3, 1.3, 0)
+    local false_positive_items = bullet3d.world.overlap_point(world, outside_rotated_hull, filter_a, 8)
+    assert_object_absent(false_positive_items, objects.rotated)
+
+    local shapes = {
+        {
+            type = physics.SHAPE_TYPE_SPHERE,
+            diameter = 1,
+            position = vmath.vector3(0, 0, 0),
+        },
+        {
+            type = physics.SHAPE_TYPE_BOX,
+            dimensions = vmath.vector3(1, 1, 1),
+            position = vmath.vector3(0, 0, 0),
+            rotation = vmath.quat(),
+        },
+        {
+            type = physics.SHAPE_TYPE_CAPSULE,
+            diameter = 1,
+            height = 1,
+            position = vmath.vector3(0, 0, 0),
+            rotation = vmath.quat(),
+        },
+        {
+            type = physics.SHAPE_TYPE_HULL,
+            vertices = {
+                vmath.vector3(-0.5, -0.5, -0.5),
+                vmath.vector3(0.5, -0.5, -0.5),
+                vmath.vector3(-0.5, 0.5, -0.5),
+                vmath.vector3(0.5, 0.5, -0.5),
+                vmath.vector3(-0.5, -0.5, 0.5),
+                vmath.vector3(0.5, -0.5, 0.5),
+                vmath.vector3(-0.5, 0.5, 0.5),
+                vmath.vector3(0.5, 0.5, 0.5),
+            },
+            position = vmath.vector3(0, 0, 0),
+            rotation = vmath.quat(),
+        },
+    }
+
+    for _, shape in ipairs(shapes) do
+        local shape_items = bullet3d.world.overlap_shape(world, shape, filter_a, 1)
+        assert(#shape_items == 1)
+        assert(shape_items[1].object == objects.near)
+    end
+
+
+    -- One temporary sphere overlaps both penetrating boxes, exercising overlap_shape max=1 and unlimited max=0 against multiple eligible objects.
+    local penetrating_shape = {
+        type = physics.SHAPE_TYPE_SPHERE,
+        diameter = 0.5,
+        position = penetrating_point,
+    }
+    local all_shape_items = bullet3d.world.overlap_shape(world, penetrating_shape, nil, 0)
+    assert(#all_shape_items == 2)
+    assert(find_object_item(all_shape_items, objects.contact_a) ~= nil)
+    assert(find_object_item(all_shape_items, objects.contact_b) ~= nil)
+    assert(#bullet3d.world.overlap_shape(world, penetrating_shape, nil, 1) == 1)
+
+    local ignored_filter = make_filter_a(objects, false)
+    ignored_filter.ignore = objects.near
+    local ignored_items = bullet3d.world.overlap_shape(world, shapes[1], ignored_filter, 8)
+    assert_object_absent(ignored_items, objects.near)
+
+    -- A non-ray broadphase query includes the trigger by default and removes it through include_triggers=false.
+    local trigger_aabb = {
+        lower = vmath.vector3(13.8, -1.2, -1.2),
+        upper = vmath.vector3(16.2, 1.2, 1.2),
+    }
+    local trigger_items = bullet3d.world.overlap_aabb(world, trigger_aabb, nil, 0)
+    assert(#trigger_items == 1)
+    assert(trigger_items[1].object == objects.trigger)
+    assert(#bullet3d.world.overlap_aabb(world, trigger_aabb, filter_a, 0) == 0)
+end
+
+-- Verifies sorted ray hits, exact scaled geometry, closest/capped results, reciprocal bit filters, ignore forms and trigger control.
+local function test_ray_queries(world, objects)
+    local origin = vmath.vector3(-5, 0, 0)
+    local translation = vmath.vector3(25, 0, 0)
+    local hits = bullet3d.world.cast_ray(world, origin, translation, nil, 8)
+    local expected = {
+        { objects.near, 0.16, -1 },
+        { objects.filtered, 0.36, 4 },
+        { objects.far, 0.56, 9 },
+        { objects.trigger },
+    }
+
+    assert(#hits == #expected)
+    for index, entry in ipairs(expected) do
+        local hit = hits[index]
+        assert(hit.object == entry[1])
+        if index > 1 then
+            assert(hits[index - 1].fraction <= hit.fraction)
+        end
+        if entry[2] ~= nil then
+            assert_near(hit.fraction, entry[2], 0.002)
+            assert_vec3_near(hit.point, vmath.vector3(entry[3], 0, 0), 0.002)
+            assert_vec3_near(hit.normal, vmath.vector3(-1, 0, 0), 0.002)
+        end
+        assert(not hit.initial_overlap)
+        assert(not hit.inside)
+        assert(hit.shape_index == 1)
+    end
+
+    local closest = bullet3d.world.cast_ray_closest(world, origin, translation)
+    assert(closest ~= nil)
+    assert(closest.object == objects.near)
+    assert_near(closest.fraction, 0.16, 0.002)
+
+    local capped = bullet3d.world.cast_ray(world, origin, translation, nil, 2)
+    assert(#capped == 2)
+    assert(capped[1].object == objects.near)
+    assert(capped[2].object == objects.filtered)
+
+    local filter_a = make_filter_a(objects, false)
+    local group_a_hits = bullet3d.world.cast_ray(world, origin, translation, filter_a, 8)
+    assert(#group_a_hits == 2)
+    assert(group_a_hits[1].object == objects.near)
+    assert(group_a_hits[2].object == objects.far)
+
+    local filter_b = {
+        category_bits = objects.group_b,
+        mask_bits = objects.group_b,
+        include_triggers = true,
+    }
+    local group_b_hits = bullet3d.world.cast_ray(world, origin, translation, filter_b, 8)
+    assert(#group_b_hits == 1)
+    assert(group_b_hits[1].object == objects.filtered)
+
+    -- Rays spanning both filter groups reject both category-B/mask-A and category-A/mask-B mismatches.
+    for _, mismatch_filter in ipairs(make_reciprocal_mismatch_filters(objects)) do
+        assert(#bullet3d.world.cast_ray(world, origin, translation, mismatch_filter, 0) == 0)
+    end
+
+    local ignore_one = { ignore = objects.near }
+    local ignored_near = bullet3d.world.cast_ray_closest(world, origin, translation, ignore_one)
+    assert(ignored_near.object == objects.filtered)
+
+    local ignore_array = { ignore = { objects.near, objects.filtered } }
+    local ignored_two = bullet3d.world.cast_ray_closest(world, origin, translation, ignore_array)
+    assert(ignored_two.object == objects.far)
+
+    local trigger_origin = vmath.vector3(12, 0, 0)
+    local trigger_translation = vmath.vector3(6, 0, 0)
+    local trigger_hits = bullet3d.world.cast_ray(world, trigger_origin, trigger_translation, nil, 8)
+    assert(#trigger_hits == 1)
+    assert(trigger_hits[1].object == objects.trigger)
+
+    local no_trigger_filter = make_filter_a(objects, false)
+    local no_trigger_hits = bullet3d.world.cast_ray(world, trigger_origin, trigger_translation, no_trigger_filter, 8)
+    assert(#no_trigger_hits == 0)
+end
+
+-- Verifies #5348 behavior: native Bullet misses a ray wholly inside a hull, while requested initial-overlap reporting returns one marked fraction-zero hit.
+local function test_inside_ray_query(world, objects)
+    local origin = vmath.vector3(-30, 0, 0)
+    local translation = vmath.vector3(0.5, 0, 0)
+
+    local raw_filter = make_filter_a(objects, false)
+    raw_filter.report_initial_overlaps = false
+    local raw_hits = bullet3d.world.cast_ray(world, origin, translation, raw_filter, 8)
+    assert(#raw_hits == 0)
+    assert(bullet3d.world.cast_ray_closest(world, origin, translation, raw_filter) == nil)
+
+    local inside_filter = make_filter_a(objects, false)
+    inside_filter.report_initial_overlaps = true
+    local inside_hits = bullet3d.world.cast_ray(world, origin, translation, inside_filter, 8)
+    assert(#inside_hits == 1)
+    assert(inside_hits[1].object == objects.hull)
+    assert_near(inside_hits[1].fraction, 0)
+    assert(inside_hits[1].initial_overlap)
+    assert(inside_hits[1].inside)
+    assert(inside_hits[1].shape_index == nil)
+    assert_vec3_near(inside_hits[1].point, origin)
+    assert_vec3_near(inside_hits[1].normal, vmath.vector3())
+
+    local closest_inside = bullet3d.world.cast_ray_closest(world, origin, translation, inside_filter)
+    assert(closest_inside ~= nil)
+    assert(closest_inside.object == objects.hull)
+    assert_near(closest_inside.fraction, 0)
+    assert(closest_inside.initial_overlap)
+    assert(closest_inside.inside)
+    assert(closest_inside.shape_index == nil)
+    assert_vec3_near(closest_inside.point, origin)
+    assert_vec3_near(closest_inside.normal, vmath.vector3())
+end
+
+-- Verifies initial-overlap synthesis deduplicates only the starting child, preserving a later positive hit on child 2 of the same compound for rays and shape sweeps.
+local function test_compound_initial_overlap_casts(world, objects)
+    local filter = make_filter_a(objects, false)
+    filter.report_initial_overlaps = true
+    local origin = vmath.vector3(-50, 0, 0)
+    local translation = vmath.vector3(6, 0, 0)
+
+    -- The ray starts inside child 1 and enters separated child 2 at fraction 0.5 on the same collision object.
+    local ray_hits = bullet3d.world.cast_ray(world, origin, translation, filter, 0)
+    assert(#ray_hits == 2)
+    assert(ray_hits[1].object == objects.compound)
+    assert_near(ray_hits[1].fraction, 0)
+    assert(ray_hits[1].initial_overlap)
+    assert(ray_hits[1].inside)
+    assert(ray_hits[1].shape_index == nil)
+    assert(ray_hits[2].object == objects.compound)
+    assert_near(ray_hits[2].fraction, 0.5, 0.003, "compound child-2 ray fraction")
+    assert(not ray_hits[2].initial_overlap)
+    assert(not ray_hits[2].inside)
+    assert(ray_hits[2].shape_index == 2)
+    assert_vec3_near(ray_hits[2].point, vmath.vector3(-47, 0, 0), 0.003, "compound child-2 ray point")
+    assert_vec3_near(ray_hits[2].normal, vmath.vector3(-1, 0, 0), 0.003, "compound child-2 ray normal")
+    local closest_ray = bullet3d.world.cast_ray_closest(world, origin, translation, filter)
+    assert(closest_ray ~= nil)
+    assert(closest_ray.object == objects.compound)
+    assert_near(closest_ray.fraction, 0)
+    assert(closest_ray.initial_overlap)
+
+    -- A radius-0.5 sphere starts overlapping child 1 and reaches child 2 at a later deterministic fraction.
+    local shape = {
+        type = physics.SHAPE_TYPE_SPHERE,
+        diameter = 1,
+        position = origin,
+    }
+    local shape_hits = bullet3d.world.cast_shape(world, shape, translation, filter, 0)
+    assert(#shape_hits == 2)
+    assert(shape_hits[1].object == objects.compound)
+    assert_near(shape_hits[1].fraction, 0)
+    assert(shape_hits[1].initial_overlap)
+    assert(not shape_hits[1].inside)
+    assert(shape_hits[1].shape_index == nil)
+    assert(shape_hits[2].object == objects.compound)
+    assert_near(shape_hits[2].fraction, 0.4167, 0.005, "compound child-2 shape fraction")
+    assert(not shape_hits[2].initial_overlap)
+    assert(not shape_hits[2].inside)
+    assert(shape_hits[2].shape_index == 2)
+    assert_near(shape_hits[2].point.x, -47, 0.005, "compound child-2 shape point x")
+    assert_vec3_near(shape_hits[2].normal, vmath.vector3(-1, 0, 0), 0.003, "compound child-2 shape normal")
+    local closest_shape = bullet3d.world.cast_shape_closest(world, shape, translation, filter)
+    assert(closest_shape ~= nil)
+    assert(closest_shape.object == objects.compound)
+    assert_near(closest_shape.fraction, 0)
+    assert(closest_shape.initial_overlap)
+end
+
+-- Verifies #8686 sweeps accept sphere, asymmetric rotating-box, capsule and hull tables, with exact scale-0.1 primitive results and separate hull acceptance/schema coverage.
+local function test_shape_cast_queries(world, objects)
+    local filter_a = make_filter_a(objects, false)
+    local translation = vmath.vector3(10, 0, 0)
+    local expected_casts = {
+        { name = "sphere", fraction = 0.30, point = vmath.vector3(-1, 0, 0) },
+        { name = "asymmetric rotating box", fraction = 0.322 },
+        { name = "capsule", fraction = 0.30, point = vmath.vector3(-1, 0, 0) },
+    }
+    local shapes = {
+        {
+            type = physics.SHAPE_TYPE_SPHERE,
+            diameter = 2,
+            position = vmath.vector3(-5, 0, 0),
+        },
+        {
+            type = physics.SHAPE_TYPE_BOX,
+            dimensions = vmath.vector3(1, 2, 1),
+            position = vmath.vector3(-5, 0, 0),
+            rotation = vmath.quat(),
+            target_rotation = vmath.quat_rotation_z(math.pi * 0.5),
+        },
+        {
+            type = physics.SHAPE_TYPE_CAPSULE,
+            diameter = 2,
+            height = 2,
+            position = vmath.vector3(-5, 0, 0),
+            rotation = vmath.quat(),
+        },
+        {
+            type = physics.SHAPE_TYPE_HULL,
+            vertices = {
+                vmath.vector3(-1, -1, -1),
+                vmath.vector3(1, -1, -1),
+                vmath.vector3(-1, 1, -1),
+                vmath.vector3(1, 1, -1),
+                vmath.vector3(-1, -1, 1),
+                vmath.vector3(1, -1, 1),
+                vmath.vector3(-1, 1, 1),
+                vmath.vector3(1, 1, 1),
+            },
+            position = vmath.vector3(-5, 0, 0),
+            rotation = vmath.quat(),
+        },
+    }
+
+    for index, shape in ipairs(shapes) do
+        local hits = bullet3d.world.cast_shape(world, shape, translation, filter_a, 1)
+        assert(#hits == 1)
+        assert(hits[1].object == objects.near)
+        assert(not hits[1].initial_overlap)
+        assert(not hits[1].inside)
+        assert(hits[1].shape_index == 1)
+        if index < 4 then
+            local expected = expected_casts[index]
+            assert_near(hits[1].fraction, expected.fraction, 0.005, expected.name .. " cast fraction")
+            assert_near(hits[1].point.x, -1, 0.005, expected.name .. " cast point x")
+            if expected.point ~= nil then
+                assert_vec3_near(hits[1].point, expected.point, 0.005, expected.name .. " cast point")
+            end
+            assert_vec3_near(hits[1].normal, vmath.vector3(-1, 0, 0), 0.003, expected.name .. " cast normal")
+        end
+    end
+
+    local closest = bullet3d.world.cast_shape_closest(world, shapes[1], translation, filter_a)
+    assert(closest ~= nil)
+    assert(closest.object == objects.near)
+    assert_near(closest.fraction, 0.30, 0.005, "closest sphere cast fraction")
+
+    -- The same asymmetric box without target rotation hits at a distinct exact fraction, proving target_rotation affects the angular sweep.
+    local fixed_box = {
+        type = physics.SHAPE_TYPE_BOX,
+        dimensions = vmath.vector3(1, 2, 1),
+        position = vmath.vector3(-5, 0, 0),
+        rotation = vmath.quat(),
+    }
+    local fixed_box_hit = bullet3d.world.cast_shape_closest(world, fixed_box, translation, filter_a)
+    assert(fixed_box_hit ~= nil)
+    assert(fixed_box_hit.object == objects.near)
+    assert_near(fixed_box_hit.fraction, 0.35, 0.005, "fixed asymmetric box cast fraction")
+
+    -- A non-identity starting rotation with no target_rotation keeps that orientation through the sweep, widening X support and hitting before the identity box.
+    local start_rotated_box = {
+        type = physics.SHAPE_TYPE_BOX,
+        dimensions = vmath.vector3(1, 2, 1),
+        position = vmath.vector3(-5, 0, 0),
+        rotation = vmath.quat_rotation_z(math.pi * 0.5),
+    }
+    local start_rotated_hit = bullet3d.world.cast_shape_closest(world, start_rotated_box, translation, filter_a)
+    assert(start_rotated_hit ~= nil)
+    assert(start_rotated_hit.object == objects.near)
+    assert_near(start_rotated_hit.fraction, 0.30, 0.005, "fixed non-identity box cast fraction")
+    assert_near(start_rotated_hit.point.x, -1, 0.005, "fixed non-identity box cast point x")
+    assert_vec3_near(start_rotated_hit.normal, vmath.vector3(-1, 0, 0), 0.003, "fixed non-identity box cast normal")
+    assert(start_rotated_hit.fraction < fixed_box_hit.fraction)
+
+    -- A cast spanning A and B objects makes max=1 non-vacuous, max=0 unlimited, and exercises both reciprocal mismatch directions in the sweep callback.
+    local multi_shape = {
+        type = physics.SHAPE_TYPE_SPHERE,
+        diameter = 1,
+        position = vmath.vector3(-5, 0, 0),
+    }
+    local multi_translation = vmath.vector3(12, 0, 0)
+    local all_shape_hits = bullet3d.world.cast_shape(world, multi_shape, multi_translation, nil, 0)
+    assert(#all_shape_hits == 2)
+    assert(all_shape_hits[1].object == objects.near)
+    assert(all_shape_hits[2].object == objects.filtered)
+    assert(#bullet3d.world.cast_shape(world, multi_shape, multi_translation, nil, 1) == 1)
+    for _, mismatch_filter in ipairs(make_reciprocal_mismatch_filters(objects)) do
+        assert(#bullet3d.world.cast_shape(world, multi_shape, multi_translation, mismatch_filter, 0) == 0)
+    end
+end
+
+-- Verifies convex-hull vertex offsets and capsule cylindrical height produce distinct exact sweep fractions that sphere-like fallback implementations cannot match.
+local function test_distinct_shape_cast_geometry(world, objects)
+    local filter_a = make_filter_a(objects, false)
+
+    -- Two equal-diameter Y-axis capsules with different middle-section heights must hit the box bottom at different exact fractions.
+    local capsule_translation = vmath.vector3(0, 10, 0)
+    local capsule_cases = {
+        { name = "short capsule", height = 0.5, fraction = 0.275 },
+        { name = "tall capsule", height = 4, fraction = 0.10 },
+    }
+    local capsule_hits = {}
+    for index, case in ipairs(capsule_cases) do
+        local shape = {
+            type = physics.SHAPE_TYPE_CAPSULE,
+            diameter = 2,
+            height = case.height,
+            position = vmath.vector3(0, -5, 0),
+            rotation = vmath.quat(),
+        }
+        local hit = bullet3d.world.cast_shape_closest(world, shape, capsule_translation, filter_a)
+        assert(hit ~= nil)
+        assert(hit.object == objects.near)
+        assert_near(hit.fraction, case.fraction, 0.005, case.name .. " cast fraction")
+        assert_near(hit.point.y, -1, 0.005, case.name .. " cast point y")
+        assert_vec3_near(hit.normal, vmath.vector3(0, -1, 0), 0.003, case.name .. " cast normal")
+        capsule_hits[index] = hit
+    end
+    assert(capsule_hits[2].fraction < capsule_hits[1].fraction)
+
+    -- This hull is offset behind its transform origin; its exact support fraction distinguishes supplied vertices from a centered primitive fallback.
+    local offset_hull = {
+        type = physics.SHAPE_TYPE_HULL,
+        vertices = {
+            vmath.vector3(-2, -0.25, -0.25),
+            vmath.vector3(-1, -0.25, -0.25),
+            vmath.vector3(-2, 0.25, -0.25),
+            vmath.vector3(-1, 0.25, -0.25),
+            vmath.vector3(-2, -0.25, 0.25),
+            vmath.vector3(-1, -0.25, 0.25),
+            vmath.vector3(-2, 0.25, 0.25),
+            vmath.vector3(-1, 0.25, 0.25),
+        },
+        position = vmath.vector3(-5, 0, 0),
+        rotation = vmath.quat(),
+    }
+    local hull_hit = bullet3d.world.cast_shape_closest(world, offset_hull, vmath.vector3(10, 0, 0), filter_a)
+    assert(hull_hit ~= nil)
+    assert(hull_hit.object == objects.near)
+    assert_near(hull_hit.fraction, 0.46, 0.005, "offset hull cast fraction")
+    assert_near(hull_hit.point.x, -1, 0.005, "offset hull cast point x")
+    assert_vec3_near(hull_hit.normal, vmath.vector3(-1, 0, 0), 0.003, "offset hull cast normal")
+    assert(hull_hit.shape_index == 1)
+end
+
+-- Verifies default shape casts suppress direction-dependent native fraction-zero starts, while opt-in returns one deterministic initial-overlap (not ray-inside) hit.
+local function test_inside_shape_cast_query(world, objects)
+    local shape = {
+        type = physics.SHAPE_TYPE_SPHERE,
+        diameter = 1,
+        position = vmath.vector3(0, 0, 0),
+    }
+    local translation = vmath.vector3(0.5, 0, 0)
+
+    local raw_filter = make_filter_a(objects, false)
+    raw_filter.report_initial_overlaps = false
+    local raw_hits = bullet3d.world.cast_shape(world, shape, translation, raw_filter, 8)
+    assert(#raw_hits == 0)
+    assert(bullet3d.world.cast_shape_closest(world, shape, translation, raw_filter) == nil)
+
+    local inside_filter = make_filter_a(objects, false)
+    inside_filter.report_initial_overlaps = true
+    local inside_hits = bullet3d.world.cast_shape(world, shape, translation, inside_filter, 8)
+    assert(#inside_hits == 1)
+    assert(inside_hits[1].object == objects.near)
+    assert_near(inside_hits[1].fraction, 0)
+    assert(inside_hits[1].initial_overlap)
+    assert(not inside_hits[1].inside)
+    assert(inside_hits[1].shape_index == nil)
+    assert_vec3_near(inside_hits[1].point, shape.position)
+    assert_vec3_near(inside_hits[1].normal, vmath.vector3())
+
+    local closest_inside = bullet3d.world.cast_shape_closest(world, shape, translation, inside_filter)
+    assert(closest_inside ~= nil)
+    assert(closest_inside.object == objects.near)
+    assert_near(closest_inside.fraction, 0)
+    assert(closest_inside.initial_overlap)
+    assert(not closest_inside.inside)
+    assert(closest_inside.shape_index == nil)
+    assert_vec3_near(closest_inside.point, shape.position)
+    assert_vec3_near(closest_inside.normal, vmath.vector3())
+end
+
+-- Verifies contact APIs return normalized signed geometry, filtering, misses, and a non-vacuous manifold cap with explicit unlimited max=0 behavior.
+local function test_contact_queries(world, objects)
+    local filter_a = make_filter_a(objects, false)
+    local object_contacts = bullet3d.world.contact_test(world, objects.contact_a, filter_a)
+    assert(#object_contacts > 1)
+    for _, contact in ipairs(object_contacts) do
+        assert(contact.object_a == objects.contact_a)
+        assert(contact.object_b == objects.contact_b)
+    end
+
+    -- An explicit unlimited pair query returns the full multi-point box manifold, making the later max=1 reverse query a real cap.
+    local pair_contacts = bullet3d.world.contact_pair_test(world, objects.contact_a, objects.contact_b, 0)
+    assert(#pair_contacts > 1)
+    for _, contact in ipairs(pair_contacts) do
+        assert(contact.object_a == objects.contact_a)
+        assert(contact.object_b == objects.contact_b)
+        assert_near(contact.distance, -0.5, 0.002)
+        assert_near(contact.position_a.x, 31.0, 0.002)
+        assert_near(contact.position_b.x, 30.5, 0.002)
+        assert_vec3_near(contact.normal_on_b, vmath.vector3(-1, 0, 0), 0.002)
+    end
+
+    local reverse_contacts = bullet3d.world.contact_pair_test(world, objects.contact_b, objects.contact_a, 1)
+    assert(#reverse_contacts == 1)
+    assert(reverse_contacts[1].object_a == objects.contact_b)
+    assert(reverse_contacts[1].object_b == objects.contact_a)
+    assert_near(reverse_contacts[1].position_a.x, 30.5, 0.002)
+    assert_near(reverse_contacts[1].position_b.x, 31.0, 0.002)
+    assert_vec3_near(reverse_contacts[1].normal_on_b, vmath.vector3(1, 0, 0), 0.002)
+
+    -- Direct pair tests intentionally ignore reciprocal broadphase filters, so overlapping group-A/group-B boxes still report their normalized manifold.
+    local incompatible_contacts = bullet3d.world.contact_pair_test(world, objects.contact_a, objects.contact_filtered, 0)
+    assert(#incompatible_contacts > 1)
+    for _, contact in ipairs(incompatible_contacts) do
+        assert(contact.object_a == objects.contact_a)
+        assert(contact.object_b == objects.contact_filtered)
+        assert_near(contact.distance, -0.5, 0.002)
+        assert_near(contact.position_a.x, 29.0, 0.002)
+        assert_near(contact.position_b.x, 29.5, 0.002)
+        assert_vec3_near(contact.normal_on_b, vmath.vector3(1, 0, 0), 0.002)
+    end
+
+    local capped_contacts = bullet3d.world.contact_test(world, objects.contact_a, filter_a, 1)
+    assert(#capped_contacts == 1)
+    local unlimited_contacts = bullet3d.world.contact_test(world, objects.contact_a, filter_a, 0)
+    assert(#unlimited_contacts == #object_contacts)
+    assert(#unlimited_contacts > #capped_contacts)
+
+    local incompatible_filter = {
+        category_bits = objects.group_b,
+        mask_bits = objects.group_a,
+        include_triggers = false,
+    }
+    assert(#bullet3d.world.contact_test(world, objects.contact_a, incompatible_filter) == 0)
+    assert(#bullet3d.world.contact_pair_test(world, objects.contact_a, objects.near) == 0)
+end
+
+-- Verifies metamethod-backed filter (including ignore-array copying) and shape fields are each evaluated exactly once, even when a second read would mutate or raise an error.
+local function test_query_proxy_tables(world, objects)
+    local filter_reads = {}
+    local filter_values = {
+        category_bits = objects.group_a,
+        mask_bits = objects.group_a,
+        include_triggers = false,
+        report_initial_overlaps = false,
+        ignore = { objects.near },
+    }
+    local filter_proxy = setmetatable({}, {
+        __index = function(_, key)
+            filter_reads[key] = (filter_reads[key] or 0) + 1
+            assert(filter_reads[key] == 1, "query filter field read more than once: " .. key)
+            return filter_values[key]
+        end,
+    })
+    local filtered_hits = bullet3d.world.cast_ray(world, vmath.vector3(-5, 0, 0), vmath.vector3(12, 0, 0), filter_proxy, 0)
+    assert(#filtered_hits == 0)
+    for key, _ in pairs(filter_values) do
+        assert(filter_reads[key] == 1)
+    end
+
+    local shape_reads = {}
+    local shape_values = {
+        type = physics.SHAPE_TYPE_SPHERE,
+        diameter = 1,
+        position = vmath.vector3(-5, 0, 0),
+        rotation = vmath.quat(),
+        target_rotation = vmath.quat(),
+    }
+    local shape_proxy = setmetatable({}, {
+        __index = function(_, key)
+            shape_reads[key] = (shape_reads[key] or 0) + 1
+            assert(shape_reads[key] == 1, "query shape field read more than once: " .. key)
+            return shape_values[key]
+        end,
+    })
+    local shape_hit = bullet3d.world.cast_shape_closest(world, shape_proxy, vmath.vector3(10, 0, 0), make_filter_a(objects, false))
+    assert(shape_hit ~= nil)
+    assert(shape_hit.object == objects.near)
+    for key, _ in pairs(shape_values) do
+        assert(shape_reads[key] == 1)
+    end
+
+    -- A convex-hull proxy covers the variable-length branch and fails immediately if any named field is fetched for a second validation pass.
+    local hull_reads = {}
+    local hull_values = {
+        type = physics.SHAPE_TYPE_HULL,
+        vertices = {
+            vmath.vector3(-0.5, -0.5, -0.5),
+            vmath.vector3(0.5, -0.5, -0.5),
+            vmath.vector3(-0.5, 0.5, -0.5),
+            vmath.vector3(0.5, 0.5, -0.5),
+            vmath.vector3(-0.5, -0.5, 0.5),
+            vmath.vector3(0.5, -0.5, 0.5),
+            vmath.vector3(-0.5, 0.5, 0.5),
+            vmath.vector3(0.5, 0.5, 0.5),
+        },
+        position = vmath.vector3(-5, 0, 0),
+        rotation = vmath.quat(),
+        target_rotation = vmath.quat(),
+    }
+    local hull_proxy = setmetatable({}, {
+        __index = function(_, key)
+            hull_reads[key] = (hull_reads[key] or 0) + 1
+            assert(hull_reads[key] == 1, "query hull field read more than once: " .. key)
+            return hull_values[key]
+        end,
+    })
+    local hull_hit = bullet3d.world.cast_shape_closest(world, hull_proxy, vmath.vector3(10, 0, 0), make_filter_a(objects, false))
+    assert(hull_hit ~= nil)
+    assert(hull_hit.object == objects.near)
+    for key, _ in pairs(hull_values) do
+        assert(hull_reads[key] == 1)
+    end
+end
+
+-- Verifies zero/non-finite casts and transforms, negative caps, malformed AABBs/shapes/filters, and self-pair contacts fail at the Lua boundary.
+local function test_query_validation(world, objects)
+    local zero = vmath.vector3(0, 0, 0)
+    local infinity = math.huge
+    local nan = 0 / 0
+    local valid_aabb = {
+        lower = vmath.vector3(-1, -1, -1),
+        upper = vmath.vector3(1, 1, 1),
+    }
+    local valid_shape = {
+        type = physics.SHAPE_TYPE_SPHERE,
+        diameter = 1,
+        position = vmath.vector3(-5, 0, 0),
+    }
+
+    -- A zero displacement has no well-defined Bullet ray or sweep direction.
+    assert_error(function()
+        bullet3d.world.cast_ray(world, zero, zero)
+    end)
+    assert_error(function()
+        bullet3d.world.cast_ray_closest(world, zero, zero)
+    end)
+    assert_error(function()
+        bullet3d.world.cast_shape(world, valid_shape, zero)
+    end)
+    assert_error(function()
+        bullet3d.world.cast_shape_closest(world, valid_shape, zero)
+    end)
+
+    -- Non-finite query origins, points and translations are rejected before native broadphase callbacks run.
+    assert_error(function()
+        bullet3d.world.cast_ray(world, vmath.vector3(nan, 0, 0), vmath.vector3(1, 0, 0))
+    end)
+    assert_error(function()
+        bullet3d.world.cast_ray(world, zero, vmath.vector3(infinity, 0, 0))
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_point(world, vmath.vector3(0, infinity, 0))
+    end)
+    assert_error(function()
+        bullet3d.world.cast_shape(world, valid_shape, vmath.vector3(nan, 0, 0))
+    end)
+
+    -- Every capped query rejects negative limits instead of treating them as unlimited.
+    assert_error(function()
+        bullet3d.world.get_collision_objects(world, -1)
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_aabb(world, valid_aabb, nil, -1)
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_point(world, zero, nil, -1)
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, valid_shape, nil, -1)
+    end)
+    assert_error(function()
+        bullet3d.world.cast_ray(world, vmath.vector3(-5, 0, 0), vmath.vector3(10, 0, 0), nil, -1)
+    end)
+    assert_error(function()
+        bullet3d.world.cast_shape(world, valid_shape, vmath.vector3(10, 0, 0), nil, -1)
+    end)
+    assert_error(function()
+        bullet3d.world.contact_test(world, objects.contact_a, nil, -1)
+    end)
+    assert_error(function()
+        bullet3d.world.contact_pair_test(world, objects.contact_a, objects.contact_b, -1)
+    end)
+
+    -- Reversed AABB bounds cannot describe a valid world-space query volume.
+    assert_error(function()
+        bullet3d.world.overlap_aabb(world, {
+            lower = vmath.vector3(1, 1, 1),
+            upper = vmath.vector3(-1, -1, -1),
+        })
+    end)
+
+    -- Non-finite AABB coordinates cannot be passed to the broadphase.
+    assert_error(function()
+        bullet3d.world.overlap_aabb(world, {
+            lower = vmath.vector3(-1, -1, -1),
+            upper = vmath.vector3(infinity, 1, 1),
+        })
+    end)
+
+    -- Each temporary convex-shape branch validates its required dimensions and type.
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_SPHERE,
+            diameter = 0,
+        })
+    end)
+
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_SPHERE,
+            diameter = infinity,
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_BOX,
+            dimensions = vmath.vector3(1, -1, 1),
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_BOX,
+            dimensions = vmath.vector3(1, nan, 1),
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_CAPSULE,
+            diameter = 1,
+            height = 0,
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_CAPSULE,
+            diameter = 1,
+            height = infinity,
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_HULL,
+            vertices = { vmath.vector3(0, 0, 0), vmath.vector3(1, 0, 0) },
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_HULL,
+            vertices = {
+                vmath.vector3(0, 0, 0),
+                vmath.vector3(1, 0, 0),
+                vmath.vector3(0, 1, 0),
+                vmath.vector3(0, 0, infinity),
+            },
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = 999,
+        })
+    end)
+
+    -- Query shape positions and quaternions must be finite, and rotations must have non-zero length before normalization.
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_SPHERE,
+            diameter = 1,
+            position = vmath.vector3(infinity, 0, 0),
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_SPHERE,
+            diameter = 1,
+            rotation = vmath.quat(0, 0, 0, 0),
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_shape(world, {
+            type = physics.SHAPE_TYPE_SPHERE,
+            diameter = 1,
+            rotation = vmath.quat(nan, 0, 0, 1),
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.cast_shape(world, {
+            type = physics.SHAPE_TYPE_SPHERE,
+            diameter = 1,
+            target_rotation = vmath.quat(0, 0, 0, 0),
+        }, vmath.vector3(1, 0, 0))
+    end)
+    assert_error(function()
+        bullet3d.world.cast_shape(world, {
+            type = physics.SHAPE_TYPE_SPHERE,
+            diameter = 1,
+            target_rotation = vmath.quat(0, infinity, 0, 1),
+        }, vmath.vector3(1, 0, 0))
+    end)
+
+    -- Filter fields reject out-of-range bits, non-boolean switches and invalid ignore entries.
+    assert_error(function()
+        bullet3d.world.overlap_point(world, zero, { category_bits = -1 })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_point(world, zero, { category_bits = 65536 })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_point(world, zero, { mask_bits = 65536 })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_point(world, zero, { include_triggers = 1 })
+    end)
+    assert_error(function()
+        bullet3d.world.cast_ray(world, vmath.vector3(-5, 0, 0), vmath.vector3(10, 0, 0), {
+            report_initial_overlaps = "yes",
+        })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_point(world, zero, { ignore = { objects.near, true } })
+    end)
+
+    -- A collision object cannot form a meaningful contact pair with itself.
+    assert_error(function()
+        bullet3d.world.contact_pair_test(world, objects.contact_a, objects.contact_a)
+    end)
+end
+
+-- Verifies a transform setter is visible to AABB queries immediately, without waiting for the next physics step to refresh the broad phase.
+local function test_immediate_transform_query(world, objects)
+    local filter_a = make_filter_a(objects, false)
+    bullet3d.collision_object.set_position(objects.movable, vmath.vector3(60, 0, 0))
+
+    local old_position_items = bullet3d.world.overlap_aabb(world, {
+        lower = vmath.vector3(48.9, -1.1, -1.1),
+        upper = vmath.vector3(51.1, 1.1, 1.1),
+    }, filter_a, 8)
+    assert_object_absent(old_position_items, objects.movable)
+
+    local new_position_items = bullet3d.world.overlap_aabb(world, {
+        lower = vmath.vector3(58.9, -1.1, -1.1),
+        upper = vmath.vector3(61.1, 1.1, 1.1),
+    }, filter_a, 8)
+    assert(find_object_item(new_position_items, objects.movable) ~= nil)
+    assert_vec3_near(bullet3d.collision_object.get_position(objects.movable), vmath.vector3(60, 0, 0))
+end
+
+-- Defers all world queries until update, when the pre-spawned collision objects have entered the Bullet broad phase.
+function init(self)
+    self.run_queries = true
+end
+
+-- Runs each isolated world-query category once and signals the C++ harness only after every assertion has completed.
+function update(self, dt)
+    if not self.run_queries then
+        return
+    end
+    self.run_queries = false
+
+    assert(PHYSICS == "bullet3d")
+    local world = bullet3d.get_world()
+    assert(world ~= nil)
+
+    local objects = {}
+    for name, url in pairs(URLS) do
+        objects[name] = bullet3d.get_collision_object(url)
+        assert(objects[name] ~= nil)
+    end
+
+    test_collision_filter_accessors(objects)
+    test_collision_object_enumeration(world, objects)
+    test_overlap_queries(world, objects)
+    test_ray_queries(world, objects)
+    test_inside_ray_query(world, objects)
+    test_compound_initial_overlap_casts(world, objects)
+    test_shape_cast_queries(world, objects)
+    test_distinct_shape_cast_geometry(world, objects)
+    test_inside_shape_cast_query(world, objects)
+    test_contact_queries(world, objects)
+    test_query_proxy_tables(world, objects)
+    test_query_validation(world, objects)
+    test_immediate_transform_query(world, objects)
+
+    tests_done = true
+end

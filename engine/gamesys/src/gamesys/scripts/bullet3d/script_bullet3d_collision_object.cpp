@@ -411,6 +411,30 @@ namespace dmGameSystem
         return 1;
     }
 
+    static const btBroadphaseProxy* CheckCollisionObjectBroadphaseHandle(lua_State* L, int index)
+    {
+        const btBroadphaseProxy* broadphase_handle = CheckBullet3DCollisionObject(L, index)->getBroadphaseHandle();
+        if (!broadphase_handle)
+        {
+            luaL_error(L, "Cannot get collision filter: bullet3d collision object is not in a world and has no broadphase handle.");
+        }
+        return broadphase_handle;
+    }
+
+    static int CollisionObject_GetCollisionFilterGroup(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushinteger(L, (uint16_t)CheckCollisionObjectBroadphaseHandle(L, 1)->m_collisionFilterGroup);
+        return 1;
+    }
+
+    static int CollisionObject_GetCollisionFilterMask(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        lua_pushinteger(L, (uint16_t)CheckCollisionObjectBroadphaseHandle(L, 1)->m_collisionFilterMask);
+        return 1;
+    }
+
     static int CollisionObject_HasCollisionFlag(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -495,6 +519,8 @@ namespace dmGameSystem
         { "get_ccd_motion_threshold", CollisionObject_GetCcdMotionThreshold },
         { "set_ccd_motion_threshold", CollisionObject_SetCcdMotionThreshold },
         { "get_collision_flags", CollisionObject_GetCollisionFlags },
+        { "get_collision_filter_group", CollisionObject_GetCollisionFilterGroup },
+        { "get_collision_filter_mask", CollisionObject_GetCollisionFilterMask },
         { "has_collision_flag", CollisionObject_HasCollisionFlag },
         { "get_internal_type", CollisionObject_GetInternalType },
         { "is_static", CollisionObject_IsStatic },
@@ -797,6 +823,32 @@ namespace dmGameSystem
  * @name bullet3d.collision_object.get_collision_flags
  * @param object [type:btCollisionObject] collision object
  * @return flags [type:number] bit field of `CF_*` constants
+ */
+
+/*# Get the collision filter group
+ *
+ * Returns the raw unsigned 16-bit filter group that Defold assigned to the
+ * object's Bullet broadphase proxy. Use this value as `category_bits` in a
+ * `bullet3d.world` query filter. Bullet applies reciprocal filtering: the
+ * query's `mask_bits` must include this group, and the query's `category_bits`
+ * must be included in the object's filter mask.
+ *
+ * @name bullet3d.collision_object.get_collision_filter_group
+ * @param object [type:btCollisionObject] collision object in a Bullet world
+ * @return group [type:number] raw unsigned 16-bit collision filter group
+ */
+
+/*# Get the collision filter mask
+ *
+ * Returns the raw unsigned 16-bit filter mask that Defold assigned to the
+ * object's Bullet broadphase proxy. Use this value as `mask_bits` in a
+ * `bullet3d.world` query filter. Bullet applies reciprocal filtering: the
+ * query's `category_bits` must be included in this mask, and the query's
+ * `mask_bits` must include the object's filter group.
+ *
+ * @name bullet3d.collision_object.get_collision_filter_mask
+ * @param object [type:btCollisionObject] collision object in a Bullet world
+ * @return mask [type:number] raw unsigned 16-bit collision filter mask
  */
 
 /*# Test a collision flag
