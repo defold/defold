@@ -11,7 +11,6 @@
 #include <stdlib.h>
 
 #include <dlib/array.h>
-#include <dlib/opaque_handle_container.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <gameobject/gameobject.h>
 #include <script/script.h>
@@ -32,13 +31,14 @@ namespace dmGameSystem
 
     struct Bullet3DLuaWorld
     {
-        HOpaqueHandle m_Handle;
-        void*         m_ComponentWorld;
+        uint64_t m_Id;
+        void*    m_ComponentWorld;
     };
 
-    static uint32_t                           g_Bullet3DWorldTypeHash = 0;
-    static dmOpaqueHandleContainer<uintptr_t> g_Bullet3DWorldHandles;
-    static dmHashTable64<HOpaqueHandle>       g_Bullet3DWorldToHandle;
+    static uint32_t                 g_Bullet3DWorldTypeHash = 0;
+    static uint64_t                 g_NextBullet3DWorldId = 0;
+    static dmHashTable64<uintptr_t> g_Bullet3DWorlds;
+    static dmHashTable64<uint64_t>  g_Bullet3DWorldToId;
 
     struct Bullet3DQueryFilter
     {
@@ -626,11 +626,12 @@ namespace dmGameSystem
     class Bullet3DRayQueryCallback : public btCollisionWorld::RayResultCallback
     {
         public:
-        Bullet3DRayQueryCallback(const Bullet3DQueryFilter* filter, const btVector3& origin, const btVector3& target, dmArray<Bullet3DCastResult>* results)
+        Bullet3DRayQueryCallback(const Bullet3DQueryFilter* filter, const btVector3& origin, const btVector3& target, dmArray<Bullet3DCastResult>* results, bool closest)
             : m_Filter(filter)
             , m_Origin(origin)
             , m_Target(target)
             , m_Results(results)
+            , m_Closest(closest)
         {
             m_collisionFilterGroup = (short int)filter->m_CategoryBits;
             m_collisionFilterMask = (short int)filter->m_MaskBits;
@@ -645,7 +646,7 @@ namespace dmGameSystem
         {
             if (ray_result.m_hitFraction <= 0.0f)
             {
-                return 1.0f;
+                return m_closestHitFraction;
             }
             Bullet3DCastResult result;
             result.m_Object = ray_result.m_collisionObject;
@@ -655,8 +656,21 @@ namespace dmGameSystem
             result.m_ShapeIndex = GetShapeIndex(ray_result.m_localShapeInfo);
             result.m_InitialOverlap = false;
             result.m_Inside = false;
+            if (m_Closest)
+            {
+                if (m_Results->Empty())
+                {
+                    ArrayPush(m_Results, result);
+                }
+                else
+                {
+                    (*m_Results)[0] = result;
+                }
+                m_closestHitFraction = result.m_Fraction;
+                return result.m_Fraction;
+            }
             ArrayPush(m_Results, result);
-            return 1.0f;
+            return m_closestHitFraction;
         }
 
         private:
@@ -664,14 +678,16 @@ namespace dmGameSystem
         btVector3                    m_Origin;
         btVector3                    m_Target;
         dmArray<Bullet3DCastResult>* m_Results;
+        bool                         m_Closest;
     };
 
     class Bullet3DConvexQueryCallback : public btCollisionWorld::ConvexResultCallback
     {
         public:
-        Bullet3DConvexQueryCallback(const Bullet3DQueryFilter* filter, dmArray<Bullet3DCastResult>* results)
+        Bullet3DConvexQueryCallback(const Bullet3DQueryFilter* filter, dmArray<Bullet3DCastResult>* results, bool closest)
             : m_Filter(filter)
             , m_Results(results)
+            , m_Closest(closest)
         {
             m_collisionFilterGroup = (short int)filter->m_CategoryBits;
             m_collisionFilterMask = (short int)filter->m_MaskBits;
@@ -686,7 +702,7 @@ namespace dmGameSystem
         {
             if (convex_result.m_hitFraction <= 0.0f)
             {
-                return 1.0f;
+                return m_closestHitFraction;
             }
             Bullet3DCastResult result;
             result.m_Object = convex_result.m_hitCollisionObject;
@@ -696,13 +712,27 @@ namespace dmGameSystem
             result.m_ShapeIndex = GetShapeIndex(convex_result.m_localShapeInfo);
             result.m_InitialOverlap = false;
             result.m_Inside = false;
+            if (m_Closest)
+            {
+                if (m_Results->Empty())
+                {
+                    ArrayPush(m_Results, result);
+                }
+                else
+                {
+                    (*m_Results)[0] = result;
+                }
+                m_closestHitFraction = result.m_Fraction;
+                return result.m_Fraction;
+            }
             ArrayPush(m_Results, result);
-            return 1.0f;
+            return m_closestHitFraction;
         }
 
         private:
         const Bullet3DQueryFilter*   m_Filter;
         dmArray<Bullet3DCastResult>* m_Results;
+        bool                         m_Closest;
     };
 
     class Bullet3DOverlapContactCallback : public btCollisionWorld::ContactResultCallback
@@ -810,41 +840,40 @@ namespace dmGameSystem
         return (uint64_t)(uintptr_t)world;
     }
 
-    static void EnsureWorldHandleCapacity()
+    static void EnsureWorldCapacity()
     {
-        if (g_Bullet3DWorldHandles.Full())
+        if (g_Bullet3DWorlds.Full())
         {
-            g_Bullet3DWorldHandles.Allocate(16);
-            g_Bullet3DWorldToHandle.OffsetCapacity(16);
+            g_Bullet3DWorlds.OffsetCapacity(16);
+            g_Bullet3DWorldToId.OffsetCapacity(16);
         }
     }
 
-    static void ClearWorldHandles()
+    static uint64_t AllocateWorldId(lua_State* L)
     {
-        for (uint32_t i = 0; i < g_Bullet3DWorldHandles.Capacity(); ++i)
+        if (g_NextBullet3DWorldId == UINT64_MAX)
         {
-            if (g_Bullet3DWorldHandles.GetByIndex(i))
-            {
-                g_Bullet3DWorldHandles.Release(g_Bullet3DWorldHandles.IndexToHandle(i));
-            }
+            luaL_error(L, "The bullet3d world identity space is exhausted.");
+            return 0;
         }
+        return ++g_NextBullet3DWorldId;
     }
 
-    static void InvalidateWorldHandle(HOpaqueHandle handle)
+    static void InvalidateWorldId(uint64_t id)
     {
-        uintptr_t* world_ptr = g_Bullet3DWorldHandles.Get(handle);
+        uintptr_t* world_ptr = g_Bullet3DWorlds.Get(id);
         if (!world_ptr)
         {
             return;
         }
 
-        uint64_t       key = WorldPtrToKey((btDiscreteDynamicsWorld*)world_ptr);
-        HOpaqueHandle* mapped_handle = g_Bullet3DWorldToHandle.Get(key);
-        if (mapped_handle && *mapped_handle == handle)
+        uint64_t  key = WorldPtrToKey((btDiscreteDynamicsWorld*)*world_ptr);
+        uint64_t* mapped_id = g_Bullet3DWorldToId.Get(key);
+        if (mapped_id && *mapped_id == id)
         {
-            g_Bullet3DWorldToHandle.Erase(key);
+            g_Bullet3DWorldToId.Erase(key);
         }
-        g_Bullet3DWorldHandles.Release(handle);
+        g_Bullet3DWorlds.Erase(id);
     }
 
     static Bullet3DLuaWorld* CheckWorldUserdata(lua_State* L, int index)
@@ -864,7 +893,8 @@ namespace dmGameSystem
         {
             return 0;
         }
-        return (btDiscreteDynamicsWorld*)g_Bullet3DWorldHandles.Get(lua_world->m_Handle);
+        uintptr_t* world_ptr = g_Bullet3DWorlds.Get(lua_world->m_Id);
+        return world_ptr ? (btDiscreteDynamicsWorld*)*world_ptr : 0;
     }
 
     bool IsBullet3DWorldValid(lua_State* L, int index)
@@ -875,7 +905,8 @@ namespace dmGameSystem
     btDiscreteDynamicsWorld* CheckBullet3DWorld(lua_State* L, int index)
     {
         Bullet3DLuaWorld*        lua_world = CheckWorldUserdata(L, index);
-        btDiscreteDynamicsWorld* world = (btDiscreteDynamicsWorld*)g_Bullet3DWorldHandles.Get(lua_world->m_Handle);
+        uintptr_t*               world_ptr = g_Bullet3DWorlds.Get(lua_world->m_Id);
+        btDiscreteDynamicsWorld* world = world_ptr ? (btDiscreteDynamicsWorld*)*world_ptr : 0;
         if (!world)
         {
             luaL_error(L, "Invalid bullet3d world handle.");
@@ -893,27 +924,28 @@ namespace dmGameSystem
         }
 
         btDiscreteDynamicsWorld* world = (btDiscreteDynamicsWorld*)world_ptr;
-        EnsureWorldHandleCapacity();
+        EnsureWorldCapacity();
 
-        HOpaqueHandle  handle = INVALID_OPAQUE_HANDLE;
-        uint64_t       key = WorldPtrToKey(world);
-        HOpaqueHandle* existing_handle = g_Bullet3DWorldToHandle.Get(key);
-        if (existing_handle && g_Bullet3DWorldHandles.Get(*existing_handle))
+        uint64_t  id = 0;
+        uint64_t  key = WorldPtrToKey(world);
+        uint64_t* existing_id = g_Bullet3DWorldToId.Get(key);
+        if (existing_id && g_Bullet3DWorlds.Get(*existing_id))
         {
-            handle = *existing_handle;
+            id = *existing_id;
         }
         else
         {
-            if (existing_handle)
+            if (existing_id)
             {
-                g_Bullet3DWorldToHandle.Erase(key);
+                g_Bullet3DWorldToId.Erase(key);
             }
-            handle = g_Bullet3DWorldHandles.Put((uintptr_t*)world);
-            g_Bullet3DWorldToHandle.Put(key, handle);
+            id = AllocateWorldId(L);
+            g_Bullet3DWorlds.Put(id, (uintptr_t)world);
+            g_Bullet3DWorldToId.Put(key, id);
         }
 
         Bullet3DLuaWorld* lua_world = (Bullet3DLuaWorld*)lua_newuserdata(L, sizeof(Bullet3DLuaWorld));
-        lua_world->m_Handle = handle;
+        lua_world->m_Id = id;
         lua_world->m_ComponentWorld = component_world;
         luaL_getmetatable(L, BULLET3D_TYPE_NAME_WORLD);
         lua_setmetatable(L, -2);
@@ -926,10 +958,10 @@ namespace dmGameSystem
             return;
         }
 
-        HOpaqueHandle* handle = g_Bullet3DWorldToHandle.Get(WorldPtrToKey((btDiscreteDynamicsWorld*)world_ptr));
-        if (handle)
+        uint64_t* id = g_Bullet3DWorldToId.Get(WorldPtrToKey((btDiscreteDynamicsWorld*)world_ptr));
+        if (id)
         {
-            InvalidateWorldHandle(*handle);
+            InvalidateWorldId(*id);
         }
     }
 
@@ -1110,7 +1142,7 @@ namespace dmGameSystem
         world->contactTest(&query_object, callback);
     }
 
-    static void CollectInitialCastOverlaps(btDiscreteDynamicsWorld* world, btConvexShape* shape, const btTransform& transform, const Bullet3DQueryFilter* filter, bool inside, dmArray<Bullet3DCastResult>* results)
+    static void CollectInitialCastOverlaps(btDiscreteDynamicsWorld* world, btConvexShape* shape, const btTransform& transform, const Bullet3DQueryFilter* filter, bool inside, int max_results, dmArray<Bullet3DCastResult>* results)
     {
         if (!filter->m_ReportInitialOverlaps)
         {
@@ -1118,8 +1150,8 @@ namespace dmGameSystem
         }
 
         dmArray<Bullet3DQueryObjectResult> overlaps;
-        CollectShapeOverlaps(world, shape, transform, filter, 0, &overlaps);
-        for (uint32_t i = 0; i < overlaps.Size(); ++i)
+        CollectShapeOverlaps(world, shape, transform, filter, max_results, &overlaps);
+        for (uint32_t i = 0; i < overlaps.Size() && HasResultCapacity(results->Size(), max_results); ++i)
         {
             if (ContainsInitialCastObject(*results, overlaps[i].m_Object))
             {
@@ -1224,17 +1256,20 @@ namespace dmGameSystem
         dmArray<Bullet3DCastResult> results;
         btSphereShape               point_shape(0.0f);
         btTransform                 origin_transform(btQuaternion(0.0f, 0.0f, 0.0f, 1.0f), origin);
-        CollectInitialCastOverlaps(world, &point_shape, origin_transform, &filter, true, &results);
+        CollectInitialCastOverlaps(world, &point_shape, origin_transform, &filter, true, max_results, &results);
 
-        Bullet3DRayQueryCallback callback(&filter, origin, target, &results);
-        world->rayTest(origin, target, callback);
-        SortCastResults(&results);
+        if (!closest || results.Empty())
+        {
+            Bullet3DRayQueryCallback callback(&filter, origin, target, &results, closest);
+            world->rayTest(origin, target, callback);
+        }
         if (closest)
         {
             PushClosestCastResult(L, results);
         }
         else
         {
+            SortCastResults(&results);
             PushCastResults(L, results, max_results);
         }
         return 1;
@@ -1272,18 +1307,21 @@ namespace dmGameSystem
 
         SynchronizeWorldAabbs(world);
         dmArray<Bullet3DCastResult> results;
-        CollectInitialCastOverlaps(world, query_shape.m_Shape, query_shape.m_From, &filter, false, &results);
-        Bullet3DConvexQueryCallback callback(&filter, &results);
-        world->convexSweepTest(query_shape.m_Shape, query_shape.m_From, query_shape.m_To, callback);
+        CollectInitialCastOverlaps(world, query_shape.m_Shape, query_shape.m_From, &filter, false, max_results, &results);
+        if (!closest || results.Empty())
+        {
+            Bullet3DConvexQueryCallback callback(&filter, &results, closest);
+            world->convexSweepTest(query_shape.m_Shape, query_shape.m_From, query_shape.m_To, callback);
+        }
         delete query_shape.m_Shape;
 
-        SortCastResults(&results);
         if (closest)
         {
             PushClosestCastResult(L, results);
         }
         else
         {
+            SortCastResults(&results);
             PushCastResults(L, results, max_results);
         }
         return 1;
@@ -1376,7 +1414,7 @@ namespace dmGameSystem
     {
         Bullet3DLuaWorld* a = ToWorldUserdata(L, 1);
         Bullet3DLuaWorld* b = ToWorldUserdata(L, 2);
-        lua_pushboolean(L, a && b && a->m_Handle == b->m_Handle);
+        lua_pushboolean(L, a && b && a->m_Id == b->m_Id);
         return 1;
     }
 
@@ -1421,8 +1459,8 @@ namespace dmGameSystem
     void ScriptBullet3DFinalizeWorld()
     {
         g_Bullet3DWorldTypeHash = 0;
-        ClearWorldHandles();
-        g_Bullet3DWorldToHandle.Clear();
+        g_Bullet3DWorlds.Clear();
+        g_Bullet3DWorldToId.Clear();
     }
 } // namespace dmGameSystem
 

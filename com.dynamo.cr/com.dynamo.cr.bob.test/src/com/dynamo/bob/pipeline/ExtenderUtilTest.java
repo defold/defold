@@ -20,12 +20,16 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.yaml.snakeyaml.Yaml;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
@@ -106,5 +110,48 @@ public class ExtenderUtilTest {
         assertTrue(resources.containsKey("bundle1/values/strings.xml"));
         assertTrue(resources.containsKey("bundle2/values/strings.xml"));
     }
-}
 
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testLegacyBullet3DAppManifestCompatibility() throws Exception {
+        String manifestYaml =
+                "context:\n" +
+                "    excludeLibs: [LinearMath, BulletDynamics, BulletCollision]\n" +
+                "platforms:\n" +
+                "    x86_64-win32:\n" +
+                "        context:\n" +
+                "            excludeLibs: [libLinearMath, libBulletDynamics, libBulletCollision]\n" +
+                "            excludeSymbols: []\n" +
+                "    x86_64-linux:\n" +
+                "        context:\n" +
+                "            excludeLibs: [LinearMath, BulletDynamics, BulletCollision, script_bullet3d]\n" +
+                "            excludeSymbols: [ScriptBullet3DExt]\n" +
+                "    arm64-linux:\n" +
+                "        context:\n" +
+                "            excludeLibs: [LinearMath, BulletDynamics]\n" +
+                "            excludeSymbols: []\n";
+        createFile(fileSystem, "legacy.appmanifest", manifestYaml.getBytes(StandardCharsets.UTF_8));
+
+        IResource resource = project.getResource("legacy.appmanifest");
+        ExtenderUtil.FSAppManifestResource appManifest = new ExtenderUtil.FSAppManifestResource(
+                resource, tmpDir.getAbsolutePath(), "_app/app.manifest", null);
+        Map<String, Object> manifest = new Yaml().load(new String(appManifest.getContent(), StandardCharsets.UTF_8));
+
+        Map<String, Object> rootContext = (Map<String, Object>) manifest.get("context");
+        assertTrue(((List<String>) rootContext.get("excludeLibs")).contains("script_bullet3d"));
+        assertTrue(((List<String>) rootContext.get("excludeSymbols")).contains("ScriptBullet3DExt"));
+
+        Map<String, Object> platforms = (Map<String, Object>) manifest.get("platforms");
+        Map<String, Object> windowsContext = (Map<String, Object>) ((Map<String, Object>) platforms.get("x86_64-win32")).get("context");
+        assertTrue(((List<String>) windowsContext.get("excludeLibs")).contains("script_bullet3d"));
+        assertTrue(((List<String>) windowsContext.get("excludeSymbols")).contains("ScriptBullet3DExt"));
+
+        Map<String, Object> currentContext = (Map<String, Object>) ((Map<String, Object>) platforms.get("x86_64-linux")).get("context");
+        assertEquals(1, Collections.frequency((List<String>) currentContext.get("excludeLibs"), "script_bullet3d"));
+        assertEquals(1, Collections.frequency((List<String>) currentContext.get("excludeSymbols"), "ScriptBullet3DExt"));
+
+        Map<String, Object> partialContext = (Map<String, Object>) ((Map<String, Object>) platforms.get("arm64-linux")).get("context");
+        assertFalse(((List<String>) partialContext.get("excludeLibs")).contains("script_bullet3d"));
+        assertFalse(((List<String>) partialContext.get("excludeSymbols")).contains("ScriptBullet3DExt"));
+    }
+}

@@ -306,6 +306,56 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
     ASSERT_NEAR(0.3f, rigid_body->getLinearVelocity().z(), 0.0001f);
 }
 
+TEST_F(Bullet3DComponentTest, Bullet3DStaleIdentitiesDoNotRecycle)
+{
+    /* Intent: keep invalid Lua userdata invalid after more allocations than the
+    ** previous 16-bit opaque-handle generation could represent.
+    ** Expected: neither collision-object nor world userdata can revive while a
+    ** later registration of the same native pointer is live.
+    */
+    const uint32_t    previous_generation_count = 0xFFFE;
+    lua_State*        L = dmScript::GetLuaState(m_ScriptContext);
+
+    btCollisionObject collision_object;
+    dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, 0, 0);
+    lua_setglobal(L, "bullet3d_stale_collision_object");
+    dmGameSystem::ScriptBullet3DInvalidateCollisionObject(&collision_object);
+
+    bool collision_object_revived = false;
+    for (uint32_t i = 0; i < previous_generation_count; ++i)
+    {
+        dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, 0, 0);
+        lua_getglobal(L, "bullet3d_stale_collision_object");
+        collision_object_revived |= dmGameSystem::IsBullet3DCollisionObjectValid(L, -1);
+        lua_pop(L, 1);
+        dmGameSystem::ScriptBullet3DInvalidateCollisionObject(&collision_object);
+        lua_pop(L, 1);
+    }
+    ASSERT_FALSE(collision_object_revived);
+
+    int world_storage = 0;
+    dmGameSystem::PushBullet3DWorld(L, &world_storage, 0);
+    lua_setglobal(L, "bullet3d_stale_world");
+    dmGameSystem::ScriptBullet3DInvalidateWorld(&world_storage);
+
+    bool world_revived = false;
+    for (uint32_t i = 0; i < previous_generation_count; ++i)
+    {
+        dmGameSystem::PushBullet3DWorld(L, &world_storage, 0);
+        lua_getglobal(L, "bullet3d_stale_world");
+        world_revived |= dmGameSystem::IsBullet3DWorldValid(L, -1);
+        lua_pop(L, 1);
+        dmGameSystem::ScriptBullet3DInvalidateWorld(&world_storage);
+        lua_pop(L, 1);
+    }
+    ASSERT_FALSE(world_revived);
+
+    lua_pushnil(L);
+    lua_setglobal(L, "bullet3d_stale_collision_object");
+    lua_pushnil(L);
+    lua_setglobal(L, "bullet3d_stale_world");
+}
+
 TEST_F(Bullet3DComponentTest, Bullet3DCollisionObjectHandleInvalidatedOnResourceReload)
 {
     /* Intent: exercise the native collision-object invalidation callback during

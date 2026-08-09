@@ -574,9 +574,11 @@
         exclude-default (exclude-libs-toggles all-platforms ["physics"])
 
         ;; must use at least one of these when excluding default
+        exclude-3d-legacy (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
         exclude-3d (into []
                          cat
-                         [(exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision" "script_bullet3d"])
+                         [exclude-3d-legacy
+                          (exclude-libs-toggles all-platforms ["script_bullet3d"])
                           (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBullet3DExt"])])
         exclude-legacy-2d (exclude-libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"])
 
@@ -590,15 +592,26 @@
         include-legacy-2d (libs-toggles all-platforms ["physics_2d_defold"])
         include-2d-v3 (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"])
         include-3d (libs-toggles all-platforms ["physics_3d"])]
+    ;; The current signatures come first so writes include the Bullet script
+    ;; exclusions. The duplicate legacy signatures keep old manifests readable.
     (make-choice-setting
       {:2d :none :3d false}
       (concat exclude-all exclude-default exclude-3d exclude-legacy-2d exclude-all-2d)
 
+      {:2d :none :3d false}
+      (concat exclude-all exclude-default exclude-3d-legacy exclude-legacy-2d exclude-all-2d)
+
       {:2d :legacy :3d false}
       (concat exclude-default exclude-3d include-legacy-2d)
 
+      {:2d :legacy :3d false}
+      (concat exclude-default exclude-3d-legacy include-legacy-2d)
+
       {:2d :v3 :3d false}
       (concat exclude-default exclude-3d exclude-legacy-2d include-2d-v3)
+
+      {:2d :v3 :3d false}
+      (concat exclude-default exclude-3d-legacy exclude-legacy-2d include-2d-v3)
 
       {:2d :none :3d true}
       (concat exclude-default exclude-legacy-2d exclude-all-2d include-3d)

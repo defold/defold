@@ -6,7 +6,6 @@
 
 #include <stdint.h>
 
-#include <dlib/opaque_handle_container.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <gameobject/script.h>
 #include <script/script.h>
@@ -25,7 +24,7 @@ namespace dmGameSystem
 
     struct Bullet3DLuaCollisionObject
     {
-        HOpaqueHandle m_Handle;
+        uint64_t m_Id;
     };
 
     struct Bullet3DCollisionObjectMeta
@@ -36,52 +35,55 @@ namespace dmGameSystem
     };
 
     static uint32_t                                   g_Bullet3DCollisionObjectTypeHash = 0;
-    static dmOpaqueHandleContainer<uintptr_t>         g_Bullet3DCollisionObjectHandles;
-    static dmHashTable64<HOpaqueHandle>               g_Bullet3DCollisionObjectToHandle;
-    static dmHashTable32<Bullet3DCollisionObjectMeta> g_Bullet3DCollisionObjectMeta;
+    static uint64_t                                   g_NextBullet3DCollisionObjectId = 0;
+    static dmHashTable64<uintptr_t>                   g_Bullet3DCollisionObjects;
+    static dmHashTable64<uint64_t>                    g_Bullet3DCollisionObjectToId;
+    static dmHashTable64<Bullet3DCollisionObjectMeta> g_Bullet3DCollisionObjectMeta;
 
     static uint64_t                                   CollisionObjectPtrToKey(const btCollisionObject* collision_object)
     {
         return (uint64_t)(uintptr_t)collision_object;
     }
 
-    static void EnsureCollisionObjectHandleCapacity()
+    static void EnsureCollisionObjectCapacity()
     {
-        if (g_Bullet3DCollisionObjectHandles.Full())
+        if (g_Bullet3DCollisionObjects.Full())
         {
-            g_Bullet3DCollisionObjectHandles.Allocate(32);
-            g_Bullet3DCollisionObjectToHandle.OffsetCapacity(32);
+            g_Bullet3DCollisionObjects.OffsetCapacity(32);
+            g_Bullet3DCollisionObjectToId.OffsetCapacity(32);
             g_Bullet3DCollisionObjectMeta.OffsetCapacity(32);
         }
     }
 
-    static void ClearCollisionObjectHandles()
+    static uint64_t AllocateCollisionObjectId(lua_State* L)
     {
-        for (uint32_t i = 0; i < g_Bullet3DCollisionObjectHandles.Capacity(); ++i)
+        if (g_NextBullet3DCollisionObjectId == UINT64_MAX)
         {
-            if (g_Bullet3DCollisionObjectHandles.GetByIndex(i))
-            {
-                g_Bullet3DCollisionObjectHandles.Release(g_Bullet3DCollisionObjectHandles.IndexToHandle(i));
-            }
+            luaL_error(L, "The bullet3d collision object identity space is exhausted.");
+            return 0;
         }
+        return ++g_NextBullet3DCollisionObjectId;
     }
 
-    static void InvalidateCollisionObjectHandle(HOpaqueHandle handle)
+    static void InvalidateCollisionObjectId(uint64_t id)
     {
-        uintptr_t* collision_object_ptr = g_Bullet3DCollisionObjectHandles.Get(handle);
+        uintptr_t* collision_object_ptr = g_Bullet3DCollisionObjects.Get(id);
         if (!collision_object_ptr)
         {
             return;
         }
 
-        uint64_t       key = CollisionObjectPtrToKey((btCollisionObject*)collision_object_ptr);
-        HOpaqueHandle* mapped_handle = g_Bullet3DCollisionObjectToHandle.Get(key);
-        if (mapped_handle && *mapped_handle == handle)
+        uint64_t  key = CollisionObjectPtrToKey((btCollisionObject*)*collision_object_ptr);
+        uint64_t* mapped_id = g_Bullet3DCollisionObjectToId.Get(key);
+        if (mapped_id && *mapped_id == id)
         {
-            g_Bullet3DCollisionObjectToHandle.Erase(key);
+            g_Bullet3DCollisionObjectToId.Erase(key);
         }
-        g_Bullet3DCollisionObjectMeta.Erase(handle);
-        g_Bullet3DCollisionObjectHandles.Release(handle);
+        if (g_Bullet3DCollisionObjectMeta.Get(id))
+        {
+            g_Bullet3DCollisionObjectMeta.Erase(id);
+        }
+        g_Bullet3DCollisionObjects.Erase(id);
     }
 
     static Bullet3DLuaCollisionObject* CheckCollisionObjectUserdata(lua_State* L, int index)
@@ -96,8 +98,8 @@ namespace dmGameSystem
 
     static btCollisionObject* VerifyCollisionObject(lua_State* L, Bullet3DLuaCollisionObject* lua_collision_object, bool report_error, Bullet3DCollisionObjectMeta** out_meta)
     {
-        uintptr_t*                   collision_object_ptr = g_Bullet3DCollisionObjectHandles.Get(lua_collision_object->m_Handle);
-        Bullet3DCollisionObjectMeta* meta = g_Bullet3DCollisionObjectMeta.Get(lua_collision_object->m_Handle);
+        uintptr_t*                   collision_object_ptr = g_Bullet3DCollisionObjects.Get(lua_collision_object->m_Id);
+        Bullet3DCollisionObjectMeta* meta = g_Bullet3DCollisionObjectMeta.Get(lua_collision_object->m_Id);
         if (!collision_object_ptr || !meta)
         {
             if (report_error)
@@ -113,7 +115,7 @@ namespace dmGameSystem
             if (!instance || dmGameObject::GetGeneration(instance) != meta->m_InstanceGeneration)
             {
                 dmhash_t instance_id = meta->m_InstanceId;
-                InvalidateCollisionObjectHandle(lua_collision_object->m_Handle);
+                InvalidateCollisionObjectId(lua_collision_object->m_Id);
                 if (report_error)
                 {
                     luaL_error(L, "Cannot get bullet3d collision object for game object instance '%s'. Has the game object been deleted?", dmHashReverseSafe64(instance_id));
@@ -126,7 +128,7 @@ namespace dmGameSystem
         {
             *out_meta = meta;
         }
-        return (btCollisionObject*)collision_object_ptr;
+        return (btCollisionObject*)*collision_object_ptr;
     }
 
     btCollisionObject* ToBullet3DCollisionObject(lua_State* L, int index)
@@ -169,54 +171,55 @@ namespace dmGameSystem
         dmGameObject::HInstance instance = instance_id ? dmGameObject::GetInstanceFromIdentifier(collection, instance_id) : 0;
         uint32_t                instance_generation = instance ? dmGameObject::GetGeneration(instance) : 0;
 
-        EnsureCollisionObjectHandleCapacity();
+        EnsureCollisionObjectCapacity();
 
-        HOpaqueHandle  handle = INVALID_OPAQUE_HANDLE;
-        uint64_t       key = CollisionObjectPtrToKey(collision_object);
-        HOpaqueHandle* existing_handle = g_Bullet3DCollisionObjectToHandle.Get(key);
-        uintptr_t*     existing_collision_object = existing_handle ? g_Bullet3DCollisionObjectHandles.Get(*existing_handle) : 0;
+        uint64_t   id = 0;
+        uint64_t   key = CollisionObjectPtrToKey(collision_object);
+        uint64_t*  existing_id = g_Bullet3DCollisionObjectToId.Get(key);
+        uintptr_t* existing_collision_object = existing_id ? g_Bullet3DCollisionObjects.Get(*existing_id) : 0;
         if (existing_collision_object)
         {
-            Bullet3DCollisionObjectMeta* existing_meta = g_Bullet3DCollisionObjectMeta.Get(*existing_handle);
+            Bullet3DCollisionObjectMeta* existing_meta = g_Bullet3DCollisionObjectMeta.Get(*existing_id);
             dmGameObject::HInstance      existing_instance = existing_meta && existing_meta->m_InstanceId ? dmGameObject::GetInstanceFromIdentifier(existing_meta->m_Collection, existing_meta->m_InstanceId) : 0;
             if (!existing_meta || (existing_meta->m_InstanceId && (!existing_instance || dmGameObject::GetGeneration(existing_instance) != existing_meta->m_InstanceGeneration)))
             {
-                InvalidateCollisionObjectHandle(*existing_handle);
-                existing_handle = 0;
+                InvalidateCollisionObjectId(*existing_id);
+                existing_id = 0;
                 existing_collision_object = 0;
             }
         }
 
         if (existing_collision_object)
         {
-            handle = *existing_handle;
+            id = *existing_id;
         }
         else
         {
-            if (existing_handle)
+            if (existing_id)
             {
-                g_Bullet3DCollisionObjectToHandle.Erase(key);
+                g_Bullet3DCollisionObjectToId.Erase(key);
             }
-            handle = g_Bullet3DCollisionObjectHandles.Put((uintptr_t*)collision_object);
-            g_Bullet3DCollisionObjectToHandle.Put(key, handle);
+            id = AllocateCollisionObjectId(L);
+            g_Bullet3DCollisionObjects.Put(id, (uintptr_t)collision_object);
+            g_Bullet3DCollisionObjectToId.Put(key, id);
         }
 
         Bullet3DCollisionObjectMeta meta = {};
         meta.m_Collection = collection;
         meta.m_InstanceId = instance_id;
         meta.m_InstanceGeneration = instance_generation;
-        Bullet3DCollisionObjectMeta* existing_meta = g_Bullet3DCollisionObjectMeta.Get(handle);
+        Bullet3DCollisionObjectMeta* existing_meta = g_Bullet3DCollisionObjectMeta.Get(id);
         if (existing_meta)
         {
             *existing_meta = meta;
         }
         else
         {
-            g_Bullet3DCollisionObjectMeta.Put(handle, meta);
+            g_Bullet3DCollisionObjectMeta.Put(id, meta);
         }
 
         Bullet3DLuaCollisionObject* lua_collision_object = (Bullet3DLuaCollisionObject*)lua_newuserdata(L, sizeof(Bullet3DLuaCollisionObject));
-        lua_collision_object->m_Handle = handle;
+        lua_collision_object->m_Id = id;
         luaL_getmetatable(L, BULLET3D_TYPE_NAME_COLLISION_OBJECT);
         lua_setmetatable(L, -2);
     }
@@ -228,10 +231,10 @@ namespace dmGameSystem
             return;
         }
 
-        HOpaqueHandle* handle = g_Bullet3DCollisionObjectToHandle.Get(CollisionObjectPtrToKey((btCollisionObject*)collision_object_ptr));
-        if (handle)
+        uint64_t* id = g_Bullet3DCollisionObjectToId.Get(CollisionObjectPtrToKey((btCollisionObject*)collision_object_ptr));
+        if (id)
         {
-            InvalidateCollisionObjectHandle(*handle);
+            InvalidateCollisionObjectId(*id);
         }
     }
 
@@ -479,7 +482,7 @@ namespace dmGameSystem
     {
         Bullet3DLuaCollisionObject* a = ToCollisionObjectUserdata(L, 1);
         Bullet3DLuaCollisionObject* b = ToCollisionObjectUserdata(L, 2);
-        lua_pushboolean(L, a && b && a->m_Handle == b->m_Handle);
+        lua_pushboolean(L, a && b && a->m_Id == b->m_Id);
         return 1;
     }
 
@@ -571,8 +574,8 @@ namespace dmGameSystem
     void ScriptBullet3DFinalizeCollisionObject()
     {
         g_Bullet3DCollisionObjectTypeHash = 0;
-        ClearCollisionObjectHandles();
-        g_Bullet3DCollisionObjectToHandle.Clear();
+        g_Bullet3DCollisionObjects.Clear();
+        g_Bullet3DCollisionObjectToId.Clear();
         g_Bullet3DCollisionObjectMeta.Clear();
     }
 } // namespace dmGameSystem
