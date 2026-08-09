@@ -257,6 +257,7 @@ namespace dmGameSystem
         CompCollisionObjectSetBullet3DInvalidateWorldCallback(InvalidateBullet3DWorld);
         CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(InvalidateBullet3DCollisionObject);
         CompCollisionObjectSetBullet3DCollisionObjectEnabledCallback(ScriptBullet3DSetCollisionObjectEnabled);
+        CompCollisionObjectSetBullet3DProcessWorldQueriesCallback(ScriptBullet3DProcessWorldQueries);
 
         lua_pop(L, 1);
         return dmExtension::RESULT_OK;
@@ -268,6 +269,7 @@ namespace dmGameSystem
         CompCollisionObjectSetBullet3DInvalidateWorldCallback(0);
         CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(0);
         CompCollisionObjectSetBullet3DCollisionObjectEnabledCallback(0);
+        CompCollisionObjectSetBullet3DProcessWorldQueriesCallback(0);
         ScriptBullet3DFinalizeConstraint();
         ScriptBullet3DFinalizeShape();
         ScriptBullet3DFinalizeCollisionObject();

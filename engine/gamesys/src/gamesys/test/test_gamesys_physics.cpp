@@ -148,15 +148,15 @@ TEST_F(Bullet3DComponentTest, Bullet3DApiTest)
 
 TEST_F(Bullet3DComponentTest, Bullet3DWorldQueryApiTest)
 {
-    /* Intent: verify every Bullet3D synchronous world query, collision-filter
-    ** accessor, result schema and linked inside-ray/convex-sweep use case.
+    /* Intent: verify every Bullet3D world query, including deferred ray and
+    ** shape casts, collision-filter accessors, result schemas and callbacks.
     ** Setup: an isolated separated-child compound and convex hull, static unit
     ** boxes in two reciprocal filter groups, a trigger, a penetrating
     ** kinematic-box/static-box pair plus an incompatible overlapping B box,
     ** a movable box and a rotated AABB case.
-    ** Expected: overlaps, sorted/capped/closest casts, primitive and hull sweeps,
-    ** normalized contacts, enumeration, filtering, borrowed identity, scale-0.1
-    ** geometry and immediate transform queries match the exact Lua API contract.
+    ** Expected: overlaps, asynchronously delivered sorted/capped casts, primitive
+    ** and hull sweeps, normalized contacts, enumeration, filtering, borrowed
+    ** identity, scale-0.1 geometry and immediate transform queries match the API.
     */
     dmGameObject::HInstance compound = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_compound.goc", dmHashString64("/bullet3d_query_compound"), 0, Point3(-50, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, compound);

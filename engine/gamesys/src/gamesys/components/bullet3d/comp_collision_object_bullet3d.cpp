@@ -43,6 +43,7 @@ namespace dmGameSystem
     static ScriptBullet3DInvalidateWorldCallback           g_ScriptBullet3DInvalidateWorldCallback = 0x0;
     static ScriptBullet3DInvalidateCollisionObjectCallback g_ScriptBullet3DInvalidateCollisionObjectCallback = 0x0;
     static ScriptBullet3DCollisionObjectEnabledCallback    g_ScriptBullet3DCollisionObjectEnabledCallback = 0x0;
+    static ScriptBullet3DProcessWorldQueriesCallback       g_ScriptBullet3DProcessWorldQueriesCallback = 0x0;
     static int g_NumPhysicsTransformsUpdated = 0;
     static bool g_CollisionOverflowWarning   = false;
     static bool g_ContactOverflowWarning     = false;
@@ -397,6 +398,10 @@ namespace dmGameSystem
         world->m_IsStepping = 1;
         dmPhysics::StepWorld3D(world->m_World3D, *step_ctx);
         world->m_IsStepping = 0;
+        if (g_ScriptBullet3DProcessWorldQueriesCallback)
+        {
+            g_ScriptBullet3DProcessWorldQueriesCallback(dmPhysics::GetWorldContext3D(world->m_World3D));
+        }
 
         if (collision_user_data->m_Count >= physics_context->m_BaseContext.m_MaxCollisionCount && physics_context->m_BaseContext.m_MaxCollisionCount > 0)
         {
@@ -757,6 +762,11 @@ namespace dmGameSystem
     void CompCollisionObjectSetBullet3DCollisionObjectEnabledCallback(ScriptBullet3DCollisionObjectEnabledCallback callback)
     {
         g_ScriptBullet3DCollisionObjectEnabledCallback = callback;
+    }
+
+    void CompCollisionObjectSetBullet3DProcessWorldQueriesCallback(ScriptBullet3DProcessWorldQueriesCallback callback)
+    {
+        g_ScriptBullet3DProcessWorldQueriesCallback = callback;
     }
 
     // Adapter functions

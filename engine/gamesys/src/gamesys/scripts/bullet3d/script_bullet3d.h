@@ -36,6 +36,7 @@ namespace dmGameSystem
     bool                      IsBullet3DWorldValid(lua_State* L, int index);
     void                      PushBullet3DWorld(lua_State* L, void* world, void* component_world);
     void                      ScriptBullet3DInvalidateWorld(void* world);
+    void                      ScriptBullet3DProcessWorldQueries(void* world);
     void                      ScriptBullet3DInitializeWorld(lua_State* L);
     void                      ScriptBullet3DFinalizeWorld();
 
