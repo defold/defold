@@ -1075,9 +1075,13 @@ namespace dmPhysics
         }
 
         object->activate(true);
-        if (object->getBroadphaseHandle())
+        btBroadphaseProxy* proxy = object->getBroadphaseHandle();
+        if (proxy)
         {
             world->m_DynamicsWorld->updateSingleAabb(object);
+            // Compound child geometry and transforms can change without
+            // invalidating Bullet's cached child algorithms and manifolds.
+            world->m_OverlappingPairCache->getOverlappingPairCache()->cleanProxyFromPairs(proxy, world->m_Dispatcher);
         }
     }
 

@@ -1807,6 +1807,58 @@ TYPED_TEST(PhysicsTest, ReplaceShapes)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(dummy);
 }
 
+#if defined(PHYSICS_TEST_BULLET_3D)
+static int CountBulletContactPoints(dmPhysics::HWorld3D world)
+{
+    btDispatcher* dispatcher = world->m_DynamicsWorld->getDispatcher();
+    int contact_count = 0;
+    for (int i = 0; i < dispatcher->getNumManifolds(); ++i)
+    {
+        contact_count += dispatcher->getManifoldByIndexInternal(i)->getNumContacts();
+    }
+    return contact_count;
+}
+
+TYPED_TEST(PhysicsTest, RefreshCollisionShapeInvalidatesContacts)
+{
+    VisualObject object_a_visual;
+    dmPhysics::CollisionObjectData object_a_data;
+    object_a_data.m_UserData = &object_a_visual;
+    // Keep the compound AABB overlapping object B after the sphere shrinks so
+    // the existing broadphase pair must be reused with a fresh child algorithm.
+    typename TypeParam::CollisionShapeType large_sphere = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 1.2f);
+    typename TypeParam::CollisionShapeType distant_box = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(1.0f, 1.0f, 1.0f));
+    typename TypeParam::CollisionShapeType object_a_shapes[] = {large_sphere, distant_box};
+    Vector3 object_a_translations[] = {Vector3(0.0f, 0.0f, 0.0f), Vector3(10.0f, 0.0f, 0.0f)};
+    Quat object_a_rotations[] = {Quat::identity(), Quat::identity()};
+    typename TypeParam::CollisionObjectType object_a = (*TestFixture::m_Test.m_NewCollisionObjectFunc2)(TestFixture::m_World, object_a_data, object_a_shapes, object_a_translations, object_a_rotations, 2u);
+
+    VisualObject object_b_visual;
+    object_b_visual.m_Position = Point3(1.5f, 1.5f, 0.0f);
+    dmPhysics::CollisionObjectData object_b_data;
+    object_b_data.m_UserData = &object_b_visual;
+    object_b_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    object_b_data.m_Mass = 0.0f;
+    typename TypeParam::CollisionShapeType object_b_shape = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 1.0f);
+    typename TypeParam::CollisionObjectType object_b = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, object_b_data, &object_b_shape, 1u);
+
+    TestFixture::m_World->m_DynamicsWorld->performDiscreteCollisionDetection();
+    ASSERT_LT(0, CountBulletContactPoints(TestFixture::m_World));
+
+    typename TypeParam::CollisionShapeType small_sphere = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 1.0f);
+    ASSERT_TRUE(dmPhysics::ReplaceCollisionShapeAtIndex3D(object_a, 0, small_sphere));
+    dmPhysics::RefreshCollisionShape3D(TestFixture::m_World, object_a);
+    TestFixture::m_World->m_DynamicsWorld->performDiscreteCollisionDetection();
+    ASSERT_EQ(0, CountBulletContactPoints(TestFixture::m_World));
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, object_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(large_sphere);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(distant_box);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, object_b);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(object_b_shape);
+}
+#endif
+
 TYPED_TEST(PhysicsTest, UserData)
 {
     VisualObject vo_a;
