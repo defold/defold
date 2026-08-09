@@ -44,6 +44,15 @@ local function assert_quat_near(a, b, eps)
     assert_near(a.w, b.w, eps)
 end
 
+local function world_contains_object(world, object)
+    for _, item in ipairs(bullet3d.world.get_collision_objects(world)) do
+        if item.object == object then
+            return true
+        end
+    end
+    return false
+end
+
 -- Verifies every exported Bullet state/type constant has its Bullet 2.77 value.
 local function test_constants()
     local constants = {
@@ -265,6 +274,40 @@ local function test_rigid_body(world, rigid_body)
     bullet3d.rigid_body.set_angular_velocity(rigid_body, vmath.vector3())
     bullet3d.rigid_body.apply_torque_impulse(rigid_body, vmath.vector3(0, 0, 1))
     assert_vec3_near(bullet3d.rigid_body.get_angular_velocity(rigid_body), vmath.vector3(0, 0, 1.5))
+
+    bullet3d.rigid_body.set_mass_properties(rigid_body, 2, vmath.vector3(2, 4, 8))
+    assert_near(bullet3d.rigid_body.get_mass(rigid_body), 2)
+    assert_vec3_near(bullet3d.rigid_body.get_local_inertia(rigid_body), vmath.vector3(2, 4, 8))
+    assert_error(function()
+        bullet3d.rigid_body.set_mass_properties(rigid_body, 3, vmath.vector3(-1, 1, 1))
+    end)
+    assert_near(bullet3d.rigid_body.get_mass(rigid_body), 2)
+    assert_error(function()
+        bullet3d.rigid_body.set_mass(rigid_body, 0)
+    end)
+    assert_error(function()
+        bullet3d.rigid_body.set_mass(rigid_body, math.huge)
+    end)
+    assert_error(function()
+        bullet3d.rigid_body.set_mass(rigid_body, 1e-45)
+    end)
+    assert_error(function()
+        bullet3d.rigid_body.set_mass_properties(rigid_body, 3, vmath.vector3(1e-45, 1, 1))
+    end)
+    assert_near(bullet3d.rigid_body.get_mass(rigid_body), 2)
+    assert_vec3_near(bullet3d.rigid_body.get_local_inertia(rigid_body), vmath.vector3(2, 4, 8))
+    bullet3d.rigid_body.set_mass(rigid_body, 1)
+    assert_near(bullet3d.rigid_body.get_mass(rigid_body), 1)
+    local calculated_inertia = bullet3d.rigid_body.get_local_inertia(rigid_body)
+    assert(calculated_inertia.x > 0 and calculated_inertia.y > 0 and calculated_inertia.z > 0)
+end
+
+-- Verifies the retained read-only collision-filter accessors.
+local function test_collision_filter_accessors(collision_object)
+    local group = bullet3d.collision_object.get_collision_filter_group(collision_object)
+    local mask = bullet3d.collision_object.get_collision_filter_mask(collision_object)
+    assert(type(group) == "number" and group >= 0 and group <= 65535)
+    assert(type(mask) == "number" and mask >= 0 and mask <= 65535)
 end
 
 -- Verifies that an in-world body with disabled world gravity keeps its custom
@@ -300,6 +343,12 @@ local function test_static_and_kinematic(static_url, kinematic_url)
     assert(bullet3d.collision_object.get_collision_flags(static_object) == bullet3d.collision_object.CF_STATIC_OBJECT)
     assert_near(bullet3d.rigid_body.get_mass(static_body), 0)
     assert_near(bullet3d.rigid_body.get_inverse_mass(static_body), 0)
+    assert_error(function()
+        bullet3d.rigid_body.set_mass(static_body, 1)
+    end)
+    assert_error(function()
+        bullet3d.rigid_body.set_mass_properties(static_body, 1, vmath.vector3(1, 1, 1))
+    end)
     bullet3d.collision_object.force_activation_state(static_body, bullet3d.collision_object.ISLAND_SLEEPING)
     assert(not bullet3d.collision_object.is_active(static_body))
     bullet3d.rigid_body.set_linear_velocity(static_body, vmath.vector3(1, 2, 3))
@@ -315,6 +364,12 @@ local function test_static_and_kinematic(static_url, kinematic_url)
     assert(bullet3d.collision_object.get_collision_flags(kinematic_object) == bullet3d.collision_object.CF_KINEMATIC_OBJECT)
     assert_near(bullet3d.rigid_body.get_mass(kinematic_body), 0)
     assert_near(bullet3d.rigid_body.get_inverse_mass(kinematic_body), 0)
+    assert_error(function()
+        bullet3d.rigid_body.set_mass(kinematic_body, 1)
+    end)
+    assert_error(function()
+        bullet3d.rigid_body.set_mass_properties(kinematic_body, 1, vmath.vector3(1, 1, 1))
+    end)
 end
 
 -- Verifies that triggers use generic collision-object userdata backed by a ghost
@@ -384,7 +439,11 @@ function init(self)
     self.collision_object = collision_object
     self.rigid_body = rigid_body
     self.trigger = trigger
+    self.shape = bullet3d.collision_object.get_shape(collision_object, 1)
+    assert(bullet3d.shape.is_valid(self.shape))
     self.world = world
+    self.filter_stage = "wait_initial_enabled"
+    self.filter_frames = 0
     self.invalidation_frames = 0
     self.delete_requested = false
 end
@@ -392,6 +451,47 @@ end
 -- First verifies spawned-object counts and next-frame trigger transform persistence
 -- in Bullet and GO state, then verifies deletion invalidation and stale-handle errors.
 function update(self, dt)
+    if self.filter_stage == "wait_initial_enabled" then
+        self.filter_frames = self.filter_frames + 1
+        if not world_contains_object(self.world, self.collision_object) then
+            assert(self.filter_frames < 5)
+            return
+        end
+
+        test_collision_filter_accessors(self.collision_object)
+        self.original_filter_group = bullet3d.collision_object.get_collision_filter_group(self.collision_object)
+        self.original_filter_mask = bullet3d.collision_object.get_collision_filter_mask(self.collision_object)
+        msg.post("/bullet3d_rigid_body#collisionobject", "disable")
+        self.filter_stage = "wait_disabled"
+        self.filter_frames = 0
+        return
+    end
+
+    if self.filter_stage == "wait_disabled" then
+        self.filter_frames = self.filter_frames + 1
+        if world_contains_object(self.world, self.collision_object) then
+            assert(self.filter_frames < 5)
+            return
+        end
+
+        msg.post("/bullet3d_rigid_body#collisionobject", "enable")
+        self.filter_stage = "wait_enabled"
+        self.filter_frames = 0
+        return
+    end
+
+    if self.filter_stage == "wait_enabled" then
+        self.filter_frames = self.filter_frames + 1
+        if not world_contains_object(self.world, self.collision_object) then
+            assert(self.filter_frames < 5)
+            return
+        end
+
+        assert(bullet3d.collision_object.get_collision_filter_group(self.collision_object) == self.original_filter_group)
+        assert(bullet3d.collision_object.get_collision_filter_mask(self.collision_object) == self.original_filter_mask)
+        self.filter_stage = nil
+    end
+
     if not self.delete_requested then
         local count = bullet3d.world.get_collision_object_count(self.world)
         assert(count == 5)
@@ -414,7 +514,8 @@ function update(self, dt)
     local collision_object_valid = bullet3d.collision_object.is_valid(self.collision_object)
     local rigid_body_valid = bullet3d.rigid_body.is_valid(self.rigid_body)
     local trigger_valid = bullet3d.collision_object.is_valid(self.trigger)
-    if collision_object_valid or rigid_body_valid or trigger_valid then
+    local shape_valid = bullet3d.shape.is_valid(self.shape)
+    if collision_object_valid or rigid_body_valid or trigger_valid or shape_valid then
         assert(self.invalidation_frames < 10)
         return
     end
@@ -427,6 +528,9 @@ function update(self, dt)
     end)
     assert_error(function()
         bullet3d.collision_object.get_world_transform(self.trigger)
+    end)
+    assert_error(function()
+        bullet3d.shape.get_type(self.shape)
     end)
 
     tests_done = true

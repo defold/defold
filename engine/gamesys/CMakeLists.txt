@@ -377,7 +377,9 @@ set_target_properties(script_box2d_defold PROPERTIES DEFOLD_SDK_HEADERS_TARGET g
 defold_add_library(script_bullet3d STATIC
     "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d.cpp"
     "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_collision_object.cpp"
+    "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_constraint.cpp"
     "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_rigid_body.cpp"
+    "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_shape.cpp"
     "${GS_SRC_DIR}/scripts/bullet3d/script_bullet3d_world.cpp")
 target_include_directories(script_bullet3d PUBLIC
     "${GS_SRC_DIR}"

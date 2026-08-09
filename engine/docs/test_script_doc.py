@@ -176,12 +176,12 @@ foobar
  * @param param_y [type:vector|vector3|vector4|matrix4|quaternion|hash|url|node|resource|buffer] DOCY
  * @param param_z [type:constant|any] DOCZ
  * @param param_b2 [type:b2World|b2Body|b2BodyType|b2Shape|b2Chain] DOCB2
- * @param param_bullet3d [type:btDiscreteDynamicsWorld|btCollisionObject|btRigidBody] DOCBULLET3D
+ * @param param_bullet3d [type:btDiscreteDynamicsWorld|btCollisionObject|btRigidBody|btCollisionShape|btTypedConstraint] DOCBULLET3D
  */
 """
         elements = script_doc.parse_document(doc).elements
         self.assertEqual(1, len(elements))
-        self.assertEqual(['btDiscreteDynamicsWorld', 'btCollisionObject', 'btRigidBody'], elements[0].parameters[4].types)
+        self.assertEqual(['btDiscreteDynamicsWorld', 'btCollisionObject', 'btRigidBody', 'btCollisionShape', 'btTypedConstraint'], elements[0].parameters[4].types)
 
     def test_optional_parameter_lua_annotation(self):
         doc = """

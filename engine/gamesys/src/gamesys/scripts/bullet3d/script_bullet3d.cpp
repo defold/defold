@@ -222,9 +222,27 @@ namespace dmGameSystem
         { 0, 0 }
     };
 
+    static void InvalidateBullet3DWorld(void* world)
+    {
+        ScriptBullet3DInvalidateConstraintsForWorld(world);
+        ScriptBullet3DInvalidateWorld(world);
+    }
+
+    static void InvalidateBullet3DCollisionObject(void* collision_object)
+    {
+        ScriptBullet3DInvalidateConstraintsForCollisionObject(collision_object);
+        ScriptBullet3DInvalidateCollisionObject(collision_object);
+    }
+
     static dmExtension::Result ScriptBullet3DInitialize(dmExtension::Params* params)
     {
         float physics_scale = params->m_ConfigFile ? dmConfigFile::GetFloat(params->m_ConfigFile, "physics.scale", 1.0f) : 1.0f;
+        // The engine clamps this value before creating the physics context.
+        // Keep the Lua/native conversion boundary on that same effective scale.
+        if (physics_scale < dmPhysics::MIN_SCALE)
+            physics_scale = dmPhysics::MIN_SCALE;
+        if (physics_scale > dmPhysics::MAX_SCALE)
+            physics_scale = dmPhysics::MAX_SCALE;
         SetBullet3DPhysicsScale(physics_scale);
 
         lua_State* L = params->m_L;
@@ -233,9 +251,12 @@ namespace dmGameSystem
         ScriptBullet3DInitializeWorld(L);
         ScriptBullet3DInitializeCollisionObject(L);
         ScriptBullet3DInitializeRigidBody(L);
+        ScriptBullet3DInitializeShape(L);
+        ScriptBullet3DInitializeConstraint(L);
 
-        CompCollisionObjectSetBullet3DInvalidateWorldCallback(ScriptBullet3DInvalidateWorld);
-        CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(ScriptBullet3DInvalidateCollisionObject);
+        CompCollisionObjectSetBullet3DInvalidateWorldCallback(InvalidateBullet3DWorld);
+        CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(InvalidateBullet3DCollisionObject);
+        CompCollisionObjectSetBullet3DCollisionObjectEnabledCallback(ScriptBullet3DSetCollisionObjectEnabled);
 
         lua_pop(L, 1);
         return dmExtension::RESULT_OK;
@@ -246,6 +267,9 @@ namespace dmGameSystem
         (void)params;
         CompCollisionObjectSetBullet3DInvalidateWorldCallback(0);
         CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(0);
+        CompCollisionObjectSetBullet3DCollisionObjectEnabledCallback(0);
+        ScriptBullet3DFinalizeConstraint();
+        ScriptBullet3DFinalizeShape();
         ScriptBullet3DFinalizeCollisionObject();
         ScriptBullet3DFinalizeWorld();
         return dmExtension::RESULT_OK;
@@ -261,8 +285,14 @@ namespace dmGameSystem
  * The backend name refers to three-dimensional physics; this Defold version
  * bundles Bullet 2.77, reported by `bullet3d.get_version()`.
  *
- * All userdata returned by this API are borrowed handles to Defold-owned
- * objects. A collision-object or rigid-body handle becomes invalid when its
+ * World, collision-object and rigid-body userdata are borrowed handles to
+ * Defold-owned objects. Shape userdata are borrowed logical child-slot handles
+ * attached to a collision object. Constraint userdata identify auxiliary native
+ * objects owned by this Lua API; destroy them explicitly when no longer needed.
+ * They are also destroyed automatically when a required body or world is
+ * destroyed.
+ *
+ * A collision-object, rigid-body or shape handle becomes invalid when its
  * collision object is deleted or reloaded. A world handle remains valid across
  * collision-object reloads, but becomes invalid when its collection and physics
  * world are destroyed. The corresponding `is_valid()` function is safe for

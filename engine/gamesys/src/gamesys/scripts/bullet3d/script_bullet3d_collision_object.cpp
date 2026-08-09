@@ -153,6 +153,42 @@ namespace dmGameSystem
         return VerifyCollisionObjectInternal(L, CheckCollisionObjectInternal(L, index), true, 0);
     }
 
+    uint64_t CheckBullet3DCollisionObjectId(lua_State* L, int index)
+    {
+        Bullet3DLuaCollisionObject* collision_object = CheckCollisionObjectInternal(L, index);
+        VerifyCollisionObjectInternal(L, collision_object, true, 0);
+        return collision_object->m_Id;
+    }
+
+    btCollisionObject* ToBullet3DCollisionObjectById(lua_State* L, uint64_t id)
+    {
+        Bullet3DLuaCollisionObject collision_object = { id };
+        return VerifyCollisionObjectInternal(L, &collision_object, false, 0);
+    }
+
+    dmGameObject::HCollection GetBullet3DCollisionObjectCollectionById(lua_State* L, uint64_t id)
+    {
+        Bullet3DLuaCollisionObject collision_object = { id };
+        Bullet3DCollisionObjectMeta* meta = 0;
+        VerifyCollisionObjectInternal(L, &collision_object, true, &meta);
+        return meta ? meta->m_Collection : 0;
+    }
+
+    void PushBullet3DCollisionObjectById(lua_State* L, uint64_t id)
+    {
+        Bullet3DLuaCollisionObject collision_object = { id };
+        if (!VerifyCollisionObjectInternal(L, &collision_object, false, 0))
+        {
+            lua_pushnil(L);
+            return;
+        }
+
+        Bullet3DLuaCollisionObject* lua_collision_object = (Bullet3DLuaCollisionObject*)lua_newuserdata(L, sizeof(Bullet3DLuaCollisionObject));
+        lua_collision_object->m_Id = id;
+        luaL_getmetatable(L, BULLET3D_TYPE_NAME_COLLISION_OBJECT);
+        lua_setmetatable(L, -2);
+    }
+
     static btCollisionObject* CheckCollisionObjectWithMeta(lua_State* L, int index, Bullet3DCollisionObjectMeta** out_meta)
     {
         return VerifyCollisionObjectInternal(L, CheckCollisionObjectInternal(L, index), true, out_meta);
@@ -601,7 +637,8 @@ namespace dmGameSystem
  *
  * Functions shared by rigid bodies and trigger ghost objects. Defold keeps
  * ownership of each object's user pointer, motion state, collision shape, and
- * world membership; those properties are intentionally not exposed here.
+ * world membership. Logical child shapes are inspected and mutated through
+ * `bullet3d.shape`; ownership is not transferred to Lua.
  *
  * Positions, distances, and CCD thresholds use Defold units. Rotations,
  * coefficients, flags, activation state, and time values use Bullet values.

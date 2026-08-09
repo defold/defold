@@ -3,6 +3,7 @@
 /collision_object/box2d_shape_test.go
 /collision_object/box2d_world_test.go
 /collision_object/bullet3d_kinematic.go
+/collision_object/bullet3d_constraint_test.go
 /collision_object/bullet3d_lifetime_test.go
 /collision_object/bullet3d_query_compound.go
 /collision_object/bullet3d_query_filtered.go

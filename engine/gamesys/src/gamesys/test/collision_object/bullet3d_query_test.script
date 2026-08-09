@@ -106,6 +106,90 @@ local function test_collision_filter_accessors(objects)
     assert(bullet3d.collision_object.get_collision_filter_group(objects.contact_a) == objects.group_a)
     assert(bullet3d.collision_object.get_collision_filter_group(objects.contact_filtered) == objects.group_b)
     assert(bullet3d.collision_object.get_collision_filter_mask(objects.contact_filtered) == objects.group_b)
+
+end
+
+-- Verifies persistent logical shape handles, copy-on-write mutation and
+-- immediate broadphase refresh for primitive, compound and hull shapes.
+local function test_shape_api(objects)
+    assert(bullet3d.collision_object.get_shape_count(objects.near) == 1)
+    local box = bullet3d.collision_object.get_shape(objects.near, 1)
+    local box_again = bullet3d.collision_object.get_shapes(objects.near)[1]
+    assert(box == box_again)
+    assert(bullet3d.shape.is_valid(box))
+    assert(string.find(tostring(box), "Bullet3D.bullet3d_shape", 1, true))
+    assert(bullet3d.shape.get_collision_object(box) == objects.near)
+    assert(bullet3d.shape.get_index(box) == 1)
+    assert(bullet3d.shape.get_type(box) == bullet3d.shape.TYPE_BOX)
+    local box_data = bullet3d.shape.get_shape_data(box)
+    assert(box_data.type == bullet3d.shape.TYPE_BOX)
+    assert_vec3_near(box_data.dimensions, vmath.vector3(2, 2, 2))
+
+    local far_box = bullet3d.collision_object.get_shape(objects.far, 1)
+    bullet3d.shape.set_shape_data(box, {
+        type = bullet3d.shape.TYPE_BOX,
+        dimensions = vmath.vector3(4, 2, 2),
+    })
+    assert(box == bullet3d.collision_object.get_shape(objects.near, 1))
+    assert_vec3_near(bullet3d.shape.get_shape_data(box).dimensions, vmath.vector3(4, 2, 2))
+    assert_vec3_near(bullet3d.shape.get_shape_data(far_box).dimensions, vmath.vector3(2, 2, 2))
+    local expanded_aabb = bullet3d.rigid_body.get_aabb(objects.near)
+    assert_near(expanded_aabb.lower.x, -2)
+    assert_near(expanded_aabb.upper.x, 2)
+    bullet3d.shape.set_shape_data(box, {
+        type = bullet3d.shape.TYPE_BOX,
+        dimensions = vmath.vector3(2, 2, 2),
+    })
+    assert_vec3_near(bullet3d.shape.get_shape_data(box).dimensions, vmath.vector3(2, 2, 2))
+    assert_error(function()
+        bullet3d.shape.set_shape_data(box, {
+            type = bullet3d.shape.TYPE_BOX,
+            dimensions = vmath.vector3(0, 1, 1),
+        })
+    end)
+    assert_error(function()
+        bullet3d.shape.set_shape_data(box, {
+            type = bullet3d.shape.TYPE_HULL,
+            vertices = {},
+        })
+    end)
+
+    local compound_shapes = bullet3d.collision_object.get_shapes(objects.compound)
+    assert(#compound_shapes == 2)
+    local child_position, child_rotation = bullet3d.shape.get_local_transform(compound_shapes[2])
+    assert_vec3_near(child_position, vmath.vector3(4, 0, 0))
+    bullet3d.shape.set_local_transform(compound_shapes[2], vmath.vector3(5, 1, 0), vmath.quat_rotation_z(0.2))
+    local moved_position, moved_rotation = bullet3d.shape.get_local_transform(compound_shapes[2])
+    assert_vec3_near(moved_position, vmath.vector3(5, 1, 0))
+    bullet3d.shape.set_local_transform(compound_shapes[2], child_position, child_rotation)
+
+    local hull = bullet3d.collision_object.get_shape(objects.hull, 1)
+    assert(bullet3d.shape.get_type(hull) == bullet3d.shape.TYPE_HULL)
+    local hull_data = bullet3d.shape.get_shape_data(hull)
+    assert(hull_data.type == bullet3d.shape.TYPE_HULL)
+    local original_vertices = hull_data.vertices
+    assert(#original_vertices >= 4)
+    local changed_vertices = {}
+    for index, vertex in ipairs(original_vertices) do
+        changed_vertices[index] = vmath.vector3(vertex.x, vertex.y, vertex.z)
+    end
+    changed_vertices[1].x = changed_vertices[1].x + 0.25
+    bullet3d.shape.set_shape_data(hull, {
+        type = bullet3d.shape.TYPE_HULL,
+        vertices = changed_vertices,
+    })
+    assert_near(bullet3d.shape.get_shape_data(hull).vertices[1].x, changed_vertices[1].x)
+    assert(hull == bullet3d.collision_object.get_shape(objects.hull, 1))
+    bullet3d.shape.set_shape_data(hull, {
+        type = bullet3d.shape.TYPE_HULL,
+        vertices = original_vertices,
+    })
+    assert_error(function()
+        bullet3d.shape.set_shape_data(hull, {
+            type = bullet3d.shape.TYPE_HULL,
+            vertices = { vmath.vector3(), vmath.vector3(), vmath.vector3() },
+        })
+    end)
 end
 
 -- Verifies complete and capped world enumeration returns each fixture as its canonical borrowed handle without duplicates.
@@ -1031,6 +1115,7 @@ function update(self, dt)
     end
 
     test_collision_filter_accessors(objects)
+    test_shape_api(objects)
     test_collision_object_enumeration(world, objects)
     test_overlap_queries(world, objects)
     test_ray_queries(world, objects)

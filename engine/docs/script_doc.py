@@ -423,7 +423,7 @@ LUA_TYPES = [
     "vector", "vector3", "vector4", "matrix4", "quaternion", "hash", "url", "node",
     "constant", "resource", "buffer", "any", "file",
     "b2World", "b2Body", "b2BodyType", "b2Shape", "b2Chain", "b2ContactEdge", "b2Transform", "b2MassData",
-    "btDiscreteDynamicsWorld", "btCollisionObject", "btRigidBody", "bufferstream" ]
+    "btDiscreteDynamicsWorld", "btCollisionObject", "btRigidBody", "btCollisionShape", "btTypedConstraint", "bufferstream" ]
 CPP_TYPES = [
     "string", "float", "double", "long", "int", "bool", "char", "void",
     "int8_t", "uint8_t", "int16_t", "uint16_t", "int32_atomic_t", "int32_t", "uint32_t", "int64_t", "uint64_t",

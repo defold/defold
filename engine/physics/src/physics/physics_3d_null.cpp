@@ -254,6 +254,20 @@ namespace dmPhysics
     {
     }
 
+    bool ReplaceCollisionShapeAtIndex3D(HCollisionObject3D object, uint32_t index, HCollisionShape3D new_shape)
+    {
+        return false;
+    }
+
+    bool MakeCollisionShapeOwned3D(HCollisionObject3D object, uint32_t index, HCollisionShape3D* out_shape)
+    {
+        return false;
+    }
+
+    void RefreshCollisionShape3D(HWorld3D world, HCollisionObject3D object)
+    {
+    }
+
     HCollisionShape3D GetCollisionShape3D(HCollisionObject3D collision_object, uint32_t index)
     {
         return 0;

@@ -23,6 +23,16 @@ local function assert_error(func)
     assert(not ok)
 end
 
+local function world_contains_object(world, object)
+    for _, item in ipairs(bullet3d.world.get_collision_objects(world)) do
+        local candidate = type(item) == "userdata" and item or item.object
+        if candidate == object then
+            return true
+        end
+    end
+    return false
+end
+
 -- Captures live world and body userdata before C++ reloads the collision resource
 -- or destroys the collection, allowing those exact handles to be checked afterwards.
 function init(self)
@@ -45,6 +55,32 @@ function update(self, dt)
         return
     end
 
+    if self.reload_stage == "wait_disabled" then
+        self.reload_frames = self.reload_frames + 1
+        if world_contains_object(bullet3d_lifetime_world, self.fresh_body) then
+            assert(self.reload_frames < 5)
+            return
+        end
+        assert(bullet3d.rigid_body.is_valid(self.fresh_body))
+        assert(bullet3d.get_rigid_body("#collisionobject") == self.fresh_body)
+        msg.post("#collisionobject", "enable")
+        self.reload_frames = 0
+        self.reload_stage = "wait_enabled"
+        return
+    end
+
+    if self.reload_stage == "wait_enabled" then
+        self.reload_frames = self.reload_frames + 1
+        if not world_contains_object(bullet3d_lifetime_world, self.fresh_body) then
+            assert(self.reload_frames < 5)
+            return
+        end
+        assert(bullet3d.rigid_body.is_valid(self.fresh_body))
+        assert(bullet3d.get_rigid_body("#collisionobject") == self.fresh_body)
+        tests_done = true
+        return
+    end
+
     assert(bullet3d.world.is_valid(bullet3d_lifetime_world))
     assert(bullet3d.get_world() == bullet3d_lifetime_world)
     assert(not bullet3d.collision_object.is_valid(bullet3d_lifetime_body))
@@ -59,6 +95,10 @@ function update(self, dt)
     assert(bullet3d.collision_object.is_valid(fresh_body))
     assert(bullet3d.rigid_body.is_valid(fresh_body))
     assert(bullet3d.rigid_body.get_world(fresh_body) == bullet3d_lifetime_world)
+    assert(world_contains_object(bullet3d_lifetime_world, fresh_body))
 
-    tests_done = true
+    self.fresh_body = fresh_body
+    self.reload_frames = 0
+    self.reload_stage = "wait_disabled"
+    msg.post("#collisionobject", "disable")
 end

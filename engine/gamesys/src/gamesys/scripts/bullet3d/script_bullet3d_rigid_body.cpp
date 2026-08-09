@@ -4,6 +4,8 @@
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 
+#include <math.h>
+
 #include <gameobject/gameobject.h>
 #include <script/script.h>
 
@@ -71,6 +73,125 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         lua_pushnumber(L, CheckBullet3DRigidBody(L, 1)->getInvMass());
         return 1;
+    }
+
+    static btScalar CheckPositiveMass(lua_State* L, int index)
+    {
+        btScalar mass = (btScalar)luaL_checknumber(L, index);
+        if (!isfinite((double)mass) || !(mass > btScalar(0.0)))
+        {
+            luaL_error(L, "mass must be finite, greater than zero, and have a finite native inverse.");
+            return btScalar(0.0);
+        }
+        btScalar inverse_mass = btScalar(1.0) / mass;
+        if (!isfinite((double)inverse_mass))
+        {
+            luaL_error(L, "mass must be finite, greater than zero, and have a finite native inverse.");
+            return btScalar(0.0);
+        }
+        return mass;
+    }
+
+    static void CheckLocalInertiaValue(lua_State* L, const btVector3& inertia)
+    {
+        if (!isfinite((double)inertia.getX()) || !isfinite((double)inertia.getY()) || !isfinite((double)inertia.getZ()) ||
+            inertia.getX() < btScalar(0.0) || inertia.getY() < btScalar(0.0) || inertia.getZ() < btScalar(0.0) ||
+            (inertia.getX() != btScalar(0.0) && !isfinite((double)(btScalar(1.0) / inertia.getX()))) ||
+            (inertia.getY() != btScalar(0.0) && !isfinite((double)(btScalar(1.0) / inertia.getY()))) ||
+            (inertia.getZ() != btScalar(0.0) && !isfinite((double)(btScalar(1.0) / inertia.getZ()))))
+        {
+            luaL_error(L, "local_inertia components must be finite, non-negative, and have finite native inverses when nonzero.");
+        }
+    }
+
+    static btVector3 CheckLocalInertia(lua_State* L, int index)
+    {
+        float     scale = GetBullet3DPhysicsScale();
+        btVector3 unscaled_inertia = CheckBullet3DVector3(L, index, 1.0f);
+        btVector3 inertia = unscaled_inertia * (scale * scale);
+        if ((unscaled_inertia.getX() != btScalar(0.0) && inertia.getX() == btScalar(0.0)) ||
+            (unscaled_inertia.getY() != btScalar(0.0) && inertia.getY() == btScalar(0.0)) ||
+            (unscaled_inertia.getZ() != btScalar(0.0) && inertia.getZ() == btScalar(0.0)))
+        {
+            luaL_error(L, "local_inertia components must be finite, non-negative, and have finite native inverses when nonzero.");
+        }
+        CheckLocalInertiaValue(L, inertia);
+        return inertia;
+    }
+
+    static btRigidBody* CheckDynamicRigidBody(lua_State* L, int index)
+    {
+        btRigidBody* rigid_body = CheckBullet3DRigidBody(L, index);
+        if (rigid_body->isStaticOrKinematicObject())
+        {
+            luaL_error(L, "Mass properties can only be changed on a dynamic rigid body.");
+            return 0;
+        }
+        return rigid_body;
+    }
+
+    static void CheckMassMutationAllowed(lua_State* L, int index)
+    {
+        dmGameObject::HCollection collection = GetBullet3DCollisionObjectCollection(L, index);
+        if (!collection)
+        {
+            luaL_error(L, "The bullet3d rigid body is not owned by a Defold collection.");
+            return;
+        }
+        uint32_t                      component_type_index = dmGameObject::GetComponentTypeIndex(collection, COLLISION_OBJECT_EXT_HASH);
+        dmGameObject::HComponentWorld component_world = dmGameObject::GetWorld(collection, component_type_index);
+        if (!component_world)
+        {
+            luaL_error(L, "The bullet3d rigid body's world no longer exists.");
+            return;
+        }
+        if (CompCollisionObjectIsBullet3DWorldLocked(component_world))
+        {
+            luaL_error(L, "Cannot change mass properties while the bullet3d world is stepping.");
+        }
+    }
+
+    static void SetMassProperties(btRigidBody* rigid_body, btScalar mass, const btVector3& local_inertia)
+    {
+        rigid_body->setMassProps(mass, local_inertia);
+        rigid_body->updateInertiaTensor();
+        rigid_body->activate(true);
+    }
+
+    static int RigidBody_GetLocalInertia(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        const btVector3& inverse_inertia = CheckBullet3DRigidBody(L, 1)->getInvInertiaDiagLocal();
+        btVector3        local_inertia(inverse_inertia.getX() == btScalar(0.0) ? btScalar(0.0) : btScalar(1.0) / inverse_inertia.getX(),
+                                inverse_inertia.getY() == btScalar(0.0) ? btScalar(0.0) : btScalar(1.0) / inverse_inertia.getY(),
+                                inverse_inertia.getZ() == btScalar(0.0) ? btScalar(0.0) : btScalar(1.0) / inverse_inertia.getZ());
+        float inv_scale = GetBullet3DInvPhysicsScale();
+        PushBullet3DVector3(L, local_inertia, inv_scale * inv_scale);
+        return 1;
+    }
+
+    static int RigidBody_SetMass(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        btRigidBody* rigid_body = CheckDynamicRigidBody(L, 1);
+        btScalar     mass = CheckPositiveMass(L, 2);
+        CheckMassMutationAllowed(L, 1);
+        btVector3 local_inertia(0.0f, 0.0f, 0.0f);
+        rigid_body->getCollisionShape()->calculateLocalInertia(mass, local_inertia);
+        CheckLocalInertiaValue(L, local_inertia);
+        SetMassProperties(rigid_body, mass, local_inertia);
+        return 0;
+    }
+
+    static int RigidBody_SetMassProperties(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        btRigidBody* rigid_body = CheckDynamicRigidBody(L, 1);
+        btScalar     mass = CheckPositiveMass(L, 2);
+        btVector3    local_inertia = CheckLocalInertia(L, 3);
+        CheckMassMutationAllowed(L, 1);
+        SetMassProperties(rigid_body, mass, local_inertia);
+        return 0;
     }
 
     static int RigidBody_GetLinearVelocity(lua_State* L)
@@ -363,6 +484,9 @@ namespace dmGameSystem
 
         { "get_mass", RigidBody_GetMass },
         { "get_inverse_mass", RigidBody_GetInverseMass },
+        { "set_mass", RigidBody_SetMass },
+        { "get_local_inertia", RigidBody_GetLocalInertia },
+        { "set_mass_properties", RigidBody_SetMassProperties },
 
         { "get_linear_velocity", RigidBody_GetLinearVelocity },
         { "set_linear_velocity", RigidBody_SetLinearVelocity },
@@ -429,8 +553,11 @@ namespace dmGameSystem
  *
  * Rigid body functions accept the collision object userdata returned by
  * `bullet3d.get_rigid_body()`. Passing a trigger ghost object raises an error.
- * Defold retains ownership of mass properties, collision shape, motion state,
- * world membership, and the native user pointer.
+ * Defold retains ownership of the collision shape, motion state, world
+ * membership, and native user pointer. The shape's logical children can be
+ * mutated through `bullet3d.shape`; shared resource shapes become per-instance
+ * copies on first mutation. Mass and local inertia can be changed for dynamic
+ * bodies without changing their Defold collision-object type.
  *
  * Linear quantities use Defold units. Angular velocity, damping, and factors
  * are unscaled. Torque and angular impulse use squared physics scale because
@@ -474,6 +601,42 @@ namespace dmGameSystem
  * @name bullet3d.rigid_body.get_inverse_mass
  * @param body [type:btRigidBody] rigid body
  * @return inverse_mass [type:number] inverse mass
+ */
+
+/*# Set mass and calculate local inertia
+ *
+ * Recalculates local inertia from the body's current collision shape. Only a
+ * dynamic body can be changed; zero mass cannot be used to convert it into a
+ * static body. Values too small to have a finite native inverse are rejected.
+ * The body is activated after the update.
+ *
+ * @name bullet3d.rigid_body.set_mass
+ * @param body [type:btRigidBody] dynamic rigid body
+ * @param mass [type:number] finite mass greater than zero
+ */
+
+/*# Get local inertia
+ *
+ * Returns the diagonal local inertia in Defold mass-times-distance-squared
+ * units. A zero component denotes an axis with zero inverse inertia.
+ *
+ * @name bullet3d.rigid_body.get_local_inertia
+ * @param body [type:btRigidBody] rigid body
+ * @return inertia [type:vector3] diagonal local inertia
+ */
+
+/*# Set explicit mass properties
+ *
+ * Sets mass and diagonal local inertia together, updates the world-space
+ * inertia tensor, and activates the body. Only dynamic bodies are accepted.
+ * A zero inertia component is allowed and disables angular response on that
+ * local axis; negative, non-finite, or nonzero values too small to have a
+ * finite native inverse are rejected.
+ *
+ * @name bullet3d.rigid_body.set_mass_properties
+ * @param body [type:btRigidBody] dynamic rigid body
+ * @param mass [type:number] finite mass greater than zero
+ * @param local_inertia [type:vector3] finite non-negative diagonal local inertia in Defold units
  */
 
 /*# Get linear velocity

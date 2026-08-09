@@ -194,6 +194,23 @@ TEST_F(Bullet3DComponentTest, Bullet3DWorldQueryApiTest)
     RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext, "/collision_object/bullet3d_query_test.goc", "/bullet3d_query_test");
 }
 
+TEST_F(Bullet3DComponentTest, Bullet3DConstraintApiTest)
+{
+    /* Intent: verify every owned constraint type and its body/world lifetime.
+    ** Setup: two awake dynamic bodies in zero gravity are linked one constraint
+    ** at a time, then retained through body disable, re-enable and deletion.
+    ** Expected: all creators expose stable identity/enumeration and common state,
+    ** a point constraint changes separation, enabled state controls world membership,
+    ** and explicit or cascaded destruction invalidates stale handles.
+    */
+    dmGameObject::HInstance body_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_constraint_a"), 0, Point3(-5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body_a);
+    dmGameObject::HInstance body_b = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_constraint_b"), 0, Point3(5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, body_b);
+
+    RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext, "/collision_object/bullet3d_constraint_test.goc", "/bullet3d_constraint_test");
+}
+
 TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
 {
     /* Intent: verify scale-sensitive Lua inputs at the native Bullet boundary.
@@ -228,7 +245,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
                                         "bullet3d.collision_object.set_ccd_swept_sphere_radius(body, 0.5)\n"
                                         "bullet3d.rigid_body.set_linear_velocity(body, vmath.vector3(1, 2, 3))\n"
                                         "bullet3d.rigid_body.set_gravity(body, vmath.vector3(3, -4, 5))\n"
-                                        "bullet3d.rigid_body.set_sleeping_thresholds(body, 2.5, 0.75)"));
+                                        "bullet3d.rigid_body.set_sleeping_thresholds(body, 2.5, 0.75)\n"
+                                        "bullet3d.rigid_body.set_mass_properties(body, 2, vmath.vector3(2, 4, 8))"));
 
     const btVector3& origin = collision_object->getWorldTransform().getOrigin();
     ASSERT_NEAR(0.7f, origin.x(), 0.0001f);
@@ -245,6 +263,9 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
     ASSERT_NEAR(0.5f, rigid_body->getGravity().z(), 0.0001f);
     ASSERT_NEAR(0.25f, rigid_body->getLinearSleepingThreshold(), 0.0001f);
     ASSERT_NEAR(0.75f, rigid_body->getAngularSleepingThreshold(), 0.0001f);
+    ASSERT_NEAR(0.02f, rigid_body->getInvInertiaDiagLocal().x() == 0.0f ? 0.0f : 1.0f / rigid_body->getInvInertiaDiagLocal().x(), 0.0001f);
+    ASSERT_NEAR(0.04f, rigid_body->getInvInertiaDiagLocal().y() == 0.0f ? 0.0f : 1.0f / rigid_body->getInvInertiaDiagLocal().y(), 0.0001f);
+    ASSERT_NEAR(0.08f, rigid_body->getInvInertiaDiagLocal().z() == 0.0f ? 0.0f : 1.0f / rigid_body->getInvInertiaDiagLocal().z(), 0.0001f);
 
     ASSERT_TRUE(dmScriptTest::RunString(L,
                                         "local body = bullet3d_native_scale_body\n"
@@ -252,7 +273,7 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
                                         "bullet3d.rigid_body.clear_forces(body)\n"
                                         "bullet3d.rigid_body.apply_force(body, vmath.vector3(0, 2, 0), vmath.vector3(3, 0, 0))\n"
                                         "bullet3d.rigid_body.apply_torque(body, vmath.vector3(0, 0, 4))\n"
-                                        "bullet3d.rigid_body.apply_central_impulse(body, vmath.vector3(1, 2, 3))"));
+                                        "bullet3d.rigid_body.apply_central_impulse(body, vmath.vector3(2, 4, 6))"));
 
     ASSERT_NEAR(0.0f, rigid_body->getTotalForce().x(), 0.0001f);
     ASSERT_NEAR(0.2f, rigid_body->getTotalForce().y(), 0.0001f);
@@ -323,7 +344,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DCollisionObjectHandleInvalidatedOnResource
     ** only the collision-object resource and verifies that the owning GO generation
     ** does not change.
     ** Expected: the old body handle becomes invalid and rejects access, the world
-    ** remains valid, and a fresh body lookup returns a distinct valid handle.
+    ** remains valid, and a fresh body lookup returns a distinct valid handle whose
+    ** post-reload disable/re-enable callbacks remove and restore world membership.
     */
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_lifetime_test.goc", dmHashString64("/bullet3d_lifetime_reload"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
@@ -343,12 +365,17 @@ TEST_F(Bullet3DComponentTest, Bullet3DCollisionObjectHandleInvalidatedOnResource
 
     lua_pushboolean(L, 1);
     lua_setglobal(L, "bullet3d_lifetime_reload_complete");
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-
-    lua_getglobal(L, "tests_done");
-    ASSERT_TRUE(lua_toboolean(L, -1));
-    lua_pop(L, 1);
+    bool tests_done = false;
+    uint32_t update_count = 0;
+    while (!tests_done && update_count++ < 10)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        lua_getglobal(L, "tests_done");
+        tests_done = lua_toboolean(L, -1);
+        lua_pop(L, 1);
+    }
+    ASSERT_TRUE(tests_done);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }

@@ -1,0 +1,403 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+
+tests_done = false
+
+local BODY_A_URL = "/bullet3d_constraint_a#collisionobject"
+local BODY_B_URL = "/bullet3d_constraint_b#collisionobject"
+
+local function assert_error(callback)
+    assert(not pcall(callback))
+end
+
+local function assert_near(actual, expected, epsilon)
+    assert(math.abs(actual - expected) < (epsilon or 0.001))
+end
+
+local function assert_vec3_near(actual, expected, epsilon)
+    assert_near(actual.x, expected.x, epsilon)
+    assert_near(actual.y, expected.y, epsilon)
+    assert_near(actual.z, expected.z, epsilon)
+end
+
+local function assert_quat_near(actual, expected, epsilon)
+    assert_near(actual.x, expected.x, epsilon)
+    assert_near(actual.y, expected.y, epsilon)
+    assert_near(actual.z, expected.z, epsilon)
+    assert_near(actual.w, expected.w, epsilon)
+end
+
+local function assert_finite(value)
+    assert(value == value)
+    assert(value ~= math.huge)
+    assert(value ~= -math.huge)
+end
+
+local function frame_params(extra)
+    local params = {
+        frame_a_position = vmath.vector3(),
+        frame_a_rotation = vmath.quat(),
+        frame_b_position = vmath.vector3(),
+        frame_b_rotation = vmath.quat(),
+    }
+    if extra then
+        for key, value in pairs(extra) do
+            params[key] = value
+        end
+    end
+    return params
+end
+
+local function verify_constraint(world, body_a, body_b, constraint, expected_type, exercise)
+    assert(bullet3d.constraint.is_valid(constraint))
+    assert(bullet3d.constraint.is_active(constraint))
+    assert(string.find(tostring(constraint), "Bullet3D.bullet3d_constraint", 1, true))
+    assert(bullet3d.constraint.get_type(constraint) == expected_type)
+    assert(bullet3d.constraint.get_world(constraint) == world)
+    assert(bullet3d.constraint.get_body_a(constraint) == body_a)
+    assert(bullet3d.constraint.get_body_b(constraint) == body_b)
+    assert(not bullet3d.constraint.get_collide_connected(constraint))
+
+    if exercise then
+        exercise(constraint)
+    end
+
+    bullet3d.constraint.destroy(constraint)
+    assert(not bullet3d.constraint.is_valid(constraint))
+    assert_error(function()
+        bullet3d.constraint.get_type(constraint)
+    end)
+end
+
+local function exercise_frames(constraint, mutable)
+    local position_a, rotation_a = bullet3d.constraint.get_frame_a(constraint)
+    local position_b, rotation_b = bullet3d.constraint.get_frame_b(constraint)
+    assert(type(position_a) == "userdata" and type(rotation_a) == "userdata")
+    assert(type(position_b) == "userdata" and type(rotation_b) == "userdata")
+    if mutable then
+        bullet3d.constraint.set_frame_a(constraint, vmath.vector3(0.25, 0, 0), vmath.quat_rotation_x(0.1))
+        bullet3d.constraint.set_frame_b(constraint, vmath.vector3(-0.25, 0, 0), vmath.quat_rotation_y(0.1))
+        position_a = bullet3d.constraint.get_frame_a(constraint)
+        position_b = bullet3d.constraint.get_frame_b(constraint)
+        assert_vec3_near(position_a, vmath.vector3(0.25, 0, 0))
+        assert_vec3_near(position_b, vmath.vector3(-0.25, 0, 0))
+    end
+end
+
+local function exercise_point_to_point(constraint)
+    local pivot_a, pivot_b = bullet3d.constraint.get_pivots(constraint)
+    assert(type(pivot_a) == "userdata" and type(pivot_b) == "userdata")
+    bullet3d.constraint.set_pivots(constraint, vmath.vector3(0.5, 0, 0), vmath.vector3(-0.5, 0, 0))
+    pivot_a, pivot_b = bullet3d.constraint.get_pivots(constraint)
+    assert_vec3_near(pivot_a, vmath.vector3(0.5, 0, 0))
+    assert_vec3_near(pivot_b, vmath.vector3(-0.5, 0, 0))
+end
+
+local function exercise_hinge(constraint)
+    exercise_frames(constraint, true)
+    bullet3d.constraint.set_angular_only(constraint, true)
+    assert(bullet3d.constraint.get_angular_only(constraint))
+    assert(type(bullet3d.constraint.get_hinge_angle(constraint)) == "number")
+    bullet3d.constraint.set_hinge_limits(constraint, -0.5, 0.75, 0.25, 0.8)
+    local lower, upper = bullet3d.constraint.get_hinge_limits(constraint)
+    assert_near(lower, -0.5)
+    assert_near(upper, 0.75)
+    bullet3d.constraint.set_hinge_motor(constraint, true, 1.5, 2.5)
+    local enabled, velocity, impulse = bullet3d.constraint.get_hinge_motor(constraint)
+    assert(enabled)
+    assert_near(velocity, 1.5)
+    assert_near(impulse, 2.5)
+    bullet3d.constraint.set_hinge_motor_target(constraint, 0.1, 1 / 60)
+end
+
+local function exercise_cone_twist(constraint)
+    exercise_frames(constraint, false)
+    bullet3d.constraint.set_angular_only(constraint, true)
+    assert(bullet3d.constraint.get_angular_only(constraint))
+    bullet3d.constraint.set_cone_twist_limits(constraint, 0.5, 0.6, 0.7, 0.8, 0.25, 0.9)
+    local swing1, swing2, twist = bullet3d.constraint.get_cone_twist_limits(constraint)
+    assert_near(swing1, 0.5)
+    assert_near(swing2, 0.6)
+    assert_near(twist, 0.7)
+    assert(type(bullet3d.constraint.get_twist_angle(constraint)) == "number")
+    assert(type(bullet3d.constraint.is_past_swing_limit(constraint)) == "boolean")
+    bullet3d.constraint.enable_cone_twist_motor(constraint, true)
+    assert_finite(bullet3d.constraint.get_twist_angle(constraint))
+    bullet3d.constraint.set_cone_twist_motor_target(constraint, vmath.quat(), true)
+end
+
+local function exercise_d6(constraint, spring)
+    exercise_frames(constraint, true)
+    bullet3d.constraint.set_limit(constraint, 1, -1.25, 1.5)
+    local lower, upper = bullet3d.constraint.get_limit(constraint, 1)
+    assert_near(lower, -1.25)
+    assert_near(upper, 1.5)
+    assert(bullet3d.constraint.is_limited(constraint, 1))
+    assert(type(bullet3d.constraint.get_d6_axis(constraint, 1)) == "userdata")
+    assert(type(bullet3d.constraint.get_d6_angle(constraint, 1)) == "number")
+    assert(type(bullet3d.constraint.get_d6_position(constraint, 1)) == "number")
+    bullet3d.constraint.set_d6_motor(constraint, 1, true, 2, 3)
+    local linear_enabled, linear_velocity, linear_impulse, linear_bounce = bullet3d.constraint.get_d6_motor(constraint, 1)
+    assert(linear_enabled)
+    assert_near(linear_velocity, 2)
+    assert_near(linear_impulse, 3)
+    assert_near(linear_bounce, 0)
+    bullet3d.constraint.set_d6_motor(constraint, 4, true, 1.5, 2.5, 0.4)
+    local angular_enabled, angular_velocity, angular_impulse, angular_bounce = bullet3d.constraint.get_d6_motor(constraint, 4)
+    assert(angular_enabled)
+    assert_near(angular_velocity, 1.5)
+    assert_near(angular_impulse, 2.5)
+    assert_near(angular_bounce, 0.4)
+    if spring then
+        bullet3d.constraint.enable_spring(constraint, 1, true)
+        bullet3d.constraint.set_spring_stiffness(constraint, 1, 4)
+        bullet3d.constraint.set_spring_damping(constraint, 1, 0.5)
+        bullet3d.constraint.set_spring_equilibrium_point(constraint, 1, 0.25)
+        bullet3d.constraint.set_spring_equilibrium_point(constraint, 1)
+        bullet3d.constraint.set_spring_equilibrium_point(constraint)
+    end
+end
+
+local function exercise_slider(constraint)
+    exercise_frames(constraint, true)
+    assert(type(bullet3d.constraint.get_use_linear_reference_frame_a(constraint)) == "boolean")
+    bullet3d.constraint.set_slider_limits(constraint, -2, 3, -0.5, 0.75)
+    local lower_linear, upper_linear, lower_angular, upper_angular = bullet3d.constraint.get_slider_limits(constraint)
+    assert_near(lower_linear, -2)
+    assert_near(upper_linear, 3)
+    assert_near(lower_angular, -0.5)
+    assert_near(upper_angular, 0.75)
+    assert(type(bullet3d.constraint.get_slider_position(constraint)) == "number")
+    bullet3d.constraint.set_slider_motor(constraint, "linear", true, 2, 3)
+    local enabled, velocity, force = bullet3d.constraint.get_slider_motor(constraint, "linear")
+    assert(enabled)
+    assert_near(velocity, 2)
+    assert_near(force, 3)
+    bullet3d.constraint.set_slider_motor(constraint, "angular", true, 1.5, 2.5)
+    enabled, velocity, force = bullet3d.constraint.get_slider_motor(constraint, "angular")
+    assert(enabled)
+    assert_near(velocity, 1.5)
+    assert_near(force, 2.5)
+end
+
+local function exercise_world_axis_joint(constraint, spring)
+    exercise_frames(constraint, false)
+    local anchor_a, anchor_b = bullet3d.constraint.get_joint_anchors(constraint)
+    local axis_a, axis_b = bullet3d.constraint.get_joint_axes(constraint)
+    local angle_a, angle_b = bullet3d.constraint.get_joint_angles(constraint)
+    assert(type(anchor_a) == "userdata" and type(anchor_b) == "userdata")
+    assert(type(axis_a) == "userdata" and type(axis_b) == "userdata")
+    assert(type(angle_a) == "number" and type(angle_b) == "number")
+    bullet3d.constraint.set_limit(constraint, 1, -1, 1)
+    assert(bullet3d.constraint.is_limited(constraint, 1))
+    if spring then
+        bullet3d.constraint.enable_spring(constraint, 1, true)
+        bullet3d.constraint.set_spring_stiffness(constraint, 1, 2)
+        bullet3d.constraint.set_spring_damping(constraint, 1, 0.5)
+        bullet3d.constraint.set_spring_equilibrium_point(constraint, 1, 0)
+    end
+end
+
+local function run_creation_smoke_tests(world, body_a, body_b)
+    local creations = {
+        {
+            create = bullet3d.constraint.create_point_to_point,
+            type = "point_to_point",
+            params = { pivot_a = vmath.vector3(), pivot_b = vmath.vector3() },
+            exercise = exercise_point_to_point,
+        },
+        {
+            create = bullet3d.constraint.create_hinge,
+            type = "hinge",
+            params = frame_params({ use_reference_frame_a = true, angular_only = false }),
+            exercise = exercise_hinge,
+        },
+        {
+            create = bullet3d.constraint.create_cone_twist,
+            type = "cone_twist",
+            params = frame_params({ angular_only = false }),
+            exercise = exercise_cone_twist,
+        },
+        {
+            create = bullet3d.constraint.create_generic_6dof,
+            type = "generic_6dof",
+            params = frame_params(),
+            exercise = function(constraint) exercise_d6(constraint, false) end,
+        },
+        {
+            create = bullet3d.constraint.create_generic_6dof_spring,
+            type = "generic_6dof_spring",
+            params = frame_params(),
+            exercise = function(constraint) exercise_d6(constraint, true) end,
+        },
+        {
+            create = bullet3d.constraint.create_slider,
+            type = "slider",
+            params = frame_params({ use_linear_reference_frame_a = true }),
+            exercise = exercise_slider,
+        },
+        {
+            create = bullet3d.constraint.create_universal,
+            type = "universal",
+            params = { anchor = vmath.vector3(), axis1 = vmath.vector3(1, 0, 0), axis2 = vmath.vector3(0, 1, 0) },
+            exercise = function(constraint) exercise_world_axis_joint(constraint, false) end,
+        },
+        {
+            create = bullet3d.constraint.create_hinge2,
+            type = "hinge2",
+            params = { anchor = vmath.vector3(), axis1 = vmath.vector3(1, 0, 0), axis2 = vmath.vector3(0, 1, 0) },
+            exercise = function(constraint) exercise_world_axis_joint(constraint, true) end,
+        },
+    }
+
+    for _, creation in ipairs(creations) do
+        local constraint = creation.create(body_a, body_b, creation.params)
+        verify_constraint(world, body_a, body_b, constraint, creation.type, creation.exercise)
+    end
+
+    local world_constraint = bullet3d.constraint.create_point_to_point(body_a, nil, {
+        pivot_a = vmath.vector3(),
+        pivot_b = vmath.vector3(-5, 0, 0),
+    })
+    verify_constraint(world, body_a, nil, world_constraint, "point_to_point")
+
+    local world_hinge = bullet3d.constraint.create_hinge(body_a, nil, {
+        frame_a_position = vmath.vector3(),
+        frame_a_rotation = vmath.quat(),
+    })
+    bullet3d.constraint.set_hinge_axis(world_hinge, vmath.vector3(0, 1, 0))
+    bullet3d.constraint.destroy(world_hinge)
+
+    local original_position, original_rotation = bullet3d.collision_object.get_world_transform(body_a)
+    local cone_rotation = vmath.quat_rotation_z(0.35)
+    bullet3d.collision_object.set_world_transform(body_a, original_position, cone_rotation)
+    local world_cone = bullet3d.constraint.create_cone_twist(body_a, nil, {
+        frame_a_position = vmath.vector3(),
+        frame_a_rotation = vmath.quat(),
+    })
+    local cone_frame_position, cone_frame_rotation = bullet3d.constraint.get_frame_b(world_cone)
+    assert_vec3_near(cone_frame_position, original_position)
+    assert_quat_near(cone_frame_rotation, cone_rotation)
+    bullet3d.constraint.enable_cone_twist_motor(world_cone, true)
+    assert_finite(bullet3d.constraint.get_twist_angle(world_cone))
+    bullet3d.constraint.destroy(world_cone)
+    bullet3d.collision_object.set_world_transform(body_a, original_position, original_rotation)
+
+    local slider_cases = {
+        { use_linear_reference_frame_a = true, expected_position = -1 },
+        { use_linear_reference_frame_a = false, expected_position = 1 },
+    }
+    for _, slider_case in ipairs(slider_cases) do
+        local world_slider = bullet3d.constraint.create_slider(body_a, nil, {
+            frame_a_position = vmath.vector3(),
+            frame_a_rotation = vmath.quat(),
+            use_linear_reference_frame_a = slider_case.use_linear_reference_frame_a,
+        })
+        assert(bullet3d.constraint.get_use_linear_reference_frame_a(world_slider) == slider_case.use_linear_reference_frame_a)
+        bullet3d.collision_object.set_world_transform(body_a, original_position + vmath.vector3(1, 0, 0), original_rotation)
+        assert_near(bullet3d.constraint.get_slider_position(world_slider), slider_case.expected_position)
+        bullet3d.constraint.destroy(world_slider)
+        bullet3d.collision_object.set_world_transform(body_a, original_position, original_rotation)
+    end
+
+    assert_error(function()
+        bullet3d.constraint.create_point_to_point(body_a, body_b, { pivot_a = vmath.vector3() })
+    end)
+    assert_error(function()
+        bullet3d.constraint.create_generic_6dof(body_a, body_b, frame_params({ use_linear_reference_frame_a = false }))
+    end)
+    assert_error(function()
+        bullet3d.constraint.create_universal(body_a, body_b, {
+            anchor = vmath.vector3(),
+            axis1 = vmath.vector3(1, 0, 0),
+            axis2 = vmath.vector3(1, 0, 0),
+        })
+    end)
+end
+
+function init(self)
+    self.stage = "create"
+end
+
+function update(self, dt)
+    if self.stage == "create" then
+        local world = bullet3d.get_world()
+        local body_a = bullet3d.get_rigid_body(BODY_A_URL)
+        local body_b = bullet3d.get_rigid_body(BODY_B_URL)
+        assert(world ~= nil and body_a ~= nil and body_b ~= nil)
+        bullet3d.world.set_gravity(world, vmath.vector3())
+        bullet3d.collision_object.force_activation_state(body_a, bullet3d.collision_object.DISABLE_DEACTIVATION)
+        bullet3d.collision_object.force_activation_state(body_b, bullet3d.collision_object.DISABLE_DEACTIVATION)
+        run_creation_smoke_tests(world, body_a, body_b)
+
+        local colliding_constraint = bullet3d.constraint.create_point_to_point(body_a, body_b, {
+            pivot_a = vmath.vector3(),
+            pivot_b = vmath.vector3(),
+            collide_connected = true,
+        })
+        assert(bullet3d.constraint.get_collide_connected(colliding_constraint))
+        bullet3d.constraint.destroy(colliding_constraint)
+
+        self.constraint = bullet3d.constraint.create_point_to_point(body_a, body_b, {
+            pivot_a = vmath.vector3(),
+            pivot_b = vmath.vector3(),
+        })
+        assert(not bullet3d.constraint.get_collide_connected(self.constraint))
+        self.body_a = body_a
+        self.body_b = body_b
+        self.initial_distance = vmath.length(bullet3d.collision_object.get_position(body_b) - bullet3d.collision_object.get_position(body_a))
+        self.frames = 0
+        self.stage = "solve"
+        return
+    end
+
+    if self.stage == "solve" then
+        self.frames = self.frames + 1
+        if self.frames < 10 then
+            return
+        end
+        local distance = vmath.length(bullet3d.collision_object.get_position(self.body_b) - bullet3d.collision_object.get_position(self.body_a))
+        assert(distance < self.initial_distance)
+        msg.post(BODY_B_URL, "disable")
+        self.frames = 0
+        self.stage = "disabled"
+        return
+    end
+
+    if self.stage == "disabled" then
+        self.frames = self.frames + 1
+        if bullet3d.constraint.is_active(self.constraint) then
+            assert(self.frames < 5)
+            return
+        end
+        msg.post(BODY_B_URL, "enable")
+        self.frames = 0
+        self.stage = "enabled"
+        return
+    end
+
+    if self.stage == "enabled" then
+        self.frames = self.frames + 1
+        if not bullet3d.constraint.is_active(self.constraint) then
+            assert(self.frames < 5)
+            return
+        end
+        go.delete("/bullet3d_constraint_b")
+        self.frames = 0
+        self.stage = "invalidate"
+        return
+    end
+
+    self.frames = self.frames + 1
+    if bullet3d.constraint.is_valid(self.constraint) then
+        assert(self.frames < 10)
+        return
+    end
+    assert_error(function()
+        bullet3d.constraint.get_body_b(self.constraint)
+    end)
+    tests_done = true
+end

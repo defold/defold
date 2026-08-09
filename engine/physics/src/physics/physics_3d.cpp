@@ -44,6 +44,7 @@ namespace dmPhysics
     struct CollisionObject3D
     {
         btCollisionObject* m_CollisionObject;
+        dmArray<btCollisionShape*> m_OwnedShapes;
         uint16_t m_CollisionGroup;
         uint16_t m_CollisionMask;
     };
@@ -674,14 +675,35 @@ namespace dmPhysics
 
     static btConvexShape* CloneShape(btConvexShape* shape)
     {
+        const btVector3& local_scaling = shape->getLocalScaling();
+        btConvexShape*   clone = 0;
         switch(shape->getShapeType())
         {
-            case SPHERE_SHAPE_PROXYTYPE:        return new btSphereShape(((btSphereShape*)shape)->getRadius()); break;
-            case BOX_SHAPE_PROXYTYPE:           return new btBoxShape(((btBoxShape*)shape)->getHalfExtentsWithMargin()); break;
-            case CAPSULE_SHAPE_PROXYTYPE:       return new btCapsuleShape(((btCapsuleShape*)shape)->getRadius(), 2.0f * ((btCapsuleShape*)shape)->getHalfHeight()); break;
-            case CONVEX_HULL_SHAPE_PROXYTYPE:   return new btConvexHullShape((btScalar*)((btConvexHullShape*)shape)->getPoints(), ((btConvexHullShape*)shape)->getNumPoints()); break;
+            case SPHERE_SHAPE_PROXYTYPE:
+                clone = new btSphereShape(((btSphereShape*)shape)->getRadius() / local_scaling.getX());
+                break;
+            case BOX_SHAPE_PROXYTYPE:
+                clone = new btBoxShape(((btBoxShape*)shape)->getHalfExtentsWithMargin() / local_scaling);
+                break;
+            case CAPSULE_SHAPE_PROXYTYPE:
+                clone = new btCapsuleShape(((btCapsuleShape*)shape)->getRadius() / local_scaling.getX(), 2.0f * ((btCapsuleShape*)shape)->getHalfHeight() / local_scaling.getY());
+                break;
+            case CONVEX_HULL_SHAPE_PROXYTYPE:
+            {
+                btConvexHullShape* hull = (btConvexHullShape*)shape;
+                clone = new btConvexHullShape((const btScalar*)hull->getUnscaledPoints(), hull->getNumPoints(), sizeof(btVector3));
+                break;
+            }
         }
-        return shape;
+        if (clone && shape->getShapeType() != SPHERE_SHAPE_PROXYTYPE && shape->getShapeType() != CAPSULE_SHAPE_PROXYTYPE)
+        {
+            clone->setMargin(shape->getMargin());
+        }
+        if (clone)
+        {
+            clone->setLocalScaling(local_scaling);
+        }
+        return clone;
     }
 
     HCollisionObject3D NewCollisionObject3D(HWorld3D world, const CollisionObjectData& data, HCollisionShape3D* shapes, uint32_t shape_count)
@@ -731,10 +753,24 @@ namespace dmPhysics
 
         bool clone_shapes = world->m_AllowDynamicTransforms || object_scale != 1.0f;
         float scale = world->m_Context->m_Scale;
+        CollisionObject3D* co = new CollisionObject3D();
         btCompoundShape* compound_shape = new btCompoundShape(false);
         for (uint32_t i = 0; i < shape_count; ++i)
         {
-            btConvexShape* shape = clone_shapes ? CloneShape((btConvexShape*)shapes[i]) : (btConvexShape*)shapes[i];
+            btConvexShape* shape = (btConvexShape*)shapes[i];
+            if (clone_shapes)
+            {
+                btConvexShape* clone = CloneShape(shape);
+                if (clone)
+                {
+                    shape = clone;
+                    if (co->m_OwnedShapes.Full())
+                    {
+                        co->m_OwnedShapes.OffsetCapacity(4);
+                    }
+                    co->m_OwnedShapes.Push(shape);
+                }
+            }
 
             if (translations && rotations)
             {
@@ -820,7 +856,6 @@ namespace dmPhysics
             }
         }
         collision_object->setUserPointer(data.m_UserData);
-        CollisionObject3D* co = new CollisionObject3D();
         co->m_CollisionObject = collision_object;
         co->m_CollisionGroup = data.m_Group;
         co->m_CollisionMask = data.m_Mask;
@@ -843,6 +878,10 @@ namespace dmPhysics
         if (rigid_body != 0x0 && rigid_body->getMotionState())
             delete rigid_body->getMotionState();
 
+        for (uint32_t i = 0; i < co->m_OwnedShapes.Size(); ++i)
+        {
+            delete co->m_OwnedShapes[i];
+        }
         world->m_DynamicsWorld->removeCollisionObject(bt_co);
         delete bt_co;
         delete co;
@@ -865,6 +904,181 @@ namespace dmPhysics
             return shape;
         }
         return 0;
+    }
+
+    static int FindOwnedCollisionShape3D(CollisionObject3D* collision_object, btCollisionShape* shape)
+    {
+        for (uint32_t i = 0; i < collision_object->m_OwnedShapes.Size(); ++i)
+        {
+            if (collision_object->m_OwnedShapes[i] == shape)
+            {
+                return (int)i;
+            }
+        }
+        return -1;
+    }
+
+    static bool HasOtherCollisionShapeAttachment3D(CollisionObject3D* collision_object, btCollisionShape* shape, uint32_t ignored_index)
+    {
+        btCollisionShape* root_shape = collision_object->m_CollisionObject->getCollisionShape();
+        if (!root_shape->isCompound())
+        {
+            return ignored_index != 0 && root_shape == shape;
+        }
+
+        btCompoundShape* compound = (btCompoundShape*)root_shape;
+        for (int i = 0; i < compound->getNumChildShapes(); ++i)
+        {
+            if ((uint32_t)i != ignored_index && compound->getChildShape(i) == shape)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool ReplaceCollisionShapeAtIndex3D(HCollisionObject3D collision_object, uint32_t index, HCollisionShape3D new_shape_handle)
+    {
+        if (!collision_object || !new_shape_handle)
+        {
+            return false;
+        }
+
+        CollisionObject3D* co = (CollisionObject3D*)collision_object;
+        btCollisionShape*  root_shape = co->m_CollisionObject->getCollisionShape();
+        btCollisionShape*  new_shape = (btCollisionShape*)new_shape_handle;
+        btCollisionShape*  old_shape = 0;
+
+        if (root_shape->isCompound())
+        {
+            btCompoundShape* compound = (btCompoundShape*)root_shape;
+            if (index >= (uint32_t)compound->getNumChildShapes())
+            {
+                return false;
+            }
+
+            btCompoundShapeChild& child = compound->getChildList()[index];
+            old_shape = child.m_childShape;
+        }
+        else
+        {
+            if (index != 0)
+            {
+                return false;
+            }
+            old_shape = root_shape;
+        }
+
+        if (old_shape == new_shape)
+        {
+            return true;
+        }
+        // The compound collision algorithm caches a child algorithm for each
+        // native shape type. Replacing geometry is safe; changing type without
+        // rebuilding those caches is not.
+        if (old_shape->getShapeType() != new_shape->getShapeType())
+        {
+            return false;
+        }
+        // Each entry in m_OwnedShapes must have exclusive attachment ownership.
+        // Reusing an owned pointer in another slot would make replacing either
+        // slot delete the shape while the other slot still references it.
+        if (FindOwnedCollisionShape3D(co, new_shape) >= 0 || HasOtherCollisionShapeAttachment3D(co, new_shape, index))
+        {
+            return false;
+        }
+
+        if (root_shape->isCompound())
+        {
+            btCompoundShapeChild& child = ((btCompoundShape*)root_shape)->getChildList()[index];
+            child.m_childShape = new_shape;
+            child.m_childShapeType = new_shape->getShapeType();
+            child.m_childMargin = new_shape->getMargin();
+            ((btCompoundShape*)root_shape)->recalculateLocalAabb();
+        }
+        else
+        {
+            co->m_CollisionObject->setCollisionShape(new_shape);
+        }
+
+        if (co->m_OwnedShapes.Full())
+        {
+            co->m_OwnedShapes.OffsetCapacity(4);
+        }
+        co->m_OwnedShapes.Push(new_shape);
+
+        int old_owned_index = FindOwnedCollisionShape3D(co, old_shape);
+        if (old_owned_index >= 0 && !HasOtherCollisionShapeAttachment3D(co, old_shape, index))
+        {
+            co->m_OwnedShapes.EraseSwap((uint32_t)old_owned_index);
+            delete old_shape;
+        }
+        return true;
+    }
+
+    bool MakeCollisionShapeOwned3D(HCollisionObject3D collision_object, uint32_t index, HCollisionShape3D* out_shape)
+    {
+        if (!collision_object || !out_shape)
+        {
+            return false;
+        }
+
+        CollisionObject3D* co = (CollisionObject3D*)collision_object;
+        btConvexShape*     shape = (btConvexShape*)GetCollisionShape3D(collision_object, index);
+        if (!shape)
+        {
+            return false;
+        }
+
+        if (FindOwnedCollisionShape3D(co, shape) >= 0)
+        {
+            *out_shape = shape;
+            return true;
+        }
+
+        btConvexShape* clone = CloneShape(shape);
+        if (!clone)
+        {
+            return false;
+        }
+        if (!ReplaceCollisionShapeAtIndex3D(collision_object, index, clone))
+        {
+            delete clone;
+            return false;
+        }
+        *out_shape = clone;
+        return true;
+    }
+
+    void RefreshCollisionShape3D(HWorld3D world, HCollisionObject3D collision_object)
+    {
+        if (!world || !collision_object)
+        {
+            return;
+        }
+
+        btCollisionObject* object = GetCollisionObject(collision_object);
+        btCollisionShape*  root_shape = object->getCollisionShape();
+        if (root_shape->isCompound())
+        {
+            ((btCompoundShape*)root_shape)->recalculateLocalAabb();
+        }
+
+        btRigidBody* rigid_body = btRigidBody::upcast(object);
+        if (rigid_body && rigid_body->getInvMass() > 0.0f)
+        {
+            btScalar  mass = 1.0f / rigid_body->getInvMass();
+            btVector3 local_inertia(0.0f, 0.0f, 0.0f);
+            root_shape->calculateLocalInertia(mass, local_inertia);
+            rigid_body->setMassProps(mass, local_inertia);
+            rigid_body->updateInertiaTensor();
+        }
+
+        object->activate(true);
+        if (object->getBroadphaseHandle())
+        {
+            world->m_DynamicsWorld->updateSingleAabb(object);
+        }
     }
 
     uint32_t GetCollisionShapes3D(HCollisionObject3D collision_object, HCollisionShape3D* out_buffer, uint32_t buffer_size)
@@ -1136,7 +1350,6 @@ namespace dmPhysics
 		uint16_t groupbit = co->m_CollisionGroup;
 		return groupbit;
 	}
-
     void SetGroup3D(HWorld3D world, HCollisionObject3D collision_object, uint16_t groupbit) {
 		CollisionObject3D* co = (CollisionObject3D*) collision_object;
 		btCollisionObject* bt_co = co->m_CollisionObject;
