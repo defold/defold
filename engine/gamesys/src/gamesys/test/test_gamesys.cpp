@@ -3643,7 +3643,7 @@ TEST_F(FontTest, OpenTypeResource)
 
     dmResource::Release(m_Factory, resource);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::RemoveFile(m_Factory, otf_path));
-    free(data);
+    dmMemory::AlignedFree(data);
 }
 
 TEST_F(WindowTest, MouseLock)
