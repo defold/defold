@@ -13,12 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.script
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
+            [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.script-annotations :as script-annotations]
             [editor.code.script-compilation :as script-compilation]
             [editor.code.script-intelligence :as script-intelligence]
+            [editor.core :as core]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
@@ -26,9 +29,11 @@
             [editor.lua-parser :as lua-parser]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.types :as types]
+            [internal.graph.types :as gt]
             [schema.core :as s]
-            [util.coll :as coll]))
+            [util.coll :as coll :refer [pair]]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -133,7 +138,7 @@
                  :close-scopes {\' "punctuation.definition.string.quoted.end.lua"
                                 \" "punctuation.definition.string.quoted.end.lua"
                                 \] "punctuation.definition.string.end.lua"}}
-   :completion-trigger-characters #{"."}
+   :completion-trigger-characters #{"." "#"}
    :ignored-completion-trigger-characters #{"{" ","}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
@@ -440,6 +445,56 @@
 
   (output build-targets g/Any :cached produce-lua-build-targets))
 
+(defn- owning-game-object-id
+  "Returns the node id of the game object that owns a node, or nil"
+  [basis node-id]
+  (loop [node-id node-id]
+    (when node-id
+      (if (g/has-output? (g/node-type* basis node-id) :component-ids)
+        node-id
+        (recur (core/owner-node-id basis node-id))))))
+
+(defn- component-id-completions
+  "Completions for the component ids of the game objects using this script
+
+  The game objects are found by walking the graph arcs from the script node to
+  the components that reference it, the same way the Show References dialog
+  finds referencing resources."
+  [evaluation-context script-node-id]
+  (let [basis (:basis evaluation-context)
+        game-object-node-ids
+        (into #{}
+              (comp
+                (coll/tree-xf any? #(g/overrides basis %))
+                (mapcat #(g/explicit-arcs-by-source basis %))
+                (map gt/target-id)
+                (keep #(owning-game-object-id basis %))
+                (map #(g/override-root basis %)))
+              [script-node-id])
+        component-id->owner-proj-paths
+        (reduce
+          (fn [acc [component-id owner-proj-path]]
+            (update acc component-id (fnil conj (sorted-set)) owner-proj-path))
+          (sorted-map)
+          (eduction
+            (mapcat
+              (fn [game-object-node-id]
+                (let [owner-proj-path
+                      (some->> (resource-node/owner-resource-node-id basis game-object-node-id)
+                               (resource-node/resource basis)
+                               resource/proj-path)]
+                  (eduction
+                    (keep (fn [component-id]
+                            (when owner-proj-path
+                              (pair component-id owner-proj-path))))
+                    (keys (g/node-value game-object-node-id :component-ids evaluation-context))))))
+            game-object-node-ids))]
+    (mapv (fn [[component-id owner-proj-paths]]
+            (code-completion/make component-id
+                                  :type :property
+                                  :detail (string/join ", " owner-proj-paths)))
+          component-id->owner-proj-paths)))
+
 (g/defnode ScriptNode
   (inherits LuaCodeNode)
 
@@ -482,6 +537,12 @@
 
   (output _properties g/Properties :cached produce-properties)
   (output build-targets g/Any :cached produce-script-build-targets)
+  ;; The "#" completions are found by walking graph arcs, which the dependency
+  ;; system cannot track; this output is uncached so every pull reads the
+  ;; current graph state.
+  (output completions g/Any (g/fnk [^:unsafe _evaluation-context _node-id script-intelligence-completions]
+                              (assoc script-intelligence-completions
+                                     "#" (component-id-completions _evaluation-context _node-id))))
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output script-property-entries ScriptPropertyEntries (g/fnk [script-property-entries] (reduce into {} script-property-entries)))
   (output script-property-node-ids-by-name NameNodeIDMap (g/fnk [script-property-name+node-ids] (into {} script-property-name+node-ids))))

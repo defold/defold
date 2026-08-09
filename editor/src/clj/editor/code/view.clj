@@ -910,7 +910,10 @@
   The map includes following keys (all required):
     :context           a string indicating a context in which the built-in
                        completions should be requested, e.g. for string
-                       \"socket.d\" before cursor the context will be \"socket\"
+                       \"socket.d\" before cursor the context will be \"socket\",
+                       and for string \"go.some_id\" opened with a quote before
+                       cursor the context will be \"#\" when \"#\" is a
+                       completion trigger character
     :query             a string used for filtering completions, e.g. for string
                        \"socket.d\" before cursor the query will be \"d\"
     :cursor-ranges     replacement ranges that should be used when
@@ -922,20 +925,24 @@
                        complete LSP completion list should be refreshed
     :trigger           single-character trigger string before cursor (\"\\n\" on
                        the start of the line, even it's the first one)"
-  [lines cursor-ranges]
+  [lines cursor-ranges completion-trigger-characters]
   {:pre [(pos? (count cursor-ranges))]}
-  (let [results (mapv (fn [^CursorRange cursor-range]
+  (let [hash-context (contains? completion-trigger-characters "#")
+        results (mapv (fn [^CursorRange cursor-range]
                         (let [suggestion-cursor (data/adjust-cursor lines (data/cursor-range-start cursor-range))
                               line (subs (lines (.-row suggestion-cursor)) 0 (.-col suggestion-cursor))
-                              prefix (or (re-find #"[a-zA-Z_][a-zA-Z_0-9.]*$" line) "")
+                              [context query] (if-let [hash-query (when hash-context
+                                                                    (second (re-find #"[\"']#([a-zA-Z0-9_-]*)$" line)))]
+                                                ["#" hash-query]
+                                                (let [prefix (or (re-find #"[a-zA-Z_][a-zA-Z_0-9.]*$" line) "")
+                                                      last-dot (string/last-index-of prefix ".")]
+                                                  [(if last-dot (subs prefix 0 last-dot) "")
+                                                   (if last-dot (subs prefix (inc ^long last-dot)) prefix)]))
                               affected-cursor (if (pos? (data/compare-cursor-position
                                                           (.-from cursor-range)
                                                           (.-to cursor-range)))
                                                 :to
                                                 :from)
-                              last-dot (string/last-index-of prefix ".")
-                              context (if last-dot (subs prefix 0 last-dot) "")
-                              query (if last-dot (subs prefix (inc ^long last-dot)) prefix)
                               replacement-range (update cursor-range affected-cursor update :col - (count query))]
                           [replacement-range context query]))
                       cursor-ranges)
@@ -1855,12 +1862,17 @@
    (g/with-auto-evaluation-context evaluation-context
      (implies-completions? view-node evaluation-context)))
   ([view-node evaluation-context]
-   (let [{:keys [trigger request-cursor]} (get-property view-node :completion-context evaluation-context)
+   (let [{:keys [trigger request-cursor context]} (get-property view-node :completion-context evaluation-context)
          trigger-characters (get-property view-node :completion-trigger-characters evaluation-context)
          syntax-scope (syntax-scope-before-cursor view-node request-cursor evaluation-context)]
      (boolean (and (not (contains? #{"\n" "\t" " "} trigger))
                    (or (re-matches #"[a-zA-Z_]" trigger)
                        (contains? trigger-characters trigger))
+                   ;; "#" only triggers completions at the start of a quoted
+                   ;; string, where the completion context recognizes it as a
+                   ;; component id position; elsewhere it's the Lua length
+                   ;; operator
+                   (or (not= "#" trigger) (= "#" context))
                    (not (string/starts-with? syntax-scope "punctuation.definition.string.end"))
                    (not (string/starts-with? syntax-scope "comment")))))))
 
