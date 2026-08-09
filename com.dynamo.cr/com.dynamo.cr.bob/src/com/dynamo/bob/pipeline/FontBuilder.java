@@ -42,7 +42,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             return false;
 
         String path = fontDesc.getFont().toLowerCase();
-        return path.endsWith(".ttf");
+        return path.endsWith(".ttf") || path.endsWith(".otf");
     }
 
     @Override
@@ -65,7 +65,10 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         if (useRuntimeGeneration(fontDesc))
         {
             // input(2)
-            subTask = createSubTask(fontResource, CopyBuilders.TTFBuilder.class, taskBuilder);
+            if (fontDesc.getFont().toLowerCase().endsWith(".otf"))
+                subTask = createSubTask(fontResource, CopyBuilders.OTFBuilder.class, taskBuilder);
+            else
+                subTask = createSubTask(fontResource, CopyBuilders.TTFBuilder.class, taskBuilder);
         }
         else
         {
@@ -91,7 +94,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
             // leave glyphbank field empty, as we use that to check at runtime (to toggle runtime generation or not)
-            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
+            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf" or ".otf")
         }
         else
         {

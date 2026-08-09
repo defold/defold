@@ -28,6 +28,8 @@
 
 #include "font.h"
 #include "fontcollection.h"
+#include "font_outline.h"
+#include "font_sdf.h"
 #include "glyph_gen.h"
 #include "glyph_vertex.h"
 #include "text_layout.h"
@@ -80,6 +82,131 @@ protected:
 TEST_F(FontTest, LoadTTF)
 {
     // Empty. Just loading/unloading a font
+}
+
+TEST_F(FontTest, LoadOTFAndGenerateGlyph)
+{
+    HFont font;
+    LoadFont("src/test/data/SourceCodePro-Regular_cff1.otf", &font);
+
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(font, 32.0f);
+    params.m_SdfPadding = 6.0f;
+
+    FontGlyph glyph;
+    uint32_t glyph_index = FontGetGlyphIndex(font, 'A');
+    ASSERT_NE(0u, glyph_index);
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, glyph_index, &params, &glyph));
+    ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+    ASSERT_GT(glyph.m_Bitmap.m_Width, 0u);
+    ASSERT_GT(glyph.m_Bitmap.m_Height, 0u);
+    ASSERT_GT(glyph.m_Advance, 0.0f);
+    FontFreeGlyph(font, &glyph);
+    FontDestroy(font);
+}
+
+TEST(FontSDF, Rectangle)
+{
+    FontOutlineCommand commands[5] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.0f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 8.0f, 0.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 8.0f, 8.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 0.0f, 8.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline outline = { commands, 5 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap bitmap;
+    int32_t offset_x;
+    int32_t offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    ASSERT_EQ(16u, bitmap.m_Width);
+    ASSERT_EQ(16u, bitmap.m_Height);
+    ASSERT_EQ(-4, offset_x);
+    ASSERT_EQ(-12, offset_y);
+    ASSERT_GT(bitmap.m_Data[8 * bitmap.m_Width + 8], 128u);
+    ASSERT_LT(bitmap.m_Data[0], 128u);
+    FontSDFFree(&bitmap);
+}
+
+TEST(FontSDF, PreservesSubpixelEdgeDistance)
+{
+    FontOutlineCommand commands[5] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.25f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 4.25f, 0.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 4.25f, 4.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 0.25f, 4.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline outline = { commands, 5 };
+
+    FontSDFParams params = { 1.0f, 4, 128 };
+    FontGlyphBitmap bitmap;
+    int32_t offset_x;
+    int32_t offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    ASSERT_EQ(-4, offset_x);
+    ASSERT_EQ(-8, offset_y);
+    ASSERT_EQ(104u, bitmap.m_Data[6 * bitmap.m_Width + 3]);
+    ASSERT_EQ(136u, bitmap.m_Data[6 * bitmap.m_Width + 4]);
+    ASSERT_EQ(112u, bitmap.m_Data[8 * bitmap.m_Width + 6]);
+    FontSDFFree(&bitmap);
+}
+
+TEST(FontOutline, BezierBounds)
+{
+    FontOutlineCommand commands[2] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[1].m_Type = FONT_OUTLINE_CUBIC_TO;
+    commands[1].m_Points[0] = { 0.0f, 100.0f };
+    commands[1].m_Points[1] = { 100.0f, 100.0f };
+    commands[1].m_Points[2] = { 100.0f, 0.0f };
+    FontOutline outline = { commands, 2 };
+    float x0, y0, x1, y1;
+    ASSERT_TRUE(FontGetOutlineBounds(&outline, &x0, &y0, &x1, &y1));
+    ASSERT_EQ(0.0f, x0);
+    ASSERT_EQ(0.0f, y0);
+    ASSERT_EQ(100.0f, x1);
+    ASSERT_EQ(75.0f, y1);
+}
+
+TEST(FontOutline, MakeYMonotonic)
+{
+    FontOutline outline = {};
+    outline.m_CommandCount = 3;
+    outline.m_Commands = (FontOutlineCommand*)calloc(outline.m_CommandCount, sizeof(FontOutlineCommand));
+    outline.m_Commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    outline.m_Commands[0].m_Points[0] = { 0.0f, 0.0f };
+    outline.m_Commands[1].m_Type = FONT_OUTLINE_QUADRATIC_TO;
+    outline.m_Commands[1].m_Points[0] = { 5.0f, 10.0f };
+    outline.m_Commands[1].m_Points[1] = { 10.0f, 0.0f };
+    outline.m_Commands[2].m_Type = FONT_OUTLINE_CUBIC_TO;
+    outline.m_Commands[2].m_Points[0] = { 12.0f, 10.0f };
+    outline.m_Commands[2].m_Points[1] = { 18.0f, -10.0f };
+    outline.m_Commands[2].m_Points[2] = { 20.0f, 0.0f };
+
+    ASSERT_EQ(FONT_RESULT_OK, FontOutlineMakeYMonotonic(&outline));
+    ASSERT_EQ(6u, outline.m_CommandCount);
+    ASSERT_EQ(FONT_OUTLINE_MOVE_TO, outline.m_Commands[0].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_QUADRATIC_TO, outline.m_Commands[1].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_QUADRATIC_TO, outline.m_Commands[2].m_Type);
+    ASSERT_EQ(5.0f, outline.m_Commands[1].m_Points[1].m_X);
+    ASSERT_EQ(5.0f, outline.m_Commands[1].m_Points[1].m_Y);
+    ASSERT_EQ(FONT_OUTLINE_CUBIC_TO, outline.m_Commands[3].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_CUBIC_TO, outline.m_Commands[4].m_Type);
+    ASSERT_EQ(FONT_OUTLINE_CUBIC_TO, outline.m_Commands[5].m_Type);
+
+    ASSERT_EQ(FONT_RESULT_OK, FontOutlineMakeYMonotonic(&outline));
+    ASSERT_EQ(6u, outline.m_CommandCount);
+
+    FontFreeGlyphOutline(&outline);
 }
 
 TEST_F(FontTest, GenerateSdfGlyphWithShadowChannels)

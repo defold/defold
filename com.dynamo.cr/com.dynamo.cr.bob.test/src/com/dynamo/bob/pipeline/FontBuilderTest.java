@@ -72,6 +72,22 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testRuntimeGeneratedOTF() throws Exception {
+        getProject().setOption("font-runtime-generation", "true");
+        addFile("/Test.otf", getFile("/Tuffy.ttf"));
+
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Test.otf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("output_format: TYPE_DISTANCE_FIELD\n");
+
+        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+        assertEquals("/Test.otf", fontMap.getFont());
+        assertTrue(fontMap.getGlyphBank().isEmpty());
+    }
+
+    @Test
     public void testFNT() throws Exception {
 
         StringBuilder src = new StringBuilder();

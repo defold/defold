@@ -1142,7 +1142,7 @@
   (g/connect project :settings self :project-settings))
 
 (g/defnode OpenTypeFontSourceNode
-  (inherits resource-node/ResourceNode))
+  (inherits TrueTypeFontSourceNode))
 
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))
@@ -1435,8 +1435,11 @@
       :view-types [:default])
     (workspace/register-resource-type workspace
       :ext "otf"
+      :build-ext "otf"
       :label font-label
       :node-type OpenTypeFontSourceNode
+      :load-fn load-true-type-font-source
+      :stateless? true
       :icon font-icon
       :view-types [:default])))
 

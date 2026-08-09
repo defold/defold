@@ -12,4 +12,15 @@
 #undef HB_NO_LAYOUT_FEATURE_PARAMS
 #undef HB_NO_STYLE
 
+// The full text-layout engine uses HarfBuzz as its sole font parser. DRAW
+// exposes glyph outlines, CFF decodes OpenType CFF1/CFF2 charstrings, and VAR
+// supplies the variation machinery used by CFF2.
+#undef HB_NO_DRAW
+#undef HB_NO_CFF
+#undef HB_NO_VAR
+
+// Keep HarfBuzz's per-font lookup caches. They add a small amount of memory
+// after shaping a font, but substantially reduce repeated layout time.
+#undef HB_MINIMIZE_MEMORY_USAGE
+
 #endif // HB_CUSTOM_CONFIG_OVERRIDE_H
