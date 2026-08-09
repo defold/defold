@@ -168,7 +168,6 @@ foobar
 
 
     def test_all_lua_types(self):
-        """Verifies documentation parsing accepts every supported Lua/API type, including all Bullet3D userdata types."""
         doc = """
 /*#
  * MY_DESC
@@ -185,7 +184,6 @@ foobar
         self.assertEqual(['btDiscreteDynamicsWorld', 'btCollisionObject', 'btRigidBody'], elements[0].parameters[4].types)
 
     def test_optional_parameter_lua_annotation(self):
-        """Verifies LuaLS marks optional documentation parameters with `?` and leaves required parameters unchanged."""
         doc = """
 /*# Test API
  * @document

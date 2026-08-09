@@ -327,7 +327,7 @@ public:
 
 class Bullet3DComponentTest : public ScriptBaseTest
 {
-public:
+    public:
     Bullet3DComponentTest()
     {
         SetContentFolder("collision_object");

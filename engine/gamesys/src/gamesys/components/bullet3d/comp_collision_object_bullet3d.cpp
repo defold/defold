@@ -40,7 +40,7 @@ DM_PROPERTY_U32(rmtp_CollisionObjectBullet3D, 0, PROFILE_PROPERTY_FRAME_RESET, "
 namespace dmGameSystem
 {
     static PhysicsAdapterFunctionTable* g_PhysicsAdapter = 0x0;
-    static ScriptBullet3DInvalidateWorldCallback g_ScriptBullet3DInvalidateWorldCallback = 0x0;
+    static ScriptBullet3DInvalidateWorldCallback           g_ScriptBullet3DInvalidateWorldCallback = 0x0;
     static ScriptBullet3DInvalidateCollisionObjectCallback g_ScriptBullet3DInvalidateCollisionObjectCallback = 0x0;
     static int g_NumPhysicsTransformsUpdated = 0;
     static bool g_CollisionOverflowWarning   = false;

@@ -27,6 +27,7 @@ namespace dmGameSystem
 
     btVector3                 CheckBullet3DVector3(lua_State* L, int index, float scale);
     btQuaternion              CheckBullet3DQuat(lua_State* L, int index);
+    btQuaternion              CheckBullet3DFiniteQuat(lua_State* L, int index, const char* field_name);
     void                      PushBullet3DVector3(lua_State* L, const btVector3& value, float scale);
     void                      PushBullet3DQuat(lua_State* L, const btQuaternion& value);
 
@@ -49,7 +50,6 @@ namespace dmGameSystem
 
     btRigidBody*              CheckBullet3DRigidBody(lua_State* L, int index);
     void                      ScriptBullet3DInitializeRigidBody(lua_State* L);
-    void                      ScriptBullet3DFinalizeRigidBody();
 } // namespace dmGameSystem
 
 #endif // DM_GAMESYS_SCRIPT_BULLET3D_H

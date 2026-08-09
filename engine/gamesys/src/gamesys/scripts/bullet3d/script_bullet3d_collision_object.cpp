@@ -18,9 +18,13 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// btCollisionObject
 namespace dmGameSystem
 {
 #define BULLET3D_TYPE_NAME_COLLISION_OBJECT "bullet3d_collision_object"
+
+    static uint32_t TYPE_HASH_COLLISION_OBJECT = 0;
 
     struct Bullet3DLuaCollisionObject
     {
@@ -34,9 +38,11 @@ namespace dmGameSystem
         uint32_t                  m_InstanceGeneration;
     };
 
-    static uint32_t                                   g_Bullet3DCollisionObjectTypeHash = 0;
+    // Bullet collision objects are raw pointers. Assign each live pointer a
+    // monotonically increasing identity so stale Lua userdata cannot revive
+    // when a native address is reused.
     static uint64_t                                   g_NextBullet3DCollisionObjectId = 0;
-    static dmHashTable64<uintptr_t>                   g_Bullet3DCollisionObjects;
+    static dmHashTable64<btCollisionObject*>          g_Bullet3DCollisionObjects;
     static dmHashTable64<uint64_t>                    g_Bullet3DCollisionObjectToId;
     static dmHashTable64<Bullet3DCollisionObjectMeta> g_Bullet3DCollisionObjectMeta;
 
@@ -67,13 +73,13 @@ namespace dmGameSystem
 
     static void InvalidateCollisionObjectId(uint64_t id)
     {
-        uintptr_t* collision_object_ptr = g_Bullet3DCollisionObjects.Get(id);
-        if (!collision_object_ptr)
+        btCollisionObject** collision_object = g_Bullet3DCollisionObjects.Get(id);
+        if (!collision_object)
         {
             return;
         }
 
-        uint64_t  key = CollisionObjectPtrToKey((btCollisionObject*)*collision_object_ptr);
+        uint64_t  key = CollisionObjectPtrToKey(*collision_object);
         uint64_t* mapped_id = g_Bullet3DCollisionObjectToId.Get(key);
         if (mapped_id && *mapped_id == id)
         {
@@ -86,21 +92,21 @@ namespace dmGameSystem
         g_Bullet3DCollisionObjects.Erase(id);
     }
 
-    static Bullet3DLuaCollisionObject* CheckCollisionObjectUserdata(lua_State* L, int index)
+    static Bullet3DLuaCollisionObject* CheckCollisionObjectInternal(lua_State* L, int index)
     {
-        return (Bullet3DLuaCollisionObject*)dmScript::CheckUserType(L, index, g_Bullet3DCollisionObjectTypeHash, "Expected user type " BULLET3D_TYPE_NAME_COLLISION_OBJECT);
+        return (Bullet3DLuaCollisionObject*)dmScript::CheckUserType(L, index, TYPE_HASH_COLLISION_OBJECT, "Expected user type " BULLET3D_TYPE_NAME_COLLISION_OBJECT);
     }
 
-    static Bullet3DLuaCollisionObject* ToCollisionObjectUserdata(lua_State* L, int index)
+    static Bullet3DLuaCollisionObject* ToCollisionObjectInternal(lua_State* L, int index)
     {
-        return (Bullet3DLuaCollisionObject*)dmScript::ToUserType(L, index, g_Bullet3DCollisionObjectTypeHash);
+        return (Bullet3DLuaCollisionObject*)dmScript::ToUserType(L, index, TYPE_HASH_COLLISION_OBJECT);
     }
 
-    static btCollisionObject* VerifyCollisionObject(lua_State* L, Bullet3DLuaCollisionObject* lua_collision_object, bool report_error, Bullet3DCollisionObjectMeta** out_meta)
+    static btCollisionObject* VerifyCollisionObjectInternal(lua_State* L, Bullet3DLuaCollisionObject* lua_collision_object, bool report_error, Bullet3DCollisionObjectMeta** out_meta)
     {
-        uintptr_t*                   collision_object_ptr = g_Bullet3DCollisionObjects.Get(lua_collision_object->m_Id);
+        btCollisionObject**          collision_object = g_Bullet3DCollisionObjects.Get(lua_collision_object->m_Id);
         Bullet3DCollisionObjectMeta* meta = g_Bullet3DCollisionObjectMeta.Get(lua_collision_object->m_Id);
-        if (!collision_object_ptr || !meta)
+        if (!collision_object || !meta)
         {
             if (report_error)
             {
@@ -128,13 +134,13 @@ namespace dmGameSystem
         {
             *out_meta = meta;
         }
-        return (btCollisionObject*)*collision_object_ptr;
+        return *collision_object;
     }
 
     btCollisionObject* ToBullet3DCollisionObject(lua_State* L, int index)
     {
-        Bullet3DLuaCollisionObject* lua_collision_object = ToCollisionObjectUserdata(L, index);
-        return lua_collision_object ? VerifyCollisionObject(L, lua_collision_object, false, 0) : 0;
+        Bullet3DLuaCollisionObject* lua_collision_object = ToCollisionObjectInternal(L, index);
+        return lua_collision_object ? VerifyCollisionObjectInternal(L, lua_collision_object, false, 0) : 0;
     }
 
     bool IsBullet3DCollisionObjectValid(lua_State* L, int index)
@@ -144,18 +150,18 @@ namespace dmGameSystem
 
     btCollisionObject* CheckBullet3DCollisionObject(lua_State* L, int index)
     {
-        return VerifyCollisionObject(L, CheckCollisionObjectUserdata(L, index), true, 0);
+        return VerifyCollisionObjectInternal(L, CheckCollisionObjectInternal(L, index), true, 0);
     }
 
     static btCollisionObject* CheckCollisionObjectWithMeta(lua_State* L, int index, Bullet3DCollisionObjectMeta** out_meta)
     {
-        return VerifyCollisionObject(L, CheckCollisionObjectUserdata(L, index), true, out_meta);
+        return VerifyCollisionObjectInternal(L, CheckCollisionObjectInternal(L, index), true, out_meta);
     }
 
     dmGameObject::HCollection GetBullet3DCollisionObjectCollection(lua_State* L, int index)
     {
         Bullet3DCollisionObjectMeta* meta = 0;
-        VerifyCollisionObject(L, CheckCollisionObjectUserdata(L, index), true, &meta);
+        VerifyCollisionObjectInternal(L, CheckCollisionObjectInternal(L, index), true, &meta);
         return meta ? meta->m_Collection : 0;
     }
 
@@ -173,10 +179,10 @@ namespace dmGameSystem
 
         EnsureCollisionObjectCapacity();
 
-        uint64_t   id = 0;
-        uint64_t   key = CollisionObjectPtrToKey(collision_object);
-        uint64_t*  existing_id = g_Bullet3DCollisionObjectToId.Get(key);
-        uintptr_t* existing_collision_object = existing_id ? g_Bullet3DCollisionObjects.Get(*existing_id) : 0;
+        uint64_t            id = 0;
+        uint64_t            key = CollisionObjectPtrToKey(collision_object);
+        uint64_t*           existing_id = g_Bullet3DCollisionObjectToId.Get(key);
+        btCollisionObject** existing_collision_object = existing_id ? g_Bullet3DCollisionObjects.Get(*existing_id) : 0;
         if (existing_collision_object)
         {
             Bullet3DCollisionObjectMeta* existing_meta = g_Bullet3DCollisionObjectMeta.Get(*existing_id);
@@ -200,7 +206,7 @@ namespace dmGameSystem
                 g_Bullet3DCollisionObjectToId.Erase(key);
             }
             id = AllocateCollisionObjectId(L);
-            g_Bullet3DCollisionObjects.Put(id, (uintptr_t)collision_object);
+            g_Bullet3DCollisionObjects.Put(id, collision_object);
             g_Bullet3DCollisionObjectToId.Put(key, id);
         }
 
@@ -299,7 +305,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DCollisionObjectMeta* meta = 0;
         btCollisionObject*           collision_object = CheckCollisionObjectWithMeta(L, 1, &meta);
-        SetWorldTransform(collision_object, meta, CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()), CheckBullet3DQuat(L, 3));
+        SetWorldTransform(collision_object, meta, CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()), CheckBullet3DFiniteQuat(L, 3, "rotation"));
         return 0;
     }
 
@@ -332,7 +338,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DCollisionObjectMeta* meta = 0;
         btCollisionObject*           collision_object = CheckCollisionObjectWithMeta(L, 1, &meta);
-        SetWorldTransform(collision_object, meta, collision_object->getWorldTransform().getOrigin(), CheckBullet3DQuat(L, 2));
+        SetWorldTransform(collision_object, meta, collision_object->getWorldTransform().getOrigin(), CheckBullet3DFiniteQuat(L, 2, "rotation"));
         return 0;
     }
 
@@ -402,8 +408,8 @@ namespace dmGameSystem
     BULLET3D_NUMBER_PROPERTY(Friction, getFriction, setFriction, 1.0f, 1.0f)
     BULLET3D_NUMBER_PROPERTY(Restitution, getRestitution, setRestitution, 1.0f, 1.0f)
     BULLET3D_NUMBER_PROPERTY(ContactProcessingThreshold, getContactProcessingThreshold, setContactProcessingThreshold, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
-    BULLET3D_NUMBER_PROPERTY(CcdSweptSphereRadius, getCcdSweptSphereRadius, setCcdSweptSphereRadius, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
-    BULLET3D_NUMBER_PROPERTY(CcdMotionThreshold, getCcdMotionThreshold, setCcdMotionThreshold, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
+    BULLET3D_NUMBER_PROPERTY(CCDSweptSphereRadius, getCcdSweptSphereRadius, setCcdSweptSphereRadius, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
+    BULLET3D_NUMBER_PROPERTY(CCDMotionThreshold, getCcdMotionThreshold, setCcdMotionThreshold, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
 
 #undef BULLET3D_NUMBER_PROPERTY
 
@@ -471,39 +477,43 @@ namespace dmGameSystem
 
 #undef BULLET3D_BOOL_QUERY
 
-    static int CollisionObject_ToString(lua_State* L)
+    static int CollisionObject_tostring(lua_State* L)
     {
         btCollisionObject* collision_object = CheckBullet3DCollisionObject(L, 1);
         lua_pushfstring(L, "Bullet3D.%s = %p", BULLET3D_TYPE_NAME_COLLISION_OBJECT, collision_object);
         return 1;
     }
 
-    static int CollisionObject_Equal(lua_State* L)
+    static int CollisionObject_eq(lua_State* L)
     {
-        Bullet3DLuaCollisionObject* a = ToCollisionObjectUserdata(L, 1);
-        Bullet3DLuaCollisionObject* b = ToCollisionObjectUserdata(L, 2);
+        Bullet3DLuaCollisionObject* a = ToCollisionObjectInternal(L, 1);
+        Bullet3DLuaCollisionObject* b = ToCollisionObjectInternal(L, 2);
         lua_pushboolean(L, a && b && a->m_Id == b->m_Id);
         return 1;
     }
 
-    static const luaL_reg COLLISION_OBJECT_METHODS[] = {
+    static const luaL_reg CollisionObject_methods[] = {
         { 0, 0 }
     };
 
-    static const luaL_reg COLLISION_OBJECT_META[] = {
-        { "__tostring", CollisionObject_ToString },
-        { "__eq", CollisionObject_Equal },
+    static const luaL_reg CollisionObject_meta[] = {
+        { "__tostring", CollisionObject_tostring },
+        { "__eq", CollisionObject_eq },
         { 0, 0 }
     };
 
-    static const luaL_reg COLLISION_OBJECT_FUNCTIONS[] = {
+    static const luaL_reg CollisionObject_functions[] = {
         { "is_valid", CollisionObject_IsValid },
+
         { "get_world_transform", CollisionObject_GetWorldTransform },
         { "set_world_transform", CollisionObject_SetWorldTransform },
+
         { "get_position", CollisionObject_GetPosition },
         { "set_position", CollisionObject_SetPosition },
+
         { "get_rotation", CollisionObject_GetRotation },
         { "set_rotation", CollisionObject_SetRotation },
+
         { "get_activation_state", CollisionObject_GetActivationState },
         { "set_activation_state", CollisionObject_SetActivationState },
         { "force_activation_state", CollisionObject_ForceActivationState },
@@ -511,20 +521,27 @@ namespace dmGameSystem
         { "is_active", CollisionObject_IsActive },
         { "get_deactivation_time", CollisionObject_GetDeactivationTime },
         { "set_deactivation_time", CollisionObject_SetDeactivationTime },
+
         { "get_friction", CollisionObject_GetFriction },
         { "set_friction", CollisionObject_SetFriction },
+
         { "get_restitution", CollisionObject_GetRestitution },
         { "set_restitution", CollisionObject_SetRestitution },
+
         { "get_contact_processing_threshold", CollisionObject_GetContactProcessingThreshold },
         { "set_contact_processing_threshold", CollisionObject_SetContactProcessingThreshold },
-        { "get_ccd_swept_sphere_radius", CollisionObject_GetCcdSweptSphereRadius },
-        { "set_ccd_swept_sphere_radius", CollisionObject_SetCcdSweptSphereRadius },
-        { "get_ccd_motion_threshold", CollisionObject_GetCcdMotionThreshold },
-        { "set_ccd_motion_threshold", CollisionObject_SetCcdMotionThreshold },
+
+        { "get_ccd_swept_sphere_radius", CollisionObject_GetCCDSweptSphereRadius },
+        { "set_ccd_swept_sphere_radius", CollisionObject_SetCCDSweptSphereRadius },
+
+        { "get_ccd_motion_threshold", CollisionObject_GetCCDMotionThreshold },
+        { "set_ccd_motion_threshold", CollisionObject_SetCCDMotionThreshold },
+
         { "get_collision_flags", CollisionObject_GetCollisionFlags },
+        { "has_collision_flag", CollisionObject_HasCollisionFlag },
         { "get_collision_filter_group", CollisionObject_GetCollisionFilterGroup },
         { "get_collision_filter_mask", CollisionObject_GetCollisionFilterMask },
-        { "has_collision_flag", CollisionObject_HasCollisionFlag },
+
         { "get_internal_type", CollisionObject_GetInternalType },
         { "is_static", CollisionObject_IsStatic },
         { "is_kinematic", CollisionObject_IsKinematic },
@@ -543,10 +560,10 @@ namespace dmGameSystem
 
     void ScriptBullet3DInitializeCollisionObject(lua_State* L)
     {
-        g_Bullet3DCollisionObjectTypeHash = dmScript::RegisterUserType(L, BULLET3D_TYPE_NAME_COLLISION_OBJECT, COLLISION_OBJECT_METHODS, COLLISION_OBJECT_META);
+        TYPE_HASH_COLLISION_OBJECT = dmScript::RegisterUserType(L, BULLET3D_TYPE_NAME_COLLISION_OBJECT, CollisionObject_methods, CollisionObject_meta);
 
         lua_newtable(L);
-        luaL_register(L, 0, COLLISION_OBJECT_FUNCTIONS);
+        luaL_register(L, 0, CollisionObject_functions);
 
         SetIntegerConstant(L, "ACTIVE_TAG", ACTIVE_TAG);
         SetIntegerConstant(L, "ISLAND_SLEEPING", ISLAND_SLEEPING);
@@ -573,7 +590,7 @@ namespace dmGameSystem
 
     void ScriptBullet3DFinalizeCollisionObject()
     {
-        g_Bullet3DCollisionObjectTypeHash = 0;
+        TYPE_HASH_COLLISION_OBJECT = 0;
         g_Bullet3DCollisionObjects.Clear();
         g_Bullet3DCollisionObjectToId.Clear();
         g_Bullet3DCollisionObjectMeta.Clear();

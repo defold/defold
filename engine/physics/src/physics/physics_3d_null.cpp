@@ -250,7 +250,6 @@ namespace dmPhysics
         return 0;
     }
 
-
     void ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape)
     {
     }

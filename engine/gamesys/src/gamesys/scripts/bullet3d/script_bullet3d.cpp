@@ -4,6 +4,8 @@
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 
+#include <math.h>
+
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <extension/extension.hpp>
@@ -24,6 +26,8 @@ extern "C"
 
 namespace dmGameSystem
 {
+    //////////////////////////////////////////////////////////////////////////////
+
     static float g_Bullet3DPhysicsScale = 1.0f;
     static float g_Bullet3DInvPhysicsScale = 1.0f;
 
@@ -55,6 +59,22 @@ namespace dmGameSystem
         return btQuaternion(value->getX(), value->getY(), value->getZ(), value->getW());
     }
 
+    btQuaternion CheckBullet3DFiniteQuat(lua_State* L, int index, const char* field_name)
+    {
+        btQuaternion value = CheckBullet3DQuat(L, index);
+        btScalar     length_squared = value.length2();
+        if (!isfinite((double)value.getX()) || !isfinite((double)value.getY()) || !isfinite((double)value.getZ()) || !isfinite((double)value.getW()) || !isfinite((double)length_squared) || !(length_squared > 0.0f))
+        {
+            luaL_error(L, "%s must be a finite, non-zero quaternion.", field_name);
+        }
+        value.normalize();
+        if (!isfinite((double)value.getX()) || !isfinite((double)value.getY()) || !isfinite((double)value.getZ()) || !isfinite((double)value.getW()))
+        {
+            luaL_error(L, "%s must have a finite normalized value.", field_name);
+        }
+        return value;
+    }
+
     void PushBullet3DVector3(lua_State* L, const btVector3& value, float scale)
     {
         dmScript::PushVector3(L, dmVMath::Vector3(value.getX() * scale, value.getY() * scale, value.getZ() * scale));
@@ -64,6 +84,8 @@ namespace dmGameSystem
     {
         dmScript::PushQuat(L, dmVMath::Quat(value.getX(), value.getY(), value.getZ(), value.getW()));
     }
+
+    //////////////////////////////////////////////////////////////////////////////
 
     static void GetCollisionObject(lua_State* L, int index, dmGameObject::HCollection collection, dmMessage::URL* url, dmGameObject::HComponent* component, void** component_world)
     {
@@ -224,7 +246,6 @@ namespace dmGameSystem
         (void)params;
         CompCollisionObjectSetBullet3DInvalidateWorldCallback(0);
         CompCollisionObjectSetBullet3DInvalidateCollisionObjectCallback(0);
-        ScriptBullet3DFinalizeRigidBody();
         ScriptBullet3DFinalizeCollisionObject();
         ScriptBullet3DFinalizeWorld();
         return dmExtension::RESULT_OK;

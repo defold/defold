@@ -17,6 +17,8 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// btRigidBody
 namespace dmGameSystem
 {
     btRigidBody* CheckBullet3DRigidBody(lua_State* L, int index)
@@ -340,7 +342,7 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int RigidBody_GetAabb(lua_State* L)
+    static int RigidBody_GetAABB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         btVector3 lower;
@@ -355,60 +357,72 @@ namespace dmGameSystem
         return 1;
     }
 
-    static const luaL_reg RIGID_BODY_FUNCTIONS[] = {
+    static const luaL_reg RigidBody_functions[] = {
         { "is_valid", RigidBody_IsValid },
         { "get_world", RigidBody_GetWorld },
+
         { "get_mass", RigidBody_GetMass },
         { "get_inverse_mass", RigidBody_GetInverseMass },
+
         { "get_linear_velocity", RigidBody_GetLinearVelocity },
         { "set_linear_velocity", RigidBody_SetLinearVelocity },
+
         { "get_angular_velocity", RigidBody_GetAngularVelocity },
         { "set_angular_velocity", RigidBody_SetAngularVelocity },
+
         { "get_damping", RigidBody_GetDamping },
         { "set_damping", RigidBody_SetDamping },
+
         { "get_linear_damping", RigidBody_GetLinearDamping },
         { "set_linear_damping", RigidBody_SetLinearDamping },
+
         { "get_angular_damping", RigidBody_GetAngularDamping },
         { "set_angular_damping", RigidBody_SetAngularDamping },
+
         { "get_linear_factor", RigidBody_GetLinearFactor },
         { "set_linear_factor", RigidBody_SetLinearFactor },
+
         { "get_angular_factor", RigidBody_GetAngularFactor },
         { "set_angular_factor", RigidBody_SetAngularFactor },
+
         { "get_gravity", RigidBody_GetGravity },
         { "set_gravity", RigidBody_SetGravity },
+
         { "get_flags", RigidBody_GetFlags },
         { "set_flags", RigidBody_SetFlags },
         { "has_flag", RigidBody_HasFlag },
+
         { "get_linear_sleeping_threshold", RigidBody_GetLinearSleepingThreshold },
         { "get_angular_sleeping_threshold", RigidBody_GetAngularSleepingThreshold },
         { "set_sleeping_thresholds", RigidBody_SetSleepingThresholds },
+
         { "get_total_force", RigidBody_GetTotalForce },
         { "get_total_torque", RigidBody_GetTotalTorque },
         { "get_center_of_mass_position", RigidBody_GetCenterOfMassPosition },
+
         { "apply_central_force", RigidBody_ApplyCentralForce },
         { "apply_force", RigidBody_ApplyForce },
         { "apply_torque", RigidBody_ApplyTorque },
+
         { "apply_central_impulse", RigidBody_ApplyCentralImpulse },
         { "apply_impulse", RigidBody_ApplyImpulse },
         { "apply_torque_impulse", RigidBody_ApplyTorqueImpulse },
+
         { "clear_forces", RigidBody_ClearForces },
         { "get_velocity_in_local_point", RigidBody_GetVelocityInLocalPoint },
-        { "get_aabb", RigidBody_GetAabb },
+        { "get_aabb", RigidBody_GetAABB },
         { 0, 0 }
     };
 
     void ScriptBullet3DInitializeRigidBody(lua_State* L)
     {
         lua_newtable(L);
-        luaL_register(L, 0, RIGID_BODY_FUNCTIONS);
+        luaL_register(L, 0, RigidBody_functions);
         lua_pushinteger(L, BT_DISABLE_WORLD_GRAVITY);
         lua_setfield(L, -2, "BT_DISABLE_WORLD_GRAVITY");
         lua_setfield(L, -2, "rigid_body");
     }
 
-    void ScriptBullet3DFinalizeRigidBody()
-    {
-    }
 } // namespace dmGameSystem
 
 /*# Bullet rigid body API

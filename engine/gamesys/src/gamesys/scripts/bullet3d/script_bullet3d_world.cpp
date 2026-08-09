@@ -25,9 +25,13 @@ extern "C"
 #include <lua/lualib.h>
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// btDiscreteDynamicsWorld
 namespace dmGameSystem
 {
 #define BULLET3D_TYPE_NAME_WORLD "bullet3d_world"
+
+    static uint32_t TYPE_HASH_WORLD = 0;
 
     struct Bullet3DLuaWorld
     {
@@ -35,10 +39,12 @@ namespace dmGameSystem
         void*    m_ComponentWorld;
     };
 
-    static uint32_t                 g_Bullet3DWorldTypeHash = 0;
-    static uint64_t                 g_NextBullet3DWorldId = 0;
-    static dmHashTable64<uintptr_t> g_Bullet3DWorlds;
-    static dmHashTable64<uint64_t>  g_Bullet3DWorldToId;
+    // Bullet worlds are raw pointers. Assign each live pointer a monotonically
+    // increasing identity so stale Lua userdata cannot revive when a native
+    // address is reused.
+    static uint64_t                                g_NextBullet3DWorldId = 0;
+    static dmHashTable64<btDiscreteDynamicsWorld*> g_Bullet3DWorlds;
+    static dmHashTable64<uint64_t>                 g_Bullet3DWorldToId;
 
     struct Bullet3DQueryFilter
     {
@@ -281,22 +287,6 @@ namespace dmGameSystem
         return value;
     }
 
-    static btQuaternion CheckFiniteQuaternion(lua_State* L, int index, const char* field_name)
-    {
-        btQuaternion value = CheckBullet3DQuat(L, index);
-        btScalar     length_squared = value.length2();
-        if (!IsFiniteScalar(value.getX()) || !IsFiniteScalar(value.getY()) || !IsFiniteScalar(value.getZ()) || !IsFiniteScalar(value.getW()) || !IsFiniteScalar(length_squared) || !(length_squared > 0.0f))
-        {
-            luaL_error(L, "%s must be a finite, non-zero quaternion.", field_name);
-        }
-        value.normalize();
-        if (!IsFiniteScalar(value.getX()) || !IsFiniteScalar(value.getY()) || !IsFiniteScalar(value.getZ()) || !IsFiniteScalar(value.getW()))
-        {
-            luaL_error(L, "%s must have a finite normalized value.", field_name);
-        }
-        return value;
-    }
-
     static void CheckQueryFilterInput(lua_State* L, int index, Bullet3DQueryFilterInput* input)
     {
         input->m_CategoryBits = 0xffff;
@@ -456,7 +446,7 @@ namespace dmGameSystem
         lua_getfield(L, index, "rotation");
         if (!lua_isnil(L, -1))
         {
-            input->m_Rotation = CheckFiniteQuaternion(L, -1, "rotation");
+            input->m_Rotation = CheckBullet3DFiniteQuat(L, -1, "rotation");
             input->m_TargetRotation = input->m_Rotation;
         }
         lua_pop(L, 1);
@@ -464,7 +454,7 @@ namespace dmGameSystem
         lua_getfield(L, index, "target_rotation");
         if (!lua_isnil(L, -1))
         {
-            input->m_TargetRotation = CheckFiniteQuaternion(L, -1, "target_rotation");
+            input->m_TargetRotation = CheckBullet3DFiniteQuat(L, -1, "target_rotation");
         }
         lua_pop(L, 1);
 
@@ -586,17 +576,17 @@ namespace dmGameSystem
         }
     }
 
-    static void SynchronizeWorldAabbs(btDiscreteDynamicsWorld* world)
+    static void SynchronizeWorldAABBs(btDiscreteDynamicsWorld* world)
     {
         // Script setters update the Bullet transform immediately. Refreshing all
         // broadphase bounds makes queries observe those transforms in the same frame.
         world->updateAabbs();
     }
 
-    class Bullet3DAabbQueryCallback : public btBroadphaseAabbCallback
+    class Bullet3DAABBQueryCallback : public btBroadphaseAabbCallback
     {
         public:
-        Bullet3DAabbQueryCallback(const Bullet3DQueryFilter* filter, dmArray<Bullet3DQueryObjectResult>* results, int max_results)
+        Bullet3DAABBQueryCallback(const Bullet3DQueryFilter* filter, dmArray<Bullet3DQueryObjectResult>* results, int max_results)
             : m_Filter(filter)
             , m_Results(results)
             , m_MaxResults(max_results)
@@ -861,13 +851,13 @@ namespace dmGameSystem
 
     static void InvalidateWorldId(uint64_t id)
     {
-        uintptr_t* world_ptr = g_Bullet3DWorlds.Get(id);
-        if (!world_ptr)
+        btDiscreteDynamicsWorld** world = g_Bullet3DWorlds.Get(id);
+        if (!world)
         {
             return;
         }
 
-        uint64_t  key = WorldPtrToKey((btDiscreteDynamicsWorld*)*world_ptr);
+        uint64_t  key = WorldPtrToKey(*world);
         uint64_t* mapped_id = g_Bullet3DWorldToId.Get(key);
         if (mapped_id && *mapped_id == id)
         {
@@ -876,25 +866,25 @@ namespace dmGameSystem
         g_Bullet3DWorlds.Erase(id);
     }
 
-    static Bullet3DLuaWorld* CheckWorldUserdata(lua_State* L, int index)
+    static Bullet3DLuaWorld* CheckWorldInternal(lua_State* L, int index)
     {
-        return (Bullet3DLuaWorld*)dmScript::CheckUserType(L, index, g_Bullet3DWorldTypeHash, "Expected user type " BULLET3D_TYPE_NAME_WORLD);
+        return (Bullet3DLuaWorld*)dmScript::CheckUserType(L, index, TYPE_HASH_WORLD, "Expected user type " BULLET3D_TYPE_NAME_WORLD);
     }
 
-    static Bullet3DLuaWorld* ToWorldUserdata(lua_State* L, int index)
+    static Bullet3DLuaWorld* ToWorldInternal(lua_State* L, int index)
     {
-        return (Bullet3DLuaWorld*)dmScript::ToUserType(L, index, g_Bullet3DWorldTypeHash);
+        return (Bullet3DLuaWorld*)dmScript::ToUserType(L, index, TYPE_HASH_WORLD);
     }
 
     btDiscreteDynamicsWorld* ToBullet3DWorld(lua_State* L, int index)
     {
-        Bullet3DLuaWorld* lua_world = ToWorldUserdata(L, index);
+        Bullet3DLuaWorld* lua_world = ToWorldInternal(L, index);
         if (!lua_world)
         {
             return 0;
         }
-        uintptr_t* world_ptr = g_Bullet3DWorlds.Get(lua_world->m_Id);
-        return world_ptr ? (btDiscreteDynamicsWorld*)*world_ptr : 0;
+        btDiscreteDynamicsWorld** world = g_Bullet3DWorlds.Get(lua_world->m_Id);
+        return world ? *world : 0;
     }
 
     bool IsBullet3DWorldValid(lua_State* L, int index)
@@ -904,9 +894,9 @@ namespace dmGameSystem
 
     btDiscreteDynamicsWorld* CheckBullet3DWorld(lua_State* L, int index)
     {
-        Bullet3DLuaWorld*        lua_world = CheckWorldUserdata(L, index);
-        uintptr_t*               world_ptr = g_Bullet3DWorlds.Get(lua_world->m_Id);
-        btDiscreteDynamicsWorld* world = world_ptr ? (btDiscreteDynamicsWorld*)*world_ptr : 0;
+        Bullet3DLuaWorld*         lua_world = CheckWorldInternal(L, index);
+        btDiscreteDynamicsWorld** world_ptr = g_Bullet3DWorlds.Get(lua_world->m_Id);
+        btDiscreteDynamicsWorld*  world = world_ptr ? *world_ptr : 0;
         if (!world)
         {
             luaL_error(L, "Invalid bullet3d world handle.");
@@ -940,7 +930,7 @@ namespace dmGameSystem
                 g_Bullet3DWorldToId.Erase(key);
             }
             id = AllocateWorldId(L);
-            g_Bullet3DWorlds.Put(id, (uintptr_t)world);
+            g_Bullet3DWorlds.Put(id, world);
             g_Bullet3DWorldToId.Put(key, id);
         }
 
@@ -982,7 +972,7 @@ namespace dmGameSystem
     static int World_SetGravity(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        Bullet3DLuaWorld* lua_world = CheckWorldUserdata(L, 1);
+        Bullet3DLuaWorld* lua_world = CheckWorldInternal(L, 1);
         CheckBullet3DWorld(L, 1);
         CompCollisionObjectSetBullet3DWorldGravity(lua_world->m_ComponentWorld, *dmScript::CheckVector3(L, 2));
         return 0;
@@ -1170,7 +1160,7 @@ namespace dmGameSystem
         }
     }
 
-    static int World_OverlapAabb(lua_State* L)
+    static int World_OverlapAABB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
         btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
@@ -1191,9 +1181,9 @@ namespace dmGameSystem
         Bullet3DQueryFilter filter;
         CheckQueryFilter(L, 3, &filter);
 
-        SynchronizeWorldAabbs(world);
+        SynchronizeWorldAABBs(world);
         dmArray<Bullet3DQueryObjectResult> results;
-        Bullet3DAabbQueryCallback          callback(&filter, &results, max_results);
+        Bullet3DAABBQueryCallback          callback(&filter, &results, max_results);
         world->getBroadphase()->aabbTest(lower, upper, callback);
         PushObjectResults(L, results, max_results);
         return 1;
@@ -1208,7 +1198,7 @@ namespace dmGameSystem
         Bullet3DQueryFilter      filter;
         CheckQueryFilter(L, 3, &filter);
 
-        SynchronizeWorldAabbs(world);
+        SynchronizeWorldAABBs(world);
         btSphereShape                      point_shape(0.0f);
         dmArray<Bullet3DQueryObjectResult> results;
         CollectShapeOverlaps(world, &point_shape, btTransform(btQuaternion(0.0f, 0.0f, 0.0f, 1.0f), point), &filter, max_results, &results);
@@ -1231,7 +1221,7 @@ namespace dmGameSystem
         Bullet3DQueryShape query_shape = CreateQueryShape(L, shape_input);
         lua_settop(L, top);
 
-        SynchronizeWorldAabbs(world);
+        SynchronizeWorldAABBs(world);
         dmArray<Bullet3DQueryObjectResult> results;
         CollectShapeOverlaps(world, query_shape.m_Shape, query_shape.m_From, &filter, max_results, &results);
         delete query_shape.m_Shape;
@@ -1252,7 +1242,7 @@ namespace dmGameSystem
         Bullet3DQueryFilter filter;
         CheckQueryFilter(L, 4, &filter);
 
-        SynchronizeWorldAabbs(world);
+        SynchronizeWorldAABBs(world);
         dmArray<Bullet3DCastResult> results;
         btSphereShape               point_shape(0.0f);
         btTransform                 origin_transform(btQuaternion(0.0f, 0.0f, 0.0f, 1.0f), origin);
@@ -1305,7 +1295,7 @@ namespace dmGameSystem
         lua_settop(L, top);
         query_shape.m_To.setOrigin(target);
 
-        SynchronizeWorldAabbs(world);
+        SynchronizeWorldAABBs(world);
         dmArray<Bullet3DCastResult> results;
         CollectInitialCastOverlaps(world, query_shape.m_Shape, query_shape.m_From, &filter, false, max_results, &results);
         if (!closest || results.Empty())
@@ -1347,7 +1337,7 @@ namespace dmGameSystem
         Bullet3DQueryFilter filter;
         CheckQueryFilter(L, 3, &filter);
 
-        SynchronizeWorldAabbs(world);
+        SynchronizeWorldAABBs(world);
         dmArray<Bullet3DContactResult> results;
         Bullet3DContactQueryCallback   callback(&filter, object, &results, max_results);
         world->contactTest(object, callback);
@@ -1375,7 +1365,7 @@ namespace dmGameSystem
         filter.m_IncludeTriggers = true;
         filter.m_ReportInitialOverlaps = false;
 
-        SynchronizeWorldAabbs(world);
+        SynchronizeWorldAABBs(world);
         dmArray<Bullet3DContactResult> results;
         Bullet3DContactQueryCallback   callback(&filter, object_a, &results, max_results);
         world->contactPairTest(object_a, object_b, callback);
@@ -1403,62 +1393,68 @@ namespace dmGameSystem
         return 1;
     }
 
-    static int World_ToString(lua_State* L)
+    static int World_tostring(lua_State* L)
     {
         btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
         lua_pushfstring(L, "Bullet3D.%s = %p", BULLET3D_TYPE_NAME_WORLD, world);
         return 1;
     }
 
-    static int World_Equal(lua_State* L)
+    static int World_eq(lua_State* L)
     {
-        Bullet3DLuaWorld* a = ToWorldUserdata(L, 1);
-        Bullet3DLuaWorld* b = ToWorldUserdata(L, 2);
+        Bullet3DLuaWorld* a = ToWorldInternal(L, 1);
+        Bullet3DLuaWorld* b = ToWorldInternal(L, 2);
         lua_pushboolean(L, a && b && a->m_Id == b->m_Id);
         return 1;
     }
 
-    static const luaL_reg WORLD_METHODS[] = {
+    static const luaL_reg World_methods[] = {
         { 0, 0 }
     };
 
-    static const luaL_reg WORLD_META[] = {
-        { "__tostring", World_ToString },
-        { "__eq", World_Equal },
+    static const luaL_reg World_meta[] = {
+        { "__tostring", World_tostring },
+        { "__eq", World_eq },
         { 0, 0 }
     };
 
-    static const luaL_reg WORLD_FUNCTIONS[] = {
+    static const luaL_reg World_functions[] = {
         { "is_valid", World_IsValid },
+
         { "get_gravity", World_GetGravity },
         { "set_gravity", World_SetGravity },
+
         { "get_collision_object_count", World_GetCollisionObjectCount },
         { "get_num_collision_objects", World_GetCollisionObjectCount },
-        { "overlap_aabb", World_OverlapAabb },
+
+        { "overlap_aabb", World_OverlapAABB },
         { "overlap_point", World_OverlapPoint },
         { "overlap_shape", World_OverlapShape },
+
         { "cast_ray", World_CastRay },
         { "cast_ray_closest", World_CastRayClosest },
         { "cast_shape", World_CastShape },
         { "cast_shape_closest", World_CastShapeClosest },
+
         { "contact_test", World_ContactTest },
         { "contact_pair_test", World_ContactPairTest },
+
         { "get_collision_objects", World_GetCollisionObjects },
         { 0, 0 }
     };
 
     void ScriptBullet3DInitializeWorld(lua_State* L)
     {
-        g_Bullet3DWorldTypeHash = dmScript::RegisterUserType(L, BULLET3D_TYPE_NAME_WORLD, WORLD_METHODS, WORLD_META);
+        TYPE_HASH_WORLD = dmScript::RegisterUserType(L, BULLET3D_TYPE_NAME_WORLD, World_methods, World_meta);
 
         lua_newtable(L);
-        luaL_register(L, 0, WORLD_FUNCTIONS);
+        luaL_register(L, 0, World_functions);
         lua_setfield(L, -2, "world");
     }
 
     void ScriptBullet3DFinalizeWorld()
     {
-        g_Bullet3DWorldTypeHash = 0;
+        TYPE_HASH_WORLD = 0;
         g_Bullet3DWorlds.Clear();
         g_Bullet3DWorldToId.Clear();
     }
