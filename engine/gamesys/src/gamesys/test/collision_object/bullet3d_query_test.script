@@ -767,6 +767,7 @@ local function test_query_validation(world, objects)
     local zero = vmath.vector3(0, 0, 0)
     local infinity = math.huge
     local nan = 0 / 0
+    local oversized_integer = 4294967296
     local valid_aabb = {
         lower = vmath.vector3(-1, -1, -1),
         upper = vmath.vector3(1, 1, 1),
@@ -829,6 +830,13 @@ local function test_query_validation(world, objects)
     end)
     assert_error(function()
         bullet3d.world.contact_pair_test(world, objects.contact_a, objects.contact_b, -1)
+    end)
+    -- Validate the Lua number before narrowing it to the native result-count type.
+    assert_error(function()
+        bullet3d.world.get_collision_objects(world, oversized_integer)
+    end)
+    assert_error(function()
+        bullet3d.world.get_collision_objects(world, 1.5)
     end)
 
     -- Reversed AABB bounds cannot describe a valid world-space query volume.
@@ -956,6 +964,12 @@ local function test_query_validation(world, objects)
     end)
     assert_error(function()
         bullet3d.world.overlap_point(world, zero, { mask_bits = 65536 })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_point(world, zero, { category_bits = oversized_integer })
+    end)
+    assert_error(function()
+        bullet3d.world.overlap_point(world, zero, { mask_bits = 1.5 })
     end)
     assert_error(function()
         bullet3d.world.overlap_point(world, zero, { include_triggers = 1 })

@@ -5,6 +5,7 @@
 // this file except in compliance with the License.
 
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -230,19 +231,19 @@ namespace dmGameSystem
             return 0;
         }
 
-        int max_results = luaL_checkinteger(L, index);
-        if (max_results < 0)
+        lua_Number max_results = luaL_checknumber(L, index);
+        if (!isfinite((double)max_results) || max_results < 0.0 || max_results > INT_MAX || floor((double)max_results) != max_results)
         {
-            luaL_error(L, "max_results must be >= 0.");
+            luaL_error(L, "max_results must be an integer between 0 and %d.", INT_MAX);
             return 0;
         }
-        return max_results;
+        return (int)max_results;
     }
 
     static uint16_t CheckFilterBits(lua_State* L, int index, const char* field_name)
     {
-        int value = luaL_checkinteger(L, index);
-        if (value < 0 || value > 0xffff)
+        lua_Number value = luaL_checknumber(L, index);
+        if (!isfinite((double)value) || value < 0.0 || value > 0xffff || floor((double)value) != value)
         {
             luaL_error(L, "%s must be an integer between 0 and 65535.", field_name);
             return 0;
