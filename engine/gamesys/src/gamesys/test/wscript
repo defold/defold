@@ -217,8 +217,8 @@ def build(bld):
 
     bld.program(features = 'cxx cprogram embed test',
                 includes = '../../../src ../../../proto',
-                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model script_bullet3d',
-                exported_symbols = exported_symbols + ['ScriptModelExt', 'ScriptBullet3DExt'],
+                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER FONT GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT TEST_SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
+                exported_symbols = exported_symbols + ['ScriptModelExt'],
                 web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                 content_root = '../test',
                 source = bld.path.ant_glob('test_gamesys_physics.cpp'),
