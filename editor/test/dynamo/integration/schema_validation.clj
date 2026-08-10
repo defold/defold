@@ -170,3 +170,18 @@
     (binding [internal.node/*suppress-schema-warnings* true]
       (let [[bsn] (tx-nodes (g/make-nodes world [bsn [BadSchemaPropNode]]))]
         (is (thrown-with-msg? Exception #"SCHEMA-VALIDATION" (g/node-value bsn :bad-schema-prop)))))))
+
+(g/defnode MultiValuedPropertyNode
+  (property values [g/Str]))
+
+(deftest test-schema-validation-on-multi-valued-property-assignment
+  (with-clean-system
+    (let [[node-id] (tx-nodes (g/make-node world MultiValuedPropertyNode))
+          values ["one" "two"]]
+      (g/set-property! node-id :values values)
+      (is (= values (g/node-value node-id :values)))
+
+      (binding [internal.node/*suppress-schema-warnings* true]
+        (is (thrown-with-msg?
+              Exception #"SCHEMA-VALIDATION"
+              (g/set-property! node-id :values ["one" 2])))))))

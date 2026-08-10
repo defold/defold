@@ -98,6 +98,18 @@ namespace dmTexc
         uint32_t block_y        = 0;
         uint32_t block_z        = 1;
         astcenc_profile profile = ASTCENC_PRF_LDR;
+        astcenc_type data_type  = ASTCENC_TYPE_U8;
+
+        if (settings->m_PixelFormat == PF_RGBA16F)
+        {
+            profile = ASTCENC_PRF_HDR_RGB_LDR_A;
+            data_type = ASTCENC_TYPE_F16;
+        }
+        else if (settings->m_PixelFormat == PF_RGBA32F)
+        {
+            profile = ASTCENC_PRF_HDR_RGB_LDR_A;
+            data_type = ASTCENC_TYPE_F32;
+        }
 
         if (settings->m_QualityLevel < 0.0 || settings->m_QualityLevel > 100.0f)
         {
@@ -141,7 +153,7 @@ namespace dmTexc
         image.dim_x         = settings->m_Width;
         image.dim_y         = settings->m_Height;
         image.dim_z         = 1;
-        image.data_type     = ASTCENC_TYPE_U8;
+        image.data_type     = data_type;
         image.data          = reinterpret_cast<void**>(&image_data);
 
         // Space needed for 16 bytes of output per compressed block

@@ -495,6 +495,15 @@ namespace dmGameObject
         }
     }
 
+    HInstance GetInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash) {
+        uintptr_t user_data;
+        if (dmScript::GetUserData(L, &user_data, script_instance_type_hash)) {
+            return (HInstance)user_data;
+        } else {
+            return 0;
+        }
+    }
+
     Result PostScriptMessage(const dmDDF::Descriptor* payload_descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call)
     {
         dmArray<uint8_t> msg_buffer;

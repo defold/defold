@@ -610,6 +610,7 @@ namespace dmGraphics
 
     bool InitializeVulkan(HContext context);
     void InitializeVulkanTexture(VulkanTexture* t);
+    void VulkanStopAsyncProcessing(VulkanContext* context);
 
     void OnWindowResize(int width, int height);
     int  OnWindowClose();
