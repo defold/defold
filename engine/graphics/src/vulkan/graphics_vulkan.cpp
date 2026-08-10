@@ -2134,6 +2134,7 @@ bail:
 
         res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, size, offset, data, bufferOut);
         CHECK_VK_ERROR(res);
+        TouchResource(context, bufferOut);
 
         if (!context->m_FrameBegun)
         {
@@ -2232,16 +2233,11 @@ bail:
             return;
         }
 
-        if (offset == 0)
+        if (offset == 0 && !buffer->m_Destroyed && buffer->m_Handle.m_Buffer != VK_NULL_HANDLE)
         {
-            // Coherent memory writes does not seem to be properly synced on MoltenVK,
-            // so for now we always mark the old buffer for destruction when updating the data.
-        #ifndef __MACH__
-            if (size != buffer->m_Base.m_Size)
-        #endif
-            {
-                DestroyResourceDeferred(context, buffer);
-            }
+            // Full updates replace the logical contents of the buffer. Vulkan command buffers keep
+            // references to VkBuffer storage, so do not overwrite storage that recorded draws may use.
+            DestroyResourceDeferred(context, buffer);
         }
 
         DeviceBufferUploadHelper(context, data, size, offset, buffer);
@@ -2420,8 +2416,8 @@ bail:
         DM_PROFILE(__FUNCTION__);
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        assert(offset + size < buffer_ptr->m_Base.m_Size);
-        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
+        assert(offset + size <= buffer_ptr->m_Base.m_Size);
+        DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
     }
 
     static bool VulkanIsIndexBufferFormatSupported(HContext _context, IndexBufferFormat format)

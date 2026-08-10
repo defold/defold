@@ -48,7 +48,11 @@ namespace dmGraphics
     {
         DeviceBuffer()
         : m_Base()
+        , m_MappedDataPtr(0)
+        , m_Usage(0)
+        , m_Destroyed(0)
         {
+            memset(&m_Handle, 0, sizeof(m_Handle));
         }
         DeviceBuffer(const VkBufferUsageFlags usage)
         : m_Base()
