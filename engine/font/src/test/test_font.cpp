@@ -81,13 +81,14 @@ protected:
 
 TEST_F(FontTest, LoadTTF)
 {
-    // Empty. Just loading/unloading a font
+    ASSERT_EQ(FONT_TYPE_TTF, FontGetType(m_Font));
 }
 
 TEST_F(FontTest, LoadOTFAndGenerateGlyph)
 {
     HFont font;
     LoadFont("src/test/data/SourceCodePro-Regular.otf", &font);
+    ASSERT_EQ(FONT_TYPE_OTF, FontGetType(font));
 
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(font, 32.0f);
