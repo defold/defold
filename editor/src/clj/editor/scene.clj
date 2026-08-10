@@ -1771,7 +1771,6 @@
             active-updatables)))
 
 (defn update-image-view! [view-id ^ImageView image-view ^GLAutoDrawable drawable async-copy-state-atom dt]
-  (ui/show-requested-context-menu!)
   (let [action-queue (g/user-data view-id ::input-action-queue)
         [render-mode play-mode active-updatables updatable-states]
         (g/with-auto-evaluation-context evaluation-context

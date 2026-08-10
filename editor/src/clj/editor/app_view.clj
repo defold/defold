@@ -2384,6 +2384,7 @@
                                       (refresh-views! app-view evaluation-context)
                                       (reload-editor-scripts-notification-updater evaluation-context)
                                       (refresh-app-title! stage project evaluation-context)))
+                                  (ui/show-requested-context-menu!)
                                   ;; Scene views are always refreshed, since they may play animations.
                                   ;; This performs graph mutations, so needs to manage its own evaluation-contexts.
                                   (refresh-scene-views! app-view dt)))))]
