@@ -115,20 +115,18 @@ size_t dmStrlCpy(char *dst, const char *src, size_t size);
  */
 size_t dmStrlCat(char *dst, const char *src, size_t size);
 
-/*# Copy a string without leading and trailing whitespace
+/*# Trim a string
  *
- * Copies a null-terminated string without leading and trailing whitespace, as
- * classified by `isspace()`. Internal whitespace is preserved. At most
- * `dst_size - 1` characters are copied and the destination is always null-terminated
- * when `dst_size` is greater than zero. The source and destination may overlap,
- * including being the same buffer.
+ * Copies a string while removing leading and trailing whitespace. Internal
+ * whitespace is preserved. The source and destination may be the same buffer.
+ * The destination is null-terminated when `dst_size` is greater than zero.
  *
  * @name dmStrTrim
  * @param dst [type:char*] Destination buffer
  * @param dst_size [type:size_t] Size of the destination buffer
  * @param src [type:const char*] Null-terminated source string
- * @return Length of the trimmed string, excluding the terminating null byte. If
- * this is greater than or equal to `dst_size`, the destination was truncated.
+ * @return Length of the trimmed source string. If the return value is greater
+ * than or equal to `dst_size`, the destination was truncated.
  * @examples
  *
  * ```cpp
