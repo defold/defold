@@ -1187,7 +1187,7 @@
               new-line (>= line-width cache-width)
               line-width (if new-line 0 line-width)]
           (when new-line
-            (.append result \space))
+            (.append result \newline))
           (.appendCodePoint result (int (:character glyph)))
           (recur (inc glyph-index)
                  (+ line-width (int (:advance glyph)))))))))

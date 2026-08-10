@@ -44,8 +44,8 @@
                                    :width 5
                                    :advance 10.0})
                                 (range (int \A) (inc (int \F))))}]
-    (is (= "AB CD" ((ns-resolve 'editor.font 'produce-preview-text)
-                     {:font-map font-map})))))
+    (is (= "AB\nCD" ((ns-resolve 'editor.font 'produce-preview-text)
+                      {:font-map font-map})))))
 
 (deftest effective-sdf-scale-test
   (let [effective-sdf-scale (ns-resolve 'editor.font 'effective-sdf-scale)
@@ -80,6 +80,20 @@
         (is (= "A" (:native-text restricted-layout)))
         (is (= (:width expected-layout) (:width restricted-layout)))
         (is (= (:height expected-layout) (:height restricted-layout)))))))
+
+(deftest static-native-preview-preserves-row-separators
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+         (g/set-property font-node :cache-width 64)])
+      (let [font-map (g/node-value font-node :font-map)
+            preview-text (g/node-value font-node :preview-text)
+            text-layout (font/layout-text font-map preview-text true (:cache-width font-map) 0 1)]
+        (is (s/includes? preview-text "\n"))
+        (is (= preview-text (:native-text text-layout)))
+        (is (< 1 (:line-count text-layout)))))))
 
 (defn- font-map-uses-text-shaping? [font-node]
   (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
@@ -150,12 +164,12 @@
     (let [node-id   (test-util/resource-node project "/fonts/score.font")
           font-map (g/node-value node-id :font-map)
           pre-text (g/node-value node-id :preview-text)
-          no-break (s/replace pre-text " " "")
+          no-break (s/replace pre-text "\n" "")
           [w h] (font/measure font-map pre-text true (:cache-width font-map) 0 1)
           [ew eh] (font/measure font-map no-break true (:cache-width font-map) 0 1)
           text-layout (font/layout-text font-map pre-text false 0 0.125 1)]
-      (is (.contains pre-text " "))
-      (is (not (.contains no-break " ")))
+      (is (.contains pre-text "\n"))
+      (is (not (.contains no-break "\n")))
       (is (< w ew))
       (is (< eh h))
       (is (= 0.125 (:text-tracking text-layout))))))
