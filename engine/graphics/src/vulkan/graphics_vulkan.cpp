@@ -952,7 +952,7 @@ namespace dmGraphics
         }
 
         // Flush all current commands
-        SynchronizeDevice(vk_device);
+        SynchronizeDevice(&context->m_LogicalDevice);
 
         DestroyMainFrameBuffers(context);
 
@@ -1007,7 +1007,7 @@ namespace dmGraphics
         CHECK_VK_ERROR(res);
 
         // Flush once again to make sure all transitions are complete
-        SynchronizeDevice(vk_device);
+        SynchronizeDevice(&context->m_LogicalDevice);
     }
 
     static void DestroyResourceImmediatedly(VulkanContext* context, ResourceToDestroy* resource)

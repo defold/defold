@@ -623,9 +623,10 @@ namespace dmGraphics
     int  OnWindowClose();
     void OnWindowFocus(int focus);
 
-    static inline void SynchronizeDevice(VkDevice vk_device)
+    static inline void SynchronizeDevice(LogicalDevice* logical_device)
     {
-        vkDeviceWaitIdle(vk_device);
+        DM_MUTEX_SCOPED_LOCK(logical_device->m_QueueMutex);
+        vkDeviceWaitIdle(logical_device->m_Device);
     }
 
     // Implemented per supported platform
