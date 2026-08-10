@@ -605,6 +605,11 @@ namespace dmGameSystem
         bool               angular_only = GetBooleanField(L, 3, "angular_only", false);
 
         btHingeConstraint* constraint = input.m_BodyB ? new btHingeConstraint(*input.m_BodyA, *input.m_BodyB, frame_a, frame_b, use_reference_frame_a) : new btHingeConstraint(*input.m_BodyA, frame_a, use_reference_frame_a);
+        if (!input.m_BodyB)
+        {
+            // Bullet 2.77 only transforms the origin of the fixed body's frame.
+            constraint->getBFrame() = input.m_BodyA->getCenterOfMassTransform() * frame_a;
+        }
         constraint->setAngularOnly(angular_only);
         uint64_t id = RegisterConstraint(L, input, constraint, BULLET3D_CONSTRAINT_HINGE);
         g_Bullet3DConstraints.Get(id)->m_AngularOnly = angular_only;

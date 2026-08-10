@@ -264,14 +264,20 @@ local function run_creation_smoke_tests(world, body_a, body_b)
     })
     verify_constraint(world, body_a, nil, world_constraint, "point_to_point")
 
+    local original_position, original_rotation = bullet3d.collision_object.get_world_transform(body_a)
+    local hinge_rotation = vmath.quat_rotation_z(0.35)
+    bullet3d.collision_object.set_world_transform(body_a, original_position, hinge_rotation)
     local world_hinge = bullet3d.constraint.create_hinge(body_a, nil, {
         frame_a_position = vmath.vector3(),
         frame_a_rotation = vmath.quat(),
     })
+    local hinge_frame_position, hinge_frame_rotation = bullet3d.constraint.get_frame_b(world_hinge)
+    assert_vec3_near(hinge_frame_position, original_position)
+    assert_quat_near(hinge_frame_rotation, hinge_rotation)
     bullet3d.constraint.set_hinge_axis(world_hinge, vmath.vector3(0, 1, 0))
     bullet3d.constraint.destroy(world_hinge)
+    bullet3d.collision_object.set_world_transform(body_a, original_position, original_rotation)
 
-    local original_position, original_rotation = bullet3d.collision_object.get_world_transform(body_a)
     local cone_rotation = vmath.quat_rotation_z(0.35)
     bullet3d.collision_object.set_world_transform(body_a, original_position, cone_rotation)
     local world_cone = bullet3d.constraint.create_cone_twist(body_a, nil, {
