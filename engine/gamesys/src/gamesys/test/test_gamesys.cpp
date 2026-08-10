@@ -3609,9 +3609,9 @@ TEST_F(FontTest, ScriptAddRemoveFont)
 
 TEST_F(FontTest, OpenTypeResource)
 {
-    const char* otf_path = "/font/SourceCodePro-Regular_cff1.otf";
+    const char* otf_path = "/font/SourceCodePro-Regular.otf";
     uint32_t data_size = 0;
-    uint8_t* data = dmTestUtil::ReadHostFile("src/gamesys/test/font/SourceCodePro-Regular_cff1.otf", &data_size);
+    uint8_t* data = dmTestUtil::ReadHostFile("src/gamesys/test/font/SourceCodePro-Regular.otf", &data_size);
     ASSERT_NE((uint8_t*)0, data);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, otf_path, data_size, data));
 

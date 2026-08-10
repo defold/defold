@@ -267,16 +267,6 @@ foreach(_host_path IN LISTS _GS_HOST_TEST_PATHS)
 endforeach()
 add_custom_target(gamesys_host_test_files DEPENDS ${_GS_STAGED_HOST_TEST_PATHS})
 
-set(_GS_OTF_TEST_SOURCE "${GS_TEST_ROOT}/../../../../font/src/test/data/SourceCodePro-Regular_cff1.otf")
-set(_GS_OTF_TEST_OUTPUT "${GS_TEST_RUN_DIR}/src/gamesys/test/font/SourceCodePro-Regular_cff1.otf")
-add_custom_command(
-  OUTPUT "${_GS_OTF_TEST_OUTPUT}"
-  COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_GS_OTF_TEST_SOURCE}" "${_GS_OTF_TEST_OUTPUT}"
-  DEPENDS "${_GS_OTF_TEST_SOURCE}" ${_GS_STAGED_HOST_TEST_PATHS}
-  COMMENT "Staging gamesys OpenType test font")
-add_custom_target(gamesys_otf_test_file DEPENDS "${_GS_OTF_TEST_OUTPUT}")
-add_dependencies(gamesys_host_test_files gamesys_otf_test_file)
-
 # ---------------------------------------------------------------------------
 # Embed resources into headers/sources (used by test_gamesys.cpp)
 # Generates <path>.embed.h/.embed.cpp with variables NAME[] and NAME_SIZE.

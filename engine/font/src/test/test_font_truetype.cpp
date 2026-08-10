@@ -350,7 +350,7 @@ TEST(FontTrueTypeReference, TrueTypeGlyf)
 TEST(FontTrueTypeReference, OpenTypeCFF1)
 {
     ReferenceFont font;
-    ASSERT_TRUE(LoadReferenceFont("src/test/data/SourceCodePro-Regular_cff1.otf", &font));
+    ASSERT_TRUE(LoadReferenceFont("src/test/data/SourceCodePro-Regular.otf", &font));
     CompareOutlineType(&font, FONT_OUTLINE_TYPE_CFF1);
     CompareVerticalMetrics(&font);
     // Defold's size-optimized HarfBuzz build excludes CFF outline access, so

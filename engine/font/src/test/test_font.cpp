@@ -87,7 +87,7 @@ TEST_F(FontTest, LoadTTF)
 TEST_F(FontTest, LoadOTFAndGenerateGlyph)
 {
     HFont font;
-    LoadFont("src/test/data/SourceCodePro-Regular_cff1.otf", &font);
+    LoadFont("src/test/data/SourceCodePro-Regular.otf", &font);
 
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(font, 32.0f);
