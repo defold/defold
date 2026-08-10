@@ -1523,10 +1523,11 @@ namespace dmGraphics
             dmLogError("Could not create a swap chain for Vulkan, reason: %s", VkResultToStr(res));
             goto bail;
         }
-        if (context->m_SwapChain->HasMultiSampling())
-        {
-            context->m_NumFramesInFlight = 1;
-        }
+
+        // if (context->m_SwapChain->HasMultiSampling())
+        // {
+        //     context->m_NumFramesInFlight = 1;
+        // }
 
         // GLFW3 handles window size changes differently, so we need to cater for that.
     #ifndef __MACH__
