@@ -28,6 +28,7 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertexBufferSize;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertices;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcHash;
@@ -45,6 +46,7 @@ import java.nio.ByteOrder;
 
 import com.dynamo.bob.font.generated.FontRendererFFM;
 import com.dynamo.bob.font.generated.FontcGlyph;
+import com.dynamo.bob.font.generated.FontcGlyphMetrics;
 import com.dynamo.bob.font.generated.FontcImage;
 import com.dynamo.bob.font.generated.FontcLayout;
 import com.dynamo.bob.font.generated.FontcParams;
@@ -65,6 +67,7 @@ public final class FontRenderer implements AutoCloseable {
     public static final int DEFAULT_SDF_EDGE_VALUE = 191;
 
     private static final Cleaner CLEANER = Cleaner.create();
+    private static final Object NATIVE_SESSION_LIFECYCLE_LOCK = new Object();
     private static final String LIBRARY_NAME = "fontc_shared";
 
     static {
@@ -191,6 +194,29 @@ public final class FontRenderer implements AutoCloseable {
         }
     }
 
+    /** Copied metrics for a Unicode codepoint supported by the loaded font. */
+    public static final class GlyphMetrics {
+        public final int codepoint;
+        public final int glyphIndex;
+        public final int width;
+        public final int height;
+        public final float advance;
+        public final float leftBearing;
+        public final float ascent;
+        public final float descent;
+
+        private GlyphMetrics(MemorySegment values) {
+            codepoint = FontcGlyphMetrics.m_Codepoint(values);
+            glyphIndex = FontcGlyphMetrics.m_GlyphIndex(values);
+            width = FontcGlyphMetrics.m_Width(values);
+            height = FontcGlyphMetrics.m_Height(values);
+            advance = FontcGlyphMetrics.m_Advance(values);
+            leftBearing = FontcGlyphMetrics.m_LeftBearing(values);
+            ascent = FontcGlyphMetrics.m_Ascent(values);
+            descent = FontcGlyphMetrics.m_Descent(values);
+        }
+    }
+
     public static final class DecodedImage {
         public final int width;
         public final int height;
@@ -215,7 +241,9 @@ public final class FontRenderer implements AutoCloseable {
         @Override
         public void run() {
             if (!handle.equals(MemorySegment.NULL)) {
-                FontcDestroy(handle);
+                synchronized (NATIVE_SESSION_LIFECYCLE_LOCK) {
+                    FontcDestroy(handle);
+                }
                 handle = MemorySegment.NULL;
             }
         }
@@ -251,8 +279,11 @@ public final class FontRenderer implements AutoCloseable {
             MemorySegment nativeParams = FontcParams.allocate(arena);
             writeParams(nativeParams, params);
             MemorySegment handlePointer = arena.allocate(FontRendererFFM.HFontRenderer);
-            int result = FontcCreate(arena.allocateFrom(name),
-                    arena.allocateFrom(JAVA_BYTE, fontBytes), fontBytes.length, nativeParams, handlePointer);
+            int result;
+            synchronized (NATIVE_SESSION_LIFECYCLE_LOCK) {
+                result = FontcCreate(arena.allocateFrom(name),
+                        arena.allocateFrom(JAVA_BYTE, fontBytes), fontBytes.length, nativeParams, handlePointer);
+            }
             if (result != FontRendererFFM.FONT_RENDERER_RESULT_OK())
                 throw new IllegalArgumentException("Unable to create native font renderer for " + name +
                         " (native result " + result + ")");
@@ -319,6 +350,36 @@ public final class FontRenderer implements AutoCloseable {
             } finally {
                 FontcFreeGlyph(result);
             }
+        }
+    }
+
+    /**
+     * Returns metrics for every Unicode codepoint supported by the loaded font.
+     *
+     * <p>The native implementation enumerates the font cmap once and does not generate
+     * glyph images. Bob uses the codepoints when compiling {@code all_chars}; the Editor
+     * also uses the returned metrics directly for metadata-only compilation.</p>
+     */
+    public synchronized GlyphMetrics[] getSupportedGlyphMetrics() {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment glyphCount = arena.allocate(JAVA_INT);
+            checkResult(FontcGetSupportedGlyphMetrics(requireHandle(), MemorySegment.NULL, 0, glyphCount),
+                    "Unable to query supported native glyph metrics");
+            int capacity = glyphCount.get(JAVA_INT, 0);
+            if (capacity < 0)
+                throw new IllegalStateException("Native supported glyph count exceeds the Java array size limit");
+
+            MemorySegment nativeMetrics = FontcGlyphMetrics.allocateArray(capacity, arena);
+            checkResult(FontcGetSupportedGlyphMetrics(requireHandle(), nativeMetrics, capacity, glyphCount),
+                    "Unable to get supported native glyph metrics");
+            int count = glyphCount.get(JAVA_INT, 0);
+            if (count < 0 || count > capacity)
+                throw new IllegalStateException("Invalid native supported glyph count");
+
+            GlyphMetrics[] metrics = new GlyphMetrics[count];
+            for (int i = 0; i < count; ++i)
+                metrics[i] = new GlyphMetrics(FontcGlyphMetrics.asSlice(nativeMetrics, i));
+            return metrics;
         }
     }
 

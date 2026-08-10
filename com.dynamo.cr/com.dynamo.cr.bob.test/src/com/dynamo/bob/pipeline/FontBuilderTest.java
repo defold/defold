@@ -25,6 +25,7 @@ import java.util.List;
 
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.GlyphBank;
 
 import com.google.protobuf.Message;
 
@@ -69,6 +70,32 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+    }
+
+    @Test(timeout = 3000)
+    public void testTTFAllCharsBuildPerformance() throws Exception {
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/Tuffy.ttf\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        src.append("output_format: TYPE_DISTANCE_FIELD\n");
+        src.append("all_chars: true\n");
+
+        List<Message> buildResults = build("/all-chars.font", src.toString());
+        FontMap fontMap = getFontMap(buildResults);
+        GlyphBank glyphBank = null;
+        for (Message message : buildResults) {
+            if (message instanceof GlyphBank) {
+                glyphBank = (GlyphBank)message;
+                break;
+            }
+        }
+
+        assertTrue(fontMap != null);
+        assertTrue(fontMap.getAllChars());
+        assertTrue(fontMap.getGlyphBank().endsWith(".glyph_bankc"));
+        assertTrue(glyphBank != null);
+        assertEquals(1499, glyphBank.getGlyphsCount());
     }
 
     @Test

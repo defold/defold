@@ -34,6 +34,19 @@
   (g/transact {:undoable false}
     (g/set-property node-id label val)))
 
+(deftest preview-text-respects-glyph-cache-capacity
+  (let [font-map {:cache-width 20
+                  :cache-height 20
+                  :cache-cell-width 10
+                  :cache-cell-height 10
+                  :glyphs (mapv (fn [character]
+                                  {:character character
+                                   :width 5
+                                   :advance 10.0})
+                                (range (int \A) (inc (int \F))))}]
+    (is (= "AB CD" ((ns-resolve 'editor.font 'produce-preview-text)
+                     {:font-map font-map})))))
+
 (deftest effective-sdf-scale-test
   (let [effective-sdf-scale (ns-resolve 'editor.font 'effective-sdf-scale)
         identity-transform (doto (Matrix4d.)

@@ -1169,28 +1169,28 @@
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))
 
-(defn- char->string [c]
-  (String. (Character/toChars c)))
-
 (g/defnk produce-preview-text [font-map]
-  (let [char->glyph (into {} (map (juxt :character identity)) (:glyphs font-map))
-        chars (->> char->glyph keys sort (filter #(pos? (:width (char->glyph %)))))
-        cache-width (:cache-width font-map)
-        lines (loop [lines []
-                     chars chars]
-                (if (not-empty chars)
-                  (let [[line chars] (loop [line []
-                                            chars chars
-                                            w 0]
-                                       (if (and (not-empty chars) (< w cache-width))
-                                         (let [c (first chars)
-                                               g (char->glyph c)]
-                                           (recur (conj line (first chars)) (rest chars) (+ w (int (:advance g)))))
-                                         [line chars]))]
-                    (recur (conj lines line) chars))
-                  lines))
-        text (s/join " " (map (fn [l] (s/join (map char->string l))) lines))]
-    text))
+  (let [cache-width (:cache-width font-map)
+        cache-columns (max 1 (quot cache-width (:cache-cell-width font-map)))
+        cache-rows (quot (:cache-height font-map) (:cache-cell-height font-map))
+        glyphs (into []
+                     (comp (filter #(pos? (:width %)))
+                           (take (* cache-columns cache-rows)))
+                     (sort-by :character (:glyphs font-map)))
+        glyph-count (count glyphs)
+        ^StringBuilder result (StringBuilder. glyph-count)]
+    (loop [glyph-index 0
+           line-width 0]
+      (if (= glyph-index glyph-count)
+        (.toString result)
+        (let [glyph (glyphs glyph-index)
+              new-line (>= line-width cache-width)
+              line-width (if new-line 0 line-width)]
+          (when new-line
+            (.append result \space))
+          (.appendCodePoint result (int (:character glyph)))
+          (recur (inc glyph-index)
+                 (+ line-width (int (:advance glyph)))))))))
 
 (defn- glyph-channels->data-format [^long channels]
   (case channels
