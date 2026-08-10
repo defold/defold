@@ -1270,9 +1270,9 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_VerifyGraphicsCalls     = 1;
-//#if defined(DM_VULKAN_VALIDATION)
+#if defined(DM_VULKAN_VALIDATION)
     graphics_context_params.m_UseValidationLayers     = 1;
-//#endif
+#endif
     graphics_context_params.m_Window                  = engine->m_Window;
     graphics_context_params.m_Width                   = 512;
     graphics_context_params.m_Height                  = 512;
