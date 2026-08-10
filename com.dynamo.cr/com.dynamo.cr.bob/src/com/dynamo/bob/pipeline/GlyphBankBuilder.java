@@ -41,13 +41,9 @@ import com.dynamo.render.proto.Font.FontDesc;
 @BuilderParams(name = "Glyph Bank", inExts = ".glyph_bank", outExt = ".glyph_bankc", isCacheble = true)
 public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
 
-    private static String getBitmapPath(byte[] fontBytes) throws IOException {
+    private static String getBitmapPath(byte[] fontBytes) throws IOException, BMFontFormatException {
         BMFont bmfont = new BMFont();
-        try {
-            bmfont.parse(new ByteArrayInputStream(fontBytes));
-        } catch (BMFontFormatException e) {
-            throw new IOException(e.getMessage(), e);
-        }
+        bmfont.parse(new ByteArrayInputStream(fontBytes));
         return FilenameUtils.getName(bmfont.page.get(0));
     }
 
@@ -82,7 +78,11 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
         String bitmapPath = null;
         byte[] bitmapBytes = null;
         if (fontDesc.getFont().toLowerCase(Locale.ROOT).endsWith(".fnt")) {
-            bitmapPath = getBitmapPath(fontBytes);
+            try {
+                bitmapPath = getBitmapPath(fontBytes);
+            } catch (BMFontFormatException e) {
+                throw new CompileExceptionError(task.input(0), 0, e.getMessage(), e);
+            }
             IResource bitmapResource = inputFontFile.getResource(bitmapPath);
             if (!bitmapResource.exists())
                 throw new FileNotFoundException("Could not find resource: " + bitmapResource.getPath());
