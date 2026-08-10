@@ -21,8 +21,12 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.List;
 
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.render.proto.Font.FontMap;
 
@@ -82,7 +86,20 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("size: 16\n");
         src.append("output_format: TYPE_DISTANCE_FIELD\n");
 
-        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+        addFile("/test.font", src.toString());
+        getProject().setInputs(Collections.singletonList("/test.font"));
+        List<TaskResult> results = getProject().build(Progress.discarding(), "build");
+        assertTrue(results.stream().allMatch(TaskResult::isOk));
+
+        FontMap fontMap = null;
+        for (TaskResult result : results) {
+            for (IResource output : result.getTask().getOutputs()) {
+                if (output.getPath().endsWith(".fontc")) {
+                    fontMap = FontMap.parseFrom(output.getContent());
+                }
+            }
+        }
+        assertTrue(fontMap != null);
         assertEquals("/Test.otf", fontMap.getFont());
         assertTrue(fontMap.getGlyphBank().isEmpty());
     }

@@ -289,12 +289,6 @@ public class ParseUtil {
                 return null;
             }
         });
-        parseMap.put("otf", new IParser() {
-            @Override
-            public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                return null;
-            }
-        });
     }
 
     public static void addParser(String extension, IParser parser) {

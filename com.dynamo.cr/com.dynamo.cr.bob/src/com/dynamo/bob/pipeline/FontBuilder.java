@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 
+import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
@@ -65,10 +66,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         if (useRuntimeGeneration(fontDesc))
         {
             // input(2)
-            if (fontDesc.getFont().toLowerCase().endsWith(".otf"))
-                subTask = createSubTask(fontResource, CopyBuilders.OTFBuilder.class, taskBuilder);
-            else
-                subTask = createSubTask(fontResource, CopyBuilders.TTFBuilder.class, taskBuilder);
+            Class<? extends Builder> fontBuilderClass = project.getBuilderFromExtension(fontResource);
+            subTask = createSubTask(fontResource, fontBuilderClass, taskBuilder);
         }
         else
         {
