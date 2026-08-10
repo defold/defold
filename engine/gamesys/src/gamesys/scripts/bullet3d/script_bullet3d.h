@@ -25,9 +25,11 @@ namespace dmGameSystem
     float                     GetBullet3DPhysicsScale();
     float                     GetBullet3DInvPhysicsScale();
 
-    btVector3                 CheckBullet3DVector3(lua_State* L, int index, float scale);
-    btQuaternion              CheckBullet3DQuat(lua_State* L, int index);
-    btQuaternion              CheckBullet3DFiniteQuat(lua_State* L, int index, const char* field_name);
+    btVector3                 CheckBullet3DVector3(lua_State* L, int index, float scale, const char* field_name);
+    btScalar                  CheckBullet3DScalar(lua_State* L, int index, btScalar scale, const char* field_name);
+    btScalar                  CheckBullet3DScalarInRange(lua_State* L, int index, btScalar scale, const char* field_name, btScalar minimum, btScalar maximum);
+    btScalar                  CheckBullet3DNonNegativeScalar(lua_State* L, int index, btScalar scale, const char* field_name);
+    btQuaternion              CheckBullet3DQuat(lua_State* L, int index, const char* field_name);
     void                      PushBullet3DVector3(lua_State* L, const btVector3& value, float scale);
     void                      PushBullet3DQuat(lua_State* L, const btQuaternion& value);
 

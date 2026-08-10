@@ -135,8 +135,8 @@ namespace dmGameSystem
 
     static btScalar CheckPositiveLength(lua_State* L, int index, const char* name)
     {
-        btScalar value = (btScalar)luaL_checknumber(L, index) * GetBullet3DPhysicsScale();
-        if (!IsFiniteScalar(value) || !(value > 0.0f))
+        btScalar value = CheckBullet3DScalar(L, index, GetBullet3DPhysicsScale(), name);
+        if (!(value > 0.0f))
         {
             luaL_error(L, "%s must be finite and greater than zero.", name);
         }
@@ -145,9 +145,8 @@ namespace dmGameSystem
 
     static btVector3 CheckPositiveVector3(lua_State* L, int index, float scale, const char* name)
     {
-        btVector3 value = CheckBullet3DVector3(L, index, scale);
-        if (!IsFiniteScalar(value.getX()) || !IsFiniteScalar(value.getY()) || !IsFiniteScalar(value.getZ()) ||
-            !(value.getX() > 0.0f) || !(value.getY() > 0.0f) || !(value.getZ() > 0.0f))
+        btVector3 value = CheckBullet3DVector3(L, index, scale, name);
+        if (!(value.getX() > 0.0f) || !(value.getY() > 0.0f) || !(value.getZ() > 0.0f))
         {
             luaL_error(L, "%s components must be finite and greater than zero.", name);
         }
@@ -440,12 +439,8 @@ namespace dmGameSystem
                 for (int i = 1; i <= vertex_count; ++i)
                 {
                     lua_rawgeti(L, vertices_index, i);
-                    btVector3 vertex = CheckBullet3DVector3(L, -1, GetBullet3DPhysicsScale());
+                    CheckBullet3DVector3(L, -1, GetBullet3DPhysicsScale(), "vertices");
                     lua_pop(L, 1);
-                    if (!IsFiniteScalar(vertex.getX()) || !IsFiniteScalar(vertex.getY()) || !IsFiniteScalar(vertex.getZ()))
-                    {
-                        return luaL_error(L, "vertices components must be finite.");
-                    }
                 }
 
                 btConvexHullShape* hull = new btConvexHullShape();
@@ -512,12 +507,8 @@ namespace dmGameSystem
         {
             return luaL_error(L, "A non-compound collision object's only shape has no local child transform.");
         }
-        btVector3 position = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale());
-        if (!IsFiniteScalar(position.getX()) || !IsFiniteScalar(position.getY()) || !IsFiniteScalar(position.getZ()))
-        {
-            return luaL_error(L, "position components must be finite.");
-        }
-        btQuaternion rotation = CheckBullet3DFiniteQuat(L, 3, "rotation");
+        btVector3    position = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "position");
+        btQuaternion rotation = CheckBullet3DQuat(L, 3, "rotation");
         ((btCompoundShape*)root_shape)->updateChildTransform((int)lua_shape->m_ShapeIndex, btTransform(rotation, position));
         RefreshMutableShape(mutable_shape);
         return 0;
@@ -619,6 +610,40 @@ namespace dmGameSystem
  * @typedef
  * @name btCollisionShape
  * @param value [type:userdata]
+ */
+
+/*# Sphere shape type
+ *
+ * Value `0`. Shape data contains a positive numeric `diameter` in Defold units.
+ *
+ * @name bullet3d.shape.TYPE_SPHERE
+ * @constant
+ */
+
+/*# Box shape type
+ *
+ * Value `1`. Shape data contains positive vector3 `dimensions` in Defold units.
+ *
+ * @name bullet3d.shape.TYPE_BOX
+ * @constant
+ */
+
+/*# Capsule shape type
+ *
+ * Value `2`. Shape data contains a positive numeric `diameter` and positive
+ * numeric cylindrical-section `height` in Defold units.
+ *
+ * @name bullet3d.shape.TYPE_CAPSULE
+ * @constant
+ */
+
+/*# Convex hull shape type
+ *
+ * Value `3`. Shape data contains a `vertices` array with at least four finite
+ * vector3 values in Defold units.
+ *
+ * @name bullet3d.shape.TYPE_HULL
+ * @constant
  */
 
 /*# Get the number of shapes attached to a collision object.

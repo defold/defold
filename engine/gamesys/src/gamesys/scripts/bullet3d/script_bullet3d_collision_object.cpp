@@ -341,7 +341,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DCollisionObjectMeta* meta = 0;
         btCollisionObject*           collision_object = CheckCollisionObjectWithMeta(L, 1, &meta);
-        SetWorldTransform(collision_object, meta, CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()), CheckBullet3DFiniteQuat(L, 3, "rotation"));
+        SetWorldTransform(collision_object, meta, CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "position"), CheckBullet3DQuat(L, 3, "rotation"));
         return 0;
     }
 
@@ -358,7 +358,7 @@ namespace dmGameSystem
         Bullet3DCollisionObjectMeta* meta = 0;
         btCollisionObject*           collision_object = CheckCollisionObjectWithMeta(L, 1, &meta);
         const btTransform&           transform = collision_object->getWorldTransform();
-        SetWorldTransform(collision_object, meta, CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()), transform.getRotation());
+        SetWorldTransform(collision_object, meta, CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "position"), transform.getRotation());
         return 0;
     }
 
@@ -374,7 +374,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DCollisionObjectMeta* meta = 0;
         btCollisionObject*           collision_object = CheckCollisionObjectWithMeta(L, 1, &meta);
-        SetWorldTransform(collision_object, meta, collision_object->getWorldTransform().getOrigin(), CheckBullet3DFiniteQuat(L, 2, "rotation"));
+        SetWorldTransform(collision_object, meta, collision_object->getWorldTransform().getOrigin(), CheckBullet3DQuat(L, 2, "rotation"));
         return 0;
     }
 
@@ -402,7 +402,9 @@ namespace dmGameSystem
     static int CollisionObject_Activate(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        CheckBullet3DCollisionObject(L, 1)->activate(lua_toboolean(L, 2) != 0);
+        btCollisionObject* collision_object = CheckBullet3DCollisionObject(L, 1);
+        bool               force = lua_isnoneornil(L, 2) ? false : dmScript::CheckBoolean(L, 2);
+        collision_object->activate(force);
         return 0;
     }
 
@@ -423,11 +425,13 @@ namespace dmGameSystem
     static int CollisionObject_SetDeactivationTime(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        CheckBullet3DCollisionObject(L, 1)->setDeactivationTime(luaL_checknumber(L, 2));
+        btCollisionObject* collision_object = CheckBullet3DCollisionObject(L, 1);
+        btScalar           time = CheckBullet3DScalar(L, 2, 1.0f, "time");
+        collision_object->setDeactivationTime(time);
         return 0;
     }
 
-#define BULLET3D_NUMBER_PROPERTY(NAME, GETTER, SETTER, INPUT_SCALE, OUTPUT_SCALE) \
+#define BULLET3D_NUMBER_PROPERTY(NAME, GETTER, SETTER, INPUT_SCALE, OUTPUT_SCALE, CHECKER, FIELD_NAME) \
     static int CollisionObject_Get##NAME(lua_State* L) \
     { \
         DM_LUA_STACK_CHECK(L, 1); \
@@ -437,15 +441,17 @@ namespace dmGameSystem
     static int CollisionObject_Set##NAME(lua_State* L) \
     { \
         DM_LUA_STACK_CHECK(L, 0); \
-        CheckBullet3DCollisionObject(L, 1)->SETTER(luaL_checknumber(L, 2) * (INPUT_SCALE)); \
+        btCollisionObject* collision_object = CheckBullet3DCollisionObject(L, 1); \
+        btScalar           value = CHECKER(L, 2, (INPUT_SCALE), (FIELD_NAME)); \
+        collision_object->SETTER(value); \
         return 0; \
     }
 
-    BULLET3D_NUMBER_PROPERTY(Friction, getFriction, setFriction, 1.0f, 1.0f)
-    BULLET3D_NUMBER_PROPERTY(Restitution, getRestitution, setRestitution, 1.0f, 1.0f)
-    BULLET3D_NUMBER_PROPERTY(ContactProcessingThreshold, getContactProcessingThreshold, setContactProcessingThreshold, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
-    BULLET3D_NUMBER_PROPERTY(CCDSweptSphereRadius, getCcdSweptSphereRadius, setCcdSweptSphereRadius, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
-    BULLET3D_NUMBER_PROPERTY(CCDMotionThreshold, getCcdMotionThreshold, setCcdMotionThreshold, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale())
+    BULLET3D_NUMBER_PROPERTY(Friction, getFriction, setFriction, 1.0f, 1.0f, CheckBullet3DScalar, "friction")
+    BULLET3D_NUMBER_PROPERTY(Restitution, getRestitution, setRestitution, 1.0f, 1.0f, CheckBullet3DScalar, "restitution")
+    BULLET3D_NUMBER_PROPERTY(ContactProcessingThreshold, getContactProcessingThreshold, setContactProcessingThreshold, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale(), CheckBullet3DScalar, "threshold")
+    BULLET3D_NUMBER_PROPERTY(CCDSweptSphereRadius, getCcdSweptSphereRadius, setCcdSweptSphereRadius, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale(), CheckBullet3DNonNegativeScalar, "radius")
+    BULLET3D_NUMBER_PROPERTY(CCDMotionThreshold, getCcdMotionThreshold, setCcdMotionThreshold, GetBullet3DPhysicsScale(), GetBullet3DInvPhysicsScale(), CheckBullet3DNonNegativeScalar, "threshold")
 
 #undef BULLET3D_NUMBER_PROPERTY
 
@@ -642,6 +648,8 @@ namespace dmGameSystem
  *
  * Positions, distances, and CCD thresholds use Defold units. Rotations,
  * coefficients, flags, activation state, and time values use Bullet values.
+ * Floating-point and vector inputs must be finite. CCD radii and motion
+ * thresholds must also be non-negative.
  *
  * @document
  * @name bullet3d.collision_object
@@ -740,7 +748,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.collision_object.set_world_transform
  * @param object [type:btCollisionObject] collision object
- * @param position [type:vector3] world position in Defold units
+ * @param position [type:vector3] finite world position in Defold units
  * @param rotation [type:quaternion] world rotation
  */
 
@@ -756,7 +764,7 @@ namespace dmGameSystem
  *
  * @name bullet3d.collision_object.set_position
  * @param object [type:btCollisionObject] collision object
- * @param position [type:vector3] world position in Defold units
+ * @param position [type:vector3] finite world position in Defold units
  */
 
 /*# Get the world rotation
@@ -813,7 +821,7 @@ namespace dmGameSystem
 /*# Set deactivation time
  * @name bullet3d.collision_object.set_deactivation_time
  * @param object [type:btCollisionObject] collision object
- * @param seconds [type:number] deactivation time
+ * @param seconds [type:number] finite deactivation time
  */
 
 /*# Get friction
@@ -825,7 +833,7 @@ namespace dmGameSystem
 /*# Set friction
  * @name bullet3d.collision_object.set_friction
  * @param object [type:btCollisionObject] collision object
- * @param friction [type:number] friction coefficient
+ * @param friction [type:number] finite friction coefficient
  */
 
 /*# Get restitution
@@ -837,7 +845,7 @@ namespace dmGameSystem
 /*# Set restitution
  * @name bullet3d.collision_object.set_restitution
  * @param object [type:btCollisionObject] collision object
- * @param restitution [type:number] restitution coefficient
+ * @param restitution [type:number] finite restitution coefficient
  */
 
 /*# Get the contact processing threshold
@@ -849,7 +857,7 @@ namespace dmGameSystem
 /*# Set the contact processing threshold
  * @name bullet3d.collision_object.set_contact_processing_threshold
  * @param object [type:btCollisionObject] collision object
- * @param threshold [type:number] threshold in Defold units
+ * @param threshold [type:number] finite threshold in Defold units
  */
 
 /*# Get the CCD swept sphere radius
@@ -861,7 +869,7 @@ namespace dmGameSystem
 /*# Set the CCD swept sphere radius
  * @name bullet3d.collision_object.set_ccd_swept_sphere_radius
  * @param object [type:btCollisionObject] collision object
- * @param radius [type:number] radius in Defold units
+ * @param radius [type:number] finite non-negative radius in Defold units
  */
 
 /*# Get the CCD motion threshold
@@ -873,7 +881,7 @@ namespace dmGameSystem
 /*# Set the CCD motion threshold
  * @name bullet3d.collision_object.set_ccd_motion_threshold
  * @param object [type:btCollisionObject] collision object
- * @param threshold [type:number] threshold in Defold units
+ * @param threshold [type:number] finite non-negative threshold in Defold units
  */
 
 /*# Get collision flags

@@ -343,19 +343,12 @@ namespace dmGameSystem
         return isfinite((double)value) != 0;
     }
 
-    static void CheckFiniteVector3(lua_State* L, const btVector3& value, const char* field_name)
+    static void CheckComputedVector3(lua_State* L, const btVector3& value, const char* field_name)
     {
         if (!IsFiniteScalar(value.getX()) || !IsFiniteScalar(value.getY()) || !IsFiniteScalar(value.getZ()))
         {
             luaL_error(L, "%s components must be finite.", field_name);
         }
-    }
-
-    static btVector3 CheckFiniteVector3(lua_State* L, int index, const char* field_name, float scale)
-    {
-        btVector3 value = CheckBullet3DVector3(L, index, scale);
-        CheckFiniteVector3(L, value, field_name);
-        return value;
     }
 
     static void InitializeQueryFilterInput(Bullet3DQueryFilterInput* input)
@@ -523,7 +516,7 @@ namespace dmGameSystem
 
     static btVector3 CheckPositiveDimensions(lua_State* L, int index, const char* field_name)
     {
-        btVector3 dimensions = CheckFiniteVector3(L, index, field_name, GetBullet3DPhysicsScale());
+        btVector3 dimensions = CheckBullet3DVector3(L, index, GetBullet3DPhysicsScale(), field_name);
         if (!(dimensions.getX() > 0.0f) || !(dimensions.getY() > 0.0f) || !(dimensions.getZ() > 0.0f))
         {
             luaL_error(L, "%s components must be greater than zero.", field_name);
@@ -533,8 +526,8 @@ namespace dmGameSystem
 
     static btScalar CheckPositiveLength(lua_State* L, int index, const char* field_name)
     {
-        btScalar value = (btScalar)luaL_checknumber(L, index) * GetBullet3DPhysicsScale();
-        if (!IsFiniteScalar(value) || !(value > 0.0f))
+        btScalar value = CheckBullet3DScalar(L, index, GetBullet3DPhysicsScale(), field_name);
+        if (!(value > 0.0f))
         {
             luaL_error(L, "%s must be finite and greater than zero.", field_name);
         }
@@ -564,14 +557,14 @@ namespace dmGameSystem
         lua_getfield(L, index, "position");
         if (!lua_isnil(L, -1))
         {
-            input->m_Position = CheckFiniteVector3(L, -1, "position", GetBullet3DPhysicsScale());
+            input->m_Position = CheckBullet3DVector3(L, -1, GetBullet3DPhysicsScale(), "position");
         }
         lua_pop(L, 1);
 
         lua_getfield(L, index, "rotation");
         if (!lua_isnil(L, -1))
         {
-            input->m_Rotation = CheckBullet3DFiniteQuat(L, -1, "rotation");
+            input->m_Rotation = CheckBullet3DQuat(L, -1, "rotation");
             input->m_TargetRotation = input->m_Rotation;
         }
         lua_pop(L, 1);
@@ -579,7 +572,7 @@ namespace dmGameSystem
         lua_getfield(L, index, "target_rotation");
         if (!lua_isnil(L, -1))
         {
-            input->m_TargetRotation = CheckBullet3DFiniteQuat(L, -1, "target_rotation");
+            input->m_TargetRotation = CheckBullet3DQuat(L, -1, "target_rotation");
         }
         lua_pop(L, 1);
 
@@ -617,7 +610,7 @@ namespace dmGameSystem
             for (int i = 1; i <= input->m_VertexCount; ++i)
             {
                 lua_rawgeti(L, input->m_VerticesIndex, i);
-                CheckFiniteVector3(L, -1, "vertices", GetBullet3DPhysicsScale());
+                CheckBullet3DVector3(L, -1, GetBullet3DPhysicsScale(), "vertices");
                 lua_pop(L, 1);
             }
             return;
@@ -1101,7 +1094,9 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DLuaWorld* lua_world = CheckWorldInternal(L, 1);
         CheckBullet3DWorld(L, 1);
-        CompCollisionObjectSetBullet3DWorldGravity(lua_world->m_ComponentWorld, *dmScript::CheckVector3(L, 2));
+        btVector3       gravity = CheckBullet3DVector3(L, 2, 1.0f, "gravity");
+        dmVMath::Vector3 defold_gravity(gravity.getX(), gravity.getY(), gravity.getZ());
+        CompCollisionObjectSetBullet3DWorldGravity(lua_world->m_ComponentWorld, defold_gravity);
         return 0;
     }
 
@@ -1364,10 +1359,10 @@ namespace dmGameSystem
 
         luaL_checktype(L, 2, LUA_TTABLE);
         lua_getfield(L, 2, "lower");
-        btVector3 lower = CheckFiniteVector3(L, -1, "aabb.lower", GetBullet3DPhysicsScale());
+        btVector3 lower = CheckBullet3DVector3(L, -1, GetBullet3DPhysicsScale(), "aabb.lower");
         lua_pop(L, 1);
         lua_getfield(L, 2, "upper");
-        btVector3 upper = CheckFiniteVector3(L, -1, "aabb.upper", GetBullet3DPhysicsScale());
+        btVector3 upper = CheckBullet3DVector3(L, -1, GetBullet3DPhysicsScale(), "aabb.upper");
         lua_pop(L, 1);
         if (lower.getX() > upper.getX() || lower.getY() > upper.getY() || lower.getZ() > upper.getZ())
         {
@@ -1390,7 +1385,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
-        btVector3                point = CheckFiniteVector3(L, 2, "point", GetBullet3DPhysicsScale());
+        btVector3                point = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "point");
         int                      max_results = CheckMaxResults(L, 4);
         Bullet3DQueryFilter      filter;
         CheckQueryFilter(L, 3, &filter);
@@ -1431,11 +1426,11 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DLuaWorld*         lua_world = CheckWorldInternal(L, 1);
         btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
-        btVector3                 origin = CheckFiniteVector3(L, 2, "origin", GetBullet3DPhysicsScale());
-        btVector3                 translation = CheckFiniteVector3(L, 3, "translation", GetBullet3DPhysicsScale());
+        btVector3                 origin = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "origin");
+        btVector3                 translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
         CheckNonZeroTranslation(L, translation);
         btVector3 target = origin + translation;
-        CheckFiniteVector3(L, target, "ray target");
+        CheckComputedVector3(L, target, "ray target");
 
         int max_results = 0;
         int callback_index = CheckAsyncCastCallback(L, &max_results);
@@ -1476,7 +1471,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DLuaWorld*         lua_world = CheckWorldInternal(L, 1);
         btDiscreteDynamicsWorld* world = CheckBullet3DWorld(L, 1);
-        btVector3                 translation = CheckFiniteVector3(L, 3, "translation", GetBullet3DPhysicsScale());
+        btVector3                 translation = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "translation");
         CheckNonZeroTranslation(L, translation);
         int max_results = 0;
         int callback_index = CheckAsyncCastCallback(L, &max_results);
@@ -1494,7 +1489,7 @@ namespace dmGameSystem
         Bullet3DQueryShapeInput shape_input;
         CheckQueryShapeInput(L, 2, &shape_input);
         btVector3 target = shape_input.m_Position + translation;
-        CheckFiniteVector3(L, target, "shape target");
+        CheckComputedVector3(L, target, "shape target");
 
         Bullet3DAsyncCastRequest* request = new Bullet3DAsyncCastRequest;
         request->m_World = world;
@@ -1763,7 +1758,7 @@ namespace dmGameSystem
 /*# Set world gravity
  * @name bullet3d.world.set_gravity
  * @param world [type:btDiscreteDynamicsWorld] world handle
- * @param gravity [type:vector3] gravity in Defold units per second squared
+ * @param gravity [type:vector3] finite gravity in Defold units per second squared
  */
 
 /*# Get the number of collision objects in the world

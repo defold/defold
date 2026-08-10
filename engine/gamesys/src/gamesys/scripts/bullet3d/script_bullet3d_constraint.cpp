@@ -306,39 +306,6 @@ namespace dmGameSystem
         PushBullet3DCollisionObject(L, body, dmGameObject::GetCollection(instance), dmGameObject::GetIdentifier(instance));
     }
 
-    static btScalar CheckFiniteScalar(lua_State* L, int index, const char* name)
-    {
-        lua_Number value = luaL_checknumber(L, index);
-        btScalar   bullet_value = (btScalar)value;
-        if (!isfinite((double)value) || !isfinite((double)bullet_value))
-        {
-            luaL_error(L, "%s must be finite and within Bullet's numeric range.", name);
-            return btScalar(0.0f);
-        }
-        return bullet_value;
-    }
-
-    static btScalar CheckFiniteScalarInRange(lua_State* L, int index, const char* name, btScalar minimum, btScalar maximum)
-    {
-        btScalar value = CheckFiniteScalar(L, index, name);
-        if (value < minimum || value > maximum)
-        {
-            luaL_error(L, "%s must be between %g and %g.", name, (double)minimum, (double)maximum);
-        }
-        return value;
-    }
-
-    static btScalar CheckScaledScalar(lua_State* L, int index, const char* name, btScalar scale)
-    {
-        btScalar value = CheckFiniteScalar(L, index, name);
-        btScalar scaled = value * scale;
-        if (!isfinite((double)scaled))
-        {
-            luaL_error(L, "%s is outside the supported range.", name);
-        }
-        return scaled;
-    }
-
     static bool CheckBoolean(lua_State* L, int index, const char* name)
     {
         if (!lua_isboolean(L, index))
@@ -374,16 +341,6 @@ namespace dmGameSystem
         }
     }
 
-    static btVector3 CheckFiniteVector3(lua_State* L, int index, btScalar scale, const char* name)
-    {
-        btVector3 value = CheckBullet3DVector3(L, index, scale);
-        if (!isfinite((double)value.getX()) || !isfinite((double)value.getY()) || !isfinite((double)value.getZ()))
-        {
-            luaL_error(L, "%s must contain finite components.", name);
-        }
-        return value;
-    }
-
     static btVector3 GetVector3Field(lua_State* L, int table_index, const char* name, btScalar scale, bool required, bool* present)
     {
         table_index = AbsIndex(L, table_index);
@@ -402,7 +359,7 @@ namespace dmGameSystem
             return btVector3(0.0f, 0.0f, 0.0f);
         }
 
-        btVector3 value = CheckFiniteVector3(L, -1, scale, name);
+        btVector3 value = CheckBullet3DVector3(L, -1, scale, name);
         lua_pop(L, 1);
         if (present)
         {
@@ -429,7 +386,7 @@ namespace dmGameSystem
             return btQuaternion(0.0f, 0.0f, 0.0f, 1.0f);
         }
 
-        btQuaternion value = CheckBullet3DFiniteQuat(L, -1, name);
+        btQuaternion value = CheckBullet3DQuat(L, -1, name);
         lua_pop(L, 1);
         if (present)
         {
@@ -543,7 +500,7 @@ namespace dmGameSystem
 
     static btVector3 CheckUnitVector(lua_State* L, int index, const char* name)
     {
-        btVector3 value = CheckFiniteVector3(L, index, 1.0f, name);
+        btVector3 value = CheckBullet3DVector3(L, index, 1.0f, name);
         btScalar  length_squared = value.length2();
         if (!(length_squared > SIMD_EPSILON) || !isfinite((double)length_squared))
         {
@@ -804,8 +761,8 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DConstraintMeta*  meta = CheckConstraintMeta(L, 1);
         btPoint2PointConstraint* constraint = CheckPointToPoint(L, meta);
-        btVector3                pivot_a = CheckFiniteVector3(L, 2, GetBullet3DPhysicsScale(), "pivot_a");
-        btVector3                pivot_b = CheckFiniteVector3(L, 3, GetBullet3DPhysicsScale(), "pivot_b");
+        btVector3                pivot_a = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "pivot_a");
+        btVector3                pivot_b = CheckBullet3DVector3(L, 3, GetBullet3DPhysicsScale(), "pivot_b");
         CheckConstraintUnlocked(L, meta);
         constraint->setPivotA(pivot_a);
         constraint->setPivotB(pivot_b);
@@ -901,8 +858,8 @@ namespace dmGameSystem
     static int Constraint_SetFrame(lua_State* L, bool frame_a)
     {
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
-        btVector3               position = CheckFiniteVector3(L, 2, GetBullet3DPhysicsScale(), "position");
-        btQuaternion            rotation = CheckBullet3DFiniteQuat(L, 3, "rotation");
+        btVector3               position = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "position");
+        btQuaternion            rotation = CheckBullet3DQuat(L, 3, "rotation");
         btTransform*            frame = GetMutableConstraintFrame(meta, frame_a);
         if (!frame)
         {
@@ -1002,10 +959,10 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         btHingeConstraint*      constraint = CheckHinge(L, meta);
-        btScalar                lower = CheckFiniteScalar(L, 2, "lower");
-        btScalar                upper = CheckFiniteScalar(L, 3, "upper");
-        btScalar                bias = lua_isnoneornil(L, 4) ? btScalar(0.3f) : CheckFiniteScalarInRange(L, 4, "bias", 0.0f, 1.0f);
-        btScalar                relaxation = lua_isnoneornil(L, 5) ? btScalar(1.0f) : CheckFiniteScalarInRange(L, 5, "relaxation", 0.0f, 1.0f);
+        btScalar                lower = CheckBullet3DScalar(L, 2, 1.0f, "lower");
+        btScalar                upper = CheckBullet3DScalar(L, 3, 1.0f, "upper");
+        btScalar                bias = lua_isnoneornil(L, 4) ? btScalar(0.3f) : CheckBullet3DScalarInRange(L, 4, 1.0f, "bias", 0.0f, 1.0f);
+        btScalar                relaxation = lua_isnoneornil(L, 5) ? btScalar(1.0f) : CheckBullet3DScalarInRange(L, 5, 1.0f, "relaxation", 0.0f, 1.0f);
         CheckConstraintUnlocked(L, meta);
         constraint->setLimit(lower, upper, btScalar(0.9f), bias, relaxation);
         ActivateConstraintBodies(meta);
@@ -1029,9 +986,9 @@ namespace dmGameSystem
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         btHingeConstraint*      constraint = CheckHinge(L, meta);
         bool                    enabled = CheckBoolean(L, 2, "enabled");
-        btScalar                target_velocity = CheckFiniteScalar(L, 3, "target_velocity");
+        btScalar                target_velocity = CheckBullet3DScalar(L, 3, 1.0f, "target_velocity");
         btScalar                scale = GetBullet3DPhysicsScale();
-        btScalar                max_impulse = CheckScaledScalar(L, 4, "max_impulse", scale * scale);
+        btScalar                max_impulse = CheckBullet3DScalar(L, 4, scale * scale, "max_impulse");
         if (max_impulse < btScalar(0.0f))
         {
             return luaL_error(L, "max_impulse must not be negative.");
@@ -1047,8 +1004,8 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         btHingeConstraint*      constraint = CheckHinge(L, meta);
-        btScalar                target_angle = CheckFiniteScalar(L, 2, "target_angle");
-        btScalar                time_step = CheckFiniteScalar(L, 3, "time_step");
+        btScalar                target_angle = CheckBullet3DScalar(L, 2, 1.0f, "target_angle");
+        btScalar                time_step = CheckBullet3DScalar(L, 3, 1.0f, "time_step");
         if (!(time_step > btScalar(0.0f)))
         {
             return luaL_error(L, "time_step must be greater than zero.");
@@ -1106,16 +1063,16 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         btConeTwistConstraint*  constraint = CheckConeTwist(L, meta);
-        btScalar                swing1 = CheckFiniteScalar(L, 2, "swing_span_1");
-        btScalar                swing2 = CheckFiniteScalar(L, 3, "swing_span_2");
-        btScalar                twist = CheckFiniteScalar(L, 4, "twist_span");
+        btScalar                swing1 = CheckBullet3DScalar(L, 2, 1.0f, "swing_span_1");
+        btScalar                swing2 = CheckBullet3DScalar(L, 3, 1.0f, "swing_span_2");
+        btScalar                twist = CheckBullet3DScalar(L, 4, 1.0f, "twist_span");
         if (swing1 < 0.0f || swing2 < 0.0f || twist < 0.0f)
         {
             return luaL_error(L, "Cone-twist spans must not be negative.");
         }
-        btScalar softness = lua_isnoneornil(L, 5) ? btScalar(1.0f) : CheckFiniteScalarInRange(L, 5, "softness", 0.0f, 1.0f);
-        btScalar bias = lua_isnoneornil(L, 6) ? btScalar(0.3f) : CheckFiniteScalarInRange(L, 6, "bias", 0.0f, 1.0f);
-        btScalar relaxation = lua_isnoneornil(L, 7) ? btScalar(1.0f) : CheckFiniteScalarInRange(L, 7, "relaxation", 0.0f, 1.0f);
+        btScalar softness = lua_isnoneornil(L, 5) ? btScalar(1.0f) : CheckBullet3DScalarInRange(L, 5, 1.0f, "softness", 0.0f, 1.0f);
+        btScalar bias = lua_isnoneornil(L, 6) ? btScalar(0.3f) : CheckBullet3DScalarInRange(L, 6, 1.0f, "bias", 0.0f, 1.0f);
+        btScalar relaxation = lua_isnoneornil(L, 7) ? btScalar(1.0f) : CheckBullet3DScalarInRange(L, 7, 1.0f, "relaxation", 0.0f, 1.0f);
         CheckConstraintUnlocked(L, meta);
         constraint->setLimit(swing1, swing2, twist, softness, bias, relaxation);
         ActivateConstraintBodies(meta);
@@ -1156,7 +1113,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         btConeTwistConstraint*  constraint = CheckConeTwist(L, meta);
-        btQuaternion            target = CheckBullet3DFiniteQuat(L, 2, "target");
+        btQuaternion            target = CheckBullet3DQuat(L, 2, "target");
         bool                    constraint_space = lua_isnoneornil(L, 3) ? false : CheckBoolean(L, 3, "constraint_space");
         CheckConstraintUnlocked(L, meta);
         if (constraint_space)
@@ -1214,8 +1171,8 @@ namespace dmGameSystem
         btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
         int                      axis = CheckAxis(L, 2, 6, "axis");
         btScalar                 input_scale = axis < 3 ? GetBullet3DPhysicsScale() : btScalar(1.0f);
-        btScalar                 lower = CheckScaledScalar(L, 3, "lower", input_scale);
-        btScalar                 upper = CheckScaledScalar(L, 4, "upper", input_scale);
+        btScalar                 lower = CheckBullet3DScalar(L, 3, input_scale, "lower");
+        btScalar                 upper = CheckBullet3DScalar(L, 4, input_scale, "upper");
         CheckConstraintUnlocked(L, meta);
         constraint->setLimit(axis, lower, upper);
         ActivateConstraintBodies(meta);
@@ -1301,19 +1258,16 @@ namespace dmGameSystem
         btGeneric6DofConstraint* constraint = Check6Dof(L, meta);
         int                      axis = CheckAxis(L, 2, 6, "axis");
         bool                     enabled = CheckBoolean(L, 3, "enabled");
-        btScalar                 target_velocity = CheckFiniteScalar(L, 4, "target_velocity");
         btScalar                 scale = GetBullet3DPhysicsScale();
-        if (axis < 3)
-        {
-            target_velocity = CheckScaledScalar(L, 4, "target_velocity", scale);
-        }
+        btScalar                 target_scale = axis < 3 ? scale : btScalar(1.0f);
+        btScalar                 target_velocity = CheckBullet3DScalar(L, 4, target_scale, "target_velocity");
         btScalar max_scale = axis < 3 ? scale : scale * scale;
-        btScalar max_impulse = CheckScaledScalar(L, 5, "max_impulse", max_scale);
+        btScalar max_impulse = CheckBullet3DScalar(L, 5, max_scale, "max_impulse");
         if (max_impulse < btScalar(0.0f))
         {
             return luaL_error(L, "max_impulse must not be negative.");
         }
-        btScalar bounce = lua_isnoneornil(L, 6) ? btScalar(0.0f) : CheckFiniteScalarInRange(L, 6, "bounce", 0.0f, 1.0f);
+        btScalar bounce = lua_isnoneornil(L, 6) ? btScalar(0.0f) : CheckBullet3DScalarInRange(L, 6, 1.0f, "bounce", 0.0f, 1.0f);
         if (axis < 3 && bounce != btScalar(0.0f))
         {
             return luaL_error(L, "bounce is only supported by angular 6-DOF motors.");
@@ -1367,7 +1321,7 @@ namespace dmGameSystem
         Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
         btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
         int                            axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                       stiffness = CheckFiniteScalar(L, 3, "stiffness");
+        btScalar                       stiffness = CheckBullet3DScalar(L, 3, 1.0f, "stiffness");
         if (stiffness < btScalar(0.0f))
         {
             return luaL_error(L, "stiffness must not be negative.");
@@ -1384,7 +1338,7 @@ namespace dmGameSystem
         Bullet3DConstraintMeta*        meta = CheckConstraintMeta(L, 1);
         btGeneric6DofSpringConstraint* constraint = CheckSpring6Dof(L, meta);
         int                            axis = CheckAxis(L, 2, 6, "axis");
-        btScalar                       damping = CheckFiniteScalarInRange(L, 3, "damping", 0.0f, 1.0f);
+        btScalar                       damping = CheckBullet3DScalarInRange(L, 3, 1.0f, "damping", 0.0f, 1.0f);
         CheckConstraintUnlocked(L, meta);
         constraint->setDamping(axis, damping);
         ActivateConstraintBodies(meta);
@@ -1413,7 +1367,7 @@ namespace dmGameSystem
             else
             {
                 btScalar scale = axis < 3 ? GetBullet3DPhysicsScale() : btScalar(1.0f);
-                btScalar value = CheckScaledScalar(L, 3, "value", scale);
+                btScalar value = CheckBullet3DScalar(L, 3, scale, "value");
                 CheckConstraintUnlocked(L, meta);
                 constraint->setEquilibriumPoint(axis, value);
             }
@@ -1449,10 +1403,10 @@ namespace dmGameSystem
         Bullet3DConstraintMeta* meta = CheckConstraintMeta(L, 1);
         btSliderConstraint*     constraint = CheckSlider(L, meta);
         btScalar                scale = GetBullet3DPhysicsScale();
-        btScalar                lower_linear = CheckScaledScalar(L, 2, "lower_linear", scale);
-        btScalar                upper_linear = CheckScaledScalar(L, 3, "upper_linear", scale);
-        btScalar                lower_angular = CheckFiniteScalar(L, 4, "lower_angular");
-        btScalar                upper_angular = CheckFiniteScalar(L, 5, "upper_angular");
+        btScalar                lower_linear = CheckBullet3DScalar(L, 2, scale, "lower_linear");
+        btScalar                upper_linear = CheckBullet3DScalar(L, 3, scale, "upper_linear");
+        btScalar                lower_angular = CheckBullet3DScalar(L, 4, 1.0f, "lower_angular");
+        btScalar                upper_angular = CheckBullet3DScalar(L, 5, 1.0f, "upper_angular");
         CheckConstraintUnlocked(L, meta);
         constraint->setLowerLinLimit(lower_linear);
         constraint->setUpperLinLimit(upper_linear);
@@ -1512,8 +1466,8 @@ namespace dmGameSystem
         bool                    linear = CheckSliderMotorAxis(L, 2);
         bool                    enabled = CheckBoolean(L, 3, "enabled");
         btScalar                scale = GetBullet3DPhysicsScale();
-        btScalar                target_velocity = CheckScaledScalar(L, 4, "target_velocity", linear ? scale : btScalar(1.0f));
-        btScalar                max_force = CheckScaledScalar(L, 5, "max_force", linear ? scale : scale * scale);
+        btScalar                target_velocity = CheckBullet3DScalar(L, 4, linear ? scale : btScalar(1.0f), "target_velocity");
+        btScalar                max_force = CheckBullet3DScalar(L, 5, linear ? scale : scale * scale, "max_force");
         if (max_force < btScalar(0.0f))
         {
             return luaL_error(L, "max_force must not be negative.");

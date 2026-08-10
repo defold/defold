@@ -74,6 +74,10 @@ local function test_constants()
         { bullet3d.collision_object.CO_SOFT_BODY, 4 },
         { bullet3d.collision_object.CO_HF_FLUID, 5 },
         { bullet3d.rigid_body.BT_DISABLE_WORLD_GRAVITY, 1 },
+        { bullet3d.shape.TYPE_SPHERE, 0 },
+        { bullet3d.shape.TYPE_BOX, 1 },
+        { bullet3d.shape.TYPE_CAPSULE, 2 },
+        { bullet3d.shape.TYPE_HULL, 3 },
     }
     for _, entry in ipairs(constants) do
         assert(entry[1] == entry[2])
@@ -302,6 +306,90 @@ local function test_rigid_body(world, rigid_body)
     assert(calculated_inertia.x > 0 and calculated_inertia.y > 0 and calculated_inertia.z > 0)
 end
 
+-- Verifies non-finite, native-overflow and out-of-domain mutator inputs are
+-- rejected before they can change Bullet state.
+local function test_mutator_validation(world, collision_object, rigid_body)
+    local infinity = math.huge
+    local nan = 0 / 0
+
+    local gravity = bullet3d.world.get_gravity(world)
+    assert_error(function()
+        bullet3d.world.set_gravity(world, vmath.vector3(0, -infinity, 0))
+    end)
+    assert_vec3_near(bullet3d.world.get_gravity(world), gravity)
+
+    local position = bullet3d.collision_object.get_position(collision_object)
+    assert_error(function()
+        bullet3d.collision_object.set_position(collision_object, vmath.vector3(infinity, 0, 0))
+    end)
+    assert_vec3_near(bullet3d.collision_object.get_position(collision_object), position)
+
+    local friction = bullet3d.collision_object.get_friction(collision_object)
+    assert_error(function()
+        bullet3d.collision_object.set_friction(collision_object, infinity)
+    end)
+    assert_error(function()
+        bullet3d.collision_object.set_friction(collision_object, 1e100)
+    end)
+    assert_near(bullet3d.collision_object.get_friction(collision_object), friction)
+
+    local deactivation_time = bullet3d.collision_object.get_deactivation_time(collision_object)
+    assert_error(function()
+        bullet3d.collision_object.set_deactivation_time(collision_object, nan)
+    end)
+    assert_near(bullet3d.collision_object.get_deactivation_time(collision_object), deactivation_time)
+
+    local ccd_radius = bullet3d.collision_object.get_ccd_swept_sphere_radius(collision_object)
+    local ccd_threshold = bullet3d.collision_object.get_ccd_motion_threshold(collision_object)
+    assert_error(function()
+        bullet3d.collision_object.set_ccd_swept_sphere_radius(collision_object, -0.1)
+    end)
+    assert_error(function()
+        bullet3d.collision_object.set_ccd_motion_threshold(collision_object, -0.1)
+    end)
+    assert_near(bullet3d.collision_object.get_ccd_swept_sphere_radius(collision_object), ccd_radius)
+    assert_near(bullet3d.collision_object.get_ccd_motion_threshold(collision_object), ccd_threshold)
+
+    assert_error(function()
+        bullet3d.collision_object.activate(collision_object, "false")
+    end)
+    bullet3d.collision_object.activate(collision_object, nil)
+
+    local velocity = bullet3d.rigid_body.get_linear_velocity(rigid_body)
+    assert_error(function()
+        bullet3d.rigid_body.set_linear_velocity(rigid_body, vmath.vector3(infinity, 0, 0))
+    end)
+    assert_error(function()
+        bullet3d.rigid_body.set_angular_factor(rigid_body, vmath.vector3(1, nan, 1))
+    end)
+    assert_vec3_near(bullet3d.rigid_body.get_linear_velocity(rigid_body), velocity)
+
+    local linear_damping, angular_damping = bullet3d.rigid_body.get_damping(rigid_body)
+    assert_error(function()
+        bullet3d.rigid_body.set_damping(rigid_body, -0.1, angular_damping)
+    end)
+    assert_error(function()
+        bullet3d.rigid_body.set_damping(rigid_body, linear_damping, 1.1)
+    end)
+    assert_error(function()
+        bullet3d.rigid_body.set_linear_damping(rigid_body, infinity)
+    end)
+    local actual_linear_damping, actual_angular_damping = bullet3d.rigid_body.get_damping(rigid_body)
+    assert_near(actual_linear_damping, linear_damping)
+    assert_near(actual_angular_damping, angular_damping)
+
+    local linear_threshold = bullet3d.rigid_body.get_linear_sleeping_threshold(rigid_body)
+    local angular_threshold = bullet3d.rigid_body.get_angular_sleeping_threshold(rigid_body)
+    assert_error(function()
+        bullet3d.rigid_body.set_sleeping_thresholds(rigid_body, -0.1, angular_threshold)
+    end)
+    assert_error(function()
+        bullet3d.rigid_body.set_sleeping_thresholds(rigid_body, linear_threshold, infinity)
+    end)
+    assert_near(bullet3d.rigid_body.get_linear_sleeping_threshold(rigid_body), linear_threshold)
+    assert_near(bullet3d.rigid_body.get_angular_sleeping_threshold(rigid_body), angular_threshold)
+end
+
 -- Verifies the retained read-only collision-filter accessors.
 local function test_collision_filter_accessors(collision_object)
     local group = bullet3d.collision_object.get_collision_filter_group(collision_object)
@@ -427,6 +515,7 @@ function init(self)
 
     test_rigid_body(world, rigid_body)
     test_collision_object(collision_object)
+    test_mutator_validation(world, collision_object, rigid_body)
     test_static_and_kinematic("/bullet3d_static#collisionobject", "/bullet3d_kinematic#collisionobject")
 
     local trigger = test_trigger("/bullet3d_trigger#collisionobject")

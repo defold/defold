@@ -4,6 +4,7 @@
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
 
+#include <float.h>
 #include <math.h>
 
 #include <dlib/log.h>
@@ -47,21 +48,62 @@ namespace dmGameSystem
         return g_Bullet3DInvPhysicsScale;
     }
 
-    btVector3 CheckBullet3DVector3(lua_State* L, int index, float scale)
+    btVector3 CheckBullet3DVector3(lua_State* L, int index, float scale, const char* field_name)
     {
-        dmVMath::Vector3* value = dmScript::CheckVector3(L, index);
-        return btVector3(value->getX() * scale, value->getY() * scale, value->getZ() * scale);
+        dmVMath::Vector3* input = dmScript::CheckVector3(L, index);
+        btVector3         value(input->getX() * scale, input->getY() * scale, input->getZ() * scale);
+        if (!isfinite((double)input->getX()) || !isfinite((double)input->getY()) || !isfinite((double)input->getZ()) ||
+            !isfinite((double)value.getX()) || !isfinite((double)value.getY()) || !isfinite((double)value.getZ()))
+        {
+            luaL_error(L, "%s components must be finite and within Bullet's numeric range.", field_name);
+        }
+        return value;
     }
 
-    btQuaternion CheckBullet3DQuat(lua_State* L, int index)
+    btScalar CheckBullet3DScalar(lua_State* L, int index, btScalar scale, const char* field_name)
     {
-        dmVMath::Quat* value = dmScript::CheckQuat(L, index);
-        return btQuaternion(value->getX(), value->getY(), value->getZ(), value->getW());
+        lua_Number input = luaL_checknumber(L, index);
+#if !defined(BT_USE_DOUBLE_PRECISION)
+        if (!isfinite((double)input) || input < -(lua_Number)FLT_MAX || input > (lua_Number)FLT_MAX)
+#else
+        if (!isfinite((double)input))
+#endif
+        {
+            luaL_error(L, "%s must be finite and within Bullet's numeric range.", field_name);
+        }
+        btScalar value = (btScalar)input;
+        btScalar scaled_value = value * scale;
+        if (!isfinite((double)scaled_value))
+        {
+            luaL_error(L, "%s must be finite and within Bullet's numeric range.", field_name);
+        }
+        return scaled_value;
     }
 
-    btQuaternion CheckBullet3DFiniteQuat(lua_State* L, int index, const char* field_name)
+    btScalar CheckBullet3DScalarInRange(lua_State* L, int index, btScalar scale, const char* field_name, btScalar minimum, btScalar maximum)
     {
-        btQuaternion value = CheckBullet3DQuat(L, index);
+        btScalar value = CheckBullet3DScalar(L, index, scale, field_name);
+        if (value < minimum || value > maximum)
+        {
+            luaL_error(L, "%s must be between %g and %g.", field_name, (double)minimum, (double)maximum);
+        }
+        return value;
+    }
+
+    btScalar CheckBullet3DNonNegativeScalar(lua_State* L, int index, btScalar scale, const char* field_name)
+    {
+        btScalar value = CheckBullet3DScalar(L, index, scale, field_name);
+        if (value < btScalar(0.0f))
+        {
+            luaL_error(L, "%s must be non-negative.", field_name);
+        }
+        return value;
+    }
+
+    btQuaternion CheckBullet3DQuat(lua_State* L, int index, const char* field_name)
+    {
+        dmVMath::Quat* input = dmScript::CheckQuat(L, index);
+        btQuaternion value(input->getX(), input->getY(), input->getZ(), input->getW());
         btScalar     length_squared = value.length2();
         if (!isfinite((double)value.getX()) || !isfinite((double)value.getY()) || !isfinite((double)value.getZ()) || !isfinite((double)value.getW()) || !isfinite((double)length_squared) || !(length_squared > 0.0f))
         {

@@ -77,8 +77,8 @@ namespace dmGameSystem
 
     static btScalar CheckPositiveMass(lua_State* L, int index)
     {
-        btScalar mass = (btScalar)luaL_checknumber(L, index);
-        if (!isfinite((double)mass) || !(mass > btScalar(0.0)))
+        btScalar mass = CheckBullet3DScalar(L, index, 1.0f, "mass");
+        if (!(mass > btScalar(0.0)))
         {
             luaL_error(L, "mass must be finite, greater than zero, and have a finite native inverse.");
             return btScalar(0.0);
@@ -107,7 +107,7 @@ namespace dmGameSystem
     static btVector3 CheckLocalInertia(lua_State* L, int index)
     {
         float     scale = GetBullet3DPhysicsScale();
-        btVector3 unscaled_inertia = CheckBullet3DVector3(L, index, 1.0f);
+        btVector3 unscaled_inertia = CheckBullet3DVector3(L, index, 1.0f, "local_inertia");
         btVector3 inertia = unscaled_inertia * (scale * scale);
         if ((unscaled_inertia.getX() != btScalar(0.0) && inertia.getX() == btScalar(0.0)) ||
             (unscaled_inertia.getY() != btScalar(0.0) && inertia.getY() == btScalar(0.0)) ||
@@ -205,7 +205,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        rigid_body->setLinearVelocity(CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()));
+        rigid_body->setLinearVelocity(CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "velocity"));
         Activate(rigid_body);
         return 0;
     }
@@ -221,7 +221,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        rigid_body->setAngularVelocity(CheckBullet3DVector3(L, 2, 1.0f));
+        rigid_body->setAngularVelocity(CheckBullet3DVector3(L, 2, 1.0f, "velocity"));
         Activate(rigid_body);
         return 0;
     }
@@ -238,7 +238,10 @@ namespace dmGameSystem
     static int RigidBody_SetDamping(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        CheckBullet3DRigidBody(L, 1)->setDamping(luaL_checknumber(L, 2), luaL_checknumber(L, 3));
+        btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
+        btScalar     linear = CheckBullet3DScalarInRange(L, 2, 1.0f, "linear", 0.0f, 1.0f);
+        btScalar     angular = CheckBullet3DScalarInRange(L, 3, 1.0f, "angular", 0.0f, 1.0f);
+        rigid_body->setDamping(linear, angular);
         return 0;
     }
 
@@ -253,7 +256,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        rigid_body->setDamping(luaL_checknumber(L, 2), rigid_body->getAngularDamping());
+        rigid_body->setDamping(CheckBullet3DScalarInRange(L, 2, 1.0f, "damping", 0.0f, 1.0f), rigid_body->getAngularDamping());
         return 0;
     }
 
@@ -268,7 +271,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        rigid_body->setDamping(rigid_body->getLinearDamping(), luaL_checknumber(L, 2));
+        rigid_body->setDamping(rigid_body->getLinearDamping(), CheckBullet3DScalarInRange(L, 2, 1.0f, "damping", 0.0f, 1.0f));
         return 0;
     }
 
@@ -283,7 +286,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        rigid_body->setLinearFactor(CheckBullet3DVector3(L, 2, 1.0f));
+        rigid_body->setLinearFactor(CheckBullet3DVector3(L, 2, 1.0f, "factor"));
         Activate(rigid_body);
         return 0;
     }
@@ -299,7 +302,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        rigid_body->setAngularFactor(CheckBullet3DVector3(L, 2, 1.0f));
+        rigid_body->setAngularFactor(CheckBullet3DVector3(L, 2, 1.0f, "factor"));
         Activate(rigid_body);
         return 0;
     }
@@ -315,7 +318,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        rigid_body->setGravity(CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()));
+        rigid_body->setGravity(CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "gravity"));
         Activate(rigid_body);
         return 0;
     }
@@ -359,7 +362,10 @@ namespace dmGameSystem
     static int RigidBody_SetSleepingThresholds(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        CheckBullet3DRigidBody(L, 1)->setSleepingThresholds(luaL_checknumber(L, 2) * GetBullet3DPhysicsScale(), luaL_checknumber(L, 3));
+        btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
+        btScalar     linear = CheckBullet3DNonNegativeScalar(L, 2, GetBullet3DPhysicsScale(), "linear");
+        btScalar     angular = CheckBullet3DNonNegativeScalar(L, 3, 1.0f, "angular");
+        rigid_body->setSleepingThresholds(linear, angular);
         return 0;
     }
 
@@ -389,7 +395,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        rigid_body->applyCentralForce(CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()));
+        rigid_body->applyCentralForce(CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "force"));
         Activate(rigid_body);
         return 0;
     }
@@ -399,8 +405,8 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
         float        scale = GetBullet3DPhysicsScale();
-        btVector3    force = CheckBullet3DVector3(L, 2, scale);
-        btVector3    relative_position = CheckBullet3DVector3(L, 3, scale);
+        btVector3    force = CheckBullet3DVector3(L, 2, scale, "force");
+        btVector3    relative_position = CheckBullet3DVector3(L, 3, scale, "relative_position");
         rigid_body->applyForce(force, relative_position);
         Activate(rigid_body);
         return 0;
@@ -411,7 +417,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
         float        scale = GetBullet3DPhysicsScale();
-        rigid_body->applyTorque(CheckBullet3DVector3(L, 2, scale * scale));
+        rigid_body->applyTorque(CheckBullet3DVector3(L, 2, scale * scale, "torque"));
         Activate(rigid_body);
         return 0;
     }
@@ -420,7 +426,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        rigid_body->applyCentralImpulse(CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale()));
+        rigid_body->applyCentralImpulse(CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "impulse"));
         Activate(rigid_body);
         return 0;
     }
@@ -430,8 +436,8 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
         float        scale = GetBullet3DPhysicsScale();
-        btVector3    impulse = CheckBullet3DVector3(L, 2, scale);
-        btVector3    relative_position = CheckBullet3DVector3(L, 3, scale);
+        btVector3    impulse = CheckBullet3DVector3(L, 2, scale, "impulse");
+        btVector3    relative_position = CheckBullet3DVector3(L, 3, scale, "relative_position");
         rigid_body->applyImpulse(impulse, relative_position);
         Activate(rigid_body);
         return 0;
@@ -442,7 +448,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
         float        scale = GetBullet3DPhysicsScale();
-        rigid_body->applyTorqueImpulse(CheckBullet3DVector3(L, 2, scale * scale));
+        rigid_body->applyTorqueImpulse(CheckBullet3DVector3(L, 2, scale * scale, "impulse"));
         Activate(rigid_body);
         return 0;
     }
@@ -458,7 +464,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 1);
         btRigidBody* rigid_body = CheckBullet3DRigidBody(L, 1);
-        btVector3    relative_position = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale());
+        btVector3    relative_position = CheckBullet3DVector3(L, 2, GetBullet3DPhysicsScale(), "relative_position");
         PushBullet3DVector3(L, rigid_body->getVelocityInLocalPoint(relative_position), GetBullet3DInvPhysicsScale());
         return 1;
     }
@@ -561,7 +567,9 @@ namespace dmGameSystem
  *
  * Linear quantities use Defold units. Angular velocity, damping, and factors
  * are unscaled. Torque and angular impulse use squared physics scale because
- * inertia scales with length squared.
+ * inertia scales with length squared. Floating-point and vector inputs must be
+ * finite. Damping must be in `[0, 1]`, and sleeping thresholds must be
+ * non-negative.
  *
  * @document
  * @name bullet3d.rigid_body
@@ -648,7 +656,7 @@ namespace dmGameSystem
 /*# Set linear velocity
  * @name bullet3d.rigid_body.set_linear_velocity
  * @param body [type:btRigidBody] rigid body
- * @param velocity [type:vector3] velocity in Defold units per second
+ * @param velocity [type:vector3] finite velocity in Defold units per second
  */
 
 /*# Get angular velocity
@@ -660,7 +668,7 @@ namespace dmGameSystem
 /*# Set angular velocity
  * @name bullet3d.rigid_body.set_angular_velocity
  * @param body [type:btRigidBody] rigid body
- * @param velocity [type:vector3] angular velocity in radians per second
+ * @param velocity [type:vector3] finite angular velocity in radians per second
  */
 
 /*# Get linear and angular damping
@@ -673,8 +681,8 @@ namespace dmGameSystem
 /*# Set linear and angular damping
  * @name bullet3d.rigid_body.set_damping
  * @param body [type:btRigidBody] rigid body
- * @param linear [type:number] linear damping
- * @param angular [type:number] angular damping
+ * @param linear [type:number] finite linear damping in `[0, 1]`
+ * @param angular [type:number] finite angular damping in `[0, 1]`
  */
 
 /*# Get linear damping
@@ -686,7 +694,7 @@ namespace dmGameSystem
 /*# Set linear damping
  * @name bullet3d.rigid_body.set_linear_damping
  * @param body [type:btRigidBody] rigid body
- * @param damping [type:number] linear damping
+ * @param damping [type:number] finite linear damping in `[0, 1]`
  */
 
 /*# Get angular damping
@@ -698,7 +706,7 @@ namespace dmGameSystem
 /*# Set angular damping
  * @name bullet3d.rigid_body.set_angular_damping
  * @param body [type:btRigidBody] rigid body
- * @param damping [type:number] angular damping
+ * @param damping [type:number] finite angular damping in `[0, 1]`
  */
 
 /*# Get the linear factor
@@ -776,8 +784,8 @@ namespace dmGameSystem
 /*# Set the sleeping thresholds
  * @name bullet3d.rigid_body.set_sleeping_thresholds
  * @param body [type:btRigidBody] rigid body
- * @param linear [type:number] linear threshold in Defold units per second
- * @param angular [type:number] angular threshold in radians per second
+ * @param linear [type:number] finite non-negative linear threshold in Defold units per second
+ * @param angular [type:number] finite non-negative angular threshold in radians per second
  */
 
 /*# Get total accumulated force
