@@ -198,11 +198,6 @@ namespace dmGraphics
         return (HContext) g_VulkanContext;
     }
 
-    static inline void TouchResource(VulkanContext* context, DeviceBuffer* resource)
-    {
-        resource->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
-    }
-
     template <typename T>
     static inline void TouchResource(VulkanContext* context, T* resource)
     {
