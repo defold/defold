@@ -17,12 +17,16 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
 
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.GlyphBank;
@@ -108,6 +112,26 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+    }
+
+    @Test
+    public void testInvalidFNTReportsCompileException() throws Exception {
+        addFile("/invalid.fnt", "invalid");
+
+        StringBuilder src = new StringBuilder();
+        src.append("font: \"/invalid.fnt\"\n");
+        src.append("material: \"/test.material\"\n");
+        src.append("size: 16\n");
+        addFile("/invalid.font", src.toString());
+
+        Task task = getProject().createTask(getProject().getResource("/invalid.font"), GlyphBankBuilder.class);
+        try {
+            task.getBuilder().build(task);
+            fail("Expected malformed BMFont data to produce a CompileExceptionError");
+        } catch (CompileExceptionError e) {
+            assertEquals("invalid.font", e.getResource().getPath());
+            assertTrue(e.getCause() instanceof BMFontFormatException);
+        }
     }
 
     @Test
