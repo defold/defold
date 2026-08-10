@@ -200,8 +200,7 @@ namespace dmGraphics
 
     static inline void TouchResource(VulkanContext* context, DeviceBuffer* resource)
     {
-        resource->m_Handle.m_LastUsedFrame         = context->m_CurrentFrameInFlight;
-        resource->m_Handle.m_LastUsedFrameSequence = context->m_CurrentFrameSequence;
+        resource->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
     }
 
     template <typename T>
@@ -1524,11 +1523,6 @@ namespace dmGraphics
             goto bail;
         }
 
-        // if (context->m_SwapChain->HasMultiSampling())
-        // {
-        //     context->m_NumFramesInFlight = 1;
-        // }
-
         // GLFW3 handles window size changes differently, so we need to cater for that.
     #ifndef __MACH__
         if (created_width != context->m_BaseContext.m_Width || created_height != context->m_BaseContext.m_Height)
@@ -1814,7 +1808,6 @@ bail:
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget);
         rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[context->m_SwapChain->m_ImageIndex];
 
-        context->m_CurrentFrameSequence++;
         context->m_FrameBegun            = 1;
         context->m_MainRTBegunThisFrame  = 0;
         context->m_CurrentPipeline       = 0;
@@ -2236,12 +2229,6 @@ bail:
         }
 
         return cached_pipeline;
-    }
-
-    static inline bool IsDeviceBufferUsedThisFrame(VulkanContext* context, DeviceBuffer* buffer)
-    {
-        return context->m_FrameBegun &&
-            buffer->m_Handle.m_LastUsedFrameSequence == context->m_CurrentFrameSequence;
     }
 
     static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, uint32_t offset, const void* data)

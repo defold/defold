@@ -783,7 +783,6 @@ namespace dmGraphics
 
         bufferOut->m_Base.m_Size = (uint32_t) vk_size;
         bufferOut->m_Destroyed   = 0;
-        bufferOut->m_Handle.m_LastUsedFrameSequence = 0;
 
         return VK_SUCCESS;
 bail:
