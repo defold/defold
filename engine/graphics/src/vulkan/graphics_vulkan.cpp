@@ -1523,6 +1523,10 @@ namespace dmGraphics
             dmLogError("Could not create a swap chain for Vulkan, reason: %s", VkResultToStr(res));
             goto bail;
         }
+        if (context->m_SwapChain->HasMultiSampling())
+        {
+            context->m_NumFramesInFlight = 1;
+        }
 
         // GLFW3 handles window size changes differently, so we need to cater for that.
     #ifndef __MACH__
@@ -2141,6 +2145,7 @@ bail:
 
         res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, size, offset, data, bufferOut);
         CHECK_VK_ERROR(res);
+        TouchResource(context, bufferOut);
 
         if (!context->m_FrameBegun)
         {
@@ -2247,19 +2252,9 @@ bail:
 
         if (offset == 0 && !buffer->m_Destroyed && buffer->m_Handle.m_Buffer != VK_NULL_HANDLE)
         {
-            // A recorded Vulkan draw references mutable VkBuffer storage. Orphan the storage
-            // before a full update if commands in this frame may still read the old contents.
-        #ifdef __MACH__
-            // Coherent memory writes does not seem to be properly synced on MoltenVK,
-            // so for now we always mark the old buffer for destruction when updating the data.
-            const bool should_orphan = true;
-        #else
-            const bool should_orphan = size != buffer->m_Base.m_Size || IsDeviceBufferUsedThisFrame(context, buffer);
-        #endif
-            if (should_orphan)
-            {
-                DestroyResourceDeferred(context, buffer);
-            }
+            // Full updates replace the logical contents of the buffer. Vulkan command buffers keep
+            // references to VkBuffer storage, so do not overwrite storage that recorded draws may use.
+            DestroyResourceDeferred(context, buffer);
         }
 
         DeviceBufferUploadHelper(context, data, size, offset, buffer);
@@ -2438,8 +2433,8 @@ bail:
         DM_PROFILE(__FUNCTION__);
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-        assert(offset + size < buffer_ptr->m_Base.m_Size);
-        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
+        assert(offset + size <= buffer_ptr->m_Base.m_Size);
+        DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
     }
 
     static bool VulkanIsIndexBufferFormatSupported(HContext _context, IndexBufferFormat format)
