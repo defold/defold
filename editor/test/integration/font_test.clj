@@ -54,6 +54,20 @@
     (is (< (native-sdf-limit 6.0 2.0)
            (native-sdf-limit 6.0 1.0)))))
 
+(deftest static-native-preview-character-set
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")])
+      (let [font-map (g/node-value font-node :font-map)
+            restricted-layout (font/layout-text font-map "A B" false 0 0 1)
+            expected-layout (font/layout-text font-map "A" false 0 0 1)]
+        (is (= "A B" (:text restricted-layout)))
+        (is (= "A" (:native-text restricted-layout)))
+        (is (= (:width expected-layout) (:width restricted-layout)))
+        (is (= (:height expected-layout) (:height restricted-layout)))))))
+
 (defn- font-map-uses-text-shaping? [font-node]
   (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
                                                     [:native-renderer-spec :render-params])]
