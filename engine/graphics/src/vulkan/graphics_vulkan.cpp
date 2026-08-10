@@ -2134,7 +2134,10 @@ bail:
 
         res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, size, offset, data, bufferOut);
         CHECK_VK_ERROR(res);
-        TouchResource(context, bufferOut);
+        if (context->m_FrameBegun)
+        {
+            TouchResource(context, bufferOut);
+        }
 
         if (!context->m_FrameBegun)
         {
@@ -2237,6 +2240,11 @@ bail:
         {
             // Full updates replace the logical contents of the buffer. Vulkan command buffers keep
             // references to VkBuffer storage, so do not overwrite storage that recorded draws may use.
+            // This is a correctness-first form of buffer renaming; longer term, frequent dynamic
+            // uploads should avoid vkCreateBuffer/vkAllocateMemory churn by either writing transient
+            // vertex/index data into per-frame persistently mapped ring buffers with fresh draw
+            // offsets, or by keeping a small pool of backing buffers per logical buffer and reusing
+            // retired storage once the owning frame fence has signaled.
             DestroyResourceDeferred(context, buffer);
         }
 
