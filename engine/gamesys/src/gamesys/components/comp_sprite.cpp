@@ -739,7 +739,7 @@ namespace dmGameSystem
         if (sprite_world->m_Components.Full())
         {
             ShowFullBufferError("Sprite", "sprite.max_count", sprite_world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_SPRITES;
         }
         uint32_t index = sprite_world->m_Components.Alloc();
         SpriteComponent* component = &sprite_world->m_Components.Get(index);

@@ -377,7 +377,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Mesh", "mesh.max_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_MESHES;
         }
         uint32_t index = world->m_Components.Alloc();
         MeshComponent* component = new MeshComponent;

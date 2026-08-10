@@ -135,8 +135,8 @@ namespace dmGameObject
 
             dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString64(instance_desc.m_Id));
 
-            bool result = dmGameObject::CreateComponents(collection, instance);
-            if (result) {
+            CreateResult create_result = dmGameObject::CreateComponents(collection, instance);
+            if (CREATE_RESULT_OK == create_result) {
                 // Set properties
                 uint32_t component_instance_data_index = 0;
                 Prototype::Component* components = instance->m_Prototype->m_Components;
@@ -187,7 +187,31 @@ namespace dmGameObject
             } else {
                 dmGameObject::ReleaseIdentifier(collection, instance);
                 dmGameObject::UndoNewInstance(collection, instance);
-                res = dmResource::RESULT_FORMAT_ERROR;
+
+                #define CREATE_RESULT_TO_RESOURCE_RESULT(x) case CREATE_RESULT_##x: res = dmResource::RESULT_##x; break;
+                switch (create_result)
+                {
+                    CREATE_RESULT_TO_RESOURCE_RESULT(OK);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_COMPONENTS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_SOUNDS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_SPRITES);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_CAMERAS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_COLLECTION_FACTORIES);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_COLLECTION_PROXIES);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_COLLISION_OBJECTS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_FACTORIES);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_GUIS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_LABELS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_LIGHTS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_MESHES);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_MODELS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_PARTICLEFX);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_SCRIPTS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(TOO_MANY_TILEMAPS);
+                    CREATE_RESULT_TO_RESOURCE_RESULT(UNKNOWN_ERROR);
+                    default: res = dmResource::RESULT_FORMAT_ERROR; break;
+                }
+                #undef CREATE_RESULT_TO_RESOURCE_RESULT
             }
         }
 

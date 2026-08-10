@@ -422,7 +422,7 @@ namespace dmGameSystem
         if (!CreateCollisionObject(physics_context, world, params.m_Instance, component, false))
         {
             delete component;
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COLLISION_OBJECTS;
         }
         *params.m_UserData = (uintptr_t)component;
         return dmGameObject::CREATE_RESULT_OK;
@@ -489,7 +489,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Collision object", PHYSICS_MAX_COLLISION_OBJECTS_KEY, world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COLLISION_OBJECTS;
         }
         CollisionComponentBox2D* component = (CollisionComponentBox2D*)*params.m_UserData;
         assert(!component->m_BaseComponent.m_AddedToUpdate);

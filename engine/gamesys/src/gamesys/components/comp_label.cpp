@@ -312,7 +312,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Label", "label.max_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_LABELS;
         }
 
         LabelResource* resource = (LabelResource*)params.m_Resource;

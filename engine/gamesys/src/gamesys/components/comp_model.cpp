@@ -1185,6 +1185,7 @@ namespace dmGameSystem
             dmLogError("Failed to create a rig instance needed by model: %d.", res);
             if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
                 dmLogError("Try increasing the model.max_count value in game.project");
+                return dmGameObject::CREATE_RESULT_TOO_MANY_MODELS;
             }
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
@@ -1198,7 +1199,7 @@ namespace dmGameSystem
         if (world->m_Components.Full())
         {
             ShowFullBufferError("Model", "model.max_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_MODELS;
         }
         uint32_t index = world->m_Components.Alloc();
         ModelComponent* component = new ModelComponent;
