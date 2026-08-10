@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "fontc.h"
+#include "font.h"
+#include "font_ttf.h"
 
 #include <glyph_gen.h>
 #include <glyph_vertex.h>
@@ -29,6 +31,7 @@
 #include <dlib/vmath.h>
 #include <dmsdk/font/fontcollection.h>
 #include <dmsdk/font/text_layout.h>
+#include <harfbuzz/hb.h>
 #include <text_layout.h>
 
 using dmVMath::Matrix4;
@@ -39,6 +42,7 @@ static_assert(sizeof(FontcParams) == 76, "Unexpected FontcParams ABI layout");
 static_assert(sizeof(FontcLayout) == 20, "Unexpected FontcLayout ABI layout");
 static_assert(sizeof(FontcGlyph) == 48, "Unexpected FontcGlyph ABI layout");
 static_assert(offsetof(FontcGlyph, m_Pixels) == 32, "Unexpected FontcGlyph ABI layout");
+static_assert(sizeof(FontcGlyphMetrics) == 32, "Unexpected FontcGlyphMetrics ABI layout");
 static_assert(sizeof(FontcProperties) == 80, "Unexpected FontcProperties ABI layout");
 static_assert(sizeof(FontcTexture) == 40, "Unexpected FontcTexture ABI layout");
 static_assert(offsetof(FontcTexture, m_AtlasVersion) == 8, "Unexpected FontcTexture ABI layout");
@@ -542,6 +546,9 @@ FontRendererResult FontcGenerateGlyph(HFontRenderer renderer, uint32_t codepoint
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     memset(output, 0, sizeof(*output));
     const uint32_t     glyph_index = FontGetGlyphIndex(renderer->m_Font, codepoint);
+    output->m_GlyphIndex = glyph_index;
+    if (glyph_index == 0)
+        return FONT_RENDERER_RESULT_OK;
 
     FontGlyphGenParams params;
     GetGlyphGenParams(renderer, renderer->m_Font, &params);
@@ -576,6 +583,81 @@ void FontcFreeGlyph(FontcGlyph* glyph)
         return;
     free(glyph->m_Pixels);
     memset(glyph, 0, sizeof(*glyph));
+}
+
+static FontRendererResult GetGlyphMetrics(HFontRenderer renderer, uint32_t codepoint, FontcGlyphMetrics* output)
+{
+    memset(output, 0, sizeof(*output));
+    output->m_Codepoint = codepoint;
+    const uint32_t glyph_index = FontGetGlyphIndex(renderer->m_Font, codepoint);
+    output->m_GlyphIndex = glyph_index;
+    if (glyph_index == 0)
+        return FONT_RENDERER_RESULT_OK;
+
+    const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
+    const float padding = renderer->m_SdfBasePadding + renderer->m_OutlineWidth + renderer->m_ShadowBlur;
+    FontGlyph glyph;
+    if (FontGetGlyphSDFMetricsTTF(renderer->m_Font, glyph_index, scale, padding, &glyph) != FONT_RESULT_OK)
+        return FONT_RENDERER_RESULT_GLYPH_ERROR;
+
+    output->m_Width = (uint32_t)glyph.m_Width;
+    output->m_Height = (uint32_t)glyph.m_Height;
+    output->m_Advance = glyph.m_Advance;
+    output->m_LeftBearing = glyph.m_LeftBearing;
+    output->m_Ascent = glyph.m_Ascent;
+    output->m_Descent = glyph.m_Descent;
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcGetGlyphMetrics(HFontRenderer renderer, uint32_t codepoint, FontcGlyphMetrics* metrics)
+{
+    if (!renderer || !metrics)
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    return GetGlyphMetrics(renderer, codepoint, metrics);
+}
+
+FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer renderer,
+                                                  FontcGlyphMetrics* metrics,
+                                                  uint32_t metrics_capacity,
+                                                  uint32_t* glyph_count)
+{
+    if (!renderer || !glyph_count || (!metrics && metrics_capacity != 0))
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+
+    hb_font_t* hb_font = FontGetHarfbuzzFontFromTTF(renderer->m_Font);
+    hb_set_t* unicodes = hb_set_create();
+    hb_face_collect_unicodes(hb_font_get_face(hb_font), unicodes);
+    const uint32_t required_capacity = hb_set_get_population(unicodes);
+    *glyph_count = required_capacity;
+    if (!metrics)
+    {
+        hb_set_destroy(unicodes);
+        return FONT_RENDERER_RESULT_OK;
+    }
+    if (metrics_capacity < required_capacity)
+    {
+        hb_set_destroy(unicodes);
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    }
+
+    hb_codepoint_t codepoint = HB_SET_VALUE_INVALID;
+    uint32_t output_count = 0;
+    while (hb_set_next(unicodes, &codepoint))
+    {
+        FontcGlyphMetrics& output = metrics[output_count];
+        FontRendererResult result = GetGlyphMetrics(renderer, codepoint, &output);
+        if (result != FONT_RENDERER_RESULT_OK)
+        {
+            hb_set_destroy(unicodes);
+            return result;
+        }
+        if (output.m_GlyphIndex == 0)
+            continue;
+        ++output_count;
+    }
+    hb_set_destroy(unicodes);
+    *glyph_count = output_count;
+    return FONT_RENDERER_RESULT_OK;
 }
 
 FontRendererResult FontcDecodeImage(const uint8_t* image_bytes,

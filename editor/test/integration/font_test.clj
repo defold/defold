@@ -34,6 +34,19 @@
   (g/transact {:undoable false}
     (g/set-property node-id label val)))
 
+(deftest preview-text-respects-glyph-cache-capacity
+  (let [font-map {:cache-width 20
+                  :cache-height 20
+                  :cache-cell-width 10
+                  :cache-cell-height 10
+                  :glyphs (mapv (fn [character]
+                                  {:character character
+                                   :width 5
+                                   :advance 10.0})
+                                (range (int \A) (inc (int \F))))}]
+    (is (= "AB CD" ((ns-resolve 'editor.font 'produce-preview-text)
+                     {:font-map font-map})))))
+
 (deftest effective-sdf-scale-test
   (let [effective-sdf-scale (ns-resolve 'editor.font 'effective-sdf-scale)
         identity-transform (doto (Matrix4d.)
@@ -53,6 +66,20 @@
     (is (= 0.75 (native-sdf-limit 3.0 0.0)))
     (is (< (native-sdf-limit 6.0 2.0)
            (native-sdf-limit 6.0 1.0)))))
+
+(deftest static-native-preview-character-set
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")])
+      (let [font-map (g/node-value font-node :font-map)
+            restricted-layout (font/layout-text font-map "A B" false 0 0 1)
+            expected-layout (font/layout-text font-map "A" false 0 0 1)]
+        (is (= "A B" (:text restricted-layout)))
+        (is (= "A" (:native-text restricted-layout)))
+        (is (= (:width expected-layout) (:width restricted-layout)))
+        (is (= (:height expected-layout) (:height restricted-layout)))))))
 
 (defn- font-map-uses-text-shaping? [font-node]
   (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)

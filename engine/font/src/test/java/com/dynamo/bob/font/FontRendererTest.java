@@ -23,6 +23,11 @@ import static org.junit.Assert.fail;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.Test;
 import org.junit.internal.TextListener;
@@ -310,6 +315,92 @@ public class FontRendererTest {
             assertTrue(glyph.height > 0);
             assertEquals(1, glyph.channels);
             assertEquals(glyph.width * glyph.height * glyph.channels, glyph.pixels.remaining());
+        }
+    }
+
+    @Test
+    public void testGenerateMissingGlyphDoesNotRasterizeGlyphZero() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.GeneratedGlyph glyph = renderer.generateGlyph(Character.MAX_CODE_POINT);
+            assertEquals(0, glyph.glyphIndex);
+            assertEquals(0, glyph.width);
+            assertEquals(0, glyph.height);
+            assertEquals(0, glyph.pixels.remaining());
+        }
+    }
+
+    @Test
+    public void testGetSupportedGlyphMetrics() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.GlyphMetrics[] metrics = renderer.getSupportedGlyphMetrics();
+            assertTrue(metrics.length > 0);
+
+            FontRenderer.GlyphMetrics capitalA = null;
+            int previousCodepoint = -1;
+            for (FontRenderer.GlyphMetrics glyph : metrics) {
+                assertTrue(glyph.codepoint > previousCodepoint);
+                assertTrue(glyph.glyphIndex > 0);
+                assertTrue(Character.isValidCodePoint(glyph.codepoint));
+                if (glyph.codepoint == 'A')
+                    capitalA = glyph;
+                previousCodepoint = glyph.codepoint;
+            }
+            assertNotNull(capitalA);
+
+            FontRenderer.GlyphMetrics direct = renderer.getGlyphMetrics('A');
+            assertEquals(capitalA.codepoint, direct.codepoint);
+            assertEquals(capitalA.glyphIndex, direct.glyphIndex);
+            assertEquals(capitalA.width, direct.width);
+            assertEquals(capitalA.height, direct.height);
+            assertEquals(capitalA.advance, direct.advance, 0.0f);
+            assertEquals(capitalA.leftBearing, direct.leftBearing, 0.0f);
+            assertEquals(capitalA.ascent, direct.ascent, 0.0f);
+            assertEquals(capitalA.descent, direct.descent, 0.0f);
+
+            FontRenderer.GeneratedGlyph generated = renderer.generateGlyph('A');
+            assertEquals(generated.glyphIndex, direct.glyphIndex);
+            assertEquals(generated.width, direct.width);
+            assertEquals(generated.height, direct.height);
+        }
+    }
+
+    @Test
+    public void testGetMissingGlyphMetrics() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.GlyphMetrics metrics = renderer.getGlyphMetrics(Character.MAX_CODE_POINT);
+            assertEquals(Character.MAX_CODE_POINT, metrics.codepoint);
+            assertEquals(0, metrics.glyphIndex);
+            assertEquals(0, metrics.width);
+            assertEquals(0, metrics.height);
+        }
+    }
+
+    @Test
+    public void testConcurrentSessionLifecycle() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = 32.0f;
+        params.cacheWidth = 1;
+        params.cacheHeight = 1;
+
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            List<Future<?>> futures = new ArrayList<>();
+            for (int taskIndex = 0; taskIndex < 32; ++taskIndex) {
+                futures.add(executor.submit(() -> {
+                    try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+                        assertTrue(renderer.generateGlyph('A').width > 0);
+                    }
+                }));
+            }
+            for (Future<?> future : futures)
+                future.get();
+        } finally {
+            executor.shutdownNow();
         }
     }
 

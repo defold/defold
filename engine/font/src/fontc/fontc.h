@@ -89,6 +89,18 @@ extern "C"
         uint32_t m_PixelCount;
     } FontcGlyph;
 
+    typedef struct FontcGlyphMetrics
+    {
+        uint32_t m_Codepoint;
+        uint32_t m_GlyphIndex;
+        uint32_t m_Width;
+        uint32_t m_Height;
+        float    m_Advance;
+        float    m_LeftBearing;
+        float    m_Ascent;
+        float    m_Descent;
+    } FontcGlyphMetrics;
+
     typedef struct FontcProperties
     {
         float    m_FaceColor[4];
@@ -205,6 +217,38 @@ extern "C"
      * @param glyph [type: FontcGlyph*] Glyph returned by FontcGenerateGlyph.
      */
     DM_DLLEXPORT void FontcFreeGlyph(FontcGlyph* glyph);
+
+    /*#
+     * Returns metrics for one Unicode codepoint without generating a glyph image.
+     * A missing glyph is reported successfully with a zero glyph index.
+     *
+     * @name FontcGetGlyphMetrics
+     * @param renderer [type: HFontRenderer] Context containing the loaded font.
+     * @param codepoint [type: uint32_t] Unicode codepoint to inspect.
+     * @param metrics [type: FontcGlyphMetrics*] Receives copied glyph metrics.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcGetGlyphMetrics(HFontRenderer      renderer,
+                                                         uint32_t           codepoint,
+                                                         FontcGlyphMetrics* metrics);
+
+    /*#
+     * Enumerates the Unicode codepoints supported by the font and returns their
+     * glyph indices and metrics without generating glyph images. Call first with
+     * a null metrics pointer and zero capacity to query the required capacity.
+     * The glyph count is updated to the number of entries written on success.
+     *
+     * @name FontcGetSupportedGlyphMetrics
+     * @param renderer [type: HFontRenderer] Context containing the loaded font.
+     * @param metrics [type: FontcGlyphMetrics*] Caller-owned output array, or null when querying the count.
+     * @param metrics_capacity [type: uint32_t] Number of entries available in the output array.
+     * @param glyph_count [type: uint32_t*] Receives the required or written entry count.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer      renderer,
+                                                                  FontcGlyphMetrics* metrics,
+                                                                  uint32_t           metrics_capacity,
+                                                                  uint32_t*          glyph_count);
 
     /*#
      * Decodes encoded image data into an uncompressed pixel buffer.

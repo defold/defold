@@ -298,3 +298,52 @@ hb_font_t* FontGetHarfbuzzFontFromTTF(HFont hfont)
     return FontHarfbuzzGetFont(ToFont(hfont)->m_Font);
 }
 #endif
+
+FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float scale, float padding, FontGlyph* glyph)
+{
+    if (!hfont || !glyph || glyph_index == 0 || scale <= 0.0f || padding <= 0.0f)
+        return FONT_RESULT_ERROR;
+
+    TTFFont* font = ToFont(hfont);
+    memset(glyph, 0, sizeof(*glyph));
+
+    int advance = 0;
+    int left_bearing = 0;
+    FontImplGetGlyphHMetrics(font->m_Font, glyph_index, &advance, &left_bearing);
+
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = 0;
+    int y1 = 0;
+    int font_x0 = 0;
+    int font_y0 = 0;
+    int font_x1 = 0;
+    int font_y1 = 0;
+    if (FontImplGetGlyphBox(font->m_Font, glyph_index, &font_x0, &font_y0, &font_x1, &font_y1))
+    {
+        // Match stbtt_GetGlyphBitmapBoxSubpixel(): convert the font's
+        // y-up coordinates to the bitmap's y-down pixel coordinates.
+        x0 = (int)floorf(font_x0 * scale);
+        y0 = (int)floorf(-font_y1 * scale);
+        x1 = (int)ceilf(font_x1 * scale);
+        y1 = (int)ceilf(-font_y0 * scale);
+    }
+
+    if (x0 != x1 && y0 != y1)
+    {
+        const int sdf_padding = (int)padding;
+        x0 -= sdf_padding;
+        y0 -= sdf_padding;
+        x1 += sdf_padding;
+        y1 += sdf_padding;
+    }
+
+    glyph->m_GlyphIndex = glyph_index;
+    glyph->m_Width = (float)(x1 - x0);
+    glyph->m_Height = (float)(y1 - y0);
+    glyph->m_Advance = advance * scale;
+    glyph->m_LeftBearing = left_bearing * scale;
+    glyph->m_Ascent = -y0;
+    glyph->m_Descent = y1;
+    return FONT_RESULT_OK;
+}

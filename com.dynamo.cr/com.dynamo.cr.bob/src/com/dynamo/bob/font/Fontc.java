@@ -30,6 +30,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ForkJoinPool;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -37,6 +40,7 @@ import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.bob.font.FontRenderer.DecodedImage;
 import com.dynamo.bob.font.FontRenderer.GeneratedGlyph;
+import com.dynamo.bob.font.FontRenderer.GlyphMetrics;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
@@ -97,6 +101,7 @@ public class Fontc {
     static final int LAYER_FACE = 0x1;
     static final int LAYER_OUTLINE = 0x2;
     static final int LAYER_SHADOW = 0x4;
+    private static final int PARALLEL_GLYPH_COUNT = 256;
 
     private FontDesc fontDesc;
     private GlyphBank.Builder glyphBankBuilder;
@@ -207,31 +212,89 @@ public class Fontc {
         glyphBankBuilder.setMaxAscent(maxAscent).setMaxDescent(maxDescent);
     }
 
-    private void buildNativeTTF(FontRenderer renderer, boolean copyPixels) throws IOException {
+    private GeneratedGlyph[] generateSupportedGlyphs(byte[] fontBytes, FontRenderer.Params params, GlyphMetrics[] metrics) throws IOException {
+        GeneratedGlyph[] generatedGlyphs = new GeneratedGlyph[metrics.length];
+        int workerCount = metrics.length < PARALLEL_GLYPH_COUNT
+                          ? 1
+                          : Math.min(metrics.length, Math.max(1, ForkJoinPool.getCommonPoolParallelism()));
+        if (workerCount == 1) {
+            try (FontRenderer renderer = new FontRenderer(fontDesc.getFont(), fontBytes, params)) {
+                for (int i = 0; i < metrics.length; ++i)
+                    generatedGlyphs[i] = renderer.generateGlyph(metrics[i].codepoint);
+            } catch (RuntimeException e) {
+                throw new IOException("Native glyph generation failed: " + e.getMessage(), e);
+            }
+            return generatedGlyphs;
+        }
+
+        CompletableFuture<?>[] tasks = new CompletableFuture<?>[workerCount];
+        for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex) {
+            final int firstGlyphIndex = workerIndex;
+            tasks[workerIndex] = CompletableFuture.runAsync(() -> {
+                try (FontRenderer renderer = new FontRenderer(fontDesc.getFont(), fontBytes, params)) {
+                    for (int glyphIndex = firstGlyphIndex; glyphIndex < metrics.length; glyphIndex += workerCount) {
+                        int codePoint = metrics[glyphIndex].codepoint;
+                        try {
+                            generatedGlyphs[glyphIndex] = renderer.generateGlyph(codePoint);
+                        } catch (RuntimeException e) {
+                            throw new RuntimeException(String.format("Native glyph generation failed for U+%04X: %s", codePoint, e.getMessage()), e);
+                        }
+                    }
+                }
+            });
+        }
+        try {
+            CompletableFuture.allOf(tasks).join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            throw new IOException(cause.getMessage(), cause);
+        }
+        return generatedGlyphs;
+    }
+
+    private void buildNativeTTF(FontRenderer renderer, boolean copyPixels, byte[] fontBytes, FontRenderer.Params params) throws IOException {
         ArrayList<Integer> characters = getRequestedCharacters();
-        int count = fontDesc.getAllChars() ? 0x10FFFF : characters.size();
+        int nativeGlyphChannels = params.outputBitmap
+                                  ? (params.hasOutline || params.hasShadow ? 3 : 1)
+                                  : (params.shadowBlur > 0.0f ? 3 : 1);
+        GlyphMetrics[] supportedMetrics;
+        try {
+            supportedMetrics = fontDesc.getAllChars() ? renderer.getSupportedGlyphMetrics() : null;
+        } catch (RuntimeException e) {
+            throw new IOException("Unable to enumerate supported native glyphs: " + e.getMessage(), e);
+        }
+        int count = supportedMetrics == null ? characters.size() : supportedMetrics.length;
+        GeneratedGlyph[] generatedGlyphs = copyPixels && supportedMetrics != null
+                                           ? generateSupportedGlyphs(fontBytes, params, supportedMetrics)
+                                           : null;
         float maxAdvance = 0.0f;
         int maxWidth = 0;
         for (int i = 0; i < count; ++i) {
-            int codePoint = fontDesc.getAllChars() ? i : characters.get(i);
-            GeneratedGlyph generated;
+            GlyphMetrics metrics = supportedMetrics == null ? null : supportedMetrics[i];
+            int codePoint = metrics == null ? characters.get(i) : metrics.codepoint;
+            GeneratedGlyph generated = generatedGlyphs == null ? null : generatedGlyphs[i];
             try {
-                generated = copyPixels ? renderer.generateGlyph(codePoint) : renderer.generateGlyphMetrics(codePoint);
+                if (generated == null && metrics == null) {
+                    if (copyPixels)
+                        generated = renderer.generateGlyph(codePoint);
+                    else
+                        metrics = renderer.getGlyphMetrics(codePoint);
+                }
             } catch (RuntimeException e) {
                 throw new IOException(String.format("Native glyph generation failed for U+%04X: %s", codePoint, e.getMessage()), e);
             }
-            if (generated.glyphIndex == 0)
+            if ((generated != null && generated.glyphIndex == 0) || (metrics != null && metrics.glyphIndex == 0))
                 continue;
             Glyph glyph = new Glyph();
             glyph.character = codePoint;
-            glyph.advance = generated.advance;
-            glyph.leftBearing = generated.leftBearing;
-            glyph.width = generated.width;
-            glyph.ascent = Math.round(generated.ascent);
-            glyph.descent = Math.round(generated.descent);
-            glyph.pixelHeight = generated.height;
-            glyph.pixelChannels = generated.channels;
-            glyph.pixels = generated.pixels;
+            glyph.advance = generated == null ? metrics.advance : generated.advance;
+            glyph.leftBearing = generated == null ? metrics.leftBearing : generated.leftBearing;
+            glyph.width = generated == null ? metrics.width : generated.width;
+            glyph.ascent = Math.round(generated == null ? metrics.ascent : generated.ascent);
+            glyph.descent = Math.round(generated == null ? metrics.descent : generated.descent);
+            glyph.pixelHeight = generated == null ? metrics.height : generated.height;
+            glyph.pixelChannels = generated == null ? nativeGlyphChannels : generated.channels;
+            glyph.pixels = generated == null ? null : generated.pixels;
             if (!(glyph.width == 0 && glyph.advance == 0.0f && codePoint >= 65000))
                 glyphs.add(glyph);
             maxAdvance = Math.max(maxAdvance, glyph.advance);
@@ -275,6 +338,48 @@ public class Fontc {
             }
         }
         return output;
+    }
+
+    private byte[] makeGlyphData(Glyph glyph, DecodedImage bitmapImage, int channels, boolean compressGlyphData) {
+        byte[] uncompressed = makeCellBytes(glyph, bitmapImage, channels);
+        if (!compressGlyphData || uncompressed.length == 0)
+            return uncompressed;
+
+        Texc.Buffer compressed = TexcLibraryJni.CompressBuffer(uncompressed);
+        boolean useCompressed = compressed.isCompressed && compressed.data.length < uncompressed.length;
+        byte[] payload = useCompressed ? compressed.data : uncompressed;
+        byte[] output = new byte[payload.length + 1];
+        output[0] = useCompressed ? (byte)1 : 0;
+        System.arraycopy(payload, 0, output, 1, payload.length);
+        return output;
+    }
+
+    private byte[][] makeGlyphData(DecodedImage bitmapImage, int channels, boolean compressGlyphData, int includeCount) throws IOException {
+        byte[][] glyphData = new byte[includeCount][];
+        int workerCount = bitmapImage != null || includeCount < PARALLEL_GLYPH_COUNT
+                          ? 1
+                          : Math.min(includeCount, Math.max(1, ForkJoinPool.getCommonPoolParallelism()));
+        if (workerCount == 1) {
+            for (int i = 0; i < includeCount; ++i)
+                glyphData[i] = makeGlyphData(glyphs.get(i), bitmapImage, channels, compressGlyphData);
+            return glyphData;
+        }
+
+        CompletableFuture<?>[] tasks = new CompletableFuture<?>[workerCount];
+        for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex) {
+            final int firstGlyphIndex = workerIndex;
+            tasks[workerIndex] = CompletableFuture.runAsync(() -> {
+                for (int glyphIndex = firstGlyphIndex; glyphIndex < includeCount; glyphIndex += workerCount)
+                    glyphData[glyphIndex] = makeGlyphData(glyphs.get(glyphIndex), bitmapImage, channels, compressGlyphData);
+            });
+        }
+        try {
+            CompletableFuture.allOf(tasks).join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            throw new IOException("Failed to generate font texture: " + cause.getMessage(), cause);
+        }
+        return glyphData;
     }
 
     private void generateGlyphBank(boolean preview, String bitmapPath, InputStream bitmapStream, boolean compressGlyphData, boolean includeGlyphData) throws IOException, TextureGeneratorException {
@@ -324,31 +429,27 @@ public class Fontc {
             cacheHeight = Math.min(Integer.highestOneBit(Math.max(1, totalHeight - 1)) << 1, 2048);
         }
         int includeCount = preview ? Math.min(glyphs.size(), cacheHeight / cellHeight * columns) : glyphs.size();
-        ByteArrayOutputStream data = new ByteArrayOutputStream();
+        byte[][] generatedGlyphData = includeGlyphData
+                                      ? makeGlyphData(bitmapImage, channels, compressGlyphData, includeCount)
+                                      : null;
         int dataOffset = 0;
         for (int i = 0; i < includeCount; ++i) {
             Glyph glyph = glyphs.get(i);
             if (includeGlyphData) {
-                byte[] uncompressed = makeCellBytes(glyph, bitmapImage, channels);
-                byte[] bytes = uncompressed;
-                if (compressGlyphData && uncompressed.length > 0) {
-                    Texc.Buffer compressed = TexcLibraryJni.CompressBuffer(uncompressed);
-                    boolean useCompressed = compressed.isCompressed && compressed.data.length < uncompressed.length;
-                    data.write(useCompressed ? 1 : 0);
-                    bytes = useCompressed ? compressed.data : uncompressed;
-                }
-                try {
-                    data.write(bytes);
-                } catch (IOException e) {
-                    throw new TextureGeneratorException("Failed to generate font texture: " + e.getMessage());
-                }
+                byte[] bytes = generatedGlyphData[i];
                 glyph.dataOffset = dataOffset;
-                glyph.dataSize = bytes.length + (compressGlyphData && uncompressed.length > 0 ? 1 : 0);
+                glyph.dataSize = bytes.length;
                 dataOffset += glyph.dataSize;
             }
         }
         if (glyphs.isEmpty())
             throw new IOException("No character glyphs were included! Maybe turn on 'all_chars'?");
+
+        ByteArrayOutputStream data = new ByteArrayOutputStream(dataOffset);
+        if (includeGlyphData) {
+            for (byte[] bytes : generatedGlyphData)
+                data.writeBytes(bytes);
+        }
 
         glyphBankBuilder.setGlyphPadding(1).setCacheWidth(cacheWidth).setCacheHeight(cacheHeight)
             .setGlyphData(ByteString.copyFrom(data.toByteArray())).setCacheCellWidth(cellWidth)
@@ -414,7 +515,7 @@ public class Fontc {
         params.hasOutline = fontDesc.getOutlineWidth() > 0.0f && fontDesc.getOutlineAlpha() > 0.0f;
         params.hasShadow = fontDesc.getShadowAlpha() > 0.0f;
         try (FontRenderer renderer = new FontRenderer(fontDesc.getFont(), fontBytes, params)) {
-            buildNativeTTF(renderer, !metadataOnly);
+            buildNativeTTF(renderer, !metadataOnly, fontBytes, params);
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             glyphBankBuilder.setSdfSpread(nativePadding)
