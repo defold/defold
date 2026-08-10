@@ -28,6 +28,7 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeImage;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcFreeTexture;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateGlyph;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGenerateTexture;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertexBufferSize;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertices;
@@ -181,7 +182,7 @@ public final class FontRenderer implements AutoCloseable {
         public final float descent;
         public final ByteBuffer pixels;
 
-        private GeneratedGlyph(MemorySegment values, boolean copyPixels) {
+        private GeneratedGlyph(MemorySegment values) {
             glyphIndex = FontcGlyph.m_GlyphIndex(values);
             width = FontcGlyph.m_Width(values);
             height = FontcGlyph.m_Height(values);
@@ -190,7 +191,7 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontcGlyph.m_LeftBearing(values);
             ascent = FontcGlyph.m_Ascent(values);
             descent = FontcGlyph.m_Descent(values);
-            pixels = copyPixels ? copyNativeBytes(FontcGlyph.m_Pixels(values), FontcGlyph.m_PixelCount(values)) : null;
+            pixels = copyNativeBytes(FontcGlyph.m_Pixels(values), FontcGlyph.m_PixelCount(values));
         }
     }
 
@@ -330,15 +331,7 @@ public final class FontRenderer implements AutoCloseable {
      * @return copied glyph bitmap and metrics
      * @throws IllegalArgumentException if {@code codepoint} is not a valid Unicode codepoint
      */
-    public GeneratedGlyph generateGlyph(int codepoint) {
-        return generateGlyph(codepoint, true);
-    }
-
-    GeneratedGlyph generateGlyphMetrics(int codepoint) {
-        return generateGlyph(codepoint, false);
-    }
-
-    private synchronized GeneratedGlyph generateGlyph(int codepoint, boolean copyPixels) {
+    public synchronized GeneratedGlyph generateGlyph(int codepoint) {
         if (!Character.isValidCodePoint(codepoint))
             throw new IllegalArgumentException("Invalid Unicode codepoint");
         try (Arena arena = Arena.ofConfined()) {
@@ -346,10 +339,22 @@ public final class FontRenderer implements AutoCloseable {
             int status = FontcGenerateGlyph(requireHandle(), codepoint, result);
             checkResult(status, "Native glyph generation failed");
             try {
-                return new GeneratedGlyph(result, copyPixels);
+                return new GeneratedGlyph(result);
             } finally {
                 FontcFreeGlyph(result);
             }
+        }
+    }
+
+    /** Returns metrics for one Unicode codepoint without generating its glyph image. */
+    synchronized GlyphMetrics getGlyphMetrics(int codepoint) {
+        if (!Character.isValidCodePoint(codepoint))
+            throw new IllegalArgumentException("Invalid Unicode codepoint");
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment result = FontcGlyphMetrics.allocate(arena);
+            checkResult(FontcGetGlyphMetrics(requireHandle(), codepoint, result),
+                    "Unable to get native glyph metrics");
+            return new GlyphMetrics(result);
         }
     }
 

@@ -585,6 +585,37 @@ void FontcFreeGlyph(FontcGlyph* glyph)
     memset(glyph, 0, sizeof(*glyph));
 }
 
+static FontRendererResult GetGlyphMetrics(HFontRenderer renderer, uint32_t codepoint, FontcGlyphMetrics* output)
+{
+    memset(output, 0, sizeof(*output));
+    output->m_Codepoint = codepoint;
+    const uint32_t glyph_index = FontGetGlyphIndex(renderer->m_Font, codepoint);
+    output->m_GlyphIndex = glyph_index;
+    if (glyph_index == 0)
+        return FONT_RENDERER_RESULT_OK;
+
+    const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
+    const float padding = renderer->m_SdfBasePadding + renderer->m_OutlineWidth + renderer->m_ShadowBlur;
+    FontGlyph glyph;
+    if (FontGetGlyphSDFMetricsTTF(renderer->m_Font, glyph_index, scale, padding, &glyph) != FONT_RESULT_OK)
+        return FONT_RENDERER_RESULT_GLYPH_ERROR;
+
+    output->m_Width = (uint32_t)glyph.m_Width;
+    output->m_Height = (uint32_t)glyph.m_Height;
+    output->m_Advance = glyph.m_Advance;
+    output->m_LeftBearing = glyph.m_LeftBearing;
+    output->m_Ascent = glyph.m_Ascent;
+    output->m_Descent = glyph.m_Descent;
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcGetGlyphMetrics(HFontRenderer renderer, uint32_t codepoint, FontcGlyphMetrics* metrics)
+{
+    if (!renderer || !metrics)
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    return GetGlyphMetrics(renderer, codepoint, metrics);
+}
+
 FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer renderer,
                                                   FontcGlyphMetrics* metrics,
                                                   uint32_t metrics_capacity,
@@ -609,32 +640,20 @@ FontRendererResult FontcGetSupportedGlyphMetrics(HFontRenderer renderer,
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     }
 
-    const float scale = FontGetScaleFromSize(renderer->m_Font, renderer->m_Size);
-    const float padding = renderer->m_SdfBasePadding + renderer->m_OutlineWidth + renderer->m_ShadowBlur;
     hb_codepoint_t codepoint = HB_SET_VALUE_INVALID;
     uint32_t output_count = 0;
     while (hb_set_next(unicodes, &codepoint))
     {
-        const uint32_t glyph_index = FontGetGlyphIndex(renderer->m_Font, codepoint);
-        if (glyph_index == 0)
-            continue;
-
-        FontGlyph glyph;
-        if (FontGetGlyphSDFMetricsTTF(renderer->m_Font, glyph_index, scale, padding, &glyph) != FONT_RESULT_OK)
+        FontcGlyphMetrics& output = metrics[output_count];
+        FontRendererResult result = GetGlyphMetrics(renderer, codepoint, &output);
+        if (result != FONT_RENDERER_RESULT_OK)
         {
             hb_set_destroy(unicodes);
-            return FONT_RENDERER_RESULT_GLYPH_ERROR;
+            return result;
         }
-
-        FontcGlyphMetrics& output = metrics[output_count++];
-        output.m_Codepoint = codepoint;
-        output.m_GlyphIndex = glyph.m_GlyphIndex;
-        output.m_Width = (uint32_t)glyph.m_Width;
-        output.m_Height = (uint32_t)glyph.m_Height;
-        output.m_Advance = glyph.m_Advance;
-        output.m_LeftBearing = glyph.m_LeftBearing;
-        output.m_Ascent = glyph.m_Ascent;
-        output.m_Descent = glyph.m_Descent;
+        if (output.m_GlyphIndex == 0)
+            continue;
+        ++output_count;
     }
     hb_set_destroy(unicodes);
     *glyph_count = output_count;

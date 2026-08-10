@@ -55,6 +55,64 @@ static uint8_t SdfCoverage(uint8_t value, float edge, float pixel_dist_scale, bo
     return (uint8_t)(dmMath::Clamp(coverage, 0.0f, 1.0f) * 255.0f);
 }
 
+static bool BlurBitmapChannel(uint8_t* pixels, uint32_t width, uint32_t height, uint32_t channels, uint32_t channel, uint32_t passes)
+{
+    if (passes == 0 || width == 0 || height == 0)
+        return true;
+
+    const uint64_t pixel_count = (uint64_t)width * height;
+    if (pixel_count > UINT32_MAX)
+        return false;
+
+    uint8_t* source = (uint8_t*)malloc((size_t)pixel_count);
+    uint8_t* target = (uint8_t*)malloc((size_t)pixel_count);
+    if (!source || !target)
+    {
+        free(source);
+        free(target);
+        return false;
+    }
+
+    for (uint32_t i = 0; i < pixel_count; ++i)
+        source[i] = pixels[i * channels + channel];
+
+    // This is the same separable 3x3 Gaussian kernel used by the former Java
+    // bitmap compiler: [1 2 1; 2 4 2; 1 2 1] / 16. Border pixels retain
+    // their source value, matching ConvolveOp.EDGE_NO_OP.
+    for (uint32_t pass = 0; pass < passes; ++pass)
+    {
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                const uint32_t offset = y * width + x;
+                if (x == 0 || y == 0 || x + 1 == width || y + 1 == height)
+                {
+                    target[offset] = source[offset];
+                    continue;
+                }
+
+                const uint32_t sum =
+                    source[offset - width - 1] + 2 * source[offset - width] + source[offset - width + 1] +
+                    2 * source[offset - 1] + 4 * source[offset] + 2 * source[offset + 1] +
+                    source[offset + width - 1] + 2 * source[offset + width] + source[offset + width + 1];
+                target[offset] = (uint8_t)(sum / 16);
+            }
+        }
+
+        uint8_t* swap = source;
+        source = target;
+        target = swap;
+    }
+
+    for (uint32_t i = 0; i < pixel_count; ++i)
+        pixels[i * channels + channel] = source[i];
+
+    free(source);
+    free(target);
+    return true;
+}
+
 uint32_t FontGetGlyphChannelCount(bool output_bitmap, bool has_outline, bool has_shadow, float shadow_blur)
 {
     if (output_bitmap)
@@ -100,7 +158,6 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
 
     const float pixel_dist_scale = (float)params->m_SdfEdgeValue / params->m_SdfPadding;
     const float outline_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_OutlineWidth, params->m_SdfEdgeValue);
-    const float shadow_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_ShadowBlur, params->m_SdfEdgeValue);
     for (uint32_t y = 0; y < height; ++y)
     {
         for (uint32_t x = 0; x < width; ++x)
@@ -109,11 +166,13 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
             const uint32_t offset = (y * width + x) * channels;
             if (params->m_OutputBitmap)
             {
-                rgb[offset + 0] = SdfCoverage(value, params->m_SdfEdgeValue, pixel_dist_scale, params->m_Antialias);
+                const uint8_t face_coverage = SdfCoverage(value, params->m_SdfEdgeValue, pixel_dist_scale, params->m_Antialias);
+                rgb[offset + 0] = face_coverage;
                 if (channels == 3)
                 {
-                    rgb[offset + 1] = params->m_HasOutline ? SdfCoverage(value, outline_edge, pixel_dist_scale, params->m_Antialias) : 0;
-                    rgb[offset + 2] = params->m_HasShadow ? SdfCoverage(value, shadow_edge, pixel_dist_scale, true) : 0;
+                    const uint8_t outline_coverage = params->m_HasOutline ? SdfCoverage(value, outline_edge, pixel_dist_scale, params->m_Antialias) : 0;
+                    rgb[offset + 1] = outline_coverage;
+                    rgb[offset + 2] = params->m_HasShadow ? (params->m_HasOutline ? outline_coverage : face_coverage) : 0;
                 }
             }
             else
@@ -123,6 +182,15 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
                 rgb[offset + 2] = RemapSdfValue(value, outline_edge);
             }
         }
+    }
+
+    if (params->m_OutputBitmap && params->m_HasShadow && params->m_ShadowBlur > 0.0f &&
+        !BlurBitmapChannel(rgb, width, height, channels, 2, (uint32_t)params->m_ShadowBlur))
+    {
+        free(rgb);
+        FontFreeGlyph(font, glyph);
+        memset(glyph, 0, sizeof(*glyph));
+        return FONT_RESULT_ERROR;
     }
 
     free(glyph->m_Bitmap.m_Data);

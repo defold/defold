@@ -274,12 +274,16 @@ public class Fontc {
             int codePoint = metrics == null ? characters.get(i) : metrics.codepoint;
             GeneratedGlyph generated = generatedGlyphs == null ? null : generatedGlyphs[i];
             try {
-                if (generated == null && (copyPixels || metrics == null))
-                    generated = copyPixels ? renderer.generateGlyph(codePoint) : renderer.generateGlyphMetrics(codePoint);
+                if (generated == null && metrics == null) {
+                    if (copyPixels)
+                        generated = renderer.generateGlyph(codePoint);
+                    else
+                        metrics = renderer.getGlyphMetrics(codePoint);
+                }
             } catch (RuntimeException e) {
                 throw new IOException(String.format("Native glyph generation failed for U+%04X: %s", codePoint, e.getMessage()), e);
             }
-            if (generated != null && generated.glyphIndex == 0)
+            if ((generated != null && generated.glyphIndex == 0) || (metrics != null && metrics.glyphIndex == 0))
                 continue;
             Glyph glyph = new Glyph();
             glyph.character = codePoint;

@@ -47,6 +47,7 @@ FUNCTIONS = (
     "FontcMeasure",
     "FontcGenerateGlyph",
     "FontcFreeGlyph",
+    "FontcGetGlyphMetrics",
     "FontcGetSupportedGlyphMetrics",
     "FontcDecodeImage",
     "FontcFreeImage",

@@ -347,14 +347,31 @@ public class FontRendererTest {
             }
             assertNotNull(capitalA);
 
+            FontRenderer.GlyphMetrics direct = renderer.getGlyphMetrics('A');
+            assertEquals(capitalA.codepoint, direct.codepoint);
+            assertEquals(capitalA.glyphIndex, direct.glyphIndex);
+            assertEquals(capitalA.width, direct.width);
+            assertEquals(capitalA.height, direct.height);
+            assertEquals(capitalA.advance, direct.advance, 0.0f);
+            assertEquals(capitalA.leftBearing, direct.leftBearing, 0.0f);
+            assertEquals(capitalA.ascent, direct.ascent, 0.0f);
+            assertEquals(capitalA.descent, direct.descent, 0.0f);
+
             FontRenderer.GeneratedGlyph generated = renderer.generateGlyph('A');
-            assertEquals(generated.glyphIndex, capitalA.glyphIndex);
-            assertEquals(generated.width, capitalA.width);
-            assertEquals(generated.height, capitalA.height);
-            assertEquals(generated.advance, capitalA.advance, 0.0f);
-            assertEquals(generated.leftBearing, capitalA.leftBearing, 0.0f);
-            assertEquals(generated.ascent, capitalA.ascent, 0.0f);
-            assertEquals(generated.descent, capitalA.descent, 0.0f);
+            assertEquals(generated.glyphIndex, direct.glyphIndex);
+            assertEquals(generated.width, direct.width);
+            assertEquals(generated.height, direct.height);
+        }
+    }
+
+    @Test
+    public void testGetMissingGlyphMetrics() throws Exception {
+        try (FontRenderer renderer = createRenderer(32.0f)) {
+            FontRenderer.GlyphMetrics metrics = renderer.getGlyphMetrics(Character.MAX_CODE_POINT);
+            assertEquals(Character.MAX_CODE_POINT, metrics.codepoint);
+            assertEquals(0, metrics.glyphIndex);
+            assertEquals(0, metrics.width);
+            assertEquals(0, metrics.height);
         }
     }
 

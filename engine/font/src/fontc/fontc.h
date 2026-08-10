@@ -219,6 +219,20 @@ extern "C"
     DM_DLLEXPORT void FontcFreeGlyph(FontcGlyph* glyph);
 
     /*#
+     * Returns metrics for one Unicode codepoint without generating a glyph image.
+     * A missing glyph is reported successfully with a zero glyph index.
+     *
+     * @name FontcGetGlyphMetrics
+     * @param renderer [type: HFontRenderer] Context containing the loaded font.
+     * @param codepoint [type: uint32_t] Unicode codepoint to inspect.
+     * @param metrics [type: FontcGlyphMetrics*] Receives copied glyph metrics.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcGetGlyphMetrics(HFontRenderer      renderer,
+                                                         uint32_t           codepoint,
+                                                         FontcGlyphMetrics* metrics);
+
+    /*#
      * Enumerates the Unicode codepoints supported by the font and returns their
      * glyph indices and metrics without generating glyph images. Call first with
      * a null metrics pointer and zero capacity to query the required capacity.

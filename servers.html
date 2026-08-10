@@ -1,0 +1,549 @@
+<!doctype html><html><head><!-- frame-runtime --><base href="/_f/1785526286-a6a2/"><script>window.__FRAME_PREAMBLE={"capabilities":{"comments":"comments.BaoaqR_K.js","db":"db.CfOZ1CRq.js","downloads":"downloads.BXsoAvg9.js","mcp":"mcp.CYSdpjo0.js","permissions":"permissions.DdITF2Mk.js","self":"self.DtZoNC4q.js","user":"user.Cr_h1ETf.js"},"transforms":"_transforms.VaITkagF.js","comments":"_comments.zwwDucaS.js","translate":"_translate.BOzFH2D9.js"}</script><script>(function(){"use strict";var re=["light","dark","system"];function ne(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function Y(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function se(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const n=t.theme;return typeof n=="string"&&re.includes(n)}function oe(e){try{typeof reportError=="function"?reportError(e):setTimeout(()=>{throw e},0)}catch{}}var K=Object.freeze(Object.assign(Object.create(null),{user:Object.freeze(Object.assign(Object.create(null),{id:null,isOwner:!1,canEdit:!1,name:null,avatarUrl:null,email:null}))})),ie={};function x(e){if(window===top||e.type==="auxclick"&&e.button!==1)return;const t=e.composedPath?e.composedPath():[e.target];let n=null;for(let m=0;m<t.length;m++){const f=t[m];if(f&&f.matches&&f.matches("a[href],area[href]")){n=f;break}}if(!n&&e.target&&e.target.closest&&(n=e.target.closest("a[href],area[href]")),!n)return;const u=n.getAttribute("href");if(!u)return;let i,s;try{i=new URL(u,document.baseURI),s=new URL(document.baseURI).origin}catch{return}(i.protocol==="http:"||i.protocol==="https:")&&i.origin!==s&&(e.preventDefault(),parent.postMessage({__frame_nav:!0,url:i.href},"*"))}var J={};function I(e){if(window===top)return;const t=Date.now();t-(J[e]||0)<500||(J[e]=t,parent.postMessage({__frame_engaged:!0,kind:e},"*"))}var ae=2e3,G=["wheel","touchstart","touchmove","keydown","pointerdown"],X=0;function ce(e){e.isTrusted&&(X=Date.now())}function le(){addEventListener("click",x,!0),addEventListener("auxclick",x,!0)}function ue(){for(let e=0;e<G.length;e++)addEventListener(G[e],ce,{capture:!0,passive:!0});addEventListener("scroll",e=>{e.isTrusted&&Date.now()-X<ae&&I("scroll")},{capture:!0,passive:!0}),addEventListener("pointermove",e=>{e.isTrusted&&I("pointer")},{capture:!0,passive:!0}),addEventListener("click",e=>{e.isTrusted&&I("click")},{capture:!0,passive:!0})}var D="__frame_scroll",fe=150,de=310,pe=160,me=3e4;function he(){let e=0,t=!1,n=!1,u=!1,i=0,s=null;const m=l=>{try{sessionStorage.setItem(D,JSON.stringify({y:l}))}catch{}},f=()=>{if(clearTimeout(e),s===null)return;const l=s;s=null,m(l)},_=()=>{if(t){t=!1;return}n=!0,s=scrollY,clearTimeout(e),e=setTimeout(f,fe)};try{addEventListener("scroll",_,{passive:!0}),addEventListener("pagehide",f)}catch{}const y=()=>{let l;try{l=sessionStorage.getItem(D)}catch{return null}if(l===null)return null;let a;try{a=JSON.parse(l)}catch{a=null}const p=a?.y;if(!(typeof p=="number"&&Number.isFinite(p)&&p>=0)){try{sessionStorage.removeItem(D)}catch{}return null}return p};let o=!1;const c=l=>{try{const a=scrollY;scrollTo({top:l,left:0,behavior:"instant"}),i=l,u=!0,clearTimeout(e),s=null,m(l);const p=scrollY;p!==a&&(t=!0),p!==l&&!o&&(o=!0,addEventListener("load",()=>{try{if(scrollY===p){const g=y();c(g!==null?g:i)}}catch{}},{once:!0}))}catch{}},d=()=>{try{return!!location.hash}catch{return!0}};let h=!1;const v=()=>{try{if(h||innerWidth>de||innerHeight>pe)return;h=!0;const l=Date.now(),a=()=>{try{removeEventListener("resize",a)}catch{}if(Date.now()-l>me||n||d())return;const p=y();c(p!==null?p:i)};addEventListener("resize",a)}catch{}};let w=!1,S=!1;return{restore(){if(w||(w=!0,d()))return;const l=y();l!==null&&(c(l),v())},promoted(){if(S||(S=!0,d()))return;const l=y();l!==null?(c(l),v()):u&&c(i)}}}function ge(e,t,n){const u=[...t.values()].filter(i=>i.targets.some(s=>s.startsWith(e+".")));return{wrap(i,s){const m=`${e}.${i}`,f=u.filter(_=>_.targets.includes(m));return f.length===0?(..._)=>{try{return s(..._)}catch(y){return Promise.reject(y)}}:(..._)=>{let y=_;for(const c of f){const d=c.module.parameters;if(d)try{y=d(y)}catch{return Promise.reject({code:"transform_error",id:c.id,scope:e,message:"parameters transform failed"})}}let o;try{o=s(...y)}catch(c){o=Promise.reject(c)}return o.then(c=>{for(let d=f.length-1;d>=0;d--){const h=f[d],v=h.module.returns;if(v)try{c=v(c)}catch{return n({id:h.id,scope:e,leg:"returns"}),c}}return c},c=>{for(let d=f.length-1;d>=0;d--){const h=f[d],v=h.module.throws;if(v)try{c=v(c)}catch{return n({id:h.id,scope:e,leg:"throws"}),Promise.reject(c)}}return Promise.reject(c)})}}}}function ve(e,t,n,u=()=>{}){const i=new Set(e.changes??[]),s=new Map;for(const m of i){const f=t[m];f&&s.set(m,f)}return{contract:e.contract,changes:i,flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:s,shellOrigin:n.shellOrigin,mount:n.mount,pipe:m=>ge(m,s,u)}}var Oe="modulepreload",Se=function(e){return"/"+e},Ae={},_e=function(t,n,u){let i=Promise.resolve();function s(m){const f=new Event("vite:preloadError",{cancelable:!0});if(f.payload=m,window.dispatchEvent(f),!f.defaultPrevented)throw m}return i.then(m=>{for(const f of m||[])f.status==="rejected"&&s(f.reason);return t().catch(s)})};(function(){const e=Object.defineProperty,t=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let u=0;for(let i=0;i<n.length;i++){const s=n[i];try{e(t,s,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[s]}catch{}try{e(t,s,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[s]=="function"&&u++}if(u&&window!==top)try{parent.postMessage({__frame_rtc_lockdown_failed:u},"*")}catch{}})();var ye=1e4,be=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function Q(e){for(const t of be)if(t.endsWith(":*"))try{const n=new URL(e);if(`${n.protocol}//${n.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var k=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),q=window.__FRAME_PREAMBLE?.transforms,z=window.__FRAME_PREAMBLE?.comments,B=window.__FRAME_PREAMBLE?.translate,C=/^[\w.-]+\.js$/,Ee=/^[a-z][a-z0-9_-]{0,63}$/,V=null,R=null;function $(e,t,n){try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var F=!1;function Z(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,F=!0):F&&(delete t.dataset.theme,t.style.colorScheme="",F=!1)}var ee=256,L=Object.assign(Object.create(null),{mcp:Object.assign(Object.create(null),{watchTool:{handlerArg:3}})}),M=new Map;function te(e,t){const n=M.get(e);if(!n)return;const u=Object.assign(Object.create(null),t);Object.assign(n.impl,u),n.impl.__settled=()=>Promise.reject({code:"capability_removed",message:`${e}: method not in this runtime`});const i=n.queue;n.queue=[];for(const s of i){const m=u[s.method];if(m)if(L[e]?.[s.method])try{s.resolve(m(...s.args))}catch{T(s,L[e][s.method].handlerArg,{code:"transform_error",message:`${e}.${s.method} rejected its arguments`})}else m(...s.args).then(s.resolve,s.reject);else{const f={code:"capability_removed",message:`${e}.${s.method} is not in this runtime`},_=L[e]?.[s.method];if(_){T(s,_.handlerArg,f);continue}s.reject(f)}}}function we(e,t){const n=M.get(e);if(!n)return;n.impl.__settled=()=>Promise.reject(t);const u=n.queue;n.queue=[];for(const i of u){const s=L[e]?.[i.method];if(s){T(i,s.handlerArg,t);continue}i.reject(t)}}function N(e,t){const n=K[e];if(!n){we(e,t);return}te(e,Object.fromEntries(Object.entries(n).map(([u,i])=>[u,()=>Promise.resolve(i)])))}function T(e,t,n){if(e.syncState?.dead)return;const u=e.args[t];typeof u=="function"&&queueMicrotask(()=>{if(!e.syncState?.dead)try{u({type:"error",error:n})}catch(i){oe(i)}})}var H=Object.getOwnPropertyDescriptor(window,"claude");if(window!==top&&!(H&&H.writable===!1)){le(),ue();let e=null;try{e=he()}catch{}const t=H?.value??{};$(window,"claude",t);const n=o=>{const c={impl:Object.create(null),queue:[]};M.set(o,c);const d=c.impl,h=l=>({code:"queue_overflow",message:`${o}.${l}: pre-init call queue is full`}),v=(l,a)=>{if(c.queue.length>=ee){const p=K[o];return p&&l in p?Promise.resolve(p[l]):Promise.reject(h(l))}return new Promise((p,g)=>{c.queue.push({method:l,args:a,resolve:p,reject:g})})},w=ie[o],S=new Proxy(w===void 0?d:(()=>{}),{apply:(l,a,p)=>{const g=w,E=d[g]??d.__settled;return E?E(...p):v(g,p)},get:(l,a)=>{if(typeof a!="string"||a==="then"||a==="toJSON"||a==="valueOf")return;if(a==="toString")return Object.prototype.toString;if(w!==void 0&&(a==="call"||a==="apply"||a==="bind"))return Function.prototype[a];const p=L[o]?.[a];return p?(...g)=>{if(typeof g[p.handlerArg]!="function")throw new TypeError(`${o}.${a} requires a handler function`);const E=d[a];if(E)return E(...g);if(d.__settled){const b={dead:!1},U={args:[...g],syncState:b};return d.__settled().catch(r=>T(U,p.handlerArg,r)),()=>{b.dead=!0}}if(c.queue.length>=ee){const b={dead:!1};return T({args:[...g],syncState:b},p.handlerArg,h(a)),()=>{b.dead=!0}}let A=null;const j={dead:!1};return c.queue.push({method:a,args:g,resolve:b=>{A=typeof b=="function"?b:null,j.dead&&A?.()},reject:()=>{},syncState:j}),()=>{j.dead=!0,A?.()}}:(...g)=>{const E=d[a]??d.__settled;return E?E(...g):v(a,g)}},set:()=>!1});$(t,o,S)};for(const o of Object.keys(k)){if(t[o]!==void 0){$(t,o,t[o]);continue}n(o)}let u=null,i=null,s=0;const m=o=>{o.source!==parent||!Q(o.origin)||ne(o.data)&&(u=o.data.__frame_init,R=o.origin,removeEventListener("message",m),clearTimeout(s),i?.())};addEventListener("message",m),parent.postMessage({__frame_connect:!0},"*");const f=new Promise(o=>{i=o,s=setTimeout(()=>{removeEventListener("message",m),o()},ye)}),_=document.readyState==="loading"?new Promise(o=>document.addEventListener("DOMContentLoaded",()=>o(),{once:!0})):Promise.resolve();_.then(()=>{try{e?.restore()}catch{}});const y=o=>{if(!(o.source!==parent||!Q(o.origin))&&Y(o.data)){removeEventListener("message",y);try{e?.promoted()}catch{}}};addEventListener("message",y),f.then(async()=>{if(!u||!R){for(const r of M.keys())N(r,{code:"not_granted",message:"frame initialization did not arrive - capability unavailable"});return}Z(u.theme);const o=R;let c=!1,d=!1;addEventListener("message",r=>{if(r.source!==parent||r.origin!==o)return;se(r.data)&&Z(r.data.__frame_theme.theme);const O=r.data?.__fc_mode;O&&typeof O=="object"&&!c&&z&&C.test(z)&&(c=!0,h(z).then(W=>W.install?.(o,O.on===!0)).catch(()=>{}));const P=r.data?.__ft_cmd;P&&typeof P=="object"&&!d&&B&&C.test(B)&&(d=!0,h(B).then(W=>W.install?.(o,P)).catch(()=>{}))});const h=r=>_e(()=>import("/_runtime/"+r),void 0),v=Object.keys(u.capabilities??{});for(const r of v)Object.hasOwn(k,r)||Ee.test(r)&&t[r]===void 0&&(n(r),N(r,{code:"capability_disabled",message:"capability not in this runtime generation"}));const w=v.filter(r=>Object.hasOwn(k,r)).map(r=>[r,k[r]]).filter(r=>typeof r[1]=="string"&&C.test(r[1])),[S,...l]=await Promise.allSettled([q&&C.test(q)?h(q):Promise.resolve({}),...w.map(([,r])=>h(r))]),a=R;V=ve(u,S.status==="fulfilled"&&S.value?.TRANSFORMS||{},{shellOrigin:a,mount:te},r=>parent.postMessage({__frame_cap_telemetry:r},a));const p=r=>parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:r}},a),g=V;l.forEach((r,O)=>{const P=w[O][0];if(r.status!=="fulfilled"){p(P);return}try{r.value?.install?.(g)}catch{p(P)}});for(const[r,O]of M)if(!(O.queue.length===0&&Object.keys(O.impl).length>0)){if(v.includes(r)){N(r,{code:"capability_disabled",message:"capability not available in this session"});continue}N(r,{code:"not_granted",message:"capability not available in this session"})}await _,parent.postMessage({__frame_ready:!0},R);let E=-1,A=0;const j=()=>{A=0;const r=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0);r!==E&&(E=r,parent.postMessage({__frame_size:!0,h:r},a))},b=()=>{A||(A=setTimeout(j,200))},U=new ResizeObserver(b);U.observe(document.documentElement),document.body&&U.observe(document.body),document.addEventListener("load",b,!0),document.fonts?.ready.then(b,()=>{}),addEventListener("beforeprint",()=>{E=-1,j()}),b(),addEventListener("message",r=>{if(!(r.source!==parent||r.origin!==a)&&Y(r.data)){try{e?.promoted()}catch{}E=-1,b()}})})}})();</script><!-- /frame-runtime --><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><title>Current build server costs</title><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<style>
+  :root{
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --surface-2: #eceef1;
+    --border: #d8dbe1;
+    --text: #1b2028;
+    --text-dim: #565f6d;
+    --text-faint: #8790a0;
+    --accent: #0e6e77;
+    --accent-soft: #e3f1f0;
+    --gcp: #3b6e91;
+    --gcp-soft: #e6eef3;
+    --hetzner: #a6641f;
+    --hetzner-soft: #f6ecdd;
+    --servers: #7a5c82;
+    --servers-soft: #f1eaf3;
+    --ok: #2f7a4f;
+    --ok-soft: #e3f2e8;
+    --warn: #a6761f;
+    --warn-soft: #f6efdd;
+    --low: #ad3f3f;
+    --low-soft: #f7e6e6;
+    --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --radius: 7px;
+  }
+  :root[data-theme="dark"]{
+    --bg: #10131a;
+    --surface: #171b24;
+    --surface-2: #1e2330;
+    --border: #2a3040;
+    --text: #e7e9ee;
+    --text-dim: #a2aab8;
+    --text-faint: #6c7686;
+    --accent: #4fc4c9;
+    --accent-soft: #16302f;
+    --gcp: #7fb2d9;
+    --gcp-soft: #16283a;
+    --hetzner: #e0a355;
+    --hetzner-soft: #382712;
+    --servers: #c9a4d1;
+    --servers-soft: #2e2233;
+    --ok: #6bc48c;
+    --ok-soft: #16301f;
+    --warn: #dcb35c;
+    --warn-soft: #382c12;
+    --low: #e08080;
+    --low-soft: #391a1a;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg: #10131a;
+      --surface: #171b24;
+      --surface-2: #1e2330;
+      --border: #2a3040;
+      --text: #e7e9ee;
+      --text-dim: #a2aab8;
+      --text-faint: #6c7686;
+      --accent: #4fc4c9;
+      --accent-soft: #16302f;
+      --gcp: #7fb2d9;
+      --gcp-soft: #16283a;
+      --hetzner: #e0a355;
+      --hetzner-soft: #382712;
+      --servers: #c9a4d1;
+      --servers-soft: #2e2233;
+      --ok: #6bc48c;
+      --ok-soft: #16301f;
+      --warn: #dcb35c;
+      --warn-soft: #382c12;
+      --low: #e08080;
+      --low-soft: #391a1a;
+    }
+  }
+
+  *{ box-sizing: border-box; }
+  html, body { background: var(--bg); }
+  body{
+    font-family: var(--sans);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page{
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.75rem;
+  }
+
+  /* ---------- Masthead ---------- */
+  .masthead{
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding-bottom: 1.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .eyebrow{
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .eyebrow::before{
+    content: "";
+    width: 7px; height: 7px;
+    background: var(--accent);
+    display: inline-block;
+    border-radius: 1px;
+  }
+  h1{
+    font-family: var(--mono);
+    font-size: clamp(1.5rem, 3vw, 2.05rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .dek{
+    color: var(--text-dim);
+    max-width: 62ch;
+    font-size: 0.98rem;
+  }
+  .meta-row{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-top: 0.4rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-faint);
+  }
+  .meta-row b{ color: var(--text-dim); font-weight: 600; }
+
+  /* ---------- Section scaffolding ---------- */
+  section{ display: flex; flex-direction: column; gap: 1.1rem; }
+  .section-head{ display: flex; align-items: baseline; gap: 0.7rem; }
+  .section-num{
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-faint);
+  }
+  h2{
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .section-note{ color: var(--text-dim); font-size: 0.92rem; max-width: 68ch; }
+
+  /* ---------- Summary cost cards ---------- */
+  .cost-strip{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.9rem;
+  }
+  @media (max-width: 720px){ .cost-strip{ grid-template-columns: 1fr; } }
+  .cost-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.2rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    position: relative;
+  }
+  .cost-card::before{
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--tick);
+  }
+  .cost-card.gcp{ --tick: var(--gcp); }
+  .cost-card.hetzner{ --tick: var(--hetzner); }
+  .cost-card.total{ --tick: var(--accent); }
+  .cost-card .label{
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .cost-card .figure{
+    font-family: var(--mono);
+    font-size: 1.85rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .cost-card.gcp .figure{ color: var(--gcp); }
+  .cost-card.hetzner .figure{ color: var(--hetzner); }
+  .cost-card.total .figure{ color: var(--accent); }
+  .cost-card .range{ font-size: 0.82rem; color: var(--text-dim); }
+
+  /* ---------- Bar comparison ---------- */
+  .bar-compare{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.25rem 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .bar-row{ display: grid; grid-template-columns: 92px 1fr 74px; align-items: center; gap: 0.7rem; }
+  .bar-row .name{ font-size: 0.82rem; color: var(--text-dim); }
+  .bar-track{ background: var(--surface-2); border-radius: 4px; height: 11px; overflow: hidden; }
+  .bar-fill{ height: 100%; border-radius: 4px; }
+  .bar-row .val{ font-family: var(--mono); font-size: 0.8rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+
+  /* ---------- Tables ---------- */
+  .table-wrap{ overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  table{ width: 100%; border-collapse: collapse; font-size: 0.87rem; background: var(--surface); min-width: 480px; }
+  th, td{ padding: 0.55rem 0.85rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  thead th{
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td{ border-bottom: none; }
+  td.num, th.num{ font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.strong{ font-weight: 600; }
+  tbody tr.total-row td{ background: var(--surface-2); font-weight: 700; }
+
+  /* ---------- Confidence chips ---------- */
+  .chip{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.18rem 0.5rem;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+  .chip::before{ content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .chip.high{ background: var(--ok-soft); color: var(--ok); }
+  .chip.med{ background: var(--warn-soft); color: var(--warn); }
+  .chip.low{ background: var(--low-soft); color: var(--low); }
+
+  /* ---------- Provider tag ---------- */
+  .tag{
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    padding: 0.14rem 0.45rem;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .tag.gcp{ background: var(--gcp-soft); color: var(--gcp); }
+  .tag.hetzner{ background: var(--hetzner-soft); color: var(--hetzner); }
+  .tag.servers{ background: var(--servers-soft); color: var(--servers); }
+
+  /* ---------- Callout / caveat ---------- */
+  .callout{
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warn);
+    background: var(--warn-soft);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 0.85rem 1.1rem;
+    font-size: 0.88rem;
+    color: var(--text);
+  }
+  .callout b{ color: var(--warn); }
+  .callout.plain{ border-left-color: var(--text-faint); background: var(--surface-2); }
+
+  /* ---------- Inventory list ---------- */
+  .inv-grid{ display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 720px){ .inv-grid{ grid-template-columns: 1fr; } }
+  .inv-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem 1.15rem;
+    display: flex; flex-direction: column; gap: 0.65rem;
+  }
+  .inv-card .inv-head{ display: flex; align-items: center; justify-content: space-between; }
+  .inv-card h3{ margin: 0; font-size: 0.98rem; font-weight: 700; }
+  .inv-list{ list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.86rem; }
+  .inv-list li{ display: flex; justify-content: space-between; gap: 0.8rem; border-top: 1px dashed var(--border); padding-top: 0.5rem; }
+  .inv-list li:first-child{ border-top: none; padding-top: 0; }
+  .inv-list .k{ color: var(--text-dim); }
+  .inv-list .v{ font-family: var(--mono); font-size: 0.82rem; text-align: right; color: var(--text); }
+
+  /* ---------- Verdict banner ---------- */
+  .verdict{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.6rem 1.7rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .verdict::before{
+    content: "";
+    position: absolute; inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--accent);
+  }
+  .verdict .verdict-label{
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .verdict h3{ margin: 0; font-size: 1.15rem; line-height: 1.4; text-wrap: balance; font-weight: 700; }
+  .verdict p{ margin: 0; color: var(--text-dim); font-size: 0.92rem; max-width: 70ch; }
+  .verdict-grid{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.9rem;
+    margin-top: 0.3rem;
+  }
+  @media (max-width: 720px){ .verdict-grid{ grid-template-columns: 1fr; } }
+  .verdict-item{
+    background: var(--surface-2);
+    border-radius: 6px;
+    padding: 0.75rem 0.85rem;
+    display: flex; flex-direction: column; gap: 0.3rem;
+  }
+  .verdict-item .k{ font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); }
+  .verdict-item .v{ font-size: 0.88rem; color: var(--text); }
+  .verdict-item .v b{ font-weight: 700; }
+  .verdict-item.pos .v b{ color: var(--ok); }
+  .verdict-item.neg .v b{ color: var(--low); }
+  .verdict-item.neu .v b{ color: var(--warn); }
+
+  footer{
+    border-top: 1px solid var(--border);
+    padding-top: 1.1rem;
+    font-size: 0.78rem;
+    color: var(--text-faint);
+    display: flex; flex-direction: column; gap: 0.35rem;
+  }
+  footer .src{ font-family: var(--mono); font-size: 0.72rem; }
+
+  p{ margin: 0; }
+  ul.plain{ margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; color: var(--text-dim); }
+</style>
+
+<div class="page">
+
+  <div class="masthead">
+    <div class="eyebrow">Infrastructure &amp; vendor review</div>
+    <h1>Current build server costs</h1>
+    <div class="dek">Full inventory and list-price cost estimate for the GCP + Hetzner Cloud + AWS/Bunny stack defined in <code>extender-terraform</code>, plus a service-by-service evaluation of servers.com as a partial migration target.</div>
+    <div class="meta-row">
+      <span><b>Scope</b> extender-terraform (GCP, Hetzner Cloud, Route53, Bunny CDN)</span>
+      <span><b>Pricing basis</b> public list / on-demand, no committed-use discounts</span>
+      <span><b>Date</b> 2026-07-31</span>
+    </div>
+  </div>
+
+  <section>
+    <div class="cost-strip">
+      <div class="cost-card gcp">
+        <div class="label">GCP</div>
+        <div class="figure">$190&ndash;210<span style="font-size:1rem;font-weight:500;">/mo</span></div>
+        <div class="range">europe-west1 &middot; compute, LB, NAT, storage, registry, secrets</div>
+      </div>
+      <div class="cost-card hetzner">
+        <div class="label">Hetzner Cloud</div>
+        <div class="figure">$575&ndash;615<span style="font-size:1rem;font-weight:500;">/mo</span></div>
+        <div class="range">nbg1 &middot; 21 servers, 1 volume, object storage</div>
+      </div>
+      <div class="cost-card total">
+        <div class="label">Total current infra</div>
+        <div class="figure">~$800<span style="font-size:1rem;font-weight:500;">/mo</span></div>
+        <div class="range">incl. ~$5&ndash;15 Route53 + Bunny CDN</div>
+      </div>
+    </div>
+    <div class="bar-compare">
+      <div class="bar-row">
+        <span class="name">GCP</span>
+        <div class="bar-track"><div class="bar-fill" style="width:25%; background: var(--gcp);"></div></div>
+        <span class="val">~$200</span>
+      </div>
+      <div class="bar-row">
+        <span class="name">Hetzner</span>
+        <div class="bar-track"><div class="bar-fill" style="width:74%; background: var(--hetzner);"></div></div>
+        <span class="val">~$593</span>
+      </div>
+      <div class="bar-row">
+        <span class="name">DNS / CDN</span>
+        <div class="bar-track"><div class="bar-fill" style="width:2%; background: var(--text-faint);"></div></div>
+        <span class="val">~$10</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">01</span><h2>Current infrastructure</h2></div>
+    <p class="section-note">Everything provisioned by this Terraform repo, grouped by where it runs.</p>
+
+    <div class="inv-grid">
+      <div class="inv-card">
+        <div class="inv-head"><h3>GCP &middot; extender-426409</h3><span class="tag gcp">europe-west1</span></div>
+        <ul class="inv-list">
+          <li><span class="k">Compute</span><span class="v">1&times; g1-small (spot, usually stopped) + 2&times; e2-medium</span></li>
+          <li><span class="k">Load balancing</span><span class="v">3&times; global HTTPS LB, managed SSL</span></li>
+          <li><span class="k">Networking</span><span class="v">Cloud NAT + static IPs</span></li>
+          <li><span class="k">Storage</span><span class="v">7 buckets (STANDARD/EU)</span></li>
+          <li><span class="k">Registry</span><span class="v">6 Artifact Registry repos</span></li>
+          <li><span class="k">Secrets</span><span class="v">88 Secret Manager secrets</span></li>
+          <li><span class="k">Automation</span><span class="v">1 Cloud Run job + 1 Scheduler</span></li>
+          <li><span class="k">BigQuery</span><span class="v">defined, disabled &mdash; $0</span></li>
+        </ul>
+      </div>
+      <div class="inv-card">
+        <div class="inv-head"><h3>Hetzner Cloud &middot; nbg1</h3><span class="tag hetzner">Nuremberg</span></div>
+        <ul class="inv-list">
+          <li><span class="k">Fixed-purpose</span><span class="v">forum (cpx42), grafana (cx23), victoriametrics (cx23)</span></li>
+          <li><span class="k">Stage builders</span><span class="v">5 servers</span></li>
+          <li><span class="k">Prod builders</span><span class="v">13 servers (incl. 4 console platforms)</span></li>
+          <li><span class="k">Total servers</span><span class="v strong">21</span></li>
+          <li><span class="k">Block storage</span><span class="v">1&times; 256GB volume</span></li>
+          <li><span class="k">Object storage</span><span class="v">9 S3-compatible buckets</span></li>
+          <li><span class="k">Backups</span><span class="v">enabled on Grafana box only</span></li>
+          <li><span class="k">Load balancing</span><span class="v">none &mdash; centralized in GCP</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout plain">
+      <b>Housekeeping, not a cost item:</b> <code>terraform-google-extender-instance/</code> is a module in the repo that's never instantiated by any <code>.tf</code> file &mdash; superseded by the plain <code>google_compute_instance</code> resources in <code>gcp_extender_prod_vms.tf</code> / <code>gcp_extender_stage_vms.tf</code>. Worth deleting as stale IaC.
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">02</span><h2>Cost breakdown</h2></div>
+    <p class="section-note">List/on-demand pricing applied to the inventory above. Confidence reflects how directly each figure traces to a live vendor price page versus an assumption.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>GCP component</th><th class="num">Monthly</th><th>Basis</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Jump host (g1-small)</td><td class="num">$1&ndash;3</td><td>Normally stopped &mdash; mostly idle-disk cost, not 730h runtime</td></tr>
+          <tr><td>2&times; e2-medium (frontend)</td><td class="num">$53.87</td><td>$0.0369/hr &times; 730h &times; 2</td></tr>
+          <tr><td>Disks</td><td class="num">$5.80</td><td>10GB pd-balanced + 2&times;60GB pd-standard</td></tr>
+          <tr><td>3&times; Global HTTPS LB</td><td class="num">$18.25</td><td>Flat rate, &le;5 rules/project</td></tr>
+          <tr><td>LB data processing</td><td class="num">$4.00</td><td>~500GB/mo assumed</td></tr>
+          <tr><td>Cloud NAT</td><td class="num">$15.72</td><td>Gateway + ~200GB/mo + static IP</td></tr>
+          <tr><td>Cloud Storage</td><td class="num">~$1.50</td><td>7 buckets, ~50GB assumed</td></tr>
+          <tr><td>Artifact Registry</td><td class="num">$14.95</td><td>~150GB across 6 repos</td></tr>
+          <tr><td>Secret Manager</td><td class="num">$4.92</td><td>88 secrets, 6 free</td></tr>
+          <tr><td>Cloud Run + Scheduler</td><td class="num">$0.00</td><td>Inside free tier</td></tr>
+          <tr><td>Static IPs</td><td class="num">$7.30&ndash;10.95</td><td>2&ndash;3 in use</td></tr>
+          <tr><td>Egress</td><td class="num">$60.00</td><td>~500GB/mo assumed, Premium tier</td></tr>
+          <tr class="total-row"><td>GCP total</td><td class="num">$190&ndash;210</td><td>&nbsp;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Hetzner component</th><th class="num">Monthly</th><th>Confidence</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>21 servers</td><td class="num">~$560</td><td><span class="chip med">medium</span></td></tr>
+          <tr><td>256GB volume</td><td class="num">~$17</td><td><span class="chip high">high</span></td></tr>
+          <tr><td>Backup (Grafana box)</td><td class="num">~$1.30</td><td><span class="chip high">high</span></td></tr>
+          <tr><td>Object storage (9 buckets)</td><td class="num">~$14&ndash;18</td><td><span class="chip low">low &mdash; placeholder</span></td></tr>
+          <tr class="total-row"><td>Hetzner total</td><td class="num">$575&ndash;615</td><td>&nbsp;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <b>Verify before budgeting:</b> Hetzner restructured pricing with a June 2026 increase. 14 of 21 servers use current-generation types confirmed against Hetzner's live price list (~$306/mo). The other <b>7 servers</b> (<code>cx22</code>&times;2, <code>cx42</code>, <code>cpx21</code>, <code>cpx41</code>&times;2, <code>cpx51</code>) are now delisted &mdash; almost certainly still billed at their original grandfathered rate, but that can only be confirmed against the actual Hetzner console invoice, not a public pricing page.
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><span class="section-num">03</span><h2>What servers.com actually offers</h2></div>
+    <p class="section-note">Now operating as "Servers.com by Nexcess" under CloudOne Digital. Product line: Scalable &amp; Enterprise Bare Metal, Cloud Servers (OpenStack/KVM), regional Load Balancing, Swift-based Cloud Storage, Managed Kubernetes (bundled free with bare metal), Private Racks. <b>No CDN, no DNS product, no backup-as-a-service, no global anycast HTTPS LB with managed SSL</b> &mdash; and no Germany or Belgium datacenter (closest EU site is Amsterdam, ~170km from GCP's europe-west1).</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Workload</th><th>Current</th><th class="num">Current $/mo</th><th>servers.com equivalent</th><th class="num">servers.com $/mo</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Frontend VM<br><span style="color:var(--text-faint);font-size:0.8rem;">2vCPU / 4GB</span></td>
+            <td><span class="tag gcp">GCP</span> e2-medium</td>
+            <td class="num">$26.94</td>
+            <td><span class="tag servers">servers.com</span> Cloud Servers SSD.80</td>
+            <td class="num strong" style="color:var(--low);">$39.95</td>
+          </tr>
+          <tr>
+            <td>Mid builder<br><span style="color:var(--text-faint);font-size:0.8rem;">8vCPU / 16GB</span></td>
+            <td><span class="tag hetzner">Hetzner</span> cpx42</td>
+            <td class="num">$82</td>
+            <td><span class="tag servers">servers.com</span> Cloud Servers SSD.320 (32GB)</td>
+            <td class="num strong" style="color:var(--low);">$319.95</td>
+          </tr>
+          <tr>
+            <td>Small builder<br><span style="color:var(--text-faint);font-size:0.8rem;">2vCPU / 4GB</span></td>
+            <td><span class="tag hetzner">Hetzner</span> cx22 / cx23</td>
+            <td class="num">$5&ndash;9</td>
+            <td>No bare-metal SKU this small exists (cheapest is $277)</td>
+            <td class="num strong" style="color:var(--low);">no fit</td>
+          </tr>
+          <tr>
+            <td>Egress<br><span style="color:var(--text-faint);font-size:0.8rem;">~500GB&ndash;1TB/mo</span></td>
+            <td>GCP metered / Hetzner 20TB free</td>
+            <td class="num">$0&ndash;60</td>
+            <td>EBM: 20TB free included</td>
+            <td class="num strong" style="color:var(--ok);">comparable</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <footer>
+    <div>Full write-up with sources: <code>docs/infra-cost-analysis.md</code> in <code>extender-terraform</code>.</div>
+    <div class="src">Sources: cloud.google.com pricing pages &middot; docs.hetzner.com price-adjustment (Jun 2026) &middot; servers.com product &amp; SLA pages &middot; all accessed 2026-07-31</div>
+  </footer>
+
+</div>
+
+</body></html>
