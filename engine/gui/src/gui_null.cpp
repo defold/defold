@@ -58,6 +58,14 @@ namespace dmGui
         return 0;
     }
 
+    void SetContextCallbacks(HContext,
+                             GetURLCallback,
+                             GetUserDataCallback,
+                             ResolvePathCallback,
+                             GetTextMetricsCallback)
+    {
+    }
+
     void DeleteContext(HContext context, dmScript::HContext script_context)
     {
     }

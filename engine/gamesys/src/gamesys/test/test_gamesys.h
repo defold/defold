@@ -34,7 +34,6 @@
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
-#include "../components/comp_gui.h" // The GuiGetURLCallback et.al
 #include "../../../../graphics/src/graphics_private.h" // for unit test functions
 
 #include <dmsdk/dlib/configfile.h>
@@ -170,7 +169,6 @@ protected:
     dmRender::HRenderContext m_RenderContext;
     dmGameSystem::PhysicsContextBox2D m_PhysicsContextBox2D;
     dmGameSystem::PhysicsContextBullet3D m_PhysicsContextBullet3D;
-    dmGameSystem::ParticleFXContext m_ParticleFXContext;
     dmGui::HContext m_GuiContext;
     dmHID::HContext m_HidContext;
     dmInput::HContext m_InputContext;
@@ -181,7 +179,6 @@ protected:
     dmGameSystem::CollectionFactoryContext m_CollectionFactoryContext;
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::LabelContext m_LabelContext;
-    dmGameSystem::TilemapContext m_TilemapContext;
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
@@ -648,9 +645,6 @@ void GamesysTest<T>::SetUp()
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
     gui_params.m_HidContext = m_HidContext;
-    gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
-    gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
-    gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
     m_GuiContext = dmGui::NewContext(&gui_params);
 
     m_Register = dmGameObject::NewRegister();
@@ -734,13 +728,6 @@ void GamesysTest<T>::SetUp()
         physics_context = &m_PhysicsContextBox2D.m_BaseContext;
     }
 
-    m_ParticleFXContext.m_Factory = m_Factory;
-    m_ParticleFXContext.m_RenderContext = m_RenderContext;
-    m_ParticleFXContext.m_MaxParticleFXCount = 64;
-    m_ParticleFXContext.m_MaxParticleCount = 256;
-    m_ParticleFXContext.m_MaxParticleBufferCount = 256;
-    m_ParticleFXContext.m_MaxEmitterCount = 8;
-
     m_SpriteContext.m_RenderContext = m_RenderContext;
     m_SpriteContext.m_MaxSpriteCount = 32;
     m_SpriteContext.m_Factory = m_Factory;
@@ -759,10 +746,6 @@ void GamesysTest<T>::SetUp()
     m_LabelContext.m_MaxLabelCount = 32;
     m_LabelContext.m_Subpixels     = 0;
 
-    m_TilemapContext.m_RenderContext = m_RenderContext;
-    m_TilemapContext.m_MaxTilemapCount = 16;
-    m_TilemapContext.m_MaxTileCount = 512;
-
     m_ModelContext.m_RenderContext = m_RenderContext;
     m_ModelContext.m_Factory = m_Factory;
     m_ModelContext.m_MaxModelCount = 128;
@@ -780,6 +763,7 @@ void GamesysTest<T>::SetUp()
     m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
     m_Contexts.Put(dmHashString64("fontc"), m_RenderContext);
     m_Contexts.Put(dmHashString64("lightc"), m_RenderContext);
+    m_Contexts.Put(dmHashString64("tilemapc"), &m_PhysicsContextBox2D);
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
@@ -795,9 +779,9 @@ void GamesysTest<T>::SetUp()
     SetupComponentCreateContext(component_create_ctx, component_create_ctx_impl);
     dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
 
-    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, physics_context, &m_ParticleFXContext, &m_SpriteContext,
+    assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, physics_context, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
-                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext));
+                                                                                                    &m_ModelContext, &m_LabelContext));
 
     dmRender::SetLightBufferCount(m_RenderContext, 32);
 

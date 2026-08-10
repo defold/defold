@@ -369,14 +369,16 @@ endif()
 
 set(ENGINE_RESOURCE_SYMBOLS
   ResourceTypeGameObject ResourceTypeCollection ResourceTypeScript ResourceTypeLua
-  ResourceTypeAnim ResourceTypeAnimationSet ResourceTypeGui ResourceTypeGuiScript
+  ResourceTypeAnim ResourceTypeAnimationSet ResourceTypeGui ResourceTypeGuiScript ResourceTypeParticleFX ResourceTypeTileMap
   ResourceTypeOgg ResourceTypeOpus ResourceTypeWav ResourceTypeFont ResourceTypeTTF
   ResourceProviderFile ResourceProviderArchive ResourceProviderZip ResourceTypeLight)
 set(ENGINE_COMPONENT_SYMBOLS
-  ComponentTypeAnim ComponentTypeScript ComponentTypeGui ComponentTypeMesh ComponentTypeSound ComponentTypeLight)
+  ComponentTypeAnim ComponentTypeScript ComponentTypeGui ComponentTypeMesh ComponentTypeSound ComponentTypeLight
+  ComponentTypeParticleFX ComponentTypeTileMap)
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont)
+  ScriptBox2DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptLibParticleFX ScriptLibTileMap)
 if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)
 elseif(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
@@ -506,6 +508,8 @@ defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 set(ENGINE_HEADLESS_SYMBOLS
   LiveUpdateExt
   ScriptTypesExt
+  ScriptLibParticleFX
+  ScriptLibTileMap
   GraphicsAdapterNull
   ${ENGINE_PROFILE_SYMBOLS}
   ${ENGINE_RESOURCE_SYMBOLS}

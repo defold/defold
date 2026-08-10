@@ -25,6 +25,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
+#include "../script.h"
 #include "gameobject/test/script/test_gameobject_script_ddf.h"
 #include <gameobject/gameobject_ddf.h>
 #include <gameobject/lua_ddf.h>
@@ -520,6 +521,16 @@ TEST_F(ScriptTest, TestInstanceCallback)
     lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    // Verify that the original GO lookup and the typed overload resolve the same instance,
+    // while an unrelated script instance type is rejected.
+    dmScript::GetInstance(L);
+    uint32_t script_instance_type_hash = dmScript::GetUserType(L, -1);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(go, dmGameObject::GetInstanceFromLua(L));
+    ASSERT_EQ(go, dmGameObject::GetInstanceFromLua(L, script_instance_type_hash));
+    ASSERT_EQ((dmGameObject::HInstance)0, dmGameObject::GetInstanceFromLua(L, dmHashString32("incorrect_type")));
 
     dmGameObject::Delete(m_Collection, go, false);
 
