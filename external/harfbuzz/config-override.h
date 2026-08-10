@@ -23,4 +23,9 @@
 // after shaping a font, but substantially reduce repeated layout time.
 #undef HB_MINIMIZE_MEMORY_USAGE
 
+// Bob compiles multiple fonts in parallel, and the engine may also use fonts
+// from multiple threads. HB_TINY disables HarfBuzz's atomics and mutexes, which
+// makes shared lazy loaders such as the OpenType font functions unsafe.
+#undef HB_NO_MT
+
 #endif // HB_CUSTOM_CONFIG_OVERRIDE_H
