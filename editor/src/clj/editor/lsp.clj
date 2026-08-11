@@ -935,6 +935,21 @@
                :language (resource/language resource)
                :timeout-ms timeout-ms))))))
 
+(defn format-range! [lsp resource cursor-range indent-type result-callback & {:keys [timeout-ms]
+                                                                       :or {timeout-ms 5000}}]
+  (if-not (and (resource/file-resource? resource)
+               (resource/editable? resource))
+    (do (result-callback nil) nil)
+    (lsp (bound-fn [state]
+           (let [ch (a/chan 1 (take 1))]
+             (a/go (result-callback (<! ch)))
+             (send-requests!
+               state ch
+               :requests [(lsp.server/range-formatting resource cursor-range indent-type)]
+               :capabilities-pred :range-formatting
+               :language (resource/language resource)
+               :timeout-ms timeout-ms))))))
+
 (defn find-references! [lsp resource cursor result-callback & {:keys [timeout-ms]
                                                                :or {timeout-ms 3000}}]
   ;; bound-fn only needed for tests to pick up the test system

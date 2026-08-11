@@ -163,6 +163,7 @@
 (s/def ::hover boolean?)
 (s/def ::rename boolean?)
 (s/def ::formatting boolean?)
+(s/def ::range-formatting boolean?)
 (s/def ::capabilities (s/keys :req-un [::text-document-sync
                                        ::pull-diagnostics
                                        ::goto-definition
@@ -170,7 +171,8 @@
                                        ::document-symbol
                                        ::hover
                                        ::rename
-                                       ::formatting]
+                                       ::formatting
+                                       ::range-formatting]
                               :opt-un [::completion]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
@@ -227,7 +229,8 @@
                                                       completionProvider
                                                       hoverProvider
                                                       renameProvider
-                                                      documentFormattingProvider]}]
+                                                      documentFormattingProvider
+                                                      documentRangeFormattingProvider]}]
   (cond-> {:text-document-sync (cond
                                  (nil? textDocumentSync)
                                  {:change :none :open-close false}
@@ -263,7 +266,10 @@
                           (and (boolean? prepare) prepare)))
            :formatting (if (boolean? documentFormattingProvider)
                          documentFormattingProvider
-                         (map? documentFormattingProvider))}
+                         (map? documentFormattingProvider))
+           :range-formatting (if (boolean? documentRangeFormattingProvider)
+                               documentRangeFormattingProvider
+                               (map? documentRangeFormattingProvider))}
           completionProvider
           (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
                               :trigger-characters (set (:triggerCharacters completionProvider))})))
@@ -400,7 +406,8 @@
                                        :rename {:dynamicRegistration false
                                                 :prepareSupport true
                                                 :honorsChangeAnnotations false}
-                                       :formatting {:dynamicRegistration false}}
+                                       :formatting {:dynamicRegistration false}
+                                       :rangeFormatting {:dynamicRegistration false}}
                         :completion {:dynamicRegistration false
                                      :completionItem {:snippetSupport true
                                                       :commitCharactersSupport true
@@ -883,3 +890,25 @@
                      (sort-by :cursor-range)
                      (mapv (fn [{:keys [cursor-range value]}]
                              (coll/pair cursor-range (util/split-lines value)))))}))))
+
+(defn range-formatting
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting"
+  [resource cursor-range indent-type]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/rangeFormatting"
+      {:textDocument {:uri (resource-uri resource)}
+       :range (editor-cursor-range->lsp-range cursor-range)
+       :options {:tabSize (data/indent-type->tab-spaces indent-type)
+                 :insertSpaces (not= :tabs indent-type)}})
+    (bound-fn [result _project]
+      (if-not result
+        {:formatted false}
+        {:formatted true
+         :edits (->> result
+                     (mapv text-edit:lsp->editor)
+                     (sort-by :cursor-range)
+                     (mapv (fn [{:keys [cursor-range value]}]
+                             (coll/pair cursor-range (util/split-lines value)))))}))))
+

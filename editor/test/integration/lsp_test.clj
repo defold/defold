@@ -220,7 +220,8 @@
                   :document-symbol false
                   :hover false
                   :rename false
-                  :formatting false}]
+                  :formatting false
+                  :range-formatting false}]
                 [:on-publish-diagnostics
                  (test-util/resource workspace "/foo.json")
                  {:items [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
