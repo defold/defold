@@ -22,53 +22,57 @@
 (defn gen-form-data-constants [localization-key path-key]
   {:path [path-key]
    :localization-key localization-key
-   :type :table
-   :columns (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
-              [{:path [:name]
-                :localization-key (str localization-key ".name")
-                :type :string}
-               {:path [:type]
-                :localization-key (str localization-key ".type")
-                :type :choicebox
-                :options (protobuf-forms/make-options constant-values)
-                :default (ffirst constant-values)}
-               {:path [:value]
-                :localization-key (str localization-key ".value")
-                :type :vec4}])})
+   :type :2panel
+   :panel-key {:path [:name]
+               :type :string
+               :default "new_constant"}
+   :panel-form
+   {:sections
+    [{:fields (let [constant-values (protobuf/enum-values Material$MaterialDesc$ConstantType)]
+                [{:path [:type]
+                  :localization-key (str localization-key ".type")
+                  :type :choicebox
+                  :options (protobuf-forms/make-options constant-values)
+                  :default (ffirst constant-values)}
+                 {:path [:value]
+                  :localization-key (str localization-key ".value")
+                  :type :vec4}])}]}})
 
 (defn gen-form-data-samplers [localization-key path-key]
   {:path [path-key]
    :localization-key localization-key
-   :type :table
-   :columns (let [wrap-options (protobuf/enum-values Material$MaterialDesc$WrapMode)
-                  min-options (protobuf/enum-values Material$MaterialDesc$FilterModeMin)
-                  mag-options (protobuf/enum-values Material$MaterialDesc$FilterModeMag)]
-              [{:path [:name]
-                :localization-key (str localization-key ".name")
-                :type :string}
-               {:path [:wrap-u]
-                :localization-key (str localization-key ".wrap-u")
-                :type :choicebox
-                :options (protobuf-forms/make-options wrap-options)
-                :default (ffirst wrap-options)}
-               {:path [:wrap-v]
-                :localization-key (str localization-key ".wrap-v")
-                :type :choicebox
-                :options (protobuf-forms/make-options wrap-options)
-                :default (ffirst wrap-options)}
-               {:path [:filter-min]
-                :localization-key (str localization-key ".filter-min")
-                :type :choicebox
-                :options (protobuf-forms/make-options min-options)
-                :default (ffirst min-options)}
-               {:path [:filter-mag]
-                :localization-key (str localization-key ".filter-mag")
-                :type :choicebox
-                :options (protobuf-forms/make-options mag-options)
-                :default (ffirst mag-options)}
-               {:path [:max-anisotropy]
-                :localization-key (str localization-key ".max-anisotropy")
-                :type :number}])})
+   :type :2panel
+   :panel-key {:path [:name]
+               :type :string
+               :default "texture_sampler"}
+   :panel-form
+   {:sections
+    [{:fields (let [wrap-options (protobuf/enum-values Material$MaterialDesc$WrapMode)
+                    min-options (protobuf/enum-values Material$MaterialDesc$FilterModeMin)
+                    mag-options (protobuf/enum-values Material$MaterialDesc$FilterModeMag)]
+                [{:path [:wrap-u]
+                  :localization-key (str localization-key ".wrap-u")
+                  :type :choicebox
+                  :options (protobuf-forms/make-options wrap-options)
+                  :default (ffirst wrap-options)}
+                 {:path [:wrap-v]
+                  :localization-key (str localization-key ".wrap-v")
+                  :type :choicebox
+                  :options (protobuf-forms/make-options wrap-options)
+                  :default (ffirst wrap-options)}
+                 {:path [:filter-min]
+                  :localization-key (str localization-key ".filter-min")
+                  :type :choicebox
+                  :options (protobuf-forms/make-options min-options)
+                  :default (ffirst min-options)}
+                 {:path [:filter-mag]
+                  :localization-key (str localization-key ".filter-mag")
+                  :type :choicebox
+                  :options (protobuf-forms/make-options mag-options)
+                  :default (ffirst mag-options)}
+                 {:path [:max-anisotropy]
+                  :localization-key (str localization-key ".max-anisotropy")
+                  :type :number}])}]}})
 
 (defn- hack-downgrade-constant-value
   "HACK/FIXME: The value field in MaterialDesc$Constant was changed from
